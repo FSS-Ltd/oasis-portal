@@ -1,0 +1,30 @@
+{
+  "name": "oasis-portal",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Oasis Learning Centre platform monorepo",
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "turbo run test:e2e",
+    "hooks:install": "sh scripts/install-git-hooks.sh",
+    "db:generate": "pnpm --filter @oasis/db generate",
+    "db:migrate": "pnpm --filter @oasis/db migrate",
+    "db:seed": "pnpm --filter @oasis/db seed",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3",
+    "prettier": "^3.3.3",
+    "eslint": "^9.14.0"
+  }
+}

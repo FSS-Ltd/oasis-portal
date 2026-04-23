@@ -1,0 +1,96 @@
+import { describe, expect, it } from 'vitest';
+import {
+  AccessDeniedError,
+  isFullAdmin,
+  requireCanViewSensitive,
+  requireClubsAdminOrFullAdmin,
+  requireFullAdmin,
+  requireOwnChild,
+  requireSelfStudent,
+  requireTag,
+  type SessionUser,
+} from '../rbac.js';
+
+const head: SessionUser = { id: 'u1', role: 'Head', tags: [] };
+const principal: SessionUser = { id: 'u2', role: 'Principal', tags: [] };
+const pastor: SessionUser = { id: 'u3', role: 'Pastor', tags: [] };
+const hod: SessionUser = { id: 'u4', role: 'HeadOfDiscipline', tags: [] };
+const clubsAdmin: SessionUser = { id: 'u5', role: 'ClubsAdmin', tags: [] };
+const supervisor: SessionUser = { id: 'u6', role: 'Supervisor', tags: [] };
+const parent: SessionUser = { id: 'u7', role: 'Parent', tags: [] };
+const student: SessionUser = { id: 'u8', role: 'Student', tags: [] };
+
+describe('isFullAdmin', () => {
+  it('treats Head, Principal, Pastor, HeadOfDiscipline as full admins', () => {
+    expect(isFullAdmin(head)).toBe(true);
+    expect(isFullAdmin(principal)).toBe(true);
+    expect(isFullAdmin(pastor)).toBe(true);
+    expect(isFullAdmin(hod)).toBe(true);
+  });
+  it('rejects non-admin roles', () => {
+    expect(isFullAdmin(clubsAdmin)).toBe(false);
+    expect(isFullAdmin(supervisor)).toBe(false);
+    expect(isFullAdmin(parent)).toBe(false);
+    expect(isFullAdmin(student)).toBe(false);
+  });
+});
+
+describe('requireFullAdmin', () => {
+  it('passes for full-admin roles', () => {
+    expect(() => requireFullAdmin(head)).not.toThrow();
+    expect(() => requireFullAdmin(pastor)).not.toThrow();
+  });
+  it('throws AccessDeniedError otherwise', () => {
+    expect(() => requireFullAdmin(supervisor)).toThrow(AccessDeniedError);
+  });
+});
+
+describe('requireCanViewSensitive', () => {
+  it('only full admins can view sensitive entries', () => {
+    expect(() => requireCanViewSensitive(head)).not.toThrow();
+    expect(() => requireCanViewSensitive(supervisor)).toThrow(AccessDeniedError);
+    expect(() => requireCanViewSensitive(parent)).toThrow(AccessDeniedError);
+  });
+});
+
+describe('requireTag', () => {
+  it('accepts users with the tag', () => {
+    const seller: SessionUser = { id: 'u9', role: 'Supervisor', tags: ['shopkeeper'] };
+    expect(() => requireTag(seller, 'shopkeeper')).not.toThrow();
+  });
+  it('rejects users without the tag', () => {
+    expect(() => requireTag(supervisor, 'shopkeeper')).toThrow(AccessDeniedError);
+  });
+});
+
+describe('requireClubsAdminOrFullAdmin', () => {
+  it('accepts clubs admin and full admins', () => {
+    expect(() => requireClubsAdminOrFullAdmin(clubsAdmin)).not.toThrow();
+    expect(() => requireClubsAdminOrFullAdmin(head)).not.toThrow();
+  });
+  it('rejects supervisors, parents, students', () => {
+    expect(() => requireClubsAdminOrFullAdmin(supervisor)).toThrow(AccessDeniedError);
+    expect(() => requireClubsAdminOrFullAdmin(parent)).toThrow(AccessDeniedError);
+  });
+});
+
+describe('requireOwnChild', () => {
+  it('accepts a parent linked to the student', () => {
+    expect(() => requireOwnChild(parent, 's1', ['s1', 's2'])).not.toThrow();
+  });
+  it('rejects a parent not linked to the student', () => {
+    expect(() => requireOwnChild(parent, 's9', ['s1', 's2'])).toThrow(AccessDeniedError);
+  });
+  it('rejects non-Parent users', () => {
+    expect(() => requireOwnChild(head, 's1', ['s1'])).toThrow(AccessDeniedError);
+  });
+});
+
+describe('requireSelfStudent', () => {
+  it('accepts a student viewing their own record', () => {
+    expect(() => requireSelfStudent(student, 's1', 'u8')).not.toThrow();
+  });
+  it('rejects a student viewing another student', () => {
+    expect(() => requireSelfStudent(student, 's2', 'other-user')).toThrow(AccessDeniedError);
+  });
+});

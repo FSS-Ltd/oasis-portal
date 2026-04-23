@@ -1,0 +1,522 @@
+// Oasis Learning Centre — Prisma schema v1
+// See oasis-platform-plan.md (§Data model) and docs/ADRs/004, 005.
+// PII fields are stored as application-layer ciphertext (see src/encryption.ts);
+// suffix `Enc` indicates an encrypted column. Sibling `_bidx` columns hold
+// HMAC blind indexes for equality lookups.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+enum Role {
+  Head
+  Principal
+  Pastor
+  HeadOfDiscipline
+  ClubsAdmin
+  Supervisor
+  Parent
+  Student
+}
+
+model User {
+  id         String   @id @default(cuid())
+  clerkId    String   @unique
+  role       Role
+  tags       String[] @default([])
+  // --- PII (encrypted, ADR-005) ---
+  fullNameEnc String
+  emailEnc    String
+  emailBidx   String  @unique
+  phoneEnc    String?
+  addressEnc  String?
+  // --- operational ---
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  guardianOf         Guardian[]
+  studentProfile     Student?          @relation("StudentLogin")
+  behaviourEntries   BehaviourEntry[]  @relation("RecordedBehaviour")
+  paceRecords        PaceRecord[]      @relation("RecordedPace")
+  attendanceRecords  Attendance[]      @relation("RecordedAttendance")
+  noticesPosted      StaffNotice[]     @relation("NoticesPosted")
+  noticeReads        StaffNoticeRead[]
+  messagesSent       Message[]         @relation("MessagesSent")
+  threadsAsParent    MessageThread[]   @relation("ThreadParent")
+  threadsAsAdmin     MessageThread[]   @relation("ThreadAdmin")
+  shopPurchases      ShopPurchase[]    @relation("Shopkeeper")
+  shopItemsCreated   ShopItem[]        @relation("ShopItemsCreated")
+  clubsCreated       Club[]            @relation("ClubsCreated")
+  clubSignupsCreated ClubSignup[]      @relation("SignupsCreated")
+  clubNotifications  ClubNotification[] @relation("ClubNotificationsSent")
+  auditEvents        AuditLog[]
+
+  @@index([role])
+}
+
+// ---------------------------------------------------------------------------
+// Students & academic
+// ---------------------------------------------------------------------------
+
+model Student {
+  id             String   @id @default(cuid())
+  userId         String?  @unique
+  user           User?    @relation("StudentLogin", fields: [userId], references: [id])
+  // --- PII (encrypted) ---
+  fullNameEnc    String
+  nameBidx       String   // HMAC of normalised name for staff search
+  dobEnc         String
+  addressEnc     String?
+  // --- operational ---
+  yearGroup      String
+  enrolmentDate  DateTime
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  guardians      Guardian[]
+  subjects       StudentSubject[]
+  paceRecords    PaceRecord[]
+  attendance     Attendance[]
+  behaviour      BehaviourEntry[]
+  meritLedger    MeritLedger[]
+  titheConfig    TitheConfig?
+  titheRuns      TitheRun[]
+  investment     InvestmentAccount?
+  investmentTx   InvestmentTransaction[]
+  shopPurchases  ShopPurchase[]
+  clubSignups    ClubSignup[]
+  termReports    TermReport[]
+
+  @@index([yearGroup])
+  @@index([nameBidx])
+}
+
+model Guardian {
+  id        String   @id @default(cuid())
+  userId    String
+  studentId String
+  user      User     @relation(fields: [userId], references: [id])
+  student   Student  @relation(fields: [studentId], references: [id])
+  notesEnc  String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, studentId])
+  @@index([studentId])
+}
+
+model Subject {
+  id       String           @id @default(cuid())
+  code     String           @unique // e.g. "MATH", "ENG", "SOC"
+  name     String
+  active   Boolean          @default(true)
+  students StudentSubject[]
+  paces    PaceRecord[]
+}
+
+model StudentSubject {
+  id                String   @id @default(cuid())
+  studentId         String
+  subjectId         String
+  currentPaceNumber Int      @default(1001)
+  student           Student  @relation(fields: [studentId], references: [id])
+  subject           Subject  @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, subjectId])
+}
+
+model PaceRecord {
+  id            String   @id @default(cuid())
+  studentId     String
+  subjectId     String
+  paceNumber    Int
+  selfTestScore Int?
+  paceTestScore Int?
+  completedAt   DateTime?
+  recordedById  String
+  createdAt     DateTime @default(now())
+
+  student    Student @relation(fields: [studentId], references: [id])
+  subject    Subject @relation(fields: [subjectId], references: [id])
+  recordedBy User    @relation("RecordedPace", fields: [recordedById], references: [id])
+
+  @@index([studentId, subjectId])
+}
+
+// ---------------------------------------------------------------------------
+// Attendance & behaviour
+// ---------------------------------------------------------------------------
+
+enum AttendanceStatus {
+  Present
+  Absent
+  Late
+}
+
+model Attendance {
+  id           String           @id @default(cuid())
+  studentId    String
+  date         DateTime         @db.Date
+  status       AttendanceStatus
+  recordedById String
+  createdAt    DateTime         @default(now())
+
+  student    Student @relation(fields: [studentId], references: [id])
+  recordedBy User    @relation("RecordedAttendance", fields: [recordedById], references: [id])
+
+  @@unique([studentId, date])
+  @@index([date])
+}
+
+enum BehaviourType {
+  Merit
+  Demerit
+}
+
+enum BehaviourVisibility {
+  General
+  Sensitive
+}
+
+model BehaviourEntry {
+  id           String              @id @default(cuid())
+  studentId    String
+  type         BehaviourType
+  category     String
+  // note is free text PII — encrypted at rest (ADR-005)
+  noteEnc      String?
+  visibility   BehaviourVisibility @default(General)
+  // Merit: positive N. Demerit: fixed -5 per Director mandate.
+  meritDelta   Int
+  recordedById String
+  createdAt    DateTime            @default(now())
+
+  student    Student @relation(fields: [studentId], references: [id])
+  recordedBy User    @relation("RecordedBehaviour", fields: [recordedById], references: [id])
+  ledgerRows MeritLedger[]
+
+  @@index([studentId, createdAt])
+  @@index([visibility])
+}
+
+// ---------------------------------------------------------------------------
+// Merit economy (three-account double-entry ledger)
+// ---------------------------------------------------------------------------
+
+enum MeritAccount {
+  Spend
+  Saving
+  Investment
+  TithePaid
+  Given
+  FeeSink
+}
+
+model MeritLedger {
+  id             String       @id @default(cuid())
+  studentId      String
+  account        MeritAccount
+  delta          Int          // signed integer merits
+  reason         String
+  relatedEntryId String?
+  createdAt      DateTime     @default(now())
+
+  student        Student         @relation(fields: [studentId], references: [id])
+  relatedEntry   BehaviourEntry? @relation(fields: [relatedEntryId], references: [id])
+
+  @@index([studentId, account])
+  @@index([studentId, createdAt])
+}
+
+model TitheConfig {
+  studentId  String   @id
+  percentage Int      @default(10) // 10 | 15 | 20
+  cadence    String   @default("Weekly")
+  lastRunAt  DateTime?
+
+  student Student @relation(fields: [studentId], references: [id])
+}
+
+model TitheRun {
+  id           String   @id @default(cuid())
+  studentId    String
+  periodStart  DateTime @db.Date
+  periodEnd    DateTime @db.Date
+  grossMerits  Int
+  titheAmount  Int
+  createdAt    DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, periodStart])
+}
+
+model InvestmentAccount {
+  studentId String  @id
+  units     Decimal @default(0) @db.Decimal(18, 6)
+
+  student Student @relation(fields: [studentId], references: [id])
+}
+
+model InvestmentNav {
+  date         DateTime @id @db.Date
+  nav          Decimal  @db.Decimal(18, 6)
+  dailyReturn  Decimal  @db.Decimal(10, 6)
+}
+
+enum InvestmentTxType {
+  Buy
+  Sell
+}
+
+model InvestmentTransaction {
+  id         String           @id @default(cuid())
+  studentId  String
+  type       InvestmentTxType
+  units      Decimal          @db.Decimal(18, 6)
+  nav        Decimal          @db.Decimal(18, 6)
+  feeMerits  Int              @default(0)
+  createdAt  DateTime         @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([studentId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Shop (in-app)
+// ---------------------------------------------------------------------------
+
+model ShopItem {
+  id          String   @id @default(cuid())
+  name        String
+  photoUrl    String?
+  priceExVat  Int      // merits, VAT-exclusive
+  vatRatePct  Int      @default(20)
+  priceIncVat Int      // merits, VAT-inclusive (derived but stored for auditability)
+  stockCount  Int      @default(0)
+  active      Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User           @relation("ShopItemsCreated", fields: [createdById], references: [id])
+  purchases ShopPurchase[]
+
+  @@index([active])
+}
+
+model ShopPurchase {
+  id               String   @id @default(cuid())
+  studentId        String
+  itemId           String
+  unitsBought      Int
+  totalPriceMerits Int
+  shopkeeperId     String
+  createdAt        DateTime @default(now())
+
+  student    Student  @relation(fields: [studentId], references: [id])
+  item       ShopItem @relation(fields: [itemId], references: [id])
+  shopkeeper User     @relation("Shopkeeper", fields: [shopkeeperId], references: [id])
+
+  @@index([studentId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboards
+// ---------------------------------------------------------------------------
+
+enum LeaderboardKind {
+  TopTithers
+  TopInvestors
+  TopSavers
+  HighestDemerits
+}
+
+model LeaderboardSnapshot {
+  id        String          @id @default(cuid())
+  kind      LeaderboardKind
+  asOf      DateTime        @db.Date
+  rows      Json            // [{ studentId, displayName?, score, rank }]
+  createdAt DateTime        @default(now())
+
+  @@unique([kind, asOf])
+}
+
+// ---------------------------------------------------------------------------
+// Clubs (v1: tracking only)
+// ---------------------------------------------------------------------------
+
+model Club {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  schedule    String?
+  capacity    Int?
+  active      Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy     User               @relation("ClubsCreated", fields: [createdById], references: [id])
+  signups       ClubSignup[]
+  notifications ClubNotification[]
+}
+
+enum ClubSignupStatus {
+  Active
+  Withdrawn
+}
+
+model ClubSignup {
+  id              String           @id @default(cuid())
+  clubId          String
+  studentId       String
+  signedUpByUserId String
+  status          ClubSignupStatus @default(Active)
+  createdAt       DateTime         @default(now())
+
+  club        Club    @relation(fields: [clubId], references: [id])
+  student     Student @relation(fields: [studentId], references: [id])
+  signedUpBy  User    @relation("SignupsCreated", fields: [signedUpByUserId], references: [id])
+
+  @@unique([clubId, studentId])
+}
+
+model ClubNotification {
+  id        String   @id @default(cuid())
+  clubId    String
+  title     String
+  bodyEnc   String
+  sentById  String
+  sentAt    DateTime @default(now())
+
+  club   Club @relation(fields: [clubId], references: [id])
+  sentBy User @relation("ClubNotificationsSent", fields: [sentById], references: [id])
+
+  @@index([clubId, sentAt])
+}
+
+// ---------------------------------------------------------------------------
+// Comms
+// ---------------------------------------------------------------------------
+
+model StaffNotice {
+  id         String   @id @default(cuid())
+  title      String
+  bodyEnc    String
+  postedById String
+  createdAt  DateTime @default(now())
+
+  postedBy User              @relation("NoticesPosted", fields: [postedById], references: [id])
+  reads    StaffNoticeRead[]
+}
+
+model StaffNoticeRead {
+  noticeId String
+  userId   String
+  readAt   DateTime @default(now())
+
+  notice StaffNotice @relation(fields: [noticeId], references: [id])
+  user   User        @relation(fields: [userId], references: [id])
+
+  @@id([noticeId, userId])
+}
+
+model MessageThread {
+  id        String   @id @default(cuid())
+  parentId  String
+  adminId   String
+  subject   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  parent   User      @relation("ThreadParent", fields: [parentId], references: [id])
+  admin    User      @relation("ThreadAdmin", fields: [adminId], references: [id])
+  messages Message[]
+
+  @@index([parentId])
+  @@index([adminId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  senderId  String
+  bodyEnc   String
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id])
+  sender User          @relation("MessagesSent", fields: [senderId], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+enum TermReportStatus {
+  Draft
+  UnderReview
+  Sent
+}
+
+model TermReport {
+  id            String           @id @default(cuid())
+  studentId     String
+  term          String           // e.g. "2026-Summer"
+  status        TermReportStatus @default(Draft)
+  // Snapshot of compiled data at send time (encrypted — contains PII)
+  compiledJsonEnc String
+  sentAt        DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, term])
+}
+
+// ---------------------------------------------------------------------------
+// Audit
+// ---------------------------------------------------------------------------
+
+enum AuditAction {
+  Create
+  Update
+  Delete
+  DecryptSensitive
+  DecryptPii
+  ReadSensitive
+  Login
+  Login2FA
+  PermissionDenied
+}
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  userId     String?
+  action     AuditAction
+  entity     String
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime    @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+}

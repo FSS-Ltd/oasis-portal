@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+
+case "$branch" in
+  main|master)
+    echo "Blocked: do not commit directly on '$branch'."
+    echo "Create a working branch first, for example:"
+    echo "  git switch -c docs/describe-the-change"
+    exit 1
+    ;;
+esac
+
+exit 0

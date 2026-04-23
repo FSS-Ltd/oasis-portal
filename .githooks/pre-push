@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+branch="$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+
+case "$branch" in
+  main|master)
+    echo "Blocked: do not push directly from '$branch'."
+    echo "Switch to a working branch and open a pull request instead."
+    exit 1
+    ;;
+esac
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/master)
+      echo "Blocked: do not push directly to '$remote_ref'."
+      echo "Push a working branch and open a pull request instead."
+      exit 1
+      ;;
+  esac
+done
+
+exit 0

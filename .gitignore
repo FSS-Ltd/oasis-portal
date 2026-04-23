@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+.expo/
+*.tsbuildinfo
+
+# Env + secrets (never commit)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Agent Rules
+AGENTS.md
+BUILD.MD
+DELIVERY_SUMMARY.md
+FSS_AGENT_RULES.md
+STRATEGY.md
+
+# Prisma
+packages/db/prisma/migrations/**/migration_lock.toml
+!packages/db/prisma/migrations/
+
+# Test + coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Expo / native
+apps/mobile/ios/Pods/
+apps/mobile/android/.gradle/
+apps/mobile/android/build/
+apps/mobile/ios/build/
+
+# Local sqlite / pg dumps
+*.sqlite
+*.dump

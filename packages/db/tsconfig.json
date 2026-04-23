@@ -1,0 +1,5 @@
+{
+  "extends": "@oasis/config/tsconfig.node.json",
+  "include": ["src/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

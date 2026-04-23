@@ -1,0 +1,7 @@
+{
+  "name": "@oasis/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.js",
+  "files": ["tsconfig.base.json", "tsconfig.node.json", "tsconfig.react.json", "eslint.config.js"]
+}
