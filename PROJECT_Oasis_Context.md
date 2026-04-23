@@ -83,6 +83,9 @@ business rule that matters is codified and unit-tested.
   workspace and made web/mobile tRPC clients explicitly typed so
   TypeScript does not infer non-portable pnpm store paths. `pnpm
   typecheck` now passes locally.
+- 2026-04-23 CI test fix: API and DB Phase 0 packages now run Vitest
+  with `--passWithNoTests`; domain remains the real unit-test gate with
+  80 passing tests. `pnpm test` now passes locally.
 
 ## Design decisions made (see ADRs for full rationale)
 
