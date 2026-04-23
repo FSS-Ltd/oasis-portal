@@ -73,6 +73,9 @@ business rule that matters is codified and unit-tested.
 - `pnpm --filter @oasis/db typecheck` → clean (after `db generate`).
 - `pnpm --filter @oasis/api typecheck` → clean.
 - Web/mobile typecheck requires `pnpm install` to pull Next/Expo deps.
+- 2026-04-23 CI fix: regenerated `pnpm-lock.yaml` after web/mobile
+  workspace manifests were added without matching lockfile importers.
+  `CI=true pnpm install --frozen-lockfile` now completes locally.
 
 ## Design decisions made (see ADRs for full rationale)
 
