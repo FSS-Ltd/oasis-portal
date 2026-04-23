@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.0.0'
+
+jobs:
+  verify:
+    name: Lint / Typecheck / Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: oasis
+          POSTGRES_PASSWORD: oasis
+          POSTGRES_DB: oasis_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oasis"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
+      # Stub values so the encryption helper and blind-index code load;
+      # real KMS is not exercised in unit tests.
+      KMS_KEY_ID: alias/ci-stub
+      AWS_REGION: eu-west-2
+      PII_BLIND_INDEX_PEPPER: Y2ktcGVwcGVyLTMyLWJ5dGVzLWJhc2U2NC1zdHViLXZhbA==
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @oasis/db generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      # Phase 1+ will add: prisma migrate deploy, playwright e2e, maestro mobile e2e.
