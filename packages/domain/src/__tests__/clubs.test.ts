@@ -22,11 +22,11 @@ describe('assertCanManageClub', () => {
   const supervisor: SessionUser = { id: 'u3', role: 'Supervisor', tags: [] };
 
   it('allows full admin and ClubsAdmin', () => {
-    expect(() => assertCanManageClub(head)).not.toThrow();
-    expect(() => assertCanManageClub(clubsAdmin)).not.toThrow();
+    expect(() => { assertCanManageClub(head); }).not.toThrow();
+    expect(() => { assertCanManageClub(clubsAdmin); }).not.toThrow();
   });
   it('blocks supervisors', () => {
-    expect(() => assertCanManageClub(supervisor)).toThrow(AccessDeniedError);
+    expect(() => { assertCanManageClub(supervisor); }).toThrow(AccessDeniedError);
   });
 });
 

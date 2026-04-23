@@ -16,7 +16,7 @@
     "seed": "tsx prisma/seed.ts",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.700.0",
