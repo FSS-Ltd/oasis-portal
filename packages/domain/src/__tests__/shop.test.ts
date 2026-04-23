@@ -49,14 +49,14 @@ describe('validateDraft', () => {
 
 describe('assertCanManageShop / assertCanSellInShop', () => {
   it('shopadmin can manage', () => {
-    expect(() => assertCanManageShop(shopadmin)).not.toThrow();
+    expect(() => { assertCanManageShop(shopadmin); }).not.toThrow();
   });
   it('shopkeeper can sell', () => {
-    expect(() => assertCanSellInShop(shopkeeper)).not.toThrow();
+    expect(() => { assertCanSellInShop(shopkeeper); }).not.toThrow();
   });
   it('untagged users blocked', () => {
-    expect(() => assertCanManageShop(nobody)).toThrow(AccessDeniedError);
-    expect(() => assertCanSellInShop(nobody)).toThrow(AccessDeniedError);
+    expect(() => { assertCanManageShop(nobody); }).toThrow(AccessDeniedError);
+    expect(() => { assertCanSellInShop(nobody); }).toThrow(AccessDeniedError);
   });
 });
 

@@ -84,7 +84,7 @@ export async function decryptField(wire: string): Promise<string>;
 export async function decryptField(wire: string | null | undefined): Promise<string | null>;
 export async function decryptField(wire: string | null | undefined): Promise<string | null> {
   if (wire === null || wire === undefined) return null;
-  const [version, _keyId, wrappedDekB64, ivB64, tagB64, ctB64] = wire.split(':');
+  const [version, , wrappedDekB64, ivB64, tagB64, ctB64] = wire.split(':');
   if (version !== VERSION) throw new Error(`Unsupported ciphertext version: ${String(version)}`);
   if (!wrappedDekB64 || !ivB64 || !tagB64 || !ctB64) {
     throw new Error('Malformed ciphertext');

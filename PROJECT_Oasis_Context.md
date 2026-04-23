@@ -76,6 +76,9 @@ business rule that matters is codified and unit-tested.
 - 2026-04-23 CI fix: regenerated `pnpm-lock.yaml` after web/mobile
   workspace manifests were added without matching lockfile importers.
   `CI=true pnpm install --frozen-lockfile` now completes locally.
+- 2026-04-23 CI lint fix: added root ESLint flat-config bridge, made
+  shared config ESM-explicit, added direct flat-config dependencies, and
+  cleaned strict lint findings. `pnpm lint` now passes locally.
 
 ## Design decisions made (see ADRs for full rationale)
 

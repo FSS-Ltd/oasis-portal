@@ -37,60 +37,60 @@ describe('isFullAdmin', () => {
 
 describe('requireFullAdmin', () => {
   it('passes for full-admin roles', () => {
-    expect(() => requireFullAdmin(head)).not.toThrow();
-    expect(() => requireFullAdmin(pastor)).not.toThrow();
+    expect(() => { requireFullAdmin(head); }).not.toThrow();
+    expect(() => { requireFullAdmin(pastor); }).not.toThrow();
   });
   it('throws AccessDeniedError otherwise', () => {
-    expect(() => requireFullAdmin(supervisor)).toThrow(AccessDeniedError);
+    expect(() => { requireFullAdmin(supervisor); }).toThrow(AccessDeniedError);
   });
 });
 
 describe('requireCanViewSensitive', () => {
   it('only full admins can view sensitive entries', () => {
-    expect(() => requireCanViewSensitive(head)).not.toThrow();
-    expect(() => requireCanViewSensitive(supervisor)).toThrow(AccessDeniedError);
-    expect(() => requireCanViewSensitive(parent)).toThrow(AccessDeniedError);
+    expect(() => { requireCanViewSensitive(head); }).not.toThrow();
+    expect(() => { requireCanViewSensitive(supervisor); }).toThrow(AccessDeniedError);
+    expect(() => { requireCanViewSensitive(parent); }).toThrow(AccessDeniedError);
   });
 });
 
 describe('requireTag', () => {
   it('accepts users with the tag', () => {
     const seller: SessionUser = { id: 'u9', role: 'Supervisor', tags: ['shopkeeper'] };
-    expect(() => requireTag(seller, 'shopkeeper')).not.toThrow();
+    expect(() => { requireTag(seller, 'shopkeeper'); }).not.toThrow();
   });
   it('rejects users without the tag', () => {
-    expect(() => requireTag(supervisor, 'shopkeeper')).toThrow(AccessDeniedError);
+    expect(() => { requireTag(supervisor, 'shopkeeper'); }).toThrow(AccessDeniedError);
   });
 });
 
 describe('requireClubsAdminOrFullAdmin', () => {
   it('accepts clubs admin and full admins', () => {
-    expect(() => requireClubsAdminOrFullAdmin(clubsAdmin)).not.toThrow();
-    expect(() => requireClubsAdminOrFullAdmin(head)).not.toThrow();
+    expect(() => { requireClubsAdminOrFullAdmin(clubsAdmin); }).not.toThrow();
+    expect(() => { requireClubsAdminOrFullAdmin(head); }).not.toThrow();
   });
   it('rejects supervisors, parents, students', () => {
-    expect(() => requireClubsAdminOrFullAdmin(supervisor)).toThrow(AccessDeniedError);
-    expect(() => requireClubsAdminOrFullAdmin(parent)).toThrow(AccessDeniedError);
+    expect(() => { requireClubsAdminOrFullAdmin(supervisor); }).toThrow(AccessDeniedError);
+    expect(() => { requireClubsAdminOrFullAdmin(parent); }).toThrow(AccessDeniedError);
   });
 });
 
 describe('requireOwnChild', () => {
   it('accepts a parent linked to the student', () => {
-    expect(() => requireOwnChild(parent, 's1', ['s1', 's2'])).not.toThrow();
+    expect(() => { requireOwnChild(parent, 's1', ['s1', 's2']); }).not.toThrow();
   });
   it('rejects a parent not linked to the student', () => {
-    expect(() => requireOwnChild(parent, 's9', ['s1', 's2'])).toThrow(AccessDeniedError);
+    expect(() => { requireOwnChild(parent, 's9', ['s1', 's2']); }).toThrow(AccessDeniedError);
   });
   it('rejects non-Parent users', () => {
-    expect(() => requireOwnChild(head, 's1', ['s1'])).toThrow(AccessDeniedError);
+    expect(() => { requireOwnChild(head, 's1', ['s1']); }).toThrow(AccessDeniedError);
   });
 });
 
 describe('requireSelfStudent', () => {
   it('accepts a student viewing their own record', () => {
-    expect(() => requireSelfStudent(student, 's1', 'u8')).not.toThrow();
+    expect(() => { requireSelfStudent(student, 's1', 'u8'); }).not.toThrow();
   });
   it('rejects a student viewing another student', () => {
-    expect(() => requireSelfStudent(student, 's2', 'other-user')).toThrow(AccessDeniedError);
+    expect(() => { requireSelfStudent(student, 's2', 'other-user'); }).toThrow(AccessDeniedError);
   });
 });
