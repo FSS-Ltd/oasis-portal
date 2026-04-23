@@ -7,6 +7,7 @@
  * `api.<router>.<proc>.useQuery(...)` call sites during scaffolding.
  */
 import { createTRPCReact } from '@trpc/react-query';
+import type { CreateTRPCReact } from '@trpc/react-query';
 import type { AppRouter } from '@oasis/api';
 
-export const api = createTRPCReact<AppRouter>();
+export const api: CreateTRPCReact<AppRouter, unknown> = createTRPCReact<AppRouter>();

@@ -79,6 +79,10 @@ business rule that matters is codified and unit-tested.
 - 2026-04-23 CI lint fix: added root ESLint flat-config bridge, made
   shared config ESM-explicit, added direct flat-config dependencies, and
   cleaned strict lint findings. `pnpm lint` now passes locally.
+- 2026-04-23 CI typecheck fix: added `@types/node` to the mobile
+  workspace and made web/mobile tRPC clients explicitly typed so
+  TypeScript does not infer non-portable pnpm store paths. `pnpm
+  typecheck` now passes locally.
 
 ## Design decisions made (see ADRs for full rationale)
 
