@@ -18,6 +18,7 @@
     "hooks:install": "sh scripts/install-git-hooks.sh",
     "db:generate": "pnpm --filter @oasis/db generate",
     "db:migrate": "pnpm --filter @oasis/db migrate",
+    "db:integration": "pnpm --filter @oasis/db db:integration",
     "db:seed": "pnpm --filter @oasis/db seed",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },

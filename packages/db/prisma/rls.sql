@@ -9,6 +9,13 @@
 --   SET app.full_admin = 'true' | 'false';
 
 ALTER TABLE "BehaviourEntry" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "BehaviourEntry" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS behaviour_full_admin_select ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_supervisor_general ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_parent_own_child ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
 
 -- Full admins (Head, Principal, Pastor, HeadOfDiscipline) see everything.
 CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"

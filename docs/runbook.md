@@ -6,13 +6,15 @@ each procedure is a script you can follow at 03:00 with minimal thinking.
 
 ## 1. Environments
 
-| Env        | Web                      | API (same as web) | DB                      | KMS region | Clerk env |
-|------------|--------------------------|-------------------|-------------------------|------------|-----------|
-| local      | http://localhost:3000    | /api/trpc         | local Postgres          | n/a (stub) | test      |
-| preview    | <vercel preview URL>     | /api/trpc         | Neon EU branch per PR   | eu-west-2  | test      |
-| production | https://portal.oasis...  | /api/trpc         | Neon EU primary         | eu-west-2  | live      |
+| Env        | Web                     | API (same as web) | DB                    | Key source     | Clerk env |
+| ---------- | ----------------------- | ----------------- | --------------------- | -------------- | --------- |
+| local      | http://localhost:3000   | /api/trpc         | local Postgres        | env master key | test      |
+| preview    | <vercel preview URL>    | /api/trpc         | Neon EU branch per PR | env master key | test      |
+| production | https://portal.oasis... | /api/trpc         | Neon EU primary       | env master key | live      |
 
-All production data (DB, object storage, KMS, Clerk) is pinned to UK/EU.
+All production data stores and auth services are pinned to UK/EU. The
+application-level master key and blind-index pepper are stored only in the
+hosting secret manager.
 
 ## 2. Local development
 
@@ -21,55 +23,88 @@ corepack enable
 corepack prepare pnpm@10.0.0 --activate
 pnpm install
 pnpm --filter @oasis/db generate      # Prisma client
-pnpm --filter @oasis/db migrate:dev   # apply migrations to local DB
+pnpm --filter @oasis/db migrate:dev   # apply local migrations + RLS
 pnpm dev                              # turbo dev across apps
 ```
 
-Required env vars (copy from `.env.example` when it lands in Phase 1):
+Required env vars (copy from `.env.example`):
 
 - `DATABASE_URL` — Postgres (local: `postgres://oasis:oasis@localhost:5432/oasis`)
+- `DIRECT_URL` — direct Postgres URL used by Prisma migrations
 - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
-- `KMS_KEY_ID` — AWS KMS CMK ARN (local: dummy `alias/dev-stub`)
-- `AWS_REGION=eu-west-2`
-- `PII_BLIND_INDEX_PEPPER` — 32-byte base64 pepper (rotate separately from KMS)
+- `OASIS_MASTER_KEY` — 32 random bytes, base64-encoded
+- `OASIS_MASTER_KEY_VERSION` — current master-key version, usually `1`
+- `OASIS_BIDX_PEPPER` — pepper for HMAC blind indexes
 
-## 3. Deploy
+## 3. Neon Postgres setup
+
+Create the Neon project in the EU Frankfurt region. Use Postgres 16 and
+separate databases or branches for preview and production.
+
+1. Create the project and copy both connection strings:
+   - `DATABASE_URL` uses the pooled Neon endpoint for app runtime.
+   - `DIRECT_URL` uses the direct Neon endpoint for Prisma migrations.
+2. Run `pnpm db:generate`.
+3. Run `pnpm db:migrate`. This runs `prisma migrate deploy` and then
+   `packages/db/scripts/apply-rls.ts`.
+4. Run `pnpm db:integration` against the same database. The smoke test proves
+   Head/full-admin can read Sensitive behaviour rows and Supervisor cannot.
+5. Create the runtime role and grant table access from the migration owner:
+
+```sql
+CREATE ROLE oasis_app LOGIN PASSWORD '<generated-password>' NOBYPASSRLS;
+GRANT CONNECT ON DATABASE oasis TO oasis_app;
+GRANT USAGE ON SCHEMA public TO oasis_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO oasis_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO oasis_app;
+```
+
+The app must connect as a non-superuser role without `BYPASSRLS` in production.
+The tRPC context sets these transaction-local variables before protected reads:
+
+- `app.user_id`
+- `app.user_role`
+- `app.full_admin`
+
+Do not run the application with a database owner or superuser connection string.
+Those roles can bypass the protection this platform relies on.
+
+## 4. Deploy
 
 - Web: push to `main` → Vercel builds → auto-deploy to production.
-- DB migrations: `pnpm --filter @oasis/db migrate:deploy` runs as part of
-  the release pipeline **before** the new web build is promoted. Roll
-  back = promote previous Vercel deployment; DO NOT `prisma migrate reset`
-  in production.
+- DB migrations: `pnpm db:migrate` runs as part of the release pipeline
+  **before** the new web build is promoted. Roll back = promote previous
+  Vercel deployment; DO NOT `prisma migrate reset` in production.
 - Mobile: EAS build per release tag, submitted to TestFlight / Play
   internal track for QA before store submission.
 
-## 4. Incident playbooks
+## 5. Incident playbooks
 
-### 4.1 Encryption outage (KMS unreachable)
+### 5.1 Encryption key unavailable
 
-**Symptom:** API procedures that read PII return 500; logs show
-`KMSInvalidStateException` or network timeout to `kms.eu-west-2.amazonaws.com`.
+**Symptom:** API procedures that read PII return 500; logs show missing or
+wrong-length `OASIS_MASTER_KEY` / `OASIS_MASTER_KEY_V<n>`.
 
-1. Confirm it's KMS and not Postgres: `curl https://kms.eu-west-2.amazonaws.com/`.
-2. Check AWS Health Dashboard for regional KMS incidents.
-3. Verify IAM policy on the app role hasn't been modified (CloudTrail).
-4. If transient: the encryption helper has a retry-with-backoff. Leave it.
-5. If prolonged: put the API into read-only mode (feature flag
+1. Confirm the affected environment has the expected master-key env vars.
+2. Check whether a key rotation changed `OASIS_MASTER_KEY_VERSION` without
+   keeping the previous key as `OASIS_MASTER_KEY_V<n>`.
+3. If prolonged: put the API into read-only mode (feature flag
    `pii_readonly=true`) — non-PII endpoints (leaderboards using derived
    aggregates, health checks) keep working.
-6. DO NOT fall back to plaintext writes. Ever.
+4. DO NOT fall back to plaintext writes. Ever.
 
-### 4.2 Suspected PII leak / dump request
+### 5.2 Suspected PII leak / dump request
 
 1. Treat as a security incident; notify DPO immediately.
-2. Rotate the `PII_BLIND_INDEX_PEPPER` — this invalidates all blind-index
+2. Rotate the `OASIS_BIDX_PEPPER` — this invalidates all blind-index
    equality lookups until a re-index job completes, which is acceptable.
-3. KMS CMK rotation is automatic annually; trigger a manual rotation if the
-   incident indicates key compromise. Ciphertexts embed `kmsKeyId` so old
-   wrapped DEKs keep working during the rotation window.
+3. Rotate the master key if the incident indicates key compromise. Ciphertexts
+   embed the key version, so old wrapped DEKs keep working while the previous
+   key remains available as `OASIS_MASTER_KEY_V<n>`.
 4. Audit `AuditLog` table for reads of affected records in the window.
 
-### 4.3 Merit ledger imbalance
+### 5.3 Merit ledger imbalance
 
 **Symptom:** reconciliation job reports a non-zero sum for some
 `correlationId`, or a student balance query returns a negative number for
@@ -85,7 +120,7 @@ an account that should be non-negative.
 4. File a post-mortem; identify the write path that bypassed
    `applyLedgerTxn()`.
 
-### 4.4 Investment sim drift
+### 5.4 Investment sim drift
 
 **Symptom:** students report their investment account value changed when
 nothing was bought/sold.
@@ -99,7 +134,7 @@ seed storage — the seed must be persisted per student on their first buy
 and never regenerated. If regenerated, you'll see a discontinuous NAV
 history; the fix is to reseed from the first-buy timestamp and replay.
 
-### 4.5 Clerk sign-in throttling / outage
+### 5.5 Clerk sign-in throttling / outage
 
 1. Check https://status.clerk.com.
 2. If Clerk is down: API rejects with UNAUTHORIZED (session verification
@@ -107,25 +142,24 @@ history; the fix is to reseed from the first-buy timestamp and replay.
    Communicate via status page.
 3. For rate-limited users: Clerk dashboard → user → reset rate limit.
 
-## 5. Backups & recovery
+## 6. Backups & recovery
 
 - DB: Neon point-in-time restore window = 7 days (production).
   Nightly logical dump to S3 in `eu-west-2` (encrypted bucket, KMS-managed,
   30-day retention). Test restore drill: quarterly, documented in
   `docs/dr-drill-<date>.md`.
-- KMS key: CMK is in a dedicated AWS account with MFA-delete on the key
-  policy and a deletion window of 30 days. A key loss = total data loss;
-  the key is the most valuable asset in the system.
-- Blind-index pepper: stored in AWS Secrets Manager with cross-region
-  replication. Losing the pepper only breaks equality lookups (can rebuild
-  by decrypting + rehashing during a maintenance window).
+- Master key: stored in the hosting secret manager with strict access. A key
+  loss = total PII loss; the key is the most sensitive operational secret.
+- Blind-index pepper: stored beside the master key. Losing the pepper only
+  breaks equality lookups (can rebuild by decrypting + rehashing during a
+  maintenance window).
 
-## 6. On-call checklist
+## 7. On-call checklist
 
 Before going on-call, verify you have:
 
-- [ ] AWS SSO access to the Oasis production account (read-only by default,
-      break-glass role for writes with MFA + CloudTrail).
+- [ ] Vercel access to preview and production environment variables.
+- [ ] Neon access to preview and production branches.
 - [ ] Clerk admin access (SSO, 2FA required).
 - [ ] Sentry access with alerting notifications enabled.
 - [ ] This runbook bookmarked.

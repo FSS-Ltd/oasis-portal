@@ -51,3 +51,11 @@ apps/mobile/ios/build/
 # Local sqlite / pg dumps
 *.sqlite
 *.dump
+
+# External repos (cloned for local reference, not part of this project)
+graphify/
+
+# Graphify local/generated files
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json
