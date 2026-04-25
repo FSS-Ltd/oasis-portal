@@ -1,7 +1,7 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
 **Last updated:** 2026-04-23  
-**Agent:** Technical Agent (Claude)  
+**Agent:** Technical Agent (Claude; Codex docs update)  
 **Phase:** 0 — Scaffold complete, ready for Phase 1.
 
 ---
@@ -86,6 +86,9 @@ business rule that matters is codified and unit-tested.
 - 2026-04-23 CI test fix: API and DB Phase 0 packages now run Vitest
   with `--passWithNoTests`; domain remains the real unit-test gate with
   80 passing tests. `pnpm test` now passes locally.
+- 2026-04-23 operating-system update: `AGENTS.md` now includes PR scope
+  checkpoints so each branch maps to one focused pull request. Mixed
+  work, such as login plus clubs, must be split before PR creation.
 
 ## Design decisions made (see ADRs for full rationale)
 
