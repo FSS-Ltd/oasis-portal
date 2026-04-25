@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-23  
-**Agent:** Technical Agent (Claude; Codex docs update)  
-**Phase:** 0 — Scaffold complete, ready for Phase 1.
+**Last updated:** 2026-04-25  
+**Agent:** Technical Agent (Claude)  
+**Phase:** 1 — Sprint 1 in progress (auth + encryption foundations).
 
 ---
 
@@ -18,13 +18,39 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status — Phase 0 complete
+## Current status — Phase 1 Sprint 1 (week 2)
 
-The monorepo scaffold, data model, domain rules, and API shape are in
-place. Nothing is user-facing yet (no auth, no real UI), but every
-business rule that matters is codified and unit-tested.
+Phase 0 is merged to `main`. Phase 1 is underway; Sprint 1 focuses on
+encryption foundations, infra provisioning, and Clerk auth wiring.
 
-**What exists:**
+### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
+
+**Decision change:** AWS KMS replaced with an env-managed master key
+(see ADR-0006 / ADR-0005 superseded). Cost reason: the centre is small
+(~30 students) and free-tier hosting rules out KMS at this stage. The
+envelope-encryption strategy is identical — per-record AES-256-GCM DEKs,
+wire format `v1:<keyVersion>:<wrappedDek>:<wrapIv>:<wrapTag>:<iv>:<tag>:<ct>`,
+blind-index peppers in env — only the wrapping mechanism changes.
+
+Changed files:
+- `packages/db/src/encryption.ts` — env-key provider, versioned format, no AWS SDK
+- `packages/db/src/__tests__/encryption.test.ts` — 13 tests (round-trip, tamper,
+  nullable, key rotation, malformed wire)
+- `docs/adr/0006-pii-envelope-encryption-env-key.md` — new ADR
+- `docs/adr/0005-pii-envelope-encryption-kms.md` — marked Superseded
+- `.env.example` — `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`
+
+### Phase 1 Sprint 1 remaining (PRs 1.2 → 1.4)
+
+- **PR-1.2** — Neon EU free-tier Postgres, `apply-rls.ts` script, CI db-integration job
+- **PR-1.3** — Clerk integration (`@clerk/nextjs`, webhook → User upsert with encrypted PII, 2FA scaffolded but not enforced)
+- **PR-1.4** — tRPC context (Clerk session → SessionUser → RLS session vars), `auditedProcedure`, auth middleware
+
+### Sprint 2 (week 3) — Head admin surface
+
+PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web screens, audit log viewer + encryption-proof script.
+
+**What exists (from Phase 0):**
 
 - **Monorepo:** Turborepo + pnpm workspaces. Root `package.json`,
   `turbo.json`, `pnpm-workspace.yaml`, strict `tsconfig.base.json`.
@@ -104,19 +130,22 @@ business rule that matters is codified and unit-tested.
 4. **Double-entry append-only merit ledger** — every op emits rows that
    sum to zero per `correlationId`. Balances derived. Refunds = new
    rows, never edits.
-5. **Per-record envelope encryption with AWS KMS** — PII stored as
-   `v1:<kmsKeyId>:<wrappedDek>:<iv>:<tag>:<ct>` base64. Sibling
-   `*_bidx` columns (HMAC-SHA256 with externally-stored pepper) support
-   equality search without decryption.
+5. **Per-record envelope encryption with env master key** (ADR-0006,
+   supersedes ADR-0005) — PII stored as
+   `v1:<keyVersion>:<wrappedDek>:<wrapIv>:<wrapTag>:<iv>:<tag>:<ct>` base64.
+   Per-record DEKs wrapped with `OASIS_MASTER_KEY` (AES-256-GCM, versioned
+   for rotation). Sibling `*_bidx` columns (HMAC-SHA256 with
+   `OASIS_BIDX_PEPPER`) support equality search without decryption.
+   AWS KMS deferred until the centre outgrows free-tier limits.
 6. **Deterministic investment sim** — Mulberry32 PRNG + FNV-1a seed
    hashing; seed persisted per student on first buy; GBM with regime
    switches so students occasionally lose money.
 
 ## Blockers / escalations
 
-None. All Phase 0 exit criteria met.
+None currently. Phase 1 Sprint 1 in active development.
 
-**Items to confirm with the centre before Phase 1:**
+**Items to confirm with the centre before Phase 2:**
 
 - Exact list of initial permission-tag assignments (who is shopkeeper,
   shopadmin, leaderboard-admin).
@@ -125,21 +154,16 @@ None. All Phase 0 exit criteria met.
 - Whether parents can view non-sensitive behaviour entries for their
   own child (currently yes in RBAC).
 
-## Next steps — Phase 1 (Auth + Identity + PII live path)
+## Next steps — Phase 1 Sprint 1 remaining
 
-1. Wire Clerk middleware into `apps/web` and Clerk Expo into
-   `apps/mobile`. Enforce 2FA-required at the Clerk dashboard.
-2. Extend `apps/api/src/context.ts` to verify the Clerk session, load
-   the `User` row by `clerkUserId`, hydrate `SessionUser` with role +
-   tags, and set Postgres session vars (`app.user_id`,
-   `app.user_role`, `app.full_admin`) so RLS policies fire.
-3. Implement real `encryptField` / `decryptField` against AWS KMS
-   (currently skeleton); add per-request DEK cache.
-4. Implement `student.*` and `user.*` tRPC procedures so we can
-   actually create a user, onboard students, and list them decrypted.
-5. First Playwright e2e: sign-in with 2FA, view students list, see
-   decrypted names as Head role; same list as Supervisor should hide
-   sensitive flags.
+1. **PR-1.2** — Provision Neon EU free-tier Postgres; add `packages/db/scripts/apply-rls.ts`
+   that runs RLS SQL after migrate; wire `pnpm db:migrate`; add CI db-integration job.
+2. **PR-1.3** — Install `@clerk/nextjs` + `@clerk/clerk-expo`; add Clerk middleware;
+   implement Svix-signed webhook handler (`user.created/updated/deleted` → encrypted
+   User upsert); scaffold 2FA route (not enforced); add sign-in/sign-up pages.
+3. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
+   → hydrate `SessionUser` → `SET LOCAL` Postgres session vars per request;
+   add `auditedProcedure` + `requireAuth`/`requireRole` tRPC middlewares.
 
 ## Who's working on it
 

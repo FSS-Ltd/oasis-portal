@@ -1,7 +1,8 @@
 # ADR 0005: Per-record envelope encryption of PII with AWS KMS + blind indexes
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0006](0006-pii-envelope-encryption-env-key.md)
 - **Date:** 2026-04-23
+- **Superseded:** 2026-04-25 — Phase 1 hosting decision constrained the project to free-tier services. KMS is deferred until the centre outgrows free-tier limits. The envelope-encryption *strategy* (per-record DEK, AES-256-GCM, versioned wire format, blind indexes, RLS as second wall) is unchanged; only the wrap mechanism moves from KMS to an env-managed master key.
 
 ## Context
 
