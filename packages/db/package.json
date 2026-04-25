@@ -19,7 +19,6 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.700.0",
     "@prisma/client": "^6.1.0"
   },
   "devDependencies": {
