@@ -1,5 +1,14 @@
 # Oasis Learning Centre Platform — Build Plan
 
+> **For agents:** This is the master architecture and scope document.
+> Per-phase sprint & PR plans live in `docs/`:
+> - Phase 1 (current): [`docs/phase-1-build-plan.md`](docs/phase-1-build-plan.md)
+>
+> Always read the relevant phase plan before writing code — it contains
+> the authoritative PR breakdown, file lists, and done/in-progress status.
+> Also read [`PROJECT_Oasis_Context.md`](PROJECT_Oasis_Context.md) for
+> current status and any decisions that supersede this document.
+
 ## Context
 
 Oasis Learning Centre (Christian ACE homeschool enrichment centre, 16 → 30 students, Tue–Fri) currently runs on paper forms, spreadsheets, WhatsApp, and email. The Director has signed off `Oasis_Platform_Brief_v2.docx`, which resolves all v1 open questions.
@@ -152,17 +161,18 @@ Every MVP item is in scope. Nice-to-haves from brief §6 are out of scope for v1
 
 ## Delivery phases (BUILD.md §5)
 
-**Phase 0 — Architecture & setup (week 0–1)**
+**Phase 0 — Architecture & setup (week 0–1)** ✅ COMPLETE
 - Design doc (this file + `/docs/ADRs/` for key decisions)
 - Monorepo scaffold (Turborepo), Prisma schema v1, Clerk org + roles, Vercel + Supabase EU projects, CI green
 - Director confirms default Merit Shop split percentages (blocker per brief risk #5)
 
-**Phase 1 — Core data + auth (week 2–3)**
+**Phase 1 — Core data + auth (week 2–3)** 🔄 IN PROGRESS
+- Sprint & PR plan: [`docs/phase-1-build-plan.md`](docs/phase-1-build-plan.md)
 - User/Student/Guardian models, Clerk sync, RBAC guards, RLS policies
 - Head admin screens: create students, assign subjects, invite staff/parents
-- 2FA enrolment for all three roles (TOTP mandatory, SMS as fallback)
+- 2FA scaffolded for all roles (enforcement deferred to Phase 5 — see plan)
 - Audit log baseline
-- **PII encryption layer** wired in from day one (AWS KMS envelope encryption, Prisma extension, blind indexes, decrypt audit). ADR-005 written before any PII field is persisted.
+- **PII encryption layer** wired in from day one (env-key AES-256-GCM envelope encryption, per-record DEKs, blind indexes, decrypt audit — ADR-006). AWS KMS deferred; see ADR-005 (superseded).
 
 **Phase 2 — Daily workflows (week 4–6)**
 - Attendance capture (mobile-first)

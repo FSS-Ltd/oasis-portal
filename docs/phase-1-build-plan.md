@@ -1,0 +1,222 @@
+# Phase 1 — Core data + auth: sprint & PR plan
+
+**Status:** Sprint 1 in progress (week 2 of 2)  
+**Last updated:** 2026-04-25  
+**Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
+**Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
+
+---
+
+## Context
+
+Phase 0 (scaffold) is merged to `main`: monorepo, Prisma schema v1, RLS
+SQL, encryption helper, tRPC skeleton routers, ADRs 001–005, mobile/web/api
+shells, CI green.
+
+Phase 1 delivers the foundation every subsequent feature depends on:
+- Real Clerk auth wired through tRPC context
+- PII encryption running on every write to `User`, `Student`, `Guardian`
+- Postgres + RLS on Neon EU free tier
+- Head full-admin can invite staff/parents, create students, link guardians, assign subjects
+- Audit log baseline on every mutation and every PII decrypt
+
+**Key decisions made entering Phase 1:**
+- **No AWS** — env-variable master key instead of KMS (cost: centre is small, free-tier only). See ADR-0006.
+- **2FA scaffolded, not enforced** — hooks and routes ready; enforcement deferred to Phase 5.
+- **Two 1-week sprints** with a mid-phase checkpoint.
+
+---
+
+## Pre-work — ADR update (done before Sprint 1)
+
+- `docs/adr/0005-pii-envelope-encryption-kms.md` → marked **Superseded by ADR-0006**.
+- `docs/adr/0006-pii-envelope-encryption-env-key.md` → new ADR documenting env-key scheme.
+- New wire format: `v1:<keyVersion>:<wrappedDek>:<wrapIv>:<wrapTag>:<iv>:<tag>:<ct>`
+- Env vars: `OASIS_MASTER_KEY` (32 bytes base64), `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`
+- Hosting (free-tier): **Neon** EU Frankfurt (Postgres 16), **Vercel** hobby, **Expo EAS** free, **Resend** free.
+
+---
+
+## Sprint 1 — Week 2: foundations
+
+Goal: every downstream PR can assume "I have a real authenticated user, RLS is on,
+PII writes auto-encrypt, audit log captures everything."
+
+### PR-1.1 — `chore: replace KMS encryption with env-key provider` ✅ MERGED
+
+Branch: `feature/phase-1-pr1.1-env-key-encryption`
+
+- **`packages/db/src/encryption.ts`** — drop `@aws-sdk/client-kms`; in-process
+  AES-256-GCM key-wrap with `OASIS_MASTER_KEY`. Wire format updated, versioned.
+- **`packages/db/src/__tests__/encryption.test.ts`** — 13 tests: round-trip,
+  unicode/empty, nullable, randomness, GCM tamper on data + wrapped DEK,
+  key-version rotation, missing/wrong-length key, malformed wire.
+- **`packages/db/package.json`** — dropped `@aws-sdk/client-kms`.
+- **`docs/adr/0006-pii-envelope-encryption-env-key.md`** — new ADR.
+- **`docs/adr/0005-pii-envelope-encryption-kms.md`** — marked Superseded.
+- **`.env.example`** — updated with new env var names.
+
+### PR-1.2 — `infra: Neon EU + RLS apply script + CI db job`
+
+- Add `packages/db/scripts/apply-rls.ts` — executes `prisma/rls.sql` after
+  `prisma migrate deploy` so RLS is never skipped.
+- Wire `pnpm db:migrate` = migrate-deploy + RLS apply.
+- Document Neon project setup in `docs/runbook.md`: create project, copy
+  `DATABASE_URL` (pooled) + `DIRECT_URL` (direct), configure `oasis_app`
+  non-superuser role with `app.user_id`/`app.user_role`/`app.full_admin` session vars.
+- CI: add `db-integration` job (Postgres service, migrate + RLS apply + smoke query).
+
+**Tests:** RLS integration — full-admin can SELECT Sensitive `BehaviourEntry`,
+Supervisor cannot.
+
+### PR-1.3 — `feat(auth): Clerk integration with 2FA-ready scaffolding`
+
+- Install `@clerk/nextjs` in `apps/web`, `@clerk/clerk-expo` in `apps/mobile`.
+- `apps/web/src/middleware.ts` — Clerk middleware.
+- `apps/web/src/app/layout.tsx` — ClerkProvider.
+- `apps/api/src/routers/clerkWebhook.ts` — Svix-signed webhook handler for
+  `user.created`, `user.updated`, `user.deleted`. On create/update: encrypt
+  name/email/phone, compute `emailBidx`, upsert `User` with default role `Parent`.
+- `SessionUser.requires2fa: boolean` field added (always `false` in Phase 1;
+  Phase 5 flips). 2FA enrolment route present but not gated.
+- Sign-in/sign-up pages in `apps/web/src/app/(auth)/`.
+
+**Tests:** webhook signature verification; user upsert with encrypted PII;
+default-role assignment.
+
+### PR-1.4 — `feat(api): tRPC context, RLS session vars, audit-log middleware`
+
+- Rewrite `apps/api/src/context.ts` — Clerk session → `User` by `clerkId` →
+  `SessionUser` (id, role, tags) → Prisma transaction sets `SET LOCAL app.user_id`,
+  `app.user_role`, `app.full_admin` so RLS fires for every query in the request.
+- `apps/api/src/trpc.ts` — `auditedProcedure` wrapper (writes `AuditLog` row on
+  every mutation); `requireAuth`, `requireFullAdmin`, `requireRole` middlewares
+  (use existing `packages/domain/src/rbac.ts` — do not duplicate).
+- `health.me` procedure returns `{ user: SessionUser | null }` for smoke testing.
+
+**Tests:** integration — full-admin gets Sensitive `BehaviourEntry` rows; Supervisor
+gets zero (proves RLS fires via session vars).
+
+**Sprint 1 demo checkpoint:** log in as Clerk test user → webhook upserts
+encrypted `User` → `health.me` returns hydrated `SessionUser` → RLS
+integration test green in CI.
+
+---
+
+## Sprint 2 — Week 3: Head admin surface
+
+Goal: Head can run an entire onboarding session — invite staff/parents, create
+students, link guardians, assign subjects, and see a full audit trail.
+
+### PR-1.5 — `feat(domain): user invite + guardian linking`
+
+- `apps/api/src/routers/admin.ts` — `admin.inviteUser` (full-admin only): creates
+  Clerk invitation, pre-stamps role + tags. `admin.linkGuardian` — idempotent.
+- `packages/domain/src/users.ts` — invite payload validation (zod), role/tag
+  whitelist, full-admin guard.
+
+**Tests:** zod rejects invalid roles; non-full-admin denied; audit row written.
+
+### PR-1.6 — `feat(domain): student CRUD + subject assignment`
+
+- Flesh out `apps/api/src/routers/student.ts` — `student.create`, `student.update`,
+  `student.list`, `student.assignSubject`, `student.setCurrentPace`.
+- Full-admin only for writes; Supervisor can list.
+- PII fields (`fullName`, `dob`, `address`) encrypted on write; `nameBidx` computed.
+- `student.list` decrypts in-request; writes one `DecryptPii` `AuditLog` row per
+  request (not per row) to avoid log spam.
+
+**Tests:** create → list round-trip with decryption; Supervisor write denied;
+audit rows for create + decrypt batch.
+
+### PR-1.7 — `feat(web): Head admin screens`
+
+- `apps/web/src/app/(admin)/students/page.tsx` — list + name search.
+- `apps/web/src/app/(admin)/students/new/page.tsx` — create form (react-hook-form + zod + shadcn).
+- `apps/web/src/app/(admin)/students/[id]/page.tsx` — edit + assign subjects + link guardian.
+- `apps/web/src/app/(admin)/staff/page.tsx` — invite staff/parent form.
+- `<RequireFullAdmin>` server component gates all admin routes (404 for non-admins).
+
+**Tests (Playwright):** Head logs in → creates student → assigns Maths →
+invites parent → links guardian.
+
+### PR-1.8 — `feat(audit): audit-log viewer + Phase 1 verification suite`
+
+- `apps/web/src/app/(admin)/audit/page.tsx` — paginated, filterable audit log (full-admin only).
+- `apps/api/src/routers/audit.ts` — read-only, full-admin only.
+- `pnpm verify:encryption` script — runs `pg_dump --data-only` on the test DB and
+  asserts no plaintext name/email/dob appears. Wired into CI as a final job.
+- E2E test of full Sprint-2 flow against Neon preview branch.
+
+**Sprint 2 demo checkpoint:** Head invites parent → parent accepts via Clerk →
+Head creates student, links guardian, assigns 6 ACE subjects → audit log shows
+every step → `pnpm verify:encryption` green.
+
+---
+
+## Critical files
+
+### Modified in Phase 1
+
+| File | PR | Change |
+|---|---|---|
+| `packages/db/src/encryption.ts` | 1.1 | env-key provider, versioned format |
+| `packages/db/package.json` | 1.1 | drop `@aws-sdk/client-kms` |
+| `.env.example` | 1.1 | new env var names |
+| `apps/api/src/context.ts` | 1.4 | Clerk session + RLS session vars |
+| `apps/api/src/trpc.ts` | 1.4 | `auditedProcedure`, auth middleware |
+| `apps/api/src/routers/student.ts` | 1.6 | flesh out CRUD |
+| `apps/api/src/routers/health.ts` | 1.4 | `me` endpoint |
+| `docs/runbook.md` | 1.2 | Neon setup, env-key rotation procedure |
+| `docs/adr/0005-pii-envelope-encryption-kms.md` | 1.1 | marked Superseded |
+
+### Created in Phase 1
+
+| File | PR |
+|---|---|
+| `docs/adr/0006-pii-envelope-encryption-env-key.md` | 1.1 |
+| `packages/db/src/__tests__/encryption.test.ts` | 1.1 |
+| `packages/db/scripts/apply-rls.ts` | 1.2 |
+| `packages/domain/src/users.ts` | 1.5 |
+| `apps/api/src/routers/admin.ts` | 1.5 |
+| `apps/api/src/routers/clerkWebhook.ts` | 1.3 |
+| `apps/api/src/routers/audit.ts` | 1.8 |
+| `apps/web/src/middleware.ts` | 1.3 |
+| `apps/web/src/app/(auth)/...` | 1.3 |
+| `apps/web/src/app/(admin)/students/...` | 1.7 |
+| `apps/web/src/app/(admin)/staff/page.tsx` | 1.7 |
+| `apps/web/src/app/(admin)/audit/page.tsx` | 1.8 |
+| `apps/api/src/__tests__/...` | 1.4, 1.6 |
+
+### Reused without modification (do not duplicate)
+
+- `packages/domain/src/rbac.ts` — `isFullAdmin`, `requireFullAdmin`, `requireRole`,
+  `requireOwnChild`, `requireSelfStudent`, `AccessDeniedError`
+- `packages/db/prisma/schema.prisma` — schema v1, unchanged in Phase 1
+- `packages/db/prisma/rls.sql` — RLS policies, applied by the new script
+
+---
+
+## Verification
+
+### Per PR (CI gates)
+
+- `pnpm lint && pnpm typecheck && pnpm test` — must pass on every PR.
+- `pnpm db:integration` (PR-1.2 onward) — Postgres + RLS smoke.
+
+### End of Phase 1
+
+1. `pnpm verify:encryption` — `pg_dump` of Neon preview shows zero plaintext names/emails/DOBs.
+2. RLS proof — Supervisor session tRPC call for Sensitive `BehaviourEntry` returns empty.
+3. Playwright e2e — Sprint-2 Head onboarding flow green on Neon preview branch.
+4. Audit log — webhook upsert, student create, subject assign, guardian link, PII decrypt all recorded.
+5. 2FA scaffolding present (route + `requires2fa` field) but login without TOTP still reaches `/admin`.
+
+---
+
+## Out of scope for Phase 1
+
+- Attendance, behaviour, PACE, merit ledger (Phase 2)
+- 2FA enforcement (Phase 5)
+- Mobile auth screens beyond a smoke check (Phase 2)
+- KMS promotion — revisit only if centre outgrows free-tier limits
