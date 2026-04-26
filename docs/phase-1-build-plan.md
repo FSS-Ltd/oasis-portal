@@ -16,7 +16,7 @@ shells, CI green.
 Phase 1 delivers the foundation every subsequent feature depends on:
 - Real Clerk auth wired through tRPC context
 - PII encryption running on every write to `User`, `Student`, `Guardian`
-- Postgres + RLS on Neon EU free tier
+- Postgres + RLS on Supabase EU Postgres
 - Head full-admin can invite staff/parents, create students, link guardians, assign subjects
 - Audit log baseline on every mutation and every PII decrypt
 
@@ -33,7 +33,7 @@ Phase 1 delivers the foundation every subsequent feature depends on:
 - `docs/adr/0006-pii-envelope-encryption-env-key.md` → new ADR documenting env-key scheme.
 - New wire format: `v1:<keyVersion>:<wrappedDek>:<wrapIv>:<wrapTag>:<iv>:<tag>:<ct>`
 - Env vars: `OASIS_MASTER_KEY` (32 bytes base64), `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`
-- Hosting (free-tier): **Neon** EU Frankfurt (Postgres 16), **Vercel** hobby, **Expo EAS** free, **Resend** free.
+- Hosting (free-tier): **Supabase** EU Postgres, **Vercel** hobby, **Expo EAS** free, **Resend** free.
 
 ---
 
@@ -56,12 +56,12 @@ Branch: `feature/phase-1-pr1.1-env-key-encryption`
 - **`docs/adr/0005-pii-envelope-encryption-kms.md`** — marked Superseded.
 - **`.env.example`** — updated with new env var names.
 
-### PR-1.2 — `infra: Neon EU + RLS apply script + CI db job`
+### PR-1.2 — `infra: Supabase Postgres + RLS apply script + CI db job`
 
 - Add `packages/db/scripts/apply-rls.ts` — executes `prisma/rls.sql` after
   `prisma migrate deploy` so RLS is never skipped.
 - Wire `pnpm db:migrate` = migrate-deploy + RLS apply.
-- Document Neon project setup in `docs/runbook.md`: create project, copy
+- Document Supabase project setup in `docs/runbook.md`: create project, copy
   `DATABASE_URL` (pooled) + `DIRECT_URL` (direct), configure `oasis_app`
   non-superuser role with `app.user_id`/`app.user_role`/`app.full_admin` session vars.
 - CI: add `db-integration` job (Postgres service, migrate + RLS apply + smoke query).
@@ -146,7 +146,7 @@ invites parent → links guardian.
 - `apps/api/src/routers/audit.ts` — read-only, full-admin only.
 - `pnpm verify:encryption` script — runs `pg_dump --data-only` on the test DB and
   asserts no plaintext name/email/dob appears. Wired into CI as a final job.
-- E2E test of full Sprint-2 flow against Neon preview branch.
+- E2E test of full Sprint-2 flow against Supabase preview database.
 
 **Sprint 2 demo checkpoint:** Head invites parent → parent accepts via Clerk →
 Head creates student, links guardian, assigns 6 ACE subjects → audit log shows
@@ -167,7 +167,7 @@ every step → `pnpm verify:encryption` green.
 | `apps/api/src/trpc.ts` | 1.4 | `auditedProcedure`, auth middleware |
 | `apps/api/src/routers/student.ts` | 1.6 | flesh out CRUD |
 | `apps/api/src/routers/health.ts` | 1.4 | `me` endpoint |
-| `docs/runbook.md` | 1.2 | Neon setup, env-key rotation procedure |
+| `docs/runbook.md` | 1.2 | Supabase setup, env-key rotation procedure |
 | `docs/adr/0005-pii-envelope-encryption-kms.md` | 1.1 | marked Superseded |
 
 ### Created in Phase 1
@@ -206,9 +206,9 @@ every step → `pnpm verify:encryption` green.
 
 ### End of Phase 1
 
-1. `pnpm verify:encryption` — `pg_dump` of Neon preview shows zero plaintext names/emails/DOBs.
+1. `pnpm verify:encryption` — `pg_dump` of Supabase preview shows zero plaintext names/emails/DOBs.
 2. RLS proof — Supervisor session tRPC call for Sensitive `BehaviourEntry` returns empty.
-3. Playwright e2e — Sprint-2 Head onboarding flow green on Neon preview branch.
+3. Playwright e2e — Sprint-2 Head onboarding flow green on Supabase preview database.
 4. Audit log — webhook upsert, student create, subject assign, guardian link, PII decrypt all recorded.
 5. 2FA scaffolding present (route + `requires2fa` field) but login without TOTP still reaches `/admin`.
 

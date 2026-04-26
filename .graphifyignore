@@ -1,0 +1,12 @@
+# Local tool clone, not part of the Oasis codebase.
+graphify/
+
+# Agent instructions and local agent state should not become graph knowledge.
+AGENTS.md
+.claude/
+.codex/
+
+# Graphify outputs are generated artifacts.
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/cost.json

@@ -11,10 +11,13 @@
   },
   "scripts": {
     "generate": "prisma generate",
-    "migrate": "prisma migrate dev",
+    "migrate": "pnpm migrate:deploy && pnpm rls:apply",
+    "migrate:dev": "prisma migrate dev && pnpm rls:apply",
     "migrate:deploy": "prisma migrate deploy",
+    "rls:apply": "tsx scripts/apply-rls.ts",
+    "db:integration": "tsx scripts/smoke-rls.ts",
     "seed": "tsx prisma/seed.ts",
-    "lint": "eslint src",
+    "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },

@@ -1,7 +1,7 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
 **Last updated:** 2026-04-25  
-**Agent:** Technical Agent (Claude)  
+**Agent:** Technical Agent (Codex)
 **Phase:** 1 — Sprint 1 in progress (auth + encryption foundations).
 
 ---
@@ -33,6 +33,7 @@ wire format `v1:<keyVersion>:<wrappedDek>:<wrapIv>:<wrapTag>:<iv>:<tag>:<ct>`,
 blind-index peppers in env — only the wrapping mechanism changes.
 
 Changed files:
+
 - `packages/db/src/encryption.ts` — env-key provider, versioned format, no AWS SDK
 - `packages/db/src/__tests__/encryption.test.ts` — 13 tests (round-trip, tamper,
   nullable, key rotation, malformed wire)
@@ -40,9 +41,62 @@ Changed files:
 - `docs/adr/0005-pii-envelope-encryption-kms.md` — marked Superseded
 - `.env.example` — `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`
 
-### Phase 1 Sprint 1 remaining (PRs 1.2 → 1.4)
+### PR-1.2 in progress — `feature/phase-1-pr1.2-db-integration`
 
-- **PR-1.2** — Neon EU free-tier Postgres, `apply-rls.ts` script, CI db-integration job
+**PR scope:** Supabase/Postgres migration foundation, RLS apply script, CI
+database integration job, and runbook instructions.
+
+Changed files so far:
+
+- `packages/db/prisma/migrations/20260425000000_init/migration.sql` — initial
+  Prisma migration generated from the Phase 0 schema so `migrate deploy`
+  has a real schema to apply in CI/Supabase.
+- `packages/db/scripts/apply-rls.ts` — executes `prisma/rls.sql` after
+  migrations.
+- `packages/db/scripts/smoke-rls.ts` — seeds a minimal Head/student/behaviour
+  fixture and proves Head can read Sensitive behaviour while Supervisor cannot.
+- `packages/db/prisma/rls.sql` — made idempotent with `DROP POLICY IF EXISTS`
+  and added `FORCE ROW LEVEL SECURITY` for the behaviour table.
+- `packages/db/package.json`, root `package.json` — wired `db:migrate`,
+  `migrate:dev`, `rls:apply`, and `db:integration`.
+- `.github/workflows/ci.yml` — added a dedicated Postgres-backed
+  `db-integration` job.
+- `apps/web/src/lib/supabase.ts` — browser-safe Supabase client using
+  `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- `docs/runbook.md` — updated Supabase setup, migration/RLS procedure, and
+  env-managed key operational notes.
+
+**Verification today:**
+
+- `pnpm --filter @oasis/db lint` → pass.
+- `pnpm --filter @oasis/db typecheck` → pass.
+- `pnpm --filter @oasis/db test` → pass (13/13 encryption tests).
+- 2026-04-26 CI follow-up: `apply-rls.ts` now ignores SQL line/block comments
+  before splitting statements, fixing the `syntax error at or near
+  "documented"` failure caused by a semicolon inside the `rls.sql` header
+  comment. Added `apply-rls.test.ts` coverage for comment semicolons and quoted
+  semicolons.
+- 2026-04-26 CI follow-up: removed hardcoded CI encryption fixture env values
+  from `.github/workflows/ci.yml` after GitGuardian flagged the base64 test key.
+  Current migration and RLS smoke jobs do not need encryption env vars.
+- 2026-04-26 CI follow-up: `smoke-rls.ts` now prepares and queries through a
+  non-owner `oasis_app` runtime role, so the RLS smoke cannot pass or fail via
+  Postgres superuser/table-owner bypass.
+- 2026-04-26 web build fix: `apps/web/next.config.mjs` now aliases `.js`
+  imports to TypeScript source extensions while transpiling workspace packages.
+  This lets Next build `@oasis/api` source files that intentionally use
+  NodeNext-style `.js` import specifiers.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass after `pnpm db:generate`.
+- `pnpm db:migrate` against `localhost:5432/oasis_test` could not complete
+  because no local Postgres was listening. Docker is installed, but the Docker
+  daemon is not running, so a temporary Postgres container could not be started
+  in this session.
+
+### Phase 1 Sprint 1 remaining after PR-1.2 (PRs 1.3 → 1.4)
+
 - **PR-1.3** — Clerk integration (`@clerk/nextjs`, webhook → User upsert with encrypted PII, 2FA scaffolded but not enforced)
 - **PR-1.4** — tRPC context (Clerk session → SessionUser → RLS session vars), `auditedProcedure`, auth middleware
 
@@ -143,7 +197,9 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 
 ## Blockers / escalations
 
-None currently. Phase 1 Sprint 1 in active development.
+No product blockers currently. Local verification gap for PR-1.2: run
+`pnpm db:migrate && pnpm db:integration` once local Postgres or the CI Postgres
+service is available.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -156,8 +212,8 @@ None currently. Phase 1 Sprint 1 in active development.
 
 ## Next steps — Phase 1 Sprint 1 remaining
 
-1. **PR-1.2** — Provision Neon EU free-tier Postgres; add `packages/db/scripts/apply-rls.ts`
-   that runs RLS SQL after migrate; wire `pnpm db:migrate`; add CI db-integration job.
+1. **Finish PR-1.2** — Run `pnpm db:migrate && pnpm db:integration` against
+   local Postgres or CI, then open the focused PR.
 2. **PR-1.3** — Install `@clerk/nextjs` + `@clerk/clerk-expo`; add Clerk middleware;
    implement Svix-signed webhook handler (`user.created/updated/deleted` → encrypted
    User upsert); scaffold 2FA route (not enforced); add sign-in/sign-up pages.
