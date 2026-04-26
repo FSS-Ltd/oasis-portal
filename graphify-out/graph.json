@@ -54,25 +54,43 @@
       "source_file": "packages/db/scripts/smoke-rls.ts",
       "source_location": "L1",
       "id": "packages_db_scripts_smoke_rls_ts",
-      "community": 8,
+      "community": 7,
       "norm_label": "smoke-rls.ts"
+    },
+    {
+      "label": "runtimeDatabaseUrl()",
+      "file_type": "code",
+      "source_file": "packages/db/scripts/smoke-rls.ts",
+      "source_location": "L9",
+      "id": "smoke_rls_runtimedatabaseurl",
+      "community": 7,
+      "norm_label": "runtimedatabaseurl()"
+    },
+    {
+      "label": "prepareRuntimeRole()",
+      "file_type": "code",
+      "source_file": "packages/db/scripts/smoke-rls.ts",
+      "source_location": "L20",
+      "id": "smoke_rls_prepareruntimerole",
+      "community": 7,
+      "norm_label": "prepareruntimerole()"
     },
     {
       "label": "countVisibleBehaviour()",
       "file_type": "code",
       "source_file": "packages/db/scripts/smoke-rls.ts",
-      "source_location": "L7",
+      "source_location": "L45",
       "id": "smoke_rls_countvisiblebehaviour",
-      "community": 8,
+      "community": 7,
       "norm_label": "countvisiblebehaviour()"
     },
     {
       "label": "main()",
       "file_type": "code",
       "source_file": "packages/db/scripts/smoke-rls.ts",
-      "source_location": "L23",
+      "source_location": "L66",
       "id": "smoke_rls_main",
-      "community": 8,
+      "community": 7,
       "norm_label": "main()"
     },
     {
@@ -81,7 +99,7 @@
       "source_file": "packages/db/scripts/apply-rls.ts",
       "source_location": "L1",
       "id": "packages_db_scripts_apply_rls_ts",
-      "community": 7,
+      "community": 8,
       "norm_label": "apply-rls.ts"
     },
     {
@@ -90,7 +108,7 @@
       "source_file": "packages/db/scripts/apply-rls.ts",
       "source_location": "L9",
       "id": "apply_rls_splitsqlstatements",
-      "community": 7,
+      "community": 8,
       "norm_label": "splitsqlstatements()"
     },
     {
@@ -99,7 +117,7 @@
       "source_file": "packages/db/scripts/apply-rls.ts",
       "source_location": "L81",
       "id": "apply_rls_main",
-      "community": 7,
+      "community": 8,
       "norm_label": "main()"
     },
     {
@@ -225,7 +243,7 @@
       "source_file": "packages/db/src/__tests__/apply-rls.test.ts",
       "source_location": "L1",
       "id": "packages_db_src_tests_apply_rls_test_ts",
-      "community": 7,
+      "community": 8,
       "norm_label": "apply-rls.test.ts"
     },
     {
@@ -1065,7 +1083,31 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "packages/db/scripts/smoke-rls.ts",
-      "source_location": "L7",
+      "source_location": "L9",
+      "weight": 1.0,
+      "_src": "packages_db_scripts_smoke_rls_ts",
+      "_tgt": "smoke_rls_runtimedatabaseurl",
+      "source": "packages_db_scripts_smoke_rls_ts",
+      "target": "smoke_rls_runtimedatabaseurl",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "packages/db/scripts/smoke-rls.ts",
+      "source_location": "L20",
+      "weight": 1.0,
+      "_src": "packages_db_scripts_smoke_rls_ts",
+      "_tgt": "smoke_rls_prepareruntimerole",
+      "source": "packages_db_scripts_smoke_rls_ts",
+      "target": "smoke_rls_prepareruntimerole",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "packages/db/scripts/smoke-rls.ts",
+      "source_location": "L45",
       "weight": 1.0,
       "_src": "packages_db_scripts_smoke_rls_ts",
       "_tgt": "smoke_rls_countvisiblebehaviour",
@@ -1077,7 +1119,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "packages/db/scripts/smoke-rls.ts",
-      "source_location": "L23",
+      "source_location": "L66",
       "weight": 1.0,
       "_src": "packages_db_scripts_smoke_rls_ts",
       "_tgt": "smoke_rls_main",
@@ -1089,7 +1131,31 @@
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "packages/db/scripts/smoke-rls.ts",
-      "source_location": "L60",
+      "source_location": "L70",
+      "weight": 1.0,
+      "_src": "smoke_rls_main",
+      "_tgt": "smoke_rls_runtimedatabaseurl",
+      "source": "smoke_rls_runtimedatabaseurl",
+      "target": "smoke_rls_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "packages/db/scripts/smoke-rls.ts",
+      "source_location": "L76",
+      "weight": 1.0,
+      "_src": "smoke_rls_main",
+      "_tgt": "smoke_rls_prepareruntimerole",
+      "source": "smoke_rls_prepareruntimerole",
+      "target": "smoke_rls_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "packages/db/scripts/smoke-rls.ts",
+      "source_location": "L112",
       "weight": 1.0,
       "_src": "smoke_rls_main",
       "_tgt": "smoke_rls_countvisiblebehaviour",

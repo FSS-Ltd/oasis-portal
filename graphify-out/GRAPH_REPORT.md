@@ -1,11 +1,11 @@
 # Graph Report - oasis-portal  (2026-04-26)
 
 ## Corpus Check
-- 57 files · ~29,292 words
+- 57 files · ~29,484 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 116 nodes · 151 edges · 10 communities detected
+- 118 nodes · 155 edges · 10 communities detected
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 6 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -23,15 +23,15 @@
 
 ## God Nodes (most connected - your core abstractions)
 1. `loadMasterKey()` - 5 edges
-2. `encryptField()` - 4 edges
-3. `generateNavSeries()` - 4 edges
-4. `isFullAdmin()` - 4 edges
-5. `requireTag()` - 4 edges
-6. `requireEnv()` - 3 edges
-7. `fromB64()` - 3 edges
-8. `decryptField()` - 3 edges
-9. `assertCanSellInShop()` - 3 edges
-10. `applyRows()` - 3 edges
+2. `main()` - 4 edges
+3. `encryptField()` - 4 edges
+4. `generateNavSeries()` - 4 edges
+5. `isFullAdmin()` - 4 edges
+6. `requireTag()` - 4 edges
+7. `requireEnv()` - 3 edges
+8. `fromB64()` - 3 edges
+9. `decryptField()` - 3 edges
+10. `assertCanSellInShop()` - 3 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `createClient()` --calls--> `withEncryption()`  [INFERRED]
@@ -72,12 +72,12 @@ Cohesion: 0.4
 Nodes (2): computeWeeklyTithe(), isValidTithePercentage()
 
 ### Community 7 - "Community 7"
-Cohesion: 0.67
-Nodes (2): main(), splitSqlStatements()
+Cohesion: 0.7
+Nodes (4): countVisibleBehaviour(), main(), prepareRuntimeRole(), runtimeDatabaseUrl()
 
 ### Community 8 - "Community 8"
-Cohesion: 1.0
-Nodes (2): countVisibleBehaviour(), main()
+Cohesion: 0.67
+Nodes (2): main(), splitSqlStatements()
 
 ### Community 9 - "Community 9"
 Cohesion: 0.67
@@ -90,9 +90,7 @@ Nodes (2): createContext(), newRequestId()
 ## Knowledge Gaps
 - **Thin community `Community 6`** (6 nodes): `tithe.test.ts`, `tithe.ts`, `computeWeeklyTithe()`, `endOfTitheWeek()`, `isValidTithePercentage()`, `startOfTitheWeek()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 7`** (4 nodes): `main()`, `splitSqlStatements()`, `apply-rls.ts`, `apply-rls.test.ts`
-  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 8`** (3 nodes): `smoke-rls.ts`, `countVisibleBehaviour()`, `main()`
+- **Thin community `Community 8`** (4 nodes): `main()`, `splitSqlStatements()`, `apply-rls.ts`, `apply-rls.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 9`** (3 nodes): `_layout.tsx`, `layout.tsx`, `RootLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -104,7 +102,5 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `requireTag()` connect `Community 4` to `Community 0`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **Are the 2 inferred relationships involving `requireTag()` (e.g. with `assertCanManageShop()` and `assertCanSellInShop()`) actually correct?**
-  _`requireTag()` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.11 - nodes in this community are weakly interconnected._

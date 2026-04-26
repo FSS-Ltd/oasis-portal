@@ -1,11 +1,54 @@
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const RUNTIME_ROLE = 'oasis_app';
+const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
 type CountRow = { count: bigint };
 
-async function countVisibleBehaviour(role: string, fullAdmin: boolean, visibility: string) {
-  const rows = await prisma.$transaction(async (tx) => {
+function runtimeDatabaseUrl(): string {
+  if (process.env['RLS_DATABASE_URL']) return process.env['RLS_DATABASE_URL'];
+  const rawUrl = process.env['DATABASE_URL'];
+  if (!rawUrl) throw new Error('Missing DATABASE_URL for RLS smoke test');
+
+  const url = new URL(rawUrl);
+  url.username = RUNTIME_ROLE;
+  url.password = RUNTIME_PASSWORD;
+  return url.toString();
+}
+
+async function prepareRuntimeRole() {
+  if (process.env['RLS_DATABASE_URL']) return;
+
+  await prisma.$executeRawUnsafe(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${RUNTIME_ROLE}') THEN
+        CREATE ROLE ${RUNTIME_ROLE} LOGIN PASSWORD '${RUNTIME_PASSWORD}' NOBYPASSRLS;
+      END IF;
+    END
+    $$;
+  `);
+  await prisma.$executeRawUnsafe(
+    `ALTER ROLE ${RUNTIME_ROLE} WITH LOGIN PASSWORD '${RUNTIME_PASSWORD}' NOBYPASSRLS`,
+  );
+  await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${RUNTIME_ROLE}`);
+  await prisma.$executeRawUnsafe(
+    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${RUNTIME_ROLE}`,
+  );
+  await prisma.$executeRawUnsafe(`
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${RUNTIME_ROLE}
+  `);
+}
+
+async function countVisibleBehaviour(
+  client: PrismaClient,
+  role: string,
+  fullAdmin: boolean,
+  visibility: string,
+) {
+  const rows = await client.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.user_id', 'ci-user', true)`;
     await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
     await tx.$executeRaw`SELECT set_config('app.full_admin', ${String(fullAdmin)}, true)`;
@@ -21,7 +64,16 @@ async function countVisibleBehaviour(role: string, fullAdmin: boolean, visibilit
 }
 
 async function main() {
+  const runtimePrisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: runtimeDatabaseUrl(),
+      },
+    },
+  });
+
   try {
+    await prepareRuntimeRole();
     await prisma.$executeRawUnsafe('TRUNCATE "User" CASCADE');
 
     await prisma.$executeRaw`
@@ -57,9 +109,24 @@ async function main() {
       `;
     });
 
-    const fullAdminSensitive = await countVisibleBehaviour('Head', true, 'Sensitive');
-    const supervisorSensitive = await countVisibleBehaviour('Supervisor', false, 'Sensitive');
-    const supervisorGeneral = await countVisibleBehaviour('Supervisor', false, 'General');
+    const fullAdminSensitive = await countVisibleBehaviour(
+      runtimePrisma,
+      'Head',
+      true,
+      'Sensitive',
+    );
+    const supervisorSensitive = await countVisibleBehaviour(
+      runtimePrisma,
+      'Supervisor',
+      false,
+      'Sensitive',
+    );
+    const supervisorGeneral = await countVisibleBehaviour(
+      runtimePrisma,
+      'Supervisor',
+      false,
+      'General',
+    );
 
     if (fullAdminSensitive !== 1) {
       throw new Error(
@@ -77,6 +144,7 @@ async function main() {
 
     console.warn('RLS smoke passed: full admin sees Sensitive; supervisor sees General only.');
   } finally {
+    await runtimePrisma.$disconnect();
     await prisma.$disconnect();
   }
 }

@@ -79,6 +79,9 @@ Changed files so far:
 - 2026-04-26 CI follow-up: removed hardcoded CI encryption fixture env values
   from `.github/workflows/ci.yml` after GitGuardian flagged the base64 test key.
   Current migration and RLS smoke jobs do not need encryption env vars.
+- 2026-04-26 CI follow-up: `smoke-rls.ts` now prepares and queries through a
+  non-owner `oasis_app` runtime role, so the RLS smoke cannot pass or fail via
+  Postgres superuser/table-owner bypass.
 - 2026-04-26 web build fix: `apps/web/next.config.mjs` now aliases `.js`
   imports to TypeScript source extensions while transpiling workspace packages.
   This lets Next build `@oasis/api` source files that intentionally use
