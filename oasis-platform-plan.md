@@ -172,12 +172,11 @@ Every MVP item is in scope. Nice-to-haves from brief §6 are out of scope for v1
 - Monorepo scaffold (Turborepo), Prisma schema v1, Clerk org + roles, Vercel + Supabase EU projects, CI green
 - Director confirms default Merit Shop split percentages (blocker per brief risk #5)
 
-**Phase 1 — Core data + auth (week 2–3)** 🔄 IN PROGRESS
+**Phase 1 — Core data + auth (week 2–3)** 🔄 IN PROGRESS (Sprint 1 done, Sprint 2 starting)
 - Sprint & PR plan: [`docs/phase-1-build-plan.md`](docs/phase-1-build-plan.md)
-- User/Student/Guardian models, Clerk sync, RBAC guards, RLS policies
-- Head admin screens: create students, assign subjects, invite staff/parents
+- Sprint 1 ✅ — env-key encryption (PR-1.1), Supabase/RLS/CI (PR-1.2), Clerk auth + webhook sync (PR-1.3), tRPC context + RLS session vars + audit middleware (PR-1.4)
+- Sprint 2 🔄 — user invite + guardian linking (PR-1.5), student CRUD (PR-1.6), Head admin screens (PR-1.7), audit viewer + verification suite (PR-1.8)
 - 2FA scaffolded for all roles (enforcement deferred to Phase 5 — see plan)
-- Audit log baseline
 - **PII encryption layer** wired in from day one (env-key AES-256-GCM envelope encryption, per-record DEKs, blind indexes, decrypt audit — ADR-006). AWS KMS deferred; see ADR-005 (superseded).
 
 **Phase 2 — Daily workflows (week 4–6)**

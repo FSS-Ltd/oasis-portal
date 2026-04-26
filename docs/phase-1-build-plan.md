@@ -1,6 +1,6 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 1 in progress (week 2 of 2)  
+**Status:** Sprint 1 complete — Sprint 2 starting (week 3)  
 **Last updated:** 2026-04-26  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -96,22 +96,35 @@ default-role assignment. Current local verification: `pnpm lint`, `pnpm typechec
 `pnpm test`, and `pnpm --filter @oasis/web build` pass. User confirmed the merged
 changes completed with no errors.
 
-### PR-1.4 — `feat(api): tRPC context, RLS session vars, audit-log middleware`
+### PR-1.4 — `feat(api): tRPC context, RLS session vars, audit-log middleware` ✅ MERGED
 
-- Rewrite `apps/api/src/context.ts` — Clerk session → `User` by `clerkId` →
-  `SessionUser` (id, role, tags) → Prisma transaction sets `SET LOCAL app.user_id`,
-  `app.user_role`, `app.full_admin` so RLS fires for every query in the request.
-- `apps/api/src/trpc.ts` — `auditedProcedure` wrapper (writes `AuditLog` row on
-  every mutation); `requireAuth`, `requireFullAdmin`, `requireRole` middlewares
-  (use existing `packages/domain/src/rbac.ts` — do not duplicate).
-- `health.me` procedure returns `{ user: SessionUser | null }` for smoke testing.
+Branch: `feat/phase-1-pr1.4-trpc-context-rls` → [PR #10](https://github.com/jntagengwa/oasis-portal/pull/10)
 
-**Tests:** integration — full-admin gets Sensitive `BehaviourEntry` rows; Supervisor
-gets zero (proves RLS fires via session vars).
+- **`apps/api/src/context.ts`** — rewrites `createContext` to verify Clerk session
+  → load `User` by `clerkId` → hydrate `SessionUser`; exposes `withRls()` which
+  opens a Prisma `$transaction` and calls `SET LOCAL app.user_id`, `app.user_role`,
+  `app.full_admin` so RLS policies in `rls.sql` fire. Core extracted as `applyRlsTx`
+  for reuse by the integration smoke.
+- **`apps/api/src/trpc.ts`** — adds `authedProcedure`, `fullAdminProcedure`,
+  `roleProcedure(...roles)`, and `auditedProcedure`. RBAC guards delegate to
+  `requireFullAdmin` / `requireRole` from `@oasis/domain` — no duplication.
+  `auditedProcedure` writes `Update` `AuditLog` on successful mutations and
+  `PermissionDenied` on `AccessDeniedError`, rethrowing as `FORBIDDEN`.
+- **`apps/api/src/routers/health.ts`** — `health.me` returns `{ user: SessionUser | null }`.
+- **`apps/web/src/app/api/trpc/[trpc]/route.ts`** — calls `auth()` from
+  `@clerk/nextjs/server`; falls back to anonymous when Clerk secrets are absent.
+- **`apps/api/scripts/smoke-context-rls.ts`** — integration smoke asserting
+  Head=2 / Supervisor=1 (General only) / anonymous=0 `BehaviourEntry` rows
+  via `applyRlsTx` + runtime `oasis_app` role; wired to `db-integration` CI.
+- **`packages/db/src/index.ts`** — re-exports `Prisma` namespace.
+- **`apps/api/src/index.ts`** — re-exports new procedures + `RlsTx` type.
 
-**Sprint 1 demo checkpoint:** log in as Clerk test user → webhook upserts
-encrypted `User` → `health.me` returns hydrated `SessionUser` → RLS
-integration test green in CI.
+**Tests (15 passing):** 7 new unit middleware tests (`authedProcedure`,
+`fullAdminProcedure`, `auditedProcedure` success/query/access-denied paths) +
+8 existing webhook tests.
+
+**Sprint 1 demo checkpoint:** ✅ Clerk sign-in → webhook upserts encrypted `User` →
+`health.me` returns hydrated `SessionUser` → context RLS smoke green in CI.
 
 ---
 
@@ -175,10 +188,10 @@ every step → `pnpm verify:encryption` green.
 | `packages/db/src/encryption.ts` | 1.1 | env-key provider, versioned format |
 | `packages/db/package.json` | 1.1 | drop `@aws-sdk/client-kms` |
 | `.env.example` | 1.1 | new env var names |
-| `apps/api/src/context.ts` | 1.4 | Clerk session + RLS session vars |
-| `apps/api/src/trpc.ts` | 1.4 | `auditedProcedure`, auth middleware |
+| `apps/api/src/context.ts` | 1.4 ✅ | Clerk session + RLS session vars, `applyRlsTx` |
+| `apps/api/src/trpc.ts` | 1.4 ✅ | `auditedProcedure`, `fullAdminProcedure`, `roleProcedure` |
 | `apps/api/src/routers/student.ts` | 1.6 | flesh out CRUD |
-| `apps/api/src/routers/health.ts` | 1.4 | `me` endpoint |
+| `apps/api/src/routers/health.ts` | 1.4 ✅ | `me` endpoint |
 | `docs/runbook.md` | 1.2 | Supabase setup, env-key rotation procedure |
 | `docs/adr/0005-pii-envelope-encryption-kms.md` | 1.1 | marked Superseded |
 
@@ -198,7 +211,9 @@ every step → `pnpm verify:encryption` green.
 | `apps/web/src/app/(admin)/students/...` | 1.7 |
 | `apps/web/src/app/(admin)/staff/page.tsx` | 1.7 |
 | `apps/web/src/app/(admin)/audit/page.tsx` | 1.8 |
-| `apps/api/src/__tests__/...` | 1.4, 1.6 |
+| `apps/api/src/__tests__/trpc.middleware.test.ts` | 1.4 ✅ |
+| `apps/api/scripts/smoke-context-rls.ts` | 1.4 ✅ |
+| `apps/api/src/__tests__/...` | 1.6 |
 
 ### Reused without modification (do not duplicate)
 
