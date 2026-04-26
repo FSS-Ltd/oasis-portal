@@ -8,6 +8,12 @@
 > the authoritative PR breakdown, file lists, and done/in-progress status.
 > Also read [`PROJECT_Oasis_Context.md`](PROJECT_Oasis_Context.md) for
 > current status and any decisions that supersede this document.
+>
+> **UI design source:** Before building or changing any UI, inspect
+> [`design/`](design/). The folder contains the Claude design handoff ZIP,
+> whose internal `README` is the design reference for UI implementation, plus
+> Oasis logo assets as PNG and SVG. Use those assets and conventions before
+> inventing new visual direction.
 
 ## Context
 
