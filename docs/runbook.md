@@ -9,8 +9,8 @@ each procedure is a script you can follow at 03:00 with minimal thinking.
 | Env        | Web                     | API (same as web) | DB                    | Key source     | Clerk env |
 | ---------- | ----------------------- | ----------------- | --------------------- | -------------- | --------- |
 | local      | http://localhost:3000   | /api/trpc         | local Postgres        | env master key | test      |
-| preview    | <vercel preview URL>    | /api/trpc         | Neon EU branch per PR | env master key | test      |
-| production | https://portal.oasis... | /api/trpc         | Neon EU primary       | env master key | live      |
+| preview    | <vercel preview URL>    | /api/trpc         | Supabase preview DB   | env master key | test      |
+| production | https://portal.oasis... | /api/trpc         | Supabase Postgres     | env master key | live      |
 
 All production data stores and auth services are pinned to UK/EU. The
 application-level master key and blind-index pepper are stored only in the
@@ -31,19 +31,24 @@ Required env vars (copy from `.env.example`):
 
 - `DATABASE_URL` — Postgres (local: `postgres://oasis:oasis@localhost:5432/oasis`)
 - `DIRECT_URL` — direct Postgres URL used by Prisma migrations
+- `NEXT_PUBLIC_SUPABASE_URL` — browser-safe Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — browser-safe Supabase publishable key
 - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 - `OASIS_MASTER_KEY` — 32 random bytes, base64-encoded
 - `OASIS_MASTER_KEY_VERSION` — current master-key version, usually `1`
 - `OASIS_BIDX_PEPPER` — pepper for HMAC blind indexes
 
-## 3. Neon Postgres setup
+## 3. Supabase Postgres setup
 
-Create the Neon project in the EU Frankfurt region. Use Postgres 16 and
-separate databases or branches for preview and production.
+Create the Supabase project in an EU region. Use the Supabase Postgres
+connection strings for Prisma and the browser-safe Project URL / publishable
+key for Supabase client features.
 
 1. Create the project and copy both connection strings:
-   - `DATABASE_URL` uses the pooled Neon endpoint for app runtime.
-   - `DIRECT_URL` uses the direct Neon endpoint for Prisma migrations.
+   - `DATABASE_URL` uses the pooled Supabase Postgres endpoint for app runtime.
+   - `DIRECT_URL` uses the direct Supabase Postgres endpoint for Prisma migrations.
+   - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+     come from the Supabase API settings and are safe for browser code.
 2. Run `pnpm db:generate`.
 3. Run `pnpm db:migrate`. This runs `prisma migrate deploy` and then
    `packages/db/scripts/apply-rls.ts`.
@@ -144,7 +149,7 @@ history; the fix is to reseed from the first-buy timestamp and replay.
 
 ## 6. Backups & recovery
 
-- DB: Neon point-in-time restore window = 7 days (production).
+- DB: Supabase point-in-time recovery window is configured per plan/environment.
   Nightly logical dump to S3 in `eu-west-2` (encrypted bucket, KMS-managed,
   30-day retention). Test restore drill: quarterly, documented in
   `docs/dr-drill-<date>.md`.
@@ -159,7 +164,7 @@ history; the fix is to reseed from the first-buy timestamp and replay.
 Before going on-call, verify you have:
 
 - [ ] Vercel access to preview and production environment variables.
-- [ ] Neon access to preview and production branches.
+- [ ] Supabase access to preview and production databases.
 - [ ] Clerk admin access (SSO, 2FA required).
 - [ ] Sentry access with alerting notifications enabled.
 - [ ] This runbook bookmarked.

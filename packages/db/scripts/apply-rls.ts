@@ -1,20 +1,50 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const rlsPath = join(here, '..', 'prisma', 'rls.sql');
 
-function splitSqlStatements(sql: string): string[] {
+export function splitSqlStatements(sql: string): string[] {
   const statements: string[] = [];
   let current = '';
   let inSingleQuote = false;
   let inDoubleQuote = false;
+  let inLineComment = false;
+  let inBlockComment = false;
 
   for (let i = 0; i < sql.length; i += 1) {
     const char = sql[i] ?? '';
     const next = sql[i + 1];
+
+    if (inLineComment) {
+      if (char === '\n') {
+        inLineComment = false;
+        current += char;
+      }
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (char === '*' && next === '/') {
+        inBlockComment = false;
+        i += 1;
+      }
+      continue;
+    }
+
+    if (!inSingleQuote && !inDoubleQuote && char === '-' && next === '-') {
+      inLineComment = true;
+      i += 1;
+      continue;
+    }
+
+    if (!inSingleQuote && !inDoubleQuote && char === '/' && next === '*') {
+      inBlockComment = true;
+      i += 1;
+      continue;
+    }
 
     if (char === "'" && !inDoubleQuote) {
       current += char;
@@ -63,7 +93,9 @@ async function main() {
   }
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

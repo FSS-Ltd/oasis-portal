@@ -54,7 +54,7 @@
       "source_file": "packages/db/scripts/smoke-rls.ts",
       "source_location": "L1",
       "id": "packages_db_scripts_smoke_rls_ts",
-      "community": 7,
+      "community": 8,
       "norm_label": "smoke-rls.ts"
     },
     {
@@ -63,7 +63,7 @@
       "source_file": "packages/db/scripts/smoke-rls.ts",
       "source_location": "L7",
       "id": "smoke_rls_countvisiblebehaviour",
-      "community": 7,
+      "community": 8,
       "norm_label": "countvisiblebehaviour()"
     },
     {
@@ -72,7 +72,7 @@
       "source_file": "packages/db/scripts/smoke-rls.ts",
       "source_location": "L23",
       "id": "smoke_rls_main",
-      "community": 7,
+      "community": 8,
       "norm_label": "main()"
     },
     {
@@ -81,7 +81,7 @@
       "source_file": "packages/db/scripts/apply-rls.ts",
       "source_location": "L1",
       "id": "packages_db_scripts_apply_rls_ts",
-      "community": 8,
+      "community": 7,
       "norm_label": "apply-rls.ts"
     },
     {
@@ -90,16 +90,16 @@
       "source_file": "packages/db/scripts/apply-rls.ts",
       "source_location": "L9",
       "id": "apply_rls_splitsqlstatements",
-      "community": 8,
+      "community": 7,
       "norm_label": "splitsqlstatements()"
     },
     {
       "label": "main()",
       "file_type": "code",
       "source_file": "packages/db/scripts/apply-rls.ts",
-      "source_location": "L51",
+      "source_location": "L81",
       "id": "apply_rls_main",
-      "community": 8,
+      "community": 7,
       "norm_label": "main()"
     },
     {
@@ -218,6 +218,15 @@
       "id": "packages_db_src_tests_encryption_test_ts",
       "community": 2,
       "norm_label": "encryption.test.ts"
+    },
+    {
+      "label": "apply-rls.test.ts",
+      "file_type": "code",
+      "source_file": "packages/db/src/__tests__/apply-rls.test.ts",
+      "source_location": "L1",
+      "id": "packages_db_src_tests_apply_rls_test_ts",
+      "community": 7,
+      "norm_label": "apply-rls.test.ts"
     },
     {
       "label": "investmentSim.ts",
@@ -796,12 +805,21 @@
       "norm_label": "trpc.ts"
     },
     {
+      "label": "supabase.ts",
+      "file_type": "code",
+      "source_file": "apps/web/src/lib/supabase.ts",
+      "source_location": "L1",
+      "id": "apps_web_src_lib_supabase_ts",
+      "community": 21,
+      "norm_label": "supabase.ts"
+    },
+    {
       "label": "metro.config.js",
       "file_type": "code",
       "source_file": "apps/mobile/metro.config.js",
       "source_location": "L1",
       "id": "apps_mobile_metro_config_js",
-      "community": 21,
+      "community": 22,
       "norm_label": "metro.config.js"
     },
     {
@@ -810,7 +828,7 @@
       "source_file": "apps/mobile/app/index.tsx",
       "source_location": "L1",
       "id": "apps_mobile_app_index_tsx",
-      "community": 22,
+      "community": 23,
       "norm_label": "index.tsx"
     },
     {
@@ -828,7 +846,7 @@
       "source_file": "apps/mobile/src/lib/trpc.ts",
       "source_location": "L1",
       "id": "apps_mobile_src_lib_trpc_ts",
-      "community": 23,
+      "community": 24,
       "norm_label": "trpc.ts"
     },
     {
@@ -882,7 +900,7 @@
       "source_file": "apps/api/src/index.ts",
       "source_location": "L1",
       "id": "apps_api_src_index_ts",
-      "community": 24,
+      "community": 25,
       "norm_label": "index.ts"
     },
     {
@@ -1095,7 +1113,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "packages/db/scripts/apply-rls.ts",
-      "source_location": "L51",
+      "source_location": "L81",
       "weight": 1.0,
       "_src": "packages_db_scripts_apply_rls_ts",
       "_tgt": "apply_rls_main",
@@ -1104,10 +1122,22 @@
       "confidence_score": 1.0
     },
     {
+      "relation": "imports_from",
+      "confidence": "EXTRACTED",
+      "source_file": "packages/db/src/__tests__/apply-rls.test.ts",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_src": "packages_db_src_tests_apply_rls_test_ts",
+      "_tgt": "packages_db_scripts_apply_rls_ts",
+      "source": "packages_db_scripts_apply_rls_ts",
+      "target": "packages_db_src_tests_apply_rls_test_ts",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "confidence": "EXTRACTED",
       "source_file": "packages/db/scripts/apply-rls.ts",
-      "source_location": "L54",
+      "source_location": "L84",
       "weight": 1.0,
       "_src": "apply_rls_main",
       "_tgt": "apply_rls_splitsqlstatements",
@@ -2154,8 +2184,8 @@
       "source_file": "packages/domain/src/leaderboard.ts",
       "source_location": "L38",
       "weight": 1.0,
-      "_src": "leaderboard_canviewdemeritleaderboard",
-      "_tgt": "rbac_hastag",
+      "_src": "rbac_hastag",
+      "_tgt": "leaderboard_canviewdemeritleaderboard",
       "source": "rbac_hastag",
       "target": "leaderboard_canviewdemeritleaderboard"
     },

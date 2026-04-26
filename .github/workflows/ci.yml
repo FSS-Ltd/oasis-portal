@@ -38,10 +38,6 @@ jobs:
     env:
       DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
       DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-      # Stub values so the encryption helper and blind-index code load.
-      OASIS_MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-      OASIS_MASTER_KEY_VERSION: '1'
-      OASIS_BIDX_PEPPER: ci-pepper
 
     steps:
       - uses: actions/checkout@v4
@@ -94,9 +90,6 @@ jobs:
     env:
       DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
       DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-      OASIS_MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-      OASIS_MASTER_KEY_VERSION: '1'
-      OASIS_BIDX_PEPPER: ci-pepper
 
     steps:
       - uses: actions/checkout@v4

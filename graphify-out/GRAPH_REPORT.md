@@ -1,11 +1,11 @@
-# Graph Report - oasis-portal  (2026-04-25)
+# Graph Report - oasis-portal  (2026-04-26)
 
 ## Corpus Check
-- 55 files · ~28,825 words
+- 57 files · ~29,292 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 114 nodes · 150 edges · 10 communities detected
+- 116 nodes · 151 edges · 10 communities detected
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 6 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -72,12 +72,12 @@ Cohesion: 0.4
 Nodes (2): computeWeeklyTithe(), isValidTithePercentage()
 
 ### Community 7 - "Community 7"
-Cohesion: 1.0
-Nodes (2): countVisibleBehaviour(), main()
+Cohesion: 0.67
+Nodes (2): main(), splitSqlStatements()
 
 ### Community 8 - "Community 8"
 Cohesion: 1.0
-Nodes (2): main(), splitSqlStatements()
+Nodes (2): countVisibleBehaviour(), main()
 
 ### Community 9 - "Community 9"
 Cohesion: 0.67
@@ -90,9 +90,9 @@ Nodes (2): createContext(), newRequestId()
 ## Knowledge Gaps
 - **Thin community `Community 6`** (6 nodes): `tithe.test.ts`, `tithe.ts`, `computeWeeklyTithe()`, `endOfTitheWeek()`, `isValidTithePercentage()`, `startOfTitheWeek()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 7`** (3 nodes): `smoke-rls.ts`, `countVisibleBehaviour()`, `main()`
+- **Thin community `Community 7`** (4 nodes): `main()`, `splitSqlStatements()`, `apply-rls.ts`, `apply-rls.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 8`** (3 nodes): `main()`, `splitSqlStatements()`, `apply-rls.ts`
+- **Thin community `Community 8`** (3 nodes): `smoke-rls.ts`, `countVisibleBehaviour()`, `main()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 9`** (3 nodes): `_layout.tsx`, `layout.tsx`, `RootLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.

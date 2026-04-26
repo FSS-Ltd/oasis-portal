@@ -43,14 +43,14 @@ Changed files:
 
 ### PR-1.2 in progress — `feature/phase-1-pr1.2-db-integration`
 
-**PR scope:** Neon/Postgres migration foundation, RLS apply script, CI
+**PR scope:** Supabase/Postgres migration foundation, RLS apply script, CI
 database integration job, and runbook instructions.
 
 Changed files so far:
 
 - `packages/db/prisma/migrations/20260425000000_init/migration.sql` — initial
   Prisma migration generated from the Phase 0 schema so `migrate deploy`
-  has a real schema to apply in CI/Neon.
+  has a real schema to apply in CI/Supabase.
 - `packages/db/scripts/apply-rls.ts` — executes `prisma/rls.sql` after
   migrations.
 - `packages/db/scripts/smoke-rls.ts` — seeds a minimal Head/student/behaviour
@@ -61,7 +61,9 @@ Changed files so far:
   `migrate:dev`, `rls:apply`, and `db:integration`.
 - `.github/workflows/ci.yml` — added a dedicated Postgres-backed
   `db-integration` job.
-- `docs/runbook.md` — updated Neon setup, migration/RLS procedure, and
+- `apps/web/src/lib/supabase.ts` — browser-safe Supabase client using
+  `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+- `docs/runbook.md` — updated Supabase setup, migration/RLS procedure, and
   env-managed key operational notes.
 
 **Verification today:**
@@ -69,9 +71,22 @@ Changed files so far:
 - `pnpm --filter @oasis/db lint` → pass.
 - `pnpm --filter @oasis/db typecheck` → pass.
 - `pnpm --filter @oasis/db test` → pass (13/13 encryption tests).
+- 2026-04-26 CI follow-up: `apply-rls.ts` now ignores SQL line/block comments
+  before splitting statements, fixing the `syntax error at or near
+  "documented"` failure caused by a semicolon inside the `rls.sql` header
+  comment. Added `apply-rls.test.ts` coverage for comment semicolons and quoted
+  semicolons.
+- 2026-04-26 CI follow-up: removed hardcoded CI encryption fixture env values
+  from `.github/workflows/ci.yml` after GitGuardian flagged the base64 test key.
+  Current migration and RLS smoke jobs do not need encryption env vars.
+- 2026-04-26 web build fix: `apps/web/next.config.mjs` now aliases `.js`
+  imports to TypeScript source extensions while transpiling workspace packages.
+  This lets Next build `@oasis/api` source files that intentionally use
+  NodeNext-style `.js` import specifiers.
 - `pnpm lint` → pass.
 - `pnpm typecheck` → pass.
 - `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass after `pnpm db:generate`.
 - `pnpm db:migrate` against `localhost:5432/oasis_test` could not complete
   because no local Postgres was listening. Docker is installed, but the Docker
   daemon is not running, so a temporary Postgres container could not be started
