@@ -1,5 +1,18 @@
 export { appRouter, type AppRouter } from './router.js';
-export { createContext, type AppContext, type CreateContextArgs } from './context.js';
+export {
+  createContext,
+  type AppContext,
+  type CreateContextArgs,
+  type RlsTx,
+} from './context.js';
+export {
+  router,
+  publicProcedure,
+  authedProcedure,
+  fullAdminProcedure,
+  roleProcedure,
+  auditedProcedure,
+} from './trpc.js';
 export {
   handleClerkWebhookRequest,
   mapClerkUserToUpsertInput,

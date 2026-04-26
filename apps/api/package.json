@@ -12,9 +12,10 @@
     "./clerk-webhook": "./src/routers/clerkWebhook.ts"
   },
   "scripts": {
-    "lint": "eslint src",
+    "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "smoke:context-rls": "tsx scripts/smoke-context-rls.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.4.1",
@@ -26,8 +27,10 @@
   },
   "devDependencies": {
     "@oasis/config": "workspace:*",
+    "@prisma/client": "^6.1.0",
     "@types/node": "^22.10.0",
     "standardwebhooks": "^1.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

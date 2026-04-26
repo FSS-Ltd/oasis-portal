@@ -115,3 +115,6 @@ jobs:
 
       - name: RLS smoke
         run: pnpm db:integration
+
+      - name: tRPC context RLS smoke
+        run: pnpm api:smoke-context-rls
