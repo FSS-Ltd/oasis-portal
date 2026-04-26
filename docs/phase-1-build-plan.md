@@ -56,7 +56,7 @@ Branch: `feature/phase-1-pr1.1-env-key-encryption`
 - **`docs/adr/0005-pii-envelope-encryption-kms.md`** — marked Superseded.
 - **`.env.example`** — updated with new env var names.
 
-### PR-1.2 — `infra: Supabase Postgres + RLS apply script + CI db job`
+### PR-1.2 — `infra: Supabase Postgres + RLS apply script + CI db job` ✅ MERGED
 
 - Add `packages/db/scripts/apply-rls.ts` — executes `prisma/rls.sql` after
   `prisma migrate deploy` so RLS is never skipped.
@@ -69,7 +69,7 @@ Branch: `feature/phase-1-pr1.1-env-key-encryption`
 **Tests:** RLS integration — full-admin can SELECT Sensitive `BehaviourEntry`,
 Supervisor cannot.
 
-### PR-1.3 — `feat(auth): Clerk integration with 2FA-ready scaffolding` 🔄 IN PROGRESS
+### PR-1.3 — `feat(auth): Clerk integration with 2FA-ready scaffolding` ✅ MERGED
 
 Branch: `feat/phase-1-pr1.3-clerk-auth`
 
@@ -93,7 +93,8 @@ Branch: `feat/phase-1-pr1.3-clerk-auth`
 
 **Tests:** webhook signature verification; user upsert with encrypted PII;
 default-role assignment. Current local verification: `pnpm lint`, `pnpm typecheck`,
-`pnpm test`, and `pnpm --filter @oasis/web build` pass.
+`pnpm test`, and `pnpm --filter @oasis/web build` pass. User confirmed the merged
+changes completed with no errors.
 
 ### PR-1.4 — `feat(api): tRPC context, RLS session vars, audit-log middleware`
 
