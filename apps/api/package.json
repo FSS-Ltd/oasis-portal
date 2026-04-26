@@ -8,7 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./router": "./src/router.ts",
-    "./context": "./src/context.ts"
+    "./context": "./src/context.ts",
+    "./clerk-webhook": "./src/routers/clerkWebhook.ts"
   },
   "scripts": {
     "lint": "eslint src",
@@ -16,6 +17,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@clerk/backend": "^3.4.1",
     "@oasis/db": "workspace:*",
     "@oasis/domain": "workspace:*",
     "@trpc/server": "^11.0.0-rc.600",
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@oasis/config": "workspace:*",
     "@types/node": "^22.10.0",
+    "standardwebhooks": "^1.0.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }

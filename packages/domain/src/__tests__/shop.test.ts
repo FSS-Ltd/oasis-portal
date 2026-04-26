@@ -8,9 +8,19 @@ import {
 } from '../shop.js';
 import { AccessDeniedError, type SessionUser } from '../rbac.js';
 
-const shopadmin: SessionUser = { id: 'u1', role: 'Head', tags: ['shopadmin'] };
-const shopkeeper: SessionUser = { id: 'u2', role: 'Supervisor', tags: ['shopkeeper'] };
-const nobody: SessionUser = { id: 'u3', role: 'Supervisor', tags: [] };
+const shopadmin: SessionUser = {
+  id: 'u1',
+  role: 'Head',
+  tags: ['shopadmin'],
+  requires2fa: false,
+};
+const shopkeeper: SessionUser = {
+  id: 'u2',
+  role: 'Supervisor',
+  tags: ['shopkeeper'],
+  requires2fa: false,
+};
+const nobody: SessionUser = { id: 'u3', role: 'Supervisor', tags: [], requires2fa: false };
 
 describe('computePriceIncVat', () => {
   it('adds VAT and rounds half-up', () => {

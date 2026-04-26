@@ -30,6 +30,7 @@ export interface SessionUser {
   id: string;
   role: Role;
   tags: readonly string[];
+  requires2fa: boolean;
 }
 
 const FULL_ADMIN_ROLES: ReadonlySet<Role> = new Set([
