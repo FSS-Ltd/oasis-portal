@@ -19,6 +19,7 @@
     "db:generate": "pnpm --filter @oasis/db generate",
     "db:migrate": "pnpm --filter @oasis/db migrate",
     "db:integration": "pnpm --filter @oasis/db db:integration",
+    "api:smoke-context-rls": "pnpm --filter @oasis/api smoke:context-rls",
     "db:seed": "pnpm --filter @oasis/db seed",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },

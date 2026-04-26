@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { withEncryption } from './encryption.js';
 
+export { Prisma } from '@prisma/client';
 export type { PrismaClient } from '@prisma/client';
 export * from './encryption.js';
 
