@@ -20,9 +20,9 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status — Phase 1 Sprint 1 (week 2)
 
-Phase 0, PR-1.1, and PR-1.2 are merged to `main`. Phase 1 is underway;
-PR-1.3 is in progress on `feat/phase-1-pr1.3-clerk-auth` and is focused on
-Clerk auth wiring, signed webhook user sync, and 2FA scaffolding.
+Phase 0, PR-1.1, PR-1.2, and PR-1.3 are merged to `main`. Phase 1 is
+underway; Sprint 1 now moves to PR-1.4 for Clerk-backed tRPC request context,
+RLS session variables, and audit middleware.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -94,12 +94,12 @@ Merged scope:
 - GitHub CI completed the Postgres-backed migration and RLS integration path
   after the follow-up fixes above.
 
-### PR-1.3 in progress — `feat/phase-1-pr1.3-clerk-auth`
+### PR-1.3 merged — `feat/phase-1-pr1.3-clerk-auth`
 
 **PR scope:** Clerk provider/middleware wiring, Clerk webhook → encrypted local
 User sync, 2FA scaffold, and auth route shells.
 
-Current scope completed in the working tree:
+Merged scope:
 
 - `apps/api/src/routers/clerkWebhook.ts` — verifies Clerk webhook requests with
   `@clerk/backend/webhooks`, maps `user.created` / `user.updated` payloads,
@@ -128,6 +128,7 @@ Current scope completed in the working tree:
 - `pnpm typecheck` → pass.
 - `pnpm test` → pass.
 - `pnpm --filter @oasis/web build` → pass without Clerk secrets.
+- User confirmed the merged changes completed with no errors.
 
 ### Phase 1 Sprint 1 remaining
 
@@ -230,7 +231,7 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 
 ## Blockers / escalations
 
-No product blockers currently. PR-1.3 is in progress and uncommitted per user request.
+No product blockers currently. PR-1.3 is merged with no reported errors.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -243,9 +244,7 @@ No product blockers currently. PR-1.3 is in progress and uncommitted per user re
 
 ## Next steps — Phase 1 Sprint 1 remaining
 
-1. **PR-1.3** — Final review of Clerk auth wiring, route naming, and webhook
-   configuration before opening the PR. Do not commit from this overnight run.
-2. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
+1. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
    → hydrate `SessionUser` → `SET LOCAL` Postgres session vars per request;
    add `auditedProcedure` + `requireAuth`/`requireRole` tRPC middlewares.
 
