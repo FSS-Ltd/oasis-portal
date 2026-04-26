@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-25  
+**Last updated:** 2026-04-26
 **Agent:** Technical Agent (Codex)
 **Phase:** 1 — Sprint 1 in progress (auth + encryption foundations).
 
@@ -20,8 +20,9 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status — Phase 1 Sprint 1 (week 2)
 
-Phase 0 is merged to `main`. Phase 1 is underway; Sprint 1 focuses on
-encryption foundations, infra provisioning, and Clerk auth wiring.
+Phase 0, PR-1.1, and PR-1.2 are merged to `main`. Phase 1 is underway;
+Sprint 1 now moves from database foundations into Clerk auth wiring and
+tRPC request context integration.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -41,12 +42,12 @@ Changed files:
 - `docs/adr/0005-pii-envelope-encryption-kms.md` — marked Superseded
 - `.env.example` — `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`
 
-### PR-1.2 in progress — `feature/phase-1-pr1.2-db-integration`
+### PR-1.2 merged — `feature/phase-1-pr1.2-db-integration`
 
 **PR scope:** Supabase/Postgres migration foundation, RLS apply script, CI
 database integration job, and runbook instructions.
 
-Changed files so far:
+Merged scope:
 
 - `packages/db/prisma/migrations/20260425000000_init/migration.sql` — initial
   Prisma migration generated from the Phase 0 schema so `migrate deploy`
@@ -66,7 +67,7 @@ Changed files so far:
 - `docs/runbook.md` — updated Supabase setup, migration/RLS procedure, and
   env-managed key operational notes.
 
-**Verification today:**
+**Verification completed before merge:**
 
 - `pnpm --filter @oasis/db lint` → pass.
 - `pnpm --filter @oasis/db typecheck` → pass.
@@ -90,12 +91,10 @@ Changed files so far:
 - `pnpm typecheck` → pass.
 - `pnpm test` → pass.
 - `pnpm --filter @oasis/web build` → pass after `pnpm db:generate`.
-- `pnpm db:migrate` against `localhost:5432/oasis_test` could not complete
-  because no local Postgres was listening. Docker is installed, but the Docker
-  daemon is not running, so a temporary Postgres container could not be started
-  in this session.
+- GitHub CI completed the Postgres-backed migration and RLS integration path
+  after the follow-up fixes above.
 
-### Phase 1 Sprint 1 remaining after PR-1.2 (PRs 1.3 → 1.4)
+### Phase 1 Sprint 1 remaining (PRs 1.3 to 1.4)
 
 - **PR-1.3** — Clerk integration (`@clerk/nextjs`, webhook → User upsert with encrypted PII, 2FA scaffolded but not enforced)
 - **PR-1.4** — tRPC context (Clerk session → SessionUser → RLS session vars), `auditedProcedure`, auth middleware
@@ -197,9 +196,7 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 
 ## Blockers / escalations
 
-No product blockers currently. Local verification gap for PR-1.2: run
-`pnpm db:migrate && pnpm db:integration` once local Postgres or the CI Postgres
-service is available.
+No product blockers currently. PR-1.2 is complete and merged.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -212,12 +209,10 @@ service is available.
 
 ## Next steps — Phase 1 Sprint 1 remaining
 
-1. **Finish PR-1.2** — Run `pnpm db:migrate && pnpm db:integration` against
-   local Postgres or CI, then open the focused PR.
-2. **PR-1.3** — Install `@clerk/nextjs` + `@clerk/clerk-expo`; add Clerk middleware;
+1. **PR-1.3** — Install `@clerk/nextjs` + `@clerk/clerk-expo`; add Clerk middleware;
    implement Svix-signed webhook handler (`user.created/updated/deleted` → encrypted
    User upsert); scaffold 2FA route (not enforced); add sign-in/sign-up pages.
-3. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
+2. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
    → hydrate `SessionUser` → `SET LOCAL` Postgres session vars per request;
    add `auditedProcedure` + `requireAuth`/`requireRole` tRPC middlewares.
 
