@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-26
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 — Sprint 1 in progress (auth + encryption foundations).
+**Phase:** 1 — Sprint 1 complete; Sprint 2 starting (Head admin surface).
 
 ---
 
@@ -18,11 +18,10 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status — Phase 1 Sprint 1 (week 2)
+## Current status — Phase 1 Sprint 2 (week 3)
 
-Phase 0, PR-1.1, PR-1.2, and PR-1.3 are merged to `main`. Phase 1 is
-underway; Sprint 1 now moves to PR-1.4 for Clerk-backed tRPC request context,
-RLS session variables, and audit middleware.
+Phase 0 and all four Sprint 1 PRs (PR-1.1 → PR-1.4) are merged to `main`.
+Sprint 2 begins with PR-1.5 (user invite + guardian linking).
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -130,9 +129,47 @@ Merged scope:
 - `pnpm --filter @oasis/web build` → pass without Clerk secrets.
 - User confirmed the merged changes completed with no errors.
 
-### Phase 1 Sprint 1 remaining
+### PR-1.4 merged — `feat/phase-1-pr1.4-trpc-context-rls` → [PR #10](https://github.com/jntagengwa/oasis-portal/pull/10)
 
-- **PR-1.4** — tRPC context (Clerk session → SessionUser → RLS session vars), `auditedProcedure`, auth middleware
+**PR scope:** Clerk-backed tRPC request context, RLS session variables, and
+audit-log middleware. Sprint 1 is now complete.
+
+Changed files:
+
+- `apps/api/src/context.ts` — `createContext` verifies Clerk session → loads
+  `User` by `clerkId` → hydrates `SessionUser`; exposes `withRls()` which
+  opens a `$transaction` and sets `app.user_id` / `app.user_role` /
+  `app.full_admin` via `set_config` so every query in the request fires RLS.
+  Core extracted as `applyRlsTx` (exported for integration smokes).
+- `apps/api/src/trpc.ts` — adds `authedProcedure`, `fullAdminProcedure`,
+  `roleProcedure(...roles)`, `auditedProcedure`. RBAC guards delegate to
+  `requireFullAdmin` / `requireRole` from `@oasis/domain`. `auditedProcedure`
+  writes `Update` on successful mutations, `PermissionDenied` on
+  `AccessDeniedError`, rethrows as FORBIDDEN.
+- `apps/api/src/routers/health.ts` — `health.me` smoke endpoint.
+- `apps/web/src/app/api/trpc/[trpc]/route.ts` — calls `auth()` from
+  `@clerk/nextjs/server`; anonymous fallback when Clerk secrets are absent.
+- `apps/api/scripts/smoke-context-rls.ts` — Postgres integration smoke proving
+  Head=2 / Supervisor=1 / anonymous=0 `BehaviourEntry` rows; wired to
+  `db-integration` CI job.
+- `packages/db/src/index.ts` — re-exports `Prisma` namespace.
+- `apps/api/src/index.ts` — re-exports procedures + `RlsTx`.
+- `apps/api/src/__tests__/trpc.middleware.test.ts` — 7 unit tests.
+
+**Verification completed before merge:**
+
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass (15/15: 7 new middleware + 8 webhook).
+- `pnpm --filter @oasis/web build` → pass without Clerk secrets.
+- CI `db-integration` job: RLS smoke + context RLS smoke both green.
+
+### Phase 1 Sprint 2 remaining
+
+- **PR-1.5** — user invite + guardian linking
+- **PR-1.6** — student CRUD + subject assignment
+- **PR-1.7** — Head admin web screens
+- **PR-1.8** — audit-log viewer + Phase 1 verification suite
 
 ### Sprint 2 (week 3) — Head admin surface
 
@@ -231,7 +268,7 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 
 ## Blockers / escalations
 
-No product blockers currently. PR-1.3 is merged with no reported errors.
+No product blockers currently. Sprint 1 (PR-1.1 → PR-1.4) is fully merged.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -242,11 +279,19 @@ No product blockers currently. PR-1.3 is merged with no reported errors.
 - Whether parents can view non-sensitive behaviour entries for their
   own child (currently yes in RBAC).
 
-## Next steps — Phase 1 Sprint 1 remaining
+## Next steps — Phase 1 Sprint 2
 
-1. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
-   → hydrate `SessionUser` → `SET LOCAL` Postgres session vars per request;
-   add `auditedProcedure` + `requireAuth`/`requireRole` tRPC middlewares.
+1. **PR-1.5** — `apps/api/src/routers/admin.ts`: `admin.inviteUser` (full-admin only,
+   creates Clerk invitation, pre-stamps role + tags) and `admin.linkGuardian`
+   (idempotent). `packages/domain/src/users.ts`: zod invite payload, role/tag
+   whitelist, full-admin guard.
+2. **PR-1.6** — flesh out `apps/api/src/routers/student.ts`:
+   `student.create/update/list/assignSubject/setCurrentPace`. PII encrypted on
+   write, `nameBidx` computed, batch `DecryptPii` audit row on list.
+3. **PR-1.7** — Head admin screens in `apps/web/src/app/(admin)/`: student list +
+   create + edit, staff invite, `<RequireFullAdmin>` server component.
+4. **PR-1.8** — audit-log viewer + `pnpm verify:encryption` script (pg_dump check)
+   + Playwright e2e for full Sprint 2 onboarding flow.
 
 ## Who's working on it
 
