@@ -54,8 +54,13 @@ describe('defaults and access', () => {
   });
 
   it('demerit leaderboard is gated to leaderboard-admin tag', () => {
-    const admin: SessionUser = { id: 'u1', role: 'Head', tags: ['leaderboard-admin'] };
-    const head: SessionUser = { id: 'u2', role: 'Head', tags: [] };
+    const admin: SessionUser = {
+      id: 'u1',
+      role: 'Head',
+      tags: ['leaderboard-admin'],
+      requires2fa: false,
+    };
+    const head: SessionUser = { id: 'u2', role: 'Head', tags: [], requires2fa: false };
     expect(canViewDemeritLeaderboard(admin)).toBe(true);
     expect(canViewDemeritLeaderboard(head)).toBe(false);
   });

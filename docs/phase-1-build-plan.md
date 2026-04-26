@@ -1,7 +1,7 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
 **Status:** Sprint 1 in progress (week 2 of 2)  
-**Last updated:** 2026-04-25  
+**Last updated:** 2026-04-26  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -69,20 +69,31 @@ Branch: `feature/phase-1-pr1.1-env-key-encryption`
 **Tests:** RLS integration — full-admin can SELECT Sensitive `BehaviourEntry`,
 Supervisor cannot.
 
-### PR-1.3 — `feat(auth): Clerk integration with 2FA-ready scaffolding`
+### PR-1.3 — `feat(auth): Clerk integration with 2FA-ready scaffolding` 🔄 IN PROGRESS
 
-- Install `@clerk/nextjs` in `apps/web`, `@clerk/clerk-expo` in `apps/mobile`.
-- `apps/web/src/middleware.ts` — Clerk middleware.
-- `apps/web/src/app/layout.tsx` — ClerkProvider.
-- `apps/api/src/routers/clerkWebhook.ts` — Svix-signed webhook handler for
+Branch: `feat/phase-1-pr1.3-clerk-auth`
+
+- `@clerk/nextjs` and `@clerk/clerk-expo` are present; `@clerk/backend` and
+  `standardwebhooks` are direct API dependencies for webhook verification tests.
+- `apps/web/src/middleware.ts` — Clerk middleware protects admin/dashboard/2FA routes
+  while leaving tRPC and the Clerk webhook endpoint callable.
+- `apps/web/src/app/layout.tsx` — ClerkProvider wrapper with a build-safe fallback
+  when CI has no Clerk publishable key.
+- `apps/mobile/app/_layout.tsx` — ClerkProvider with Expo SecureStore token cache.
+- `apps/api/src/routers/clerkWebhook.ts` — Svix/Standard Webhooks-signed handler for
   `user.created`, `user.updated`, `user.deleted`. On create/update: encrypt
   name/email/phone, compute `emailBidx`, upsert `User` with default role `Parent`.
+- `apps/web/src/app/api/clerk/webhook/route.ts` — Next route handler exposing the
+  API webhook service.
 - `SessionUser.requires2fa: boolean` field added (always `false` in Phase 1;
   Phase 5 flips). 2FA enrolment route present but not gated.
-- Sign-in/sign-up pages in `apps/web/src/app/(auth)/`.
+- Sign-in/sign-up pages and `/2fa` scaffold in `apps/web/src/app/(auth)/`.
+- `.env.example` documents Clerk web/mobile publishable keys, secret key, and
+  `CLERK_WEBHOOK_SIGNING_SECRET`.
 
 **Tests:** webhook signature verification; user upsert with encrypted PII;
-default-role assignment.
+default-role assignment. Current local verification: `pnpm lint`, `pnpm typecheck`,
+`pnpm test`, and `pnpm --filter @oasis/web build` pass.
 
 ### PR-1.4 — `feat(api): tRPC context, RLS session vars, audit-log middleware`
 

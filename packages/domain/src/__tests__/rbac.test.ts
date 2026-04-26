@@ -11,14 +11,14 @@ import {
   type SessionUser,
 } from '../rbac.js';
 
-const head: SessionUser = { id: 'u1', role: 'Head', tags: [] };
-const principal: SessionUser = { id: 'u2', role: 'Principal', tags: [] };
-const pastor: SessionUser = { id: 'u3', role: 'Pastor', tags: [] };
-const hod: SessionUser = { id: 'u4', role: 'HeadOfDiscipline', tags: [] };
-const clubsAdmin: SessionUser = { id: 'u5', role: 'ClubsAdmin', tags: [] };
-const supervisor: SessionUser = { id: 'u6', role: 'Supervisor', tags: [] };
-const parent: SessionUser = { id: 'u7', role: 'Parent', tags: [] };
-const student: SessionUser = { id: 'u8', role: 'Student', tags: [] };
+const head: SessionUser = { id: 'u1', role: 'Head', tags: [], requires2fa: false };
+const principal: SessionUser = { id: 'u2', role: 'Principal', tags: [], requires2fa: false };
+const pastor: SessionUser = { id: 'u3', role: 'Pastor', tags: [], requires2fa: false };
+const hod: SessionUser = { id: 'u4', role: 'HeadOfDiscipline', tags: [], requires2fa: false };
+const clubsAdmin: SessionUser = { id: 'u5', role: 'ClubsAdmin', tags: [], requires2fa: false };
+const supervisor: SessionUser = { id: 'u6', role: 'Supervisor', tags: [], requires2fa: false };
+const parent: SessionUser = { id: 'u7', role: 'Parent', tags: [], requires2fa: false };
+const student: SessionUser = { id: 'u8', role: 'Student', tags: [], requires2fa: false };
 
 describe('isFullAdmin', () => {
   it('treats Head, Principal, Pastor, HeadOfDiscipline as full admins', () => {
@@ -55,7 +55,12 @@ describe('requireCanViewSensitive', () => {
 
 describe('requireTag', () => {
   it('accepts users with the tag', () => {
-    const seller: SessionUser = { id: 'u9', role: 'Supervisor', tags: ['shopkeeper'] };
+    const seller: SessionUser = {
+      id: 'u9',
+      role: 'Supervisor',
+      tags: ['shopkeeper'],
+      requires2fa: false,
+    };
     expect(() => { requireTag(seller, 'shopkeeper'); }).not.toThrow();
   });
   it('rejects users without the tag', () => {

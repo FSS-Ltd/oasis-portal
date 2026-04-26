@@ -21,8 +21,8 @@ raw DB dump cannot re-identify anyone.
 ## Current status — Phase 1 Sprint 1 (week 2)
 
 Phase 0, PR-1.1, and PR-1.2 are merged to `main`. Phase 1 is underway;
-Sprint 1 now moves from database foundations into Clerk auth wiring and
-tRPC request context integration.
+PR-1.3 is in progress on `feat/phase-1-pr1.3-clerk-auth` and is focused on
+Clerk auth wiring, signed webhook user sync, and 2FA scaffolding.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -94,9 +94,43 @@ Merged scope:
 - GitHub CI completed the Postgres-backed migration and RLS integration path
   after the follow-up fixes above.
 
-### Phase 1 Sprint 1 remaining (PRs 1.3 to 1.4)
+### PR-1.3 in progress — `feat/phase-1-pr1.3-clerk-auth`
 
-- **PR-1.3** — Clerk integration (`@clerk/nextjs`, webhook → User upsert with encrypted PII, 2FA scaffolded but not enforced)
+**PR scope:** Clerk provider/middleware wiring, Clerk webhook → encrypted local
+User sync, 2FA scaffold, and auth route shells.
+
+Current scope completed in the working tree:
+
+- `apps/api/src/routers/clerkWebhook.ts` — verifies Clerk webhook requests with
+  `@clerk/backend/webhooks`, maps `user.created` / `user.updated` payloads,
+  encrypts full name/email/phone via `@oasis/db`, computes `emailBidx`, upserts
+  active users with default `Parent` role, and deactivates users on `user.deleted`.
+- `apps/api/src/__tests__/clerkWebhook.test.ts` — covers real signed webhook
+  verification, invalid-signature rejection, encrypted PII/default-role upsert,
+  deleted-user deactivation, and payload mapping.
+- `apps/web/src/app/api/clerk/webhook/route.ts` — exposes the webhook handler as
+  a Next route.
+- `apps/web/src/middleware.ts` — adds Clerk middleware for protected route groups.
+- `apps/web/src/app/layout.tsx` — wraps the web app in ClerkProvider when
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is available; CI/no-secret builds render
+  safely without Clerk.
+- `apps/web/src/app/(auth)/...` — adds sign-in, sign-up, and 2FA setup shells.
+- `apps/mobile/app/_layout.tsx` — wraps Expo in ClerkProvider using the Clerk
+  Expo SecureStore token cache.
+- `packages/domain/src/rbac.ts` — adds `SessionUser.requires2fa`, currently
+  always false until Phase 5 enforcement.
+- `.env.example` — documents Clerk web/mobile publishable keys, secret key,
+  and `CLERK_WEBHOOK_SIGNING_SECRET`.
+
+**Verification on branch:**
+
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass without Clerk secrets.
+
+### Phase 1 Sprint 1 remaining
+
 - **PR-1.4** — tRPC context (Clerk session → SessionUser → RLS session vars), `auditedProcedure`, auth middleware
 
 ### Sprint 2 (week 3) — Head admin surface
@@ -196,7 +230,7 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 
 ## Blockers / escalations
 
-No product blockers currently. PR-1.2 is complete and merged.
+No product blockers currently. PR-1.3 is in progress and uncommitted per user request.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -209,14 +243,13 @@ No product blockers currently. PR-1.2 is complete and merged.
 
 ## Next steps — Phase 1 Sprint 1 remaining
 
-1. **PR-1.3** — Install `@clerk/nextjs` + `@clerk/clerk-expo`; add Clerk middleware;
-   implement Svix-signed webhook handler (`user.created/updated/deleted` → encrypted
-   User upsert); scaffold 2FA route (not enforced); add sign-in/sign-up pages.
+1. **PR-1.3** — Final review of Clerk auth wiring, route naming, and webhook
+   configuration before opening the PR. Do not commit from this overnight run.
 2. **PR-1.4** — Rewrite `apps/api/src/context.ts` to verify Clerk session → load User
    → hydrate `SessionUser` → `SET LOCAL` Postgres session vars per request;
    add `auditedProcedure` + `requireAuth`/`requireRole` tRPC middlewares.
 
 ## Who's working on it
 
-Technical Agent (Claude). No Strategic Agent work needed until we hit
+Technical Agent (Codex). No Strategic Agent work needed until we hit
 shop pricing policy and tithe/investment comms copy in Phase 2.

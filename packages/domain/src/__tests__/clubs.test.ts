@@ -17,9 +17,14 @@ describe('validateClubDraft', () => {
 });
 
 describe('assertCanManageClub', () => {
-  const head: SessionUser = { id: 'u1', role: 'Head', tags: [] };
-  const clubsAdmin: SessionUser = { id: 'u2', role: 'ClubsAdmin', tags: [] };
-  const supervisor: SessionUser = { id: 'u3', role: 'Supervisor', tags: [] };
+  const head: SessionUser = { id: 'u1', role: 'Head', tags: [], requires2fa: false };
+  const clubsAdmin: SessionUser = {
+    id: 'u2',
+    role: 'ClubsAdmin',
+    tags: [],
+    requires2fa: false,
+  };
+  const supervisor: SessionUser = { id: 'u3', role: 'Supervisor', tags: [], requires2fa: false };
 
   it('allows full admin and ClubsAdmin', () => {
     expect(() => { assertCanManageClub(head); }).not.toThrow();
