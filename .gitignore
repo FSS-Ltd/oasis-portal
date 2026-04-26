@@ -17,6 +17,12 @@ build/
 *.pem
 *.key
 
+# Local agent/tooling context (keep personal agent state out of the repo)
+.agents/
+.claude/
+.codex/
+graphify-out/
+
 # Agent Rules
 AGENTS.md
 BUILD.MD
@@ -54,8 +60,3 @@ apps/mobile/ios/build/
 
 # External repos (cloned for local reference, not part of this project)
 graphify/
-
-# Graphify local/generated files
-graphify-out/cache/
-graphify-out/manifest.json
-graphify-out/cost.json
