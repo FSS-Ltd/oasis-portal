@@ -1,7 +1,15 @@
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
 import { prisma } from '@oasis/db';
+import {
+  resolveInviteMetadata,
+  type PermissionTag,
+  type Role,
+} from '@oasis/domain';
 
 type ClerkWebhookEventType = 'user.created' | 'user.updated' | 'user.deleted';
+
+const DEFAULT_ROLE: Role = 'Parent';
+const DEFAULT_TAGS: PermissionTag[] = [];
 
 interface ClerkEmailAddress {
   id: string;
@@ -22,6 +30,7 @@ interface ClerkUserPayload {
   email_addresses: readonly ClerkEmailAddress[];
   primary_phone_number_id: string | null;
   phone_numbers: readonly ClerkPhoneNumber[];
+  public_metadata: Record<string, unknown> | null;
 }
 
 export interface ClerkUserUpsertInput {
@@ -29,6 +38,10 @@ export interface ClerkUserUpsertInput {
   fullName: string;
   email: string;
   phone: string | null;
+  /** Resolved from publicMetadata; applied only on first-time create. */
+  role: Role;
+  /** Resolved from publicMetadata; applied only on first-time create. */
+  tags: PermissionTag[];
 }
 
 export interface ClerkUserStore {
@@ -36,19 +49,11 @@ export interface ClerkUserStore {
   deactivateUser(clerkUserId: string): Promise<void>;
 }
 
-interface PrismaUserUpsertArgs {
-  where: { clerkId: string };
-  create: {
+interface PrismaUserCreateArgs {
+  data: {
     clerkId: string;
-    role: 'Parent';
+    role: Role;
     tags: string[];
-    fullNameEnc: string;
-    emailEnc: string;
-    emailBidx: string;
-    phoneEnc: string | null;
-    active: true;
-  };
-  update: {
     fullNameEnc: string;
     emailEnc: string;
     emailBidx: string;
@@ -57,9 +62,24 @@ interface PrismaUserUpsertArgs {
   };
 }
 
-interface PrismaUserUpdateArgs {
+interface PrismaUserUpdatePiiArgs {
+  where: { clerkId: string };
+  data: {
+    fullNameEnc: string;
+    emailEnc: string;
+    emailBidx: string;
+    phoneEnc: string | null;
+    active: true;
+  };
+}
+
+interface PrismaUserDeactivateArgs {
   where: { clerkId: string };
   data: { active: false };
+}
+
+interface PrismaUserFindUniqueArgs {
+  where: { clerkId: string };
 }
 
 export interface PrismaClerkUserStoreDb {
@@ -69,8 +89,9 @@ export interface PrismaClerkUserStoreDb {
     blindIndex(value: string): string;
   };
   user: {
-    upsert(args: PrismaUserUpsertArgs): Promise<unknown>;
-    update(args: PrismaUserUpdateArgs): Promise<unknown>;
+    findUnique(args: PrismaUserFindUniqueArgs): Promise<{ id: string } | null>;
+    create(args: PrismaUserCreateArgs): Promise<unknown>;
+    update(args: PrismaUserUpdatePiiArgs | PrismaUserDeactivateArgs): Promise<unknown>;
   };
 }
 
@@ -101,6 +122,7 @@ function asClerkUserPayload(data: WebhookEvent['data']): ClerkUserPayload {
     email_addresses: payload.email_addresses ?? [],
     primary_phone_number_id: payload.primary_phone_number_id ?? null,
     phone_numbers: payload.phone_numbers ?? [],
+    public_metadata: payload.public_metadata ?? null,
   };
 }
 
@@ -127,11 +149,17 @@ function displayName(user: ClerkUserPayload, email: string): string {
 export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUserUpsertInput {
   const user = asClerkUserPayload(data);
   const email = primaryEmail(user);
+  const metadata = resolveInviteMetadata(user.public_metadata, {
+    role: DEFAULT_ROLE,
+    tags: DEFAULT_TAGS,
+  });
   return {
     clerkUserId: user.id,
     fullName: displayName(user, email),
     email,
     phone: primaryPhone(user),
+    role: metadata.role,
+    tags: metadata.tags,
   };
 }
 
@@ -143,19 +171,27 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
       const phoneEnc = db.$enc.encrypt(input.phone);
       const emailBidx = db.$enc.blindIndex(input.email);
 
-      await db.user.upsert({
+      // Find-then-branch: role/tags are admin-managed, so re-syncs from
+      // user.updated must not overwrite them with stale Clerk metadata.
+      const existing = await db.user.findUnique({ where: { clerkId: input.clerkUserId } });
+      if (!existing) {
+        await db.user.create({
+          data: {
+            clerkId: input.clerkUserId,
+            role: input.role,
+            tags: [...input.tags],
+            fullNameEnc,
+            emailEnc,
+            emailBidx,
+            phoneEnc,
+            active: true,
+          },
+        });
+        return;
+      }
+      await db.user.update({
         where: { clerkId: input.clerkUserId },
-        create: {
-          clerkId: input.clerkUserId,
-          role: 'Parent',
-          tags: [],
-          fullNameEnc,
-          emailEnc,
-          emailBidx,
-          phoneEnc,
-          active: true,
-        },
-        update: {
+        data: {
           fullNameEnc,
           emailEnc,
           emailBidx,

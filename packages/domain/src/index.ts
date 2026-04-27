@@ -1,4 +1,5 @@
 export * from './rbac.js';
+export * from './users.js';
 export * from './meritLedger.js';
 export * from './tithe.js';
 export * from './investmentSim.js';
