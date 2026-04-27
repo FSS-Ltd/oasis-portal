@@ -21,6 +21,7 @@ const userCreatedEvent = {
     email_addresses: [{ id: 'email_1', email_address: 'Jean@Example.com' }],
     primary_phone_number_id: 'phone_1',
     phone_numbers: [{ id: 'phone_1', phone_number: '+447700900123' }],
+    public_metadata: null,
   },
 } as unknown as WebhookEvent;
 
@@ -41,12 +42,14 @@ function fakeEncrypt(value: string | null | undefined): string | null {
 }
 
 describe('mapClerkUserToUpsertInput', () => {
-  it('maps Clerk user payloads to the local user sync contract', () => {
+  it('maps Clerk user payloads to the local user sync contract with default role/tags', () => {
     expect(mapClerkUserToUpsertInput(userCreatedEvent.data)).toEqual({
       clerkUserId: 'user_123',
       fullName: 'Jean Ntagengwa',
       email: 'Jean@Example.com',
       phone: '+447700900123',
+      role: 'Parent',
+      tags: [],
     });
   });
 
@@ -63,6 +66,41 @@ describe('mapClerkUserToUpsertInput', () => {
 
     expect(mapClerkUserToUpsertInput(event.data).fullName).toBe('Jean@Example.com');
   });
+
+  it('honors pre-stamped role/tags from public_metadata', () => {
+    const event = {
+      ...userCreatedEvent,
+      data: {
+        ...userCreatedEvent.data,
+        public_metadata: { role: 'Supervisor', tags: ['shopkeeper'] },
+      },
+    } as unknown as WebhookEvent;
+
+    expect(mapClerkUserToUpsertInput(event.data)).toMatchObject({
+      role: 'Supervisor',
+      tags: ['shopkeeper'],
+    });
+  });
+
+  it('falls back to defaults when public_metadata is malformed (does not throw)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const event = {
+        ...userCreatedEvent,
+        data: {
+          ...userCreatedEvent.data,
+          public_metadata: { role: 'Janitor' },
+        },
+      } as unknown as WebhookEvent;
+
+      expect(mapClerkUserToUpsertInput(event.data)).toMatchObject({
+        role: 'Parent',
+        tags: [],
+      });
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe('processClerkWebhookEvent', () => {
@@ -76,6 +114,8 @@ describe('processClerkWebhookEvent', () => {
       fullName: 'Jean Ntagengwa',
       email: 'Jean@Example.com',
       phone: '+447700900123',
+      role: 'Parent',
+      tags: [],
     });
     expect(store.deactivateUser).not.toHaveBeenCalled();
   });
@@ -95,8 +135,9 @@ describe('processClerkWebhookEvent', () => {
 });
 
 describe('createPrismaClerkUserStore', () => {
-  it('encrypts PII and assigns Parent as the default role on user upsert', async () => {
-    const upsert = vi.fn().mockResolvedValue(undefined);
+  function makeDb(existing: { id: string } | null) {
+    const findUnique = vi.fn().mockResolvedValue(existing);
+    const create = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
     const db = {
       $enc: {
@@ -105,9 +146,13 @@ describe('createPrismaClerkUserStore', () => {
           return `bidx:${value.trim().toLowerCase()}`;
         },
       },
-      user: { upsert, update },
+      user: { findUnique, create, update },
     } satisfies PrismaClerkUserStoreDb;
+    return { db, findUnique, create, update };
+  }
 
+  it('creates a new user with role/tags from input on first sync', async () => {
+    const { db, findUnique, create, update } = makeDb(null);
     const store = createPrismaClerkUserStore(db);
 
     await store.upsertUser({
@@ -115,21 +160,16 @@ describe('createPrismaClerkUserStore', () => {
       fullName: 'Jean Ntagengwa',
       email: 'Jean@Example.com',
       phone: '+447700900123',
+      role: 'Supervisor',
+      tags: ['shopkeeper'],
     });
 
-    expect(upsert).toHaveBeenCalledWith({
-      where: { clerkId: 'user_123' },
-      create: {
+    expect(findUnique).toHaveBeenCalledWith({ where: { clerkId: 'user_123' } });
+    expect(create).toHaveBeenCalledWith({
+      data: {
         clerkId: 'user_123',
-        role: 'Parent',
-        tags: [],
-        fullNameEnc: 'enc:Jean Ntagengwa',
-        emailEnc: 'enc:Jean@Example.com',
-        emailBidx: 'bidx:jean@example.com',
-        phoneEnc: 'enc:+447700900123',
-        active: true,
-      },
-      update: {
+        role: 'Supervisor',
+        tags: ['shopkeeper'],
         fullNameEnc: 'enc:Jean Ntagengwa',
         emailEnc: 'enc:Jean@Example.com',
         emailBidx: 'bidx:jean@example.com',
@@ -138,6 +178,33 @@ describe('createPrismaClerkUserStore', () => {
       },
     });
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('updates PII only on existing-user re-sync (does not stomp role/tags)', async () => {
+    const { db, findUnique, create, update } = makeDb({ id: 'cuid_existing' });
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Jean Ntagengwa',
+      email: 'Jean@Example.com',
+      phone: '+447700900123',
+      role: 'Supervisor',
+      tags: ['shopkeeper'],
+    });
+
+    expect(findUnique).toHaveBeenCalledWith({ where: { clerkId: 'user_123' } });
+    expect(create).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { clerkId: 'user_123' },
+      data: {
+        fullNameEnc: 'enc:Jean Ntagengwa',
+        emailEnc: 'enc:Jean@Example.com',
+        emailBidx: 'bidx:jean@example.com',
+        phoneEnc: 'enc:+447700900123',
+        active: true,
+      },
+    });
   });
 });
 

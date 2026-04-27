@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./rbac": "./src/rbac.ts",
+    "./users": "./src/users.ts",
     "./meritLedger": "./src/meritLedger.ts",
     "./tithe": "./src/tithe.ts",
     "./investmentSim": "./src/investmentSim.ts",

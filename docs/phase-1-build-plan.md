@@ -1,6 +1,6 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 1 complete — Sprint 2 starting (week 3)  
+**Status:** Sprint 2 in progress (week 3) — PR-1.5 complete  
 **Last updated:** 2026-04-26  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -133,14 +133,27 @@ Branch: `feat/phase-1-pr1.4-trpc-context-rls` → [PR #10](https://github.com/jn
 Goal: Head can run an entire onboarding session — invite staff/parents, create
 students, link guardians, assign subjects, and see a full audit trail.
 
-### PR-1.5 — `feat(domain): user invite + guardian linking`
+### PR-1.5 — `feat(domain): user invite + guardian linking` ✅ COMPLETE
 
-- `apps/api/src/routers/admin.ts` — `admin.inviteUser` (full-admin only): creates
-  Clerk invitation, pre-stamps role + tags. `admin.linkGuardian` — idempotent.
-- `packages/domain/src/users.ts` — invite payload validation (zod), role/tag
-  whitelist, full-admin guard.
+Branch: `feat/phase-1-pr1.5-user-invite-guardian`
 
-**Tests:** zod rejects invalid roles; non-full-admin denied; audit row written.
+- `packages/domain/src/users.ts` — `inviteUserInput` / `linkGuardianInput` zod schemas
+  (role + tag whitelists from `ROLES`/`PERMISSION_TAGS`); `resolveInviteMetadata`
+  for safe webhook parsing with fallback-to-defaults.
+- `apps/api/src/lib/clerk.ts` — `ClerkInvitationClient` injectable interface +
+  `createDefaultClerkInvitationClient()` (mirrors `ClerkUserStore` pattern).
+- `apps/api/src/routers/admin.ts` — `admin.inviteUser` (`fullAdminProcedure`):
+  calls Clerk API with `publicMetadata: { role, tags }`, writes `Create`/`Invitation`
+  audit row, returns `{ invitationId, status, url }`.
+  `admin.linkGuardian` (`fullAdminProcedure`): validates user is `Parent`, idempotent
+  via `create` + P2002 catch; audit row only on actual creation.
+- `apps/api/src/routers/clerkWebhook.ts` — extended to read pre-stamped role/tags
+  from `public_metadata` via `resolveInviteMetadata`. Find-then-branch replaces
+  upsert: role/tags set on first sync only; re-syncs touch PII only.
+
+**Tests (23 new):** 14 domain (`inviteUserInput`/`linkGuardianInput`/`resolveInviteMetadata`);
+9 admin router (FORBIDDEN, BAD_REQUEST zod, happy path with audit, idempotent no-op,
+NOT_FOUND, non-Parent). Webhook tests updated for find-then-branch + 4 new metadata cases.
 
 ### PR-1.6 — `feat(domain): student CRUD + subject assignment`
 
@@ -202,8 +215,8 @@ every step → `pnpm verify:encryption` green.
 | `docs/adr/0006-pii-envelope-encryption-env-key.md` | 1.1 |
 | `packages/db/src/__tests__/encryption.test.ts` | 1.1 |
 | `packages/db/scripts/apply-rls.ts` | 1.2 |
-| `packages/domain/src/users.ts` | 1.5 |
-| `apps/api/src/routers/admin.ts` | 1.5 |
+| `packages/domain/src/users.ts` | 1.5 ✅ |
+| `apps/api/src/routers/admin.ts` | 1.5 ✅ |
 | `apps/api/src/routers/clerkWebhook.ts` | 1.3 |
 | `apps/api/src/routers/audit.ts` | 1.8 |
 | `apps/web/src/middleware.ts` | 1.3 |

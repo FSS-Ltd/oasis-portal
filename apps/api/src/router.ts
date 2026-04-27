@@ -6,6 +6,7 @@
  * the build plan.
  */
 import { router } from './trpc.js';
+import { adminRouter } from './routers/admin.js';
 import { healthRouter } from './routers/health.js';
 import { studentRouter } from './routers/student.js';
 import { attendanceRouter } from './routers/attendance.js';
@@ -22,6 +23,7 @@ import { messageRouter } from './routers/message.js';
 import { reportRouter } from './routers/report.js';
 
 export const appRouter = router({
+  admin: adminRouter,
   health: healthRouter,
   student: studentRouter,
   attendance: attendanceRouter,

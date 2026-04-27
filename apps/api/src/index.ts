@@ -14,6 +14,17 @@ export {
   auditedProcedure,
 } from './trpc.js';
 export {
+  adminRouter,
+  createAdminRouter,
+  type AdminRouterDeps,
+} from './routers/admin.js';
+export {
+  createDefaultClerkInvitationClient,
+  type ClerkInvitationClient,
+  type ClerkInvitationCreateInput,
+  type ClerkInvitationResult,
+} from './lib/clerk.js';
+export {
   handleClerkWebhookRequest,
   mapClerkUserToUpsertInput,
   processClerkWebhookEvent,
