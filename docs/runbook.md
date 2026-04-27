@@ -23,14 +23,47 @@ corepack enable
 corepack prepare pnpm@10.0.0 --activate
 pnpm install
 pnpm --filter @oasis/db generate      # Prisma client
-pnpm --filter @oasis/db migrate:dev   # apply local migrations + RLS
+pnpm db:dev:setup                     # start Docker Postgres, migrate, seed
 pnpm dev                              # turbo dev across apps
+```
+
+Local Docker provides two Postgres roles:
+
+- `oasis` / `oasis` — database owner used through `DIRECT_URL` for migrations
+  and RLS policy application.
+- `oasis_app` / `oasis_app` — runtime role used through `DATABASE_URL` so local
+  API requests exercise the same non-owner path as production.
+
+Useful local DB commands:
+
+```bash
+pnpm db:dev:up       # start Postgres
+pnpm db:dev:setup    # start + generate + migrate/RLS + seed ACE subjects
+pnpm db:dev:logs     # follow Postgres logs
+pnpm db:dev:down     # stop Postgres, keep volume
+pnpm db:dev:reset    # delete local DB volume and recreate Postgres
+```
+
+First local Head user bootstrap:
+
+1. Run the web app locally.
+2. Expose it with `ngrok http 3000` or equivalent.
+3. In Clerk test dashboard, point the webhook to
+   `https://<ngrok-url>/api/clerk/webhook` for `user.created`, `user.updated`,
+   and `user.deleted`.
+4. Sign up once through `/sign-up`.
+5. Promote that local DB user:
+
+```bash
+pnpm bootstrap:head -- --email=you@example.com
 ```
 
 Required env vars (copy from `.env.example`):
 
-- `DATABASE_URL` — Postgres (local: `postgres://oasis:oasis@localhost:5432/oasis`)
-- `DIRECT_URL` — direct Postgres URL used by Prisma migrations
+- `DATABASE_URL` — runtime Postgres URL (local Docker:
+  `postgresql://oasis_app:oasis_app@localhost:5432/oasis_dev`)
+- `DIRECT_URL` — owner Postgres URL used by Prisma migrations (local Docker:
+  `postgresql://oasis:oasis@localhost:5432/oasis_dev`)
 - `NEXT_PUBLIC_SUPABASE_URL` — browser-safe Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — browser-safe Supabase publishable key
 - `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`

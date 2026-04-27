@@ -236,6 +236,35 @@ Verification completed locally:
   → pass with 1 skipped test because Clerk E2E credentials are not set.
 - `graphify update .` → graph refreshed after code changes.
 
+### Local Docker DB implemented — `chore(dev): local Postgres bootstrap`
+
+**Purpose:** Make local testing realistic before production deployment by
+running Postgres in Docker with separate owner/runtime roles.
+
+Changed scope:
+
+- `compose.yaml` — starts `postgres:16-alpine` on `localhost:5432` with the
+  `oasis_dev` database.
+- `docker/postgres/init/001-runtime-role.sql` — creates local `oasis_app`
+  runtime role for app connections.
+- Root package scripts — add `db:dev:up`, `db:dev:down`, `db:dev:logs`,
+  `db:dev:reset`, `db:dev:setup`, and env-loaded DB commands.
+- `scripts/with-env.mjs` — dependency-free loader for repo-root `.env.local`
+  before DB scripts run.
+- `packages/db/scripts/bootstrap-head.ts` — promotes a Clerk-synced local user
+  to `Head` by email after the webhook creates the DB row.
+- DB setup scripts now use `DIRECT_URL` for owner-level migration/RLS setup and
+  `DATABASE_URL` for runtime-role verification.
+
+Verification completed locally:
+
+- `docker compose config` → pass.
+- `pnpm db:dev:setup` → pass; migrations, RLS, and six ACE subjects applied.
+- `pnpm db:integration` → pass against Docker; Head sees Sensitive behaviour,
+  Supervisor sees General only.
+- `pnpm --filter @oasis/db typecheck` → pass.
+- `pnpm --filter @oasis/db test` → pass.
+
 ### Phase 1 Sprint 2 remaining
 
 - **PR-1.8** — audit-log viewer + Phase 1 verification suite

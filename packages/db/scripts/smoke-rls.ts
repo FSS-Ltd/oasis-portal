@@ -1,6 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+function prismaWithOptionalUrl(url: string | undefined): PrismaClient {
+  return url
+    ? new PrismaClient({
+        datasources: {
+          db: { url },
+        },
+      })
+    : new PrismaClient();
+}
+
+const prisma = prismaWithOptionalUrl(process.env['DIRECT_URL'] ?? process.env['DATABASE_URL']);
 const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
@@ -8,8 +18,8 @@ type CountRow = { count: bigint };
 
 function runtimeDatabaseUrl(): string {
   if (process.env['RLS_DATABASE_URL']) return process.env['RLS_DATABASE_URL'];
-  const rawUrl = process.env['DATABASE_URL'];
-  if (!rawUrl) throw new Error('Missing DATABASE_URL for RLS smoke test');
+  const rawUrl = process.env['DATABASE_URL'] ?? process.env['DIRECT_URL'];
+  if (!rawUrl) throw new Error('Missing DATABASE_URL or DIRECT_URL for RLS smoke test');
 
   const url = new URL(rawUrl);
   url.username = RUNTIME_ROLE;
