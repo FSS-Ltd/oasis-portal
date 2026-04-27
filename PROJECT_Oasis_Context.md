@@ -264,6 +264,9 @@ Changed scope so far:
   `apps/api/scripts/smoke-context-rls.ts` now write real encrypted fixture PII
   instead of `enc:*` placeholders. A local malformed `ci-student` smoke row was
   repaired in place after it caused `student.list` to return `Malformed ciphertext`.
+- CI fix: both smoke scripts generate process-local test encryption env values
+  when `OASIS_MASTER_KEY` / `OASIS_BIDX_PEPPER` are absent, avoiding hardcoded
+  fixture secrets in GitHub Actions while keeping production encryption strict.
 
 ### Local Docker DB implemented — `chore(dev): local Postgres bootstrap`
 

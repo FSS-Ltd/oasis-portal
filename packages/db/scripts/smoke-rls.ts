@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { blindIndex, encryptField } from '../src/encryption.js';
 
@@ -16,6 +17,12 @@ const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
 type CountRow = { count: bigint };
+
+function ensureSmokeEncryptionEnv() {
+  process.env['OASIS_MASTER_KEY'] ??= randomBytes(32).toString('base64');
+  process.env['OASIS_MASTER_KEY_VERSION'] ??= '1';
+  process.env['OASIS_BIDX_PEPPER'] ??= randomBytes(32).toString('hex');
+}
 
 function runtimeDatabaseUrl(): string {
   if (process.env['RLS_DATABASE_URL']) return process.env['RLS_DATABASE_URL'];
@@ -83,6 +90,7 @@ async function main() {
   });
 
   try {
+    ensureSmokeEncryptionEnv();
     await prepareRuntimeRole();
     await prisma.$executeRawUnsafe('TRUNCATE "User" CASCADE');
 

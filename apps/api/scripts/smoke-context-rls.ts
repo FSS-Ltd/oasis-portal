@@ -9,6 +9,7 @@
  * applied, and the `oasis_app` runtime role (created by smoke-rls.ts on first
  * run; this script also provisions it idempotently).
  */
+import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import type { SessionUser } from '@oasis/domain';
 import { blindIndex, encryptField } from '@oasis/db';
@@ -17,6 +18,12 @@ import { applyRlsTx } from '../src/context.js';
 const owner = new PrismaClient();
 const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
+
+function ensureSmokeEncryptionEnv() {
+  process.env['OASIS_MASTER_KEY'] ??= randomBytes(32).toString('base64');
+  process.env['OASIS_MASTER_KEY_VERSION'] ??= '1';
+  process.env['OASIS_BIDX_PEPPER'] ??= randomBytes(32).toString('hex');
+}
 
 function runtimeDatabaseUrl(): string {
   if (process.env['RLS_DATABASE_URL']) return process.env['RLS_DATABASE_URL'];
@@ -99,6 +106,7 @@ const supervisor: SessionUser = {
 async function main() {
   const runtime = new PrismaClient({ datasources: { db: { url: runtimeDatabaseUrl() } } });
   try {
+    ensureSmokeEncryptionEnv();
     await ensureRuntimeRole();
     await seed();
 
