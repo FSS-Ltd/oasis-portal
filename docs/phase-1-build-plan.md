@@ -1,7 +1,7 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 2 in progress (week 3) — PR-1.5 complete  
-**Last updated:** 2026-04-26  
+**Status:** Sprint 2 in progress (week 3) — PR-1.6 complete  
+**Last updated:** 2026-04-27  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -155,17 +155,21 @@ Branch: `feat/phase-1-pr1.5-user-invite-guardian`
 9 admin router (FORBIDDEN, BAD_REQUEST zod, happy path with audit, idempotent no-op,
 NOT_FOUND, non-Parent). Webhook tests updated for find-then-branch + 4 new metadata cases.
 
-### PR-1.6 — `feat(domain): student CRUD + subject assignment`
+### PR-1.6 — `feat(domain): student CRUD + subject assignment` ✅ COMPLETE
 
-- Flesh out `apps/api/src/routers/student.ts` — `student.create`, `student.update`,
-  `student.list`, `student.assignSubject`, `student.setCurrentPace`.
-- Full-admin only for writes; Supervisor can list.
+- `apps/api/src/routers/student.ts` — `student.create`, `student.update`,
+  `student.list`, `student.byId`, `student.assignSubject`, `student.setCurrentPace`.
+- Full-admin only for writes; Supervisor can list and read by id.
 - PII fields (`fullName`, `dob`, `address`) encrypted on write; `nameBidx` computed.
-- `student.list` decrypts in-request; writes one `DecryptPii` `AuditLog` row per
-  request (not per row) to avoid log spam.
+- `student.list` / `student.byId` decrypt in-request; write one `DecryptPii`
+  `AuditLog` row per request (not per row) to avoid log spam.
+- Subject assignment validates active subject, is idempotent on duplicate assignment,
+  and writes audit rows only for actual create/update operations.
 
-**Tests:** create → list round-trip with decryption; Supervisor write denied;
-audit rows for create + decrypt batch.
+**Tests (4 new):** create → list round-trip with encrypted storage + decryption;
+Supervisor read allowed / write denied; audit rows for create + decrypt batch;
+subject assignment idempotency, inactive/missing subject, missing student, and
+missing PACE assignment errors.
 
 ### PR-1.7 — `feat(web): Head admin screens`
 
@@ -203,7 +207,7 @@ every step → `pnpm verify:encryption` green.
 | `.env.example` | 1.1 | new env var names |
 | `apps/api/src/context.ts` | 1.4 ✅ | Clerk session + RLS session vars, `applyRlsTx` |
 | `apps/api/src/trpc.ts` | 1.4 ✅ | `auditedProcedure`, `fullAdminProcedure`, `roleProcedure` |
-| `apps/api/src/routers/student.ts` | 1.6 | flesh out CRUD |
+| `apps/api/src/routers/student.ts` | 1.6 ✅ | student CRUD + subject assignment |
 | `apps/api/src/routers/health.ts` | 1.4 ✅ | `me` endpoint |
 | `docs/runbook.md` | 1.2 | Supabase setup, env-key rotation procedure |
 | `docs/adr/0005-pii-envelope-encryption-kms.md` | 1.1 | marked Superseded |
@@ -226,7 +230,7 @@ every step → `pnpm verify:encryption` green.
 | `apps/web/src/app/(admin)/audit/page.tsx` | 1.8 |
 | `apps/api/src/__tests__/trpc.middleware.test.ts` | 1.4 ✅ |
 | `apps/api/scripts/smoke-context-rls.ts` | 1.4 ✅ |
-| `apps/api/src/__tests__/...` | 1.6 |
+| `apps/api/src/__tests__/student.router.test.ts` | 1.6 ✅ |
 
 ### Reused without modification (do not duplicate)
 

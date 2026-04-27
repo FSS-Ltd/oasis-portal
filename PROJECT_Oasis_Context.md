@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-26
+**Last updated:** 2026-04-27
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 — Sprint 1 complete; Sprint 2 starting (Head admin surface).
+**Phase:** 1 — Sprint 2 in progress; PR-1.6 complete.
 
 ---
 
@@ -21,7 +21,7 @@ raw DB dump cannot re-identify anyone.
 ## Current status — Phase 1 Sprint 2 (week 3)
 
 Phase 0 and all four Sprint 1 PRs (PR-1.1 → PR-1.4) are merged to `main`.
-Sprint 2 begins with PR-1.5 (user invite + guardian linking).
+Sprint 2 PR-1.5 and PR-1.6 are complete; PR-1.7 is next.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -164,10 +164,47 @@ Changed files:
 - `pnpm --filter @oasis/web build` → pass without Clerk secrets.
 - CI `db-integration` job: RLS smoke + context RLS smoke both green.
 
+### PR-1.5 complete — `feat(domain): user invite + guardian linking`
+
+**PR scope:** Head-admin user invitations through Clerk plus idempotent
+guardian/student linking.
+
+Changed scope:
+
+- `packages/domain/src/users.ts` — invite and guardian-link zod schemas, role/tag
+  whitelists, and Clerk invite metadata parsing.
+- `apps/api/src/lib/clerk.ts` — injectable Clerk invitation client.
+- `apps/api/src/routers/admin.ts` — `admin.inviteUser` and `admin.linkGuardian`
+  with full-admin RBAC and entity-specific audit rows.
+- `apps/api/src/routers/clerkWebhook.ts` — first sync reads role/tags from Clerk
+  `public_metadata`; later syncs update PII only.
+- Tests cover invite validation, Clerk parameters, audit logging, idempotent
+  guardian linking, role validation, and webhook metadata fallback.
+
+### PR-1.6 complete — `feat(domain): student CRUD + subject assignment`
+
+**PR scope:** Backend-only student CRUD, encrypted student PII, subject assignment,
+PACE-number update, RBAC, and audit rows.
+
+Changed scope:
+
+- `apps/api/src/routers/student.ts` — implements `student.create`,
+  `student.update`, `student.list`, `student.byId`, `student.assignSubject`, and
+  `student.setCurrentPace`.
+- Full-admin roles can mutate students and assignments. Supervisors can list and
+  read students by id but cannot write.
+- Student PII (`fullName`, `dob`, optional `address`) is encrypted on write using
+  `ctx.db.$enc`; `nameBidx` is computed for exact normalised search.
+- Reads decrypt only after RBAC passes and write one `DecryptPii` audit row per
+  request for `student.list` / `student.byId`.
+- Subject assignment validates student + active subject, defaults current PACE to
+  `1001`, handles duplicate assignment idempotently, and audits only real writes.
+- `apps/api/src/__tests__/student.router.test.ts` — 4 focused tests covering
+  encrypted create/list round trip, Supervisor read/write permissions, assignment
+  idempotency, and missing/inactive error cases.
+
 ### Phase 1 Sprint 2 remaining
 
-- **PR-1.5** — user invite + guardian linking
-- **PR-1.6** — student CRUD + subject assignment
 - **PR-1.7** — Head admin web screens
 - **PR-1.8** — audit-log viewer + Phase 1 verification suite
 
