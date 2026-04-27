@@ -6,6 +6,7 @@ export default function StaffPage() {
     <MotionPage>
       <div className="page-header">
         <div>
+          <p>Access management</p>
           <h1>Staff and parents</h1>
           <p>Send Clerk invitations with the correct Oasis role and optional permission tags.</p>
         </div>

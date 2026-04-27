@@ -8,6 +8,7 @@ export default function StudentsPage() {
     <MotionPage>
       <div className="page-header">
         <div>
+          <p>Student records</p>
           <h1>Students</h1>
           <p>Create students, check active subject assignments, and open a record for edits.</p>
         </div>

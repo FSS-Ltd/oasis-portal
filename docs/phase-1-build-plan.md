@@ -1,6 +1,6 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 2 in progress (week 3) — PR-1.6 complete  
+**Status:** Sprint 2 in progress (week 3) — PR-1.7 merged; PR-1.7.5 in progress  
 **Last updated:** 2026-04-27  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -173,7 +173,7 @@ Supervisor read allowed / write denied; audit rows for create + decrypt batch;
 subject assignment idempotency, inactive/missing subject, missing student, and
 missing PACE assignment errors.
 
-### PR-1.7 — `feat(web): Head admin screens`
+### PR-1.7 — `feat(web): Head admin screens` ✅ MERGED
 
 - `apps/web/src/app/(admin)/students/page.tsx` — list + name search.
 - `apps/web/src/app/(admin)/students/new/page.tsx` — create form (react-hook-form + zod + shadcn).
@@ -183,6 +183,31 @@ missing PACE assignment errors.
 
 **Tests (Playwright):** Head logs in → creates student → assigns Maths →
 invites parent → links guardian.
+
+### PR-1.7.5 — `feat(web): align Head admin screens with design handoff` 🚧 IN PROGRESS
+
+Branch: `feat/phase-1-pr1.7.5-design-conversion`
+
+Scope: convert the screens built in PR-1.7 to the UI system supplied in
+`design/Oasis Learning Center-handoff.zip`, without changing the Phase 1 data
+flow or adding unrelated features.
+
+- `apps/web/src/app/(admin)/admin/layout.tsx` — use the handoff's staff-portal
+  shell: navy sidebar on desktop, mobile header and bottom nav, Oasis logo, and
+  staff role context.
+- `apps/web/src/app/(admin)/admin/admin.css` — replace the interim green admin
+  theme with the handoff palette: navy, blue, crimson, pale blue background,
+  tighter cards, badges, tables, inputs, and buttons.
+- `apps/web/src/app/(admin)/admin/page.tsx` — add a small dashboard landing
+  surface matching the prototype instead of redirecting to `/admin/students`.
+- `apps/web/src/app/(admin)/admin/students/...` — update student list/detail
+  treatment with avatars, status badges, profile heading, and design-aligned
+  form controls.
+- `apps/web/src/app/(admin)/admin/staff/...` — align account invitation screen
+  headers and forms with the same design language.
+
+**Verification target:** `pnpm lint`, `pnpm typecheck`, `pnpm test`,
+`pnpm --filter @oasis/web build`, then `graphify update .`.
 
 ### PR-1.8 — `feat(audit): audit-log viewer + Phase 1 verification suite`
 
