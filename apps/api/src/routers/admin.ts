@@ -104,7 +104,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
             action: 'Create',
             entity: 'Invitation',
             entityId: invitation.id,
-            meta: { email: input.email, role: input.role, tags: input.tags },
+            meta: { role: input.role, tags: input.tags, invitationStatus: invitation.status },
           },
         });
 

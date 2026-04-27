@@ -202,12 +202,13 @@ describe('admin.inviteUser', () => {
         entity: 'Invitation',
         entityId: 'inv_xyz',
         meta: {
-          email: 'jane@example.com',
           role: 'Supervisor',
           tags: ['shopkeeper'],
+          invitationStatus: 'pending',
         },
       },
     });
+    expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain('jane@example.com');
     expect(result).toEqual({
       invitationId: 'inv_xyz',
       status: 'pending',

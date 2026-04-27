@@ -233,6 +233,13 @@
   gap: 8px;
 }
 
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr)) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
 .panel {
   border: 1px solid var(--oasis-border);
   border-radius: 12px;
@@ -427,6 +434,10 @@
   color: var(--oasis-text);
 }
 
+.audit-table {
+  min-width: 920px;
+}
+
 .student-row {
   display: flex;
   align-items: center;
@@ -526,6 +537,16 @@
   height: 1px;
   margin: 18px 0;
   background: var(--oasis-border);
+}
+
+.audit-meta {
+  display: block;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 @keyframes spin {
@@ -630,6 +651,10 @@
   .toolbar__search {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .audit-filters {
+    grid-template-columns: 1fr;
   }
 
   .dashboard-grid {

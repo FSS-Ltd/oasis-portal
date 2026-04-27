@@ -26,6 +26,7 @@
     "db:migrate": "node scripts/with-env.mjs pnpm --filter @oasis/db migrate",
     "db:integration": "node scripts/with-env.mjs pnpm --filter @oasis/db db:integration",
     "api:smoke-context-rls": "node scripts/with-env.mjs pnpm --filter @oasis/api smoke:context-rls",
+    "verify:encryption": "node scripts/with-env.mjs pnpm --filter @oasis/db verify:encryption",
     "db:seed": "node scripts/with-env.mjs pnpm --filter @oasis/db seed",
     "bootstrap:head": "node scripts/with-env.mjs pnpm --filter @oasis/db bootstrap:head",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""

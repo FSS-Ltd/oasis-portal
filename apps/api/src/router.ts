@@ -7,6 +7,7 @@
  */
 import { router } from './trpc.js';
 import { adminRouter } from './routers/admin.js';
+import { auditRouter } from './routers/audit.js';
 import { healthRouter } from './routers/health.js';
 import { studentRouter } from './routers/student.js';
 import { attendanceRouter } from './routers/attendance.js';
@@ -24,6 +25,7 @@ import { reportRouter } from './routers/report.js';
 
 export const appRouter = router({
   admin: adminRouter,
+  audit: auditRouter,
   health: healthRouter,
   student: studentRouter,
   attendance: attendanceRouter,

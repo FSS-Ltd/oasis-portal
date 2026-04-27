@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-27
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 — Sprint 2 in progress; PR-1.7 merged; PR-1.7.5 in progress.
+**Phase:** 1 — Sprint 2 in progress; PR-1.7.5 merged; PR-1.8 in progress.
 
 ---
 
@@ -21,9 +21,9 @@ raw DB dump cannot re-identify anyone.
 ## Current status — Phase 1 Sprint 2 (week 3)
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), and Sprint 2 PR-1.5 →
-PR-1.7 are merged to `main`. PR-1.7.5 is now the focused follow-up branch
-for converting the PR-1.7 Head admin screens to the UI handoff under
-`design/`.
+PR-1.7.5 are merged to `main`. PR-1.8 is now the focused follow-up branch
+for the full-admin audit viewer, encryption dump verification, and Phase 1
+Sprint 2 verification suite.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -237,13 +237,13 @@ Verification completed locally:
   → pass with 1 skipped test because Clerk E2E credentials are not set.
 - `graphify update .` → graph refreshed after code changes.
 
-### PR-1.7.5 in progress — `feat(web): align Head admin screens with design handoff`
+### PR-1.7.5 merged — `feat(web): align Head admin screens with design handoff` → PR #16
 
 **PR scope:** Convert the screens created in PR-1.7 to the visual system in
 `design/Oasis Learning Center-handoff.zip`, while preserving the live tRPC
 forms and Phase 1 onboarding workflows.
 
-Current branch: `feat/phase-1-pr1.7.5-design-conversion`
+Merged branch: `feat/phase-1-pr1.7.5-design-conversion`
 
 Changed scope so far:
 
@@ -297,9 +297,12 @@ Verification completed locally:
 - `pnpm --filter @oasis/db typecheck` → pass.
 - `pnpm --filter @oasis/db test` → pass.
 
-### Phase 1 Sprint 2 remaining
+### PR-1.8 in progress — `feat(audit): audit-log viewer + Phase 1 verification suite`
 
-- **PR-1.8** — audit-log viewer + Phase 1 verification suite
+**PR scope:** Add the full-admin audit log read API and `/admin/audit` viewer,
+remove plaintext PII from invitation audit metadata, add `pnpm verify:encryption`
+using `pg_dump --data-only` through `DIRECT_URL`, and wire the encryption
+verification job into CI.
 
 ### Sprint 2 (week 3) — Head admin surface
 
@@ -411,8 +414,8 @@ No product blockers currently. Sprint 1 (PR-1.1 → PR-1.4) is fully merged.
 
 ## Next steps — Phase 1 Sprint 2
 
-1. **PR-1.8** — audit-log viewer + `pnpm verify:encryption` script (pg_dump check)
-   + Playwright e2e for full Sprint 2 onboarding flow.
+1. Complete **PR-1.8** — audit-log viewer + `pnpm verify:encryption` script
+   (pg_dump check) + CI verification suite.
 
 ## Who's working on it
 

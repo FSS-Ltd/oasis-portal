@@ -15,7 +15,17 @@ import type { SessionUser } from '@oasis/domain';
 import { blindIndex, encryptField } from '@oasis/db';
 import { applyRlsTx } from '../src/context.js';
 
-const owner = new PrismaClient();
+function prismaWithOptionalUrl(url: string | undefined): PrismaClient {
+  return url
+    ? new PrismaClient({
+        datasources: {
+          db: { url },
+        },
+      })
+    : new PrismaClient();
+}
+
+const owner = prismaWithOptionalUrl(process.env['DIRECT_URL'] ?? process.env['DATABASE_URL']);
 const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
@@ -30,6 +40,7 @@ function runtimeDatabaseUrl(): string {
   const rawUrl = process.env['DATABASE_URL'];
   if (!rawUrl) throw new Error('Missing DATABASE_URL for RLS context smoke');
   const url = new URL(rawUrl);
+  if (url.username === RUNTIME_ROLE) return url.toString();
   url.username = RUNTIME_ROLE;
   url.password = RUNTIME_PASSWORD;
   return url.toString();
@@ -46,9 +57,6 @@ async function ensureRuntimeRole() {
     END
     $$;
   `);
-  await owner.$executeRawUnsafe(
-    `ALTER ROLE ${RUNTIME_ROLE} WITH LOGIN PASSWORD '${RUNTIME_PASSWORD}' NOBYPASSRLS`,
-  );
   await owner.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${RUNTIME_ROLE}`);
   await owner.$executeRawUnsafe(
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${RUNTIME_ROLE}`,

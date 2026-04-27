@@ -16,6 +16,7 @@
     "migrate:deploy": "prisma migrate deploy",
     "rls:apply": "tsx scripts/apply-rls.ts",
     "db:integration": "tsx scripts/smoke-rls.ts",
+    "verify:encryption": "tsx scripts/verify-encryption.ts",
     "bootstrap:head": "tsx scripts/bootstrap-head.ts",
     "seed": "tsx prisma/seed.ts",
     "lint": "eslint src scripts",
