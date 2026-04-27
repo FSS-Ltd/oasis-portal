@@ -1,7 +1,7 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 2 in progress (week 3) — PR-1.5 complete  
-**Last updated:** 2026-04-26  
+**Status:** Sprint 2 in progress (week 3) — PR-1.6 complete  
+**Last updated:** 2026-04-27  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -14,6 +14,7 @@ SQL, encryption helper, tRPC skeleton routers, ADRs 001–005, mobile/web/api
 shells, CI green.
 
 Phase 1 delivers the foundation every subsequent feature depends on:
+
 - Real Clerk auth wired through tRPC context
 - PII encryption running on every write to `User`, `Student`, `Guardian`
 - Postgres + RLS on Supabase EU Postgres
@@ -21,6 +22,7 @@ Phase 1 delivers the foundation every subsequent feature depends on:
 - Audit log baseline on every mutation and every PII decrypt
 
 **Key decisions made entering Phase 1:**
+
 - **No AWS** — env-variable master key instead of KMS (cost: centre is small, free-tier only). See ADR-0006.
 - **2FA scaffolded, not enforced** — hooks and routes ready; enforcement deferred to Phase 5.
 - **Two 1-week sprints** with a mid-phase checkpoint.
@@ -133,7 +135,7 @@ Branch: `feat/phase-1-pr1.4-trpc-context-rls` → [PR #10](https://github.com/jn
 Goal: Head can run an entire onboarding session — invite staff/parents, create
 students, link guardians, assign subjects, and see a full audit trail.
 
-### PR-1.5 — `feat(domain): user invite + guardian linking` ✅ COMPLETE
+### PR-1.5 — `feat(domain): user invite + guardian linking` ✅ MERGED
 
 Branch: `feat/phase-1-pr1.5-user-invite-guardian`
 
@@ -155,17 +157,21 @@ Branch: `feat/phase-1-pr1.5-user-invite-guardian`
 9 admin router (FORBIDDEN, BAD_REQUEST zod, happy path with audit, idempotent no-op,
 NOT_FOUND, non-Parent). Webhook tests updated for find-then-branch + 4 new metadata cases.
 
-### PR-1.6 — `feat(domain): student CRUD + subject assignment`
+### PR-1.6 — `feat(domain): student CRUD + subject assignment` ✅ COMPLETE
 
-- Flesh out `apps/api/src/routers/student.ts` — `student.create`, `student.update`,
-  `student.list`, `student.assignSubject`, `student.setCurrentPace`.
-- Full-admin only for writes; Supervisor can list.
+- `apps/api/src/routers/student.ts` — `student.create`, `student.update`,
+  `student.list`, `student.byId`, `student.assignSubject`, `student.setCurrentPace`.
+- Full-admin only for writes; Supervisor can list and read by id.
 - PII fields (`fullName`, `dob`, `address`) encrypted on write; `nameBidx` computed.
-- `student.list` decrypts in-request; writes one `DecryptPii` `AuditLog` row per
-  request (not per row) to avoid log spam.
+- `student.list` / `student.byId` decrypt in-request; write one `DecryptPii`
+  `AuditLog` row per request (not per row) to avoid log spam.
+- Subject assignment validates active subject, is idempotent on duplicate assignment,
+  and writes audit rows only for actual create/update operations.
 
-**Tests:** create → list round-trip with decryption; Supervisor write denied;
-audit rows for create + decrypt batch.
+**Tests (4 new):** create → list round-trip with encrypted storage + decryption;
+Supervisor read allowed / write denied; audit rows for create + decrypt batch;
+subject assignment idempotency, inactive/missing subject, missing student, and
+missing PACE assignment errors.
 
 ### PR-1.7 — `feat(web): Head admin screens`
 
@@ -196,37 +202,37 @@ every step → `pnpm verify:encryption` green.
 
 ### Modified in Phase 1
 
-| File | PR | Change |
-|---|---|---|
-| `packages/db/src/encryption.ts` | 1.1 | env-key provider, versioned format |
-| `packages/db/package.json` | 1.1 | drop `@aws-sdk/client-kms` |
-| `.env.example` | 1.1 | new env var names |
-| `apps/api/src/context.ts` | 1.4 ✅ | Clerk session + RLS session vars, `applyRlsTx` |
-| `apps/api/src/trpc.ts` | 1.4 ✅ | `auditedProcedure`, `fullAdminProcedure`, `roleProcedure` |
-| `apps/api/src/routers/student.ts` | 1.6 | flesh out CRUD |
-| `apps/api/src/routers/health.ts` | 1.4 ✅ | `me` endpoint |
-| `docs/runbook.md` | 1.2 | Supabase setup, env-key rotation procedure |
-| `docs/adr/0005-pii-envelope-encryption-kms.md` | 1.1 | marked Superseded |
+| File                                           | PR     | Change                                                    |
+| ---------------------------------------------- | ------ | --------------------------------------------------------- |
+| `packages/db/src/encryption.ts`                | 1.1    | env-key provider, versioned format                        |
+| `packages/db/package.json`                     | 1.1    | drop `@aws-sdk/client-kms`                                |
+| `.env.example`                                 | 1.1    | new env var names                                         |
+| `apps/api/src/context.ts`                      | 1.4 ✅ | Clerk session + RLS session vars, `applyRlsTx`            |
+| `apps/api/src/trpc.ts`                         | 1.4 ✅ | `auditedProcedure`, `fullAdminProcedure`, `roleProcedure` |
+| `apps/api/src/routers/student.ts`              | 1.6 ✅ | student CRUD + subject assignment                         |
+| `apps/api/src/routers/health.ts`               | 1.4 ✅ | `me` endpoint                                             |
+| `docs/runbook.md`                              | 1.2    | Supabase setup, env-key rotation procedure                |
+| `docs/adr/0005-pii-envelope-encryption-kms.md` | 1.1    | marked Superseded                                         |
 
 ### Created in Phase 1
 
-| File | PR |
-|---|---|
-| `docs/adr/0006-pii-envelope-encryption-env-key.md` | 1.1 |
-| `packages/db/src/__tests__/encryption.test.ts` | 1.1 |
-| `packages/db/scripts/apply-rls.ts` | 1.2 |
-| `packages/domain/src/users.ts` | 1.5 ✅ |
-| `apps/api/src/routers/admin.ts` | 1.5 ✅ |
-| `apps/api/src/routers/clerkWebhook.ts` | 1.3 |
-| `apps/api/src/routers/audit.ts` | 1.8 |
-| `apps/web/src/middleware.ts` | 1.3 |
-| `apps/web/src/app/(auth)/...` | 1.3 |
-| `apps/web/src/app/(admin)/students/...` | 1.7 |
-| `apps/web/src/app/(admin)/staff/page.tsx` | 1.7 |
-| `apps/web/src/app/(admin)/audit/page.tsx` | 1.8 |
-| `apps/api/src/__tests__/trpc.middleware.test.ts` | 1.4 ✅ |
-| `apps/api/scripts/smoke-context-rls.ts` | 1.4 ✅ |
-| `apps/api/src/__tests__/...` | 1.6 |
+| File                                               | PR     |
+| -------------------------------------------------- | ------ |
+| `docs/adr/0006-pii-envelope-encryption-env-key.md` | 1.1    |
+| `packages/db/src/__tests__/encryption.test.ts`     | 1.1    |
+| `packages/db/scripts/apply-rls.ts`                 | 1.2    |
+| `packages/domain/src/users.ts`                     | 1.5 ✅ |
+| `apps/api/src/routers/admin.ts`                    | 1.5 ✅ |
+| `apps/api/src/routers/clerkWebhook.ts`             | 1.3    |
+| `apps/api/src/routers/audit.ts`                    | 1.8    |
+| `apps/web/src/middleware.ts`                       | 1.3    |
+| `apps/web/src/app/(auth)/...`                      | 1.3    |
+| `apps/web/src/app/(admin)/students/...`            | 1.7    |
+| `apps/web/src/app/(admin)/staff/page.tsx`          | 1.7    |
+| `apps/web/src/app/(admin)/audit/page.tsx`          | 1.8    |
+| `apps/api/src/__tests__/trpc.middleware.test.ts`   | 1.4 ✅ |
+| `apps/api/scripts/smoke-context-rls.ts`            | 1.4 ✅ |
+| `apps/api/src/__tests__/student.router.test.ts`    | 1.6 ✅ |
 
 ### Reused without modification (do not duplicate)
 
