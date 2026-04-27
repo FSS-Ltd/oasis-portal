@@ -1,6 +1,6 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 2 in progress (week 3) — PR-1.7 merged; PR-1.7.5 in progress  
+**Status:** Sprint 2 in progress (week 3) — PR-1.7.5 merged; PR-1.8 in progress
 **Last updated:** 2026-04-27  
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -184,7 +184,7 @@ missing PACE assignment errors.
 **Tests (Playwright):** Head logs in → creates student → assigns Maths →
 invites parent → links guardian.
 
-### PR-1.7.5 — `feat(web): align Head admin screens with design handoff` 🚧 IN PROGRESS
+### PR-1.7.5 — `feat(web): align Head admin screens with design handoff` ✅ MERGED
 
 Branch: `feat/phase-1-pr1.7.5-design-conversion`
 
@@ -206,15 +206,20 @@ flow or adding unrelated features.
 - `apps/web/src/app/(admin)/admin/staff/...` — align account invitation screen
   headers and forms with the same design language.
 
-**Verification target:** `pnpm lint`, `pnpm typecheck`, `pnpm test`,
-`pnpm --filter @oasis/web build`, then `graphify update .`.
+Merged via PR #16 on 2026-04-27. Verification completed: `pnpm lint`,
+`pnpm typecheck`, `pnpm test`, `pnpm --filter @oasis/web build`, and
+`graphify update .`.
 
-### PR-1.8 — `feat(audit): audit-log viewer + Phase 1 verification suite`
+### PR-1.8 — `feat(audit): audit-log viewer + Phase 1 verification suite` 🚧 IN PROGRESS
+
+Branch: `feat/phase-1-pr1.8-audit-verification`
 
 - `apps/web/src/app/(admin)/audit/page.tsx` — paginated, filterable audit log (full-admin only).
 - `apps/api/src/routers/audit.ts` — read-only, full-admin only.
-- `pnpm verify:encryption` script — runs `pg_dump --data-only` on the test DB and
-  asserts no plaintext name/email/dob appears. Wired into CI as a final job.
+- `apps/api/src/routers/admin.ts` — remove plaintext invitation email from audit metadata.
+- `pnpm verify:encryption` script — runs `pg_dump --data-only` on the test DB
+  through `DIRECT_URL` and asserts no plaintext name/email/dob appears. Wired
+  into CI as a final job.
 - E2E test of full Sprint-2 flow against Supabase preview database.
 
 **Sprint 2 demo checkpoint:** Head invites parent → parent accepts via Clerk →
