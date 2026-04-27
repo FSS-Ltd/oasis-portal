@@ -24,6 +24,8 @@ build/
 graphify-out/
 
 # Agent Rules
+CLAUDE.md
+CODEX.md
 AGENTS.md
 BUILD.MD
 DELIVERY_SUMMARY.md
