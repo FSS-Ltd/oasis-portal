@@ -12,7 +12,12 @@ export default function SignUpPage() {
 
   return (
     <main style={{ display: 'grid', minHeight: '100vh', placeItems: 'center', padding: 24 }}>
-      <SignUp path="/sign-up" signInUrl="/sign-in" />
+      <SignUp
+        fallbackRedirectUrl="/admin"
+        forceRedirectUrl="/admin"
+        path="/sign-up"
+        signInUrl="/sign-in"
+      />
     </main>
   );
 }
