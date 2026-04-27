@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { blindIndex, encryptField } from '../src/encryption.js';
 
 function prismaWithOptionalUrl(url: string | undefined): PrismaClient {
   return url
@@ -91,7 +92,7 @@ async function main() {
       )
       VALUES (
         'ci-head', 'ci-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[],
-        'enc:head', 'enc:head@example.test', 'bidx-head', NOW()
+        ${encryptField('CI Head')}, ${encryptField('head@example.test')}, ${blindIndex('head@example.test')}, NOW()
       )
     `;
     await prisma.$executeRaw`
@@ -99,7 +100,8 @@ async function main() {
         "id", "fullNameEnc", "nameBidx", "dobEnc", "yearGroup", "enrolmentDate", "updatedAt"
       )
       VALUES (
-        'ci-student', 'enc:student', 'bidx-student', 'enc:dob', 'Y5', NOW(), NOW()
+        'ci-student', ${encryptField('CI Student')}, ${blindIndex('CI Student')},
+        ${encryptField('2015-01-01')}, 'Y5', NOW(), NOW()
       )
     `;
 

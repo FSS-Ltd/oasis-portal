@@ -260,6 +260,10 @@ Changed scope so far:
   rows, status badges, profile header, and active toggle to match the handoff.
 - `apps/web/public/oasis-logo.svg` — serves the Oasis logo used by the design
   handoff.
+- Follow-up fix: `packages/db/scripts/smoke-rls.ts` and
+  `apps/api/scripts/smoke-context-rls.ts` now write real encrypted fixture PII
+  instead of `enc:*` placeholders. A local malformed `ci-student` smoke row was
+  repaired in place after it caused `student.list` to return `Malformed ciphertext`.
 
 ### Local Docker DB implemented — `chore(dev): local Postgres bootstrap`
 

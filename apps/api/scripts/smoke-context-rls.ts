@@ -11,6 +11,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import type { SessionUser } from '@oasis/domain';
+import { blindIndex, encryptField } from '@oasis/db';
 import { applyRlsTx } from '../src/context.js';
 
 const owner = new PrismaClient();
@@ -56,12 +57,23 @@ async function seed() {
   await owner.$executeRaw`
     INSERT INTO "User" ("id", "clerkId", "role", "tags", "fullNameEnc", "emailEnc", "emailBidx", "updatedAt")
     VALUES
-      ('ctx-head', 'ctx-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[], 'enc:head', 'enc:head@example.test', 'bidx-ctx-head', NOW()),
-      ('ctx-sup',  'ctx-sup-clerk',  'Supervisor'::"Role", ARRAY[]::TEXT[], 'enc:sup',  'enc:sup@example.test',  'bidx-ctx-sup',  NOW())
+      (
+        'ctx-head', 'ctx-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Head')}, ${encryptField('ctx-head@example.test')},
+        ${blindIndex('ctx-head@example.test')}, NOW()
+      ),
+      (
+        'ctx-sup', 'ctx-sup-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Supervisor')}, ${encryptField('ctx-sup@example.test')},
+        ${blindIndex('ctx-sup@example.test')}, NOW()
+      )
   `;
   await owner.$executeRaw`
     INSERT INTO "Student" ("id", "fullNameEnc", "nameBidx", "dobEnc", "yearGroup", "enrolmentDate", "updatedAt")
-    VALUES ('ctx-student', 'enc:student', 'bidx-ctx-student', 'enc:dob', 'Y5', NOW(), NOW())
+    VALUES (
+      'ctx-student', ${encryptField('Context Student')}, ${blindIndex('Context Student')},
+      ${encryptField('2015-01-01')}, 'Y5', NOW(), NOW()
+    )
   `;
   await owner.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.user_id', 'ctx-head', true)`;
