@@ -22,6 +22,8 @@ function runtimeDatabaseUrl(): string {
   if (!rawUrl) throw new Error('Missing DATABASE_URL or DIRECT_URL for RLS smoke test');
 
   const url = new URL(rawUrl);
+  if (url.username === RUNTIME_ROLE) return url.toString();
+
   url.username = RUNTIME_ROLE;
   url.password = RUNTIME_PASSWORD;
   return url.toString();
@@ -39,9 +41,6 @@ async function prepareRuntimeRole() {
     END
     $$;
   `);
-  await prisma.$executeRawUnsafe(
-    `ALTER ROLE ${RUNTIME_ROLE} WITH LOGIN PASSWORD '${RUNTIME_PASSWORD}' NOBYPASSRLS`,
-  );
   await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${RUNTIME_ROLE}`);
   await prisma.$executeRawUnsafe(
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${RUNTIME_ROLE}`,

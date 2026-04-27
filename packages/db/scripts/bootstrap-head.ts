@@ -1,4 +1,18 @@
-import { prisma } from '../src/index.js';
+import { PrismaClient } from '@prisma/client';
+import { withEncryption } from '../src/encryption.js';
+
+function prismaWithOptionalUrl(url: string | undefined) {
+  const client = url
+    ? new PrismaClient({
+        datasources: {
+          db: { url },
+        },
+      })
+    : new PrismaClient();
+  return withEncryption(client);
+}
+
+const prisma = prismaWithOptionalUrl(process.env['DIRECT_URL'] ?? process.env['DATABASE_URL']);
 
 function readEmail(): string {
   const emailArg = process.argv.find((arg) => arg.startsWith('--email='));
