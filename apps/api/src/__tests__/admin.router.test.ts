@@ -16,7 +16,12 @@ const supervisorUser: SessionUser = {
 
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
-  user: { findUnique: ReturnType<typeof vi.fn> };
+  $enc: {
+    blindIndex: ReturnType<typeof vi.fn>;
+    decrypt: ReturnType<typeof vi.fn>;
+  };
+  subject: { findMany: ReturnType<typeof vi.fn> };
+  user: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   student: { findUnique: ReturnType<typeof vi.fn> };
   guardian: { create: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
 }
@@ -24,7 +29,14 @@ interface FakeDb {
 function makeFakeDb(): FakeDb {
   return {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
-    user: { findUnique: vi.fn() },
+    $enc: {
+      blindIndex: vi.fn((value: string) => `bidx:${value.toLowerCase()}`),
+      decrypt: vi.fn((value: string | null | undefined) =>
+        value ? value.replace(/^enc:/, '') : null,
+      ),
+    },
+    subject: { findMany: vi.fn() },
+    user: { findMany: vi.fn(), findUnique: vi.fn() },
     student: { findUnique: vi.fn() },
     guardian: { create: vi.fn(), findUnique: vi.fn() },
   };
@@ -62,6 +74,63 @@ function makeCaller(
   const ctx = makeCtx(user, db);
   return { caller: appRouter.createCaller(ctx), db, createInvitation: clerk.createInvitation };
 }
+
+describe('admin.listActiveSubjects', () => {
+  it('returns active subjects for full-admin screens', async () => {
+    const db = makeFakeDb();
+    db.subject.findMany.mockResolvedValue([
+      { id: 'sub_math', code: 'MATH', name: 'Mathematics' },
+      { id: 'sub_eng', code: 'ENG', name: 'English' },
+    ]);
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(caller.admin.listActiveSubjects()).resolves.toEqual([
+      { id: 'sub_math', code: 'MATH', name: 'Mathematics' },
+      { id: 'sub_eng', code: 'ENG', name: 'English' },
+    ]);
+    expect(db.subject.findMany).toHaveBeenCalledWith({
+      where: { active: true },
+      orderBy: [{ code: 'asc' }],
+      select: { id: true, code: true, name: true },
+    });
+  });
+});
+
+describe('admin.searchParents', () => {
+  it('decrypts parent display rows and writes one PII audit row', async () => {
+    const db = makeFakeDb();
+    db.user.findMany.mockResolvedValue([
+      { id: 'u_parent', fullNameEnc: 'enc:Jane Parent', emailEnc: 'enc:jane@example.com' },
+    ]);
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(caller.admin.searchParents({ search: 'jane@example.com' })).resolves.toEqual([
+      { id: 'u_parent', fullName: 'Jane Parent', email: 'jane@example.com' },
+    ]);
+    expect(db.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'Parent', active: true, emailBidx: 'bidx:jane@example.com' },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, fullNameEnc: true, emailEnc: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: 1, source: 'admin.searchParents' },
+      },
+    });
+  });
+
+  it('rejects non-full-admin parent lookup as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(caller.admin.searchParents()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.findMany).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+});
 
 describe('admin.inviteUser', () => {
   it('rejects non-full-admin callers as FORBIDDEN and writes nothing', async () => {

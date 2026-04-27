@@ -79,7 +79,14 @@ export function splitSqlStatements(sql: string): string[] {
 }
 
 async function main() {
-  const prisma = new PrismaClient();
+  const url = process.env['DIRECT_URL'] ?? process.env['DATABASE_URL'];
+  const prisma = url
+    ? new PrismaClient({
+        datasources: {
+          db: { url },
+        },
+      })
+    : new PrismaClient();
   const sql = await readFile(rlsPath, 'utf8');
   const statements = splitSqlStatements(sql);
 

@@ -157,7 +157,7 @@ Branch: `feat/phase-1-pr1.5-user-invite-guardian`
 9 admin router (FORBIDDEN, BAD_REQUEST zod, happy path with audit, idempotent no-op,
 NOT_FOUND, non-Parent). Webhook tests updated for find-then-branch + 4 new metadata cases.
 
-### PR-1.6 — `feat(domain): student CRUD + subject assignment` ✅ COMPLETE
+### PR-1.6 — `feat(domain): student CRUD + subject assignment` ✅ MERGED
 
 - `apps/api/src/routers/student.ts` — `student.create`, `student.update`,
   `student.list`, `student.byId`, `student.assignSubject`, `student.setCurrentPace`.

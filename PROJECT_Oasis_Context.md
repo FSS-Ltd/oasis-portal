@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-27
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 — Sprint 2 in progress; PR-1.6 complete.
+**Phase:** 1 — Sprint 2 in progress; PR-1.7 implemented locally.
 
 ---
 
@@ -21,7 +21,8 @@ raw DB dump cannot re-identify anyone.
 ## Current status — Phase 1 Sprint 2 (week 3)
 
 Phase 0 and all four Sprint 1 PRs (PR-1.1 → PR-1.4) are merged to `main`.
-Sprint 2 PR-1.5 and PR-1.6 are complete; PR-1.7 is next.
+Sprint 2 PR-1.5 and PR-1.6 are complete; PR-1.7 is implemented locally on
+`feat/phase-1-pr1.7-head-admin-screens`.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -203,9 +204,69 @@ Changed scope:
   encrypted create/list round trip, Supervisor read/write permissions, assignment
   idempotency, and missing/inactive error cases.
 
+### PR-1.7 implemented locally — `feat(web): Head admin screens`
+
+**PR scope:** Head-admin web onboarding screens, minimal read APIs required by
+those screens, and subtle professional Framer Motion animation.
+
+Changed scope:
+
+- `apps/api/src/routers/admin.ts` — adds full-admin-only `listActiveSubjects`
+  and `searchParents` read procedures. Parent lookup decrypts parent display PII
+  and writes one `DecryptPii` audit row per lookup request.
+- `apps/web/src/app/(admin)/admin/...` — adds the Head admin shell, student list,
+  student create form, student edit/detail view, subject assignment, guardian
+  linking, and staff/parent invite form.
+- `apps/web/src/components/...` — adds tRPC provider, full-admin server guard,
+  restrained motion primitives, and small shadcn-style form/button primitives.
+- `apps/web/playwright.config.ts` and `apps/web/tests/e2e/...` — add opt-in
+  Playwright coverage for Head onboarding. The test skips unless
+  `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are provided.
+- Dependencies added to `@oasis/web`: `framer-motion`, `react-hook-form`,
+  `@hookform/resolvers`, `clsx`, `class-variance-authority`, `lucide-react`,
+  and `@playwright/test`.
+
+Verification completed locally:
+
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+- `env E2E_BASE_URL=http://127.0.0.1:3000 pnpm --filter @oasis/web test:e2e`
+  → pass with 1 skipped test because Clerk E2E credentials are not set.
+- `graphify update .` → graph refreshed after code changes.
+
+### Local Docker DB implemented — `chore(dev): local Postgres bootstrap`
+
+**Purpose:** Make local testing realistic before production deployment by
+running Postgres in Docker with separate owner/runtime roles.
+
+Changed scope:
+
+- `compose.yaml` — starts `postgres:16-alpine` on `localhost:5432` with the
+  `oasis_dev` database.
+- `docker/postgres/init/001-runtime-role.sql` — creates local `oasis_app`
+  runtime role for app connections.
+- Root package scripts — add `db:dev:up`, `db:dev:down`, `db:dev:logs`,
+  `db:dev:reset`, `db:dev:setup`, and env-loaded DB commands.
+- `scripts/with-env.mjs` — dependency-free loader for repo-root `.env.local`
+  before DB scripts run.
+- `packages/db/scripts/bootstrap-head.ts` — promotes a Clerk-synced local user
+  to `Head` by email after the webhook creates the DB row.
+- DB setup scripts now use `DIRECT_URL` for owner-level migration/RLS setup and
+  `DATABASE_URL` for runtime-role verification.
+
+Verification completed locally:
+
+- `docker compose config` → pass.
+- `pnpm db:dev:setup` → pass; migrations, RLS, and six ACE subjects applied.
+- `pnpm db:integration` → pass against Docker; Head sees Sensitive behaviour,
+  Supervisor sees General only.
+- `pnpm --filter @oasis/db typecheck` → pass.
+- `pnpm --filter @oasis/db test` → pass.
+
 ### Phase 1 Sprint 2 remaining
 
-- **PR-1.7** — Head admin web screens
 - **PR-1.8** — audit-log viewer + Phase 1 verification suite
 
 ### Sprint 2 (week 3) — Head admin surface
@@ -318,16 +379,7 @@ No product blockers currently. Sprint 1 (PR-1.1 → PR-1.4) is fully merged.
 
 ## Next steps — Phase 1 Sprint 2
 
-1. **PR-1.5** — `apps/api/src/routers/admin.ts`: `admin.inviteUser` (full-admin only,
-   creates Clerk invitation, pre-stamps role + tags) and `admin.linkGuardian`
-   (idempotent). `packages/domain/src/users.ts`: zod invite payload, role/tag
-   whitelist, full-admin guard.
-2. **PR-1.6** — flesh out `apps/api/src/routers/student.ts`:
-   `student.create/update/list/assignSubject/setCurrentPace`. PII encrypted on
-   write, `nameBidx` computed, batch `DecryptPii` audit row on list.
-3. **PR-1.7** — Head admin screens in `apps/web/src/app/(admin)/`: student list +
-   create + edit, staff invite, `<RequireFullAdmin>` server component.
-4. **PR-1.8** — audit-log viewer + `pnpm verify:encryption` script (pg_dump check)
+1. **PR-1.8** — audit-log viewer + `pnpm verify:encryption` script (pg_dump check)
    + Playwright e2e for full Sprint 2 onboarding flow.
 
 ## Who's working on it

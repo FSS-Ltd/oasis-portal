@@ -1,6 +1,16 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+function prismaWithOptionalUrl(url: string | undefined): PrismaClient {
+  return url
+    ? new PrismaClient({
+        datasources: {
+          db: { url },
+        },
+      })
+    : new PrismaClient();
+}
+
+const prisma = prismaWithOptionalUrl(process.env['DIRECT_URL'] ?? process.env['DATABASE_URL']);
 const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
@@ -8,10 +18,12 @@ type CountRow = { count: bigint };
 
 function runtimeDatabaseUrl(): string {
   if (process.env['RLS_DATABASE_URL']) return process.env['RLS_DATABASE_URL'];
-  const rawUrl = process.env['DATABASE_URL'];
-  if (!rawUrl) throw new Error('Missing DATABASE_URL for RLS smoke test');
+  const rawUrl = process.env['DATABASE_URL'] ?? process.env['DIRECT_URL'];
+  if (!rawUrl) throw new Error('Missing DATABASE_URL or DIRECT_URL for RLS smoke test');
 
   const url = new URL(rawUrl);
+  if (url.username === RUNTIME_ROLE) return url.toString();
+
   url.username = RUNTIME_ROLE;
   url.password = RUNTIME_PASSWORD;
   return url.toString();
@@ -29,9 +41,6 @@ async function prepareRuntimeRole() {
     END
     $$;
   `);
-  await prisma.$executeRawUnsafe(
-    `ALTER ROLE ${RUNTIME_ROLE} WITH LOGIN PASSWORD '${RUNTIME_PASSWORD}' NOBYPASSRLS`,
-  );
   await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO ${RUNTIME_ROLE}`);
   await prisma.$executeRawUnsafe(
     `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${RUNTIME_ROLE}`,
