@@ -25,6 +25,15 @@ interface StudentDetailProps {
   studentId: string;
 }
 
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
+
 export function StudentDetail({ studentId }: StudentDetailProps) {
   const utils = api.useUtils();
   const studentQuery = api.student.byId.useQuery({ id: studentId }, { retry: false });
@@ -100,12 +109,19 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
   return (
     <>
       <div className="page-header">
-        <div>
-          <h1>{student.fullName}</h1>
-          <p>
-            Edit the student record, assign active ACE subjects, and connect guardian accounts.
-          </p>
+        <div className="student-row">
+          <span className="student-row__avatar">{initials(student.fullName)}</span>
+          <div className="student-row__text">
+            <p>Student profile</p>
+            <h1>{student.fullName}</h1>
+            <p>
+              Edit the student record, assign active ACE subjects, and connect guardian accounts.
+            </p>
+          </div>
         </div>
+        <span className={student.active ? 'badge badge--green' : 'badge badge--amber'}>
+          {student.active ? 'Active' : 'Inactive'}
+        </span>
       </div>
 
       <div className="grid grid--two">
@@ -148,7 +164,7 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
               </Field>
               <label className="field">
                 <span className="field__label">Active</span>
-                <input type="checkbox" {...register('active')} />
+                <input className="switch-input" type="checkbox" {...register('active')} />
               </label>
               {updateStudent.error ? (
                 <p className="status--error" role="alert">

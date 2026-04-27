@@ -6,6 +6,7 @@ export default function NewStudentPage() {
     <MotionPage>
       <div className="page-header">
         <div>
+          <p>Student onboarding</p>
           <h1>New student</h1>
           <p>Add a student with encrypted personal details and an initial centre year group.</p>
         </div>

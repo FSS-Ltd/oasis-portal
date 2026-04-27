@@ -8,6 +8,15 @@ import { MotionList, MotionTableRow } from '@/components/admin/motion';
 import { Button } from '@/components/ui/button';
 import { TextInput } from '@/components/ui/field';
 
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
+
 export function StudentsList() {
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState<string | undefined>(undefined);
@@ -83,8 +92,11 @@ export function StudentsList() {
                   <MotionTableRow key={student.id}>
                     <td>
                       <div className="student-row">
-                        <strong>{student.fullName}</strong>
-                        <span>DOB {student.dob}</span>
+                        <span className="student-row__avatar">{initials(student.fullName)}</span>
+                        <span className="student-row__text">
+                          <strong>{student.fullName}</strong>
+                          <span>DOB {student.dob}</span>
+                        </span>
                       </div>
                     </td>
                     <td>{student.yearGroup}</td>
@@ -101,7 +113,11 @@ export function StudentsList() {
                         )}
                       </div>
                     </td>
-                    <td>{student.active ? 'Active' : 'Inactive'}</td>
+                    <td>
+                      <span className={student.active ? 'badge badge--green' : 'badge badge--amber'}>
+                        {student.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
                     <td>
                       <Link
                         className="button button--secondary button--sm"

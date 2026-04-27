@@ -9,13 +9,21 @@
  * applied, and the `oasis_app` runtime role (created by smoke-rls.ts on first
  * run; this script also provisions it idempotently).
  */
+import { randomBytes } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import type { SessionUser } from '@oasis/domain';
+import { blindIndex, encryptField } from '@oasis/db';
 import { applyRlsTx } from '../src/context.js';
 
 const owner = new PrismaClient();
 const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
+
+function ensureSmokeEncryptionEnv() {
+  process.env['OASIS_MASTER_KEY'] ??= randomBytes(32).toString('base64');
+  process.env['OASIS_MASTER_KEY_VERSION'] ??= '1';
+  process.env['OASIS_BIDX_PEPPER'] ??= randomBytes(32).toString('hex');
+}
 
 function runtimeDatabaseUrl(): string {
   if (process.env['RLS_DATABASE_URL']) return process.env['RLS_DATABASE_URL'];
@@ -56,12 +64,23 @@ async function seed() {
   await owner.$executeRaw`
     INSERT INTO "User" ("id", "clerkId", "role", "tags", "fullNameEnc", "emailEnc", "emailBidx", "updatedAt")
     VALUES
-      ('ctx-head', 'ctx-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[], 'enc:head', 'enc:head@example.test', 'bidx-ctx-head', NOW()),
-      ('ctx-sup',  'ctx-sup-clerk',  'Supervisor'::"Role", ARRAY[]::TEXT[], 'enc:sup',  'enc:sup@example.test',  'bidx-ctx-sup',  NOW())
+      (
+        'ctx-head', 'ctx-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Head')}, ${encryptField('ctx-head@example.test')},
+        ${blindIndex('ctx-head@example.test')}, NOW()
+      ),
+      (
+        'ctx-sup', 'ctx-sup-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Supervisor')}, ${encryptField('ctx-sup@example.test')},
+        ${blindIndex('ctx-sup@example.test')}, NOW()
+      )
   `;
   await owner.$executeRaw`
     INSERT INTO "Student" ("id", "fullNameEnc", "nameBidx", "dobEnc", "yearGroup", "enrolmentDate", "updatedAt")
-    VALUES ('ctx-student', 'enc:student', 'bidx-ctx-student', 'enc:dob', 'Y5', NOW(), NOW())
+    VALUES (
+      'ctx-student', ${encryptField('Context Student')}, ${blindIndex('Context Student')},
+      ${encryptField('2015-01-01')}, 'Y5', NOW(), NOW()
+    )
   `;
   await owner.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT set_config('app.user_id', 'ctx-head', true)`;
@@ -87,6 +106,7 @@ const supervisor: SessionUser = {
 async function main() {
   const runtime = new PrismaClient({ datasources: { db: { url: runtimeDatabaseUrl() } } });
   try {
+    ensureSmokeEncryptionEnv();
     await ensureRuntimeRole();
     await seed();
 

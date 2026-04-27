@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-27
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 — Sprint 2 in progress; PR-1.7 implemented locally.
+**Phase:** 1 — Sprint 2 in progress; PR-1.7 merged; PR-1.7.5 in progress.
 
 ---
 
@@ -20,9 +20,10 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status — Phase 1 Sprint 2 (week 3)
 
-Phase 0 and all four Sprint 1 PRs (PR-1.1 → PR-1.4) are merged to `main`.
-Sprint 2 PR-1.5 and PR-1.6 are complete; PR-1.7 is implemented locally on
-`feat/phase-1-pr1.7-head-admin-screens`.
+Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), and Sprint 2 PR-1.5 →
+PR-1.7 are merged to `main`. PR-1.7.5 is now the focused follow-up branch
+for converting the PR-1.7 Head admin screens to the UI handoff under
+`design/`.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -204,7 +205,7 @@ Changed scope:
   encrypted create/list round trip, Supervisor read/write permissions, assignment
   idempotency, and missing/inactive error cases.
 
-### PR-1.7 implemented locally — `feat(web): Head admin screens`
+### PR-1.7 merged — `feat(web): Head admin screens`
 
 **PR scope:** Head-admin web onboarding screens, minimal read APIs required by
 those screens, and subtle professional Framer Motion animation.
@@ -235,6 +236,37 @@ Verification completed locally:
 - `env E2E_BASE_URL=http://127.0.0.1:3000 pnpm --filter @oasis/web test:e2e`
   → pass with 1 skipped test because Clerk E2E credentials are not set.
 - `graphify update .` → graph refreshed after code changes.
+
+### PR-1.7.5 in progress — `feat(web): align Head admin screens with design handoff`
+
+**PR scope:** Convert the screens created in PR-1.7 to the visual system in
+`design/Oasis Learning Center-handoff.zip`, while preserving the live tRPC
+forms and Phase 1 onboarding workflows.
+
+Current branch: `feat/phase-1-pr1.7.5-design-conversion`
+
+Changed scope so far:
+
+- `apps/web/src/app/(admin)/admin/layout.tsx` — replaces the interim topbar
+  with the design handoff's navy staff-portal sidebar, logo treatment, mobile
+  header, and bottom navigation.
+- `apps/web/src/app/(admin)/admin/admin.css` — maps the handoff palette,
+  cards, stat panels, badges, inputs, table styling, buttons, responsive
+  layout, and mobile chrome into production CSS.
+- `apps/web/src/app/(admin)/admin/page.tsx` — adds a design-aligned dashboard
+  landing page for the admin shell instead of redirecting directly to students.
+- `apps/web/src/app/(admin)/admin/students/...` and
+  `apps/web/src/app/(admin)/admin/staff/...` — updates page headers, student
+  rows, status badges, profile header, and active toggle to match the handoff.
+- `apps/web/public/oasis-logo.svg` — serves the Oasis logo used by the design
+  handoff.
+- Follow-up fix: `packages/db/scripts/smoke-rls.ts` and
+  `apps/api/scripts/smoke-context-rls.ts` now write real encrypted fixture PII
+  instead of `enc:*` placeholders. A local malformed `ci-student` smoke row was
+  repaired in place after it caused `student.list` to return `Malformed ciphertext`.
+- CI fix: both smoke scripts generate process-local test encryption env values
+  when `OASIS_MASTER_KEY` / `OASIS_BIDX_PEPPER` are absent, avoiding hardcoded
+  fixture secrets in GitHub Actions while keeping production encryption strict.
 
 ### Local Docker DB implemented — `chore(dev): local Postgres bootstrap`
 
