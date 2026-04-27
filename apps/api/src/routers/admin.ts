@@ -10,6 +10,7 @@
  * (entity-specific) rather than via `auditedProcedure`'s generic Update row.
  */
 import { TRPCError } from '@trpc/server';
+import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import { inviteUserInput, linkGuardianInput } from '@oasis/domain';
 import { fullAdminProcedure, router } from '../trpc.js';
@@ -22,6 +23,13 @@ export interface AdminRouterDeps {
   clerk?: ClerkInvitationClient;
 }
 
+const searchParentsInput = z
+  .object({
+    search: z.string().trim().min(1).optional(),
+    limit: z.number().int().min(1).max(25).default(10),
+  })
+  .optional();
+
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
   const getClerk = (): ClerkInvitationClient => {
@@ -31,6 +39,53 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
   };
 
   return router({
+    listActiveSubjects: fullAdminProcedure.query(async ({ ctx }) => {
+      const subjects = await ctx.db.subject.findMany({
+        where: { active: true },
+        orderBy: [{ code: 'asc' }],
+        select: { id: true, code: true, name: true },
+      });
+
+      return subjects;
+    }),
+
+    searchParents: fullAdminProcedure
+      .input(searchParentsInput)
+      .query(async ({ ctx, input }) => {
+        const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
+        if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
+
+        const parents = await ctx.db.user.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: input?.limit ?? 10,
+          select: { id: true, fullNameEnc: true, emailEnc: true },
+        });
+
+        const rows = parents.map((parent) => {
+          const fullName = ctx.db.$enc.decrypt(parent.fullNameEnc);
+          const email = ctx.db.$enc.decrypt(parent.emailEnc);
+          if (!fullName || !email) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'parent PII decrypt failed',
+            });
+          }
+          return { id: parent.id, fullName, email };
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'User',
+            meta: { count: rows.length, source: 'admin.searchParents' },
+          },
+        });
+
+        return rows;
+      }),
+
     inviteUser: fullAdminProcedure
       .input(inviteUserInput)
       .mutation(async ({ ctx, input }) => {
