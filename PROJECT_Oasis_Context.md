@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-28
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 complete; PR-1.9 docs closeout in progress before Phase 2 kickoff.
+**Phase:** Phase 1 complete; Phase 2 daily-workflow planning in progress.
 
 ---
 
@@ -20,9 +20,9 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status — Phase 1 complete
 
-Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), and Sprint 2 PR-1.5 →
-PR-1.8 are merged to `main`. PR-1.9 is the documentation-only closeout branch
-to align the phase plan and project context before Phase 2 starts.
+Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
+PR-1.8, and PR-1.9 docs closeout are merged to `main`. Phase 2 is ready to
+begin from `docs/phase-2-build-plan.md`.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -332,7 +332,7 @@ The credentialed Playwright onboarding flow exists in
 `apps/web/tests/e2e/head-admin-onboarding.spec.ts`, but remains opt-in unless
 `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are configured.
 
-### PR-1.9 in progress — `docs: close Phase 1 and prepare Phase 2 kickoff`
+### PR-1.9 merged — `docs: close Phase 1 and prepare Phase 2 kickoff`
 
 **PR scope:** Documentation-only closeout for Phase 1 readiness.
 
@@ -342,6 +342,9 @@ Changed scope:
   add PR-1.9, and document the Phase 2 gate decision.
 - `PROJECT_Oasis_Context.md` — update current status, verification, next steps,
   and Phase 2 confirmations.
+
+Merged via PR #18 on 2026-04-28. Follow-up PR-2.0 creates the Phase 2 daily
+workflow tracking plan and marks Phase 2 as current in the master plan.
 
 ### Sprint 2 (week 3) — Head admin surface
 
@@ -444,7 +447,7 @@ admin web screens, audit log viewer, and encryption-proof script.
 
 ## Blockers / escalations
 
-No product blockers currently. Phase 1 is code-complete and merged through PR-1.8.
+No product blockers currently. Phase 1 is code-complete and merged through PR-1.9.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -457,7 +460,7 @@ No product blockers currently. Phase 1 is code-complete and merged through PR-1.
 
 ## Next steps — Phase 2 kickoff
 
-1. Complete **PR-1.9** — documentation-only Phase 1 closeout.
+1. Complete **PR-2.0** - Phase 2 tracking plan and stale-doc cleanup.
 2. Start Phase 2 daily workflows: attendance capture, behaviour logging with
    General/Sensitive enforcement, PACE progress/test entry, and Supervisor home.
 3. Carry forward credentialed Supabase-preview Playwright onboarding as a
