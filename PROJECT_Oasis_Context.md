@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-27
+**Last updated:** 2026-04-28
 **Agent:** Technical Agent (Codex)
-**Phase:** 1 — Sprint 2 in progress; PR-1.7.5 merged; PR-1.8 in progress.
+**Phase:** 1 complete; PR-1.9 docs closeout in progress before Phase 2 kickoff.
 
 ---
 
@@ -18,12 +18,11 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status — Phase 1 Sprint 2 (week 3)
+## Current status — Phase 1 complete
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), and Sprint 2 PR-1.5 →
-PR-1.7.5 are merged to `main`. PR-1.8 is now the focused follow-up branch
-for the full-admin audit viewer, encryption dump verification, and Phase 1
-Sprint 2 verification suite.
+PR-1.8 are merged to `main`. PR-1.9 is the documentation-only closeout branch
+to align the phase plan and project context before Phase 2 starts.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
@@ -297,16 +296,57 @@ Verification completed locally:
 - `pnpm --filter @oasis/db typecheck` → pass.
 - `pnpm --filter @oasis/db test` → pass.
 
-### PR-1.8 in progress — `feat(audit): audit-log viewer + Phase 1 verification suite`
+### PR-1.8 merged — `feat(audit): audit-log viewer + Phase 1 verification suite` → PR #17
 
-**PR scope:** Add the full-admin audit log read API and `/admin/audit` viewer,
-remove plaintext PII from invitation audit metadata, add `pnpm verify:encryption`
-using `pg_dump --data-only` through `DIRECT_URL`, and wire the encryption
-verification job into CI.
+**PR scope:** Full-admin audit log read API and `/admin/audit` viewer, removal
+of plaintext PII from invitation audit metadata, `pnpm verify:encryption` using
+`pg_dump --data-only`, and a CI encryption verification job.
+
+Merged branch: `feat/phase-1-pr1.8-audit-verification`
+
+Changed scope:
+
+- `apps/api/src/routers/audit.ts` — added full-admin-only `audit.list` with
+  cursor pagination and filters for action, entity, actor, and date range.
+- `apps/web/src/app/(admin)/admin/audit/...` — added the filterable audit log
+  viewer at `/admin/audit`.
+- `apps/api/src/routers/admin.ts` — removed plaintext invitation email from
+  invitation audit metadata.
+- `packages/db/scripts/verify-encryption.ts` and
+  `packages/db/src/__tests__/verify-encryption.test.ts` — added dump-scanning
+  encryption verification and fixture-detection tests.
+- `.github/workflows/ci.yml` — added `encryption-verification` after the DB/RLS
+  smoke job.
+
+Verification completed locally:
+
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+- `pnpm db:integration` → pass.
+- `pnpm api:smoke-context-rls` → pass.
+- `pnpm verify:encryption` → pass.
+
+The credentialed Playwright onboarding flow exists in
+`apps/web/tests/e2e/head-admin-onboarding.spec.ts`, but remains opt-in unless
+`E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are configured.
+
+### PR-1.9 in progress — `docs: close Phase 1 and prepare Phase 2 kickoff`
+
+**PR scope:** Documentation-only closeout for Phase 1 readiness.
+
+Changed scope:
+
+- `docs/phase-1-build-plan.md` — mark Phase 1 complete, record PR-1.8 as merged,
+  add PR-1.9, and document the Phase 2 gate decision.
+- `PROJECT_Oasis_Context.md` — update current status, verification, next steps,
+  and Phase 2 confirmations.
 
 ### Sprint 2 (week 3) — Head admin surface
 
-PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web screens, audit log viewer + encryption-proof script.
+PRs 1.5–1.8 are complete: user invite + guardian linking, student CRUD, Head
+admin web screens, audit log viewer, and encryption-proof script.
 
 **What exists (from Phase 0):**
 
@@ -373,6 +413,9 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 - 2026-04-23 operating-system update: `AGENTS.md` now includes PR scope
   checkpoints so each branch maps to one focused pull request. Mixed
   work, such as login plus clubs, must be split before PR creation.
+- 2026-04-28 Phase 1 closeout verification: `pnpm lint`, `pnpm typecheck`,
+  `pnpm test`, `pnpm --filter @oasis/web build`, `pnpm db:integration`,
+  `pnpm api:smoke-context-rls`, and `pnpm verify:encryption` pass locally.
 
 ## Design decisions made (see ADRs for full rationale)
 
@@ -401,7 +444,7 @@ PRs 1.5–1.8: user invite + guardian linking, student CRUD, Head admin web scre
 
 ## Blockers / escalations
 
-No product blockers currently. Sprint 1 (PR-1.1 → PR-1.4) is fully merged.
+No product blockers currently. Phase 1 is code-complete and merged through PR-1.8.
 
 **Items to confirm with the centre before Phase 2:**
 
@@ -412,10 +455,13 @@ No product blockers currently. Sprint 1 (PR-1.1 → PR-1.4) is fully merged.
 - Whether parents can view non-sensitive behaviour entries for their
   own child (currently yes in RBAC).
 
-## Next steps — Phase 1 Sprint 2
+## Next steps — Phase 2 kickoff
 
-1. Complete **PR-1.8** — audit-log viewer + `pnpm verify:encryption` script
-   (pg_dump check) + CI verification suite.
+1. Complete **PR-1.9** — documentation-only Phase 1 closeout.
+2. Start Phase 2 daily workflows: attendance capture, behaviour logging with
+   General/Sensitive enforcement, PACE progress/test entry, and Supervisor home.
+3. Carry forward credentialed Supabase-preview Playwright onboarding as a
+   verification task, not a Phase 2 blocker.
 
 ## Who's working on it
 

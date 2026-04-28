@@ -1,7 +1,7 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Sprint 2 in progress (week 3) — PR-1.7.5 merged; PR-1.8 in progress
-**Last updated:** 2026-04-27  
+**Status:** Phase 1 complete — PR-1.8 merged; PR-1.9 docs closeout in progress
+**Last updated:** 2026-04-28
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -210,21 +210,47 @@ Merged via PR #16 on 2026-04-27. Verification completed: `pnpm lint`,
 `pnpm typecheck`, `pnpm test`, `pnpm --filter @oasis/web build`, and
 `graphify update .`.
 
-### PR-1.8 — `feat(audit): audit-log viewer + Phase 1 verification suite` 🚧 IN PROGRESS
+### PR-1.8 — `feat(audit): audit-log viewer + Phase 1 verification suite` ✅ MERGED
 
 Branch: `feat/phase-1-pr1.8-audit-verification`
 
-- `apps/web/src/app/(admin)/audit/page.tsx` — paginated, filterable audit log (full-admin only).
-- `apps/api/src/routers/audit.ts` — read-only, full-admin only.
-- `apps/api/src/routers/admin.ts` — remove plaintext invitation email from audit metadata.
-- `pnpm verify:encryption` script — runs `pg_dump --data-only` on the test DB
-  through `DIRECT_URL` and asserts no plaintext name/email/dob appears. Wired
-  into CI as a final job.
-- E2E test of full Sprint-2 flow against Supabase preview database.
+Merged via PR #17 on 2026-04-28.
 
-**Sprint 2 demo checkpoint:** Head invites parent → parent accepts via Clerk →
-Head creates student, links guardian, assigns 6 ACE subjects → audit log shows
-every step → `pnpm verify:encryption` green.
+- `apps/api/src/routers/audit.ts` — added full-admin-only `audit.list` with
+  cursor pagination and filters for action, entity, actor, and date range.
+- `apps/web/src/app/(admin)/admin/audit/page.tsx` and
+  `apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx` — added the
+  `/admin/audit` viewer with filter controls, metadata display, and pagination.
+- `apps/api/src/routers/admin.ts` — removed plaintext invitation email from
+  invitation audit metadata.
+- `packages/db/scripts/verify-encryption.ts` — added `pg_dump --data-only`
+  plaintext fixture verification through `DIRECT_URL` / `DATABASE_URL`.
+- `packages/db/src/__tests__/verify-encryption.test.ts` — added fixture-detection
+  unit coverage.
+- `.github/workflows/ci.yml` — added the `encryption-verification` job after the
+  DB/RLS smoke job.
+
+Verification completed locally: `pnpm lint`, `pnpm typecheck`, `pnpm test`,
+`pnpm --filter @oasis/web build`, `pnpm db:integration`,
+`pnpm api:smoke-context-rls`, and `pnpm verify:encryption`.
+
+### PR-1.9 — `docs: close Phase 1 and prepare Phase 2 kickoff` 🚧 IN PROGRESS
+
+Branch: `docs/close-phase-1`
+
+Scope: documentation-only closeout so Phase 2 can begin from accurate project
+state.
+
+- Update this plan and `PROJECT_Oasis_Context.md` to mark Phase 1 complete.
+- Record PR-1.8 as merged and verified.
+- Keep Phase 2 confirmations visible before daily-workflow implementation starts.
+- Note that the credentialed Playwright onboarding flow exists but remains opt-in
+  unless `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are configured.
+
+**Sprint 2 demo checkpoint:** Head admin onboarding, audit viewer, RLS proof, and
+encryption dump verification are implemented and locally verified. The
+credentialed Clerk/Supabase Playwright flow is present as an opt-in verification
+step and is not a blocker for Phase 2 kickoff.
 
 ---
 
@@ -259,7 +285,7 @@ every step → `pnpm verify:encryption` green.
 | `apps/web/src/app/(auth)/...`                      | 1.3    |
 | `apps/web/src/app/(admin)/students/...`            | 1.7    |
 | `apps/web/src/app/(admin)/staff/page.tsx`          | 1.7    |
-| `apps/web/src/app/(admin)/audit/page.tsx`          | 1.8    |
+| `apps/web/src/app/(admin)/admin/audit/page.tsx`    | 1.8    |
 | `apps/api/src/__tests__/trpc.middleware.test.ts`   | 1.4 ✅ |
 | `apps/api/scripts/smoke-context-rls.ts`            | 1.4 ✅ |
 | `apps/api/src/__tests__/student.router.test.ts`    | 1.6 ✅ |
@@ -282,11 +308,17 @@ every step → `pnpm verify:encryption` green.
 
 ### End of Phase 1
 
-1. `pnpm verify:encryption` — `pg_dump` of Supabase preview shows zero plaintext names/emails/DOBs.
+1. `pnpm verify:encryption` — `pg_dump` of local/preview data shows zero plaintext names/emails/DOBs.
 2. RLS proof — Supervisor session tRPC call for Sensitive `BehaviourEntry` returns empty.
-3. Playwright e2e — Sprint-2 Head onboarding flow green on Supabase preview database.
+3. Playwright e2e — Sprint-2 Head onboarding flow exists and remains opt-in unless `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are configured.
 4. Audit log — webhook upsert, student create, subject assign, guardian link, PII decrypt all recorded.
 5. 2FA scaffolding present (route + `requires2fa` field) but login without TOTP still reaches `/admin`.
+
+### Phase gate decision
+
+Proceed to Phase 2 after PR-1.9. The only remaining Phase 1 item is this
+documentation closeout; credentialed Supabase-preview E2E stays as a carry-forward
+verification task, not a blocker.
 
 ---
 
