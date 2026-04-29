@@ -3,10 +3,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
@@ -42,6 +44,8 @@ export function NewStudentForm() {
     formState: { errors },
     handleSubmit,
     register,
+    setValue,
+    watch,
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -52,6 +56,18 @@ export function NewStudentForm() {
       address: '',
     },
   });
+  const lastAutoYear = useRef<StandardSchoolYear | null>(null);
+  const dobValue = watch('dob');
+  const yearGroupValue = watch('yearGroup');
+
+  useEffect(() => {
+    const derived = deriveSchoolYearFromDateInput(dobValue);
+    if (!derived) return;
+    if (!yearGroupValue || yearGroupValue === lastAutoYear.current) {
+      setValue('yearGroup', derived, { shouldDirty: true, shouldValidate: true });
+      lastAutoYear.current = derived;
+    }
+  }, [dobValue, setValue, yearGroupValue]);
 
   return (
     <form

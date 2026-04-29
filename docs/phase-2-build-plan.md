@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.6 PACE progress read model
+**Status:** Ready for review - PR-2.7 Head academic settings
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -265,9 +265,11 @@ Verification:
 - `pnpm test`
 - `pnpm --filter @oasis/web build`
 
-### PR-2.6 - `feat(api): PACE progress read model` ✅ READY FOR REVIEW
+### PR-2.6 - `feat(api): PACE progress read model` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.6-pace-progress-read-model`
+
+Merged via PR #28 on 2026-04-29.
 
 Scope:
 
@@ -303,27 +305,69 @@ Verification:
 
 Goal: Head of Centre can configure the daily workflow before Supervisors use it.
 
-### PR-2.7 - `feat(web): Head academic settings` ⏳ PLANNED
+### PR-2.7 - `feat(web): Head academic settings` ✅ READY FOR REVIEW
+
+Branch: `feat/phase-2-pr2.7-head-academic-settings`
 
 Scope:
 
-- Add Head-admin screens for standard school-year review, year-group band
-  management, and band colour selection.
-- Update student create/edit UI so date of birth defaults the school year using
-  the UK helper, while preserving a manual override select.
-- Add subject management screens for creating, editing, deactivating subjects,
-  and setting a student's initial/current PACE per subject.
-- Add PACE policy settings for enabling/disabling daily limits, setting maximum
-  tests per day, enabling/disabling same-day self/final block, and setting the
-  pass threshold.
+- Add a web-only Head-admin academic settings route under `/admin`.
+- Link the route from admin navigation using the existing PACE/settings-style
+  navigation slot.
+- Use existing API procedures for year-group bands, subjects, student subject
+  assignment/current PACE, and PACE policy.
+- Do not add a Prisma migration unless implementation exposes a missing API
+  contract that cannot be handled by the existing procedures.
+- Keep Parent and Student academic settings access out of scope.
+- Keep rota scheduling in PR-2.8.
+
+Implementation:
+
+- Build a standard school-year reference section from `STANDARD_SCHOOL_YEARS`.
+- Build year-group band list/create/update/deactivate controls using
+  `admin.listYearGroupBands`, `admin.createYearGroupBand`,
+  `admin.updateYearGroupBand`, and `admin.deactivateYearGroupBand`.
+- Represent band colours with visible swatches plus a `#RRGGBB` input.
+- Build subject list/create/update/deactivate controls using
+  `admin.listSubjects`, `admin.createSubject`, `admin.updateSubject`, and
+  `admin.deactivateSubject`.
+- Build PACE policy controls using `admin.getPacePolicy` and
+  `admin.updatePacePolicy` for daily limit enabled, maximum tests per student
+  per day, same-day self/final block enabled, and pass threshold.
+- Update student create/edit forms so date-of-birth entry defaults `yearGroup`
+  through `deriveEnglandWalesSchoolYear`.
+- Preserve manual school-year override in the existing select. Do not overwrite
+  a manual year-group choice unless the field is empty or still matches the
+  previous auto-derived value when the date of birth changes.
+- Keep subject assignment on the student detail page.
+- Add support for updating an existing assigned subject's current PACE using
+  `student.setCurrentPace`.
+- Show success and error state beside the relevant academic settings or student
+  subject action.
 
 Tests:
 
 - Playwright flow calculates a school year from date of birth and allows manual
   override.
 - Playwright flow creates/updates a year-group band and colour.
-- Playwright flow creates/deactivates a subject.
+- Playwright flow creates/updates/deactivates a subject.
+- Playwright flow assigns a subject to a student and updates current PACE.
 - Playwright flow configures PACE policy limits.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/api test -- student.router.test.ts` → pass, 121 tests
+  due the current Vitest argument handling running the full API suite.
+- `pnpm lint` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+- `graphify update .` → completed; graphify reported the existing graph
+  node-count warning.
+- Browser smoke at `http://localhost:3002/admin/academic` → page renders with
+  no Next error overlay. Console still reports the existing missing favicon 404.
+- `E2E_BASE_URL=http://localhost:3002 pnpm --filter @oasis/web test:e2e` → 2
+  tests skipped because `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are not set.
 
 ### PR-2.8 - `feat(web): Head rota scheduler` ⏳ PLANNED
 
