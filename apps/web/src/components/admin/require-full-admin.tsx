@@ -2,7 +2,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { notFound } from 'next/navigation';
 import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
-import { requireFullAdmin, requireTag, type SessionUser } from '@oasis/domain';
+import { requireFullAdmin, requireStaff, requireTag, type SessionUser } from '@oasis/domain';
 
 function isLocalDev(): boolean {
   return process.env['NODE_ENV'] !== 'production';
@@ -82,6 +82,23 @@ export async function getFullAdminUser(): Promise<SessionUser> {
 
 export async function assertFullAdmin() {
   await getFullAdminUser();
+}
+
+export async function getStaffUser(): Promise<SessionUser> {
+  try {
+    const { userId } = await auth();
+    if (userId) await ensureDevHeadUser(userId);
+    const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
+    if (!ctx.user) notFound();
+    requireStaff(ctx.user);
+    return ctx.user;
+  } catch {
+    notFound();
+  }
+}
+
+export async function assertStaffUser() {
+  await getStaffUser();
 }
 
 export async function assertAuditViewer() {

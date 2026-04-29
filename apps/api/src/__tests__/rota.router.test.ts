@@ -18,6 +18,7 @@ const secondSupervisorUser: SessionUser = {
   requires2fa: false,
 };
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
+const studentUser: SessionUser = { id: 'u_student', role: 'Student', tags: [], requires2fa: false };
 const clubsUser: SessionUser = {
   id: 'u_clubs',
   role: 'ClubsAdmin',
@@ -657,6 +658,73 @@ describe('rota scheduling', () => {
 });
 
 describe('rota shift swaps', () => {
+  it('lets staff read swap candidates without returning their own shifts', async () => {
+    const { db } = makeFakeDb();
+    const head = makeCaller(headUser, db);
+    await head.rota.createShift({
+      staffUserId: supervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T09:00:00.000Z'),
+      endsAt: at('2026-04-29T12:00:00.000Z'),
+    });
+    await head.rota.createShift({
+      staffUserId: secondSupervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T13:00:00.000Z'),
+      endsAt: at('2026-04-29T16:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).rota.swapCandidates({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: 'shift_2',
+        staffUserId: secondSupervisorUser.id,
+        date: '2026-04-29',
+        bandName: 'Lower Primary',
+        bandColour: '#5B90C5',
+        staff: {
+          id: secondSupervisorUser.id,
+          role: 'Supervisor',
+          fullName: 'Supervisor Two',
+          email: 'sup2@example.test',
+        },
+      },
+    ]);
+    expect(db.auditLog.create).toHaveBeenLastCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'DecryptPii',
+        entity: 'StaffShift',
+        meta: { count: 1, source: 'rota.swapCandidates' },
+      },
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.swapCandidates({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).resolves.toHaveLength(2);
+    await expect(
+      makeCaller(parentUser, db).rota.swapCandidates({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(studentUser, db).rota.swapCandidates({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('lets full-admin list pending shift swaps with shift context only', async () => {
     const { db, swaps } = makeFakeDb();
     const head = makeCaller(headUser, db);

@@ -254,6 +254,129 @@
   font-size: 0.76rem;
 }
 
+.supervisor-action-grid {
+  margin-bottom: 18px;
+}
+
+.supervisor-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 82px;
+  color: var(--oasis-text);
+}
+
+.supervisor-action svg {
+  flex: 0 0 auto;
+  color: var(--oasis-crimson);
+}
+
+.supervisor-action span {
+  display: grid;
+  gap: 4px;
+}
+
+.supervisor-action strong {
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+}
+
+.supervisor-action small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+}
+
+.supervisor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.42fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.supervisor-layout__main,
+.supervisor-layout__side {
+  min-width: 0;
+}
+
+.supervisor-layout__main,
+.supervisor-layout__side {
+  display: grid;
+  gap: 18px;
+}
+
+.supervisor-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.supervisor-student {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.supervisor-student > div:first-of-type {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.supervisor-student strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.supervisor-student span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+}
+
+.supervisor-student .badge-list {
+  grid-column: 1 / -1;
+}
+
+.supervisor-rota-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.supervisor-rota-grid h3 {
+  margin: 0 0 10px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.availability-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.availability-editor__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(86px, 0.7fr) minmax(86px, 0.7fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.supervisor-submit {
+  width: 100%;
+  margin-top: 14px;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -1094,8 +1217,14 @@
   }
 
   .settings-grid,
+  .supervisor-layout,
+  .supervisor-rota-grid,
   .rota-layout,
   .policy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .availability-editor__row {
     grid-template-columns: 1fr;
   }
 

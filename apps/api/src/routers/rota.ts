@@ -324,6 +324,37 @@ export const rotaRouter = router({
     return rows.map(mapShift);
   }),
 
+  swapCandidates: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    assertStaffWorkflow(ctx.user);
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    const rows = await ctx.db.staffShift.findMany({
+      where: {
+        date: { gte: from, lte: to },
+      },
+      orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
+      include: {
+        staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+        yearGroupBand: { select: { name: true, colour: true } },
+      },
+    });
+
+    const shifts = rows
+      .filter((row) => row.staffUserId !== ctx.user.id)
+      .map((row) => mapShiftWithStaff(ctx.db.$enc.decrypt, row));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'StaffShift',
+        meta: { count: shifts.length, source: 'rota.swapCandidates' },
+      },
+    });
+
+    return shifts;
+  }),
+
   weekSchedule: fullAdminProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     const from = normalizeDate(input.from);
     const to = normalizeDate(input.to);
