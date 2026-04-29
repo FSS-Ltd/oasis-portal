@@ -176,6 +176,15 @@ model PaceRecord {
   @@index([studentId, subjectId])
 }
 
+model PacePolicy {
+  id                          String   @id @default("default")
+  dailyTestLimitEnabled       Boolean  @default(false)
+  maxTestsPerStudentPerDay    Int      @default(2)
+  samePaceSameDayBlockEnabled Boolean  @default(true)
+  passThreshold               Int      @default(80)
+  updatedAt                   DateTime @updatedAt
+}
+
 // ---------------------------------------------------------------------------
 // Attendance & behaviour
 // ---------------------------------------------------------------------------
