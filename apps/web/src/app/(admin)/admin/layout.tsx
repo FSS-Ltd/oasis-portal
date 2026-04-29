@@ -5,6 +5,7 @@ import {
   BarChart3,
   Bell,
   BookOpen,
+  CalendarCheck,
   ClipboardList,
   GraduationCap,
   Home,
@@ -21,6 +22,7 @@ export const dynamic = 'force-dynamic';
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home, badge: undefined },
   { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
+  { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
   { href: '/admin/staff', label: 'Staff and parents', icon: UsersRound, badge: undefined },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
   { href: '/admin', label: 'Behaviour', icon: Star, badge: undefined },
@@ -59,7 +61,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             return (
               <Link
                 aria-disabled={!enabled}
-                className={index < 3 ? 'admin-shell__nav-item' : 'admin-shell__nav-item is-disabled'}
+                className={enabled ? 'admin-shell__nav-item' : 'admin-shell__nav-item is-disabled'}
                 href={item.href}
                 key={`${item.label}-${index}`}
               >

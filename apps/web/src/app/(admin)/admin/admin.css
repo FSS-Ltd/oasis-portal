@@ -99,7 +99,7 @@
   color: #ffffff;
 }
 
-.admin-shell__nav-item:nth-child(-n + 3) {
+.admin-shell__nav-item:not(.is-disabled) {
   border-left-color: var(--oasis-blue);
 }
 
@@ -139,7 +139,8 @@
 
 .admin-shell__main {
   width: 100%;
-  max-width: 1240px;
+  max-width: none;
+  box-sizing: border-box;
   padding: 28px 32px 56px;
 }
 
@@ -180,6 +181,13 @@
   color: var(--oasis-text-secondary);
   font-size: 0.83rem;
   line-height: 1.5;
+}
+
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .dashboard-grid {
@@ -438,6 +446,33 @@
   min-width: 920px;
 }
 
+.attendance-toolbar {
+  align-items: flex-start;
+}
+
+.attendance-toolbar__date {
+  max-width: 360px;
+}
+
+.attendance-table {
+  min-width: 1040px;
+}
+
+.segmented-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.segmented-actions .button.is-selected {
+  box-shadow: 0 0 0 3px rgba(125, 28, 44, 0.14);
+}
+
+.attendance-error {
+  margin: 12px 0 0;
+}
+
 .student-row {
   display: flex;
   align-items: center;
@@ -495,6 +530,12 @@
 .badge--green {
   background: var(--oasis-success-bg);
   color: var(--oasis-success);
+}
+
+.badge--blue {
+  gap: 6px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
 }
 
 .badge--amber {

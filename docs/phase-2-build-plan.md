@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Planned - PR-2.0 documentation expansion in progress
+**Status:** In progress - PR-2.1 attendance workflow
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -77,7 +77,7 @@ Phase 2 is complete when:
 
 Goal: backend procedures are production-shaped before UI work begins.
 
-### PR-2.0 - `docs: plan Phase 2 daily workflows` 🚧 IN PROGRESS
+### PR-2.0 - `docs: plan Phase 2 daily workflows` ✅ MERGED
 
 Branch: `docs/phase-2-rota-academics-plan`
 
@@ -94,16 +94,20 @@ Verification:
 - `pnpm lint`
 - `pnpm typecheck`
 
-### PR-2.1 - `feat(api): attendance workflow` ⏳ PLANNED
+### PR-2.1 - `feat(api): attendance workflow` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.1-attendance-workflow`
 
 Scope:
 
 - Implement `attendance.forDate` and `attendance.mark`.
-- Implement CSV export procedures for student attendance and staff attendance.
+- Implement CSV export procedure for student attendance.
 - Allow full-admin and Supervisor to read and mark attendance.
 - Allow only full-admin and users tagged `attendance-exporter` to export
-  attendance CSV files.
+  student attendance CSV files.
 - Defer Parent/Student attendance reads to Phase 3.
+- Defer staff attendance CSV export until staff rota and attendance data exist
+  after PR-2.4.
 - Upsert by `(studentId, date)`.
 - Reject inactive or missing students.
 - Audit create, update, and export outcomes.
@@ -115,8 +119,8 @@ Tests:
   Supervisor, Parent, and Student denied.
 - Upsert creates once, then updates status for the same student/date.
 - `forDate` returns only active students and their status for the requested date.
-- CSV exports include the requested date range, attendance status, student or
-  staff display name, and recorded timestamp.
+- Student CSV exports include the requested date range, attendance status,
+  student display name, and recorded timestamp.
 - Missing and inactive student cases return typed errors.
 - Audit rows are written for create/update/export.
 
@@ -175,7 +179,8 @@ Tests:
 Scope:
 
 - Add rota models for staff weekly availability, scheduled shifts, and shift
-  swap requests.
+  swap requests, plus the staff attendance data needed for staff attendance
+  export.
 - Allow active staff users to set their recurring availability by day of week
   and view their own rota.
 - Allow full-admin users to schedule staff for dates/times and assign a shift
@@ -185,7 +190,7 @@ Scope:
 - Allow staff to request a shift swap with another staff member.
 - Require full-admin approval before a shift swap changes the published rota.
 - Audit availability changes, shift creation/update, swap requests, approvals,
-  and rejections.
+  rejections, and staff attendance export once staff attendance records exist.
 
 Tests:
 
@@ -332,8 +337,8 @@ Scope:
 - Add date selector and roster attendance controls.
 - Support Present, Absent, and Late.
 - Filter or group students by configured year-group bands.
-- Add CSV export controls for student attendance and staff attendance, visible
-  only to full-admin or users with the `attendance-exporter` tag.
+- Add daily student CSV export controls visible only to full-admin or users with
+  the `attendance-exporter` tag.
 - Keep row state stable while saving.
 - Show save errors without clearing the selected status.
 
@@ -343,7 +348,7 @@ Tests:
 - Status remains visible after save.
 - API error state is surfaced in the row.
 - Configured year-group band filter changes the visible student set.
-- Tagged export users can download student and staff attendance CSV files.
+- Tagged export users can download the daily student attendance CSV file.
 - Untagged Supervisors do not see export controls and are denied if they call
   the export endpoint directly.
 
@@ -371,7 +376,7 @@ Tests:
 
 ---
 
-## Sprint 4 - Mobile smoke and phase verification
+## Sprint 4 - Mobile smoke, attendance export, and phase verification
 
 Goal: prove the same typed API supports the mobile daily workflow, then close
 Phase 2 with an end-to-end verification story.
@@ -402,7 +407,8 @@ Scope:
 - Add end-to-end Head-admin coverage for year-group bands, subject management,
   PACE policy settings, and rota scheduling.
 - Add export coverage for student attendance CSV, staff attendance CSV, and
-  `attendance-exporter` tag enforcement.
+  `attendance-exporter` tag enforcement. Staff attendance CSV coverage belongs
+  here after the PR-2.4 staff rota/attendance model exists.
 - Re-run DB/RLS checks for Sensitive behaviour.
 - Update `PROJECT_Oasis_Context.md` and this plan with completion status,
   verification output, and carry-forward items.
@@ -417,6 +423,34 @@ Verification:
 - `pnpm db:integration`
 - `pnpm api:smoke-context-rls`
 - Phase 2 Playwright workflow, opt-in where Clerk credentials are required.
+
+### PR-2.14 - `feat(web): attendance export centre` ⏳ PLANNED
+
+Scope:
+
+- Add a Head-admin attendance export page for date-range exports.
+- Provide separate export controls for student attendance and staff attendance.
+- Each export control has a dropdown to choose all individuals or one
+  individual.
+- Student export supports all students or one selected student.
+- Staff export supports all staff or one selected staff member once staff
+  attendance data exists.
+- Show export controls only to full-admin users and users with the
+  `attendance-exporter` tag.
+- Audit export attempts and successful exports with date range, export kind,
+  selected individual/all, and row count.
+
+Tests:
+
+- Full-admin can export all student attendance for a date range.
+- Full-admin can export one selected student's attendance for a date range.
+- Tagged `attendance-exporter` user can export student and staff attendance.
+- Untagged Supervisor cannot see export controls and direct calls are denied.
+- Staff export supports all staff and one selected staff member after staff
+  attendance records exist.
+- CSV headers and row counts match the selected date range and individual/all
+  filter.
+- Audit rows are written for successful exports and denied attempts.
 
 ---
 
