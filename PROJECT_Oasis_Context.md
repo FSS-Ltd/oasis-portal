@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-28
+**Last updated:** 2026-04-29
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 1 complete; Phase 2 daily-workflow planning in progress.
+**Phase:** Phase 2 daily-workflow API foundations in progress.
 
 ---
 
@@ -21,8 +21,9 @@ raw DB dump cannot re-identify anyone.
 ## Current status — Phase 1 complete
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
-PR-1.8, and PR-1.9 docs closeout are merged to `main`. Phase 2 is ready to
-begin from `docs/phase-2-build-plan.md`.
+PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
+planning is merged. PR-2.1 attendance workflow is in progress on
+`feat/phase-2-pr2.1-attendance-workflow`.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 

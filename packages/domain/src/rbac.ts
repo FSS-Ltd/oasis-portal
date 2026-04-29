@@ -23,7 +23,12 @@ export const ROLES = [
 
 export type Role = (typeof ROLES)[number];
 
-export const PERMISSION_TAGS = ['shopkeeper', 'shopadmin', 'leaderboard-admin'] as const;
+export const PERMISSION_TAGS = [
+  'shopkeeper',
+  'shopadmin',
+  'leaderboard-admin',
+  'attendance-exporter',
+] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
 export interface SessionUser {
