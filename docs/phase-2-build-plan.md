@@ -533,6 +533,41 @@ Verification:
   against `/`, `/supervisor`, and `/admin/attendance` timed out in this
   sandbox after compiling middleware.
 
+### PR-2.10a - `fix(web): role-aware auth redirects` ⏳ PLANNED
+
+Branch: `fix/phase-2-pr2.10a-role-aware-auth-redirects`
+
+Scope:
+
+- Replace hard-coded `forceRedirectUrl="/admin"` and `fallbackRedirectUrl="/admin"`
+  on Clerk sign-in and sign-up components with a shared post-auth redirect route.
+- Add a server-side `/post-sign-in` route that loads the Oasis session user and
+  routes by role:
+  - Full-admin roles → `/admin`
+  - `Supervisor` → `/supervisor`
+  - `ClubsAdmin`, `Parent`, `Student` → a clear access/not-ready fallback, not `/admin`
+- Update middleware protection so `/supervisor(.*)` is explicitly protected
+  alongside `/admin(.*)` and `/2fa(.*)`.
+- Keep Head/full-admin access to `/supervisor` intact as "Full-admin cover".
+- Do not change API RBAC or role definitions.
+
+Implementation:
+
+- Create `apps/web/src/app/post-sign-in/page.tsx` as a lightweight server
+  component that reads the Oasis session user role and issues a Next.js redirect.
+- Update Clerk `<SignIn>` and `<SignUp>` component props to point to
+  `/post-sign-in` instead of `/admin`.
+- Extend `apps/web/src/middleware.ts` to include `/supervisor` in the protected
+  route matcher alongside `/admin` and `/2fa`.
+
+Tests:
+
+- Full-admin sign-in redirects to `/admin`.
+- Supervisor sign-in redirects to `/supervisor`.
+- Supervisor is not sent to `/admin`.
+- Direct unauthenticated access to `/supervisor` requires Clerk auth.
+- Existing admin and supervisor route guards still deny unsupported roles.
+
 ### PR-2.11 - `feat(web): behaviour and PACE entry UI` ⏳ PLANNED
 
 Scope:
