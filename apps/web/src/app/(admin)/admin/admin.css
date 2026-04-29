@@ -828,6 +828,154 @@
   align-items: end;
 }
 
+.rota-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  gap: 18px;
+  align-items: start;
+}
+
+.rota-layout__main,
+.rota-layout__side {
+  min-width: 0;
+}
+
+.rota-layout__side {
+  display: grid;
+  gap: 18px;
+}
+
+.rota-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.rota-toolbar h2 {
+  margin: 0;
+}
+
+.rota-toolbar p {
+  margin: 4px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.84rem;
+}
+
+.rota-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rota-day {
+  min-height: 220px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.rota-day header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--oasis-border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.rota-day header span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rota-shift-list,
+.swap-list,
+.availability-list {
+  display: grid;
+  gap: 10px;
+}
+
+.rota-shift {
+  display: grid;
+  width: 100%;
+  gap: 5px;
+  border: 1px solid var(--oasis-border);
+  border-left: 4px solid var(--oasis-blue);
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 10px;
+  color: var(--oasis-text);
+  text-align: left;
+}
+
+.rota-shift:hover {
+  border-color: var(--oasis-blue);
+}
+
+.rota-shift span,
+.rota-shift small,
+.rota-shift em,
+.availability-row span,
+.swap-card span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+}
+
+.rota-shift small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-style: normal;
+}
+
+.rota-shift small i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.rota-shift em {
+  font-style: normal;
+}
+
+.availability-row,
+.swap-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.availability-pill {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--oasis-border);
+  border-radius: 999px;
+  background: #f8fbff;
+  padding: 4px 8px;
+  color: var(--oasis-text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.rota-time-grid {
+  min-width: 0;
+}
+
+.rota-time-grid .field {
+  min-width: 0;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -946,8 +1094,14 @@
   }
 
   .settings-grid,
+  .rota-layout,
   .policy-grid {
     grid-template-columns: 1fr;
+  }
+
+  .rota-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .settings-wide {

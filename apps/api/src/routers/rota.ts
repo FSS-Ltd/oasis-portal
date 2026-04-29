@@ -21,6 +21,12 @@ const setAvailabilityInput = z.object({
   windows: z.array(availabilityWindowInput).max(42).default([]),
 });
 
+const staffAvailabilityInput = z
+  .object({
+    staffUserIds: z.array(z.string().min(1)).max(100).optional(),
+  })
+  .optional();
+
 const dateRangeInput = z
   .object({
     from: z.coerce.date(),
@@ -92,6 +98,18 @@ function decryptRequired(
 }
 
 type RouterCtx = { db: AppContext['db']; user: SessionUser };
+
+function mapStaffUser(
+  decrypt: AppContext['db']['$enc']['decrypt'],
+  user: { id: string; role: SessionUser['role']; fullNameEnc: string; emailEnc: string },
+) {
+  return {
+    id: user.id,
+    role: user.role,
+    fullName: decryptRequired(decrypt, user.fullNameEnc, 'user'),
+    email: decryptRequired(decrypt, user.emailEnc, 'user'),
+  };
+}
 
 function assertStaffWorkflow(user: SessionUser): void {
   try {
@@ -200,6 +218,26 @@ function mapShift(shift: {
   };
 }
 
+function mapShiftWithStaff(
+  decrypt: AppContext['db']['$enc']['decrypt'],
+  shift: {
+    id: string;
+    staffUserId: string;
+    yearGroupBandId: string;
+    date: Date;
+    startsAt: Date;
+    endsAt: Date;
+    notes: string | null;
+    staffUser?: { id: string; role: SessionUser['role']; fullNameEnc: string; emailEnc: string } | null;
+    yearGroupBand?: { name: string; colour: string } | null;
+  },
+) {
+  return {
+    ...mapShift(shift),
+    staff: shift.staffUser ? mapStaffUser(decrypt, shift.staffUser) : null,
+  };
+}
+
 export const rotaRouter = router({
   myAvailability: authedProcedure.query(async ({ ctx }) => {
     assertStaffWorkflow(ctx.user);
@@ -286,6 +324,34 @@ export const rotaRouter = router({
     return rows.map(mapShift);
   }),
 
+  weekSchedule: fullAdminProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    const rows = await ctx.db.staffShift.findMany({
+      where: {
+        date: { gte: from, lte: to },
+      },
+      orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
+      include: {
+        staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+        yearGroupBand: { select: { name: true, colour: true } },
+      },
+    });
+
+    const shifts = rows.map((row) => mapShiftWithStaff(ctx.db.$enc.decrypt, row));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'StaffShift',
+        meta: { count: shifts.length, source: 'rota.weekSchedule' },
+      },
+    });
+
+    return shifts;
+  }),
+
   listStaff: fullAdminProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.user.findMany({
       where: { active: true, role: { in: [...STAFF_ROLES] } },
@@ -298,12 +364,7 @@ export const rotaRouter = router({
       },
     });
 
-    const staff = rows.map((row) => ({
-      id: row.id,
-      role: row.role,
-      fullName: decryptRequired(ctx.db.$enc.decrypt, row.fullNameEnc, 'user'),
-      email: decryptRequired(ctx.db.$enc.decrypt, row.emailEnc, 'user'),
-    }));
+    const staff = rows.map((row) => mapStaffUser(ctx.db.$enc.decrypt, row));
 
     await ctx.db.auditLog.create({
       data: {
@@ -311,6 +372,58 @@ export const rotaRouter = router({
         action: 'DecryptPii',
         entity: 'User',
         meta: { count: staff.length, source: 'rota.listStaff' },
+      },
+    });
+
+    return staff;
+  }),
+
+  staffAvailability: fullAdminProcedure.input(staffAvailabilityInput).query(async ({ ctx, input }) => {
+    const staffRows = await ctx.db.user.findMany({
+      where: {
+        active: true,
+        role: { in: [...STAFF_ROLES] },
+        ...(input?.staffUserIds ? { id: { in: input.staffUserIds } } : {}),
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        role: true,
+        fullNameEnc: true,
+        emailEnc: true,
+      },
+    });
+    const staffIds = staffRows.map((row) => row.id);
+    const windows = await ctx.db.staffAvailabilityWindow.findMany({
+      where: { staffUserId: { in: staffIds } },
+      orderBy: [{ staffUserId: 'asc' }, { dayOfWeek: 'asc' }, { startMinute: 'asc' }],
+      select: {
+        id: true,
+        staffUserId: true,
+        dayOfWeek: true,
+        startMinute: true,
+        endMinute: true,
+      },
+    });
+
+    const staff = staffRows.map((row) => ({
+      ...mapStaffUser(ctx.db.$enc.decrypt, row),
+      availability: windows
+        .filter((window) => window.staffUserId === row.id)
+        .map((window) => ({
+          id: window.id,
+          dayOfWeek: window.dayOfWeek,
+          startMinute: window.startMinute,
+          endMinute: window.endMinute,
+        })),
+    }));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'StaffAvailability',
+        meta: { count: staff.length, source: 'rota.staffAvailability' },
       },
     });
 
@@ -416,6 +529,50 @@ export const rotaRouter = router({
     });
 
     return mapShift(shift);
+  }),
+
+  pendingSwapRequests: fullAdminProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db.shiftSwapRequest.findMany({
+      where: { status: 'Pending' },
+      orderBy: [{ createdAt: 'asc' }],
+      include: {
+        requester: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+        targetUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+        fromShift: {
+          include: {
+            staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+            yearGroupBand: { select: { name: true, colour: true } },
+          },
+        },
+        toShift: {
+          include: {
+            staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+            yearGroupBand: { select: { name: true, colour: true } },
+          },
+        },
+      },
+    });
+
+    const requests = rows.map((row) => ({
+      id: row.id,
+      status: row.status,
+      createdAt: row.createdAt,
+      requester: mapStaffUser(ctx.db.$enc.decrypt, row.requester),
+      targetUser: mapStaffUser(ctx.db.$enc.decrypt, row.targetUser),
+      fromShift: mapShiftWithStaff(ctx.db.$enc.decrypt, row.fromShift),
+      toShift: mapShiftWithStaff(ctx.db.$enc.decrypt, row.toShift),
+    }));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'ShiftSwapRequest',
+        meta: { count: requests.length, source: 'rota.pendingSwapRequests' },
+      },
+    });
+
+    return requests;
   }),
 
   requestSwap: authedProcedure.input(requestSwapInput).mutation(async ({ ctx, input }) => {

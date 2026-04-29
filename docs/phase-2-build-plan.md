@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.7 Head academic settings
+**Status:** Ready for review - PR-2.8 Head rota scheduler
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -305,9 +305,12 @@ Verification:
 
 Goal: Head of Centre can configure the daily workflow before Supervisors use it.
 
-### PR-2.7 - `feat(web): Head academic settings` ✅ READY FOR REVIEW
+### PR-2.7 - `feat(web): Head academic settings` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.7-head-academic-settings`
+
+Merged via PR #29 on 2026-04-29.
+Follow-up fix PR #30 merged on 2026-04-29.
 
 Scope:
 
@@ -369,7 +372,9 @@ Verification:
 - `E2E_BASE_URL=http://localhost:3002 pnpm --filter @oasis/web test:e2e` → 2
   tests skipped because `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are not set.
 
-### PR-2.8 - `feat(web): Head rota scheduler` ⏳ PLANNED
+### PR-2.8 - `feat(web): Head rota scheduler` ✅ READY FOR REVIEW
+
+Branch: `feat/phase-2-pr2.8-head-rota-scheduler`
 
 Scope:
 
@@ -380,12 +385,36 @@ Scope:
   assigned shifts.
 - Add shift-swap approval queue with approve/reject actions.
 
+Implementation:
+
+- Add Head-facing rota read procedures for weekly schedule data, staff
+  availability, and pending shift-swap requests.
+- Keep existing rota mutations as the write path for shift create/update and
+  swap approve/reject actions.
+- Add `/admin/rota` with a Monday-start weekly schedule, shift create/update
+  form, staff availability panel, and pending swap review queue.
+- Add an enabled Rota item to admin navigation.
+- Keep shift deletion and Supervisor self-service rota UI out of PR-2.8.
+
 Tests:
 
 - Playwright flow schedules staff into a coloured year-group band.
 - Playwright flow shows staff availability alongside rota assignment.
 - Playwright flow approves a shift swap and sees the rota update.
 - Playwright flow rejects a shift swap and sees the rota remain unchanged.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- rota.router.test.ts` → pass, 124 tests due
+  the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass after clearing stale `.next` output.
+- Browser smoke at `http://localhost:3003/admin/rota` → page renders with no
+  Next error overlay; Start/End time fields render side by side without overlap.
 
 ---
 
