@@ -172,7 +172,7 @@ export function AcademicSettingsClient() {
             <div className="form-grid form-grid--two">
               <Field label="Band name">
                 <TextInput
-                  onChange={(event) => setBandForm({ ...bandForm, name: event.target.value })}
+                  onChange={(event) => { setBandForm({ ...bandForm, name: event.target.value }); }}
                   value={bandForm.name}
                 />
               </Field>
@@ -185,9 +185,9 @@ export function AcademicSettingsClient() {
                   />
                   <TextInput
                     pattern="^#[0-9a-fA-F]{6}$"
-                    onChange={(event) =>
-                      setBandForm({ ...bandForm, colour: normaliseColour(event.target.value) })
-                    }
+                    onChange={(event) => {
+                      setBandForm({ ...bandForm, colour: normaliseColour(event.target.value) });
+                    }}
                     value={bandForm.colour}
                   />
                 </div>
@@ -196,7 +196,9 @@ export function AcademicSettingsClient() {
             <Field label="Sort order">
               <TextInput
                 min={0}
-                onChange={(event) => setBandForm({ ...bandForm, sortOrder: event.target.value })}
+                onChange={(event) => {
+                  setBandForm({ ...bandForm, sortOrder: event.target.value });
+                }}
                 type="number"
                 value={bandForm.sortOrder}
               />
@@ -214,12 +216,12 @@ export function AcademicSettingsClient() {
                 >
                   <input
                     checked={bandForm.standardYears.includes(year)}
-                    onChange={() =>
+                    onChange={() => {
                       setBandForm({
                         ...bandForm,
                         standardYears: toggleYear(bandForm.standardYears, year),
-                      })
-                    }
+                      });
+                    }}
                     type="checkbox"
                   />
                   {year}
@@ -261,12 +263,12 @@ export function AcademicSettingsClient() {
                     <div className="form-grid form-grid--two">
                       <Field label="Band name">
                         <TextInput
-                          onChange={(event) =>
+                          onChange={(event) => {
                             setEditingBandForm({
                               ...editingBandForm,
                               name: event.target.value,
-                            })
-                          }
+                            });
+                          }}
                           value={editingBandForm.name}
                         />
                       </Field>
@@ -279,12 +281,12 @@ export function AcademicSettingsClient() {
                           />
                           <TextInput
                             pattern="^#[0-9a-fA-F]{6}$"
-                            onChange={(event) =>
+                            onChange={(event) => {
                               setEditingBandForm({
                                 ...editingBandForm,
                                 colour: normaliseColour(event.target.value),
-                              })
-                            }
+                              });
+                            }}
                             value={editingBandForm.colour}
                           />
                         </div>
@@ -293,12 +295,12 @@ export function AcademicSettingsClient() {
                     <Field label="Sort order">
                       <TextInput
                         min={0}
-                        onChange={(event) =>
+                        onChange={(event) => {
                           setEditingBandForm({
                             ...editingBandForm,
                             sortOrder: event.target.value,
-                          })
-                        }
+                          });
+                        }}
                         type="number"
                         value={editingBandForm.sortOrder}
                       />
@@ -318,12 +320,12 @@ export function AcademicSettingsClient() {
                         >
                           <input
                             checked={editingBandForm.standardYears.includes(year)}
-                            onChange={() =>
+                            onChange={() => {
                               setEditingBandForm({
                                 ...editingBandForm,
                                 standardYears: toggleYear(editingBandForm.standardYears, year),
-                              })
-                            }
+                              });
+                            }}
                             type="checkbox"
                           />
                           {year}
@@ -338,7 +340,9 @@ export function AcademicSettingsClient() {
                         Save band
                       </Button>
                       <Button
-                        onClick={() => setEditingBandId(null)}
+                        onClick={() => {
+                          setEditingBandId(null);
+                        }}
                         size="sm"
                         type="button"
                         variant="ghost"
@@ -381,7 +385,9 @@ export function AcademicSettingsClient() {
                       </Button>
                       <Button
                         disabled={!band.active}
-                        onClick={() => deactivateBand.mutate({ id: band.id })}
+                        onClick={() => {
+                          deactivateBand.mutate({ id: band.id });
+                        }}
                         pending={deactivateBand.isPending}
                         size="sm"
                         type="button"
@@ -414,13 +420,17 @@ export function AcademicSettingsClient() {
             <div className="form-grid form-grid--two">
               <Field label="Subject code">
                 <TextInput
-                  onChange={(event) => setSubjectCode(event.target.value)}
+                  onChange={(event) => {
+                    setSubjectCode(event.target.value);
+                  }}
                   value={subjectCode}
                 />
               </Field>
               <Field label="Subject name">
                 <TextInput
-                  onChange={(event) => setSubjectName(event.target.value)}
+                  onChange={(event) => {
+                    setSubjectName(event.target.value);
+                  }}
                   value={subjectName}
                 />
               </Field>
@@ -463,7 +473,9 @@ export function AcademicSettingsClient() {
                   >
                     <TextInput
                       aria-label={`${subject.code} subject name`}
-                      onChange={(event) => setEditingSubjectName(event.target.value)}
+                      onChange={(event) => {
+                        setEditingSubjectName(event.target.value);
+                      }}
                       value={editingSubjectName}
                     />
                     <Button pending={updateSubject.isPending} size="sm" type="submit">
@@ -484,7 +496,9 @@ export function AcademicSettingsClient() {
                       Edit
                     </Button>
                     <Button
-                      onClick={() => deactivateSubject.mutate({ id: subject.id })}
+                      onClick={() => {
+                        deactivateSubject.mutate({ id: subject.id });
+                      }}
                       pending={deactivateSubject.isPending}
                       size="sm"
                       type="button"
@@ -542,12 +556,12 @@ export function AcademicSettingsClient() {
                 <input
                   checked={policyForm.dailyTestLimitEnabled}
                   className="switch-input"
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setPolicyForm({
                       ...policyForm,
                       dailyTestLimitEnabled: event.target.checked,
-                    })
-                  }
+                    });
+                  }}
                   type="checkbox"
                 />
               </label>
@@ -555,12 +569,12 @@ export function AcademicSettingsClient() {
                 <TextInput
                   min={1}
                   max={20}
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setPolicyForm({
                       ...policyForm,
                       maxTestsPerStudentPerDay: event.target.value,
-                    })
-                  }
+                    });
+                  }}
                   type="number"
                   value={policyForm.maxTestsPerStudentPerDay}
                 />
@@ -570,12 +584,12 @@ export function AcademicSettingsClient() {
                 <input
                   checked={policyForm.samePaceSameDayBlockEnabled}
                   className="switch-input"
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setPolicyForm({
                       ...policyForm,
                       samePaceSameDayBlockEnabled: event.target.checked,
-                    })
-                  }
+                    });
+                  }}
                   type="checkbox"
                 />
               </label>
@@ -583,9 +597,9 @@ export function AcademicSettingsClient() {
                 <TextInput
                   min={1}
                   max={100}
-                  onChange={(event) =>
-                    setPolicyForm({ ...policyForm, passThreshold: event.target.value })
-                  }
+                  onChange={(event) => {
+                    setPolicyForm({ ...policyForm, passThreshold: event.target.value });
+                  }}
                   type="number"
                   value={policyForm.passThreshold}
                 />
