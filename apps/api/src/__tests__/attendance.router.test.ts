@@ -35,7 +35,7 @@ const studentUser: SessionUser = {
   requires2fa: false,
 };
 
-const activeStudentId = 'ckstudent000000000000001';
+const activeStudentId = 'ctx-student';
 const secondStudentId = 'ckstudent000000000000002';
 const inactiveStudentId = 'ckstudent000000000000003';
 
@@ -388,7 +388,7 @@ describe('attendance.exportStudentsCsv', () => {
       contentType: 'text/csv; charset=utf-8',
       csv: [
         'Date,Student ID,Student Name,Year Group,Status,Recorded At',
-        '2026-04-28,ckstudent000000000000001,Jane Learner,Year 6,Absent,2026-04-29T10:00:00.000Z',
+        '2026-04-28,ctx-student,Jane Learner,Year 6,Absent,2026-04-29T10:00:00.000Z',
         '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,2026-04-29T10:01:00.000Z',
       ].join('\n'),
     });

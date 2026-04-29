@@ -117,7 +117,7 @@ export const attendanceRouter = router({
   mark: roleProcedure(...ATTENDANCE_ROLES)
     .input(
       z.object({
-        studentId: z.string().cuid(),
+        studentId: z.string().min(1),
         date: z.coerce.date(),
         status: attendanceStatusSchema,
       }),
