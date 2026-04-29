@@ -22,6 +22,7 @@ import { clubRouter } from './routers/club.js';
 import { noticeRouter } from './routers/notice.js';
 import { messageRouter } from './routers/message.js';
 import { reportRouter } from './routers/report.js';
+import { rotaRouter } from './routers/rota.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -40,6 +41,7 @@ export const appRouter = router({
   notice: noticeRouter,
   message: messageRouter,
   report: reportRouter,
+  rota: rotaRouter,
 });
 
 export type AppRouter = typeof appRouter;
