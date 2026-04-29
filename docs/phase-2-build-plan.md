@@ -26,8 +26,6 @@ Phase 2 turns that foundation into the daily staff workflow:
   test score entry.
 - Configurable PACE test-limit rules with supervisor warnings and hard blocks.
 - Supervisor home screen with quick actions.
-- Detail pages for students, staff, and parents, including individual
-  attendance history for students and staff.
 - Thin mobile supervisor smoke flow after the web workflow is stable.
 
 The Phase 2 scope deliberately excludes Parent portal, messaging, noticeboard,
@@ -68,13 +66,7 @@ Phase 2 is complete when:
 12. Supervisor cannot read Sensitive behaviour after saving it.
 13. Mobile has a minimal daily-workflow smoke surface wired to the typed API
    client.
-14. Head of Centre can open and edit student, staff, and parent detail pages;
-   student and staff detail pages include individual attendance history with
-   view/export actions.
-15. Full-admin users and users with the `attendance-exporter` tag can export all
-   student attendance or all staff attendance for a selected date range, or
-   filter each export to one selected individual.
-16. End-of-phase verification passes:
+14. End-of-phase verification passes:
    `pnpm lint`, `pnpm typecheck`, `pnpm test`,
    `pnpm --filter @oasis/web build`, DB/RLS sensitive-behaviour checks, and the
    opt-in Playwright workflow where credentials are available.
@@ -347,7 +339,6 @@ Scope:
 - Filter or group students by configured year-group bands.
 - Add daily student CSV export controls visible only to full-admin or users with
   the `attendance-exporter` tag.
-- Keep broader date-range and all/individual export controls for PR-2.14.
 - Keep row state stable while saving.
 - Show save errors without clearing the selected status.
 
@@ -385,47 +376,12 @@ Tests:
 
 ---
 
-## Phase 2.5 - People detail and attendance history
-
-Goal: Head-admin records are easy to inspect and maintain before the phase
-closes, and individual attendance history is available from the relevant
-person record.
-
-### PR-2.12 - `feat(web): people detail pages and attendance history` ⏳ PLANNED
-
-Scope:
-
-- Add staff and parent detail pages from the Staff and parents area.
-- Expand the student detail page into the shared record pattern for editing
-  identity/contact fields, active state, guardians, subjects, and attendance
-  history links.
-- Add view/export actions for one student's attendance record from the student
-  detail page.
-- Add view/export actions for one staff member's attendance record from the
-  staff detail page once staff attendance data exists.
-- Do not show attendance history/export actions on parent detail pages.
-- Reuse the existing staff-portal visual system and widened content layout.
-- Audit PII decrypts and record updates from all detail views.
-
-Tests:
-
-- Playwright flow opens, edits, and saves a student detail record.
-- Playwright flow opens, edits, and saves a staff detail record.
-- Playwright flow opens, edits, and saves a parent detail record.
-- Student detail page can view/export only that student's attendance history.
-- Staff detail page can view/export only that staff member's attendance history.
-- Parent detail page does not expose attendance history or attendance export.
-- RBAC denies non-full-admin edits and direct export calls without the correct
-  role/tag.
-
----
-
 ## Sprint 4 - Mobile smoke, attendance export, and phase verification
 
 Goal: prove the same typed API supports the mobile daily workflow, then close
 Phase 2 with an end-to-end verification story.
 
-### PR-2.13 - `feat(mobile): Phase 2 supervisor workflow smoke` ⏳ PLANNED
+### PR-2.12 - `feat(mobile): Phase 2 supervisor workflow smoke` ⏳ PLANNED
 
 Scope:
 
@@ -441,6 +397,32 @@ Tests:
 - Mobile typecheck passes.
 - Smoke test or documented manual check covers rota, attendance, behaviour, and
   PACE calls.
+
+### PR-2.13 - `test: Phase 2 verification suite` ⏳ PLANNED
+
+Scope:
+
+- Add end-to-end daily workflow coverage:
+  rota -> attendance -> behaviour -> PACE -> audit visibility.
+- Add end-to-end Head-admin coverage for year-group bands, subject management,
+  PACE policy settings, and rota scheduling.
+- Add export coverage for student attendance CSV, staff attendance CSV, and
+  `attendance-exporter` tag enforcement. Staff attendance CSV coverage belongs
+  here after the PR-2.4 staff rota/attendance model exists.
+- Re-run DB/RLS checks for Sensitive behaviour.
+- Update `PROJECT_Oasis_Context.md` and this plan with completion status,
+  verification output, and carry-forward items.
+- Run `graphify update .` after code changes.
+
+Verification:
+
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm --filter @oasis/web build`
+- `pnpm db:integration`
+- `pnpm api:smoke-context-rls`
+- Phase 2 Playwright workflow, opt-in where Clerk credentials are required.
 
 ### PR-2.14 - `feat(web): attendance export centre` ⏳ PLANNED
 
@@ -470,36 +452,6 @@ Tests:
   filter.
 - Audit rows are written for successful exports and denied attempts.
 
-### PR-2.15 - `test: Phase 2 verification suite` ⏳ PLANNED
-
-Scope:
-
-- Add end-to-end daily workflow coverage:
-  rota -> attendance -> behaviour -> PACE -> audit visibility.
-- Add end-to-end Head-admin coverage for year-group bands, subject management,
-  PACE policy settings, and rota scheduling.
-- Add export coverage for student attendance CSV, staff attendance CSV, and
-  `attendance-exporter` tag enforcement. Staff attendance CSV coverage belongs
-  here after the PR-2.4 staff rota/attendance model exists.
-- Add record-detail coverage for student, staff, and parent detail pages,
-  including individual attendance view/export visibility.
-- Add final export-centre coverage for all/individual student and staff
-  attendance date-range exports.
-- Re-run DB/RLS checks for Sensitive behaviour.
-- Update `PROJECT_Oasis_Context.md` and this plan with completion status,
-  verification output, and carry-forward items.
-- Run `graphify update .` after code changes.
-
-Verification:
-
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm --filter @oasis/web build`
-- `pnpm db:integration`
-- `pnpm api:smoke-context-rls`
-- Phase 2 Playwright workflow, opt-in where Clerk credentials are required.
-
 ---
 
 ## Assumptions and defaults
@@ -517,9 +469,6 @@ Verification:
 - The `attendance-exporter` tag grants CSV export access only; it does not grant
   broader attendance editing, student management, rota scheduling, or Sensitive
   behaviour access.
-- Parent records never expose attendance history or attendance export actions.
-- Individual attendance exports from detail pages are scoped to that person
-  only; all/individual date-range exports belong to PR-2.14.
 - Rota colours belong to configured year-group bands, not individual staff
   members.
 - Test-limit rules apply only to recorded PACE tests, not attendance or

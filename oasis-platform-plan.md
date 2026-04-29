@@ -187,6 +187,16 @@ Every MVP item is in scope. Nice-to-haves from brief §6 are out of scope for v1
 - PACE progress + test score entry
 - Supervisor home screen (today's students, quick actions)
 
+**Phase 2.5 — People records + attendance exports (between Phase 2 and Phase 3)** 🧭 PLANNED
+- Detail pages for students, staff, and parents with view/edit support.
+- Student and staff detail pages include individual attendance history with
+  view/export actions.
+- Parent detail pages do not expose attendance history or attendance export.
+- Attendance export centre supports a selected date range with dropdowns for
+  all students vs one student and all staff vs one staff member.
+- Export access remains limited to full-admin users and users with the
+  `attendance-exporter` tag.
+
 **Phase 3 — Parent portal + comms (week 7–8)**
 - Parent read-only child view (attendance, PACEs, behaviour summary, merit balance)
 - In-platform messaging (parent ↔ Head)

@@ -23,9 +23,9 @@ raw DB dump cannot re-identify anyone.
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
 planning is merged. PR-2.1 attendance workflow is in progress on
-`feat/phase-2-pr2.1-attendance-workflow`. Phase 2 now includes a Phase 2.5
-people-detail slice for student/staff/parent record pages and PR-2.14 for
-all/individual attendance exports by date range.
+`feat/phase-2-pr2.1-attendance-workflow`. The top-level platform plan now
+tracks Phase 2.5 for student/staff/parent record pages and all/individual
+attendance exports by date range.
 
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
