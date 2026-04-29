@@ -5,21 +5,31 @@ import { Link2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { MotionItem } from '@/components/admin/motion';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
+function isStandardSchoolYear(value: string): value is StandardSchoolYear {
+  return STANDARD_SCHOOL_YEARS.includes(value as StandardSchoolYear);
+}
+
+function parseStandardSchoolYear(value: string): StandardSchoolYear {
+  if (!isStandardSchoolYear(value)) throw new Error('Choose a standard year group');
+  return value;
+}
+
 const editSchema = z.object({
   fullName: z.string().trim().min(1, 'Enter the student name'),
   dob: z.string().min(1, 'Enter the date of birth'),
-  yearGroup: z.string().trim().min(1, 'Enter the year group'),
+  yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
   enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
   address: z.string().trim().optional(),
   active: z.boolean(),
 });
 
-type EditValues = z.infer<typeof editSchema>;
+type EditValues = z.input<typeof editSchema>;
 
 interface StudentDetailProps {
   studentId: string;
@@ -84,7 +94,7 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
     reset({
       fullName: student.fullName,
       dob: student.dob,
-      yearGroup: student.yearGroup,
+      yearGroup: isStandardSchoolYear(student.yearGroup) ? student.yearGroup : '',
       enrolmentDate: new Date(student.enrolmentDate).toISOString().slice(0, 10),
       address: student.address ?? '',
       active: student.active,
@@ -133,7 +143,7 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                 id: student.id,
                 fullName: values.fullName,
                 dob: new Date(values.dob),
-                yearGroup: values.yearGroup,
+                yearGroup: parseStandardSchoolYear(values.yearGroup),
                 enrolmentDate: new Date(values.enrolmentDate),
                 active: values.active,
                 address: values.address || null,
@@ -150,7 +160,14 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                   <TextInput {...register('fullName')} />
                 </Field>
                 <Field error={errors.yearGroup?.message} label="Year group">
-                  <TextInput {...register('yearGroup')} />
+                  <SelectInput {...register('yearGroup')}>
+                    <option value="">Choose year group</option>
+                    {STANDARD_SCHOOL_YEARS.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </SelectInput>
                 </Field>
                 <Field error={errors.dob?.message} label="Date of birth">
                   <TextInput type="date" {...register('dob')} />
@@ -213,7 +230,10 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                   }}
                 >
                   <Field label="Assign subject">
-                    <SelectInput onChange={(event) => setSubjectId(event.target.value)} value={subjectId}>
+                    <SelectInput
+                      onChange={(event) => setSubjectId(event.target.value)}
+                      value={subjectId}
+                    >
                       <option value="">Choose subject</option>
                       {(subjectsQuery.data ?? []).map((subject) => (
                         <option key={subject.id} value={subject.id}>

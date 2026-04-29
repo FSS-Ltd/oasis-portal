@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** In progress - PR-2.2 behaviour logging API
+**Status:** In progress - PR-2.3 UK school years and centre groups
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -58,18 +58,18 @@ Phase 2 is complete when:
 9. Head of Centre can create/deactivate subjects and set each student's initial
    current PACE number per subject.
 10. PACE recording validates assigned subjects, stores self-test and final PACE
-   test scores by subject/PACE number, and advances only that subject's
-   `StudentSubject.currentPaceNumber` after a passing final PACE test.
+    test scores by subject/PACE number, and advances only that subject's
+    `StudentSubject.currentPaceNumber` after a passing final PACE test.
 11. Configurable PACE test-limit rules block excess daily tests and block a
-   self test plus final test for the same student/subject/PACE on the same day
-   when enabled; Supervisors see warnings before and at the block.
+    self test plus final test for the same student/subject/PACE on the same day
+    when enabled; Supervisors see warnings before and at the block.
 12. Supervisor cannot read Sensitive behaviour after saving it.
 13. Mobile has a minimal daily-workflow smoke surface wired to the typed API
-   client.
+    client.
 14. End-of-phase verification passes:
-   `pnpm lint`, `pnpm typecheck`, `pnpm test`,
-   `pnpm --filter @oasis/web build`, DB/RLS sensitive-behaviour checks, and the
-   opt-in Playwright workflow where credentials are available.
+    `pnpm lint`, `pnpm typecheck`, `pnpm test`,
+    `pnpm --filter @oasis/web build`, DB/RLS sensitive-behaviour checks, and the
+    opt-in Playwright workflow where credentials are available.
 
 ---
 
@@ -124,7 +124,7 @@ Tests:
 - Missing and inactive student cases return typed errors.
 - Audit rows are written for create/update/export.
 
-### PR-2.2 - `feat(api): behaviour logging with sensitive enforcement` 🚧 IN PROGRESS
+### PR-2.2 - `feat(api): behaviour logging with sensitive enforcement` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.2-behaviour-logging`
 
@@ -151,14 +151,15 @@ Tests:
 - Audit rows cover create, `ReadSensitive`, `DecryptSensitive`, and denied
   access paths.
 
-### PR-2.3 - `feat(domain): UK school years and centre groups` ⏳ PLANNED
+### PR-2.3 - `feat(domain): UK school years and centre groups` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.3-school-years-centre-groups`
 
 Scope:
 
 - Add a pure domain helper that derives the England/Wales school year from date
   of birth using the 31 August academic-year cutoff.
-- Support the standard year labels: Nursery, Reception, and Year 1 through Year
-  13.
+- Support the standard year labels: Nursery, Reception, and Year 1 through Year 13.
 - Update student create/edit planning so the calculated year is the default,
   while keeping Head override available.
 - Add Head-managed year-group bands with `name`, selected standard years,

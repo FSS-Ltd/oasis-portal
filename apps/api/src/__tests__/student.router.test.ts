@@ -5,7 +5,12 @@ import type { AppContext, RlsTx } from '../context.js';
 import { studentRouter } from '../routers/student.js';
 import { router } from '../trpc.js';
 
-const headUser: SessionUser = { id: 'ckuserhead00000000000001', role: 'Head', tags: [], requires2fa: false };
+const headUser: SessionUser = {
+  id: 'ckuserhead00000000000001',
+  role: 'Head',
+  tags: [],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'ckusersup000000000000001',
   role: 'Supervisor',
@@ -82,7 +87,11 @@ function blindIndex(value: string): string {
   return `bidx:${value.trim().toLowerCase()}`;
 }
 
-function makeRow(student: StoredStudent, assignments: StoredAssignment[], subjects: StoredSubject[]): StudentRow {
+function makeRow(
+  student: StoredStudent,
+  assignments: StoredAssignment[],
+  subjects: StoredSubject[],
+): StudentRow {
   return {
     ...student,
     subjects: assignments
@@ -110,19 +119,25 @@ function makeFakeDb() {
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     student: {
-      create: vi.fn(({ data }: { data: Omit<StoredStudent, 'id' | 'userId' | 'active' | 'createdAt' | 'updatedAt'> }) => {
-        const now = new Date('2026-04-27T10:00:00.000Z');
-        const student: StoredStudent = {
-          id: studentId,
-          userId: null,
-          active: true,
-          createdAt: now,
-          updatedAt: now,
-          ...data,
-        };
-        students.push(student);
-        return Promise.resolve(student);
-      }),
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: Omit<StoredStudent, 'id' | 'userId' | 'active' | 'createdAt' | 'updatedAt'>;
+        }) => {
+          const now = new Date('2026-04-27T10:00:00.000Z');
+          const student: StoredStudent = {
+            id: studentId,
+            userId: null,
+            active: true,
+            createdAt: now,
+            updatedAt: now,
+            ...data,
+          };
+          students.push(student);
+          return Promise.resolve(student);
+        },
+      ),
       update: vi.fn(({ where, data }: { where: { id: string }; data: Partial<StoredStudent> }) => {
         const student = students.find((candidate) => candidate.id === where.id);
         if (!student) {
@@ -137,17 +152,23 @@ function makeFakeDb() {
         return Promise.resolve(student);
       }),
       findMany: vi.fn(({ where }: { where?: { active?: boolean; nameBidx?: string } }) =>
-        Promise.resolve(students
-          .filter((student) => where?.active === undefined || student.active === where.active)
-          .filter((student) => where?.nameBidx === undefined || student.nameBidx === where.nameBidx)
-          .map((student) => makeRow(student, assignments, subjects))),
+        Promise.resolve(
+          students
+            .filter((student) => where?.active === undefined || student.active === where.active)
+            .filter(
+              (student) => where?.nameBidx === undefined || student.nameBidx === where.nameBidx,
+            )
+            .map((student) => makeRow(student, assignments, subjects)),
+        ),
       ),
-      findUnique: vi.fn(({ where, select }: { where: { id: string }; select?: { id?: boolean } }) => {
-        const student = students.find((candidate) => candidate.id === where.id);
-        if (!student) return Promise.resolve(null);
-        if (select?.id) return Promise.resolve({ id: student.id });
-        return Promise.resolve(makeRow(student, assignments, subjects));
-      }),
+      findUnique: vi.fn(
+        ({ where, select }: { where: { id: string }; select?: { id?: boolean } }) => {
+          const student = students.find((candidate) => candidate.id === where.id);
+          if (!student) return Promise.resolve(null);
+          if (select?.id) return Promise.resolve({ id: student.id });
+          return Promise.resolve(makeRow(student, assignments, subjects));
+        },
+      ),
     },
     subject: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
@@ -199,11 +220,13 @@ function makeFakeDb() {
       ),
       findUnique: vi.fn(
         ({ where }: { where: { studentId_subjectId: { studentId: string; subjectId: string } } }) =>
-          Promise.resolve(assignments.find(
-            (assignment) =>
-              assignment.studentId === where.studentId_subjectId.studentId &&
-              assignment.subjectId === where.studentId_subjectId.subjectId,
-          ) ?? null),
+          Promise.resolve(
+            assignments.find(
+              (assignment) =>
+                assignment.studentId === where.studentId_subjectId.studentId &&
+                assignment.subjectId === where.studentId_subjectId.subjectId,
+            ) ?? null,
+          ),
       ),
     },
   };
@@ -302,6 +325,36 @@ describe('student router CRUD', () => {
     await expect(
       supervisorCaller.student.setCurrentPace({ studentId, subjectId, currentPaceNumber: 1002 }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('defaults the year group from date of birth when Head does not override it', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+    try {
+      const { db, students } = makeFakeDb();
+      const caller = makeCaller(headUser, db);
+
+      await expect(
+        caller.student.create({
+          fullName: 'Default Year',
+          dob: new Date('2014-08-31T00:00:00.000Z'),
+          enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
+        }),
+      ).resolves.toEqual({ id: studentId });
+
+      expect(students[0]?.yearGroup).toBe('Year 7');
+      expect(db.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: headUser.id,
+          action: 'Create',
+          entity: 'Student',
+          entityId: studentId,
+          meta: { yearGroup: 'Year 7' },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

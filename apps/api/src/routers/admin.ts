@@ -12,12 +12,16 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
-import { PERMISSION_TAGS, inviteUserInput, linkGuardianInput } from '@oasis/domain';
-import { fullAdminProcedure, router } from '../trpc.js';
 import {
-  createDefaultClerkInvitationClient,
-  type ClerkInvitationClient,
-} from '../lib/clerk.js';
+  PERMISSION_TAGS,
+  createYearGroupBandInput,
+  deactivateYearGroupBandInput,
+  inviteUserInput,
+  linkGuardianInput,
+  updateYearGroupBandInput,
+} from '@oasis/domain';
+import { fullAdminProcedure, router } from '../trpc.js';
+import { createDefaultClerkInvitationClient, type ClerkInvitationClient } from '../lib/clerk.js';
 
 export interface AdminRouterDeps {
   clerk?: ClerkInvitationClient;
@@ -30,15 +34,41 @@ const searchParentsInput = z
   })
   .optional();
 
-const permissionTagSchema = z.enum(PERMISSION_TAGS as unknown as readonly [
-  (typeof PERMISSION_TAGS)[number],
-  ...(typeof PERMISSION_TAGS)[number][],
-]);
+const permissionTagSchema = z.enum(
+  PERMISSION_TAGS as unknown as readonly [
+    (typeof PERMISSION_TAGS)[number],
+    ...(typeof PERMISSION_TAGS)[number][],
+  ],
+);
 
 const updateUserTagsInput = z.object({
   userId: z.string().min(1),
   tags: z.array(permissionTagSchema).default([]),
 });
+
+async function assertUniqueBandName(
+  ctx: {
+    db: {
+      yearGroupBand: {
+        findFirst: (args: Prisma.YearGroupBandFindFirstArgs) => Promise<{ id: string } | null>;
+      };
+    };
+  },
+  name: string,
+  exceptId?: string,
+) {
+  const existing = await ctx.db.yearGroupBand.findFirst({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      ...(exceptId ? { NOT: { id: exceptId } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'year-group band name already exists' });
+  }
+}
 
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
@@ -49,6 +79,158 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
   };
 
   return router({
+    listYearGroupBands: fullAdminProcedure.query(async ({ ctx }) => {
+      return ctx.db.yearGroupBand.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          name: true,
+          standardYears: true,
+          active: true,
+          sortOrder: true,
+          colour: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    }),
+
+    createYearGroupBand: fullAdminProcedure
+      .input(createYearGroupBandInput)
+      .mutation(async ({ ctx, input }) => {
+        await assertUniqueBandName(ctx, input.name);
+
+        try {
+          const band = await ctx.db.yearGroupBand.create({
+            data: input,
+            select: {
+              id: true,
+              name: true,
+              standardYears: true,
+              active: true,
+              sortOrder: true,
+              colour: true,
+            },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'YearGroupBand',
+              entityId: band.id,
+              meta: {
+                name: band.name,
+                standardYears: band.standardYears,
+                sortOrder: band.sortOrder,
+                colour: band.colour,
+              },
+            },
+          });
+
+          return band;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'year-group band name already exists',
+            });
+          }
+          throw err;
+        }
+      }),
+
+    updateYearGroupBand: fullAdminProcedure
+      .input(updateYearGroupBandInput)
+      .mutation(async ({ ctx, input }) => {
+        if (input.name !== undefined) {
+          await assertUniqueBandName(ctx, input.name, input.id);
+        }
+
+        const data: Prisma.YearGroupBandUpdateInput = {};
+        if (input.name !== undefined) data.name = input.name;
+        if (input.standardYears !== undefined) data.standardYears = input.standardYears;
+        if (input.colour !== undefined) data.colour = input.colour;
+        if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
+
+        try {
+          const band = await ctx.db.yearGroupBand.update({
+            where: { id: input.id },
+            data,
+            select: {
+              id: true,
+              name: true,
+              standardYears: true,
+              active: true,
+              sortOrder: true,
+              colour: true,
+            },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'YearGroupBand',
+              entityId: band.id,
+              meta: {
+                fields: Object.keys(data).sort(),
+                name: band.name,
+                standardYears: band.standardYears,
+                sortOrder: band.sortOrder,
+                colour: band.colour,
+              },
+            },
+          });
+
+          return band;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'year-group band not found' });
+          }
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'year-group band name already exists',
+            });
+          }
+          throw err;
+        }
+      }),
+
+    deactivateYearGroupBand: fullAdminProcedure
+      .input(deactivateYearGroupBandInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const band = await ctx.db.yearGroupBand.update({
+            where: { id: input.id },
+            data: { active: false },
+            select: { id: true, name: true, active: true },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'YearGroupBand',
+              entityId: band.id,
+              meta: {
+                name: band.name,
+                active: band.active,
+                source: 'admin.deactivateYearGroupBand',
+              },
+            },
+          });
+
+          return band;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'year-group band not found' });
+          }
+          throw err;
+        }
+      }),
+
     listActiveSubjects: fullAdminProcedure.query(async ({ ctx }) => {
       const subjects = await ctx.db.subject.findMany({
         where: { active: true },
@@ -77,7 +259,10 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         const fullName = ctx.db.$enc.decrypt(user.fullNameEnc);
         const email = ctx.db.$enc.decrypt(user.emailEnc);
         if (!fullName || !email) {
-          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'user PII decrypt failed' });
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'user PII decrypt failed',
+          });
         }
         return { id: user.id, role: user.role, tags: user.tags, fullName, email };
       });
@@ -124,120 +309,114 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    searchParents: fullAdminProcedure
-      .input(searchParentsInput)
-      .query(async ({ ctx, input }) => {
-        const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
-        if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
+    searchParents: fullAdminProcedure.input(searchParentsInput).query(async ({ ctx, input }) => {
+      const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
+      if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
 
-        const parents = await ctx.db.user.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
-          take: input?.limit ?? 10,
-          select: { id: true, fullNameEnc: true, emailEnc: true },
+      const parents = await ctx.db.user.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: input?.limit ?? 10,
+        select: { id: true, fullNameEnc: true, emailEnc: true },
+      });
+
+      const rows = parents.map((parent) => {
+        const fullName = ctx.db.$enc.decrypt(parent.fullNameEnc);
+        const email = ctx.db.$enc.decrypt(parent.emailEnc);
+        if (!fullName || !email) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'parent PII decrypt failed',
+          });
+        }
+        return { id: parent.id, fullName, email };
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'User',
+          meta: { count: rows.length, source: 'admin.searchParents' },
+        },
+      });
+
+      return rows;
+    }),
+
+    inviteUser: fullAdminProcedure.input(inviteUserInput).mutation(async ({ ctx, input }) => {
+      const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
+        emailAddress: input.email,
+        publicMetadata: { role: input.role, tags: input.tags },
+        ignoreExisting: true,
+        notify: true,
+      };
+      if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
+      const invitation = await getClerk().createInvitation(inviteParams);
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'Invitation',
+          entityId: invitation.id,
+          meta: { role: input.role, tags: input.tags, invitationStatus: invitation.status },
+        },
+      });
+
+      return {
+        invitationId: invitation.id,
+        status: invitation.status,
+        url: invitation.url,
+      };
+    }),
+
+    linkGuardian: fullAdminProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
+      const [parentUser, student] = await Promise.all([
+        ctx.db.user.findUnique({ where: { id: input.userId } }),
+        ctx.db.student.findUnique({ where: { id: input.studentId } }),
+      ]);
+      if (!parentUser) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+      }
+      if (!student) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+      }
+      if (parentUser.role !== 'Parent') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `cannot link guardian: user role is ${parentUser.role}, expected Parent`,
         });
+      }
 
-        const rows = parents.map((parent) => {
-          const fullName = ctx.db.$enc.decrypt(parent.fullNameEnc);
-          const email = ctx.db.$enc.decrypt(parent.emailEnc);
-          if (!fullName || !email) {
-            throw new TRPCError({
-              code: 'INTERNAL_SERVER_ERROR',
-              message: 'parent PII decrypt failed',
-            });
-          }
-          return { id: parent.id, fullName, email };
+      try {
+        const created = await ctx.db.guardian.create({
+          data: { userId: input.userId, studentId: input.studentId },
         });
-
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'DecryptPii',
-            entity: 'User',
-            meta: { count: rows.length, source: 'admin.searchParents' },
-          },
-        });
-
-        return rows;
-      }),
-
-    inviteUser: fullAdminProcedure
-      .input(inviteUserInput)
-      .mutation(async ({ ctx, input }) => {
-        const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
-          emailAddress: input.email,
-          publicMetadata: { role: input.role, tags: input.tags },
-          ignoreExisting: true,
-          notify: true,
-        };
-        if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
-        const invitation = await getClerk().createInvitation(inviteParams);
-
         await ctx.db.auditLog.create({
           data: {
             userId: ctx.user.id,
             action: 'Create',
-            entity: 'Invitation',
-            entityId: invitation.id,
-            meta: { role: input.role, tags: input.tags, invitationStatus: invitation.status },
+            entity: 'Guardian',
+            entityId: created.id,
+            meta: { parentUserId: input.userId, studentId: input.studentId },
           },
         });
-
-        return {
-          invitationId: invitation.id,
-          status: invitation.status,
-          url: invitation.url,
-        };
-      }),
-
-    linkGuardian: fullAdminProcedure
-      .input(linkGuardianInput)
-      .mutation(async ({ ctx, input }) => {
-        const [parentUser, student] = await Promise.all([
-          ctx.db.user.findUnique({ where: { id: input.userId } }),
-          ctx.db.student.findUnique({ where: { id: input.studentId } }),
-        ]);
-        if (!parentUser) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
-        }
-        if (!student) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
-        }
-        if (parentUser.role !== 'Parent') {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: `cannot link guardian: user role is ${parentUser.role}, expected Parent`,
-          });
-        }
-
-        try {
-          const created = await ctx.db.guardian.create({
-            data: { userId: input.userId, studentId: input.studentId },
-          });
-          await ctx.db.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Create',
-              entity: 'Guardian',
-              entityId: created.id,
-              meta: { parentUserId: input.userId, studentId: input.studentId },
+        return { created: true, guardianId: created.id };
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          const existing = await ctx.db.guardian.findUnique({
+            where: {
+              userId_studentId: { userId: input.userId, studentId: input.studentId },
             },
           });
-          return { created: true, guardianId: created.id };
-        } catch (err) {
-          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-            const existing = await ctx.db.guardian.findUnique({
-              where: {
-                userId_studentId: { userId: input.userId, studentId: input.studentId },
-              },
-            });
-            if (existing) {
-              return { created: false, guardianId: existing.id };
-            }
+          if (existing) {
+            return { created: false, guardianId: existing.id };
           }
-          throw err;
         }
-      }),
+        throw err;
+      }
+    }),
   });
 }
 

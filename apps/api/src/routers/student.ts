@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
+import { deriveEnglandWalesSchoolYear, standardSchoolYearSchema } from '@oasis/domain';
 import { fullAdminProcedure, roleProcedure, router } from '../trpc.js';
 
 const STUDENT_READ_ROLES = [
@@ -22,7 +23,7 @@ const studentInclude = Prisma.validator<Prisma.StudentInclude>()({
 const createInput = z.object({
   fullName: z.string().trim().min(1),
   dob: z.coerce.date(),
-  yearGroup: z.string().trim().min(1),
+  yearGroup: standardSchoolYearSchema.optional(),
   enrolmentDate: z.coerce.date(),
   address: z.string().trim().min(1).optional(),
 });
@@ -31,7 +32,7 @@ const updateInput = z.object({
   id: z.string().cuid(),
   fullName: z.string().trim().min(1).optional(),
   dob: z.coerce.date().optional(),
-  yearGroup: z.string().trim().min(1).optional(),
+  yearGroup: standardSchoolYearSchema.optional(),
   enrolmentDate: z.coerce.date().optional(),
   address: z.string().trim().min(1).nullable().optional(),
   active: z.boolean().optional(),
@@ -150,167 +151,160 @@ export const studentRouter = router({
       return row;
     }),
 
-  create: fullAdminProcedure
-    .input(createInput)
-    .mutation(async ({ ctx, input }) => {
-      const student = await ctx.db.student.create({
+  create: fullAdminProcedure.input(createInput).mutation(async ({ ctx, input }) => {
+    const yearGroup = input.yearGroup ?? deriveEnglandWalesSchoolYear(input.dob);
+    const student = await ctx.db.student.create({
+      data: {
+        fullNameEnc: ctx.db.$enc.encrypt(input.fullName),
+        nameBidx: ctx.db.$enc.blindIndex(input.fullName),
+        dobEnc: ctx.db.$enc.encrypt(dateOnly(input.dob)),
+        addressEnc: ctx.db.$enc.encrypt(input.address),
+        yearGroup,
+        enrolmentDate: input.enrolmentDate,
+      },
+    });
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Create',
+        entity: 'Student',
+        entityId: student.id,
+        meta: { yearGroup },
+      },
+    });
+
+    return { id: student.id };
+  }),
+
+  update: fullAdminProcedure.input(updateInput).mutation(async ({ ctx, input }) => {
+    const data: Prisma.StudentUpdateInput = {};
+    if (input.fullName !== undefined) {
+      data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
+      data.nameBidx = ctx.db.$enc.blindIndex(input.fullName);
+    }
+    if (input.dob !== undefined) data.dobEnc = ctx.db.$enc.encrypt(dateOnly(input.dob));
+    if (input.address !== undefined) data.addressEnc = ctx.db.$enc.encrypt(input.address);
+    if (input.yearGroup !== undefined) data.yearGroup = input.yearGroup;
+    if (input.enrolmentDate !== undefined) data.enrolmentDate = input.enrolmentDate;
+    if (input.active !== undefined) data.active = input.active;
+
+    try {
+      const student = await ctx.db.student.update({
+        where: { id: input.id },
+        data,
+      });
+      await ctx.db.auditLog.create({
         data: {
-          fullNameEnc: ctx.db.$enc.encrypt(input.fullName),
-          nameBidx: ctx.db.$enc.blindIndex(input.fullName),
-          dobEnc: ctx.db.$enc.encrypt(dateOnly(input.dob)),
-          addressEnc: ctx.db.$enc.encrypt(input.address),
-          yearGroup: input.yearGroup,
-          enrolmentDate: input.enrolmentDate,
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'Student',
+          entityId: student.id,
+          meta: { fields: Object.keys(data).sort() },
         },
       });
+      return { id: student.id };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+      }
+      throw err;
+    }
+  }),
 
+  assignSubject: fullAdminProcedure.input(assignSubjectInput).mutation(async ({ ctx, input }) => {
+    const [student, subject] = await Promise.all([
+      ctx.db.student.findUnique({ where: { id: input.studentId }, select: { id: true } }),
+      ctx.db.subject.findUnique({
+        where: { id: input.subjectId },
+        select: { id: true, active: true },
+      }),
+    ]);
+    if (!student) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+    }
+    if (!subject) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
+    }
+    if (!subject.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is inactive' });
+    }
+
+    const currentPaceNumber = input.currentPaceNumber ?? DEFAULT_CURRENT_PACE_NUMBER;
+    try {
+      const assignment = await ctx.db.studentSubject.create({
+        data: {
+          studentId: input.studentId,
+          subjectId: input.subjectId,
+          currentPaceNumber,
+        },
+      });
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
           action: 'Create',
-          entity: 'Student',
-          entityId: student.id,
-          meta: { yearGroup: input.yearGroup },
-        },
-      });
-
-      return { id: student.id };
-    }),
-
-  update: fullAdminProcedure
-    .input(updateInput)
-    .mutation(async ({ ctx, input }) => {
-      const data: Prisma.StudentUpdateInput = {};
-      if (input.fullName !== undefined) {
-        data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
-        data.nameBidx = ctx.db.$enc.blindIndex(input.fullName);
-      }
-      if (input.dob !== undefined) data.dobEnc = ctx.db.$enc.encrypt(dateOnly(input.dob));
-      if (input.address !== undefined) data.addressEnc = ctx.db.$enc.encrypt(input.address);
-      if (input.yearGroup !== undefined) data.yearGroup = input.yearGroup;
-      if (input.enrolmentDate !== undefined) data.enrolmentDate = input.enrolmentDate;
-      if (input.active !== undefined) data.active = input.active;
-
-      try {
-        const student = await ctx.db.student.update({
-          where: { id: input.id },
-          data,
-        });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Update',
-            entity: 'Student',
-            entityId: student.id,
-            meta: { fields: Object.keys(data).sort() },
-          },
-        });
-        return { id: student.id };
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
-        }
-        throw err;
-      }
-    }),
-
-  assignSubject: fullAdminProcedure
-    .input(assignSubjectInput)
-    .mutation(async ({ ctx, input }) => {
-      const [student, subject] = await Promise.all([
-        ctx.db.student.findUnique({ where: { id: input.studentId }, select: { id: true } }),
-        ctx.db.subject.findUnique({
-          where: { id: input.subjectId },
-          select: { id: true, active: true },
-        }),
-      ]);
-      if (!student) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
-      }
-      if (!subject) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
-      }
-      if (!subject.active) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is inactive' });
-      }
-
-      const currentPaceNumber = input.currentPaceNumber ?? DEFAULT_CURRENT_PACE_NUMBER;
-      try {
-        const assignment = await ctx.db.studentSubject.create({
-          data: {
+          entity: 'StudentSubject',
+          entityId: assignment.id,
+          meta: {
             studentId: input.studentId,
             subjectId: input.subjectId,
             currentPaceNumber,
           },
-        });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'StudentSubject',
-            entityId: assignment.id,
-            meta: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              currentPaceNumber,
-            },
-          },
-        });
-        return { created: true, assignmentId: assignment.id, currentPaceNumber };
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-          const existing = await ctx.db.studentSubject.findUnique({
-            where: {
-              studentId_subjectId: {
-                studentId: input.studentId,
-                subjectId: input.subjectId,
-              },
-            },
-          });
-          if (existing) {
-            return {
-              created: false,
-              assignmentId: existing.id,
-              currentPaceNumber: existing.currentPaceNumber,
-            };
-          }
-        }
-        throw err;
-      }
-    }),
-
-  setCurrentPace: fullAdminProcedure
-    .input(setCurrentPaceInput)
-    .mutation(async ({ ctx, input }) => {
-      try {
-        const assignment = await ctx.db.studentSubject.update({
+        },
+      });
+      return { created: true, assignmentId: assignment.id, currentPaceNumber };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const existing = await ctx.db.studentSubject.findUnique({
           where: {
             studentId_subjectId: {
               studentId: input.studentId,
               subjectId: input.subjectId,
             },
           },
-          data: { currentPaceNumber: input.currentPaceNumber },
         });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Update',
-            entity: 'StudentSubject',
-            entityId: assignment.id,
-            meta: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              currentPaceNumber: input.currentPaceNumber,
-            },
-          },
-        });
-        return { assignmentId: assignment.id, currentPaceNumber: assignment.currentPaceNumber };
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'student subject not found' });
+        if (existing) {
+          return {
+            created: false,
+            assignmentId: existing.id,
+            currentPaceNumber: existing.currentPaceNumber,
+          };
         }
-        throw err;
       }
-    }),
+      throw err;
+    }
+  }),
+
+  setCurrentPace: fullAdminProcedure.input(setCurrentPaceInput).mutation(async ({ ctx, input }) => {
+    try {
+      const assignment = await ctx.db.studentSubject.update({
+        where: {
+          studentId_subjectId: {
+            studentId: input.studentId,
+            subjectId: input.subjectId,
+          },
+        },
+        data: { currentPaceNumber: input.currentPaceNumber },
+      });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StudentSubject',
+          entityId: assignment.id,
+          meta: {
+            studentId: input.studentId,
+            subjectId: input.subjectId,
+            currentPaceNumber: input.currentPaceNumber,
+          },
+        },
+      });
+      return { assignmentId: assignment.id, currentPaceNumber: assignment.currentPaceNumber };
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'student subject not found' });
+      }
+      throw err;
+    }
+  }),
 });
