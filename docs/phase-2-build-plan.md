@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.5 subject management and PACE write rules
+**Status:** Ready for review - PR-2.6 PACE progress read model
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -216,9 +216,11 @@ Tests:
 - Full-admin and `attendance-exporter` users can export staff attendance CSV;
   untagged users cannot.
 
-### PR-2.5 - `feat(api): subject management and PACE write rules` ✅ READY FOR REVIEW
+### PR-2.5 - `feat(api): subject management and PACE write rules` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.5-subjects-pace-rules`
+
+Merged via PR #27 on 2026-04-29.
 
 Scope:
 
@@ -263,7 +265,9 @@ Verification:
 - `pnpm test`
 - `pnpm --filter @oasis/web build`
 
-### PR-2.6 - `feat(api): PACE progress read model` ⏳ PLANNED
+### PR-2.6 - `feat(api): PACE progress read model` ✅ READY FOR REVIEW
+
+Branch: `feat/phase-2-pr2.6-pace-progress-read-model`
 
 Scope:
 
@@ -273,6 +277,7 @@ Scope:
   test count, and policy state needed for UI warnings.
 - Keep `pace.record` on the PR-2.5 write rules.
 - Keep the response small enough for mobile daily workflow use.
+- No Prisma migration.
 
 Tests:
 
@@ -281,6 +286,16 @@ Tests:
 - Read model includes daily test count and enabled policy limits.
 - Supervisor can read assigned PACE data for active students.
 - Parent and Student access remains deferred.
+
+Verification:
+
+- `pnpm --filter @oasis/api test` → pass, 121 tests.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `graphify update .` → completed; graphify reported an existing graph node-count
+  warning but left no tracked graph files changed.
 
 ---
 
