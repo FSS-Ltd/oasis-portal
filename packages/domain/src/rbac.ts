@@ -7,7 +7,8 @@
  * - Parent: own children only.
  * - Student: self only.
  *
- * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`.
+ * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`,
+ * `attendance-exporter`, `audit-viewer`.
  */
 
 export const ROLES = [
@@ -28,6 +29,7 @@ export const PERMISSION_TAGS = [
   'shopadmin',
   'leaderboard-admin',
   'attendance-exporter',
+  'audit-viewer',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 

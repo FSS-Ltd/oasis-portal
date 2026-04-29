@@ -14,7 +14,8 @@ import {
   Star,
   UsersRound,
 } from 'lucide-react';
-import { assertFullAdmin } from '@/components/admin/require-full-admin';
+import { hasTag } from '@oasis/domain';
+import { getFullAdminUser } from '@/components/admin/require-full-admin';
 import './admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -33,10 +34,10 @@ const navItems = [
   { href: '/admin', label: 'Noticeboard', icon: Bell, badge: undefined },
 ] as const;
 
-const mobileNavItems = navItems.slice(0, 5);
-
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  await assertFullAdmin();
+  const user = await getFullAdminUser();
+  const visibleNavItems = navItems.filter((item) => item.label !== 'Audit' || hasTag(user, 'audit-viewer'));
+  const mobileNavItems = visibleNavItems.slice(0, 5);
 
   return (
     <div className="admin-shell">
@@ -55,7 +56,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <span>Phase 1 onboarding</span>
         </div>
         <nav className="admin-shell__nav">
-          {navItems.map((item, index) => {
+          {visibleNavItems.map((item, index) => {
             const Icon = item.icon;
             const enabled = item.href !== '/admin' || item.label === 'Dashboard';
             return (

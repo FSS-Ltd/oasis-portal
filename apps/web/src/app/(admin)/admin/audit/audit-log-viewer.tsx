@@ -37,11 +37,74 @@ function formatDate(value: string | Date) {
   }).format(new Date(value));
 }
 
-function compactMeta(meta: unknown) {
-  if (meta === null || meta === undefined) return 'None';
-  if (typeof meta !== 'object') return String(meta);
-  const json = JSON.stringify(meta);
-  return json.length > 96 ? `${json.slice(0, 93)}...` : json;
+function labelForMetaKey(key: string): string {
+  const labels: Record<string, string> = {
+    count: 'Records',
+    currentPaceNumber: 'Current PACE',
+    date: 'Date',
+    exportKind: 'Export',
+    fields: 'Changed fields',
+    from: 'From',
+    invitationStatus: 'Invitation status',
+    kind: 'Type',
+    parentUserId: 'Parent',
+    reason: 'Reason',
+    role: 'Role',
+    rowCount: 'Rows',
+    source: 'Triggered by',
+    status: 'Status',
+    studentId: 'Student',
+    subjectId: 'Subject',
+    tags: 'Tags',
+    to: 'To',
+    type: 'Operation',
+  };
+  return labels[key] ?? key.replace(/([A-Z])/gu, ' $1').replace(/^./u, (letter) => letter.toUpperCase());
+}
+
+function valueForMeta(value: unknown): string {
+  if (value === null || value === undefined) return 'None';
+  if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'None';
+  if (value instanceof Date) return formatDate(value);
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function formatSource(value: unknown): string {
+  const source = valueForMeta(value);
+  const labels: Record<string, string> = {
+    'admin.listUsers': 'User list',
+    'admin.searchParents': 'Parent search',
+    'admin.updateUserTags': 'Permission tag update',
+    'attendance.exportStudentsCsv': 'Student attendance export',
+    'attendance.forDate': 'Attendance register',
+    'audit.list': 'Audit log',
+    'student.byId': 'Student record',
+    'student.list': 'Student list',
+  };
+  return labels[source] ?? source;
+}
+
+function MetaDetails({ meta }: { meta: unknown }) {
+  if (meta === null || meta === undefined) return <span className="muted">No extra details</span>;
+  if (typeof meta !== 'object' || Array.isArray(meta)) {
+    return <span>{valueForMeta(meta)}</span>;
+  }
+
+  const entries = Object.entries(meta);
+  if (entries.length === 0) return <span className="muted">No extra details</span>;
+
+  return (
+    <dl className="audit-meta-list">
+      {entries.map(([key, value]) => (
+        <div key={key}>
+          <dt>{labelForMetaKey(key)}</dt>
+          <dd>{key === 'source' ? formatSource(value) : valueForMeta(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 export function AuditLogViewer() {
@@ -199,7 +262,7 @@ export function AuditLogViewer() {
                       )}
                     </td>
                     <td>
-                      <code className="audit-meta">{compactMeta(row.meta)}</code>
+                      <MetaDetails meta={row.meta} />
                     </td>
                   </MotionTableRow>
                 ))}

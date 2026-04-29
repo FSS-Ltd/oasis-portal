@@ -1,7 +1,10 @@
 import { MotionPage } from '@/components/admin/motion';
+import { assertAuditViewer } from '@/components/admin/require-full-admin';
 import { AuditLogViewer } from './audit-log-viewer';
 
-export default function AuditPage() {
+export default async function AuditPage() {
+  await assertAuditViewer();
+
   return (
     <MotionPage>
       <div className="page-header">

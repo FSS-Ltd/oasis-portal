@@ -28,9 +28,9 @@ describe('inviteUserInput', () => {
     const parsed = inviteUserInput.parse({
       email: 'sk@example.com',
       role: 'Supervisor',
-      tags: ['shopkeeper'],
+      tags: ['shopkeeper', 'audit-viewer'],
     });
-    expect(parsed.tags).toEqual(['shopkeeper']);
+    expect(parsed.tags).toEqual(['shopkeeper', 'audit-viewer']);
   });
 
   it('rejects an unknown role at path ["role"]', () => {
