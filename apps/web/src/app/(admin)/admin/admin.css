@@ -46,9 +46,7 @@
 
 .admin-shell__logo {
   width: auto;
-  height: 44px;
   margin-bottom: 12px;
-  filter: brightness(0) invert(1);
   object-fit: contain;
 }
 
