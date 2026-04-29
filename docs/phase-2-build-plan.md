@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** In progress - PR-2.1 attendance workflow
+**Status:** In progress - PR-2.2 behaviour logging API
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -94,7 +94,7 @@ Verification:
 - `pnpm lint`
 - `pnpm typecheck`
 
-### PR-2.1 - `feat(api): attendance workflow` 🚧 IN PROGRESS
+### PR-2.1 - `feat(api): attendance workflow` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.1-attendance-workflow`
 
@@ -124,7 +124,9 @@ Tests:
 - Missing and inactive student cases return typed errors.
 - Audit rows are written for create/update/export.
 
-### PR-2.2 - `feat(api): behaviour logging with sensitive enforcement` ⏳ PLANNED
+### PR-2.2 - `feat(api): behaviour logging with sensitive enforcement` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.2-behaviour-logging`
 
 Scope:
 
@@ -132,6 +134,7 @@ Scope:
 - Allow full-admin and Supervisor to create behaviour entries.
 - Full-admin reads General and Sensitive entries.
 - Supervisor reads General entries only.
+- Keep Parent/Student behaviour reads deferred to Phase 3.
 - Encrypt `noteEnc`.
 - Force Demerit entries to `meritDelta = -5`.
 - Require positive Merit amount for Merit entries.

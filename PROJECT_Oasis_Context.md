@@ -18,14 +18,42 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status — Phase 1 complete
+## Current status — Phase 2 daily-workflow API foundations
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
-planning is merged. PR-2.1 attendance workflow is in progress on
-`feat/phase-2-pr2.1-attendance-workflow`. The top-level platform plan now
+planning and PR-2.1 attendance workflow are merged. PR-2.2 behaviour logging
+API is in progress on `feat/phase-2-pr2.2-behaviour-logging`. The top-level platform plan now
 tracks Phase 2.5 for student/staff/parent record pages and all/individual
 attendance exports by date range.
+
+### PR-2.2 in progress — `feat/phase-2-pr2.2-behaviour-logging`
+
+**PR scope:** Backend behaviour logging, Sensitive visibility enforcement,
+linked Spend ledger rows, audit coverage, and Phase 2 handoff docs. No web or
+mobile behaviour UI is included.
+
+Changed scope:
+
+- `apps/api/src/routers/behaviour.ts` — implements `behaviour.log` and
+  `behaviour.listForStudent` for full-admin and Supervisor roles, with RLS
+  transactions for BehaviourEntry reads/writes.
+- `apps/api/src/__tests__/behaviour.router.test.ts` — covers RBAC,
+  encrypted notes, fixed demerits, linked ledger rows, Sensitive read blocking,
+  and audit rows.
+- `docs/phase-2-build-plan.md` — marks PR-2.1 merged and PR-2.2 in progress.
+
+Verification:
+
+- `pnpm --filter @oasis/api test` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm db:integration` → pass after rerunning outside the sandbox because
+  `tsx` IPC was blocked inside the sandbox.
+- `pnpm api:smoke-context-rls` → pass after rerunning outside the sandbox
+  because `tsx` IPC was blocked inside the sandbox.
+- `graphify update .` → pass.
 
 ### 2026-04-29 admin sidebar logo polish — `feat/admin-sidebar-logo-contrast`
 
