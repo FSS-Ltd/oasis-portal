@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-29
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 2 Supervisor daily dashboard shell ready for review.
+**Phase:** Admin invite UX fix ready for review.
 
 ---
 
@@ -18,7 +18,34 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Phase 2 Head rota scheduler
+## Current status - Admin invite UX fix
+
+Working branch: `fix/admin-invite-status-format`.
+
+**PR scope:** Improve the admin staff invitation success display without
+changing Clerk invitation behavior.
+
+Changed scope:
+
+- `apps/web/src/app/(admin)/admin/staff/invite-user-form.tsx` - replaces the raw
+  success sentence and long Clerk URL output with a structured success panel,
+  status badge, truncated URL display, copy action, and open-link action.
+- `apps/web/src/app/(admin)/admin/admin.css` - adds responsive styles for the
+  invite result panel so long invitation URLs do not overflow the form.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - completed; graphify reported the existing graph
+  node-count warning.
+- Browser smoke at `http://localhost:3003/admin/staff` - page renders with no
+  Next error overlay. Console reports the existing missing favicon 404 and Clerk
+  development-key warning. The invite form was not submitted to avoid creating a
+  real Clerk invitation during verification.
+
+## Previous status - Phase 2 Head rota scheduler
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
