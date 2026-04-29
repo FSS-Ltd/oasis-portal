@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-29
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 2 Head-admin configuration workflow ready for review.
+**Phase:** Phase 2 Head rota scheduler ready for review.
 
 ---
 
@@ -18,7 +18,7 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Phase 2 Head-admin configuration workflow
+## Current status - Phase 2 Head rota scheduler
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
@@ -26,9 +26,45 @@ planning, PR-2.1 attendance workflow, PR-2.2 behaviour logging API, PR-2.3
 UK school years and centre groups, and PR-2.4 staff rota and availability
 workflow are merged. PR-2.5 subject management and PACE write rules is merged
 via PR #27. PR-2.6 PACE progress read model is merged via PR #28. PR-2.7 Head
-academic settings is ready for review on `feat/phase-2-pr2.7-head-academic-settings`.
+academic settings is merged via PR #29, with follow-up fix PR #30 also merged.
+PR-2.8 Head rota scheduler is ready for review on
+`feat/phase-2-pr2.8-head-rota-scheduler`.
 
-### PR-2.7 ready for review - `feat/phase-2-pr2.7-head-academic-settings`
+### PR-2.8 ready for review - `feat/phase-2-pr2.8-head-rota-scheduler`
+
+**PR scope:** Head-admin weekly rota scheduler over the PR-2.4 rota API.
+
+Changed scope:
+
+- `apps/api/src/routers/rota.ts` - adds full-admin read procedures for weekly
+  schedule data, staff availability, and pending shift-swap requests.
+- `apps/api/src/__tests__/rota.router.test.ts` - covers the new Head read
+  procedures, full-admin RBAC, inactive/non-staff availability filtering, and
+  pending-only swap queue reads.
+- `apps/web/src/app/(admin)/admin/rota` - adds the weekly rota scheduler page,
+  create/update shift form, availability panel, and swap review queue.
+- `apps/web/src/components/admin/admin-nav.tsx` - enables the Rota admin nav
+  item.
+- `apps/web/src/app/(admin)/admin/admin.css` - adds focused rota layout,
+  availability, band swatch, and shift-swap queue styles.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- rota.router.test.ts` - pass, 124 tests due
+  the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass after clearing stale `.next` output.
+- Browser smoke at `http://localhost:3003/admin/rota` - page renders with no
+  Next error overlay; Start/End time fields render side by side without overlap.
+
+### PR-2.7 merged - `feat/phase-2-pr2.7-head-academic-settings`
+
+Merged via PR #29 on 2026-04-29.
+Follow-up fix PR #30 merged on 2026-04-29.
 
 **PR scope:** Web-only Head-admin academic settings workflow over existing API
 procedures. No Prisma migration is expected.
@@ -51,7 +87,7 @@ Changed scope:
 - `apps/web/tests/e2e/head-admin-onboarding.spec.ts` - expands the credentialed
   Head smoke flow for academic settings and current PACE updates.
 
-Verification so far:
+Verification:
 
 - `pnpm --filter @oasis/web typecheck` - pass.
 - `pnpm --filter @oasis/api typecheck` - pass.
@@ -65,11 +101,6 @@ Verification so far:
   no Next error overlay. Console still reports the existing missing favicon 404.
 - `E2E_BASE_URL=http://localhost:3002 pnpm --filter @oasis/web test:e2e` - 2
   tests skipped because `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are not set.
-
-Remaining before review:
-
-- Run credentialed `pnpm --filter @oasis/web test:e2e` when `E2E_HEAD_EMAIL`
-  and `E2E_HEAD_PASSWORD` are available.
 
 ### PR-2.6 merged - `feat/phase-2-pr2.6-pace-progress-read-model`
 
