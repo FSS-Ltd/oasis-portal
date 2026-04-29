@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { AccessDeniedError, hasTag, isFullAdmin, type SessionUser } from '@oasis/domain';
-import { authedProcedure, roleProcedure, router } from '../trpc.js';
+import { AccessDeniedError, hasTag, isFullAdmin, isStaff, type SessionUser } from '@oasis/domain';
+import { authedProcedure, fullAdminProcedure, roleProcedure, router } from '../trpc.js';
 
 const ATTENDANCE_ROLES = [
   'Head',
@@ -61,6 +61,31 @@ function requireCanExportAttendance(user: SessionUser): void {
     message: 'attendance export requires full-admin or attendance-exporter',
     cause: new AccessDeniedError('attendance export requires full-admin or attendance-exporter'),
   });
+}
+
+async function assertActiveStaffUser(
+  ctx: {
+    db: {
+      user: {
+        findUnique: (args: {
+          where: { id: string };
+          select: { id: true; role: true; active: true };
+        }) => Promise<{ id: string; role: SessionUser['role']; active: boolean } | null>;
+      };
+    };
+  },
+  staffUserId: string,
+): Promise<void> {
+  const user = await ctx.db.user.findUnique({
+    where: { id: staffUserId },
+    select: { id: true, role: true, active: true },
+  });
+  if (!user) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'staff user not found' });
+  }
+  if (!user.active || !isStaff(user)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not active staff' });
+  }
 }
 
 export const attendanceRouter = router({
@@ -247,4 +272,129 @@ export const attendanceRouter = router({
         csv,
       };
     }),
+
+  markStaff: fullAdminProcedure
+    .input(
+      z.object({
+        staffUserId: z.string().min(1),
+        date: z.coerce.date(),
+        status: attendanceStatusSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const date = normalizeDate(input.date);
+      await assertActiveStaffUser(ctx, input.staffUserId);
+
+      const existing = await ctx.db.staffAttendance.findUnique({
+        where: { staffUserId_date: { staffUserId: input.staffUserId, date } },
+        select: { id: true },
+      });
+
+      const attendance = existing
+        ? await ctx.db.staffAttendance.update({
+            where: { id: existing.id },
+            data: { status: input.status, recordedById: ctx.user.id },
+          })
+        : await ctx.db.staffAttendance.create({
+            data: {
+              staffUserId: input.staffUserId,
+              date,
+              status: input.status,
+              recordedById: ctx.user.id,
+            },
+          });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: existing ? 'Update' : 'Create',
+          entity: 'StaffAttendance',
+          entityId: attendance.id,
+          meta: {
+            staffUserId: input.staffUserId,
+            date: dateKey(date),
+            status: input.status,
+          },
+        },
+      });
+
+      return {
+        id: attendance.id,
+        staffUserId: attendance.staffUserId,
+        date: dateKey(attendance.date),
+        status: attendance.status,
+        recordedById: attendance.recordedById,
+        recordedAt: attendance.createdAt,
+      };
+    }),
+
+  exportStaffCsv: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    requireCanExportAttendance(ctx.user);
+
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    const rows = await ctx.db.staffAttendance.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      select: {
+        date: true,
+        status: true,
+        createdAt: true,
+        staffUser: {
+          select: {
+            id: true,
+            fullNameEnc: true,
+            emailEnc: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const csv = buildCsv(
+      ['Date', 'Staff User ID', 'Staff Name', 'Email', 'Role', 'Status', 'Recorded At'],
+      rows.map((row) => [
+        dateKey(row.date),
+        row.staffUser.id,
+        decryptRequired(ctx.db.$enc.decrypt, row.staffUser.fullNameEnc, 'user'),
+        decryptRequired(ctx.db.$enc.decrypt, row.staffUser.emailEnc, 'user'),
+        row.staffUser.role,
+        row.status,
+        row.createdAt.toISOString(),
+      ]),
+    );
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: rows.length, source: 'attendance.exportStaffCsv' },
+      },
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'staff',
+          from: dateKey(from),
+          to: dateKey(to),
+          rowCount: rows.length,
+        },
+      },
+    });
+
+    return {
+      filename: `staff-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      csv,
+    };
+  }),
 });

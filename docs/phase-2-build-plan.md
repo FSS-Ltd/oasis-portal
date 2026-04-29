@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** In progress - PR-2.3 UK school years and centre groups
+**Status:** In progress - PR-2.4 staff rota and availability workflow
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -151,7 +151,7 @@ Tests:
 - Audit rows cover create, `ReadSensitive`, `DecryptSensitive`, and denied
   access paths.
 
-### PR-2.3 - `feat(domain): UK school years and centre groups` 🚧 IN PROGRESS
+### PR-2.3 - `feat(domain): UK school years and centre groups` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.3-school-years-centre-groups`
 
@@ -178,7 +178,9 @@ Tests:
 - Duplicate or empty group names are rejected.
 - Group year selections must use standard year labels only.
 
-### PR-2.4 - `feat(api): staff rota and availability workflow` ⏳ PLANNED
+### PR-2.4 - `feat(api): staff rota and availability workflow` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.4-staff-rota-availability`
 
 Scope:
 
@@ -195,16 +197,22 @@ Scope:
 - Require full-admin approval before a shift swap changes the published rota.
 - Audit availability changes, shift creation/update, swap requests, approvals,
   rejections, and staff attendance export once staff attendance records exist.
+- Add staff attendance mark and staff attendance CSV export procedures now that
+  the staff attendance model exists.
 
 Tests:
 
 - Staff can manage their own availability and cannot edit someone else's.
+- Multiple windows per day are accepted; overlapping windows are rejected.
 - Full-admin can create/update shifts and assign a configured band.
 - Supervisor can read own rota but cannot schedule staff.
 - Shift swap request does not alter rota before approval.
 - Approval atomically updates the affected shifts and marks the request
   approved.
 - Rejection leaves shifts unchanged.
+- Full-admin can mark staff attendance; non-admin users cannot.
+- Full-admin and `attendance-exporter` users can export staff attendance CSV;
+  untagged users cannot.
 
 ### PR-2.5 - `feat(api): subject management and PACE test rules` ⏳ PLANNED
 

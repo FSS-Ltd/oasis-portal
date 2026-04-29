@@ -22,13 +22,52 @@ raw DB dump cannot re-identify anyone.
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
-planning, PR-2.1 attendance workflow, and PR-2.2 behaviour logging API are
-merged. PR-2.3 UK school years and centre groups is in progress on
-`feat/phase-2-pr2.3-school-years-centre-groups`. The top-level platform plan
-now tracks Phase 2.5 for student/staff/parent record pages and all/individual
+planning, PR-2.1 attendance workflow, PR-2.2 behaviour logging API, and PR-2.3
+UK school years and centre groups are merged. PR-2.4 staff rota and
+availability workflow is in progress on
+`feat/phase-2-pr2.4-staff-rota-availability`. The top-level platform plan now
+tracks Phase 2.5 for student/staff/parent record pages and all/individual
 attendance exports by date range.
 
-### PR-2.3 in progress — `feat/phase-2-pr2.3-school-years-centre-groups`
+### PR-2.4 in progress — `feat/phase-2-pr2.4-staff-rota-availability`
+
+**PR scope:** Backend/API staff rota, staff weekly availability, scheduled
+shifts, shift swap approval workflow, staff attendance marking, and staff
+attendance CSV export. No web scheduler, supervisor dashboard, or mobile
+workflow is included.
+
+Changed scope:
+
+- `packages/db/prisma/schema.prisma` and migration
+  `20260429010000_staff_rota_availability` — add staff availability windows,
+  staff shifts, shift swap requests, and staff attendance records.
+- `packages/domain/src/rbac.ts` — adds shared staff-role helpers for
+  full-admin plus Supervisor workflows.
+- `apps/api/src/routers/rota.ts` — adds staff self-service availability,
+  own-rota reads, full-admin staff listing, shift scheduling, and swap request
+  approval/rejection procedures with audit rows.
+- `apps/api/src/routers/attendance.ts` — adds full-admin staff attendance
+  marking and staff attendance CSV export for full-admin or
+  `attendance-exporter` users.
+- `apps/api/src/__tests__/rota.router.test.ts` and
+  `apps/api/src/__tests__/attendance.router.test.ts` — cover availability,
+  rota scheduling, swap approval/rejection, staff attendance mark/export, RBAC,
+  and audit rows.
+
+Verification:
+
+- `pnpm db:generate` → pass.
+- `pnpm --filter @oasis/api test` → pass.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/domain typecheck` → pass.
+- `pnpm --filter @oasis/db typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+- `graphify update .` → pass.
+
+### PR-2.3 merged — `feat/phase-2-pr2.3-school-years-centre-groups`
 
 **PR scope:** Backend/domain UK school-year calculation and Head-managed
 year-group band configuration. No web UI, rota scheduling, or mobile workflow
@@ -46,7 +85,7 @@ Changed scope:
   procedures for year-group bands with audit rows.
 - `apps/api/src/routers/student.ts` — accepts standard school-year overrides and
   derives the create default from date of birth when no override is supplied.
-- `docs/phase-2-build-plan.md` — marks PR-2.2 merged and PR-2.3 in progress.
+- `docs/phase-2-build-plan.md` — tracked the PR-2.3 scope and handoff status.
 
 Verification:
 
@@ -60,6 +99,8 @@ Verification:
 - `pnpm test` → pass.
 - `pnpm --filter @oasis/web build` → pass.
 - `graphify update .` → pass.
+
+Merged via PR #25 on 2026-04-29.
 
 ### PR-2.2 merged — `feat/phase-2-pr2.2-behaviour-logging`
 
@@ -550,8 +591,9 @@ No product blockers currently. Phase 1 is code-complete and merged through PR-1.
 
 ## Next steps — Phase 2 daily workflow
 
-1. Open PR-2.3 for review after a final branch scope check.
-2. Move to PR-2.4 staff rota and availability workflow after PR-2.3 merges.
+1. Build PR-2.4 staff rota and availability API, including migrations and tests.
+2. Keep staff attendance export data in PR-2.4; export UI remains later Phase 2
+   work.
 3. Carry forward credentialed Supabase-preview Playwright onboarding as a
    verification task, not a Phase 2 blocker.
 

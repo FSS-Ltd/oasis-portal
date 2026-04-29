@@ -51,6 +51,13 @@ model User {
   behaviourEntries   BehaviourEntry[]   @relation("RecordedBehaviour")
   paceRecords        PaceRecord[]       @relation("RecordedPace")
   attendanceRecords  Attendance[]       @relation("RecordedAttendance")
+  availabilityWindows StaffAvailabilityWindow[] @relation("StaffAvailability")
+  staffShifts         StaffShift[]       @relation("StaffShifts")
+  requestedShiftSwaps ShiftSwapRequest[] @relation("RequestedShiftSwaps")
+  targetedShiftSwaps  ShiftSwapRequest[] @relation("TargetedShiftSwaps")
+  approvedShiftSwaps  ShiftSwapRequest[] @relation("ApprovedShiftSwaps")
+  staffAttendance     StaffAttendance[]  @relation("StaffAttendanceUser")
+  recordedStaffAttendance StaffAttendance[] @relation("RecordedStaffAttendance")
   noticesPosted      StaffNotice[]      @relation("NoticesPosted")
   noticeReads        StaffNoticeRead[]
   messagesSent       Message[]          @relation("MessagesSent")
@@ -146,6 +153,7 @@ model YearGroupBand {
   colour        String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  staffShifts   StaffShift[]
 
   @@index([active, sortOrder])
 }
@@ -191,6 +199,85 @@ model Attendance {
 
   @@unique([studentId, date])
   @@index([date])
+}
+
+model StaffAttendance {
+  id           String           @id @default(cuid())
+  staffUserId  String
+  date         DateTime         @db.Date
+  status       AttendanceStatus
+  recordedById String
+  createdAt    DateTime         @default(now())
+
+  staffUser  User @relation("StaffAttendanceUser", fields: [staffUserId], references: [id])
+  recordedBy User @relation("RecordedStaffAttendance", fields: [recordedById], references: [id])
+
+  @@unique([staffUserId, date])
+  @@index([date])
+}
+
+model StaffAvailabilityWindow {
+  id          String   @id @default(cuid())
+  staffUserId String
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staffUser User @relation("StaffAvailability", fields: [staffUserId], references: [id])
+
+  @@index([staffUserId, dayOfWeek])
+}
+
+model StaffShift {
+  id              String   @id @default(cuid())
+  staffUserId     String
+  yearGroupBandId String
+  date            DateTime @db.Date
+  startsAt        DateTime
+  endsAt          DateTime
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  staffUser     User          @relation("StaffShifts", fields: [staffUserId], references: [id])
+  yearGroupBand YearGroupBand @relation(fields: [yearGroupBandId], references: [id])
+  fromSwapRequests ShiftSwapRequest[] @relation("FromShift")
+  toSwapRequests   ShiftSwapRequest[] @relation("ToShift")
+
+  @@index([staffUserId, date])
+  @@index([yearGroupBandId, date])
+}
+
+enum ShiftSwapStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+model ShiftSwapRequest {
+  id              String          @id @default(cuid())
+  requesterUserId String
+  targetUserId    String
+  fromShiftId     String
+  toShiftId       String
+  status          ShiftSwapStatus @default(Pending)
+  approvedById    String?
+  reviewedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  requester  User       @relation("RequestedShiftSwaps", fields: [requesterUserId], references: [id])
+  targetUser User       @relation("TargetedShiftSwaps", fields: [targetUserId], references: [id])
+  approvedBy User?      @relation("ApprovedShiftSwaps", fields: [approvedById], references: [id])
+  fromShift  StaffShift @relation("FromShift", fields: [fromShiftId], references: [id])
+  toShift    StaffShift @relation("ToShift", fields: [toShiftId], references: [id])
+
+  @@index([requesterUserId, status])
+  @@index([targetUserId, status])
+  @@index([fromShiftId, status])
+  @@index([toShiftId, status])
 }
 
 enum BehaviourType {
