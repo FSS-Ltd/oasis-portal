@@ -17,6 +17,8 @@ and encryption dump verification.
 Phase 2 turns that foundation into the daily staff workflow:
 
 - Attendance capture for today's students.
+- CSV export for staff and student attendance, gated by a Head-assigned
+  permission tag.
 - Behaviour logging with General/Sensitive enforcement.
 - Rota planning, staff availability, and approved shift swaps.
 - UK school-year automation and Head-managed year-group bands.
@@ -39,30 +41,32 @@ Phase 2 is complete when:
 1. Full-admin and Supervisor users can record attendance, behaviour, and PACE
    progress for active students from the web supervisor workflow.
 2. Attendance writes are idempotent per student/date and audited.
-3. Behaviour logging encrypts notes, enforces Sensitive visibility in API and
+3. Full-admin users and users with the `attendance-exporter` tag can export
+   student and staff attendance records as CSV for a selected date range.
+4. Behaviour logging encrypts notes, enforces Sensitive visibility in API and
    RLS, fixes demerits at -5, and creates linked Spend ledger rows.
-4. Staff can set weekly availability, view their own rota, and request shift
+5. Staff can set weekly availability, view their own rota, and request shift
    swaps; rota changes from swaps are applied only after Head of Centre
    approval.
-5. Head of Centre can schedule staff, assign them to configured year-group
+6. Head of Centre can schedule staff, assign them to configured year-group
    bands, and choose a colour per band so the rota is easy to scan.
-6. Student creation/edit defaults the school year from date of birth using the
+7. Student creation/edit defaults the school year from date of birth using the
    England/Wales academic-year cutoff of 31 August, with manual override for
    exceptional cases.
-7. Head of Centre can create named year-group bands from standard school years:
+8. Head of Centre can create named year-group bands from standard school years:
    Nursery, Reception, and Year 1 through Year 13.
-8. Head of Centre can create/deactivate subjects and set each student's initial
+9. Head of Centre can create/deactivate subjects and set each student's initial
    current PACE number per subject.
-9. PACE recording validates assigned subjects, stores self-test and final PACE
+10. PACE recording validates assigned subjects, stores self-test and final PACE
    test scores by subject/PACE number, and advances only that subject's
    `StudentSubject.currentPaceNumber` after a passing final PACE test.
-10. Configurable PACE test-limit rules block excess daily tests and block a
+11. Configurable PACE test-limit rules block excess daily tests and block a
    self test plus final test for the same student/subject/PACE on the same day
    when enabled; Supervisors see warnings before and at the block.
-11. Supervisor cannot read Sensitive behaviour after saving it.
-12. Mobile has a minimal daily-workflow smoke surface wired to the typed API
+12. Supervisor cannot read Sensitive behaviour after saving it.
+13. Mobile has a minimal daily-workflow smoke surface wired to the typed API
    client.
-13. End-of-phase verification passes:
+14. End-of-phase verification passes:
    `pnpm lint`, `pnpm typecheck`, `pnpm test`,
    `pnpm --filter @oasis/web build`, DB/RLS sensitive-behaviour checks, and the
    opt-in Playwright workflow where credentials are available.
@@ -95,19 +99,26 @@ Verification:
 Scope:
 
 - Implement `attendance.forDate` and `attendance.mark`.
+- Implement CSV export procedures for student attendance and staff attendance.
 - Allow full-admin and Supervisor to read and mark attendance.
+- Allow only full-admin and users tagged `attendance-exporter` to export
+  attendance CSV files.
 - Defer Parent/Student attendance reads to Phase 3.
 - Upsert by `(studentId, date)`.
 - Reject inactive or missing students.
-- Audit create and update outcomes.
+- Audit create, update, and export outcomes.
 
 Tests:
 
 - RBAC: full-admin/Supervisor allowed; Parent/Student denied.
+- Export RBAC: full-admin and `attendance-exporter` allowed; untagged
+  Supervisor, Parent, and Student denied.
 - Upsert creates once, then updates status for the same student/date.
 - `forDate` returns only active students and their status for the requested date.
+- CSV exports include the requested date range, attendance status, student or
+  staff display name, and recorded timestamp.
 - Missing and inactive student cases return typed errors.
-- Audit rows are written for create/update.
+- Audit rows are written for create/update/export.
 
 ### PR-2.2 - `feat(api): behaviour logging with sensitive enforcement` ⏳ PLANNED
 
@@ -321,6 +332,8 @@ Scope:
 - Add date selector and roster attendance controls.
 - Support Present, Absent, and Late.
 - Filter or group students by configured year-group bands.
+- Add CSV export controls for student attendance and staff attendance, visible
+  only to full-admin or users with the `attendance-exporter` tag.
 - Keep row state stable while saving.
 - Show save errors without clearing the selected status.
 
@@ -330,6 +343,9 @@ Tests:
 - Status remains visible after save.
 - API error state is surfaced in the row.
 - Configured year-group band filter changes the visible student set.
+- Tagged export users can download student and staff attendance CSV files.
+- Untagged Supervisors do not see export controls and are denied if they call
+  the export endpoint directly.
 
 ### PR-2.11 - `feat(web): behaviour and PACE entry UI` ⏳ PLANNED
 
@@ -385,6 +401,8 @@ Scope:
   rota -> attendance -> behaviour -> PACE -> audit visibility.
 - Add end-to-end Head-admin coverage for year-group bands, subject management,
   PACE policy settings, and rota scheduling.
+- Add export coverage for student attendance CSV, staff attendance CSV, and
+  `attendance-exporter` tag enforcement.
 - Re-run DB/RLS checks for Sensitive behaviour.
 - Update `PROJECT_Oasis_Context.md` and this plan with completion status,
   verification output, and carry-forward items.
@@ -414,6 +432,9 @@ Verification:
   child's age on 31 August.
 - Parent and Student reads remain Phase 3+.
 - Full-admin roles retain parity with Supervisor daily workflow access.
+- The `attendance-exporter` tag grants CSV export access only; it does not grant
+  broader attendance editing, student management, rota scheduling, or Sensitive
+  behaviour access.
 - Rota colours belong to configured year-group bands, not individual staff
   members.
 - Test-limit rules apply only to recorded PACE tests, not attendance or
