@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-29
 **Agent:** Technical Agent (Codex)
-**Phase:** Admin invite UX fix ready for review.
+**Phase:** PR-2.10 attendance capture UI ready for review.
 
 ---
 
@@ -18,7 +18,53 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Admin invite UX fix
+## Current status - PR-2.10 attendance capture UI
+
+Working branch: `feat/phase-2-pr2.10-attendance-capture-ui`.
+
+**PR scope:** Supervisor attendance capture plus consistent logout affordance for
+authenticated staff shells. Behaviour and PACE entry remain in PR-2.11.
+
+Changed scope:
+
+- `apps/api/src/routers/attendance.ts` - adds staff-readable
+  `attendance.listYearGroupBands` for active configured bands so Supervisor
+  attendance can filter/group the roster without Head-only admin procedures.
+- `apps/web/src/components/attendance/attendance-capture.tsx` - extracts shared
+  attendance date, mark, row-level save/error, band filter, and CSV export UI.
+- `apps/web/src/app/(admin)/admin/attendance/attendance-roster.tsx` - keeps the
+  Head attendance page on the shared capture component.
+- `apps/web/src/app/(supervisor)/supervisor` - replaces the roster preview with
+  real attendance capture, enables the Attendance quick action/nav target, and
+  conditionally shows CSV export only for full-admin or `attendance-exporter`
+  users.
+- `apps/web/src/components/auth/logout-button.tsx` plus admin/supervisor
+  layouts - adds Clerk logout controls in desktop sidebar footers and mobile
+  headers, redirecting to `/sign-in`.
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts` - expands credential-gated
+  coverage for attendance controls, band filtering, hidden untagged export,
+  tagged exporter visibility, and logout.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts` - pass, 126 tests
+  due the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass; `/supervisor` remains in the route
+  table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - local
+  Playwright web server bind required escalation; after approval the run hung
+  without test output and was stopped. Direct Playwright exec also hung without
+  output and was stopped.
+- Local dev server started at `http://127.0.0.1:3004`; bounded `curl` checks
+  against `/`, `/supervisor`, and `/admin/attendance` timed out in this sandbox
+  after compiling middleware.
+
+## Previous status - Admin invite UX fix
 
 Working branch: `fix/admin-invite-status-format`.
 

@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.9 Supervisor daily dashboard shell
+**Status:** Ready for review - PR-2.10 Attendance capture UI
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -424,7 +424,7 @@ Verification:
 Goal: staff can complete the daily workflow from the browser without touching
 Head-admin onboarding screens.
 
-### PR-2.9 - `feat(web): supervisor daily dashboard shell` ✅ READY FOR REVIEW
+### PR-2.9 - `feat(web): supervisor daily dashboard shell` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.9-supervisor-dashboard-shell`
 
@@ -477,7 +477,9 @@ Verification:
 - `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` → 3 tests
   skipped because local E2E Head, Supervisor, and Parent credentials are not set.
 
-### PR-2.10 - `feat(web): attendance capture UI` ⏳ PLANNED
+### PR-2.10 - `feat(web): attendance capture UI` ✅ READY FOR REVIEW
+
+Branch: `feat/phase-2-pr2.10-attendance-capture-ui`
 
 Scope:
 
@@ -488,6 +490,19 @@ Scope:
   the `attendance-exporter` tag.
 - Keep row state stable while saving.
 - Show save errors without clearing the selected status.
+- Add a logout affordance to the admin and supervisor staff shells.
+
+Implementation:
+
+- Add staff-readable `attendance.listYearGroupBands` for active configured
+  year-group bands.
+- Extract shared web attendance capture UI so the existing Head attendance page
+  and Supervisor dashboard use the same register/save/export behavior.
+- Replace the Supervisor roster preview with attendance capture, band filter,
+  row-level save state, row-level errors, and conditional CSV export.
+- Keep Behaviour and PACE quick actions visible but deferred to PR-2.11.
+- Add Clerk sign-out controls in desktop sidebar footer and mobile header for
+  both admin and supervisor shells, redirecting to `/sign-in`.
 
 Tests:
 
@@ -498,6 +513,25 @@ Tests:
 - Tagged export users can download the daily student attendance CSV file.
 - Untagged Supervisors do not see export controls and are denied if they call
   the export endpoint directly.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts` → pass, 126
+  tests due the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass; `/supervisor` remains in the route
+  table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` → local
+  Playwright web server bind required escalation; after approval the run hung
+  without test output and was stopped. Direct Playwright exec also hung without
+  output and was stopped.
+- Local dev server started at `http://127.0.0.1:3004`; bounded `curl` checks
+  against `/`, `/supervisor`, and `/admin/attendance` timed out in this
+  sandbox after compiling middleware.
 
 ### PR-2.11 - `feat(web): behaviour and PACE entry UI` ⏳ PLANNED
 

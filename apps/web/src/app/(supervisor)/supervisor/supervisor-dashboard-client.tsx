@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { Plus, Send, Trash2 } from 'lucide-react';
 import { api } from '@/lib/trpc';
-import { MotionList } from '@/components/admin/motion';
+import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
@@ -80,15 +80,6 @@ function formatShift(shift: { date: string; startsAt: Date; endsAt: Date; bandNa
   }`;
 }
 
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
-
 function emptyAvailabilityRow(): AvailabilityDraft {
   return {
     id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -98,7 +89,11 @@ function emptyAvailabilityRow(): AvailabilityDraft {
   };
 }
 
-export function SupervisorDashboardClient() {
+type SupervisorDashboardClientProps = {
+  canExportAttendance: boolean;
+};
+
+export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDashboardClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
   const [swapForm, setSwapForm] = useState({ fromShiftId: '', toShiftId: '' });
@@ -110,7 +105,6 @@ export function SupervisorDashboardClient() {
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const utils = api.useUtils();
 
-  const studentsQuery = api.student.list.useQuery(undefined, { retry: false });
   const todayRotaQuery = api.rota.myRota.useQuery({ from: date, to: date }, { retry: false });
   const weekRotaQuery = api.rota.myRota.useQuery({ from: weekStart, to: weekEnd }, { retry: false });
   const availabilityQuery = api.rota.myAvailability.useQuery(undefined, { retry: false });
@@ -145,7 +139,6 @@ export function SupervisorDashboardClient() {
     );
   }, [availabilityQuery.data]);
 
-  const activeStudents = studentsQuery.data ?? [];
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
   const swapCandidates = swapCandidatesQuery.data ?? [];
@@ -153,84 +146,21 @@ export function SupervisorDashboardClient() {
   return (
     <div className="supervisor-layout">
       <section className="supervisor-layout__main">
-        <div className="toolbar attendance-toolbar">
-          <div className="toolbar__search attendance-toolbar__date">
-            <TextInput
-              aria-label="Supervisor dashboard date"
-              onChange={(event) => setSelectedDate(event.target.value)}
-              type="date"
-              value={selectedDate}
-            />
-            <Button
-              onClick={() =>
-                Promise.all([
-                  studentsQuery.refetch(),
-                  todayRotaQuery.refetch(),
-                  weekRotaQuery.refetch(),
-                  availabilityQuery.refetch(),
-                  swapCandidatesQuery.refetch(),
-                ])
-              }
-              pending={
-                studentsQuery.isFetching ||
-                todayRotaQuery.isFetching ||
-                weekRotaQuery.isFetching ||
-                availabilityQuery.isFetching ||
-                swapCandidatesQuery.isFetching
-              }
-              type="button"
-              variant="secondary"
-            >
-              <RefreshCw aria-hidden="true" size={16} />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        <section className="panel panel__body" id="attendance-preview">
+        <section className="panel panel__body" id="attendance-capture">
           <div className="section-title">
             <div>
-              <h2>Today&apos;s students</h2>
-              <p className="muted">Attendance, behaviour, and PACE entry will use this active roster.</p>
+              <h2>Attendance capture</h2>
+              <p className="muted">Mark the daily register and filter students by configured year-group bands.</p>
             </div>
-            <span className="badge badge--blue">{activeStudents.length} active</span>
+            <span className="badge badge--blue">Student register</span>
           </div>
-
-          {studentsQuery.isLoading ? (
-            <div className="empty-state">Loading students...</div>
-          ) : studentsQuery.error ? (
-            <div className="empty-state status--error">{studentsQuery.error.message}</div>
-          ) : activeStudents.length === 0 ? (
-            <div className="empty-state">
-              <strong>No active students found</strong>
-              <span>Head of Centre can add students before the daily workflow starts.</span>
-            </div>
-          ) : (
-            <MotionList>
-              <div className="supervisor-student-grid">
-                {activeStudents.slice(0, 12).map((student) => (
-                  <article className="supervisor-student" key={student.id}>
-                    <span className="student-row__avatar">{initials(student.fullName)}</span>
-                    <div>
-                      <strong>{student.fullName}</strong>
-                      <span>{student.yearGroup}</span>
-                    </div>
-                    <div className="badge-list">
-                      {student.subjects.length > 0 ? (
-                        student.subjects.slice(0, 3).map((subject) => (
-                          <span className="badge" key={subject.subjectId}>
-                            {subject.code}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="muted">No subjects</span>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </MotionList>
-          )}
+          <AttendanceCapture
+            canExport={canExportAttendance}
+            emptyMessage="Head of Centre can add students before the daily workflow starts."
+            onSelectedDateChange={setSelectedDate}
+            selectedDate={selectedDate}
+            showBandFilter
+          />
         </section>
 
         <section className="panel panel__body" id="rota">

@@ -13,7 +13,7 @@ import {
 
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
-  { href: '/supervisor', label: 'Attendance', icon: CalendarCheck, enabled: false },
+  { href: '/supervisor#attendance-capture', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor', label: 'Behaviour', icon: Star, enabled: false },
   { href: '/supervisor', label: 'PACE', icon: BookOpenCheck, enabled: false },
   { href: '/supervisor', label: 'Rota', icon: CalendarDays, enabled: true },
@@ -21,6 +21,7 @@ const navItems = [
 ] as const;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
+  if (label === 'Attendance') return false;
   return label === 'Dashboard' ? pathname === href : false;
 }
 

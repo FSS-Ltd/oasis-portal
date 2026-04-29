@@ -1,22 +1,24 @@
 import { CalendarDays, ClipboardCheck, GraduationCap, Star } from 'lucide-react';
+import { hasTag, isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
+import { getStaffUser } from '@/components/admin/require-full-admin';
 import { SupervisorDashboardClient } from './supervisor-dashboard-client';
 
 const quickActions = [
   {
-    href: '#attendance-preview',
+    href: '#attendance-capture',
     label: 'Attendance',
-    description: "Today's active roster",
+    description: 'Mark the daily register',
     icon: ClipboardCheck,
   },
   {
-    href: '#attendance-preview',
+    href: '#attendance-capture',
     label: 'Behaviour',
     description: 'Entry opens in PR-2.11',
     icon: Star,
   },
   {
-    href: '#attendance-preview',
+    href: '#attendance-capture',
     label: 'PACE',
     description: 'Entry opens in PR-2.11',
     icon: GraduationCap,
@@ -29,7 +31,10 @@ const quickActions = [
   },
 ] as const;
 
-export default function SupervisorPage() {
+export default async function SupervisorPage() {
+  const user = await getStaffUser();
+  const canExportAttendance = isFullAdmin(user) || hasTag(user, 'attendance-exporter');
+
   return (
     <MotionPage>
       <div className="page-header">
@@ -55,7 +60,7 @@ export default function SupervisorPage() {
         })}
       </section>
 
-      <SupervisorDashboardClient />
+      <SupervisorDashboardClient canExportAttendance={canExportAttendance} />
     </MotionPage>
   );
 }

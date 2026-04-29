@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
 import { getStaffUser } from '@/components/admin/require-full-admin';
+import { LogoutButton } from '@/components/auth/logout-button';
 import '../../(admin)/admin/admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,10 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <span>Daily workflow</span>
         </div>
         <SupervisorSidebarNav />
-        <div className="admin-shell__foot">Oasis Learning Centre</div>
+        <div className="admin-shell__foot">
+          <span>Oasis Learning Centre</span>
+          <LogoutButton />
+        </div>
       </aside>
 
       <div className="admin-shell__content">
@@ -42,6 +46,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
               <strong>{roleLabel}</strong>
             </span>
           </Link>
+          <LogoutButton className="logout-button logout-button--mobile" />
         </header>
         <main className="admin-shell__main">{children}</main>
         <SupervisorBottomNav />
