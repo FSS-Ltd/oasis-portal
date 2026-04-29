@@ -23,7 +23,7 @@ const navItems = [
   { href: '/admin/staff', label: 'Staff and parents', icon: UsersRound, badge: undefined },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
   { href: '/admin', label: 'Behaviour', icon: Star, badge: undefined },
-  { href: '/admin', label: 'PACE', icon: BookOpen, badge: undefined },
+  { href: '/admin/academic', label: 'Academics', icon: BookOpen, badge: undefined },
   { href: '/admin', label: 'Merit Shop', icon: ShoppingBag, badge: undefined },
   { href: '/admin', label: 'Reports', icon: BarChart3, badge: undefined },
   { href: '/admin', label: 'Messages', icon: MessageSquare, badge: '2' },

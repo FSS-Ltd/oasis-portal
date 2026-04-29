@@ -2,11 +2,12 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link2, Save } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
 import { MotionItem } from '@/components/admin/motion';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -61,11 +62,18 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
       await utils.student.byId.invalidate({ id: studentId });
     },
   });
+  const setCurrentPace = api.student.setCurrentPace.useMutation({
+    async onSuccess() {
+      await utils.student.byId.invalidate({ id: studentId });
+    },
+  });
   const linkGuardian = api.admin.linkGuardian.useMutation();
   const [subjectId, setSubjectId] = useState('');
   const [paceNumber, setPaceNumber] = useState('1001');
+  const [paceDrafts, setPaceDrafts] = useState<Record<string, string>>({});
   const [parentEmail, setParentEmail] = useState('');
   const [selectedParentId, setSelectedParentId] = useState('');
+  const [updatedSubjectId, setUpdatedSubjectId] = useState<string | null>(null);
   const parentLookup = api.admin.searchParents.useQuery(
     { search: parentEmail.trim() || 'none', limit: 5 },
     { enabled: false, retry: false },
@@ -76,6 +84,8 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
     handleSubmit,
     register,
     reset,
+    setValue,
+    watch,
   } = useForm<EditValues>({
     resolver: zodResolver(editSchema),
     defaultValues: {
@@ -87,10 +97,15 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
       active: true,
     },
   });
+  const lastAutoYear = useRef<StandardSchoolYear | null>(null);
+  const dobValue = watch('dob');
+  const yearGroupValue = watch('yearGroup');
 
   useEffect(() => {
     const student = studentQuery.data;
     if (!student) return;
+    const derived = deriveSchoolYearFromDateInput(student.dob);
+    lastAutoYear.current = derived && student.yearGroup === derived ? derived : null;
     reset({
       fullName: student.fullName,
       dob: student.dob,
@@ -99,7 +114,24 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
       address: student.address ?? '',
       active: student.active,
     });
+    setPaceDrafts(
+      Object.fromEntries(
+        student.subjects.map((subject) => [
+          subject.subjectId,
+          String(subject.currentPaceNumber),
+        ]),
+      ),
+    );
   }, [reset, studentQuery.data]);
+
+  useEffect(() => {
+    const derived = deriveSchoolYearFromDateInput(dobValue);
+    if (!derived) return;
+    if (!yearGroupValue || yearGroupValue === lastAutoYear.current) {
+      setValue('yearGroup', derived, { shouldDirty: true, shouldValidate: true });
+      lastAutoYear.current = derived;
+    }
+  }, [dobValue, setValue, yearGroupValue]);
 
   if (studentQuery.isLoading) {
     return <div className="empty-state">Loading student...</div>;
@@ -216,6 +248,58 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                     <span className="muted">No subjects assigned</span>
                   )}
                 </div>
+                {student.subjects.length > 0 ? (
+                  <div className="academic-list academic-list--compact">
+                    {student.subjects.map((subject) => (
+                      <form
+                        className="academic-row"
+                        key={subject.subjectId}
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          setUpdatedSubjectId(subject.subjectId);
+                          setCurrentPace.mutate({
+                            studentId,
+                            subjectId: subject.subjectId,
+                            currentPaceNumber: Number(paceDrafts[subject.subjectId]),
+                          });
+                        }}
+                      >
+                        <div>
+                          <strong>{subject.code}</strong>
+                          <span>{subject.name}</span>
+                        </div>
+                        <TextInput
+                          aria-label={`${subject.code} current PACE`}
+                          min={1}
+                          onChange={(event) =>
+                            setPaceDrafts((drafts) => ({
+                              ...drafts,
+                              [subject.subjectId]: event.target.value,
+                            }))
+                          }
+                          type="number"
+                          value={paceDrafts[subject.subjectId] ?? String(subject.currentPaceNumber)}
+                        />
+                        <Button
+                          pending={
+                            setCurrentPace.isPending && updatedSubjectId === subject.subjectId
+                          }
+                          size="sm"
+                          type="submit"
+                          variant="secondary"
+                        >
+                          Update PACE
+                        </Button>
+                      </form>
+                    ))}
+                  </div>
+                ) : null}
+                {setCurrentPace.error ? (
+                  <p className="status--error">{setCurrentPace.error.message}</p>
+                ) : null}
+                {setCurrentPace.isSuccess ? (
+                  <p className="status--success">Current PACE updated</p>
+                ) : null}
                 <div className="divider" />
                 <form
                   className="form-grid"

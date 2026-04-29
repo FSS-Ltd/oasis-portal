@@ -29,7 +29,7 @@ const createInput = z.object({
 });
 
 const updateInput = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
   fullName: z.string().trim().min(1).optional(),
   dob: z.coerce.date().optional(),
   yearGroup: standardSchoolYearSchema.optional(),
@@ -45,17 +45,17 @@ const listInput = z
   })
   .optional();
 
-const byIdInput = z.object({ id: z.string().cuid() });
+const byIdInput = z.object({ id: z.string().min(1) });
 
 const assignSubjectInput = z.object({
-  studentId: z.string().cuid(),
-  subjectId: z.string().cuid(),
+  studentId: z.string().min(1),
+  subjectId: z.string().min(1),
   currentPaceNumber: z.number().int().positive().optional(),
 });
 
 const setCurrentPaceInput = z.object({
-  studentId: z.string().cuid(),
-  subjectId: z.string().cuid(),
+  studentId: z.string().min(1),
+  subjectId: z.string().min(1),
   currentPaceNumber: z.number().int().positive(),
 });
 
