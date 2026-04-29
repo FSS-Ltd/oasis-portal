@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-29
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 2 Head rota scheduler ready for review.
+**Phase:** Phase 2 Supervisor daily dashboard shell ready for review.
 
 ---
 
@@ -27,10 +27,52 @@ UK school years and centre groups, and PR-2.4 staff rota and availability
 workflow are merged. PR-2.5 subject management and PACE write rules is merged
 via PR #27. PR-2.6 PACE progress read model is merged via PR #28. PR-2.7 Head
 academic settings is merged via PR #29, with follow-up fix PR #30 also merged.
-PR-2.8 Head rota scheduler is ready for review on
-`feat/phase-2-pr2.8-head-rota-scheduler`.
+PR-2.8 Head rota scheduler is merged via PR #31. PR-2.9 Supervisor daily
+dashboard shell is ready for review on
+`feat/phase-2-pr2.9-supervisor-dashboard-shell`.
 
-### PR-2.8 ready for review - `feat/phase-2-pr2.8-head-rota-scheduler`
+### PR-2.9 ready for review - `feat/phase-2-pr2.9-supervisor-dashboard-shell`
+
+**PR scope:** Supervisor web dashboard shell and staff self-service rota
+orientation. Attendance capture, behaviour entry, and PACE entry remain in
+PR-2.10/PR-2.11.
+
+Changed scope:
+
+- `apps/api/src/routers/rota.ts` - adds `rota.swapCandidates`, a staff-readable
+  candidate shift query for swap requests that excludes the caller's own shifts
+  and returns minimal staff/band display data.
+- `apps/api/src/__tests__/rota.router.test.ts` - covers staff RBAC, Parent and
+  Student denial, own-shift exclusion, and candidate display metadata.
+- `apps/web/src/components/admin/require-full-admin.tsx` - adds
+  `getStaffUser`/`assertStaffUser` over the shared staff RBAC guard.
+- `apps/web/src/app/(supervisor)/supervisor` - adds the Supervisor-labelled
+  route shell and daily dashboard with active students, today's rota, weekly
+  rota, availability editing, and shift-swap request controls.
+- `apps/web/src/components/supervisor/supervisor-nav.tsx` and existing admin CSS
+  - add the Supervisor navigation and focused layout styles.
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts` - adds credential-gated
+  Playwright smoke coverage for full-admin access, Supervisor workflow loading,
+  availability submit, and non-staff denial.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- rota.router.test.ts` - pass, 125 tests due
+  the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass; `/supervisor` appears in the route
+  table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass
+  with 3 credential-gated tests skipped because local E2E Head, Supervisor, and
+  Parent credentials are not set.
+
+### PR-2.8 merged - `feat/phase-2-pr2.8-head-rota-scheduler`
+
+Merged via PR #31 on 2026-04-29.
 
 **PR scope:** Head-admin weekly rota scheduler over the PR-2.4 rota API.
 

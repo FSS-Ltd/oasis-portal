@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.8 Head rota scheduler
+**Status:** Ready for review - PR-2.9 Supervisor daily dashboard shell
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -372,9 +372,10 @@ Verification:
 - `E2E_BASE_URL=http://localhost:3002 pnpm --filter @oasis/web test:e2e` → 2
   tests skipped because `E2E_HEAD_EMAIL` and `E2E_HEAD_PASSWORD` are not set.
 
-### PR-2.8 - `feat(web): Head rota scheduler` ✅ READY FOR REVIEW
+### PR-2.8 - `feat(web): Head rota scheduler` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.8-head-rota-scheduler`
+Merged via PR #31 on 2026-04-29.
 
 Scope:
 
@@ -423,7 +424,9 @@ Verification:
 Goal: staff can complete the daily workflow from the browser without touching
 Head-admin onboarding screens.
 
-### PR-2.9 - `feat(web): supervisor daily dashboard shell` ⏳ PLANNED
+### PR-2.9 - `feat(web): supervisor daily dashboard shell` ✅ READY FOR REVIEW
+
+Branch: `feat/phase-2-pr2.9-supervisor-dashboard-shell`
 
 Scope:
 
@@ -437,6 +440,20 @@ Scope:
   Supervisor.
 - Keep future Phase 3/4 modules visible only as disabled or non-routed items if
   needed for layout continuity.
+- Add a staff-readable shift-swap candidate query so Supervisors can request
+  swaps without receiving Head-only scheduling controls.
+- Keep attendance capture, behaviour entry, and PACE entry in PR-2.10/PR-2.11.
+
+Implementation:
+
+- Add `getStaffUser`/`assertStaffUser` over the shared `requireStaff` guard.
+- Add a Supervisor-labelled shell and navigation using the existing staff portal
+  layout classes.
+- Add dashboard cards, active student roster preview, today/weekly rota panels,
+  weekly availability editing, and shift-swap request controls.
+- Add `rota.swapCandidates` for staff-visible shift candidates in a date range,
+  excluding the caller's own shifts and returning minimal staff and band display
+  data.
 
 Tests:
 
@@ -445,6 +462,20 @@ Tests:
 - Dashboard renders active students and empty state.
 - Dashboard renders staff rota and availability empty state.
 - Staff can submit a shift swap request without changing the published rota.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- rota.router.test.ts` → pass, 125 tests due
+  the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass; `/supervisor` appears in the route
+  table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` → 3 tests
+  skipped because local E2E Head, Supervisor, and Parent credentials are not set.
 
 ### PR-2.10 - `feat(web): attendance capture UI` ⏳ PLANNED
 
