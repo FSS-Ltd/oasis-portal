@@ -1,6 +1,6 @@
 # Phase 1 — Core data + auth: sprint & PR plan
 
-**Status:** Phase 1 complete — PR-1.8 merged; PR-1.9 docs closeout in progress
+**Status:** Phase 1 complete - PR-1.9 merged; Phase 2 ready
 **Last updated:** 2026-04-28
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -234,9 +234,11 @@ Verification completed locally: `pnpm lint`, `pnpm typecheck`, `pnpm test`,
 `pnpm --filter @oasis/web build`, `pnpm db:integration`,
 `pnpm api:smoke-context-rls`, and `pnpm verify:encryption`.
 
-### PR-1.9 — `docs: close Phase 1 and prepare Phase 2 kickoff` 🚧 IN PROGRESS
+### PR-1.9 — `docs: close Phase 1 and prepare Phase 2 kickoff` ✅ MERGED
 
-Branch: `docs/close-phase-1`
+Branch: `docs/close-phase-1` → [PR #18](https://github.com/jntagengwa/oasis-portal/pull/18)
+
+Merged via PR #18 on 2026-04-28.
 
 Scope: documentation-only closeout so Phase 2 can begin from accurate project
 state.
@@ -316,9 +318,8 @@ step and is not a blocker for Phase 2 kickoff.
 
 ### Phase gate decision
 
-Proceed to Phase 2 after PR-1.9. The only remaining Phase 1 item is this
-documentation closeout; credentialed Supabase-preview E2E stays as a carry-forward
-verification task, not a blocker.
+Proceed to Phase 2. PR-1.9 is merged; credentialed Supabase-preview E2E stays
+as a carry-forward verification task, not a blocker.
 
 ---
 
