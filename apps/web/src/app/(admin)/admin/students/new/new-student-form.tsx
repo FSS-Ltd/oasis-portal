@@ -5,19 +5,29 @@ import { Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
-import { Field, TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
+
+function isStandardSchoolYear(value: string): value is StandardSchoolYear {
+  return STANDARD_SCHOOL_YEARS.includes(value as StandardSchoolYear);
+}
+
+function parseStandardSchoolYear(value: string): StandardSchoolYear {
+  if (!isStandardSchoolYear(value)) throw new Error('Choose a standard year group');
+  return value;
+}
 
 const schema = z.object({
   fullName: z.string().trim().min(1, 'Enter the student name'),
   dob: z.string().min(1, 'Enter the date of birth'),
-  yearGroup: z.string().trim().min(1, 'Enter the year group'),
+  yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
   enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
   address: z.string().trim().optional(),
 });
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.input<typeof schema>;
 
 export function NewStudentForm() {
   const router = useRouter();
@@ -50,7 +60,7 @@ export function NewStudentForm() {
         createStudent.mutate({
           fullName: values.fullName,
           dob: new Date(values.dob),
-          yearGroup: values.yearGroup,
+          yearGroup: parseStandardSchoolYear(values.yearGroup),
           enrolmentDate: new Date(values.enrolmentDate),
           address: values.address || undefined,
         }),
@@ -62,7 +72,14 @@ export function NewStudentForm() {
             <TextInput autoComplete="name" {...register('fullName')} />
           </Field>
           <Field error={errors.yearGroup?.message} label="Year group">
-            <TextInput placeholder="Year 8" {...register('yearGroup')} />
+            <SelectInput {...register('yearGroup')}>
+              <option value="">Choose year group</option>
+              {STANDARD_SCHOOL_YEARS.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </SelectInput>
           </Field>
           <Field error={errors.dob?.message} label="Date of birth">
             <TextInput type="date" {...register('dob')} />

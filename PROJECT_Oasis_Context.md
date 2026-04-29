@@ -22,12 +22,46 @@ raw DB dump cannot re-identify anyone.
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
-planning and PR-2.1 attendance workflow are merged. PR-2.2 behaviour logging
-API is in progress on `feat/phase-2-pr2.2-behaviour-logging`. The top-level platform plan now
-tracks Phase 2.5 for student/staff/parent record pages and all/individual
+planning, PR-2.1 attendance workflow, and PR-2.2 behaviour logging API are
+merged. PR-2.3 UK school years and centre groups is in progress on
+`feat/phase-2-pr2.3-school-years-centre-groups`. The top-level platform plan
+now tracks Phase 2.5 for student/staff/parent record pages and all/individual
 attendance exports by date range.
 
-### PR-2.2 in progress — `feat/phase-2-pr2.2-behaviour-logging`
+### PR-2.3 in progress — `feat/phase-2-pr2.3-school-years-centre-groups`
+
+**PR scope:** Backend/domain UK school-year calculation and Head-managed
+year-group band configuration. No web UI, rota scheduling, or mobile workflow
+is included.
+
+Changed scope:
+
+- `packages/domain/src/schoolYears.ts` — adds standard England/Wales school
+  year labels, the 31 August cutoff helper, and year-group band validation
+  schemas.
+- `packages/db/prisma/schema.prisma` and migration
+  `20260429000000_year_group_bands` — add `YearGroupBand` and seed Lower
+  Primary, Upper Primary, and Secondary defaults.
+- `apps/api/src/routers/admin.ts` — adds Head-only list/create/update/deactivate
+  procedures for year-group bands with audit rows.
+- `apps/api/src/routers/student.ts` — accepts standard school-year overrides and
+  derives the create default from date of birth when no override is supplied.
+- `docs/phase-2-build-plan.md` — marks PR-2.2 merged and PR-2.3 in progress.
+
+Verification:
+
+- `pnpm db:generate` → pass.
+- `pnpm --filter @oasis/api test` → pass.
+- `pnpm --filter @oasis/domain test` → pass after correcting the Year 11/13
+  fixture dates to match the 31 August rule.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass after updating the existing Head student forms to use
+  standard-year selects that match the stricter API contract.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+- `graphify update .` → pass.
+
+### PR-2.2 merged — `feat/phase-2-pr2.2-behaviour-logging`
 
 **PR scope:** Backend behaviour logging, Sensitive visibility enforcement,
 linked Spend ledger rows, audit coverage, and Phase 2 handoff docs. No web or
@@ -130,7 +164,7 @@ Merged scope:
 - `pnpm --filter @oasis/db test` → pass (13/13 encryption tests).
 - 2026-04-26 CI follow-up: `apply-rls.ts` now ignores SQL line/block comments
   before splitting statements, fixing the `syntax error at or near
-  "documented"` failure caused by a semicolon inside the `rls.sql` header
+"documented"` failure caused by a semicolon inside the `rls.sql` header
   comment. Added `apply-rls.test.ts` coverage for comment semicolons and quoted
   semicolons.
 - 2026-04-26 CI follow-up: removed hardcoded CI encryption fixture env values
@@ -465,7 +499,7 @@ admin web screens, audit log viewer, and encryption-proof script.
 - 2026-04-23 CI typecheck fix: added `@types/node` to the mobile
   workspace and made web/mobile tRPC clients explicitly typed so
   TypeScript does not infer non-portable pnpm store paths. `pnpm
-  typecheck` now passes locally.
+typecheck` now passes locally.
 - 2026-04-23 CI test fix: API and DB Phase 0 packages now run Vitest
   with `--passWithNoTests`; domain remains the real unit-test gate with
   80 passing tests. `pnpm test` now passes locally.
@@ -514,11 +548,10 @@ No product blockers currently. Phase 1 is code-complete and merged through PR-1.
 - Whether parents can view non-sensitive behaviour entries for their
   own child (currently yes in RBAC).
 
-## Next steps — Phase 2 kickoff
+## Next steps — Phase 2 daily workflow
 
-1. Complete **PR-2.0** - Phase 2 tracking plan and stale-doc cleanup.
-2. Start Phase 2 daily workflows: attendance capture, behaviour logging with
-   General/Sensitive enforcement, PACE progress/test entry, and Supervisor home.
+1. Open PR-2.3 for review after a final branch scope check.
+2. Move to PR-2.4 staff rota and availability workflow after PR-2.3 merges.
 3. Carry forward credentialed Supabase-preview Playwright onboarding as a
    verification task, not a Phase 2 blocker.
 

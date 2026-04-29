@@ -20,6 +20,12 @@ interface FakeDb {
     blindIndex: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
   };
+  yearGroupBand: {
+    findMany: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   subject: { findMany: ReturnType<typeof vi.fn> };
   user: {
     findMany: ReturnType<typeof vi.fn>;
@@ -31,6 +37,19 @@ interface FakeDb {
 }
 
 function makeFakeDb(): FakeDb {
+  const yearGroupBands = [
+    {
+      id: 'band_lower',
+      name: 'Lower Primary',
+      standardYears: ['Reception', 'Year 1'],
+      active: true,
+      sortOrder: 10,
+      colour: '#5B90C5',
+      createdAt: new Date('2026-04-29T09:00:00.000Z'),
+      updatedAt: new Date('2026-04-29T09:00:00.000Z'),
+    },
+  ];
+
   return {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     $enc: {
@@ -38,6 +57,57 @@ function makeFakeDb(): FakeDb {
       decrypt: vi.fn((value: string | null | undefined) =>
         value ? value.replace(/^enc:/, '') : null,
       ),
+    },
+    yearGroupBand: {
+      findMany: vi.fn(() => Promise.resolve([...yearGroupBands])),
+      findFirst: vi.fn(
+        ({ where }: { where?: { name?: { equals?: string }; NOT?: { id?: string } } }) => {
+          const name = where?.name?.equals;
+          const exceptId = where?.NOT?.id;
+          return Promise.resolve(
+            yearGroupBands.find(
+              (band) =>
+                (name === undefined || band.name.toLowerCase() === name.toLowerCase()) &&
+                (exceptId === undefined || band.id !== exceptId),
+            ) ?? null,
+          );
+        },
+      ),
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: {
+            name: string;
+            standardYears: string[];
+            colour: string;
+            sortOrder: number;
+          };
+        }) => {
+          const band = {
+            id: `band_${String(yearGroupBands.length + 1)}`,
+            active: true,
+            createdAt: new Date('2026-04-29T10:00:00.000Z'),
+            updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+            ...data,
+          };
+          yearGroupBands.push(band);
+          return Promise.resolve(band);
+        },
+      ),
+      update: vi.fn(({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const band = yearGroupBands.find((candidate) => candidate.id === where.id);
+        if (!band) {
+          return Promise.reject(
+            new Prisma.PrismaClientKnownRequestError('Record not found', {
+              code: 'P2025',
+              clientVersion: 'test',
+            }),
+          );
+        }
+        Object.assign(band, data, { updatedAt: new Date('2026-04-29T11:00:00.000Z') });
+        return Promise.resolve(band);
+      }),
     },
     subject: { findMany: vi.fn() },
     user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
@@ -78,6 +148,179 @@ function makeCaller(
   const ctx = makeCtx(user, db);
   return { caller: appRouter.createCaller(ctx), db, createInvitation: clerk.createInvitation };
 }
+
+describe('admin year-group bands', () => {
+  it('lists bands for full-admin screens and rejects Supervisors', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    await expect(caller.admin.listYearGroupBands()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'band_lower',
+        name: 'Lower Primary',
+        standardYears: ['Reception', 'Year 1'],
+        active: true,
+        sortOrder: 10,
+        colour: '#5B90C5',
+      }),
+    ]);
+    expect(db.yearGroupBand.findMany).toHaveBeenCalledWith({
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        standardYears: true,
+        active: true,
+        sortOrder: true,
+        colour: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const blocked = makeCaller(supervisorUser);
+    await expect(blocked.caller.admin.listYearGroupBands()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(blocked.db.yearGroupBand.findMany).not.toHaveBeenCalled();
+  });
+
+  it('creates, updates, and deactivates bands with audit rows', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    await expect(
+      caller.admin.createYearGroupBand({
+        name: ' Secondary Prep ',
+        standardYears: ['Year 7', 'Year 8'],
+        colour: '#8a5a9e',
+        sortOrder: 30,
+      }),
+    ).resolves.toMatchObject({
+      id: 'band_2',
+      name: 'Secondary Prep',
+      standardYears: ['Year 7', 'Year 8'],
+      colour: '#8A5A9E',
+      active: true,
+    });
+
+    expect(db.yearGroupBand.findFirst).toHaveBeenCalledWith({
+      where: {
+        name: { equals: 'Secondary Prep', mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Create',
+        entity: 'YearGroupBand',
+        entityId: 'band_2',
+        meta: {
+          name: 'Secondary Prep',
+          standardYears: ['Year 7', 'Year 8'],
+          sortOrder: 30,
+          colour: '#8A5A9E',
+        },
+      },
+    });
+
+    await expect(
+      caller.admin.updateYearGroupBand({
+        id: 'band_2',
+        name: 'Secondary',
+        standardYears: ['Year 7', 'Year 8', 'Year 9'],
+        colour: '#8A5A9E',
+        sortOrder: 35,
+      }),
+    ).resolves.toMatchObject({
+      id: 'band_2',
+      name: 'Secondary',
+      standardYears: ['Year 7', 'Year 8', 'Year 9'],
+      sortOrder: 35,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'YearGroupBand',
+        entityId: 'band_2',
+        meta: {
+          fields: ['colour', 'name', 'sortOrder', 'standardYears'],
+          name: 'Secondary',
+          standardYears: ['Year 7', 'Year 8', 'Year 9'],
+          sortOrder: 35,
+          colour: '#8A5A9E',
+        },
+      },
+    });
+
+    await expect(caller.admin.deactivateYearGroupBand({ id: 'band_2' })).resolves.toMatchObject({
+      id: 'band_2',
+      name: 'Secondary',
+      active: false,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'YearGroupBand',
+        entityId: 'band_2',
+        meta: {
+          name: 'Secondary',
+          active: false,
+          source: 'admin.deactivateYearGroupBand',
+        },
+      },
+    });
+  });
+
+  it('rejects duplicate names, empty names, invalid years, invalid colours, and non-full-admin writes', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    await expect(
+      caller.admin.createYearGroupBand({
+        name: 'lower primary',
+        standardYears: ['Year 2'],
+        colour: '#2F8F6B',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'year-group band name already exists',
+    });
+    await expect(
+      caller.admin.createYearGroupBand({
+        name: '',
+        standardYears: ['Year 2'],
+        colour: '#2F8F6B',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.admin.createYearGroupBand({
+        name: 'Invalid Year',
+        // @ts-expect-error invalid year on purpose
+        standardYears: ['Y5'],
+        colour: '#2F8F6B',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.admin.createYearGroupBand({
+        name: 'Invalid Colour',
+        standardYears: ['Year 2'],
+        colour: 'green',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    const blocked = makeCaller(supervisorUser);
+    await expect(
+      blocked.caller.admin.createYearGroupBand({
+        name: 'Upper Primary',
+        standardYears: ['Year 2'],
+        colour: '#2F8F6B',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(blocked.db.yearGroupBand.create).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+});
 
 describe('admin.listActiveSubjects', () => {
   it('returns active subjects for full-admin screens', async () => {

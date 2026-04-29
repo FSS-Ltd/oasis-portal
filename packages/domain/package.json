@@ -15,7 +15,8 @@
     "./shop": "./src/shop.ts",
     "./leaderboard": "./src/leaderboard.ts",
     "./clubs": "./src/clubs.ts",
-    "./report": "./src/report.ts"
+    "./report": "./src/report.ts",
+    "./schoolYears": "./src/schoolYears.ts"
   },
   "scripts": {
     "lint": "eslint src",
