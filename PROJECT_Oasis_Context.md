@@ -24,12 +24,40 @@ Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
 planning, PR-2.1 attendance workflow, PR-2.2 behaviour logging API, PR-2.3
 UK school years and centre groups, and PR-2.4 staff rota and availability
-workflow are merged. PR-2.5 subject management and PACE write rules is in
-progress on `feat/phase-2-pr2.5-subjects-pace-rules`. The top-level platform
-plan now tracks Phase 2.5 for student/staff/parent record pages and all/individual
-attendance exports by date range.
+workflow are merged. PR-2.5 subject management and PACE write rules is merged
+via PR #27. PR-2.6 PACE progress read model is ready for review on
+`feat/phase-2-pr2.6-pace-progress-read-model`.
 
-### PR-2.5 ready for review — `feat/phase-2-pr2.5-subjects-pace-rules`
+### PR-2.6 ready for review — `feat/phase-2-pr2.6-pace-progress-read-model`
+
+**PR scope:** Backend/API PACE progress read model for the supervisor workflow.
+No Prisma migration, web UI, or mobile workflow is included.
+
+Changed scope:
+
+- `apps/api/src/routers/pace.ts` — replaces the `pace.forStudent` placeholder
+  with a full-admin/Supervisor read model returning assigned subjects, current
+  PACE numbers, recent records, today's UTC test count, effective policy, and
+  UI warning metadata.
+- `apps/api/src/__tests__/pace.router.test.ts` — adds read-model RBAC,
+  missing/inactive student, record grouping, policy default, and warning-state
+  coverage.
+- `docs/phase-2-build-plan.md` and this context file — mark PR-2.5 merged and
+  PR-2.6 ready for review.
+
+Verification:
+
+- `pnpm --filter @oasis/api test` → pass, 121 tests.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `graphify update .` → completed; graphify reported an existing graph node-count
+  warning but left no tracked graph files changed.
+
+### PR-2.5 merged — `feat/phase-2-pr2.5-subjects-pace-rules`
+
+Merged via PR #27 on 2026-04-29.
 
 **PR scope:** Backend/API subject management (create/update/deactivate), centre-level
 PACE policy configuration singleton, and `pace.record` write procedure with full

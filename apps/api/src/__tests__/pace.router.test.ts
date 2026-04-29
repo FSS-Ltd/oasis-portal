@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { paceRouter } from '../routers/pace.js';
@@ -32,9 +32,16 @@ const studentUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const clubsAdminUser: SessionUser = {
+  id: 'u_clubs',
+  role: 'ClubsAdmin',
+  tags: [],
+  requires2fa: false,
+};
 
 const STUDENT_ID = 'ckstudent0000000000000001';
 const SUBJECT_ID = 'cksubject0000000000000001';
+const SUBJECT_2_ID = 'cksubject0000000000000002';
 const ASSIGNMENT_ID = 'ckassign000000000000000001';
 
 interface StoredPaceRecord {
@@ -44,7 +51,7 @@ interface StoredPaceRecord {
   paceNumber: number;
   selfTestScore: number | null;
   paceTestScore: number | null;
-  completedAt: Date;
+  completedAt: Date | null;
   createdAt: Date;
 }
 
@@ -60,10 +67,28 @@ interface FakeDb {
   paceRecord: {
     count: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
   };
   $transaction: ReturnType<typeof vi.fn>;
 }
+
+const defaultAssignments = [
+  {
+    id: ASSIGNMENT_ID,
+    studentId: STUDENT_ID,
+    subjectId: SUBJECT_ID,
+    currentPaceNumber: 1001,
+    subject: { id: SUBJECT_ID, code: 'ENG', name: 'English', active: true },
+  },
+  {
+    id: 'ckassign000000000000000002',
+    studentId: STUDENT_ID,
+    subjectId: SUBJECT_2_ID,
+    currentPaceNumber: 1007,
+    subject: { id: SUBJECT_2_ID, code: 'MATH', name: 'Maths', active: true },
+  },
+];
 
 function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const records: StoredPaceRecord[] = [];
@@ -97,7 +122,11 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const db: FakeDb = {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     student: {
-      findUnique: vi.fn().mockResolvedValue({ id: STUDENT_ID, active: true }),
+      findUnique: vi.fn().mockResolvedValue({
+        id: STUDENT_ID,
+        active: true,
+        subjects: defaultAssignments,
+      }),
     },
     subject: {
       findUnique: vi.fn().mockResolvedValue({ id: SUBJECT_ID, active: true }),
@@ -115,6 +144,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     paceRecord: {
       count: vi.fn().mockResolvedValue(0),
       findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
       create,
     },
     $transaction,
@@ -147,6 +177,235 @@ const validInput = {
   testType: 'FinalTest' as const,
   score: 90,
 };
+
+describe('pace.forStudent RBAC', () => {
+  it('allows full-admin (Head) to read PACE progress', async () => {
+    const { caller } = makeCaller(headUser);
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      studentId: STUDENT_ID,
+    });
+  });
+
+  it('allows Supervisor to read PACE progress', async () => {
+    const { caller } = makeCaller(supervisorUser);
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      studentId: STUDENT_ID,
+    });
+  });
+
+  it('rejects Parent as FORBIDDEN', async () => {
+    const { caller } = makeCaller(parentUser);
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('rejects Student as FORBIDDEN', async () => {
+    const { caller } = makeCaller(studentUser);
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('rejects ClubsAdmin as FORBIDDEN', async () => {
+    const { caller } = makeCaller(clubsAdminUser);
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('rejects unauthenticated caller as UNAUTHORIZED', async () => {
+    const { caller } = makeCaller(null);
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+    });
+  });
+});
+
+describe('pace.forStudent validation', () => {
+  it('returns NOT_FOUND for missing student', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue(null);
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('returns BAD_REQUEST for inactive student', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({ id: STUDENT_ID, active: false, subjects: [] });
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+  });
+});
+
+describe('pace.forStudent read model', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:34:56.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns assigned subjects, current PACE numbers, recent records, today count, and default policy', async () => {
+    const db = makeFakeDb();
+    db.paceRecord.count.mockResolvedValue(2);
+    const recordsBySubject: Record<string, StoredPaceRecord[]> = {
+      [SUBJECT_ID]: [
+        {
+          id: 'pace_self',
+          studentId: STUDENT_ID,
+          subjectId: SUBJECT_ID,
+          paceNumber: 1001,
+          selfTestScore: 74,
+          paceTestScore: null,
+          completedAt: new Date('2026-04-29T10:00:00.000Z'),
+          createdAt: new Date('2026-04-29T10:01:00.000Z'),
+        },
+        {
+          id: 'pace_final',
+          studentId: STUDENT_ID,
+          subjectId: SUBJECT_ID,
+          paceNumber: 1000,
+          selfTestScore: null,
+          paceTestScore: 90,
+          completedAt: new Date('2026-04-28T10:00:00.000Z'),
+          createdAt: new Date('2026-04-28T10:01:00.000Z'),
+        },
+      ],
+      [SUBJECT_2_ID]: [
+        {
+          id: 'pace_math',
+          studentId: STUDENT_ID,
+          subjectId: SUBJECT_2_ID,
+          paceNumber: 1006,
+          selfTestScore: null,
+          paceTestScore: 81,
+          completedAt: null,
+          createdAt: new Date('2026-04-27T10:01:00.000Z'),
+        },
+      ],
+    };
+    db.paceRecord.findMany.mockImplementation(
+      ({ where, take }: { where: { subjectId: string }; take: number }) =>
+        Promise.resolve(recordsBySubject[where.subjectId]?.slice(0, take) ?? []),
+    );
+    const { caller } = makeCaller(headUser, db);
+
+    const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
+
+    expect(result).toMatchObject({
+      studentId: STUDENT_ID,
+      today: { date: '2026-04-29', testCount: 2 },
+      policy: {
+        dailyTestLimitEnabled: false,
+        maxTestsPerStudentPerDay: 2,
+        samePaceSameDayBlockEnabled: true,
+        passThreshold: 80,
+      },
+      warnings: {
+        dailyLimitEnabled: false,
+        count: 2,
+        limit: 2,
+        remaining: null,
+        atLimit: false,
+      },
+    });
+    expect(result.subjects).toEqual([
+      {
+        subjectId: SUBJECT_ID,
+        code: 'ENG',
+        name: 'English',
+        active: true,
+        currentPaceNumber: 1001,
+        recentRecords: [
+          {
+            id: 'pace_self',
+            paceNumber: 1001,
+            testType: 'SelfTest',
+            score: 74,
+            completedAt: new Date('2026-04-29T10:00:00.000Z'),
+            createdAt: new Date('2026-04-29T10:01:00.000Z'),
+          },
+          {
+            id: 'pace_final',
+            paceNumber: 1000,
+            testType: 'FinalTest',
+            score: 90,
+            completedAt: new Date('2026-04-28T10:00:00.000Z'),
+            createdAt: new Date('2026-04-28T10:01:00.000Z'),
+          },
+        ],
+      },
+      {
+        subjectId: SUBJECT_2_ID,
+        code: 'MATH',
+        name: 'Maths',
+        active: true,
+        currentPaceNumber: 1007,
+        recentRecords: [
+          {
+            id: 'pace_math',
+            paceNumber: 1006,
+            testType: 'FinalTest',
+            score: 81,
+            completedAt: null,
+            createdAt: new Date('2026-04-27T10:01:00.000Z'),
+          },
+        ],
+      },
+    ]);
+    expect(db.paceRecord.count).toHaveBeenCalledWith({
+      where: {
+        studentId: STUDENT_ID,
+        completedAt: {
+          gte: new Date('2026-04-29T00:00:00.000Z'),
+          lt: new Date('2026-04-30T00:00:00.000Z'),
+        },
+      },
+    });
+    expect(db.paceRecord.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 5 }),
+    );
+  });
+
+  it('uses stored policy values for warning state', async () => {
+    const db = makeFakeDb();
+    db.pacePolicy.findUnique.mockResolvedValue({
+      id: 'default',
+      dailyTestLimitEnabled: true,
+      maxTestsPerStudentPerDay: 3,
+      samePaceSameDayBlockEnabled: false,
+      passThreshold: 75,
+      updatedAt: new Date('2026-04-29T09:00:00.000Z'),
+    });
+    db.paceRecord.count.mockResolvedValue(3);
+    const { caller } = makeCaller(supervisorUser, db);
+
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      policy: {
+        dailyTestLimitEnabled: true,
+        maxTestsPerStudentPerDay: 3,
+        samePaceSameDayBlockEnabled: false,
+        passThreshold: 75,
+      },
+      warnings: {
+        dailyLimitEnabled: true,
+        count: 3,
+        limit: 3,
+        remaining: 0,
+        atLimit: true,
+      },
+    });
+  });
+});
 
 describe('pace.record RBAC', () => {
   it('allows full-admin (Head) to record', async () => {
