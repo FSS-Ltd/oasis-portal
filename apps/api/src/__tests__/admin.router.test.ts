@@ -21,7 +21,11 @@ interface FakeDb {
     decrypt: ReturnType<typeof vi.fn>;
   };
   subject: { findMany: ReturnType<typeof vi.fn> };
-  user: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
+  user: {
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   student: { findUnique: ReturnType<typeof vi.fn> };
   guardian: { create: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
 }
@@ -36,7 +40,7 @@ function makeFakeDb(): FakeDb {
       ),
     },
     subject: { findMany: vi.fn() },
-    user: { findMany: vi.fn(), findUnique: vi.fn() },
+    user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     student: { findUnique: vi.fn() },
     guardian: { create: vi.fn(), findUnique: vi.fn() },
   };
@@ -129,6 +133,96 @@ describe('admin.searchParents', () => {
     await expect(caller.admin.searchParents()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin.listUsers and admin.updateUserTags', () => {
+  it('lists active users with decrypted display fields and writes one PII audit row', async () => {
+    const db = makeFakeDb();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'u_head',
+        role: 'Head',
+        tags: ['audit-viewer'],
+        fullNameEnc: 'enc:Jean Head',
+        emailEnc: 'enc:head@example.com',
+      },
+    ]);
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(caller.admin.listUsers()).resolves.toEqual([
+      {
+        id: 'u_head',
+        role: 'Head',
+        tags: ['audit-viewer'],
+        fullName: 'Jean Head',
+        email: 'head@example.com',
+      },
+    ]);
+    expect(db.user.findMany).toHaveBeenCalledWith({
+      where: { active: true },
+      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      take: 100,
+      select: {
+        id: true,
+        role: true,
+        tags: true,
+        fullNameEnc: true,
+        emailEnc: true,
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: 1, source: 'admin.listUsers' },
+      },
+    });
+  });
+
+  it('updates permission tags and writes an audit row', async () => {
+    const db = makeFakeDb();
+    db.user.update.mockResolvedValue({
+      id: 'u_sup',
+      tags: ['attendance-exporter', 'audit-viewer'],
+    });
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserTags({
+        userId: 'u_sup',
+        tags: ['audit-viewer', 'attendance-exporter', 'audit-viewer'],
+      }),
+    ).resolves.toEqual({
+      id: 'u_sup',
+      tags: ['attendance-exporter', 'audit-viewer'],
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_sup' },
+      data: { tags: ['attendance-exporter', 'audit-viewer'] },
+      select: { id: true, tags: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_sup',
+        meta: { tags: ['attendance-exporter', 'audit-viewer'], source: 'admin.updateUserTags' },
+      },
+    });
+  });
+
+  it('rejects tag management for non-full-admin callers', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.admin.updateUserTags({ userId: 'u_sup', tags: ['audit-viewer'] }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.findMany).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 });
 

@@ -2,7 +2,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { notFound } from 'next/navigation';
 import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
-import { requireFullAdmin } from '@oasis/domain';
+import { requireFullAdmin, requireTag, type SessionUser } from '@oasis/domain';
 
 function isLocalDev(): boolean {
   return process.env['NODE_ENV'] !== 'production';
@@ -67,13 +67,27 @@ async function ensureDevHeadUser(clerkUserId: string) {
   });
 }
 
-export async function assertFullAdmin() {
+export async function getFullAdminUser(): Promise<SessionUser> {
   try {
     const { userId } = await auth();
     if (userId) await ensureDevHeadUser(userId);
     const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
     if (!ctx.user) notFound();
     requireFullAdmin(ctx.user);
+    return ctx.user;
+  } catch {
+    notFound();
+  }
+}
+
+export async function assertFullAdmin() {
+  await getFullAdminUser();
+}
+
+export async function assertAuditViewer() {
+  try {
+    const user = await getFullAdminUser();
+    requireTag(user, 'audit-viewer');
   } catch {
     notFound();
   }

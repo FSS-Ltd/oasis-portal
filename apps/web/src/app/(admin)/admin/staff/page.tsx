@@ -1,5 +1,6 @@
 import { MotionPage } from '@/components/admin/motion';
 import { InviteUserForm } from './invite-user-form';
+import { UserTagManager } from './user-tag-manager';
 
 export default function StaffPage() {
   return (
@@ -12,6 +13,7 @@ export default function StaffPage() {
         </div>
       </div>
       <InviteUserForm />
+      <UserTagManager />
     </MotionPage>
   );
 }

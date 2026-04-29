@@ -4,7 +4,8 @@ import type { AppContext, RlsTx } from '../context.js';
 import { auditRouter } from '../routers/audit.js';
 import { router } from '../trpc.js';
 
-const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: ['audit-viewer'], requires2fa: false };
+const headWithoutAuditTag: SessionUser = { id: 'u_head_no_tag', role: 'Head', tags: [], requires2fa: false };
 const supervisorUser: SessionUser = {
   id: 'u_sup',
   role: 'Supervisor',
@@ -62,11 +63,16 @@ function makeCaller(user: SessionUser | null, db: FakeDb) {
 }
 
 describe('audit.list', () => {
-  it('rejects non-full-admin callers as FORBIDDEN', async () => {
+  it('rejects callers without the audit-viewer tag as FORBIDDEN', async () => {
     const db = makeFakeDb();
     const caller = makeCaller(supervisorUser, db);
 
     await expect(caller.audit.list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.auditLog.findMany).not.toHaveBeenCalled();
+
+    await expect(makeCaller(headWithoutAuditTag, db).audit.list()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
     expect(db.auditLog.findMany).not.toHaveBeenCalled();
   });
 

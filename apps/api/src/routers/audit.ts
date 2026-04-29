@@ -1,5 +1,7 @@
 import { z } from 'zod';
+import { TRPCError } from '@trpc/server';
 import { AuditAction, Prisma } from '@oasis/db';
+import { AccessDeniedError, requireTag } from '@oasis/domain';
 import { fullAdminProcedure, router } from '../trpc.js';
 
 const auditInclude = Prisma.validator<Prisma.AuditLogInclude>()({
@@ -13,6 +15,17 @@ const auditInclude = Prisma.validator<Prisma.AuditLogInclude>()({
 });
 
 type AuditLogWithUser = Prisma.AuditLogGetPayload<{ include: typeof auditInclude }>;
+
+function requireAuditViewer(user: Parameters<typeof requireTag>[0]): void {
+  try {
+    requireTag(user, 'audit-viewer');
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: err.message, cause: err });
+    }
+    throw err;
+  }
+}
 
 const listInput = z
   .object({
@@ -28,6 +41,8 @@ const listInput = z
 
 export const auditRouter = router({
   list: fullAdminProcedure.input(listInput).query(async ({ ctx, input }) => {
+    requireAuditViewer(ctx.user);
+
     const limit = input?.limit ?? 25;
     const where: Prisma.AuditLogWhereInput = {};
 

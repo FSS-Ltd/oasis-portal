@@ -12,7 +12,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
-import { inviteUserInput, linkGuardianInput } from '@oasis/domain';
+import { PERMISSION_TAGS, inviteUserInput, linkGuardianInput } from '@oasis/domain';
 import { fullAdminProcedure, router } from '../trpc.js';
 import {
   createDefaultClerkInvitationClient,
@@ -29,6 +29,16 @@ const searchParentsInput = z
     limit: z.number().int().min(1).max(25).default(10),
   })
   .optional();
+
+const permissionTagSchema = z.enum(PERMISSION_TAGS as unknown as readonly [
+  (typeof PERMISSION_TAGS)[number],
+  ...(typeof PERMISSION_TAGS)[number][],
+]);
+
+const updateUserTagsInput = z.object({
+  userId: z.string().min(1),
+  tags: z.array(permissionTagSchema).default([]),
+});
 
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
@@ -48,6 +58,71 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
       return subjects;
     }),
+
+    listUsers: fullAdminProcedure.query(async ({ ctx }) => {
+      const users = await ctx.db.user.findMany({
+        where: { active: true },
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        take: 100,
+        select: {
+          id: true,
+          role: true,
+          tags: true,
+          fullNameEnc: true,
+          emailEnc: true,
+        },
+      });
+
+      const rows = users.map((user) => {
+        const fullName = ctx.db.$enc.decrypt(user.fullNameEnc);
+        const email = ctx.db.$enc.decrypt(user.emailEnc);
+        if (!fullName || !email) {
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'user PII decrypt failed' });
+        }
+        return { id: user.id, role: user.role, tags: user.tags, fullName, email };
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'User',
+          meta: { count: rows.length, source: 'admin.listUsers' },
+        },
+      });
+
+      return rows;
+    }),
+
+    updateUserTags: fullAdminProcedure
+      .input(updateUserTagsInput)
+      .mutation(async ({ ctx, input }) => {
+        const tags = [...new Set(input.tags)].sort();
+        try {
+          const user = await ctx.db.user.update({
+            where: { id: input.userId },
+            data: { tags },
+            select: { id: true, tags: true },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'User',
+              entityId: user.id,
+              meta: { tags: user.tags, source: 'admin.updateUserTags' },
+            },
+          });
+
+          return { id: user.id, tags: user.tags };
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+          }
+          throw err;
+        }
+      }),
 
     searchParents: fullAdminProcedure
       .input(searchParentsInput)

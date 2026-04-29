@@ -458,6 +458,46 @@
   min-width: 1040px;
 }
 
+.user-tags-table {
+  min-width: 980px;
+}
+
+.tag-toggle-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 999px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tag-toggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tag-toggle.is-checked {
+  border-color: var(--oasis-blue);
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
 .segmented-actions {
   display: flex;
   flex-wrap: wrap;
@@ -580,14 +620,33 @@
   background: var(--oasis-border);
 }
 
-.audit-meta {
-  display: block;
-  max-width: 320px;
+.audit-meta-list {
+  display: grid;
+  max-width: 360px;
+  gap: 6px;
+  margin: 0;
+}
+
+.audit-meta-list div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.audit-meta-list dt {
+  color: var(--oasis-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.audit-meta-list dd {
+  min-width: 0;
+  margin: 0;
   overflow-wrap: anywhere;
   color: var(--oasis-text-secondary);
-  font-size: 0.72rem;
-  line-height: 1.45;
-  white-space: normal;
+  font-size: 0.76rem;
+  line-height: 1.35;
 }
 
 @keyframes spin {
