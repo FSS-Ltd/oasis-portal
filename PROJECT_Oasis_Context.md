@@ -27,6 +27,31 @@ planning is merged. PR-2.1 attendance workflow is in progress on
 tracks Phase 2.5 for student/staff/parent record pages and all/individual
 attendance exports by date range.
 
+### 2026-04-29 admin sidebar logo polish — `feat/admin-sidebar-logo-contrast`
+
+**PR scope:** Improve the Head admin sidebar logo treatment only.
+
+Changed scope:
+
+- `apps/web/src/app/(admin)/admin/layout.tsx` — wraps the desktop sidebar logo
+  in a dedicated frame and delegates route-aware navigation to a client
+  component.
+- `apps/web/src/components/admin/admin-nav.tsx` — restores active-route state for
+  desktop and mobile admin navigation using `usePathname`.
+- `apps/web/src/app/(admin)/admin/admin.css` — adds a light, bordered logo
+  backing so the crest stands out against the navy sidebar, and styles the
+  active nav item.
+
+Verification:
+
+- `pnpm --filter @oasis/web build` → pass.
+- `pnpm --filter @oasis/web typecheck` → pass after the build regenerated
+  `.next/types`.
+- Local browser verified the authenticated admin page at
+  `http://localhost:3003/admin`.
+- Local browser verified the active sidebar highlight at
+  `http://localhost:3003/admin/students`.
+
 ### PR-1.1 merged — `feature/phase-1-pr1.1-env-key-encryption`
 
 **Decision change:** AWS KMS replaced with an env-managed master key
