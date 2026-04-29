@@ -26,7 +26,15 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
-  subject: { findMany: ReturnType<typeof vi.fn> };
+  subject: {
+    findMany: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  pacePolicy: {
+    findUnique: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+  };
   user: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -109,7 +117,15 @@ function makeFakeDb(): FakeDb {
         return Promise.resolve(band);
       }),
     },
-    subject: { findMany: vi.fn() },
+    subject: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    pacePolicy: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn(),
+    },
     user: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     student: { findUnique: vi.fn() },
     guardian: { create: vi.fn(), findUnique: vi.fn() },
@@ -644,5 +660,269 @@ describe('admin.linkGuardian', () => {
     await expect(
       caller.admin.linkGuardian({ userId: 'u_parent', studentId: 's_missing' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Subject management
+// ---------------------------------------------------------------------------
+
+describe('admin subject management', () => {
+  it('listSubjects returns all subjects (active and inactive) for full-admin', async () => {
+    const db = makeFakeDb();
+    db.subject.findMany.mockResolvedValue([
+      { id: 'sub_math', code: 'MATH', name: 'Mathematics', active: true },
+      { id: 'sub_eng', code: 'ENG', name: 'English', active: false },
+    ]);
+    const { caller } = makeCaller(headUser, { db });
+
+    const result = await caller.admin.listSubjects();
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ code: 'MATH', active: true });
+    expect(result[1]).toMatchObject({ code: 'ENG', active: false });
+  });
+
+  it('listSubjects rejects Supervisors as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+    await expect(caller.admin.listSubjects()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.subject.findMany).not.toHaveBeenCalled();
+  });
+
+  it('createSubject normalises code to uppercase and writes audit row', async () => {
+    const db = makeFakeDb();
+    const created = { id: 'sub_1', code: 'SOC', name: 'Social Studies', active: true };
+    db.subject.create.mockResolvedValue(created);
+    const { caller } = makeCaller(headUser, { db });
+
+    const result = await caller.admin.createSubject({ code: 'soc', name: 'Social Studies' });
+    expect(result).toMatchObject({ code: 'SOC', name: 'Social Studies', active: true });
+    expect(db.subject.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { code: 'SOC', name: 'Social Studies' } }),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Create',
+        entity: 'Subject',
+        entityId: 'sub_1',
+        meta: { code: 'SOC', name: 'Social Studies' },
+      },
+    });
+  });
+
+  it('createSubject rejects duplicate codes with BAD_REQUEST', async () => {
+    const db = makeFakeDb();
+    db.subject.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(caller.admin.createSubject({ code: 'MATH', name: 'Maths' })).rejects.toMatchObject(
+      { code: 'BAD_REQUEST' },
+    );
+  });
+
+  it('createSubject rejects Supervisors as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+    await expect(
+      caller.admin.createSubject({ code: 'MATH', name: 'Maths' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.subject.create).not.toHaveBeenCalled();
+  });
+
+  it('updateSubject updates name and writes audit row', async () => {
+    const db = makeFakeDb();
+    const subId = 'cksubject00000000000000001';
+    db.subject.update.mockResolvedValue({ id: subId, code: 'MATH', name: 'Maths Revised', active: true });
+    const { caller } = makeCaller(headUser, { db });
+
+    const result = await caller.admin.updateSubject({ id: subId, name: 'Maths Revised' });
+    expect(result).toMatchObject({ name: 'Maths Revised' });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'Subject',
+        entityId: subId,
+        meta: { name: 'Maths Revised', source: 'admin.updateSubject' },
+      },
+    });
+  });
+
+  it('updateSubject returns NOT_FOUND for missing id', async () => {
+    const db = makeFakeDb();
+    db.subject.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' }),
+    );
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateSubject({ id: 'cksubjectmissing0000000001', name: 'X' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('updateSubject rejects Supervisors as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(
+      caller.admin.updateSubject({ id: 'cksubject00000000000000001', name: 'Maths Revised' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.subject.update).not.toHaveBeenCalled();
+  });
+
+  it('deactivateSubject soft-deletes and writes audit row', async () => {
+    const db = makeFakeDb();
+    const subId = 'cksubject00000000000000001';
+    db.subject.update.mockResolvedValue({ id: subId, code: 'MATH', name: 'Maths', active: false });
+    const { caller } = makeCaller(headUser, { db });
+
+    const result = await caller.admin.deactivateSubject({ id: subId });
+    expect(result.active).toBe(false);
+    expect(db.subject.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: subId }, data: { active: false } }),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'Subject',
+        entityId: subId,
+        meta: { code: 'MATH', active: false, source: 'admin.deactivateSubject' },
+      },
+    });
+  });
+
+  it('deactivateSubject returns NOT_FOUND for missing id', async () => {
+    const db = makeFakeDb();
+    db.subject.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' }),
+    );
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.deactivateSubject({ id: 'cksubjectmissing0000000001' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('deactivateSubject rejects Supervisors as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(
+      caller.admin.deactivateSubject({ id: 'cksubject00000000000000001' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.subject.update).not.toHaveBeenCalled();
+  });
+
+  it('listActiveSubjects returns only active subjects', async () => {
+    const db = makeFakeDb();
+    db.subject.findMany.mockResolvedValue([
+      { id: 'sub_math', code: 'MATH', name: 'Mathematics' },
+    ]);
+    const { caller } = makeCaller(headUser, { db });
+
+    const result = await caller.admin.listActiveSubjects();
+    expect(result).toEqual([{ id: 'sub_math', code: 'MATH', name: 'Mathematics' }]);
+    expect(db.subject.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { active: true } }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PACE policy
+// ---------------------------------------------------------------------------
+
+describe('admin PACE policy', () => {
+  it('getPacePolicy returns defaults when no row exists', async () => {
+    const { caller, db } = makeCaller(headUser);
+    db.pacePolicy.findUnique.mockResolvedValue(null);
+
+    const policy = await caller.admin.getPacePolicy();
+    expect(policy).toEqual({
+      id: 'default',
+      dailyTestLimitEnabled: false,
+      maxTestsPerStudentPerDay: 2,
+      samePaceSameDayBlockEnabled: true,
+      passThreshold: 80,
+    });
+  });
+
+  it('getPacePolicy returns stored row when it exists', async () => {
+    const db = makeFakeDb();
+    const stored = {
+      id: 'default',
+      dailyTestLimitEnabled: true,
+      maxTestsPerStudentPerDay: 3,
+      samePaceSameDayBlockEnabled: false,
+      passThreshold: 75,
+      updatedAt: new Date(),
+    };
+    db.pacePolicy.findUnique.mockResolvedValue(stored);
+    const { caller } = makeCaller(headUser, { db });
+
+    const policy = await caller.admin.getPacePolicy();
+    expect(policy).toMatchObject({ dailyTestLimitEnabled: true, passThreshold: 75 });
+  });
+
+  it('getPacePolicy rejects Supervisors as FORBIDDEN', async () => {
+    const { caller } = makeCaller(supervisorUser);
+    await expect(caller.admin.getPacePolicy()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('updatePacePolicy upserts and writes audit row', async () => {
+    const db = makeFakeDb();
+    db.pacePolicy.upsert.mockResolvedValue({
+      id: 'default',
+      dailyTestLimitEnabled: true,
+      maxTestsPerStudentPerDay: 5,
+      samePaceSameDayBlockEnabled: true,
+      passThreshold: 80,
+    });
+    const { caller } = makeCaller(headUser, { db });
+
+    const result = await caller.admin.updatePacePolicy({
+      dailyTestLimitEnabled: true,
+      maxTestsPerStudentPerDay: 5,
+    });
+    expect(result).toMatchObject({ dailyTestLimitEnabled: true, maxTestsPerStudentPerDay: 5 });
+    expect(db.pacePolicy.upsert).toHaveBeenCalled();
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'PacePolicy',
+        entityId: 'default',
+        meta: {
+          fields: ['dailyTestLimitEnabled', 'maxTestsPerStudentPerDay'].sort(),
+          dailyTestLimitEnabled: true,
+          maxTestsPerStudentPerDay: 5,
+        },
+      },
+    });
+  });
+
+  it('updatePacePolicy rejects invalid passThreshold (0)', async () => {
+    const { caller } = makeCaller(headUser);
+    await expect(
+      caller.admin.updatePacePolicy({ passThreshold: 0 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('updatePacePolicy rejects invalid maxTestsPerStudentPerDay (0)', async () => {
+    const { caller } = makeCaller(headUser);
+    await expect(
+      caller.admin.updatePacePolicy({ maxTestsPerStudentPerDay: 0 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('updatePacePolicy rejects Supervisors as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+    await expect(
+      caller.admin.updatePacePolicy({ dailyTestLimitEnabled: true }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.pacePolicy.upsert).not.toHaveBeenCalled();
   });
 });

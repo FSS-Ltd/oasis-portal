@@ -14,10 +14,14 @@ import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
   PERMISSION_TAGS,
+  createSubjectInput,
   createYearGroupBandInput,
+  deactivateSubjectInput,
   deactivateYearGroupBandInput,
   inviteUserInput,
   linkGuardianInput,
+  updatePacePolicyInput,
+  updateSubjectInput,
   updateYearGroupBandInput,
 } from '@oasis/domain';
 import { fullAdminProcedure, router } from '../trpc.js';
@@ -229,6 +233,162 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           }
           throw err;
         }
+      }),
+
+    listSubjects: fullAdminProcedure.query(async ({ ctx }) => {
+      return ctx.db.subject.findMany({
+        orderBy: [{ code: 'asc' }],
+        select: { id: true, code: true, name: true, active: true },
+      });
+    }),
+
+    createSubject: fullAdminProcedure
+      .input(createSubjectInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const subject = await ctx.db.subject.create({
+            data: { code: input.code, name: input.name },
+            select: { id: true, code: true, name: true, active: true },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'Subject',
+              entityId: subject.id,
+              meta: { code: subject.code, name: subject.name },
+            },
+          });
+
+          return subject;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `subject code "${input.code}" already exists`,
+            });
+          }
+          throw err;
+        }
+      }),
+
+    updateSubject: fullAdminProcedure
+      .input(updateSubjectInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const subject = await ctx.db.subject.update({
+            where: { id: input.id },
+            data: { ...(input.name !== undefined ? { name: input.name } : {}) },
+            select: { id: true, code: true, name: true, active: true },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'Subject',
+              entityId: subject.id,
+              meta: { name: subject.name, source: 'admin.updateSubject' },
+            },
+          });
+
+          return subject;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
+          }
+          throw err;
+        }
+      }),
+
+    deactivateSubject: fullAdminProcedure
+      .input(deactivateSubjectInput)
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const subject = await ctx.db.subject.update({
+            where: { id: input.id },
+            data: { active: false },
+            select: { id: true, code: true, name: true, active: true },
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'Subject',
+              entityId: subject.id,
+              meta: { code: subject.code, active: subject.active, source: 'admin.deactivateSubject' },
+            },
+          });
+
+          return subject;
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
+          }
+          throw err;
+        }
+      }),
+
+    getPacePolicy: fullAdminProcedure.query(async ({ ctx }) => {
+      const policy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
+      if (!policy) {
+        return {
+          id: 'default',
+          dailyTestLimitEnabled: false,
+          maxTestsPerStudentPerDay: 2,
+          samePaceSameDayBlockEnabled: true,
+          passThreshold: 80,
+        };
+      }
+      return policy;
+    }),
+
+    updatePacePolicy: fullAdminProcedure
+      .input(updatePacePolicyInput)
+      .mutation(async ({ ctx, input }) => {
+        const policy = await ctx.db.pacePolicy.upsert({
+          where: { id: 'default' },
+          create: {
+            id: 'default',
+            dailyTestLimitEnabled: input.dailyTestLimitEnabled ?? false,
+            maxTestsPerStudentPerDay: input.maxTestsPerStudentPerDay ?? 2,
+            samePaceSameDayBlockEnabled: input.samePaceSameDayBlockEnabled ?? true,
+            passThreshold: input.passThreshold ?? 80,
+          },
+          update: {
+            ...(input.dailyTestLimitEnabled !== undefined
+              ? { dailyTestLimitEnabled: input.dailyTestLimitEnabled }
+              : {}),
+            ...(input.maxTestsPerStudentPerDay !== undefined
+              ? { maxTestsPerStudentPerDay: input.maxTestsPerStudentPerDay }
+              : {}),
+            ...(input.samePaceSameDayBlockEnabled !== undefined
+              ? { samePaceSameDayBlockEnabled: input.samePaceSameDayBlockEnabled }
+              : {}),
+            ...(input.passThreshold !== undefined ? { passThreshold: input.passThreshold } : {}),
+          },
+          select: {
+            id: true,
+            dailyTestLimitEnabled: true,
+            maxTestsPerStudentPerDay: true,
+            samePaceSameDayBlockEnabled: true,
+            passThreshold: true,
+          },
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'PacePolicy',
+            entityId: policy.id,
+            meta: { fields: Object.keys(input).sort(), ...input },
+          },
+        });
+
+        return policy;
       }),
 
     listActiveSubjects: fullAdminProcedure.query(async ({ ctx }) => {

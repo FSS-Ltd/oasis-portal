@@ -22,14 +22,51 @@ raw DB dump cannot re-identify anyone.
 
 Phase 0, all four Sprint 1 PRs (PR-1.1 → PR-1.4), Sprint 2 PR-1.5 →
 PR-1.8, and PR-1.9 docs closeout are merged to `main`. PR-2.0 Phase 2
-planning, PR-2.1 attendance workflow, PR-2.2 behaviour logging API, and PR-2.3
-UK school years and centre groups are merged. PR-2.4 staff rota and
-availability workflow is in progress on
-`feat/phase-2-pr2.4-staff-rota-availability`. The top-level platform plan now
-tracks Phase 2.5 for student/staff/parent record pages and all/individual
+planning, PR-2.1 attendance workflow, PR-2.2 behaviour logging API, PR-2.3
+UK school years and centre groups, and PR-2.4 staff rota and availability
+workflow are merged. PR-2.5 subject management and PACE write rules is in
+progress on `feat/phase-2-pr2.5-subjects-pace-rules`. The top-level platform
+plan now tracks Phase 2.5 for student/staff/parent record pages and all/individual
 attendance exports by date range.
 
-### PR-2.4 in progress — `feat/phase-2-pr2.4-staff-rota-availability`
+### PR-2.5 ready for review — `feat/phase-2-pr2.5-subjects-pace-rules`
+
+**PR scope:** Backend/API subject management (create/update/deactivate), centre-level
+PACE policy configuration singleton, and `pace.record` write procedure with full
+policy enforcement (daily limit, same-day self/final block, pass threshold). No web
+UI, mobile workflow, or PACE read model is included (PR-2.6).
+
+Changed scope:
+
+- `packages/db/prisma/schema.prisma` and migration — add `PacePolicy` singleton model.
+- `packages/domain/src/subjects.ts` — subject create/update/deactivate schemas and
+  PACE policy/record input schemas.
+- `apps/api/src/routers/admin.ts` — adds `listSubjects`, `createSubject`,
+  `updateSubject`, `deactivateSubject`, `getPacePolicy`, and `updatePacePolicy`
+  procedures with audit rows.
+- `apps/api/src/routers/pace.ts` — implements `pace.record` for full-admin and
+  Supervisor with policy enforcement, transaction-safe advancement, and audit rows.
+- `apps/api/src/__tests__/admin.router.test.ts` — covers subject CRUD RBAC,
+  code normalisation, duplicate rejection, policy defaults/update, and audit rows.
+- `apps/api/src/__tests__/pace.router.test.ts` — covers RBAC, policy blocks,
+  backdated `completedAt` policy windows, passing final advancement, and audit rows.
+
+Verification:
+
+- `pnpm db:migrate` → pass outside sandbox; applied pending local migrations
+  through `20260429020000_pace_policy` and reapplied 12 RLS statements.
+- `pnpm db:generate` → pass.
+- `node scripts/with-env.mjs pnpm --filter @oasis/db exec prisma validate` → pass.
+- `pnpm --filter @oasis/api test` → pass, 111 tests.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+
+### PR-2.4 merged — `feat/phase-2-pr2.4-staff-rota-availability`
+
+Merged via PR #26 on 2026-04-29.
 
 **PR scope:** Backend/API staff rota, staff weekly availability, scheduled
 shifts, shift swap approval workflow, staff attendance marking, and staff
@@ -591,9 +628,8 @@ No product blockers currently. Phase 1 is code-complete and merged through PR-1.
 
 ## Next steps — Phase 2 daily workflow
 
-1. Build PR-2.4 staff rota and availability API, including migrations and tests.
-2. Keep staff attendance export data in PR-2.4; export UI remains later Phase 2
-   work.
+1. Build PR-2.5 subject management and PACE write rules API, including migration and tests.
+2. PR-2.6 PACE read model (`pace.forStudent`) follows immediately after PR-2.5 merges.
 3. Carry forward credentialed Supabase-preview Playwright onboarding as a
    verification task, not a Phase 2 blocker.
 

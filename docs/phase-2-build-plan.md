@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** In progress - PR-2.4 staff rota and availability workflow
+**Status:** Ready for review - PR-2.5 subject management and PACE write rules
 **Last updated:** 2026-04-29
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -178,9 +178,11 @@ Tests:
 - Duplicate or empty group names are rejected.
 - Group year selections must use standard year labels only.
 
-### PR-2.4 - `feat(api): staff rota and availability workflow` 🚧 IN PROGRESS
+### PR-2.4 - `feat(api): staff rota and availability workflow` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.4-staff-rota-availability`
+
+Merged via PR #26 on 2026-04-29.
 
 Scope:
 
@@ -214,7 +216,9 @@ Tests:
 - Full-admin and `attendance-exporter` users can export staff attendance CSV;
   untagged users cannot.
 
-### PR-2.5 - `feat(api): subject management and PACE test rules` ⏳ PLANNED
+### PR-2.5 - `feat(api): subject management and PACE write rules` ✅ READY FOR REVIEW
+
+Branch: `feat/phase-2-pr2.5-subjects-pace-rules`
 
 Scope:
 
@@ -247,20 +251,32 @@ Tests:
 - Audit rows are written for successful records, blocked attempts, policy
   changes, and assignment updates.
 
+Verification:
+
+- `pnpm db:migrate`
+- `pnpm db:generate`
+- `node scripts/with-env.mjs pnpm --filter @oasis/db exec prisma validate`
+- `pnpm --filter @oasis/api test`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm --filter @oasis/web build`
+
 ### PR-2.6 - `feat(api): PACE progress read model` ⏳ PLANNED
 
 Scope:
 
-- Implement `pace.forStudent` and `pace.record`.
-- Allow full-admin and Supervisor to read and record PACE progress.
+- Implement `pace.forStudent` read model.
+- Allow full-admin and Supervisor to read PACE progress.
 - Return assigned subjects, current PACE numbers, recent test records, today's
   test count, and policy state needed for UI warnings.
-- Use the PR-2.5 write rules for `pace.record`.
+- Keep `pace.record` on the PR-2.5 write rules.
 - Keep the response small enough for mobile daily workflow use.
 
 Tests:
 
-- RBAC for read/write.
+- RBAC for reads.
 - Read model includes per-subject current PACE and recent records.
 - Read model includes daily test count and enabled policy limits.
 - Supervisor can read assigned PACE data for active students.
