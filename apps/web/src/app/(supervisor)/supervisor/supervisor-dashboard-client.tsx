@@ -1,8 +1,9 @@
 'use client';
 
-import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react';
+import type { Route } from 'next';
+import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { BookOpenCheck, MessageSquare, Plus, Save, Send, Star, Trash2 } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, ClipboardCheck, FileText, MessageSquare, Plus, Save, Send, Star, Trash2 } from 'lucide-react';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,9 @@ const weekdays = [
   { value: 5, label: 'Friday' },
   { value: 6, label: 'Saturday' },
 ] as const;
+
+const shortWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
 type BehaviourType = 'Merit' | 'Demerit';
 type BehaviourVisibility = 'General' | 'Sensitive';
@@ -83,7 +87,9 @@ function fromTimeValue(value: string): number {
 
 function formatDate(value: string | Date): string {
   const date = typeof value === 'string' ? asDate(value) : value;
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).format(date);
+  const weekday = shortWeekdays[date.getUTCDay()] ?? '';
+  const month = shortMonths[date.getUTCMonth()] ?? '';
+  return `${weekday}, ${String(date.getUTCDate()).padStart(2, '0')} ${month}`;
 }
 
 function formatDateTime(value: Date): string {
@@ -119,11 +125,11 @@ function formatShift(shift: { date: string; startsAt: Date; endsAt: Date; bandNa
 }
 
 function dayLabel(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date);
+  return shortWeekdays[date.getUTCDay()] ?? '';
 }
 
 function dayNumber(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(date);
+  return `${String(date.getUTCDate()).padStart(2, '0')} ${shortMonths[date.getUTCMonth()] ?? ''}`;
 }
 
 function isSameDay(left: Date, right: Date): boolean {
@@ -136,6 +142,35 @@ function messageDashboardAdapter(): DashboardMessageSummary[] {
 
 function noticeDashboardAdapter(): DashboardNoticeSummary[] {
   return [];
+}
+
+function DashboardAction({ href, icon, label }: { href: Route; icon: ReactNode; label: string }) {
+  return (
+    <Link className="head-action" href={href}>
+      <span className="head-action__content">
+        {icon}
+        <span>{label}</span>
+      </span>
+      <ArrowRight aria-hidden="true" size={16} />
+    </Link>
+  );
+}
+
+function AttendanceSummary({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: 'amber' | 'green' | 'red';
+  value: number;
+}) {
+  return (
+    <div className={`attendance-summary attendance-summary--${tone}`}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
 }
 
 function emptyAvailabilityRow(): AvailabilityDraft {
@@ -186,7 +221,7 @@ export function SupervisorDashboardClient({
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const utils = api.useUtils();
 
-  const usesStudentRoster = view === 'attendance' || view === 'behaviour' || view === 'pace';
+  const usesStudentRoster = view === 'dashboard' || view === 'attendance' || view === 'behaviour' || view === 'pace';
   const usesRota = view === 'dashboard' || view === 'rota';
 
   const attendanceRosterQuery = api.attendance.forDate.useQuery(
@@ -320,6 +355,12 @@ export function SupervisorDashboardClient({
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
   const dashboardMessages = useMemo(() => messageDashboardAdapter(), []);
   const dashboardNotices = useMemo(() => noticeDashboardAdapter(), []);
+  const presentCount = rosterRows.filter((row) => row.status === 'Present').length;
+  const absentCount = rosterRows.filter((row) => row.status === 'Absent').length;
+  const lateCount = rosterRows.filter((row) => row.status === 'Late').length;
+  const totalStudents = rosterRows.length;
+  const openItems = dashboardMessages.length + mySwapRequests.length;
+  const unreadNotices = dashboardNotices.filter((notice) => !notice.read).length;
 
   function handleStudentChange(studentId: string): void {
     setSelectedStudentId(studentId);
@@ -360,68 +401,129 @@ export function SupervisorDashboardClient({
 
   if (view === 'dashboard') {
     return (
-      <div className="supervisor-dashboard-overview" aria-label="Supervisor daily overview">
-        <section className="panel panel__body supervisor-week-panel">
-          <div className="section-title">
-            <div>
-              <h2>This week</h2>
-              <p className="muted">
-                {dateKey(weekStart)} to {dateKey(weekEnd)}
-              </p>
-            </div>
-            <Link className="button button--secondary button--sm" href="/supervisor/rota">
-              Open rota
-            </Link>
+      <div className="supervisor-dashboard-home" aria-label="Supervisor daily overview">
+        <div className="dashboard-hero">
+          <p>{formatDate(date)} · Supervisor workspace</p>
+          <h1>Good morning, Supervisor</h1>
+          <span>Daily workflow · Oasis Learning Centre</span>
+        </div>
+
+        <section className="dashboard-grid dashboard-grid--hero" aria-label="Supervisor dashboard summary">
+          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#166534' } as CSSProperties}>
+            <p className="stat-card__label">Present today</p>
+            <p className="stat-card__value">
+              {presentCount}/{totalStudents}
+            </p>
+            <p className="stat-card__sub">
+              {absentCount} absent · {lateCount} late
+            </p>
           </div>
-
-          {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
-          <div className="supervisor-week-grid">
-            {weekDays.map((dayItem) => {
-              const dayKey = dateKey(dayItem);
-              const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
-              const isToday = isSameDay(dayItem, date);
-              const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
-              const className = [
-                'supervisor-day-card',
-                isToday ? 'is-today' : undefined,
-                isPast ? 'is-past' : undefined,
-                shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
-              ]
-                .filter(Boolean)
-                .join(' ');
-
-              return (
-                <article className={className} key={dayKey}>
-                  <div className="supervisor-day-card__head">
-                    <span>{dayLabel(dayItem)}</span>
-                    <strong>{dayNumber(dayItem)}</strong>
-                  </div>
-                  {shiftsForDay.length === 0 ? (
-                    <p className="supervisor-day-card__empty">No shift scheduled</p>
-                  ) : (
-                    <div className="supervisor-day-card__shifts">
-                      {shiftsForDay.map((shift) => (
-                        <div className="supervisor-day-shift" key={shift.id}>
-                          <span
-                            aria-hidden="true"
-                            className="supervisor-day-shift__swatch"
-                            style={{ backgroundColor: shift.bandColour ?? undefined } as CSSProperties}
-                          />
-                          <div>
-                            <strong>
-                              {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
-                            </strong>
-                            <span>{shift.bandName ?? 'Unassigned band'}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#5B90C5' } as CSSProperties}>
+            <p className="stat-card__label">Today&apos;s shifts</p>
+            <p className="stat-card__value">{todayShifts.length}</p>
+            <p className="stat-card__sub">assigned to you</p>
+          </div>
+          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#92400E' } as CSSProperties}>
+            <p className="stat-card__label">Open items</p>
+            <p className="stat-card__value">{openItems}</p>
+            <p className="stat-card__sub">messages and swaps</p>
+          </div>
+          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#8B1E2D' } as CSSProperties}>
+            <p className="stat-card__label">Notices</p>
+            <p className="stat-card__value">{unreadNotices}</p>
+            <p className="stat-card__sub">unread notices</p>
           </div>
         </section>
+
+        <div className="head-dashboard-layout">
+          <section className="panel panel__body supervisor-week-panel">
+            <div className="section-title">
+              <div>
+                <h2>This week</h2>
+                <p className="muted">
+                  {dateKey(weekStart)} to {dateKey(weekEnd)}
+                </p>
+              </div>
+              <Link className="button button--secondary button--sm" href="/supervisor/rota">
+                Open rota
+              </Link>
+            </div>
+
+            {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
+            <div className="supervisor-week-grid">
+              {weekDays.map((dayItem) => {
+                const dayKey = dateKey(dayItem);
+                const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
+                const isToday = isSameDay(dayItem, date);
+                const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
+                const className = [
+                  'supervisor-day-card',
+                  isToday ? 'is-today' : undefined,
+                  isPast ? 'is-past' : undefined,
+                  shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+
+                return (
+                  <article className={className} key={dayKey}>
+                    <div className="supervisor-day-card__head">
+                      <span>{dayLabel(dayItem)}</span>
+                      <strong>{dayNumber(dayItem)}</strong>
+                    </div>
+                    {shiftsForDay.length === 0 ? (
+                      <p className="supervisor-day-card__empty">No shift scheduled</p>
+                    ) : (
+                      <div className="supervisor-day-card__shifts">
+                        {shiftsForDay.map((shift) => (
+                          <div className="supervisor-day-shift" key={shift.id}>
+                            <span
+                              aria-hidden="true"
+                              className="supervisor-day-shift__swatch"
+                              style={{ backgroundColor: shift.bandColour ?? undefined } as CSSProperties}
+                            />
+                            <div>
+                              <strong>
+                                {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
+                              </strong>
+                              <span>{shift.bandName ?? 'Unassigned band'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          <aside className="head-dashboard-side">
+            <section className="panel panel__body">
+              <div className="section-title">
+                <h2>Quick Actions</h2>
+              </div>
+              <div className="head-action-list">
+                <DashboardAction href="/supervisor/attendance" icon={<ClipboardCheck size={16} />} label="Mark Attendance" />
+                <DashboardAction href="/supervisor/behaviour" icon={<Star size={16} />} label="Log Behaviour" />
+                <DashboardAction href="/supervisor/pace" icon={<BookOpenCheck size={16} />} label="Record PACE Score" />
+                <DashboardAction href="/supervisor/snapshot" icon={<FileText size={16} />} label="Child Snapshot" />
+              </div>
+            </section>
+
+            <section className="panel panel__body">
+              <div className="section-title">
+                <h2>Attendance Today</h2>
+              </div>
+              <div className="attendance-summary-grid">
+                <AttendanceSummary label="Present" tone="green" value={presentCount} />
+                <AttendanceSummary label="Absent" tone="red" value={absentCount} />
+                <AttendanceSummary label="Late" tone="amber" value={lateCount} />
+              </div>
+              {attendanceRosterQuery.error ? <p className="status--error">{attendanceRosterQuery.error.message}</p> : null}
+            </section>
+          </aside>
+        </div>
 
         <section className="panel panel__body supervisor-dashboard-card">
           <div className="section-title">

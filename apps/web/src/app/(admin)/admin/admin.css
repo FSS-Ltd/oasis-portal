@@ -278,7 +278,7 @@
 }
 
 .stat-card {
-  border-top: 3px solid var(--accent, var(--oasis-blue));
+  border-top: 4px solid var(--accent, var(--oasis-blue));
 }
 
 .head-stat-card {
@@ -428,6 +428,13 @@
 
 .head-action svg {
   color: var(--oasis-blue);
+}
+
+.head-action__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .attendance-summary-grid {
