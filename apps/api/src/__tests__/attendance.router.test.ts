@@ -22,6 +22,18 @@ const attendanceExporterUser: SessionUser = {
   tags: ['attendance-exporter'],
   requires2fa: false,
 };
+const attendanceRecorderUser: SessionUser = {
+  id: 'ckuserrecord000000000001',
+  role: 'Supervisor',
+  tags: ['attendance-recorder'],
+  requires2fa: false,
+};
+const principalUser: SessionUser = {
+  id: 'ckuserprincipal000000001',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
 const parentUser: SessionUser = {
   id: 'ckuserparent000000000001',
   role: 'Parent',
@@ -485,7 +497,7 @@ describe('attendance.forDate', () => {
 describe('attendance.mark', () => {
   it('upserts by student/date and audits create then update', async () => {
     const { db, attendance } = makeFakeDb();
-    const caller = makeCaller(supervisorUser, db);
+    const caller = makeCaller(attendanceRecorderUser, db);
 
     await expect(
       caller.attendance.mark({
@@ -498,7 +510,7 @@ describe('attendance.mark', () => {
       studentId: activeStudentId,
       date: '2026-04-29',
       status: 'Present',
-      recordedById: supervisorUser.id,
+      recordedById: attendanceRecorderUser.id,
     });
     await expect(
       caller.attendance.mark({
@@ -517,7 +529,7 @@ describe('attendance.mark', () => {
     expect(attendance[0]).toMatchObject({ studentId: activeStudentId, status: 'Late' });
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
-        userId: supervisorUser.id,
+        userId: attendanceRecorderUser.id,
         action: 'Create',
         entity: 'Attendance',
         entityId: 'ckattendance000000000001',
@@ -526,13 +538,48 @@ describe('attendance.mark', () => {
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
-        userId: supervisorUser.id,
+        userId: attendanceRecorderUser.id,
         action: 'Update',
         entity: 'Attendance',
         entityId: 'ckattendance000000000001',
         meta: { studentId: activeStudentId, date: '2026-04-29', status: 'Late' },
       },
     });
+  });
+
+  it('allows Head and attendance-recorder, but denies untagged daily-workflow users', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-29'),
+        status: 'Present',
+      }),
+    ).resolves.toMatchObject({ status: 'Present', recordedById: headUser.id });
+
+    await expect(
+      makeCaller(attendanceRecorderUser, db).attendance.mark({
+        studentId: secondStudentId,
+        date: day('2026-04-29'),
+        status: 'Late',
+      }),
+    ).resolves.toMatchObject({ status: 'Late', recordedById: attendanceRecorderUser.id });
+
+    await expect(
+      makeCaller(supervisorUser, db).attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-30'),
+        status: 'Absent',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(principalUser, db).attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-30'),
+        status: 'Absent',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('denies Parent/Student and rejects missing or inactive students', async () => {

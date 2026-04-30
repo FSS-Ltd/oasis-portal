@@ -1,8 +1,13 @@
 import { CalendarCheck, Download } from 'lucide-react';
+import { canRecordStudentAttendance } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
+import { getFullAdminUser } from '@/components/admin/require-full-admin';
 import { AttendanceRoster } from './attendance-roster';
 
-export default function AttendancePage() {
+export default async function AttendancePage() {
+  const user = await getFullAdminUser();
+  const canRecord = canRecordStudentAttendance(user);
+
   return (
     <MotionPage>
       <div className="page-header">
@@ -22,7 +27,7 @@ export default function AttendancePage() {
           </span>
         </div>
       </div>
-      <AttendanceRoster />
+      <AttendanceRoster canRecord={canRecord} />
     </MotionPage>
   );
 }

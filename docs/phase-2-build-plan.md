@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** In progress - PR-2.11 Behaviour and PACE entry UI
+**Status:** In progress - PR-2.11 follow-up child log and behaviour reporting
 **Last updated:** 2026-04-30
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -26,6 +26,12 @@ Phase 2 turns that foundation into the daily staff workflow:
   test score entry.
 - Configurable PACE test-limit rules with supervisor warnings and hard blocks.
 - Supervisor home screen with quick actions.
+- Head-only-by-default attendance marking with a temporary attendance-recorder
+  permission tag.
+- Child notes and child snapshot view with Sensitive note visibility controlled
+  by Head or the sensitive-note-viewer tag.
+- Head behaviour reporting with daily merits and daily/weekly/monthly trends,
+  grantable through the behaviour-viewer tag.
 - Thin mobile supervisor smoke flow after the web workflow is stable.
 
 The Phase 2 scope deliberately excludes Parent portal, messaging, noticeboard,
@@ -625,6 +631,71 @@ Tests:
   subject advance.
 - Playwright flow shows daily-limit warnings and blocked-state messages.
 
+### PR-2.11a - `fix(web): attendance recorder RBAC and Supervisor copy` 🚧 IN PROGRESS
+
+Branch: `fix/phase-2-pr2.11a-attendance-supervisor-rbac`
+
+Scope:
+
+- Add permission tags `attendance-recorder`, `sensitive-note-viewer`, and
+  `behaviour-viewer`.
+- Restrict student attendance marking to Head or `attendance-recorder`, while
+  preserving existing attendance reads and `attendance-exporter` CSV access.
+- Treat HeadOfDiscipline as having default behaviour-report access.
+- Rename visible Supervisor daily-workflow shell copy from Staff Portal to
+  Supervisor Portal without renaming internal staff/rota concepts.
+
+Tests:
+
+- Head can mark attendance without a tag.
+- Tagged Supervisor can mark attendance.
+- Untagged Supervisor and untagged full-admin roles other than Head cannot mark.
+- Existing attendance reads and exports remain intact.
+- Tag validation accepts the new permission tags.
+
+### PR-2.11b - `feat(web): child notes and snapshot` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.11b-child-notes-snapshot`
+
+Scope:
+
+- Add encrypted `ChildNote` records tied to a student and author.
+- Add `childNotes.create`, `childNotes.listForStudent`, and
+  `childLog.snapshot`.
+- Add Head/admin and Supervisor snapshot screens with child dropdown, previous
+  day default, previous week, and custom range.
+- Snapshot includes passed final PACE tests, merits/demerits, Late attendance,
+  and visible child notes.
+- Sensitive child notes are visible only to Head or `sensitive-note-viewer`.
+
+Tests:
+
+- Child notes are encrypted at rest and retain author/student linkage.
+- Sensitive notes are filtered for untagged Supervisors and visible to Head or
+  tagged viewers.
+- Snapshot returns tardiness, passed tests, behaviour, and visible notes for the
+  selected child/range.
+
+### PR-2.11c - `feat(web): Head behaviour reporting` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.11c-head-behaviour-reporting`
+
+Scope:
+
+- Add `behaviour.dailyMerits` and `behaviour.trends`.
+- Add `/admin/behaviour` with a daily merits list and daily/weekly/monthly
+  trend chart.
+- Gate access to Head, HeadOfDiscipline, or users tagged `behaviour-viewer`.
+- Preserve existing Sensitive behaviour note visibility; reports do not expose
+  Sensitive note text.
+
+Tests:
+
+- Head and HeadOfDiscipline can access behaviour reporting.
+- Tagged users can call the reporting APIs; untagged Supervisors are denied.
+- Daily merits and trend grouping return correct totals without leaking
+  Sensitive note text.
+
 ---
 
 ## Sprint 4 - Mobile smoke, attendance export, and phase verification
@@ -720,6 +791,12 @@ Tests:
 - The `attendance-exporter` tag grants CSV export access only; it does not grant
   broader attendance editing, student management, rota scheduling, or Sensitive
   behaviour access.
+- Student attendance marking is Head-only by default and temporarily grantable
+  through `attendance-recorder`.
+- Sensitive child notes are visible to Head and temporarily grantable through
+  `sensitive-note-viewer`.
+- Behaviour reporting is visible to Head, HeadOfDiscipline, and users tagged
+  `behaviour-viewer`.
 - Rota colours belong to configured year-group bands, not individual staff
   members.
 - Test-limit rules apply only to recorded PACE tests, not attendance or

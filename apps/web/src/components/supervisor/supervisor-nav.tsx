@@ -17,7 +17,7 @@ const navItems = [
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
   { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays, enabled: true },
-  { href: '/supervisor', label: 'Notes', icon: ClipboardList, enabled: false },
+  { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList, enabled: true },
 ] as const;
 
 function isActiveRoute(pathname: string, href: string, label: string) {

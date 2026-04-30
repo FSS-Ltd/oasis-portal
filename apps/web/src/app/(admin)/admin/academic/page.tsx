@@ -1,8 +1,11 @@
 import { BookOpen } from 'lucide-react';
 import { MotionPage } from '@/components/admin/motion';
+import { assertFullAdmin } from '@/components/admin/require-full-admin';
 import { AcademicSettingsClient } from './academic-settings-client';
 
-export default function AcademicSettingsPage() {
+export default async function AcademicSettingsPage() {
+  await assertFullAdmin();
+
   return (
     <MotionPage>
       <div className="page-header">

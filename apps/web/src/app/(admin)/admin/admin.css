@@ -672,6 +672,68 @@
   color: var(--oasis-danger);
 }
 
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.snapshot-section {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.snapshot-section h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+}
+
+.snapshot-section p {
+  margin: 0 0 6px;
+  color: var(--oasis-text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.behaviour-report-controls {
+  margin-bottom: 16px;
+}
+
+.behaviour-chart {
+  display: grid;
+  gap: 10px;
+}
+
+.behaviour-chart__row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) 100px;
+  gap: 10px;
+  align-items: center;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+}
+
+.behaviour-chart__track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--oasis-border-light);
+}
+
+.behaviour-chart__bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--oasis-blue);
+}
+
 .pace-subject-row {
   grid-template-columns: minmax(150px, 0.32fr) minmax(0, 1fr);
 }
@@ -1634,7 +1696,12 @@
   .supervisor-workflow-grid,
   .pace-subject-row,
   .rota-layout,
+  .snapshot-grid,
   .policy-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .behaviour-chart__row {
     grid-template-columns: 1fr;
   }
 

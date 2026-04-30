@@ -1,7 +1,17 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { AccessDeniedError, hasTag, isFullAdmin, isStaff, type SessionUser } from '@oasis/domain';
+import {
+  AccessDeniedError,
+  canRecordStudentAttendance,
+  hasTag,
+  isFullAdmin,
+  isStaff,
+  type SessionUser,
+} from '@oasis/domain';
+import type { AppContext } from '../context.js';
 import { authedProcedure, fullAdminProcedure, roleProcedure, router } from '../trpc.js';
+
+type AuthedContext = AppContext & { user: SessionUser };
 
 const ATTENDANCE_ROLES = [
   'Head',
@@ -61,6 +71,20 @@ function requireCanExportAttendance(user: SessionUser): void {
     message: 'attendance export requires full-admin or attendance-exporter',
     cause: new AccessDeniedError('attendance export requires full-admin or attendance-exporter'),
   });
+}
+
+async function requireCanRecordAttendance(ctx: AuthedContext): Promise<void> {
+  if (canRecordStudentAttendance(ctx.user)) return;
+  const denied = new AccessDeniedError('attendance recording requires Head or attendance-recorder');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'attendance.mark',
+      meta: { role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
 async function assertActiveStaffUser(
@@ -162,6 +186,7 @@ export const attendanceRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },

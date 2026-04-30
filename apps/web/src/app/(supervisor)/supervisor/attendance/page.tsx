@@ -1,4 +1,4 @@
-import { hasTag, isFullAdmin } from '@oasis/domain';
+import { canRecordStudentAttendance, hasTag, isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getStaffUser } from '@/components/admin/require-full-admin';
 import { SupervisorDashboardClient } from '../supervisor-dashboard-client';
@@ -6,6 +6,7 @@ import { SupervisorDashboardClient } from '../supervisor-dashboard-client';
 export default async function SupervisorAttendancePage() {
   const user = await getStaffUser();
   const canExportAttendance = isFullAdmin(user) || hasTag(user, 'attendance-exporter');
+  const canRecordAttendance = canRecordStudentAttendance(user);
 
   return (
     <MotionPage>
@@ -16,7 +17,11 @@ export default async function SupervisorAttendancePage() {
           <p>Mark the daily register and export attendance where your role allows it.</p>
         </div>
       </div>
-      <SupervisorDashboardClient canExportAttendance={canExportAttendance} view="attendance" />
+      <SupervisorDashboardClient
+        canExportAttendance={canExportAttendance}
+        canRecordAttendance={canRecordAttendance}
+        view="attendance"
+      />
     </MotionPage>
   );
 }

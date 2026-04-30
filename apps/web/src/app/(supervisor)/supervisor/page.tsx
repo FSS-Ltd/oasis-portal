@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardCheck, GraduationCap, Star } from 'lucide-react';
+import { CalendarDays, ClipboardCheck, FileText, GraduationCap, Star } from 'lucide-react';
 import { hasTag, isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getStaffUser } from '@/components/admin/require-full-admin';
@@ -28,6 +28,12 @@ const quickActions = [
     label: 'Rota',
     description: 'Your shifts and availability',
     icon: CalendarDays,
+  },
+  {
+    href: '/supervisor/snapshot',
+    label: 'Snapshot',
+    description: 'Review a child log',
+    icon: FileText,
   },
 ] as const;
 

@@ -30,6 +30,7 @@ type Band = {
 
 type AttendanceCaptureProps = {
   canExport: boolean;
+  canRecord?: boolean;
   emptyMessage?: string;
   selectedDate?: string;
   onSelectedDateChange?: (date: string) => void;
@@ -71,6 +72,7 @@ function bandForRow(row: Pick<AttendanceRow, 'yearGroup'>, bands: readonly Band[
 
 export function AttendanceCapture({
   canExport,
+  canRecord = true,
   emptyMessage = 'Create active students before recording attendance.',
   selectedDate: controlledSelectedDate,
   onSelectedDateChange,
@@ -220,9 +222,11 @@ export function AttendanceCapture({
                   <th>Date</th>
                   <th>Status</th>
                   <th>Recorded</th>
-                  <th>
-                    <span className="sr-only">Mark attendance</span>
-                  </th>
+                  {canRecord ? (
+                    <th>
+                      <span className="sr-only">Mark attendance</span>
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -271,23 +275,25 @@ export function AttendanceCapture({
                           <span className="muted">Not recorded</span>
                         )}
                       </td>
-                      <td>
-                        <div className="segmented-actions">
-                          {attendanceStatuses.map((status) => (
-                            <Button
-                              className={selectedStatus === status ? 'is-selected' : undefined}
-                              disabled={pending}
-                              key={status}
-                              onClick={() => markAttendance(row, status)}
-                              size="sm"
-                              type="button"
-                              variant={selectedStatus === status ? 'primary' : 'secondary'}
-                            >
-                              {status}
-                            </Button>
-                          ))}
-                        </div>
-                      </td>
+                      {canRecord ? (
+                        <td>
+                          <div className="segmented-actions">
+                            {attendanceStatuses.map((status) => (
+                              <Button
+                                className={selectedStatus === status ? 'is-selected' : undefined}
+                                disabled={pending}
+                                key={status}
+                                onClick={() => markAttendance(row, status)}
+                                size="sm"
+                                type="button"
+                                variant={selectedStatus === status ? 'primary' : 'secondary'}
+                              >
+                                {status}
+                              </Button>
+                            ))}
+                          </div>
+                        </td>
+                      ) : null}
                     </MotionTableRow>
                   );
                 })}

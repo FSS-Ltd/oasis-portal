@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import {
   AccessDeniedError,
   DEMERIT_COST,
+  canViewBehaviourReports,
   isFullAdmin,
   rowsForDemerit,
   rowsForMerit,
@@ -12,6 +13,8 @@ import type { AppContext } from '../context.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
+
+type TrendBucket = 'daily' | 'weekly' | 'monthly';
 
 function canUseBehaviourWorkflow(user: SessionUser): boolean {
   return isFullAdmin(user) || user.role === 'Supervisor';
@@ -78,7 +81,167 @@ function decryptOptional(
   return decrypt(value);
 }
 
+function normalizeDate(date: Date): Date {
+  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
+function dayEnd(date: Date): Date {
+  const end = normalizeDate(date);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return end;
+}
+
+function dateKey(date: Date): string {
+  return normalizeDate(date).toISOString().slice(0, 10);
+}
+
+function trendKey(date: Date, bucket: TrendBucket): string {
+  const normalized = normalizeDate(date);
+  if (bucket === 'daily') return dateKey(normalized);
+  if (bucket === 'monthly') return `${String(normalized.getUTCFullYear())}-${String(normalized.getUTCMonth() + 1).padStart(2, '0')}`;
+
+  const day = normalized.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  normalized.setUTCDate(normalized.getUTCDate() - daysFromMonday);
+  return dateKey(normalized);
+}
+
+async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string): Promise<void> {
+  if (canViewBehaviourReports(ctx.user)) return;
+  const denied = new AccessDeniedError('behaviour reports require Head or behaviour-viewer');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity,
+      meta: { role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
 export const behaviourRouter = router({
+  dailyMerits: authedProcedure
+    .input(z.object({ date: z.coerce.date() }))
+    .query(async ({ ctx, input }) => {
+      await requireBehaviourReportAccess(ctx, 'behaviour.dailyMerits');
+      const from = normalizeDate(input.date);
+      const to = dayEnd(input.date);
+
+      const rows = await ctx.db.behaviourEntry.findMany({
+        where: {
+          type: 'Merit',
+          createdAt: { gte: from, lt: to },
+        },
+        include: {
+          student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+          recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'BehaviourEntry',
+          meta: { source: 'behaviour.dailyMerits', count: rows.length },
+        },
+      });
+
+      return {
+        date: dateKey(input.date),
+        merits: rows.map((row) => ({
+          id: row.id,
+          studentId: row.studentId,
+          studentName: decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student PII'),
+          yearGroup: row.student.yearGroup,
+          category: row.category,
+          meritDelta: row.meritDelta,
+          visibility: row.visibility,
+          recordedById: row.recordedById,
+          recordedByName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          recordedByRole: row.recordedBy.role,
+          createdAt: row.createdAt,
+        })),
+      };
+    }),
+
+  trends: authedProcedure
+    .input(
+      z
+        .object({
+          bucket: z.enum(['daily', 'weekly', 'monthly']),
+          from: z.coerce.date(),
+          to: z.coerce.date(),
+        })
+        .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
+          message: 'from must be on or before to',
+          path: ['to'],
+        }),
+    )
+    .query(async ({ ctx, input }) => {
+      await requireBehaviourReportAccess(ctx, 'behaviour.trends');
+      const from = normalizeDate(input.from);
+      const to = dayEnd(input.to);
+
+      const rows = await ctx.db.behaviourEntry.findMany({
+        where: {
+          createdAt: { gte: from, lt: to },
+        },
+        select: {
+          id: true,
+          type: true,
+          meritDelta: true,
+          visibility: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      const buckets = new Map<
+        string,
+        {
+          bucket: string;
+          meritCount: number;
+          meritTotal: number;
+          demeritCount: number;
+          demeritTotal: number;
+          sensitiveCount: number;
+        }
+      >();
+
+      for (const row of rows) {
+        const key = trendKey(row.createdAt, input.bucket);
+        const current =
+          buckets.get(key) ??
+          {
+            bucket: key,
+            meritCount: 0,
+            meritTotal: 0,
+            demeritCount: 0,
+            demeritTotal: 0,
+            sensitiveCount: 0,
+          };
+        if (row.type === 'Merit') {
+          current.meritCount += 1;
+          current.meritTotal += row.meritDelta;
+        } else {
+          current.demeritCount += 1;
+          current.demeritTotal += Math.abs(row.meritDelta);
+        }
+        if (row.visibility === 'Sensitive') current.sensitiveCount += 1;
+        buckets.set(key, current);
+      }
+
+      return {
+        bucket: input.bucket,
+        from: dateKey(from),
+        to: dateKey(input.to),
+        points: [...buckets.values()].sort((a, b) => a.bucket.localeCompare(b.bucket)),
+      };
+    }),
+
   listForStudent: authedProcedure
     .input(
       z.object({

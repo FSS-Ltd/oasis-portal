@@ -1,7 +1,10 @@
 import { MotionPage } from '@/components/admin/motion';
+import { assertFullAdmin } from '@/components/admin/require-full-admin';
 import { NewStudentForm } from './new-student-form';
 
-export default function NewStudentPage() {
+export default async function NewStudentPage() {
+  await assertFullAdmin();
+
   return (
     <MotionPage>
       <div className="page-header">

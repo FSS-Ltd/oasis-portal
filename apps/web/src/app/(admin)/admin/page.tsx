@@ -2,8 +2,11 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import { MessageSquare, Plus, ShieldCheck, UserPlus } from 'lucide-react';
 import { MotionPage } from '@/components/admin/motion';
+import { assertFullAdmin } from '@/components/admin/require-full-admin';
 
-export default function AdminIndexPage() {
+export default async function AdminIndexPage() {
+  await assertFullAdmin();
+
   return (
     <MotionPage>
       <div className="page-header">

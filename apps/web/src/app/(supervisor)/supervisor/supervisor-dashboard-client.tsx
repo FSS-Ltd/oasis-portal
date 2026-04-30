@@ -149,10 +149,15 @@ function emptyAvailabilityRow(): AvailabilityDraft {
 
 type SupervisorDashboardClientProps = {
   canExportAttendance: boolean;
+  canRecordAttendance?: boolean;
   view?: 'dashboard' | 'attendance' | 'behaviour' | 'pace' | 'rota';
 };
 
-export function SupervisorDashboardClient({ canExportAttendance, view = 'dashboard' }: SupervisorDashboardClientProps) {
+export function SupervisorDashboardClient({
+  canExportAttendance,
+  canRecordAttendance = false,
+  view = 'dashboard',
+}: SupervisorDashboardClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
@@ -513,6 +518,7 @@ export function SupervisorDashboardClient({ canExportAttendance, view = 'dashboa
           </div>
           <AttendanceCapture
             canExport={canExportAttendance}
+            canRecord={canRecordAttendance}
             emptyMessage="Head of Centre can add students before the daily workflow starts."
             onSelectedDateChange={setSelectedDate}
             selectedDate={selectedDate}
