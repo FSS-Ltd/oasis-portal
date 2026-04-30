@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-29
+**Last updated:** 2026-04-30
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.10 attendance capture UI ready for review.
+**Phase:** PR-2.10a role-aware auth redirects ready for review.
 
 ---
 
@@ -18,7 +18,46 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-2.10 attendance capture UI
+## Current status - PR-2.10a role-aware auth redirects
+
+Working branch: `fix/phase-2-pr2.10a-role-aware-auth-redirects`.
+
+**PR scope:** Route Clerk post-auth traffic through a shared role-aware redirect
+without changing API RBAC, role definitions, or the existing admin and
+Supervisor guards.
+
+Changed scope:
+
+- `apps/web/src/app/post-sign-in/page.tsx` - adds a server-side post-auth route
+  that resolves the Oasis session and sends full-admin users to `/admin`,
+  Supervisors to `/supervisor`, and other valid Phase 2 roles to `/not-ready`.
+- `apps/web/src/app/not-ready/page.tsx` - adds the authenticated fallback page
+  for roles whose portal is not yet available.
+- `apps/web/src/app/(auth)/sign-in/[[...sign-in]]/page.tsx` and
+  `apps/web/src/app/(auth)/sign-up/[[...sign-up]]/page.tsx` - point Clerk
+  redirects at `/post-sign-in` instead of hard-coding `/admin`.
+- `apps/web/src/middleware.ts` - protects `/supervisor`, `/post-sign-in`, and
+  `/not-ready` alongside the existing protected staff/auth routes.
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts` - asserts role-aware landing
+  behavior where credentials are available and adds an unauthenticated
+  `/supervisor` protection smoke test.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm --filter @oasis/web build` - pass; `/post-sign-in`, `/not-ready`, and
+  `/supervisor` appear in the route table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass
+  after installing the missing Playwright Chromium browser; 1 runnable
+  unauthenticated `/supervisor` protection test passed and 5 credential-gated
+  tests skipped because local E2E Head, Supervisor, Exporter, and Parent
+  credentials are not set.
+- `graphify update .` - completed; graphify reported the existing graph
+  node-count warning.
+
+## Previous status - PR-2.10 attendance capture UI
 
 Working branch: `feat/phase-2-pr2.10-attendance-capture-ui`.
 
