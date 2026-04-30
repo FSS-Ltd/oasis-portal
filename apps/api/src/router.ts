@@ -12,6 +12,8 @@ import { healthRouter } from './routers/health.js';
 import { studentRouter } from './routers/student.js';
 import { attendanceRouter } from './routers/attendance.js';
 import { behaviourRouter } from './routers/behaviour.js';
+import { childLogRouter } from './routers/childLog.js';
+import { childNotesRouter } from './routers/childNotes.js';
 import { paceRouter } from './routers/pace.js';
 import { meritLedgerRouter } from './routers/meritLedger.js';
 import { titheRouter } from './routers/tithe.js';
@@ -31,6 +33,8 @@ export const appRouter = router({
   student: studentRouter,
   attendance: attendanceRouter,
   behaviour: behaviourRouter,
+  childLog: childLogRouter,
+  childNotes: childNotesRouter,
   pace: paceRouter,
   meritLedger: meritLedgerRouter,
   tithe: titheRouter,

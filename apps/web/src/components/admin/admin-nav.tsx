@@ -24,7 +24,8 @@ const navItems = [
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
   { href: '/admin/staff', label: 'Staff and parents', icon: UsersRound, badge: undefined },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
-  { href: '/admin', label: 'Behaviour', icon: Star, badge: undefined },
+  { href: '/admin/behaviour', label: 'Behaviour', icon: Star, badge: undefined },
+  { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList, badge: undefined },
   { href: '/admin/academic', label: 'Academics', icon: BookOpen, badge: undefined },
   { href: '/admin', label: 'Merit Shop', icon: ShoppingBag, badge: undefined },
   { href: '/admin', label: 'Reports', icon: BarChart3, badge: undefined },
@@ -34,6 +35,7 @@ const navItems = [
 
 type AdminNavProps = {
   canViewAudit: boolean;
+  fullAdmin: boolean;
 };
 
 function isActiveRoute(pathname: string, href: string, label: string) {
@@ -44,9 +46,12 @@ function isActiveRoute(pathname: string, href: string, label: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminSidebarNav({ canViewAudit }: AdminNavProps) {
+export function AdminSidebarNav({ canViewAudit, fullAdmin }: AdminNavProps) {
   const pathname = usePathname();
-  const visibleNavItems = navItems.filter((item) => item.label !== 'Audit' || canViewAudit);
+  const visibleNavItems = navItems.filter((item) => {
+    if (!fullAdmin) return item.label === 'Behaviour';
+    return item.label !== 'Audit' || canViewAudit;
+  });
 
   return (
     <nav className="admin-shell__nav">
@@ -80,9 +85,14 @@ export function AdminSidebarNav({ canViewAudit }: AdminNavProps) {
   );
 }
 
-export function AdminBottomNav({ canViewAudit }: AdminNavProps) {
+export function AdminBottomNav({ canViewAudit, fullAdmin }: AdminNavProps) {
   const pathname = usePathname();
-  const mobileNavItems = navItems.filter((item) => item.label !== 'Audit' || canViewAudit).slice(0, 5);
+  const mobileNavItems = navItems
+    .filter((item) => {
+      if (!fullAdmin) return item.label === 'Behaviour';
+      return item.label !== 'Audit' || canViewAudit;
+    })
+    .slice(0, 5);
 
   return (
     <nav aria-label="Mobile admin sections" className="admin-shell__bottom-nav">

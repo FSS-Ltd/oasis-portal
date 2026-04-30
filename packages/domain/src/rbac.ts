@@ -8,7 +8,8 @@
  * - Student: self only.
  *
  * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`,
- * `attendance-exporter`, `audit-viewer`.
+ * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
+ * `sensitive-note-viewer`, `behaviour-viewer`.
  */
 
 export const ROLES = [
@@ -29,7 +30,10 @@ export const PERMISSION_TAGS = [
   'shopadmin',
   'leaderboard-admin',
   'attendance-exporter',
+  'attendance-recorder',
   'audit-viewer',
+  'sensitive-note-viewer',
+  'behaviour-viewer',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
@@ -88,6 +92,18 @@ export function requireTag(user: SessionUser, tag: PermissionTag): void {
   if (!hasTag(user, tag)) {
     throw new AccessDeniedError(`missing tag "${tag}"`);
   }
+}
+
+export function canRecordStudentAttendance(user: SessionUser): boolean {
+  return user.role === 'Head' || hasTag(user, 'attendance-recorder');
+}
+
+export function canViewSensitiveChildNotes(user: SessionUser): boolean {
+  return user.role === 'Head' || hasTag(user, 'sensitive-note-viewer');
+}
+
+export function canViewBehaviourReports(user: SessionUser): boolean {
+  return user.role === 'Head' || user.role === 'HeadOfDiscipline' || hasTag(user, 'behaviour-viewer');
 }
 
 export function requireClubsAdminOrFullAdmin(user: SessionUser): void {

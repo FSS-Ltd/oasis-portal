@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   AccessDeniedError,
+  canRecordStudentAttendance,
+  canViewBehaviourReports,
+  canViewSensitiveChildNotes,
   isFullAdmin,
   requireCanViewSensitive,
   requireClubsAdminOrFullAdmin,
@@ -65,6 +68,28 @@ describe('requireTag', () => {
   });
   it('rejects users without the tag', () => {
     expect(() => { requireTag(supervisor, 'shopkeeper'); }).toThrow(AccessDeniedError);
+  });
+});
+
+describe('workflow tags', () => {
+  it('limits attendance recording to Head or attendance-recorder', () => {
+    expect(canRecordStudentAttendance(head)).toBe(true);
+    expect(canRecordStudentAttendance(supervisor)).toBe(false);
+    expect(canRecordStudentAttendance({ ...supervisor, tags: ['attendance-recorder'] })).toBe(true);
+    expect(canRecordStudentAttendance(principal)).toBe(false);
+  });
+
+  it('limits sensitive child notes to Head or sensitive-note-viewer', () => {
+    expect(canViewSensitiveChildNotes(head)).toBe(true);
+    expect(canViewSensitiveChildNotes(supervisor)).toBe(false);
+    expect(canViewSensitiveChildNotes({ ...supervisor, tags: ['sensitive-note-viewer'] })).toBe(true);
+  });
+
+  it('lets HeadOfDiscipline use behaviour reports by default', () => {
+    expect(canViewBehaviourReports(head)).toBe(true);
+    expect(canViewBehaviourReports(hod)).toBe(true);
+    expect(canViewBehaviourReports(supervisor)).toBe(false);
+    expect(canViewBehaviourReports({ ...supervisor, tags: ['behaviour-viewer'] })).toBe(true);
   });
 });
 

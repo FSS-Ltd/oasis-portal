@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-30
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.11 Behaviour and PACE entry UI in progress.
+**Phase:** PR-2.11 follow-up child log and behaviour reporting in progress.
 
 ---
 
@@ -18,7 +18,48 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-2.11 Behaviour and PACE entry UI
+## Current status - PR-2.11 follow-up child log and behaviour reporting
+
+Working branch: `fix/phase-2-pr2.11a-attendance-supervisor-rbac`.
+
+**PR scope:** Implement the requested follow-up work between PR-2.11 and
+PR-2.12: attendance recorder RBAC/tag changes, child notes/snapshot, and Head
+behaviour reporting. The local branch contains the stacked PR-2.11a/2.11b/2.11c
+scope until it is split or reviewed.
+
+Changed scope:
+
+- Added permission tags `attendance-recorder`, `sensitive-note-viewer`, and
+  `behaviour-viewer`.
+- Restricted student attendance marking to Head or `attendance-recorder`, while
+  preserving existing attendance reads and `attendance-exporter` CSV access.
+- Renamed the visible Supervisor daily-workflow shell copy from Staff Portal to
+  Supervisor Portal.
+- Added encrypted `ChildNote` storage, `childNotes.create`,
+  `childNotes.listForStudent`, and `childLog.snapshot`.
+- Added `/admin/snapshot` and `/supervisor/snapshot` with child dropdown,
+  previous-day default range, previous-week/custom range options, child note
+  creation, and snapshot sections for passed tests, behaviour, tardiness, and
+  notes.
+- Added `behaviour.dailyMerits`, `behaviour.trends`, and `/admin/behaviour`
+  with daily merit activity plus daily/weekly/monthly trend chart.
+- Gated behaviour reporting to Head, HeadOfDiscipline, or `behaviour-viewer`.
+- Kept Sensitive behaviour note text out of reporting responses, and filtered
+  Sensitive child notes to Head or `sensitive-note-viewer`.
+
+Verification so far:
+
+- `pnpm db:generate` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts` - pass, 103 tests because
+  the package suite runs.
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts` - pass, 128
+  tests because the API suite runs.
+- `pnpm --filter @oasis/api test -- childNotes.router.test.ts` - pass, 130
+  tests because the API suite runs.
+
+## Previous status - PR-2.11 Behaviour and PACE entry UI
 
 Working branch: `feat/phase-2-pr2.11-behaviour-pace-entry-ui`.
 

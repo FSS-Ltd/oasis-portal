@@ -26,7 +26,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
               width={180}
             />
           </div>
-          <p>Staff Portal</p>
+          <p>Supervisor Portal</p>
           <strong>{roleLabel}</strong>
           <span>Daily workflow</span>
         </div>
@@ -42,7 +42,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <Link className="admin-shell__mobile-brand" href="/supervisor">
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
-              <small>Staff Portal</small>
+              <small>Supervisor Portal</small>
               <strong>{roleLabel}</strong>
             </span>
           </Link>

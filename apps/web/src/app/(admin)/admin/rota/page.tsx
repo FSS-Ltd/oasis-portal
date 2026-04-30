@@ -1,8 +1,11 @@
 import { CalendarDays, UsersRound } from 'lucide-react';
 import { MotionPage } from '@/components/admin/motion';
+import { assertFullAdmin } from '@/components/admin/require-full-admin';
 import { RotaSchedulerClient } from './rota-scheduler-client';
 
-export default function RotaPage() {
+export default async function RotaPage() {
+  await assertFullAdmin();
+
   return (
     <MotionPage>
       <div className="page-header">

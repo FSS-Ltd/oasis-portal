@@ -2,6 +2,6 @@
 
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 
-export function AttendanceRoster() {
-  return <AttendanceCapture canExport />;
+export function AttendanceRoster({ canRecord }: { canRecord: boolean }) {
+  return <AttendanceCapture canExport canRecord={canRecord} />;
 }

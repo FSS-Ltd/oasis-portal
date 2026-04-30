@@ -49,6 +49,7 @@ model User {
   guardianOf         Guardian[]
   studentProfile     Student?           @relation("StudentLogin")
   behaviourEntries   BehaviourEntry[]   @relation("RecordedBehaviour")
+  childNotesCreated   ChildNote[]        @relation("ChildNotesCreated")
   paceRecords        PaceRecord[]       @relation("RecordedPace")
   attendanceRecords  Attendance[]       @relation("RecordedAttendance")
   availabilityWindows StaffAvailabilityWindow[] @relation("StaffAvailability")
@@ -98,6 +99,7 @@ model Student {
   paceRecords   PaceRecord[]
   attendance    Attendance[]
   behaviour     BehaviourEntry[]
+  childNotes    ChildNote[]
   meritLedger   MeritLedger[]
   titheConfig   TitheConfig?
   titheRuns     TitheRun[]
@@ -318,6 +320,23 @@ model BehaviourEntry {
 
   @@index([studentId, createdAt])
   @@index([visibility])
+}
+
+model ChildNote {
+  id          String   @id @default(cuid())
+  studentId   String
+  noteEnc     String
+  sensitive   Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student   Student @relation(fields: [studentId], references: [id])
+  createdBy User    @relation("ChildNotesCreated", fields: [createdById], references: [id])
+
+  @@index([studentId, createdAt])
+  @@index([sensitive])
+  @@index([createdById, createdAt])
 }
 
 // ---------------------------------------------------------------------------

@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { MotionPage } from '@/components/admin/motion';
+import { assertFullAdmin } from '@/components/admin/require-full-admin';
 import { StudentsList } from './students-list';
 
-export default function StudentsPage() {
+export default async function StudentsPage() {
+  await assertFullAdmin();
+
   return (
     <MotionPage>
       <div className="page-header">

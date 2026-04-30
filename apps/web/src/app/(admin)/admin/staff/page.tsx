@@ -1,8 +1,11 @@
 import { MotionPage } from '@/components/admin/motion';
+import { assertFullAdmin } from '@/components/admin/require-full-admin';
 import { InviteUserForm } from './invite-user-form';
 import { UserTagManager } from './user-tag-manager';
 
-export default function StaffPage() {
+export default async function StaffPage() {
+  await assertFullAdmin();
+
   return (
     <MotionPage>
       <div className="page-header">
