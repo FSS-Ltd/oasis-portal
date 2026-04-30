@@ -1,6 +1,6 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.10a Role-aware auth redirects
+**Status:** In progress - PR-2.11 Behaviour and PACE entry UI
 **Last updated:** 2026-04-30
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -477,9 +477,11 @@ Verification:
 - `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` → 3 tests
   skipped because local E2E Head, Supervisor, and Parent credentials are not set.
 
-### PR-2.10 - `feat(web): attendance capture UI` ✅ READY FOR REVIEW
+### PR-2.10 - `feat(web): attendance capture UI` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.10-attendance-capture-ui`
+
+Merged via PR #34 on 2026-04-30.
 
 Scope:
 
@@ -533,9 +535,11 @@ Verification:
   against `/`, `/supervisor`, and `/admin/attendance` timed out in this
   sandbox after compiling middleware.
 
-### PR-2.10a - `fix(web): role-aware auth redirects` ✅ READY FOR REVIEW
+### PR-2.10a - `fix(web): role-aware auth redirects` ✅ MERGED
 
 Branch: `fix/phase-2-pr2.10a-role-aware-auth-redirects`
+
+Merged via PR #35 on 2026-04-30.
 
 Scope:
 
@@ -582,10 +586,20 @@ Verification:
 - `graphify update .` → completed; graphify reported the existing graph
   node-count warning.
 
-### PR-2.11 - `feat(web): behaviour and PACE entry UI` ⏳ PLANNED
+### PR-2.11 - `feat(web): behaviour and PACE entry UI` 🚧 IN PROGRESS
+
+Branch: `feat/phase-2-pr2.11-behaviour-pace-entry-ui`
 
 Scope:
 
+- Keep `/supervisor` as a quick overview and action launcher, not the place
+  where all daily work is completed.
+- Replace duplicate dashboard stat cards with a weekly schedule, pending
+  messages/swap requests, and admin notices.
+- Add staff-visible `rota.mySwapRequests` for pending swap requests involving
+  the current staff user.
+- Add focused Supervisor routes for `/supervisor/attendance`,
+  `/supervisor/behaviour`, `/supervisor/pace`, and `/supervisor/rota`.
 - Add behaviour form with General/Sensitive toggle, category, note,
   Merit/Demerit handling, and amount for Merit only.
 - Add PACE form with subject, PACE number, test type, score, and completion
@@ -597,6 +611,13 @@ Scope:
 
 Tests:
 
+- Dashboard smoke confirms only quick overview/action cards render on
+  `/supervisor`.
+- Dashboard smoke confirms the current day is highlighted, past days are greyed,
+  unscheduled days show a muted empty state, and scheduled shifts show time plus
+  year-group band.
+- API tests confirm staff can read only their own pending swap requests and
+  non-staff roles are denied.
 - Playwright flow logs General behaviour and sees it in the student activity.
 - Playwright flow logs Sensitive behaviour as Supervisor and does not see the
   Sensitive row afterward.

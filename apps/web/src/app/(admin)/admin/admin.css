@@ -313,6 +313,153 @@
   font-size: 0.74rem;
 }
 
+.supervisor-dashboard-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.38fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.supervisor-week-panel {
+  grid-row: span 2;
+}
+
+.supervisor-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.supervisor-day-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 170px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.supervisor-day-card.is-today {
+  border-color: rgba(91, 144, 197, 0.58);
+  background: #f4f9ff;
+  box-shadow: inset 0 3px 0 var(--oasis-blue);
+}
+
+.supervisor-day-card.is-past {
+  background: #f1f4f9;
+  color: var(--oasis-text-muted);
+  opacity: 0.72;
+}
+
+.supervisor-day-card.is-unscheduled {
+  border-style: dashed;
+}
+
+.supervisor-day-card__head {
+  display: grid;
+  gap: 2px;
+}
+
+.supervisor-day-card__head span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.supervisor-day-card__head strong {
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+}
+
+.supervisor-day-card__empty {
+  margin: auto 0;
+  color: var(--oasis-text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.supervisor-day-card__shifts,
+.supervisor-dashboard-list {
+  display: grid;
+  gap: 8px;
+}
+
+.supervisor-day-shift {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.supervisor-day-shift__swatch {
+  width: 8px;
+  min-height: 100%;
+  border-radius: 999px;
+  background: var(--oasis-blue);
+}
+
+.supervisor-day-shift strong,
+.dashboard-list-row strong {
+  display: block;
+  color: var(--oasis-navy);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.supervisor-day-shift span,
+.dashboard-list-row span,
+.dashboard-list-row small {
+  display: block;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.supervisor-dashboard-card {
+  display: grid;
+  gap: 16px;
+}
+
+.supervisor-dashboard-list h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dashboard-list-row,
+.dashboard-empty-state {
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.dashboard-list-row.is-unread {
+  border-color: rgba(91, 144, 197, 0.34);
+  background: #f4f9ff;
+}
+
+.dashboard-empty-state {
+  color: var(--oasis-text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
 .supervisor-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.42fr);
@@ -402,6 +549,136 @@
 .supervisor-submit {
   width: 100%;
   margin-top: 14px;
+}
+
+.supervisor-workflow {
+  display: grid;
+  gap: 16px;
+}
+
+.supervisor-selected-student {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 0.35fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.student-context-card,
+.pace-student-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+}
+
+.student-context-card {
+  display: grid;
+  gap: 2px;
+}
+
+.student-context-card strong,
+.pace-student-summary strong {
+  color: var(--oasis-navy);
+}
+
+.supervisor-workflow-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.38fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.textarea {
+  min-height: 104px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
+.activity-list,
+.pace-subject-list {
+  display: grid;
+  gap: 10px;
+}
+
+.activity-list h3,
+.pace-subject-list h3 {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.activity-row,
+.pace-subject-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.activity-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.activity-row strong,
+.pace-subject-row strong {
+  display: block;
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.activity-row span,
+.pace-subject-row span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+}
+
+.activity-row p {
+  margin: 6px 0 0;
+  color: var(--oasis-text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.pace-student-summary {
+  justify-content: flex-start;
+}
+
+.workflow-alert {
+  display: grid;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid rgba(146, 64, 14, 0.22);
+  border-radius: 8px;
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+  font-size: 0.8rem;
+}
+
+.workflow-alert--danger {
+  border-color: rgba(153, 27, 27, 0.22);
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.pace-subject-row {
+  grid-template-columns: minmax(150px, 0.32fr) minmax(0, 1fr);
+}
+
+.pace-record-list {
+  display: grid;
+  gap: 5px;
 }
 
 .toolbar {
@@ -1350,8 +1627,12 @@
   }
 
   .settings-grid,
+  .supervisor-dashboard-overview,
   .supervisor-layout,
   .supervisor-rota-grid,
+  .supervisor-selected-student,
+  .supervisor-workflow-grid,
+  .pace-subject-row,
   .rota-layout,
   .policy-grid {
     grid-template-columns: 1fr;
@@ -1359,6 +1640,10 @@
 
   .availability-editor__row {
     grid-template-columns: 1fr;
+  }
+
+  .supervisor-week-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .rota-toolbar {

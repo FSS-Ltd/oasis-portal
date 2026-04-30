@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Send, Trash2 } from 'lucide-react';
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { BookOpenCheck, MessageSquare, Plus, Save, Send, Star, Trash2 } from 'lucide-react';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { Button } from '@/components/ui/button';
@@ -17,11 +18,31 @@ const weekdays = [
   { value: 6, label: 'Saturday' },
 ] as const;
 
+type BehaviourType = 'Merit' | 'Demerit';
+type BehaviourVisibility = 'General' | 'Sensitive';
+type PaceTestType = 'SelfTest' | 'FinalTest';
+
 type AvailabilityDraft = {
   id: string;
   dayOfWeek: number;
   startMinute: number;
   endMinute: number;
+};
+
+type DashboardMessageSummary = {
+  id: string;
+  subject: string;
+  latestPreview: string;
+  updatedAt: Date | null;
+  unreadCount: number;
+};
+
+type DashboardNoticeSummary = {
+  id: string;
+  title: string;
+  bodyPreview: string;
+  postedAt: Date | null;
+  read: boolean;
 };
 
 function todayKey(): string {
@@ -74,10 +95,47 @@ function formatDateTime(value: Date): string {
   }).format(value);
 }
 
+function formatTime(value: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value);
+}
+
+function formatShortDateTime(value: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(value);
+}
+
 function formatShift(shift: { date: string; startsAt: Date; endsAt: Date; bandName: string | null }): string {
   return `${formatDate(shift.date)} · ${formatDateTime(shift.startsAt)}-${formatDateTime(shift.endsAt)} · ${
     shift.bandName ?? 'Unassigned band'
   }`;
+}
+
+function dayLabel(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(date);
+}
+
+function dayNumber(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short' }).format(date);
+}
+
+function isSameDay(left: Date, right: Date): boolean {
+  return dateKey(left) === dateKey(right);
+}
+
+function messageDashboardAdapter(): DashboardMessageSummary[] {
+  return [];
+}
+
+function noticeDashboardAdapter(): DashboardNoticeSummary[] {
+  return [];
 }
 
 function emptyAvailabilityRow(): AvailabilityDraft {
@@ -91,24 +149,70 @@ function emptyAvailabilityRow(): AvailabilityDraft {
 
 type SupervisorDashboardClientProps = {
   canExportAttendance: boolean;
+  view?: 'dashboard' | 'attendance' | 'behaviour' | 'pace' | 'rota';
 };
 
-export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDashboardClientProps) {
+export function SupervisorDashboardClient({ canExportAttendance, view = 'dashboard' }: SupervisorDashboardClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
   const [swapForm, setSwapForm] = useState({ fromShiftId: '', toShiftId: '' });
+  const [behaviourForm, setBehaviourForm] = useState({
+    type: 'Merit' as BehaviourType,
+    visibility: 'General' as BehaviourVisibility,
+    category: '',
+    note: '',
+    amount: '1',
+  });
+  const [paceForm, setPaceForm] = useState({
+    subjectId: '',
+    paceNumber: '',
+    testType: 'SelfTest' as PaceTestType,
+    score: '',
+    completedAt: selectedDate,
+  });
   const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
+  const [behaviourStatus, setBehaviourStatus] = useState<string | null>(null);
+  const [paceStatus, setPaceStatus] = useState<string | null>(null);
 
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const weekStart = useMemo(() => mondayFor(date), [date]);
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const utils = api.useUtils();
 
-  const todayRotaQuery = api.rota.myRota.useQuery({ from: date, to: date }, { retry: false });
-  const weekRotaQuery = api.rota.myRota.useQuery({ from: weekStart, to: weekEnd }, { retry: false });
-  const availabilityQuery = api.rota.myAvailability.useQuery(undefined, { retry: false });
-  const swapCandidatesQuery = api.rota.swapCandidates.useQuery({ from: weekStart, to: weekEnd }, { retry: false });
+  const usesStudentRoster = view === 'attendance' || view === 'behaviour' || view === 'pace';
+  const usesRota = view === 'dashboard' || view === 'rota';
+
+  const attendanceRosterQuery = api.attendance.forDate.useQuery(
+    { date },
+    { enabled: usesStudentRoster, retry: false },
+  );
+  const todayRotaQuery = api.rota.myRota.useQuery({ from: date, to: date }, { enabled: usesRota, retry: false });
+  const weekRotaQuery = api.rota.myRota.useQuery(
+    { from: weekStart, to: weekEnd },
+    { enabled: usesRota, retry: false },
+  );
+  const availabilityQuery = api.rota.myAvailability.useQuery(undefined, { enabled: view === 'rota', retry: false });
+  const swapCandidatesQuery = api.rota.swapCandidates.useQuery(
+    { from: weekStart, to: weekEnd },
+    { enabled: view === 'rota', retry: false },
+  );
+  const mySwapRequestsQuery = api.rota.mySwapRequests.useQuery(undefined, {
+    enabled: view === 'dashboard',
+    retry: false,
+  });
+  const behaviourQuery = api.behaviour.listForStudent.useQuery(
+    { studentId: selectedStudentId, includeSensitive: false },
+    { enabled: view === 'behaviour' && selectedStudentId.length > 0, retry: false },
+  );
+  const paceQuery = api.pace.forStudent.useQuery(
+    { studentId: selectedStudentId },
+    { enabled: view === 'pace' && selectedStudentId.length > 0, retry: false },
+  );
+
+  const selectedStudent = attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentId) ?? null;
+  const selectedPaceSubject = paceQuery.data?.subjects.find((subject) => subject.subjectId === paceForm.subjectId) ?? null;
 
   const saveAvailability = api.rota.setMyAvailability.useMutation({
     onSuccess: async () => {
@@ -126,6 +230,33 @@ export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDas
       ]);
     },
   });
+  const logBehaviour = api.behaviour.log.useMutation({
+    onSuccess: async (_result, input) => {
+      setBehaviourStatus(
+        input.visibility === 'Sensitive'
+          ? 'Sensitive behaviour saved. Supervisors cannot view Sensitive entries after saving.'
+          : 'Behaviour saved.',
+      );
+      setBehaviourForm((current) => ({
+        ...current,
+        category: '',
+        note: '',
+        amount: current.type === 'Merit' ? current.amount : '1',
+      }));
+      await utils.behaviour.listForStudent.invalidate({ studentId: input.studentId, includeSensitive: false });
+    },
+  });
+  const recordPace = api.pace.record.useMutation({
+    onSuccess: async (result) => {
+      setPaceStatus(
+        result.advanced
+          ? `PACE recorded. Current PACE advanced to ${String(result.newPaceNumber)} for this subject.`
+          : 'PACE record saved.',
+      );
+      setPaceForm((current) => ({ ...current, score: '' }));
+      await utils.pace.forStudent.invalidate({ studentId: result.studentId });
+    },
+  });
 
   useEffect(() => {
     if (!availabilityQuery.data) return;
@@ -139,13 +270,239 @@ export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDas
     );
   }, [availabilityQuery.data]);
 
+  useEffect(() => {
+    const rows = attendanceRosterQuery.data ?? [];
+    if (selectedStudentId || rows.length === 0) return;
+    setSelectedStudentId(rows[0]?.studentId ?? '');
+  }, [attendanceRosterQuery.data, selectedStudentId]);
+
+  useEffect(() => {
+    setPaceForm((current) => ({ ...current, completedAt: selectedDate }));
+  }, [selectedDate]);
+
+  useEffect(() => {
+    const subjects = paceQuery.data?.subjects ?? [];
+    if (subjects.length === 0) {
+      setPaceForm((current) => ({ ...current, subjectId: '', paceNumber: '' }));
+      return;
+    }
+
+    const currentSubject = subjects.find((subject) => subject.subjectId === paceForm.subjectId);
+    if (currentSubject) {
+      if (!paceForm.paceNumber) {
+        setPaceForm((current) => ({ ...current, paceNumber: String(currentSubject.currentPaceNumber) }));
+      }
+      return;
+    }
+
+    const firstActiveSubject = subjects.find((subject) => subject.active) ?? subjects[0];
+    if (firstActiveSubject) {
+      setPaceForm((current) => ({
+        ...current,
+        subjectId: firstActiveSubject.subjectId,
+        paceNumber: String(firstActiveSubject.currentPaceNumber),
+      }));
+    }
+  }, [paceForm.paceNumber, paceForm.subjectId, paceQuery.data?.subjects]);
+
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
   const swapCandidates = swapCandidatesQuery.data ?? [];
+  const mySwapRequests = mySwapRequestsQuery.data ?? [];
+  const behaviourEntries = behaviourQuery.data?.entries ?? [];
+  const paceSubjects = paceQuery.data?.subjects ?? [];
+  const rosterRows = attendanceRosterQuery.data ?? [];
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
+  const dashboardMessages = useMemo(() => messageDashboardAdapter(), []);
+  const dashboardNotices = useMemo(() => noticeDashboardAdapter(), []);
+
+  function handleStudentChange(studentId: string): void {
+    setSelectedStudentId(studentId);
+    setBehaviourStatus(null);
+    setPaceStatus(null);
+    setPaceForm((current) => ({ ...current, subjectId: '', paceNumber: '', score: '' }));
+  }
+
+  async function submitBehaviour(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedStudentId) return;
+
+    setBehaviourStatus(null);
+    await logBehaviour.mutateAsync({
+      studentId: selectedStudentId,
+      type: behaviourForm.type,
+      visibility: behaviourForm.visibility,
+      category: behaviourForm.category,
+      note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
+      ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
+    });
+  }
+
+  async function submitPace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedStudentId || !paceForm.subjectId) return;
+
+    setPaceStatus(null);
+    await recordPace.mutateAsync({
+      studentId: selectedStudentId,
+      subjectId: paceForm.subjectId,
+      paceNumber: Number(paceForm.paceNumber),
+      testType: paceForm.testType,
+      score: Number(paceForm.score),
+      completedAt: asDate(paceForm.completedAt),
+    });
+  }
+
+  if (view === 'dashboard') {
+    return (
+      <div className="supervisor-dashboard-overview" aria-label="Supervisor daily overview">
+        <section className="panel panel__body supervisor-week-panel">
+          <div className="section-title">
+            <div>
+              <h2>This week</h2>
+              <p className="muted">
+                {dateKey(weekStart)} to {dateKey(weekEnd)}
+              </p>
+            </div>
+            <Link className="button button--secondary button--sm" href="/supervisor/rota">
+              Open rota
+            </Link>
+          </div>
+
+          {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
+          <div className="supervisor-week-grid">
+            {weekDays.map((dayItem) => {
+              const dayKey = dateKey(dayItem);
+              const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
+              const isToday = isSameDay(dayItem, date);
+              const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
+              const className = [
+                'supervisor-day-card',
+                isToday ? 'is-today' : undefined,
+                isPast ? 'is-past' : undefined,
+                shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
+              ]
+                .filter(Boolean)
+                .join(' ');
+
+              return (
+                <article className={className} key={dayKey}>
+                  <div className="supervisor-day-card__head">
+                    <span>{dayLabel(dayItem)}</span>
+                    <strong>{dayNumber(dayItem)}</strong>
+                  </div>
+                  {shiftsForDay.length === 0 ? (
+                    <p className="supervisor-day-card__empty">No shift scheduled</p>
+                  ) : (
+                    <div className="supervisor-day-card__shifts">
+                      {shiftsForDay.map((shift) => (
+                        <div className="supervisor-day-shift" key={shift.id}>
+                          <span
+                            aria-hidden="true"
+                            className="supervisor-day-shift__swatch"
+                            style={{ backgroundColor: shift.bandColour ?? undefined } as CSSProperties}
+                          />
+                          <div>
+                            <strong>
+                              {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
+                            </strong>
+                            <span>{shift.bandName ?? 'Unassigned band'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="panel panel__body supervisor-dashboard-card">
+          <div className="section-title">
+            <div>
+              <h2>Pending</h2>
+              <p className="muted">Messages and shift swap requests needing attention.</p>
+            </div>
+            <span className="badge badge--blue">{dashboardMessages.length + mySwapRequests.length} open</span>
+          </div>
+
+          <div className="supervisor-dashboard-list">
+            <h3>
+              <MessageSquare aria-hidden="true" size={15} />
+              Messages
+            </h3>
+            {dashboardMessages.length === 0 ? (
+              <div className="dashboard-empty-state">Messages will appear here when the messaging API is connected.</div>
+            ) : (
+              dashboardMessages.map((message) => (
+                <article className="dashboard-list-row" key={message.id}>
+                  <strong>{message.subject}</strong>
+                  <span>{message.latestPreview}</span>
+                  {message.updatedAt ? <small>{formatShortDateTime(message.updatedAt)}</small> : null}
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="supervisor-dashboard-list">
+            <h3>
+              <Send aria-hidden="true" size={15} />
+              Swap requests
+            </h3>
+            {mySwapRequestsQuery.error ? <p className="status--error">{mySwapRequestsQuery.error.message}</p> : null}
+            {!mySwapRequestsQuery.isLoading && mySwapRequests.length === 0 ? (
+              <div className="dashboard-empty-state">No pending shift swap requests.</div>
+            ) : null}
+            {mySwapRequests.map((request) => {
+              const otherPerson =
+                request.direction === 'Requested' ? request.targetUser.fullName : request.requester.fullName;
+              return (
+                <article className="dashboard-list-row" key={request.id}>
+                  <strong>
+                    {request.direction === 'Requested' ? 'Awaiting Head review' : 'Incoming request'} with {otherPerson}
+                  </strong>
+                  <span>
+                    {request.fromShift.date} {formatTime(request.fromShift.startsAt)} → {request.toShift.date}{' '}
+                    {formatTime(request.toShift.startsAt)}
+                  </span>
+                  <small>{formatShortDateTime(request.createdAt)}</small>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="panel panel__body supervisor-dashboard-card">
+          <div className="section-title">
+            <div>
+              <h2>Notices</h2>
+              <p className="muted">Admin notices for staff.</p>
+            </div>
+            <span className="badge badge--blue">{dashboardNotices.filter((notice) => !notice.read).length} unread</span>
+          </div>
+          {dashboardNotices.length === 0 ? (
+            <div className="dashboard-empty-state">Admin notices will appear here when notice publishing is connected.</div>
+          ) : (
+            <div className="supervisor-dashboard-list">
+              {dashboardNotices.map((notice) => (
+                <article className={notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'} key={notice.id}>
+                  <strong>{notice.title}</strong>
+                  <span>{notice.bodyPreview}</span>
+                  {notice.postedAt ? <small>{formatShortDateTime(notice.postedAt)}</small> : null}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="supervisor-layout">
       <section className="supervisor-layout__main">
+        {view === 'attendance' ? (
         <section className="panel panel__body" id="attendance-capture">
           <div className="section-title">
             <div>
@@ -162,7 +519,292 @@ export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDas
             showBandFilter
           />
         </section>
+        ) : null}
 
+        {view === 'behaviour' ? (
+        <section className="panel panel__body supervisor-workflow" id="behaviour-entry">
+          <div className="section-title">
+            <div>
+              <h2>Behaviour entry</h2>
+              <p className="muted">Record merits, demerits, and visibility-controlled notes for the selected student.</p>
+            </div>
+            <span className="badge badge--blue">Merit workflow</span>
+          </div>
+
+          <div className="supervisor-selected-student">
+            <Field label="Selected student">
+              <SelectInput
+                aria-label="Selected student for behaviour and PACE"
+                disabled={attendanceRosterQuery.isLoading || (attendanceRosterQuery.data ?? []).length === 0}
+                onChange={(event) => handleStudentChange(event.target.value)}
+                value={selectedStudentId}
+              >
+                <option value="">Choose a student</option>
+                {(attendanceRosterQuery.data ?? []).map((student) => (
+                  <option key={student.studentId} value={student.studentId}>
+                    {student.studentName} · {student.yearGroup}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            {selectedStudent ? (
+              <div className="student-context-card">
+                <strong>{selectedStudent.studentName}</strong>
+                <span>{selectedStudent.yearGroup}</span>
+                <span>{selectedStudent.status ?? 'Attendance unmarked'}</span>
+              </div>
+            ) : null}
+          </div>
+          {attendanceRosterQuery.error ? <p className="status--error">{attendanceRosterQuery.error.message}</p> : null}
+
+          <div className="supervisor-workflow-grid">
+            <form className="form-grid" onSubmit={submitBehaviour}>
+              <div className="form-grid form-grid--two">
+                <Field label="Type">
+                  <SelectInput
+                    aria-label="Behaviour type"
+                    onChange={(event) =>
+                      setBehaviourForm((form) => ({ ...form, type: event.target.value as BehaviourType }))
+                    }
+                    value={behaviourForm.type}
+                  >
+                    <option value="Merit">Merit</option>
+                    <option value="Demerit">Demerit</option>
+                  </SelectInput>
+                </Field>
+                <Field label="Visibility">
+                  <SelectInput
+                    aria-label="Behaviour visibility"
+                    onChange={(event) =>
+                      setBehaviourForm((form) => ({ ...form, visibility: event.target.value as BehaviourVisibility }))
+                    }
+                    value={behaviourForm.visibility}
+                  >
+                    <option value="General">General</option>
+                    <option value="Sensitive">Sensitive</option>
+                  </SelectInput>
+                </Field>
+              </div>
+              <Field label="Category">
+                <TextInput
+                  aria-label="Behaviour category"
+                  maxLength={120}
+                  onChange={(event) => setBehaviourForm((form) => ({ ...form, category: event.target.value }))}
+                  required
+                  value={behaviourForm.category}
+                />
+              </Field>
+              {behaviourForm.type === 'Merit' ? (
+                <Field label="Merit amount">
+                  <TextInput
+                    aria-label="Merit amount"
+                    min={1}
+                    onChange={(event) => setBehaviourForm((form) => ({ ...form, amount: event.target.value }))}
+                    required
+                    type="number"
+                    value={behaviourForm.amount}
+                  />
+                </Field>
+              ) : null}
+              <Field label="Note" hint="Sensitive notes save securely but do not appear in the Supervisor activity list.">
+                <textarea
+                  aria-label="Behaviour note"
+                  className="input textarea"
+                  maxLength={2000}
+                  onChange={(event) => setBehaviourForm((form) => ({ ...form, note: event.target.value }))}
+                  rows={4}
+                  value={behaviourForm.note}
+                />
+              </Field>
+              <Button disabled={!selectedStudentId} pending={logBehaviour.isPending} type="submit">
+                <Save aria-hidden="true" size={16} />
+                Save behaviour
+              </Button>
+              {behaviourStatus ? <p className="status--success">{behaviourStatus}</p> : null}
+              {logBehaviour.error ? <p className="status--error">{logBehaviour.error.message}</p> : null}
+            </form>
+
+            <div className="activity-list" aria-label="Student behaviour activity">
+              <h3>General activity</h3>
+              {behaviourQuery.isLoading ? <div className="empty-state">Loading behaviour...</div> : null}
+              {behaviourQuery.error ? <p className="status--error">{behaviourQuery.error.message}</p> : null}
+              {!behaviourQuery.isLoading && selectedStudentId && behaviourEntries.length === 0 ? (
+                <div className="empty-state">No General behaviour entries yet.</div>
+              ) : null}
+              {behaviourEntries.map((entry) => (
+                <article className="activity-row" key={entry.id}>
+                  <span className={entry.type === 'Merit' ? 'badge badge--green' : 'badge badge--amber'}>
+                    {entry.type}
+                  </span>
+                  <div>
+                    <strong>{entry.category}</strong>
+                    <span>
+                      {entry.meritDelta > 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} ·{' '}
+                      {formatShortDateTime(entry.createdAt)}
+                    </span>
+                    {entry.note ? <p>{entry.note}</p> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+        ) : null}
+
+        {view === 'pace' ? (
+        <section className="panel panel__body supervisor-workflow" id="pace-entry">
+          <div className="section-title">
+            <div>
+              <h2>PACE entry</h2>
+              <p className="muted">Record self tests and final PACE tests against the selected student&apos;s subjects.</p>
+            </div>
+            <span className="badge badge--blue">Subject progress</span>
+          </div>
+
+          {selectedStudent ? (
+            <div className="pace-student-summary">
+              <BookOpenCheck aria-hidden="true" size={18} />
+              <span>
+                Recording for <strong>{selectedStudent.studentName}</strong>
+              </span>
+            </div>
+          ) : (
+            <div className="empty-state">Choose a student above before recording PACE progress.</div>
+          )}
+
+          {paceQuery.error ? <p className="status--error">{paceQuery.error.message}</p> : null}
+          {paceQuery.data?.warnings.dailyLimitEnabled ? (
+            <div className={paceQuery.data.warnings.atLimit ? 'workflow-alert workflow-alert--danger' : 'workflow-alert'}>
+              <strong>
+                {paceQuery.data.warnings.atLimit
+                  ? 'Daily PACE test limit reached'
+                  : `${String(paceQuery.data.warnings.remaining)} PACE test(s) remaining today`}
+              </strong>
+              <span>
+                {String(paceQuery.data.warnings.count)} of {String(paceQuery.data.warnings.limit)} tests recorded for{' '}
+                {paceQuery.data.today.date}.
+              </span>
+            </div>
+          ) : null}
+
+          <div className="supervisor-workflow-grid">
+            <form className="form-grid" onSubmit={submitPace}>
+              <Field label="Subject">
+                <SelectInput
+                  aria-label="PACE subject"
+                  disabled={!selectedStudentId || paceSubjects.length === 0}
+                  onChange={(event) => {
+                    const subject = paceSubjects.find((item) => item.subjectId === event.target.value);
+                    setPaceForm((form) => ({
+                      ...form,
+                      subjectId: event.target.value,
+                      paceNumber: subject ? String(subject.currentPaceNumber) : form.paceNumber,
+                    }));
+                  }}
+                  required
+                  value={paceForm.subjectId}
+                >
+                  <option value="">Choose a subject</option>
+                  {paceSubjects.map((subject) => (
+                    <option disabled={!subject.active} key={subject.subjectId} value={subject.subjectId}>
+                      {subject.code} · {subject.name}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <div className="form-grid form-grid--two">
+                <Field label="PACE number">
+                  <TextInput
+                    aria-label="PACE number"
+                    min={1}
+                    onChange={(event) => setPaceForm((form) => ({ ...form, paceNumber: event.target.value }))}
+                    required
+                    type="number"
+                    value={paceForm.paceNumber}
+                  />
+                </Field>
+                <Field label="Score">
+                  <TextInput
+                    aria-label="PACE score"
+                    max={100}
+                    min={0}
+                    onChange={(event) => setPaceForm((form) => ({ ...form, score: event.target.value }))}
+                    required
+                    type="number"
+                    value={paceForm.score}
+                  />
+                </Field>
+              </div>
+              <div className="form-grid form-grid--two">
+                <Field label="Test type">
+                  <SelectInput
+                    aria-label="PACE test type"
+                    onChange={(event) => setPaceForm((form) => ({ ...form, testType: event.target.value as PaceTestType }))}
+                    value={paceForm.testType}
+                  >
+                    <option value="SelfTest">Self test</option>
+                    <option value="FinalTest">Final PACE test</option>
+                  </SelectInput>
+                </Field>
+                <Field label="Completion date">
+                  <TextInput
+                    aria-label="PACE completion date"
+                    onChange={(event) => setPaceForm((form) => ({ ...form, completedAt: event.target.value }))}
+                    required
+                    type="date"
+                    value={paceForm.completedAt}
+                  />
+                </Field>
+              </div>
+              {selectedPaceSubject ? (
+                <p className="field__hint">
+                  Current {selectedPaceSubject.code} PACE is {String(selectedPaceSubject.currentPaceNumber)}.
+                </p>
+              ) : null}
+              <Button
+                disabled={!selectedStudentId || !paceForm.subjectId || paceQuery.data?.warnings.atLimit}
+                pending={recordPace.isPending}
+                type="submit"
+              >
+                <Star aria-hidden="true" size={16} />
+                Record PACE
+              </Button>
+              {paceStatus ? <p className="status--success">{paceStatus}</p> : null}
+              {recordPace.error ? <p className="status--error">{recordPace.error.message}</p> : null}
+            </form>
+
+            <div className="pace-subject-list" aria-label="Student PACE progress">
+              <h3>Subject progress</h3>
+              {paceQuery.isLoading ? <div className="empty-state">Loading PACE progress...</div> : null}
+              {!paceQuery.isLoading && selectedStudentId && paceSubjects.length === 0 ? (
+                <div className="empty-state">No subjects assigned yet.</div>
+              ) : null}
+              {paceSubjects.map((subject) => (
+                <article className="pace-subject-row" key={subject.subjectId}>
+                  <div>
+                    <strong>
+                      {subject.code} · {subject.name}
+                    </strong>
+                    <span>Current PACE {String(subject.currentPaceNumber)}</span>
+                  </div>
+                  <div className="pace-record-list">
+                    {subject.recentRecords.length === 0 ? <span className="muted">No recent records</span> : null}
+                    {subject.recentRecords.map((record) => (
+                      <span key={record.id}>
+                        {record.testType === 'SelfTest' ? 'Self' : 'Final'} · PACE {String(record.paceNumber)} ·{' '}
+                        {String(record.score)}% ·{' '}
+                        {record.completedAt ? formatShortDateTime(record.completedAt) : 'No date recorded'}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+        ) : null}
+
+        {view === 'rota' ? (
         <section className="panel panel__body" id="rota">
           <div className="section-title">
             <div>
@@ -223,8 +865,10 @@ export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDas
             </div>
           </div>
         </section>
+        ) : null}
       </section>
 
+      {view === 'rota' ? (
       <aside className="supervisor-layout__side">
         <section className="panel panel__body">
           <div className="section-title">
@@ -390,6 +1034,7 @@ export function SupervisorDashboardClient({ canExportAttendance }: SupervisorDas
           {requestSwap.error ? <p className="status--error">{requestSwap.error.message}</p> : null}
         </section>
       </aside>
+      ) : null}
     </div>
   );
 }
