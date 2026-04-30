@@ -27,19 +27,29 @@ test.describe('Supervisor dashboard shell', () => {
     await expect(page).toHaveURL(/admin/);
     await page.goto('/supervisor');
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toBeVisible();
-    await expect(page.getByText(/attendance capture/i)).toBeVisible();
-    await expect(page.getByText(/weekly availability/i)).toBeVisible();
-    await expect(page.getByText(/request shift swap/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /this week/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /pending/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /notices/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /attendance/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /behaviour/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /PACE/i })).toBeVisible();
+    await expect(page.getByText(/students marked today/i)).toHaveCount(0);
   });
 
-  supervisorTest('Supervisor can mark attendance, filter bands, and submit availability', async ({ page }) => {
+  supervisorTest('Supervisor can use focused attendance, behaviour, PACE, and rota pages', async ({ page }) => {
     await signIn(page, supervisorEmail!, supervisorPassword!);
     await expect(page).toHaveURL(/supervisor/);
     await expect(page).not.toHaveURL(/admin/);
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /this week/i })).toBeVisible();
+    await expect(page.locator('.supervisor-day-card.is-today')).toHaveCount(1);
+    await expect(page.getByText(/No shift scheduled/i).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /pending/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /notices/i })).toBeVisible();
+
+    await page.goto('/supervisor/attendance');
+    await expect(page.getByRole('heading', { name: /attendance/i })).toBeVisible();
     await expect(page.getByText(/attendance capture/i)).toBeVisible();
-    await expect(page.getByText(/your rota/i)).toBeVisible();
-    await expect(page.getByText(/weekly availability/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /export csv/i })).toHaveCount(0);
 
     await page.getByLabel('Year-group band filter').selectOption('all');
@@ -52,6 +62,53 @@ test.describe('Supervisor dashboard shell', () => {
       await expect(firstAttendanceRow.getByText('Present').first()).toBeVisible();
     }
 
+    await page.goto('/supervisor/behaviour');
+    await expect(page.getByRole('heading', { name: /behaviour/i })).toBeVisible();
+    const selectedStudent = page.getByLabel('Selected student for behaviour and PACE');
+    const selectedStudentOptions = await selectedStudent.locator('option').count();
+    if (selectedStudentOptions > 1) {
+      await selectedStudent.selectOption({ index: 1 });
+
+      const generalCategory = `General conduct ${Date.now()}`;
+      await page.getByLabel('Behaviour type').selectOption('Merit');
+      await page.getByLabel('Behaviour visibility').selectOption('General');
+      await page.getByLabel('Behaviour category').fill(generalCategory);
+      await page.getByLabel('Merit amount').fill('2');
+      await page.getByLabel('Behaviour note').fill('Helped another student settle into work.');
+      await page.getByRole('button', { name: /save behaviour/i }).click();
+      await expect(page.getByText(/behaviour saved/i)).toBeVisible();
+      await expect(page.getByText(generalCategory)).toBeVisible();
+
+      const sensitiveCategory = `Sensitive conduct ${Date.now()}`;
+      await page.getByLabel('Behaviour visibility').selectOption('Sensitive');
+      await page.getByLabel('Behaviour category').fill(sensitiveCategory);
+      await page.getByLabel('Merit amount').fill('1');
+      await page.getByLabel('Behaviour note').fill('Sensitive note should not render for Supervisor.');
+      await page.getByRole('button', { name: /save behaviour/i }).click();
+      await expect(page.getByText(/Sensitive behaviour saved/i)).toBeVisible();
+      await expect(page.getByText(sensitiveCategory)).toHaveCount(0);
+
+      await page.goto('/supervisor/pace');
+      await expect(page.getByRole('heading', { name: /PACE/i })).toBeVisible();
+      const subjectSelect = page.getByLabel('PACE subject');
+      const subjectOptions = await subjectSelect.locator('option').count();
+      if (subjectOptions > 1 && !(await page.getByRole('button', { name: /record PACE/i }).isDisabled())) {
+        const firstCurrentPace = page.locator('.pace-subject-row').first().getByText(/Current PACE/i);
+        const beforeText = await firstCurrentPace.textContent();
+        const beforePace = Number(beforeText?.match(/\d+/u)?.[0] ?? '1001');
+        await subjectSelect.selectOption({ index: 1 });
+        await page.getByLabel('PACE test type').selectOption('FinalTest');
+        await page.getByLabel('PACE number').fill(String(beforePace));
+        await page.getByLabel('PACE score').fill('100');
+        await page.getByRole('button', { name: /record PACE/i }).click();
+        await expect(page.getByText(/PACE recorded|PACE record saved/i)).toBeVisible();
+      }
+    }
+
+    await page.goto('/supervisor/rota');
+    await expect(page.getByRole('heading', { name: /rota/i })).toBeVisible();
+    await expect(page.getByText(/weekly availability/i)).toBeVisible();
+    await expect(page.getByText(/request shift swap/i)).toBeVisible();
     await page.getByRole('button', { name: /add/i }).click();
     await page.getByLabel('Availability day').last().selectOption('1');
     await page.getByLabel('Availability start time').last().fill('09:00');
@@ -73,6 +130,7 @@ test.describe('Supervisor dashboard shell', () => {
   exporterTest('attendance-exporter users can see the daily CSV export', async ({ page }) => {
     await signIn(page, exporterEmail!, exporterPassword!);
     await expect(page).toHaveURL(/supervisor/);
+    await page.goto('/supervisor/attendance');
     await expect(page.getByRole('button', { name: /export csv/i })).toBeVisible();
   });
 

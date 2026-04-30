@@ -13,16 +13,15 @@ import {
 
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
-  { href: '/supervisor#attendance-capture', label: 'Attendance', icon: CalendarCheck, enabled: true },
-  { href: '/supervisor', label: 'Behaviour', icon: Star, enabled: false },
-  { href: '/supervisor', label: 'PACE', icon: BookOpenCheck, enabled: false },
-  { href: '/supervisor', label: 'Rota', icon: CalendarDays, enabled: true },
+  { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
+  { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
+  { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
+  { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays, enabled: true },
   { href: '/supervisor', label: 'Notes', icon: ClipboardList, enabled: false },
 ] as const;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
-  if (label === 'Attendance') return false;
-  return label === 'Dashboard' ? pathname === href : false;
+  return label === 'Dashboard' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function SupervisorSidebarNav() {

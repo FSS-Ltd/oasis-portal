@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-04-30
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.10a role-aware auth redirects ready for review.
+**Phase:** PR-2.11 Behaviour and PACE entry UI in progress.
 
 ---
 
@@ -18,7 +18,66 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-2.10a role-aware auth redirects
+## Current status - PR-2.11 Behaviour and PACE entry UI
+
+Working branch: `feat/phase-2-pr2.11-behaviour-pace-entry-ui`.
+
+**PR scope:** Add focused Supervisor daily-workflow pages while keeping
+`/supervisor` as a quick overview/action launcher. No API RBAC changes, role
+changes, or Prisma migrations are planned for this branch.
+
+Changed scope:
+
+- Marked PR-2.10 and PR-2.10a merged in the Phase 2 build plan.
+- Replaced deferred Behaviour and PACE quick actions with links to focused
+  `/supervisor/behaviour` and `/supervisor/pace` pages.
+- Added focused `/supervisor/attendance`, `/supervisor/behaviour`,
+  `/supervisor/pace`, and `/supervisor/rota` routes.
+- Kept `/supervisor` as a quick overview surface with action cards and summary
+  stats instead of embedding all workflow forms in the dashboard.
+- Replaced the repeated dashboard summary cards with a weekly schedule panel,
+  pending messages/swap requests, and staff notices. The week panel highlights
+  today, greys past days, and shows shift time plus year-group band.
+- Added staff-visible `rota.mySwapRequests` so Supervisors can see pending swap
+  requests involving them. Message and notice dashboard adapters are shaped
+  around the existing schema and currently render empty/not-connected states
+  until those APIs are implemented.
+- Reused the existing staff attendance roster as the shared selected-student
+  workflow for Behaviour and PACE entry.
+- Added Behaviour logging with General/Sensitive visibility, Merit/Demerit type,
+  Merit amount, category, note, success/error states, and General-only
+  Supervisor activity reads after save.
+- Added PACE progress and recording with assigned subjects, independent current
+  PACE numbers, recent records, daily-limit warnings, and hard-block error
+  display.
+- Extended Supervisor Playwright coverage for the new workflow where local E2E
+  credentials and seeded state are available.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- rota.router.test.ts` - pass, 127 tests due
+  the current Vitest argument handling running the full API suite.
+- `pnpm --filter @oasis/web typecheck` - pass after separating dashboard and
+  workflow routes.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass; `/supervisor`,
+  `/supervisor/attendance`, `/supervisor/behaviour`, `/supervisor/pace`, and
+  `/supervisor/rota` appear in the route table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - failed
+  in the default sandbox because Playwright could not bind `0.0.0.0:3000`
+  (`EPERM`). The escalated run started but timed out waiting 120 seconds for
+  the configured web server to become ready after ports 3000 and 3001 were
+  already occupied.
+- Browser smoke against `http://127.0.0.1:3005/supervisor` reached the local
+  dev server but returned `500 Internal Server Error`; server logs showed
+  repeated same-port proxy `socket hang up` errors, and direct `curl` timed out.
+  Production build remains green.
+- `graphify update .` - completed after the dashboard overview redesign;
+  graphify reported the existing node-count warning and rebuilt the code graph.
+
+## Previous status - PR-2.10a role-aware auth redirects
 
 Working branch: `fix/phase-2-pr2.10a-role-aware-auth-redirects`.
 

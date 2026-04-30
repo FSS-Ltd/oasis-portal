@@ -343,10 +343,27 @@ function makeFakeDb() {
             ) ?? null,
           ),
       ),
-      findMany: vi.fn(({ where }: { where: { status: StoredSwap['status'] } }) =>
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            status: StoredSwap['status'];
+            OR?: { requesterUserId?: string; targetUserId?: string }[];
+          };
+        }) =>
         Promise.resolve(
           swaps
             .filter((swap) => swap.status === where.status)
+            .filter(
+              (swap) =>
+                where.OR === undefined ||
+                where.OR.some(
+                  (condition) =>
+                    condition.requesterUserId === swap.requesterUserId ||
+                    condition.targetUserId === swap.targetUserId,
+                ),
+            )
             .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
             .map(withSwapRelations),
         ),
@@ -779,6 +796,70 @@ describe('rota shift swaps', () => {
     });
 
     await expect(makeCaller(supervisorUser, db).rota.pendingSwapRequests()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('lets staff list only their own pending shift swap requests', async () => {
+    const { db } = makeFakeDb();
+    const head = makeCaller(headUser, db);
+    await head.rota.createShift({
+      staffUserId: supervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T09:00:00.000Z'),
+      endsAt: at('2026-04-29T12:00:00.000Z'),
+    });
+    await head.rota.createShift({
+      staffUserId: secondSupervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T13:00:00.000Z'),
+      endsAt: at('2026-04-29T16:00:00.000Z'),
+    });
+    await head.rota.createShift({
+      staffUserId: headUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-30'),
+      startsAt: at('2026-04-30T09:00:00.000Z'),
+      endsAt: at('2026-04-30T12:00:00.000Z'),
+    });
+    await head.rota.createShift({
+      staffUserId: secondSupervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-05-01'),
+      startsAt: at('2026-05-01T09:00:00.000Z'),
+      endsAt: at('2026-05-01T12:00:00.000Z'),
+    });
+    await makeCaller(supervisorUser, db).rota.requestSwap({
+      fromShiftId: 'shift_1',
+      toShiftId: 'shift_2',
+    });
+    await makeCaller(secondSupervisorUser, db).rota.requestSwap({
+      fromShiftId: 'shift_4',
+      toShiftId: 'shift_3',
+    });
+
+    await expect(makeCaller(supervisorUser, db).rota.mySwapRequests()).resolves.toMatchObject([
+      {
+        id: 'swap_1',
+        direction: 'Requested',
+        requester: { fullName: 'Supervisor One' },
+        targetUser: { fullName: 'Supervisor Two' },
+        fromShift: { id: 'shift_1', bandName: 'Lower Primary' },
+        toShift: { id: 'shift_2', bandName: 'Lower Primary' },
+      },
+    ]);
+    expect(db.auditLog.create).toHaveBeenLastCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'DecryptPii',
+        entity: 'ShiftSwapRequest',
+        meta: { count: 1, source: 'rota.mySwapRequests' },
+      },
+    });
+
+    await expect(makeCaller(parentUser, db).rota.mySwapRequests()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });

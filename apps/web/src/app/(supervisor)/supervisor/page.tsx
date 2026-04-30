@@ -6,25 +6,25 @@ import { SupervisorDashboardClient } from './supervisor-dashboard-client';
 
 const quickActions = [
   {
-    href: '#attendance-capture',
+    href: '/supervisor/attendance',
     label: 'Attendance',
     description: 'Mark the daily register',
     icon: ClipboardCheck,
   },
   {
-    href: '#attendance-capture',
+    href: '/supervisor/behaviour',
     label: 'Behaviour',
-    description: 'Entry opens in PR-2.11',
+    description: 'Log merits and demerits',
     icon: Star,
   },
   {
-    href: '#attendance-capture',
+    href: '/supervisor/pace',
     label: 'PACE',
-    description: 'Entry opens in PR-2.11',
+    description: 'Record tests and progress',
     icon: GraduationCap,
   },
   {
-    href: '#rota',
+    href: '/supervisor/rota',
     label: 'Rota',
     description: 'Your shifts and availability',
     icon: CalendarDays,
@@ -41,7 +41,7 @@ export default async function SupervisorPage() {
         <div>
           <p>Supervisor workspace</p>
           <h1>Daily dashboard</h1>
-          <p>See today&apos;s students, your rota, weekly availability, and shift-swap options from one staff view.</p>
+          <p>Check today&apos;s position quickly, then open the focused workflow you need.</p>
         </div>
       </div>
 
@@ -60,7 +60,7 @@ export default async function SupervisorPage() {
         })}
       </section>
 
-      <SupervisorDashboardClient canExportAttendance={canExportAttendance} />
+      <SupervisorDashboardClient canExportAttendance={canExportAttendance} view="dashboard" />
     </MotionPage>
   );
 }

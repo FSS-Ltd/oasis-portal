@@ -606,6 +606,55 @@ export const rotaRouter = router({
     return requests;
   }),
 
+  mySwapRequests: authedProcedure.query(async ({ ctx }) => {
+    assertStaffWorkflow(ctx.user);
+    const rows = await ctx.db.shiftSwapRequest.findMany({
+      where: {
+        status: 'Pending',
+        OR: [{ requesterUserId: ctx.user.id }, { targetUserId: ctx.user.id }],
+      },
+      orderBy: [{ createdAt: 'asc' }],
+      include: {
+        requester: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+        targetUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+        fromShift: {
+          include: {
+            staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+            yearGroupBand: { select: { name: true, colour: true } },
+          },
+        },
+        toShift: {
+          include: {
+            staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+            yearGroupBand: { select: { name: true, colour: true } },
+          },
+        },
+      },
+    });
+
+    const requests = rows.map((row) => ({
+      id: row.id,
+      status: row.status,
+      createdAt: row.createdAt,
+      direction: row.requesterUserId === ctx.user.id ? ('Requested' as const) : ('Incoming' as const),
+      requester: mapStaffUser(ctx.db.$enc.decrypt, row.requester),
+      targetUser: mapStaffUser(ctx.db.$enc.decrypt, row.targetUser),
+      fromShift: mapShiftWithStaff(ctx.db.$enc.decrypt, row.fromShift),
+      toShift: mapShiftWithStaff(ctx.db.$enc.decrypt, row.toShift),
+    }));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'ShiftSwapRequest',
+        meta: { count: requests.length, source: 'rota.mySwapRequests' },
+      },
+    });
+
+    return requests;
+  }),
+
   requestSwap: authedProcedure.input(requestSwapInput).mutation(async ({ ctx, input }) => {
     assertStaffWorkflow(ctx.user);
     if (input.fromShiftId === input.toShiftId) {
