@@ -89,6 +89,20 @@ async function assertActiveStaffUser(
 }
 
 export const attendanceRouter = router({
+  listYearGroupBands: roleProcedure(...ATTENDANCE_ROLES).query(async ({ ctx }) => {
+    return ctx.db.yearGroupBand.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        standardYears: true,
+        colour: true,
+        sortOrder: true,
+      },
+    });
+  }),
+
   forDate: roleProcedure(...ATTENDANCE_ROLES)
     .input(z.object({ date: z.coerce.date() }))
     .query(async ({ ctx, input }) => {

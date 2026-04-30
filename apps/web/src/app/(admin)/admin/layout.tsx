@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { hasTag } from '@oasis/domain';
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getFullAdminUser } from '@/components/admin/require-full-admin';
+import { LogoutButton } from '@/components/auth/logout-button';
 import './admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <span>Phase 1 onboarding</span>
         </div>
         <AdminSidebarNav canViewAudit={canViewAudit} />
-        <div className="admin-shell__foot">Oasis Learning Centre</div>
+        <div className="admin-shell__foot">
+          <span>Oasis Learning Centre</span>
+          <LogoutButton />
+        </div>
       </aside>
 
       <div className="admin-shell__content">
@@ -43,6 +47,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               <strong>Head of Centre</strong>
             </span>
           </Link>
+          <LogoutButton className="logout-button logout-button--mobile" />
         </header>
         <main className="admin-shell__main">{children}</main>
         <AdminBottomNav canViewAudit={canViewAudit} />

@@ -75,6 +75,15 @@ interface StoredStaffAttendance {
   createdAt: Date;
 }
 
+interface StoredYearGroupBand {
+  id: string;
+  name: string;
+  standardYears: string[];
+  active: boolean;
+  sortOrder: number;
+  colour: string;
+}
+
 interface FakeDb {
   $enc: {
     decrypt: ReturnType<typeof vi.fn>;
@@ -97,6 +106,9 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+  };
+  yearGroupBand: {
     findMany: ReturnType<typeof vi.fn>;
   };
 }
@@ -170,6 +182,32 @@ function makeFakeDb() {
   ];
   const attendance: StoredAttendance[] = [];
   const staffAttendance: StoredStaffAttendance[] = [];
+  const yearGroupBands: StoredYearGroupBand[] = [
+    {
+      id: 'band_upper',
+      name: 'Upper Primary',
+      standardYears: ['Year 5', 'Year 6'],
+      active: true,
+      sortOrder: 2,
+      colour: '#5B90C5',
+    },
+    {
+      id: 'band_secondary',
+      name: 'Secondary',
+      standardYears: ['Year 7', 'Year 8'],
+      active: true,
+      sortOrder: 3,
+      colour: '#7D1C2C',
+    },
+    {
+      id: 'band_inactive',
+      name: 'Inactive',
+      standardYears: ['Year 4'],
+      active: false,
+      sortOrder: 1,
+      colour: '#166534',
+    },
+  ];
 
   const db: FakeDb = {
     $enc: { decrypt: vi.fn(decrypt) },
@@ -336,9 +374,25 @@ function makeFakeDb() {
         ),
       ),
     },
+    yearGroupBand: {
+      findMany: vi.fn(({ where }: { where?: { active?: boolean } } = {}) =>
+        Promise.resolve(
+          yearGroupBands
+            .filter((band) => where?.active === undefined || band.active === where.active)
+            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+            .map(({ id, name, standardYears, colour, sortOrder }) => ({
+              id,
+              name,
+              standardYears,
+              colour,
+              sortOrder,
+            })),
+        ),
+      ),
+    },
   };
 
-  return { db, students, attendance, staffAttendance };
+  return { db, students, attendance, staffAttendance, yearGroupBands };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -354,6 +408,36 @@ function makeCaller(user: SessionUser | null, db: FakeDb) {
   const appRouter = router({ attendance: attendanceRouter });
   return appRouter.createCaller(makeCtx(user, db));
 }
+
+describe('attendance.listYearGroupBands', () => {
+  it('allows full-admin and Supervisor, returns active bands in display order, and denies Parent/Student', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(makeCaller(headUser, db).attendance.listYearGroupBands()).resolves.toEqual([
+      {
+        id: 'band_upper',
+        name: 'Upper Primary',
+        standardYears: ['Year 5', 'Year 6'],
+        colour: '#5B90C5',
+        sortOrder: 2,
+      },
+      {
+        id: 'band_secondary',
+        name: 'Secondary',
+        standardYears: ['Year 7', 'Year 8'],
+        colour: '#7D1C2C',
+        sortOrder: 3,
+      },
+    ]);
+    await expect(makeCaller(supervisorUser, db).attendance.listYearGroupBands()).resolves.toHaveLength(2);
+    await expect(makeCaller(parentUser, db).attendance.listYearGroupBands()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(makeCaller(studentUser, db).attendance.listYearGroupBands()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+});
 
 describe('attendance.forDate', () => {
   it('allows full-admin and Supervisor, returns active students only, and writes a PII audit row', async () => {
