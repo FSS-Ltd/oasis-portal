@@ -278,13 +278,23 @@
 }
 
 .stat-card {
-  border-top: 4px solid var(--accent, var(--oasis-blue));
+  position: relative;
+  overflow: hidden;
+  border-top: 0;
 }
 
 .head-stat-card {
   min-height: 118px;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(23, 37, 84, 0.08);
+}
+
+.stat-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--accent, var(--oasis-blue));
+  content: '';
 }
 
 .stat-card p {
@@ -321,6 +331,11 @@
 }
 
 .head-dashboard-side {
+  display: grid;
+  gap: 22px;
+}
+
+.supervisor-dashboard-main {
   display: grid;
   gap: 22px;
 }

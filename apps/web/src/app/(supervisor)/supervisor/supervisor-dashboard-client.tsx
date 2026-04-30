@@ -173,6 +173,19 @@ function AttendanceSummary({
   );
 }
 
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
+
+function avatarColour(index: number): string {
+  return ['#7C3F98', '#8B1E2D', '#0E7892', '#5B90C5', '#006B4A', '#B45309'][index % 6] ?? '#5B90C5';
+}
+
 function emptyAvailabilityRow(): AvailabilityDraft {
   return {
     id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -242,6 +255,10 @@ export function SupervisorDashboardClient({
     enabled: view === 'dashboard',
     retry: false,
   });
+  const dashboardActivityQuery = api.behaviour.dashboardActivity.useQuery(
+    { date },
+    { enabled: view === 'dashboard', retry: false },
+  );
   const behaviourQuery = api.behaviour.listForStudent.useQuery(
     { studentId: selectedStudentId, includeSensitive: false },
     { enabled: view === 'behaviour' && selectedStudentId.length > 0, retry: false },
@@ -355,6 +372,7 @@ export function SupervisorDashboardClient({
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
   const dashboardMessages = useMemo(() => messageDashboardAdapter(), []);
   const dashboardNotices = useMemo(() => noticeDashboardAdapter(), []);
+  const dashboardActivity = dashboardActivityQuery.data?.entries ?? [];
   const presentCount = rosterRows.filter((row) => row.status === 'Present').length;
   const absentCount = rosterRows.filter((row) => row.status === 'Absent').length;
   const lateCount = rosterRows.filter((row) => row.status === 'Late').length;
@@ -436,67 +454,102 @@ export function SupervisorDashboardClient({
         </section>
 
         <div className="head-dashboard-layout">
-          <section className="panel panel__body supervisor-week-panel">
-            <div className="section-title">
-              <div>
-                <h2>This week</h2>
-                <p className="muted">
-                  {dateKey(weekStart)} to {dateKey(weekEnd)}
-                </p>
+          <div className="supervisor-dashboard-main">
+            <section className="panel panel__body supervisor-week-panel">
+              <div className="section-title">
+                <div>
+                  <h2>This week</h2>
+                  <p className="muted">
+                    {dateKey(weekStart)} to {dateKey(weekEnd)}
+                  </p>
+                </div>
+                <Link className="button button--secondary button--sm" href="/supervisor/rota">
+                  Open rota
+                </Link>
               </div>
-              <Link className="button button--secondary button--sm" href="/supervisor/rota">
-                Open rota
-              </Link>
-            </div>
 
-            {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
-            <div className="supervisor-week-grid">
-              {weekDays.map((dayItem) => {
-                const dayKey = dateKey(dayItem);
-                const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
-                const isToday = isSameDay(dayItem, date);
-                const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
-                const className = [
-                  'supervisor-day-card',
-                  isToday ? 'is-today' : undefined,
-                  isPast ? 'is-past' : undefined,
-                  shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
-                ]
-                  .filter(Boolean)
-                  .join(' ');
+              {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
+              <div className="supervisor-week-grid">
+                {weekDays.map((dayItem) => {
+                  const dayKey = dateKey(dayItem);
+                  const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
+                  const isToday = isSameDay(dayItem, date);
+                  const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
+                  const className = [
+                    'supervisor-day-card',
+                    isToday ? 'is-today' : undefined,
+                    isPast ? 'is-past' : undefined,
+                    shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
 
-                return (
-                  <article className={className} key={dayKey}>
-                    <div className="supervisor-day-card__head">
-                      <span>{dayLabel(dayItem)}</span>
-                      <strong>{dayNumber(dayItem)}</strong>
-                    </div>
-                    {shiftsForDay.length === 0 ? (
-                      <p className="supervisor-day-card__empty">No shift scheduled</p>
-                    ) : (
-                      <div className="supervisor-day-card__shifts">
-                        {shiftsForDay.map((shift) => (
-                          <div className="supervisor-day-shift" key={shift.id}>
-                            <span
-                              aria-hidden="true"
-                              className="supervisor-day-shift__swatch"
-                              style={{ backgroundColor: shift.bandColour ?? undefined } as CSSProperties}
-                            />
-                            <div>
-                              <strong>
-                                {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
-                              </strong>
-                              <span>{shift.bandName ?? 'Unassigned band'}</span>
-                            </div>
-                          </div>
-                        ))}
+                  return (
+                    <article className={className} key={dayKey}>
+                      <div className="supervisor-day-card__head">
+                        <span>{dayLabel(dayItem)}</span>
+                        <strong>{dayNumber(dayItem)}</strong>
                       </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+                      {shiftsForDay.length === 0 ? (
+                        <p className="supervisor-day-card__empty">No shift scheduled</p>
+                      ) : (
+                        <div className="supervisor-day-card__shifts">
+                          {shiftsForDay.map((shift) => (
+                            <div className="supervisor-day-shift" key={shift.id}>
+                              <span
+                                aria-hidden="true"
+                                className="supervisor-day-shift__swatch"
+                                style={{ backgroundColor: shift.bandColour ?? undefined } as CSSProperties}
+                              />
+                              <div>
+                                <strong>
+                                  {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
+                                </strong>
+                                <span>{shift.bandName ?? 'Unassigned band'}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="panel panel__body head-activity-panel">
+              <div className="section-title">
+                <h2>Today&apos;s Activity</h2>
+              </div>
+              {dashboardActivityQuery.error ? <p className="status--error">{dashboardActivityQuery.error.message}</p> : null}
+              <div className="head-activity-list">
+                {dashboardActivityQuery.isLoading ? <div className="empty-state">Loading today&apos;s activity...</div> : null}
+                {!dashboardActivityQuery.isLoading && dashboardActivity.length === 0 ? (
+                  <div className="empty-state">No behaviour activity recorded today.</div>
+                ) : null}
+                {dashboardActivity.map((entry, index) => (
+                  <div className="head-activity-row" key={entry.id}>
+                    <span className="head-activity-avatar" style={{ backgroundColor: avatarColour(index) }}>
+                      {initials(entry.studentName)}
+                    </span>
+                    <div>
+                      <strong>{entry.studentName}</strong>
+                      <span
+                        className={entry.meritDelta >= 0 ? 'head-merit-pill head-merit-pill--plus' : 'head-merit-pill head-merit-pill--minus'}
+                      >
+                        {entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits
+                      </span>
+                      <p>
+                        {entry.category}
+                        {entry.note ? ` · ${entry.note}` : null}
+                      </p>
+                    </div>
+                    <time>{formatTime(entry.createdAt)}</time>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
 
           <aside className="head-dashboard-side">
             <section className="panel panel__body">
@@ -509,6 +562,84 @@ export function SupervisorDashboardClient({
                 <DashboardAction href="/supervisor/pace" icon={<BookOpenCheck size={16} />} label="Record PACE Score" />
                 <DashboardAction href="/supervisor/snapshot" icon={<FileText size={16} />} label="Child Snapshot" />
               </div>
+            </section>
+
+            <section className="panel panel__body supervisor-dashboard-card supervisor-dashboard-card--rail">
+              <div className="section-title">
+                <div>
+                  <h2>Pending</h2>
+                  <p className="muted">Messages and shift swap requests needing attention.</p>
+                </div>
+                <span className="badge badge--blue">{dashboardMessages.length + mySwapRequests.length} open</span>
+              </div>
+
+              <div className="supervisor-dashboard-list">
+                <h3>
+                  <MessageSquare aria-hidden="true" size={15} />
+                  Messages
+                </h3>
+                {dashboardMessages.length === 0 ? (
+                  <div className="dashboard-empty-state">Messages will appear here when the messaging API is connected.</div>
+                ) : (
+                  dashboardMessages.map((message) => (
+                    <article className="dashboard-list-row" key={message.id}>
+                      <strong>{message.subject}</strong>
+                      <span>{message.latestPreview}</span>
+                      {message.updatedAt ? <small>{formatShortDateTime(message.updatedAt)}</small> : null}
+                    </article>
+                  ))
+                )}
+              </div>
+
+              <div className="supervisor-dashboard-list">
+                <h3>
+                  <Send aria-hidden="true" size={15} />
+                  Swap requests
+                </h3>
+                {mySwapRequestsQuery.error ? <p className="status--error">{mySwapRequestsQuery.error.message}</p> : null}
+                {!mySwapRequestsQuery.isLoading && mySwapRequests.length === 0 ? (
+                  <div className="dashboard-empty-state">No pending shift swap requests.</div>
+                ) : null}
+                {mySwapRequests.map((request) => {
+                  const otherPerson =
+                    request.direction === 'Requested' ? request.targetUser.fullName : request.requester.fullName;
+                  return (
+                    <article className="dashboard-list-row" key={request.id}>
+                      <strong>
+                        {request.direction === 'Requested' ? 'Awaiting Head review' : 'Incoming request'} with {otherPerson}
+                      </strong>
+                      <span>
+                        {request.fromShift.date} {formatTime(request.fromShift.startsAt)} → {request.toShift.date}{' '}
+                        {formatTime(request.toShift.startsAt)}
+                      </span>
+                      <small>{formatShortDateTime(request.createdAt)}</small>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="panel panel__body supervisor-dashboard-card supervisor-dashboard-card--rail">
+              <div className="section-title">
+                <div>
+                  <h2>Notices</h2>
+                  <p className="muted">Admin notices for staff.</p>
+                </div>
+                <span className="badge badge--blue">{dashboardNotices.filter((notice) => !notice.read).length} unread</span>
+              </div>
+              {dashboardNotices.length === 0 ? (
+                <div className="dashboard-empty-state">Admin notices will appear here when notice publishing is connected.</div>
+              ) : (
+                <div className="supervisor-dashboard-list">
+                  {dashboardNotices.map((notice) => (
+                    <article className={notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'} key={notice.id}>
+                      <strong>{notice.title}</strong>
+                      <span>{notice.bodyPreview}</span>
+                      {notice.postedAt ? <small>{formatShortDateTime(notice.postedAt)}</small> : null}
+                    </article>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="panel panel__body">
@@ -524,84 +655,6 @@ export function SupervisorDashboardClient({
             </section>
           </aside>
         </div>
-
-        <section className="panel panel__body supervisor-dashboard-card">
-          <div className="section-title">
-            <div>
-              <h2>Pending</h2>
-              <p className="muted">Messages and shift swap requests needing attention.</p>
-            </div>
-            <span className="badge badge--blue">{dashboardMessages.length + mySwapRequests.length} open</span>
-          </div>
-
-          <div className="supervisor-dashboard-list">
-            <h3>
-              <MessageSquare aria-hidden="true" size={15} />
-              Messages
-            </h3>
-            {dashboardMessages.length === 0 ? (
-              <div className="dashboard-empty-state">Messages will appear here when the messaging API is connected.</div>
-            ) : (
-              dashboardMessages.map((message) => (
-                <article className="dashboard-list-row" key={message.id}>
-                  <strong>{message.subject}</strong>
-                  <span>{message.latestPreview}</span>
-                  {message.updatedAt ? <small>{formatShortDateTime(message.updatedAt)}</small> : null}
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="supervisor-dashboard-list">
-            <h3>
-              <Send aria-hidden="true" size={15} />
-              Swap requests
-            </h3>
-            {mySwapRequestsQuery.error ? <p className="status--error">{mySwapRequestsQuery.error.message}</p> : null}
-            {!mySwapRequestsQuery.isLoading && mySwapRequests.length === 0 ? (
-              <div className="dashboard-empty-state">No pending shift swap requests.</div>
-            ) : null}
-            {mySwapRequests.map((request) => {
-              const otherPerson =
-                request.direction === 'Requested' ? request.targetUser.fullName : request.requester.fullName;
-              return (
-                <article className="dashboard-list-row" key={request.id}>
-                  <strong>
-                    {request.direction === 'Requested' ? 'Awaiting Head review' : 'Incoming request'} with {otherPerson}
-                  </strong>
-                  <span>
-                    {request.fromShift.date} {formatTime(request.fromShift.startsAt)} → {request.toShift.date}{' '}
-                    {formatTime(request.toShift.startsAt)}
-                  </span>
-                  <small>{formatShortDateTime(request.createdAt)}</small>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="panel panel__body supervisor-dashboard-card">
-          <div className="section-title">
-            <div>
-              <h2>Notices</h2>
-              <p className="muted">Admin notices for staff.</p>
-            </div>
-            <span className="badge badge--blue">{dashboardNotices.filter((notice) => !notice.read).length} unread</span>
-          </div>
-          {dashboardNotices.length === 0 ? (
-            <div className="dashboard-empty-state">Admin notices will appear here when notice publishing is connected.</div>
-          ) : (
-            <div className="supervisor-dashboard-list">
-              {dashboardNotices.map((notice) => (
-                <article className={notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'} key={notice.id}>
-                  <strong>{notice.title}</strong>
-                  <span>{notice.bodyPreview}</span>
-                  {notice.postedAt ? <small>{formatShortDateTime(notice.postedAt)}</small> : null}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
       </div>
     );
   }

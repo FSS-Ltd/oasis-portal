@@ -242,6 +242,56 @@ export const behaviourRouter = router({
       };
     }),
 
+  dashboardActivity: authedProcedure
+    .input(z.object({ date: z.coerce.date() }))
+    .query(async ({ ctx, input }) => {
+      await requireBehaviourWorkflow(ctx, 'behaviour.dashboardActivity');
+      const from = normalizeDate(input.date);
+      const to = dayEnd(input.date);
+
+      const rows = await ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: {
+            createdAt: { gte: from, lt: to },
+            visibility: 'General',
+          },
+          include: {
+            student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+        }),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'BehaviourEntry',
+          meta: { source: 'behaviour.dashboardActivity', count: rows.length },
+        },
+      });
+
+      return {
+        date: dateKey(input.date),
+        entries: rows.map((row) => ({
+          id: row.id,
+          studentId: row.studentId,
+          studentName: decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student PII'),
+          yearGroup: row.student.yearGroup,
+          type: row.type,
+          category: row.category,
+          note: decryptOptional(ctx.db.$enc.decrypt, row.noteEnc),
+          meritDelta: row.meritDelta,
+          recordedById: row.recordedById,
+          recordedByName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          recordedByRole: row.recordedBy.role,
+          createdAt: row.createdAt,
+        })),
+      };
+    }),
+
   listForStudent: authedProcedure
     .input(
       z.object({
