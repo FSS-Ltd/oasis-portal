@@ -1,6 +1,5 @@
 'use client';
 
-import type { Route } from 'next';
 import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, BookOpenCheck, ClipboardCheck, FileText, MessageSquare, Plus, Save, Send, Star, Trash2 } from 'lucide-react';
@@ -144,9 +143,9 @@ function noticeDashboardAdapter(): DashboardNoticeSummary[] {
   return [];
 }
 
-function DashboardAction({ href, icon, label }: { href: Route; icon: ReactNode; label: string }) {
+function DashboardAction({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
   return (
-    <Link className="head-action" href={href}>
+    <Link className="head-action" href={{ pathname: href }}>
       <span className="head-action__content">
         {icon}
         <span>{label}</span>

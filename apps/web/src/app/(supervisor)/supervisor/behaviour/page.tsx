@@ -1,17 +1,13 @@
 import { MotionPage } from '@/components/admin/motion';
-import { SupervisorDashboardClient } from '../supervisor-dashboard-client';
+import { BehaviourLogClient } from '@/components/behaviour/behaviour-log-client';
+import { assertStaffUser } from '@/components/admin/require-full-admin';
 
-export default function SupervisorBehaviourPage() {
+export default async function SupervisorBehaviourPage() {
+  await assertStaffUser();
+
   return (
     <MotionPage>
-      <div className="page-header">
-        <div>
-          <p>Supervisor workspace</p>
-          <h1>Behaviour</h1>
-          <p>Record merits, demerits, and visibility-controlled behaviour notes.</p>
-        </div>
-      </div>
-      <SupervisorDashboardClient canExportAttendance={false} view="behaviour" />
+      <BehaviourLogClient canCreateSensitive={false} canLogBehaviour />
     </MotionPage>
   );
 }

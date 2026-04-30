@@ -1,25 +1,17 @@
-import { Star } from 'lucide-react';
+import { notFound } from 'next/navigation';
+import { canViewBehaviourReports, isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
-import { assertBehaviourReportViewer } from '@/components/admin/require-full-admin';
-import { BehaviourReportClient } from './behaviour-report-client';
+import { getAdminShellUser } from '@/components/admin/require-full-admin';
+import { BehaviourLogClient } from '@/components/behaviour/behaviour-log-client';
 
 export default async function AdminBehaviourPage() {
-  await assertBehaviourReportViewer();
+  const user = await getAdminShellUser();
+  if (!canViewBehaviourReports(user)) notFound();
+  const canLogBehaviour = isFullAdmin(user);
 
   return (
     <MotionPage>
-      <div className="page-header">
-        <div>
-          <p>Behaviour reporting</p>
-          <h1>Behaviour</h1>
-          <p>Review daily merits and behaviour trends for Head-level oversight.</p>
-        </div>
-        <span className="badge badge--blue">
-          <Star aria-hidden="true" size={14} />
-          Head discretion
-        </span>
-      </div>
-      <BehaviourReportClient />
+      <BehaviourLogClient canCreateSensitive={canLogBehaviour} canLogBehaviour={canLogBehaviour} showTrends />
     </MotionPage>
   );
 }

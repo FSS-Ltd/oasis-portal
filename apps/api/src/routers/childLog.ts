@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   AccessDeniedError,
   canViewSensitiveChildNotes,
+  isFullAdmin,
   isStaff,
   type SessionUser,
 } from '@oasis/domain';
@@ -79,11 +80,9 @@ export const childLogRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
     }
 
-    const policy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
-    const passThreshold = policy?.passThreshold ?? 80;
     const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
 
-    const [attendance, paceTests, behaviour, notes] = await Promise.all([
+    const [attendance, paceTests, behaviour, notes, meritBalance] = await Promise.all([
       ctx.db.attendance.findMany({
         where: {
           studentId: input.studentId,
@@ -96,24 +95,30 @@ export const childLogRouter = router({
         where: {
           studentId: input.studentId,
           completedAt: { gte: from, lt: to },
-          paceTestScore: { gte: passThreshold },
+          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
         },
-        include: { subject: { select: { id: true, code: true, name: true } } },
+        include: {
+          subject: { select: { id: true, code: true, name: true } },
+          recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+        },
         orderBy: [{ completedAt: 'asc' }, { createdAt: 'asc' }],
       }),
       ctx.db.behaviourEntry.findMany({
         where: {
           studentId: input.studentId,
           createdAt: { gte: from, lt: to },
+          ...(isFullAdmin(ctx.user) ? {} : { visibility: 'General' as const }),
         },
         select: {
           id: true,
           type: true,
           category: true,
+          noteEnc: true,
           visibility: true,
           meritDelta: true,
           recordedById: true,
           createdAt: true,
+          recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
         },
         orderBy: { createdAt: 'asc' },
       }),
@@ -125,6 +130,13 @@ export const childLogRouter = router({
         },
         include: { createdBy: { select: { id: true, fullNameEnc: true, role: true } } },
         orderBy: { createdAt: 'asc' },
+      }),
+      ctx.db.meritLedger.aggregate({
+        where: {
+          studentId: input.studentId,
+          account: { in: ['Spend', 'Saving', 'Investment'] },
+        },
+        _sum: { delta: true },
       }),
     ]);
 
@@ -159,6 +171,15 @@ export const childLogRouter = router({
         id: student.id,
         fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII'),
         yearGroup: student.yearGroup,
+        supervisorName:
+          notes[0]?.createdBy.fullNameEnc
+            ? decryptRequired(ctx.db.$enc.decrypt, notes[0].createdBy.fullNameEnc, 'user PII')
+            : behaviour[0]?.recordedBy.fullNameEnc
+              ? decryptRequired(ctx.db.$enc.decrypt, behaviour[0].recordedBy.fullNameEnc, 'user PII')
+              : paceTests[0]?.recordedBy.fullNameEnc
+                ? decryptRequired(ctx.db.$enc.decrypt, paceTests[0].recordedBy.fullNameEnc, 'user PII')
+                : null,
+        totalMerits: meritBalance._sum.delta ?? 0,
       },
       range: {
         from: dateKey(from),
@@ -186,7 +207,12 @@ export const childLogRouter = router({
         subjectCode: record.subject.code,
         subjectName: record.subject.name,
         paceNumber: record.paceNumber,
-        score: record.paceTestScore,
+        score: record.paceTestScore ?? record.selfTestScore ?? 0,
+        maxScore: 100,
+        testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
+        recordedById: record.recordedById,
+        recordedByName: decryptRequired(ctx.db.$enc.decrypt, record.recordedBy.fullNameEnc, 'user PII'),
+        recordedByRole: record.recordedBy.role,
         completedAt: record.completedAt,
         createdAt: record.createdAt,
       })),
@@ -194,9 +220,12 @@ export const childLogRouter = router({
         id: entry.id,
         type: entry.type,
         category: entry.category,
+        note: entry.noteEnc ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note') : null,
         visibility: entry.visibility,
         meritDelta: entry.meritDelta,
         recordedById: entry.recordedById,
+        recordedByName: decryptRequired(ctx.db.$enc.decrypt, entry.recordedBy.fullNameEnc, 'user PII'),
+        recordedByRole: entry.recordedBy.role,
         createdAt: entry.createdAt,
       })),
       notes: notes.map((note) => ({
