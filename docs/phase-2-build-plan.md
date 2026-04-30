@@ -1,7 +1,7 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Ready for review - PR-2.10 Attendance capture UI
-**Last updated:** 2026-04-29
+**Status:** Ready for review - PR-2.10a Role-aware auth redirects
+**Last updated:** 2026-04-30
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -533,7 +533,7 @@ Verification:
   against `/`, `/supervisor`, and `/admin/attendance` timed out in this
   sandbox after compiling middleware.
 
-### PR-2.10a - `fix(web): role-aware auth redirects` ⏳ PLANNED
+### PR-2.10a - `fix(web): role-aware auth redirects` ✅ READY FOR REVIEW
 
 Branch: `fix/phase-2-pr2.10a-role-aware-auth-redirects`
 
@@ -567,6 +567,20 @@ Tests:
 - Supervisor is not sent to `/admin`.
 - Direct unauthenticated access to `/supervisor` requires Clerk auth.
 - Existing admin and supervisor route guards still deny unsupported roles.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm --filter @oasis/web build` → pass; `/post-sign-in`, `/not-ready`,
+  and `/supervisor` appear in the route table.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` → pass
+  with 1 runnable unauthenticated `/supervisor` protection test and 5
+  credential-gated tests skipped because local E2E Head, Supervisor, Exporter,
+  and Parent credentials are not set.
+- `graphify update .` → completed; graphify reported the existing graph
+  node-count warning.
 
 ### PR-2.11 - `feat(web): behaviour and PACE entry UI` ⏳ PLANNED
 

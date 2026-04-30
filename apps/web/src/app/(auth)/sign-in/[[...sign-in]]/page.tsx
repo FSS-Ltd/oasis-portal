@@ -13,8 +13,8 @@ export default function SignInPage() {
   return (
     <main style={{ display: 'grid', minHeight: '100vh', placeItems: 'center', padding: 24 }}>
       <SignIn
-        fallbackRedirectUrl="/admin"
-        forceRedirectUrl="/admin"
+        fallbackRedirectUrl="/post-sign-in"
+        forceRedirectUrl="/post-sign-in"
         path="/sign-in"
         signUpUrl="/sign-up"
       />

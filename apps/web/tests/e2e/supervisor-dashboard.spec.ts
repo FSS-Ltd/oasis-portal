@@ -14,7 +14,7 @@ async function signIn(page: import('@playwright/test').Page, email: string, pass
   await page.getByLabel(/email/i).fill(email);
   await page.getByLabel(/password/i).fill(password);
   await page.getByRole('button', { name: /continue|sign in/i }).click();
-  await page.waitForURL(/admin|supervisor|dashboard|2fa/, { timeout: 30_000 });
+  await page.waitForURL(/admin|supervisor|dashboard|2fa|not-ready/, { timeout: 30_000 });
 }
 
 test.describe('Supervisor dashboard shell', () => {
@@ -24,6 +24,7 @@ test.describe('Supervisor dashboard shell', () => {
 
   headTest('full-admin can load the supervisor shell', async ({ page }) => {
     await signIn(page, headEmail!, headPassword!);
+    await expect(page).toHaveURL(/admin/);
     await page.goto('/supervisor');
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toBeVisible();
     await expect(page.getByText(/attendance capture/i)).toBeVisible();
@@ -33,7 +34,8 @@ test.describe('Supervisor dashboard shell', () => {
 
   supervisorTest('Supervisor can mark attendance, filter bands, and submit availability', async ({ page }) => {
     await signIn(page, supervisorEmail!, supervisorPassword!);
-    await page.goto('/supervisor');
+    await expect(page).toHaveURL(/supervisor/);
+    await expect(page).not.toHaveURL(/admin/);
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toBeVisible();
     await expect(page.getByText(/attendance capture/i)).toBeVisible();
     await expect(page.getByText(/your rota/i)).toBeVisible();
@@ -70,13 +72,19 @@ test.describe('Supervisor dashboard shell', () => {
 
   exporterTest('attendance-exporter users can see the daily CSV export', async ({ page }) => {
     await signIn(page, exporterEmail!, exporterPassword!);
-    await page.goto('/supervisor');
+    await expect(page).toHaveURL(/supervisor/);
     await expect(page.getByRole('button', { name: /export csv/i })).toBeVisible();
   });
 
   parentTest('non-staff users cannot access the supervisor shell', async ({ page }) => {
     await signIn(page, parentEmail!, parentPassword!);
+    await expect(page).toHaveURL(/not-ready/);
     await page.goto('/supervisor');
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toHaveCount(0);
+  });
+
+  test('unauthenticated supervisor access requires sign-in', async ({ page }) => {
+    await page.goto('/supervisor');
+    await page.waitForURL(/sign-in/, { timeout: 30_000 });
   });
 });
