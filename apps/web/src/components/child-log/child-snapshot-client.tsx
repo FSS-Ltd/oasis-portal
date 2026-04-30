@@ -155,10 +155,22 @@ export function ChildSnapshotClient() {
               value={note}
             />
           </Field>
-          <label className="tag-toggle">
-            <input checked={sensitive} onChange={(event) => setSensitive(event.target.checked)} type="checkbox" />
-            <span>Sensitive</span>
-          </label>
+          <div aria-label="Note visibility" className="segmented-actions" role="group">
+            <Button
+              onClick={() => setSensitive(false)}
+              type="button"
+              variant={sensitive ? 'secondary' : 'primary'}
+            >
+              Normal
+            </Button>
+            <Button
+              onClick={() => setSensitive(true)}
+              type="button"
+              variant={sensitive ? 'primary' : 'secondary'}
+            >
+              Sensitive
+            </Button>
+          </div>
           <Button disabled={!selectedStudentId || !note.trim()} pending={createNote.isPending} type="submit">
             Save note
           </Button>

@@ -251,8 +251,40 @@
   margin-bottom: 24px;
 }
 
+.dashboard-hero {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 28px;
+}
+
+.dashboard-hero p,
+.dashboard-hero span {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 1.03rem;
+}
+
+.dashboard-hero h1 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 2.55rem;
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.dashboard-grid--hero {
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
 .stat-card {
   border-top: 3px solid var(--accent, var(--oasis-blue));
+}
+
+.head-stat-card {
+  min-height: 118px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(23, 37, 84, 0.08);
 }
 
 .stat-card p {
@@ -279,6 +311,161 @@
   margin-top: 6px !important;
   color: var(--oasis-text-muted);
   font-size: 0.76rem;
+}
+
+.head-dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(330px, 0.5fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.head-dashboard-side {
+  display: grid;
+  gap: 22px;
+}
+
+.head-activity-panel,
+.head-dashboard-side .panel {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(23, 37, 84, 0.08);
+}
+
+.head-activity-list {
+  display: grid;
+}
+
+.head-activity-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.head-activity-row:first-child {
+  padding-top: 4px;
+}
+
+.head-activity-row:last-child {
+  border-bottom: 0;
+}
+
+.head-activity-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 850;
+}
+
+.head-activity-row strong {
+  margin-right: 8px;
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+}
+
+.head-activity-row p {
+  margin: 6px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.head-activity-row time {
+  color: var(--oasis-text-muted);
+  font-size: 0.76rem;
+}
+
+.head-merit-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.head-merit-pill--plus {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.head-merit-pill--minus {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.head-merit-pill--sensitive {
+  margin-left: 8px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.head-action-list {
+  display: grid;
+  gap: 10px;
+}
+
+.head-action {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.head-action svg {
+  color: var(--oasis-blue);
+}
+
+.attendance-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.attendance-summary {
+  display: grid;
+  min-height: 84px;
+  place-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  text-align: center;
+}
+
+.attendance-summary strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.attendance-summary span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+}
+
+.attendance-summary--green strong {
+  color: #166534;
+}
+
+.attendance-summary--red strong {
+  color: #991b1b;
+}
+
+.attendance-summary--amber strong {
+  color: #92400e;
 }
 
 .supervisor-action-grid {
@@ -1688,7 +1875,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .dashboard-hero h1 {
+    font-size: 2rem;
+  }
+
   .settings-grid,
+  .head-dashboard-layout,
   .supervisor-dashboard-overview,
   .supervisor-layout,
   .supervisor-rota-grid,
@@ -1702,6 +1894,10 @@
   }
 
   .behaviour-chart__row {
+    grid-template-columns: 1fr;
+  }
+
+  .attendance-summary-grid {
     grid-template-columns: 1fr;
   }
 
