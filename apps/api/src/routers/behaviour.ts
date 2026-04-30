@@ -292,6 +292,69 @@ export const behaviourRouter = router({
       };
     }),
 
+  recentEntries: authedProcedure
+    .input(z.object({ date: z.coerce.date() }))
+    .query(async ({ ctx, input }) => {
+      await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries');
+      const from = normalizeDate(input.date);
+      const to = dayEnd(input.date);
+      const canReadSensitive = isFullAdmin(ctx.user);
+
+      const rows = await ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: {
+            createdAt: { gte: from, lt: to },
+            ...(canReadSensitive ? {} : { visibility: 'General' as const }),
+          },
+          include: {
+            student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
+
+      const sensitiveRows = rows.filter((row) => row.visibility === 'Sensitive');
+      if (sensitiveRows.length > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'ReadSensitive',
+            entity: 'BehaviourEntry',
+            meta: { source: 'behaviour.recentEntries', count: sensitiveRows.length },
+          },
+        });
+      }
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'BehaviourEntry',
+          meta: { source: 'behaviour.recentEntries', count: rows.length },
+        },
+      });
+
+      return {
+        date: dateKey(input.date),
+        entries: rows.map((row) => ({
+          id: row.id,
+          studentId: row.studentId,
+          studentName: decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student PII'),
+          yearGroup: row.student.yearGroup,
+          type: row.type,
+          category: row.category,
+          note: decryptOptional(ctx.db.$enc.decrypt, row.noteEnc),
+          visibility: row.visibility,
+          meritDelta: row.meritDelta,
+          recordedById: row.recordedById,
+          recordedByName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          recordedByRole: row.recordedBy.role,
+          createdAt: row.createdAt,
+        })),
+      };
+    }),
+
   listForStudent: authedProcedure
     .input(
       z.object({
@@ -413,6 +476,9 @@ export const behaviourRouter = router({
       await requireBehaviourWorkflow(ctx, 'behaviour.log');
       if (input.type === 'Merit' && input.amount === undefined) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'merit amount is required' });
+      }
+      if (input.visibility === 'Sensitive') {
+        await requireCanRequestSensitive(ctx, input.studentId);
       }
 
       const student = await ctx.db.student.findUnique({

@@ -45,6 +45,7 @@ interface StoredStudent {
   id: string;
   active: boolean;
   fullNameEnc: string;
+  yearGroup: string;
 }
 
 interface StoredBehaviour {
@@ -92,8 +93,12 @@ function decrypt(value: string | null | undefined): string | null {
 
 function makeFakeDb() {
   const students: StoredStudent[] = [
-    { id: activeStudentId, active: true, fullNameEnc: 'enc:Jane Learner' },
-    { id: inactiveStudentId, active: false, fullNameEnc: 'enc:Former Student' },
+    { id: activeStudentId, active: true, fullNameEnc: 'enc:Jane Learner', yearGroup: 'Year 6' },
+    { id: inactiveStudentId, active: false, fullNameEnc: 'enc:Former Student', yearGroup: 'Year 6' },
+  ];
+  const users = [
+    { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
+    { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: supervisorUser.role },
   ];
   const behaviour: StoredBehaviour[] = [];
   const ledger: StoredLedgerRow[] = [];
@@ -130,16 +135,26 @@ function makeFakeDb() {
       ),
       findMany: vi.fn(
         ({
+          include,
           where,
         }: {
-          where: { studentId: string; visibility?: BehaviourVisibility };
-        }) =>
-          Promise.resolve(
-            behaviour
-              .filter((row) => row.studentId === where.studentId)
-              .filter((row) => where.visibility === undefined || row.visibility === where.visibility)
-              .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
-          ),
+          include?: { student?: unknown; recordedBy?: unknown };
+          where: { studentId?: string; visibility?: BehaviourVisibility; createdAt?: { gte: Date; lt: Date } };
+        }) => {
+          const rows = behaviour
+            .filter((row) => where.studentId === undefined || row.studentId === where.studentId)
+            .filter((row) => where.visibility === undefined || row.visibility === where.visibility)
+            .filter((row) => where.createdAt === undefined || (row.createdAt >= where.createdAt.gte && row.createdAt < where.createdAt.lt))
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          if (!include?.student && !include?.recordedBy) return Promise.resolve(rows);
+          return Promise.resolve(
+            rows.map((row) => ({
+              ...row,
+              student: students.find((student) => student.id === row.studentId),
+              recordedBy: users.find((user) => user.id === row.recordedById) ?? users[0],
+            })),
+          );
+        },
       ),
     },
     meritLedger: {
@@ -391,11 +406,11 @@ describe('behaviour.listForStudent', () => {
       note: 'Shared resources',
       amount: 2,
     });
-    await makeCaller(supervisorUser, db).behaviour.log({
+    await makeCaller(headUser, db).behaviour.log({
       studentId: activeStudentId,
       type: 'Demerit',
       category: 'Safeguarding',
-      note: 'Supervisor can create but not reread',
+      note: 'Sensitive staff note',
       visibility: 'Sensitive',
     });
 
@@ -430,6 +445,19 @@ describe('behaviour.listForStudent', () => {
     });
   });
 
+  it('denies Supervisor creating Sensitive behaviour entries', async () => {
+    const { db } = makeFakeDb();
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.log({
+        studentId: activeStudentId,
+        type: 'Demerit',
+        category: 'Safeguarding',
+        note: 'Supervisor cannot create sensitive behaviour',
+        visibility: 'Sensitive',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('denies Parent, Student, and ClubsAdmin reads', async () => {
     const { db } = makeFakeDb();
 
@@ -454,5 +482,47 @@ describe('behaviour.listForStudent', () => {
         },
       },
     });
+  });
+});
+
+describe('behaviour.recentEntries', () => {
+  it('returns merits and demerits for the selected day without sensitive rows for Supervisor', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(supervisorUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      note: 'Helped a younger student',
+      visibility: 'General',
+      amount: 4,
+    });
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      note: 'Private behaviour note',
+      visibility: 'Sensitive',
+    });
+
+    const supervisorResult = await makeCaller(supervisorUser, db).behaviour.recentEntries({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    expect(supervisorResult.entries).toHaveLength(1);
+    expect(supervisorResult.entries[0]).toMatchObject({
+      type: 'Merit',
+      note: 'Helped a younger student',
+      recordedByName: 'Supervisor User',
+      studentName: 'Jane Learner',
+    });
+
+    const headResult = await makeCaller(headUser, db).behaviour.recentEntries({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    expect(headResult.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'Demerit', note: 'Private behaviour note', visibility: 'Sensitive' }),
+        expect.objectContaining({ type: 'Merit', note: 'Helped a younger student', visibility: 'General' }),
+      ]),
+    );
   });
 });

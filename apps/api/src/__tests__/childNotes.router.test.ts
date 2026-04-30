@@ -115,6 +115,9 @@ function makeFakeDb() {
       ),
     },
     pacePolicy: { findUnique: vi.fn(() => Promise.resolve({ passThreshold: 80 })) },
+    meritLedger: {
+      aggregate: vi.fn(() => Promise.resolve({ _sum: { delta: 17 } })),
+    },
     paceRecord: {
       findMany: vi.fn(() =>
         Promise.resolve([
@@ -126,6 +129,8 @@ function makeFakeDb() {
             completedAt: day('2026-04-29'),
             createdAt: day('2026-04-29'),
             subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+            recordedById: supervisorUser.id,
+            recordedBy: users.find((user) => user.id === supervisorUser.id),
           },
         ]),
       ),
@@ -141,6 +146,8 @@ function makeFakeDb() {
             meritDelta: 3,
             recordedById: supervisorUser.id,
             createdAt: day('2026-04-29'),
+            noteEnc: 'enc:Focused well',
+            recordedBy: users.find((user) => user.id === supervisorUser.id),
           },
         ]),
       ),
@@ -227,7 +234,8 @@ describe('childLog.snapshot', () => {
 
     expect(snapshot.tardiness).toHaveLength(1);
     expect(snapshot.passedTests).toMatchObject([{ subjectCode: 'MATH', score: 90 }]);
-    expect(snapshot.behaviour).toMatchObject([{ type: 'Merit', meritDelta: 3 }]);
+    expect(snapshot.behaviour).toMatchObject([{ type: 'Merit', meritDelta: 3, note: 'Focused well', recordedByName: 'Supervisor User' }]);
     expect(snapshot.notes).toMatchObject([{ note: 'Visible note', sensitive: false }]);
+    expect(snapshot.student).toMatchObject({ supervisorName: 'Supervisor User', totalMerits: 17 });
   });
 });

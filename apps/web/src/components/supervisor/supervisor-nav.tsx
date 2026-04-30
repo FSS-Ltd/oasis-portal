@@ -45,7 +45,7 @@ export function SupervisorSidebarNav() {
             aria-current={active ? 'page' : undefined}
             aria-disabled={!item.enabled}
             className={className}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={item.label}
           >
             <Icon aria-hidden="true" size={18} />
@@ -72,7 +72,7 @@ export function SupervisorBottomNav() {
             aria-current={active ? 'page' : undefined}
             aria-disabled={!item.enabled}
             className={className}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={item.label}
           >
             <Icon aria-hidden="true" size={18} />
