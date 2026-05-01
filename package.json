@@ -31,6 +31,21 @@
     "bootstrap:head": "node scripts/with-env.mjs pnpm --filter @oasis/db bootstrap:head",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@clerk/shared",
+      "@prisma/client",
+      "@prisma/engines",
+      "browser-tabs-lock",
+      "bufferutil",
+      "core-js",
+      "esbuild",
+      "prisma",
+      "sharp",
+      "unrs-resolver",
+      "utf-8-validate"
+    ]
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "eslint": "^9.14.0",

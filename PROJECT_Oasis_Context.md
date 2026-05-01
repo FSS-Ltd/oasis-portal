@@ -38,7 +38,8 @@ Changed scope:
   secrets.
 - Added gated production deployment on `main`: run CI, apply production
   migrations using GitHub secrets, then build and deploy Vercel prebuilt output
-  from `apps/web`.
+  from the repository root, allowing the Vercel project root-directory setting
+  (`apps/web`) to resolve once.
 - Added explicit Vercel deploy secret preflight checks so missing GitHub Actions
   secrets fail with named missing keys before the Vercel CLI attempts auth.
 - Let Vercel CLI commands read `VERCEL_TOKEN` from the CI environment instead
@@ -46,6 +47,11 @@ Changed scope:
 - Added the Vercel build-time environment allowlist to `turbo.json` so
   Turborepo strict env mode does not strip required variables during
   `@oasis/web#build`.
+- Added `apps/web/vercel.json` with `git.deploymentEnabled: false` so native
+  Vercel Git deployments do not race the GitHub Actions prebuilt deployment
+  checks on pull requests or `main`.
+- Added `pnpm.onlyBuiltDependencies` in `package.json` for the build-script
+  packages pnpm 10 reported during CI installs.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
   setting, migration order, rollback guidance, Turbo env allowlisting, and the
   `vercel pull` missing credentials failure mode.
@@ -66,7 +72,7 @@ Verification:
 - `pnpm --filter @oasis/web build` - pass.
 - `gh api repos/jntagengwa/oasis-portal/actions/secrets --jq '.secrets[].name'`
   - returned no repository-level Actions secrets; `VERCEL_TOKEN` is not
-  currently configured in GitHub.
+    currently configured in GitHub.
 - `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
   pass after adding Vercel secret preflight checks.
 - `git diff --check` - pass after the Vercel deploy workflow update.
@@ -76,6 +82,16 @@ Verification:
   update.
 - `pnpm exec turbo run build --filter=@oasis/web` - pass after the
   `turbo.json` env allowlist update.
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass after running Vercel CLI steps from the repo root.
+- `pnpm exec prettier --check package.json apps/web/vercel.json .github/workflows/ci.yml` -
+  pass.
+- `CI=true pnpm install --frozen-lockfile` - pass with the pnpm
+  `onlyBuiltDependencies` allowlist.
+- `pnpm rebuild` - pass.
+- `pnpm --filter @oasis/web build` - pass after the Vercel CI root-directory
+  correction.
+- `git diff --check` - pass after the Vercel CI root-directory correction.
 - `graphify update .` - completed; graphify rebuilt the code graph without
   tracked graph output changes.
 

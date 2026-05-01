@@ -234,16 +234,13 @@ jobs:
         run: npm install --global vercel@${{ env.VERCEL_CLI_VERSION }}
 
       - name: Pull Vercel preview environment
-        working-directory: apps/web
         run: vercel pull --yes --environment=preview
 
       - name: Build preview deployment
-        working-directory: apps/web
         run: vercel build
 
       - name: Deploy preview
         id: deploy
-        working-directory: apps/web
         run: |
           deployment_url="$(vercel deploy --prebuilt --archive=tgz)"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
@@ -324,16 +321,13 @@ jobs:
         run: npm install --global vercel@${{ env.VERCEL_CLI_VERSION }}
 
       - name: Pull Vercel production environment
-        working-directory: apps/web
         run: vercel pull --yes --environment=production
 
       - name: Build production deployment
-        working-directory: apps/web
         run: vercel build --prod
 
       - name: Deploy production
         id: deploy
-        working-directory: apps/web
         run: |
           deployment_url="$(vercel deploy --prebuilt --prod --archive=tgz)"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
