@@ -153,6 +153,12 @@ Required Vercel project settings:
   `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
   missing publishable-key error. Vercel may still list an env var whose value is
   empty; the CI env validator treats empty values as invalid.
+- Because GitHub Actions uses `vercel build` and `vercel deploy --prebuilt`,
+  build-time public variables must be available through `vercel pull`.
+  Vercel pulls Sensitive variables as empty strings, so keep
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` as non-sensitive project variables, or
+  mirror them into GitHub Actions secrets and export them before `vercel build`.
 - Any Vercel project variable needed during `@oasis/web#build` must also be
   declared in `turbo.json` under the `build` task's `env` or `passThroughEnv`
   list. Turborepo strict env mode otherwise strips it during Vercel builds.

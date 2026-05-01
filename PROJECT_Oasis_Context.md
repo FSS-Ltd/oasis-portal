@@ -67,8 +67,10 @@ Changed scope:
   `vercel env ls preview` showed `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` exists,
   but `vercel env pull --environment=preview` pulled it as an empty string.
 - Added a reusable env-file validator and wired it after `vercel pull` for
-  preview and production deploy jobs so missing or empty Vercel runtime env vars
-  fail before `vercel build`/`vercel deploy`.
+  preview and production deploy jobs so missing or empty Vercel build-time
+  public env vars fail before `vercel build`/`vercel deploy`. Runtime secrets
+  stay in Vercel; Sensitive Vercel variables are intentionally pulled as empty
+  strings by the CLI and cannot be validated through `.vercel/.env.*.local`.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
   setting, migration order, rollback guidance, Turbo env allowlisting, and the
   `vercel pull` missing credentials failure mode.

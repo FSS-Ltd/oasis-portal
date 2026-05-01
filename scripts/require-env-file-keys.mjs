@@ -54,6 +54,9 @@ const missing = requiredKeys.filter((key) => !values.get(key));
 if (missing.length > 0) {
   console.error(`Missing or empty required env vars in ${envFile}: ${missing.join(', ')}`);
   console.error('Add non-empty values in Vercel Project Settings > Environment Variables.');
+  console.error(
+    'If the keys exist but this still fails after `vercel pull`, check whether they are marked Sensitive. Vercel pulls Sensitive values as empty strings for local/CI prebuilt builds.',
+  );
   process.exit(1);
 }
 
