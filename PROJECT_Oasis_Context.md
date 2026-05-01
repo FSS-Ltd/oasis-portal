@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-01
 **Agent:** Technical Agent (Codex)
-**Phase:** PACE workflow access implementation complete.
+**Phase:** Supabase SSR + Vercel CI/CD implementation.
 
 ---
 
@@ -18,7 +18,56 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PACE workflow access
+## Current status - Supabase SSR + Vercel CI/CD
+
+Working branch: `chore/supabase-vercel-cicd`.
+
+**PR scope:** Add Supabase SSR client utilities for web data features and move
+production deployment behind GitHub Actions CI/CD with Vercel prebuilt deploys.
+
+Changed scope:
+
+- Added `@supabase/ssr` to `@oasis/web`.
+- Added browser and server Supabase client helpers under
+  `apps/web/src/lib/supabase`, with shared validation for the browser-safe
+  Supabase URL and publishable key.
+- Kept Clerk as the only auth authority and left `apps/web/src/middleware.ts`
+  unchanged.
+- Extended `.github/workflows/ci.yml` so same-repo pull requests create Vercel
+  preview deployments after checks pass, while forked pull requests skip deploy
+  secrets.
+- Added gated production deployment on `main`: run CI, apply production
+  migrations using GitHub secrets, then build and deploy Vercel prebuilt output
+  from `apps/web`.
+- Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
+  setting, migration order, and rollback guidance.
+
+Verification:
+
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass.
+- `CI=true pnpm install --frozen-lockfile` - pass after rerunning with network
+  access to restore `node_modules`.
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm --filter @oasis/web lint` - pass after replacing unsafe generic
+  return types with explicit Supabase client aliases.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph without
+  tracked graph output changes.
+
+Notes:
+
+- Required GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+  `VERCEL_PROJECT_ID`, `PROD_DATABASE_URL`, and `PROD_DIRECT_URL`.
+- Vercel project root is expected to be `apps/web`.
+- Supabase Auth middleware remains deferred until there is a specific
+  Supabase-backed login/session flow.
+
+## Previous status - PACE workflow access
 
 Working branch: `feat/pace-workflow-access`.
 

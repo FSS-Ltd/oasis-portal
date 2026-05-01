@@ -151,6 +151,9 @@ importers:
       '@oasis/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@supabase/ssr':
+        specifier: ^0.10.2
+        version: 0.10.2(@supabase/supabase-js@2.104.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@supabase/supabase-js':
         specifier: ^2.104.1
         version: 2.104.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -2423,6 +2426,11 @@ packages:
     resolution: {integrity: sha512-dVJHhFB2ErBd0/2qE9G8CedCrGoAtBfL9Q4zbSMXO7b1Cpld916ljSiX21mURUqijPf1WoPQG4Bp/averUzk/g==}
     engines: {node: '>=20.0.0'}
 
+  '@supabase/ssr@0.10.2':
+    resolution: {integrity: sha512-JFbchN63CXLFHJRNT7udec4/RoD9PmXkSGko3QSO6vUuqGBtSzdmxR7FPfQNr7SuFd65I7Xv46q66ALjEN1cgQ==}
+    peerDependencies:
+      '@supabase/supabase-js': ^2.102.1
+
   '@supabase/storage-js@2.104.1':
     resolution: {integrity: sha512-2bQaLbkRshctkUVuqamwYZDEd+0cGSc9DY9sjh92DcA5hu1F/1AP8p6gxGr76sgdK9Ngi0rh+2Kdh+uC4hcnGA==}
     engines: {node: '>=20.0.0'}
@@ -3436,6 +3444,10 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
+
+  cookie@1.1.1:
+    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
+    engines: {node: '>=18'}
 
   copy-anything@4.0.5:
     resolution: {integrity: sha512-7Vv6asjS4gMOuILabD3l739tsaxFQmC+a7pLZm02zyvs8p977bL3zEgq3yDk5rn9B0PbYgIv++jmHcuUab4RhA==}
@@ -9393,6 +9405,11 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
+  '@supabase/ssr@0.10.2(@supabase/supabase-js@2.104.1(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+    dependencies:
+      '@supabase/supabase-js': 2.104.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      cookie: 1.1.1
+
   '@supabase/storage-js@2.104.1':
     dependencies:
       iceberg-js: 0.8.1
@@ -10480,6 +10497,8 @@ snapshots:
   convert-source-map@1.9.0: {}
 
   convert-source-map@2.0.0: {}
+
+  cookie@1.1.1: {}
 
   copy-anything@4.0.5:
     dependencies:

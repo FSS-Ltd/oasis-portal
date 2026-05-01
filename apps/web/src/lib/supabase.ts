@@ -1,20 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type BrowserSupabaseClient } from './supabase/client';
 
-const supabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'];
-const supabasePublishableKey = process.env['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'];
+export { createClient };
+export type { BrowserSupabaseClient };
 
-if (!supabaseUrl) {
-  throw new Error('Missing required env var: NEXT_PUBLIC_SUPABASE_URL');
-}
-
-if (!supabasePublishableKey) {
-  throw new Error('Missing required env var: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
-}
-
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-  auth: {
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-    persistSession: false,
-  },
-});
+export const supabase: BrowserSupabaseClient = createClient();

@@ -110,12 +110,38 @@ Those roles can bypass the protection this platform relies on.
 
 ## 4. Deploy
 
-- Web: push to `main` → Vercel builds → auto-deploy to production.
-- DB migrations: `pnpm db:migrate` runs as part of the release pipeline
-  **before** the new web build is promoted. Roll back = promote previous
-  Vercel deployment; DO NOT `prisma migrate reset` in production.
+- Web + API deploy as one Vercel project from `apps/web`. The Next.js app owns
+  the `/api/trpc` route handler and Clerk webhook handlers, so there is no
+  separate backend service to deploy for the current architecture.
+- GitHub Actions is the release gate. Disable or ignore Vercel's built-in Git
+  auto-deploys so production is not deployed twice.
+- Pull requests from the same repository run the full CI gate and then create a
+  Vercel preview deployment. Forked pull requests run checks only because they
+  must not receive deployment secrets.
+- Pushes to `main` run the full CI gate, run `pnpm db:migrate` against the
+  production database, then run `vercel pull`, `vercel build --prod`, and
+  `vercel deploy --prebuilt --prod --archive=tgz`.
+- Roll back web code by promoting or rolling back to the previous Vercel
+  production deployment. DO NOT `prisma migrate reset` in production.
 - Mobile: EAS build per release tag, submitted to TestFlight / Play
   internal track for QA before store submission.
+
+Required GitHub Actions secrets:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+- `PROD_DATABASE_URL` — production runtime Postgres URL.
+- `PROD_DIRECT_URL` — production owner/direct Postgres URL for migrations.
+
+Required Vercel project settings:
+
+- Root Directory: `apps/web`.
+- Production and preview runtime env vars configured in Vercel, including
+  `DATABASE_URL`, `DIRECT_URL`, Clerk vars, Supabase public vars,
+  `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, and `OASIS_BIDX_PEPPER`.
+- Supabase browser/server clients live in `apps/web/src/lib/supabase`. Clerk
+  remains the authentication source; Supabase Auth middleware is not configured.
 
 ## 5. Incident playbooks
 
