@@ -18,41 +18,43 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Production Prisma runtime fix
+## Current status - Production Prisma runtime packaging fix
 
-Working branch: `fix/prod-migration-config`.
+Working branch: `fix/prisma-query-engine-vercel`.
 
-**PR scope:** Fix production Prisma Client runtime packaging for Vercel without
-changing database schema or deployment flow.
+**PR scope:** Fix production Prisma Client runtime packaging for Vercel so the
+Clerk `/post-sign-in` handoff can resolve the local user without crashing.
 
 Changed scope:
 
-- Added `rhel-openssl-3.0.x` to the Prisma Client `binaryTargets` so the
-  generated client includes the query engine required by the production Vercel
-  runtime.
-- Confirmed the reported production failure is runtime packaging, not a failed
-  Prisma migration: the production GitHub Actions deploy log applied all 5
-  Prisma migrations and then applied 12 RLS statements.
+- Added Prisma's `@prisma/nextjs-monorepo-workaround-plugin` to `@oasis/web`
+  and wired `PrismaPlugin` into server-side Next webpack builds.
+- Added a root `postinstall` script that runs `pnpm --filter @oasis/db generate`
+  so Vercel regenerates the Prisma client during dependency install.
+- Confirmed the existing Prisma schema already includes
+  `binaryTargets = ["native", "rhel-openssl-3.0.x"]`; this branch fixes the
+  missing Vercel bundle asset, not the target list.
 
 Verification:
 
-- `pnpm --filter @oasis/db generate` - pass after rerunning with network access
-  so Prisma could download the `rhel-openssl-3.0.x` query engine.
-- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/db generate` - pass.
 - `pnpm --filter @oasis/web build` - pass.
-- `pnpm exec prettier --check PROJECT_Oasis_Context.md` - pass.
-- `git diff --check` - pass.
+- Checked `.next` output and route trace files; `/post-sign-in`,
+  `/api/clerk/webhook`, and `/api/trpc/[trpc]` now include
+  `libquery_engine-rhel-openssl-3.0.x.so.node` and `schema.prisma`.
+- `pnpm run postinstall` - pass.
 - `graphify update .` - completed; graphify rebuilt the code graph without
   tracked graph output changes.
 
 Notes:
 
-- The Supabase dashboard migration UI will not show these migrations because
-  this project uses Prisma migrations tracked in `public._prisma_migrations`,
-  not Supabase CLI migrations tracked in `supabase_migrations`.
-- The production database URL was exposed in chat/editor context during
-  investigation; rotate the production database password and update GitHub
-  Actions/Vercel secrets.
+- The production error digest `748418499` was caused by Prisma failing before
+  `createContext` could resolve the Clerk user. User creation may still require
+  the Clerk webhook to replay or the user to sign up again after redeploy.
+- A secret-like value was visible in `.env.production` editor context during the
+  session; rotate the affected production secret if it is active.
 
 ## Previous status - Supabase SSR + Vercel CI/CD
 

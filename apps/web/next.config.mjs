@@ -1,3 +1,4 @@
+import { PrismaPlugin } from '@prisma/nextjs-monorepo-workaround-plugin';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -8,12 +9,15 @@ const nextConfig = {
   typedRoutes: true,
   outputFileTracingRoot: repoRoot,
   transpilePackages: ['@oasis/api', '@oasis/db', '@oasis/domain'],
-  webpack(config) {
+  webpack(config, { isServer }) {
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,
       '.js': ['.ts', '.tsx', '.js'],
       '.mjs': ['.mts', '.mjs'],
     };
+    if (isServer) {
+      config.plugins.push(new PrismaPlugin());
+    }
     return config;
   },
 };
