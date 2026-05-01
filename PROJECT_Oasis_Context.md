@@ -46,6 +46,9 @@ Changed scope:
   calendar card and added a Notes tab backed by existing child notes. Sensitive
   notes use the existing `sensitive-note-viewer` policy; sensitive behaviour
   remains Head-only on this surface.
+- Follow-up: adjusted the Attendance calendar to default to the current month,
+  support month back/forward navigation, disable forward navigation past the
+  current month, and grey Monday/Saturday/Sunday as centre-closed days.
 
 Verification:
 
@@ -65,6 +68,11 @@ Verification:
   `pnpm --filter @oasis/web typecheck`, `pnpm lint`,
   `pnpm --filter @oasis/web build`, `git diff --check`, and
   `graphify update .` all passed.
+- Calendar navigation follow-up checks: `pnpm --filter @oasis/web typecheck`,
+  `pnpm lint`, `pnpm --filter @oasis/web build`, `git diff --check`, and
+  `graphify update .` all passed. The first typecheck attempt was run in
+  parallel with `next build` and failed because `.next/types` was being
+  regenerated; rerunning after build completed passed.
 
 Notes:
 

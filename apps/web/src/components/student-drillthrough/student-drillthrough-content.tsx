@@ -241,7 +241,13 @@ function OverviewTab({ data }: { data: DrillThrough }) {
 }
 
 function AttendanceTab({ data }: { data: DrillThrough }) {
-  return <AttendanceCalendar attendance={data.attendance} fallbackDateKey={data.range.to} />;
+  return (
+    <AttendanceCalendar
+      attendance={data.attendance}
+      earliestDateKey={data.range.from}
+      fallbackDateKey={data.range.to}
+    />
+  );
 }
 
 function BehaviourTab({ data }: { data: DrillThrough }) {
