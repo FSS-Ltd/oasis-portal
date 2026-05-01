@@ -72,15 +72,17 @@ export function NewStudentForm() {
   return (
     <form
       className="panel"
-      onSubmit={handleSubmit((values) =>
-        createStudent.mutate({
-          fullName: values.fullName,
-          dob: new Date(values.dob),
-          yearGroup: parseStandardSchoolYear(values.yearGroup),
-          enrolmentDate: new Date(values.enrolmentDate),
-          address: values.address || undefined,
-        }),
-      )}
+      onSubmit={(event) => {
+        void handleSubmit((values) => {
+          createStudent.mutate({
+            fullName: values.fullName,
+            dob: new Date(values.dob),
+            yearGroup: parseStandardSchoolYear(values.yearGroup),
+            enrolmentDate: new Date(values.enrolmentDate),
+            address: values.address || undefined,
+          });
+        })(event);
+      }}
     >
       <div className="panel__body form-grid">
         <div className="form-grid form-grid--two">

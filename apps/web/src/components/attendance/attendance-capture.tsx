@@ -70,6 +70,14 @@ function bandForRow(row: Pick<AttendanceRow, 'yearGroup'>, bands: readonly Band[
   return bands.find((band) => band.standardYears.includes(row.yearGroup)) ?? null;
 }
 
+function withoutRecordKey<T>(record: Record<string, T>, keyToRemove: string): Record<string, T> {
+  const next: Record<string, T> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key !== keyToRemove) next[key] = value;
+  }
+  return next;
+}
+
 export function AttendanceCapture({
   canExport,
   canRecord = true,
@@ -110,11 +118,7 @@ export function AttendanceCapture({
   async function markAttendance(row: AttendanceRow, status: AttendanceStatus) {
     setSelectedStatuses((current) => ({ ...current, [row.studentId]: status }));
     setPendingRows((current) => ({ ...current, [row.studentId]: true }));
-    setRowErrors((current) => {
-      const next = { ...current };
-      delete next[row.studentId];
-      return next;
-    });
+    setRowErrors((current) => withoutRecordKey(current, row.studentId));
 
     try {
       await markMutation.mutateAsync({ studentId: row.studentId, date, status });
@@ -125,11 +129,7 @@ export function AttendanceCapture({
         [row.studentId]: err instanceof Error ? err.message : 'Attendance could not be saved.',
       }));
     } finally {
-      setPendingRows((current) => {
-        const next = { ...current };
-        delete next[row.studentId];
-        return next;
-      });
+      setPendingRows((current) => withoutRecordKey(current, row.studentId));
     }
   }
 
@@ -149,7 +149,9 @@ export function AttendanceCapture({
           {showBandFilter ? (
             <SelectInput
               aria-label="Year-group band filter"
-              onChange={(event) => setSelectedBand(event.target.value)}
+              onChange={(event) => {
+                setSelectedBand(event.target.value);
+              }}
               value={selectedBand}
             >
               <option value="all">All bands</option>
@@ -163,8 +165,8 @@ export function AttendanceCapture({
           ) : null}
           <Button
             onClick={() => {
-              attendanceQuery.refetch();
-              if (showBandFilter) bandsQuery.refetch();
+              void attendanceQuery.refetch();
+              if (showBandFilter) void bandsQuery.refetch();
             }}
             pending={attendanceQuery.isFetching || bandsQuery.isFetching}
             type="button"
@@ -176,11 +178,12 @@ export function AttendanceCapture({
         </div>
         {canExport ? (
           <Button
-            onClick={async () => {
-              const result = await exportQuery.refetch();
-              if (result.data) {
-                downloadCsv(result.data.filename, result.data.csv, result.data.contentType);
-              }
+            onClick={() => {
+              void exportQuery.refetch().then((result) => {
+                if (result.data) {
+                  downloadCsv(result.data.filename, result.data.csv, result.data.contentType);
+                }
+              });
             }}
             pending={exportQuery.isFetching}
             type="button"
@@ -262,7 +265,9 @@ export function AttendanceCapture({
                       ) : null}
                       <td>{row.date}</td>
                       <td>
-                        <span className={selectedStatus ? 'badge badge--green' : 'badge badge--amber'}>
+                        <span
+                          className={selectedStatus ? 'badge badge--green' : 'badge badge--amber'}
+                        >
                           {selectedStatus ?? 'Unmarked'}
                         </span>
                         {pending ? <span className="attendance-row-note">Saving...</span> : null}
@@ -283,7 +288,9 @@ export function AttendanceCapture({
                                 className={selectedStatus === status ? 'is-selected' : undefined}
                                 disabled={pending}
                                 key={status}
-                                onClick={() => markAttendance(row, status)}
+                                onClick={() => {
+                                  void markAttendance(row, status);
+                                }}
                                 size="sm"
                                 type="button"
                                 variant={selectedStatus === status ? 'primary' : 'secondary'}

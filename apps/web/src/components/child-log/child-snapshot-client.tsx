@@ -1,13 +1,33 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/trpc';
 
 type RangePreset = 'previous-day' | 'previous-week' | 'custom';
 type SnapshotTab = 'overview' | 'behaviour' | 'pace' | 'notes';
 
-const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
 const shortWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 function dateKey(date: Date): string {
@@ -36,7 +56,8 @@ function formatShortDate(value: Date | string | null): string {
 
 function formatRange(from: string, to: string, preset: RangePreset): string {
   if (preset === 'previous-day') return `Yesterday — ${formatShortDate(from)}`;
-  if (preset === 'previous-week') return `Last 7 days — ${formatShortDate(from)}-${formatShortDate(to)}`;
+  if (preset === 'previous-week')
+    return `Last 7 days — ${formatShortDate(from)}-${formatShortDate(to)}`;
   return `${formatShortDate(from)}-${formatShortDate(to)}`;
 }
 
@@ -54,7 +75,19 @@ function firstName(name: string): string {
 }
 
 function avatarColour(index: number): string {
-  return ['#5B90C5', '#7C3F98', '#16784F', '#B45309', '#8B1E2D', '#0E7892', '#4F46E5', '#C2185B', '#006B4A'][index % 9] ?? '#5B90C5';
+  return (
+    [
+      '#5B90C5',
+      '#7C3F98',
+      '#16784F',
+      '#B45309',
+      '#8B1E2D',
+      '#0E7892',
+      '#4F46E5',
+      '#C2185B',
+      '#006B4A',
+    ][index % 9] ?? '#5B90C5'
+  );
 }
 
 function scoreTone(score: number | null): 'amber' | 'blue' | 'green' | 'red' {
@@ -83,7 +116,11 @@ export function ChildSnapshotClient() {
 
   const studentsQuery = api.student.list.useQuery(undefined, { retry: false });
   const snapshotQuery = api.childLog.snapshot.useQuery(
-    { studentId: selectedStudentId, from: new Date(`${from}T00:00:00.000Z`), to: new Date(`${to}T00:00:00.000Z`) },
+    {
+      studentId: selectedStudentId,
+      from: new Date(`${from}T00:00:00.000Z`),
+      to: new Date(`${to}T00:00:00.000Z`),
+    },
     { enabled: selectedStudentId.length > 0, retry: false },
   );
   const utils = api.useUtils();
@@ -131,22 +168,31 @@ export function ChildSnapshotClient() {
   const presentDays = attendance.filter((row) => row.status === 'Present').length;
   const lateDays = attendance.filter((row) => row.status === 'Late').length;
   const absentDays = attendance.filter((row) => row.status === 'Absent').length;
-  const meritsEarned = behaviour.filter((entry) => entry.meritDelta > 0).reduce((sum, entry) => sum + entry.meritDelta, 0);
-  const demeritsTotal = behaviour.filter((entry) => entry.meritDelta < 0).reduce((sum, entry) => sum + entry.meritDelta, 0);
+  const meritsEarned = behaviour
+    .filter((entry) => entry.meritDelta > 0)
+    .reduce((sum, entry) => sum + entry.meritDelta, 0);
+  const demeritsTotal = behaviour
+    .filter((entry) => entry.meritDelta < 0)
+    .reduce((sum, entry) => sum + entry.meritDelta, 0);
   const netMerits = meritsEarned + demeritsTotal;
-  const avgPaceScore = pace.length > 0 ? Math.round(pace.reduce((sum, item) => sum + item.score, 0) / pace.length) : null;
+  const avgPaceScore =
+    pace.length > 0
+      ? Math.round(pace.reduce((sum, item) => sum + item.score, 0) / pace.length)
+      : null;
   const latestNote = notes[0] ?? null;
-  const selectedIndex = Math.max(0, students.findIndex((student) => student.id === selectedStudentId));
+  const selectedIndex = Math.max(
+    0,
+    students.findIndex((student) => student.id === selectedStudentId),
+  );
   const selectedColour = avatarColour(selectedIndex);
 
   const tabs = useMemo(
-    () =>
-      [
-        { id: 'overview' as const, label: 'Overview', count: 0 },
-        { id: 'behaviour' as const, label: 'Behaviour', count: behaviour.length },
-        { id: 'pace' as const, label: 'Pace', count: pace.length },
-        { id: 'notes' as const, label: 'Notes', count: notes.length },
-      ],
+    () => [
+      { id: 'overview' as const, label: 'Overview', count: 0 },
+      { id: 'behaviour' as const, label: 'Behaviour', count: behaviour.length },
+      { id: 'pace' as const, label: 'Pace', count: pace.length },
+      { id: 'notes' as const, label: 'Notes', count: notes.length },
+    ],
     [behaviour.length, notes.length, pace.length],
   );
 
@@ -159,8 +205,12 @@ export function ChildSnapshotClient() {
 
       <section className="panel panel__body snapshot-picker-panel">
         <h2>Select student</h2>
-        {studentsQuery.error ? <p className="status--error">{studentsQuery.error.message}</p> : null}
-        {!studentsQuery.isLoading && students.length === 0 ? <div className="empty-state">No active students found.</div> : null}
+        {studentsQuery.error ? (
+          <p className="status--error">{studentsQuery.error.message}</p>
+        ) : null}
+        {!studentsQuery.isLoading && students.length === 0 ? (
+          <div className="empty-state">No active students found.</div>
+        ) : null}
         <div className="snapshot-student-picker" aria-label="Select student">
           {students.map((student, index) => {
             const colour = avatarColour(index);
@@ -188,13 +238,17 @@ export function ChildSnapshotClient() {
       <section className="snapshot-hero">
         <div className="snapshot-hero__student">
           <span className="snapshot-hero__avatar" style={{ backgroundColor: selectedColour }}>
-            {snapshot ? initials(snapshot.student.fullName) : selectedStudent ? initials(selectedStudent.fullName) : '--'}
+            {snapshot
+              ? initials(snapshot.student.fullName)
+              : selectedStudent
+                ? initials(selectedStudent.fullName)
+                : '--'}
           </span>
           <div>
             <h2>{snapshot?.student.fullName ?? selectedStudent?.fullName ?? 'Select a student'}</h2>
             <p>
-              {snapshot?.student.yearGroup ?? selectedStudent?.yearGroup ?? 'Year group'} · Supervisor:{' '}
-              {snapshot?.student.supervisorName ?? 'Not assigned'}
+              {snapshot?.student.yearGroup ?? selectedStudent?.yearGroup ?? 'Year group'} ·
+              Supervisor: {snapshot?.student.supervisorName ?? 'Not assigned'}
             </p>
           </div>
           <div className="snapshot-hero__merits">
@@ -213,7 +267,9 @@ export function ChildSnapshotClient() {
               <button
                 className={rangePreset === value ? 'is-selected' : undefined}
                 key={value}
-                onClick={() => applyRange(value as RangePreset)}
+                onClick={() => {
+                  applyRange(value as RangePreset);
+                }}
                 type="button"
               >
                 {label}
@@ -222,9 +278,23 @@ export function ChildSnapshotClient() {
           </div>
           {rangePreset === 'custom' ? (
             <div className="snapshot-range__custom">
-              <input aria-label="Snapshot from" onChange={(event) => setFrom(event.target.value)} type="date" value={from} />
+              <input
+                aria-label="Snapshot from"
+                onChange={(event) => {
+                  setFrom(event.target.value);
+                }}
+                type="date"
+                value={from}
+              />
               <span>to</span>
-              <input aria-label="Snapshot to" onChange={(event) => setTo(event.target.value)} type="date" value={to} />
+              <input
+                aria-label="Snapshot to"
+                onChange={(event) => {
+                  setTo(event.target.value);
+                }}
+                type="date"
+                value={to}
+              />
             </div>
           ) : null}
           <p>{formatRange(from, to, rangePreset)}</p>
@@ -240,7 +310,9 @@ export function ChildSnapshotClient() {
             aria-selected={activeTab === tab.id}
             className={activeTab === tab.id ? 'is-selected' : undefined}
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => {
+              setActiveTab(tab.id);
+            }}
             role="tab"
             type="button"
           >
@@ -264,13 +336,23 @@ export function ChildSnapshotClient() {
                 </div>
               </div>
             </section>
-            <StatCard accent="green" label="Merits earned" sub={`across ${behaviour.filter((entry) => entry.meritDelta > 0).length} entries`} value={`+${meritsEarned}`} />
-            <StatCard accent={demeritsTotal < 0 ? 'red' : 'blue'} label="Demerits" sub={`net: ${netMerits >= 0 ? '+' : ''}${netMerits} this period`} value={demeritsTotal ? String(demeritsTotal) : '—'} />
+            <StatCard
+              accent="green"
+              label="Merits earned"
+              sub={`across ${String(behaviour.filter((entry) => entry.meritDelta > 0).length)} entries`}
+              value={`+${String(meritsEarned)}`}
+            />
+            <StatCard
+              accent={demeritsTotal < 0 ? 'red' : 'blue'}
+              label="Demerits"
+              sub={`net: ${netMerits >= 0 ? '+' : ''}${String(netMerits)} this period`}
+              value={demeritsTotal ? String(demeritsTotal) : '—'}
+            />
             <StatCard
               accent={scoreTone(avgPaceScore)}
               label="Avg PACE score"
-              sub={`${pace.length} test${pace.length === 1 ? '' : 's'} this period`}
-              value={avgPaceScore === null ? '—' : `${avgPaceScore}%`}
+              sub={`${String(pace.length)} test${pace.length === 1 ? '' : 's'} this period`}
+              value={avgPaceScore === null ? '—' : `${String(avgPaceScore)}%`}
             />
           </div>
 
@@ -279,9 +361,21 @@ export function ChildSnapshotClient() {
               <h3>Merit Activity (last 7 days)</h3>
               <MeritSparkline entries={behaviour} />
               <div className="snapshot-merit-chart__totals">
-                <SummaryTotal label="Merits" tone="green" value={meritsEarned > 0 ? `+${meritsEarned}` : '0'} />
-                <SummaryTotal label="Demerits" tone="blue" value={demeritsTotal ? String(demeritsTotal) : '0'} />
-                <SummaryTotal label="Net" tone={netMerits >= 0 ? 'navy' : 'red'} value={`${netMerits >= 0 ? '+' : ''}${netMerits}`} />
+                <SummaryTotal
+                  label="Merits"
+                  tone="green"
+                  value={meritsEarned > 0 ? `+${String(meritsEarned)}` : '0'}
+                />
+                <SummaryTotal
+                  label="Demerits"
+                  tone="blue"
+                  value={demeritsTotal ? String(demeritsTotal) : '0'}
+                />
+                <SummaryTotal
+                  label="Net"
+                  tone={netMerits >= 0 ? 'navy' : 'red'}
+                  value={`${netMerits >= 0 ? '+' : ''}${String(netMerits)}`}
+                />
               </div>
             </section>
             <section className="panel panel__body snapshot-latest-note">
@@ -305,13 +399,16 @@ export function ChildSnapshotClient() {
               <h3>PACE Tests this period</h3>
               {pace.map((item) => (
                 <div key={item.id}>
-                  <span className={`snapshot-score-pill is-${scoreTone(item.score)}`}>{item.score}%</span>
+                  <span className={`snapshot-score-pill is-${scoreTone(item.score)}`}>
+                    {item.score}%
+                  </span>
                   <div>
                     <strong>
                       {item.subjectName} <span>#{item.paceNumber}</span>
                     </strong>
                     <p>
-                      {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)} · {item.recordedByName}
+                      {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)} ·{' '}
+                      {item.recordedByName}
                     </p>
                   </div>
                   <span>{item.testType}</span>
@@ -324,10 +421,21 @@ export function ChildSnapshotClient() {
 
       {activeTab === 'behaviour' ? (
         <div className="snapshot-tab-panel snapshot-list-panel">
-          {behaviour.length === 0 ? <EmptyCard>No behaviour entries in this period.</EmptyCard> : null}
+          {behaviour.length === 0 ? (
+            <EmptyCard>No behaviour entries in this period.</EmptyCard>
+          ) : null}
           {behaviour.map((entry) => (
-            <article className={entry.meritDelta > 0 ? 'panel panel__body snapshot-behaviour-row is-merit' : 'panel panel__body snapshot-behaviour-row is-demerit'} key={entry.id}>
-              <span>{entry.meritDelta > 0 ? `+${entry.meritDelta}` : entry.meritDelta}</span>
+            <article
+              className={
+                entry.meritDelta > 0
+                  ? 'panel panel__body snapshot-behaviour-row is-merit'
+                  : 'panel panel__body snapshot-behaviour-row is-demerit'
+              }
+              key={entry.id}
+            >
+              <span>
+                {entry.meritDelta > 0 ? `+${String(entry.meritDelta)}` : entry.meritDelta}
+              </span>
               <div>
                 <div>
                   <Badge tone={entry.meritDelta > 0 ? 'green' : 'red'}>{entry.type}</Badge>
@@ -347,7 +455,9 @@ export function ChildSnapshotClient() {
 
       {activeTab === 'pace' ? (
         <div className="snapshot-tab-panel snapshot-list-panel">
-          {pace.length === 0 ? <EmptyCard>No PACE scores recorded in this period.</EmptyCard> : null}
+          {pace.length === 0 ? (
+            <EmptyCard>No PACE scores recorded in this period.</EmptyCard>
+          ) : null}
           {pace.map((item) => (
             <article className="panel panel__body snapshot-pace-row" key={item.id}>
               <ScoreDonut score={item.score} />
@@ -358,8 +468,8 @@ export function ChildSnapshotClient() {
                 </div>
                 <p>PACE #{item.paceNumber}</p>
                 <span>
-                  Date: <strong>{formatShortDate(item.completedAt ?? item.createdAt)}</strong> · Supervisor:{' '}
-                  <strong>{item.recordedByName}</strong>
+                  Date: <strong>{formatShortDate(item.completedAt ?? item.createdAt)}</strong> ·
+                  Supervisor: <strong>{item.recordedByName}</strong>
                 </span>
               </div>
               <div className="snapshot-score-bar">
@@ -370,7 +480,7 @@ export function ChildSnapshotClient() {
                   </strong>
                 </div>
                 <span>
-                  <i style={{ width: `${item.score}%` }} />
+                  <i style={{ width: `${String(item.score)}%` }} />
                 </span>
                 <small>{scoreLabel(item.score)}</small>
               </div>
@@ -395,24 +505,47 @@ export function ChildSnapshotClient() {
               <p>{item.note}</p>
             </article>
           ))}
-          <form className="panel panel__body snapshot-note-form" onSubmit={submitNote}>
+          <form
+            className="panel panel__body snapshot-note-form"
+            onSubmit={(event) => {
+              void submitNote(event);
+            }}
+          >
             <h3>Add supervisor note</h3>
             <textarea
               aria-label="Child note"
               className="input textarea"
-              onChange={(event) => setNote(event.target.value)}
+              onChange={(event) => {
+                setNote(event.target.value);
+              }}
               placeholder="Write a note for this child..."
               value={note}
             />
             <div className="behaviour-visibility-toggle" role="group">
-              <button className={sensitive ? undefined : 'is-selected'} onClick={() => setSensitive(false)} type="button">
+              <button
+                className={sensitive ? undefined : 'is-selected'}
+                onClick={() => {
+                  setSensitive(false);
+                }}
+                type="button"
+              >
                 General
               </button>
-              <button className={sensitive ? 'is-selected' : undefined} onClick={() => setSensitive(true)} type="button">
+              <button
+                className={sensitive ? 'is-selected' : undefined}
+                onClick={() => {
+                  setSensitive(true);
+                }}
+                type="button"
+              >
                 Sensitive
               </button>
             </div>
-            <Button disabled={!selectedStudentId || !note.trim()} pending={createNote.isPending} type="submit">
+            <Button
+              disabled={!selectedStudentId || !note.trim()}
+              pending={createNote.isPending}
+              type="submit"
+            >
               Save note
             </Button>
             {noteStatus ? <p className="status--success">{noteStatus}</p> : null}
@@ -424,7 +557,15 @@ export function ChildSnapshotClient() {
   );
 }
 
-function AttendanceRing({ absent, late, present }: { absent: number; late: number; present: number }) {
+function AttendanceRing({
+  absent,
+  late,
+  present,
+}: {
+  absent: number;
+  late: number;
+  present: number;
+}) {
   const total = Math.max(1, absent + late + present);
   const presentDeg = (present / total) * 360;
   const lateDeg = presentDeg + (late / total) * 360;
@@ -432,7 +573,7 @@ function AttendanceRing({ absent, late, present }: { absent: number; late: numbe
     <div
       className="snapshot-attendance-ring"
       style={{
-        background: `conic-gradient(#166534 0deg ${presentDeg}deg, #92400e ${presentDeg}deg ${lateDeg}deg, #991b1b ${lateDeg}deg 360deg)`,
+        background: `conic-gradient(#166534 0deg ${String(presentDeg)}deg, #92400e ${String(presentDeg)}deg ${String(lateDeg)}deg, #991b1b ${String(lateDeg)}deg 360deg)`,
       }}
     >
       <span>
@@ -443,7 +584,15 @@ function AttendanceRing({ absent, late, present }: { absent: number; late: numbe
   );
 }
 
-function LegendRow({ label, tone, value }: { label: string; tone: 'amber' | 'green' | 'red'; value: number }) {
+function LegendRow({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: 'amber' | 'green' | 'red';
+  value: number;
+}) {
   return (
     <div className={`snapshot-legend-row is-${tone}`}>
       <span />
@@ -453,7 +602,17 @@ function LegendRow({ label, tone, value }: { label: string; tone: 'amber' | 'gre
   );
 }
 
-function StatCard({ accent, label, sub, value }: { accent: 'amber' | 'blue' | 'green' | 'red'; label: string; sub: string; value: string }) {
+function StatCard({
+  accent,
+  label,
+  sub,
+  value,
+}: {
+  accent: 'amber' | 'blue' | 'green' | 'red';
+  label: string;
+  sub: string;
+  value: string;
+}) {
   return (
     <section className={`panel panel__body snapshot-stat-card is-${accent}`}>
       <h3>{label}</h3>
@@ -463,7 +622,11 @@ function StatCard({ accent, label, sub, value }: { accent: 'amber' | 'blue' | 'g
   );
 }
 
-function MeritSparkline({ entries }: { entries: Array<{ createdAt: Date | string; meritDelta: number }> }) {
+function MeritSparkline({
+  entries,
+}: {
+  entries: Array<{ createdAt: Date | string; meritDelta: number }>;
+}) {
   const buckets = new Map<string, number>();
   for (const entry of entries) {
     const key = formatShortDate(entry.createdAt);
@@ -476,7 +639,10 @@ function MeritSparkline({ entries }: { entries: Array<{ createdAt: Date | string
       {rows.length === 0 ? <span>No behaviour activity in this range.</span> : null}
       {rows.map(([label, value]) => (
         <div key={label}>
-          <i className={value >= 0 ? 'is-positive' : 'is-negative'} style={{ height: `${Math.max(12, (Math.abs(value) / max) * 64)}px` }} />
+          <i
+            className={value >= 0 ? 'is-positive' : 'is-negative'}
+            style={{ height: `${String(Math.max(12, (Math.abs(value) / max) * 64))}px` }}
+          />
           <span>{label.split(' ')[0]}</span>
         </div>
       ))}
@@ -484,7 +650,15 @@ function MeritSparkline({ entries }: { entries: Array<{ createdAt: Date | string
   );
 }
 
-function SummaryTotal({ label, tone, value }: { label: string; tone: 'blue' | 'green' | 'navy' | 'red'; value: string }) {
+function SummaryTotal({
+  label,
+  tone,
+  value,
+}: {
+  label: string;
+  tone: 'blue' | 'green' | 'navy' | 'red';
+  value: string;
+}) {
   return (
     <div className={`snapshot-summary-total is-${tone}`}>
       <strong>{value}</strong>
@@ -493,7 +667,13 @@ function SummaryTotal({ label, tone, value }: { label: string; tone: 'blue' | 'g
   );
 }
 
-function Badge({ children, tone }: { children: ReactNode; tone: 'amber' | 'blue' | 'green' | 'red' }) {
+function Badge({
+  children,
+  tone,
+}: {
+  children: ReactNode;
+  tone: 'amber' | 'blue' | 'green' | 'red';
+}) {
   return <span className={`snapshot-badge is-${tone}`}>{children}</span>;
 }
 
@@ -510,7 +690,12 @@ function ScoreDonut({ score }: { score: number }) {
     <div className={`snapshot-score-donut is-${scoreTone(score)}`}>
       <svg viewBox="0 0 64 64">
         <circle cx="32" cy="32" r="26" />
-        <circle cx="32" cy="32" r="26" style={{ strokeDasharray: `${(score / 100) * 163.4} 163.4` }} />
+        <circle
+          cx="32"
+          cy="32"
+          r="26"
+          style={{ strokeDasharray: `${String((score / 100) * 163.4)} 163.4` }}
+        />
       </svg>
       <strong>{score}</strong>
     </div>

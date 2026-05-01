@@ -25,7 +25,7 @@ async function ensureDevHeadUser(clerkUserId: string) {
   if (existing) return;
 
   const clerkUser = await currentUser();
-  const email = clerkUser?.primaryEmailAddress?.emailAddress?.trim().toLowerCase();
+  const email = clerkUser?.primaryEmailAddress?.emailAddress.trim().toLowerCase();
   if (!email) return;
 
   const fullName =
