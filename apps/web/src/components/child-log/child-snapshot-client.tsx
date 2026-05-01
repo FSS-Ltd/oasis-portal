@@ -4,105 +4,37 @@ import {
   useEffect,
   useMemo,
   useState,
-  type CSSProperties,
   type FormEvent,
-  type ReactNode,
 } from 'react';
 import { Button } from '@/components/ui/button';
+import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { api } from '@/lib/trpc';
-
-type RangePreset = 'previous-day' | 'previous-week' | 'custom';
-type SnapshotTab = 'overview' | 'behaviour' | 'pace' | 'notes';
-
-const shortMonths = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const;
-const shortWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function previousDay(): string {
-  const date = new Date();
-  date.setDate(date.getDate() - 1);
-  return dateKey(date);
-}
-
-function previousWeekStart(): string {
-  const date = new Date();
-  date.setDate(date.getDate() - 6);
-  return dateKey(date);
-}
-
-function formatShortDate(value: Date | string | null): string {
-  if (!value) return 'Not dated';
-  const date = new Date(value);
-  return `${shortWeekdays[date.getUTCDay()] ?? ''} ${String(date.getUTCDate()).padStart(2, '0')} ${
-    shortMonths[date.getUTCMonth()] ?? ''
-  }`;
-}
-
-function formatRange(from: string, to: string, preset: RangePreset): string {
-  if (preset === 'previous-day') return `Yesterday — ${formatShortDate(from)}`;
-  if (preset === 'previous-week')
-    return `Last 7 days — ${formatShortDate(from)}-${formatShortDate(to)}`;
-  return `${formatShortDate(from)}-${formatShortDate(to)}`;
-}
-
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
-
-function firstName(name: string): string {
-  return name.split(' ').filter(Boolean)[0] ?? name;
-}
-
-function avatarColour(index: number): string {
-  return (
-    [
-      '#5B90C5',
-      '#7C3F98',
-      '#16784F',
-      '#B45309',
-      '#8B1E2D',
-      '#0E7892',
-      '#4F46E5',
-      '#C2185B',
-      '#006B4A',
-    ][index % 9] ?? '#5B90C5'
-  );
-}
-
-function scoreTone(score: number | null): 'amber' | 'blue' | 'green' | 'red' {
-  if (score === null) return 'blue';
-  if (score >= 90) return 'green';
-  if (score >= 80) return 'amber';
-  return 'red';
-}
-
-function scoreLabel(score: number): string {
-  if (score >= 90) return 'Excellent';
-  if (score >= 80) return 'Good';
-  if (score >= 70) return 'Satisfactory';
-  return 'Needs support';
-}
+import {
+  SnapshotHeroStudent,
+  SnapshotRangePicker,
+  SnapshotStudentPicker,
+  SnapshotTabs,
+} from './snapshot-controls';
+import {
+  dateKey,
+  formatShortDate,
+  previousDay,
+  previousWeekStart,
+  scoreLabel,
+  scoreTone,
+  type RangePreset,
+  type SnapshotTab,
+} from './snapshot-utils';
+import {
+  AttendanceRing,
+  EmptyCard,
+  LegendRow,
+  MeritSparkline,
+  ScoreDonut,
+  SnapshotBadge,
+  SnapshotStatCard,
+  SummaryTotal,
+} from './snapshot-widgets';
 
 export function ChildSnapshotClient() {
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -184,7 +116,7 @@ export function ChildSnapshotClient() {
     0,
     students.findIndex((student) => student.id === selectedStudentId),
   );
-  const selectedColour = avatarColour(selectedIndex);
+  const selectedColour = avatarColour(selectedIndex, SNAPSHOT_AVATAR_COLOURS);
 
   const tabs = useMemo(
     () => [
@@ -211,116 +143,36 @@ export function ChildSnapshotClient() {
         {!studentsQuery.isLoading && students.length === 0 ? (
           <div className="empty-state">No active students found.</div>
         ) : null}
-        <div className="snapshot-student-picker" aria-label="Select student">
-          {students.map((student, index) => {
-            const colour = avatarColour(index);
-            const selected = selectedStudentId === student.id;
-            return (
-              <button
-                className={selected ? 'snapshot-student-card is-selected' : 'snapshot-student-card'}
-                key={student.id}
-                onClick={() => {
-                  setSelectedStudentId(student.id);
-                  setActiveTab('overview');
-                }}
-                style={{ '--student-colour': colour } as CSSProperties}
-                type="button"
-              >
-                <span>{initials(student.fullName)}</span>
-                <strong>{firstName(student.fullName)}</strong>
-                <small>{student.yearGroup}</small>
-              </button>
-            );
-          })}
-        </div>
+        <SnapshotStudentPicker
+          onSelect={(studentId) => {
+            setSelectedStudentId(studentId);
+            setActiveTab('overview');
+          }}
+          selectedStudentId={selectedStudentId}
+          students={students}
+        />
       </section>
 
       <section className="snapshot-hero">
-        <div className="snapshot-hero__student">
-          <span className="snapshot-hero__avatar" style={{ backgroundColor: selectedColour }}>
-            {snapshot
-              ? initials(snapshot.student.fullName)
-              : selectedStudent
-                ? initials(selectedStudent.fullName)
-                : '--'}
-          </span>
-          <div>
-            <h2>{snapshot?.student.fullName ?? selectedStudent?.fullName ?? 'Select a student'}</h2>
-            <p>
-              {snapshot?.student.yearGroup ?? selectedStudent?.yearGroup ?? 'Year group'} ·
-              Supervisor: {snapshot?.student.supervisorName ?? 'Not assigned'}
-            </p>
-          </div>
-          <div className="snapshot-hero__merits">
-            <strong>{snapshot?.student.totalMerits ?? 0}</strong>
-            <span>total merits</span>
-          </div>
-        </div>
-        <div className="snapshot-range">
-          <h3>Viewing period</h3>
-          <div className="snapshot-range__controls">
-            {[
-              ['previous-day', 'Yesterday'],
-              ['previous-week', 'Last 7 days'],
-              ['custom', 'Custom'],
-            ].map(([value, label]) => (
-              <button
-                className={rangePreset === value ? 'is-selected' : undefined}
-                key={value}
-                onClick={() => {
-                  applyRange(value as RangePreset);
-                }}
-                type="button"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {rangePreset === 'custom' ? (
-            <div className="snapshot-range__custom">
-              <input
-                aria-label="Snapshot from"
-                onChange={(event) => {
-                  setFrom(event.target.value);
-                }}
-                type="date"
-                value={from}
-              />
-              <span>to</span>
-              <input
-                aria-label="Snapshot to"
-                onChange={(event) => {
-                  setTo(event.target.value);
-                }}
-                type="date"
-                value={to}
-              />
-            </div>
-          ) : null}
-          <p>{formatRange(from, to, rangePreset)}</p>
-        </div>
+        <SnapshotHeroStudent
+          colour={selectedColour}
+          selectedStudent={selectedStudent}
+          snapshotStudent={snapshot?.student}
+        />
+        <SnapshotRangePicker
+          from={from}
+          onFromChange={setFrom}
+          onPresetChange={applyRange}
+          onToChange={setTo}
+          rangePreset={rangePreset}
+          to={to}
+        />
       </section>
 
       {snapshotQuery.isLoading ? <div className="empty-state">Loading snapshot...</div> : null}
       {snapshotQuery.error ? <p className="status--error">{snapshotQuery.error.message}</p> : null}
 
-      <div className="snapshot-tabs" role="tablist">
-        {tabs.map((tab) => (
-          <button
-            aria-selected={activeTab === tab.id}
-            className={activeTab === tab.id ? 'is-selected' : undefined}
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.id);
-            }}
-            role="tab"
-            type="button"
-          >
-            {tab.label}
-            {tab.count > 0 ? <span>{tab.count}</span> : null}
-          </button>
-        ))}
-      </div>
+      <SnapshotTabs activeTab={activeTab} onSelect={setActiveTab} tabs={tabs} />
 
       {activeTab === 'overview' ? (
         <div className="snapshot-tab-panel">
@@ -336,19 +188,19 @@ export function ChildSnapshotClient() {
                 </div>
               </div>
             </section>
-            <StatCard
+            <SnapshotStatCard
               accent="green"
               label="Merits earned"
               sub={`across ${String(behaviour.filter((entry) => entry.meritDelta > 0).length)} entries`}
               value={`+${String(meritsEarned)}`}
             />
-            <StatCard
+            <SnapshotStatCard
               accent={demeritsTotal < 0 ? 'red' : 'blue'}
               label="Demerits"
               sub={`net: ${netMerits >= 0 ? '+' : ''}${String(netMerits)} this period`}
               value={demeritsTotal ? String(demeritsTotal) : '—'}
             />
-            <StatCard
+            <SnapshotStatCard
               accent={scoreTone(avgPaceScore)}
               label="Avg PACE score"
               sub={`${String(pace.length)} test${pace.length === 1 ? '' : 's'} this period`}
@@ -438,9 +290,13 @@ export function ChildSnapshotClient() {
               </span>
               <div>
                 <div>
-                  <Badge tone={entry.meritDelta > 0 ? 'green' : 'red'}>{entry.type}</Badge>
-                  <Badge tone="blue">{entry.category}</Badge>
-                  {entry.visibility === 'Sensitive' ? <Badge tone="amber">Sensitive</Badge> : null}
+                  <SnapshotBadge tone={entry.meritDelta > 0 ? 'green' : 'red'}>
+                    {entry.type}
+                  </SnapshotBadge>
+                  <SnapshotBadge tone="blue">{entry.category}</SnapshotBadge>
+                  {entry.visibility === 'Sensitive' ? (
+                    <SnapshotBadge tone="amber">Sensitive</SnapshotBadge>
+                  ) : null}
                 </div>
                 {entry.note ? <p>{entry.note}</p> : null}
                 <small>
@@ -464,7 +320,7 @@ export function ChildSnapshotClient() {
               <div className="snapshot-pace-row__main">
                 <div>
                   <h3>{item.subjectName}</h3>
-                  <Badge tone="blue">{item.testType}</Badge>
+                  <SnapshotBadge tone="blue">{item.testType}</SnapshotBadge>
                 </div>
                 <p>PACE #{item.paceNumber}</p>
                 <span>
@@ -495,7 +351,7 @@ export function ChildSnapshotClient() {
           {notes.map((item) => (
             <article className="panel panel__body snapshot-note-row" key={item.id}>
               <div>
-                <span className="snapshot-note-avatar">{initials(item.createdByName)}</span>
+                <span className="snapshot-note-avatar">{getInitials(item.createdByName)}</span>
                 <div>
                   <strong>{item.createdByName}</strong>
                   <small>{item.sensitive ? 'Sensitive note' : 'Supervisor note'}</small>
@@ -553,151 +409,6 @@ export function ChildSnapshotClient() {
           </form>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function AttendanceRing({
-  absent,
-  late,
-  present,
-}: {
-  absent: number;
-  late: number;
-  present: number;
-}) {
-  const total = Math.max(1, absent + late + present);
-  const presentDeg = (present / total) * 360;
-  const lateDeg = presentDeg + (late / total) * 360;
-  return (
-    <div
-      className="snapshot-attendance-ring"
-      style={{
-        background: `conic-gradient(#166534 0deg ${String(presentDeg)}deg, #92400e ${String(presentDeg)}deg ${String(lateDeg)}deg, #991b1b ${String(lateDeg)}deg 360deg)`,
-      }}
-    >
-      <span>
-        <strong>{total === 1 && present + late + absent === 0 ? 0 : total}</strong>
-        days
-      </span>
-    </div>
-  );
-}
-
-function LegendRow({
-  label,
-  tone,
-  value,
-}: {
-  label: string;
-  tone: 'amber' | 'green' | 'red';
-  value: number;
-}) {
-  return (
-    <div className={`snapshot-legend-row is-${tone}`}>
-      <span />
-      <p>{label}</p>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function StatCard({
-  accent,
-  label,
-  sub,
-  value,
-}: {
-  accent: 'amber' | 'blue' | 'green' | 'red';
-  label: string;
-  sub: string;
-  value: string;
-}) {
-  return (
-    <section className={`panel panel__body snapshot-stat-card is-${accent}`}>
-      <h3>{label}</h3>
-      <strong>{value}</strong>
-      <p>{sub}</p>
-    </section>
-  );
-}
-
-function MeritSparkline({
-  entries,
-}: {
-  entries: Array<{ createdAt: Date | string; meritDelta: number }>;
-}) {
-  const buckets = new Map<string, number>();
-  for (const entry of entries) {
-    const key = formatShortDate(entry.createdAt);
-    buckets.set(key, (buckets.get(key) ?? 0) + entry.meritDelta);
-  }
-  const rows = [...buckets.entries()].slice(-7);
-  const max = Math.max(5, ...rows.map(([, value]) => Math.abs(value)));
-  return (
-    <div className="snapshot-sparkline">
-      {rows.length === 0 ? <span>No behaviour activity in this range.</span> : null}
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <i
-            className={value >= 0 ? 'is-positive' : 'is-negative'}
-            style={{ height: `${String(Math.max(12, (Math.abs(value) / max) * 64))}px` }}
-          />
-          <span>{label.split(' ')[0]}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SummaryTotal({
-  label,
-  tone,
-  value,
-}: {
-  label: string;
-  tone: 'blue' | 'green' | 'navy' | 'red';
-  value: string;
-}) {
-  return (
-    <div className={`snapshot-summary-total is-${tone}`}>
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function Badge({
-  children,
-  tone,
-}: {
-  children: ReactNode;
-  tone: 'amber' | 'blue' | 'green' | 'red';
-}) {
-  return <span className={`snapshot-badge is-${tone}`}>{children}</span>;
-}
-
-function EmptyCard({ children }: { children: ReactNode }) {
-  return (
-    <div className="panel panel__body snapshot-empty-card">
-      <p>{children}</p>
-    </div>
-  );
-}
-
-function ScoreDonut({ score }: { score: number }) {
-  return (
-    <div className={`snapshot-score-donut is-${scoreTone(score)}`}>
-      <svg viewBox="0 0 64 64">
-        <circle cx="32" cy="32" r="26" />
-        <circle
-          cx="32"
-          cy="32"
-          r="26"
-          style={{ strokeDasharray: `${String((score / 100) * 163.4)} 163.4` }}
-        />
-      </svg>
-      <strong>{score}</strong>
     </div>
   );
 }

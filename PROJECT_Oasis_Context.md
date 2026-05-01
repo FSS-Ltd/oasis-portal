@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-04-30
+**Last updated:** 2026-05-01
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.11 follow-up child log and behaviour reporting in progress.
+**Phase:** Web UI component refactor in progress.
 
 ---
 
@@ -18,7 +18,46 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-2.11 follow-up child log and behaviour reporting
+## Current status - Web UI component refactor
+
+Working branch: `chore/refactor-web-ui-components`.
+
+**PR scope:** Refactor Oasis web UI code into reusable typed primitives and
+smaller feature components without changing tRPC contracts, RBAC, routes,
+database schema, or product behaviour.
+
+Changed scope:
+
+- Added shared web UI primitives for typed data tables, badges, avatars, empty
+  states, panels, stat cards, motion wrappers, and display helpers.
+- Replaced hand-written table markup in students, attendance, audit, and staff
+  permission-tag screens with the typed `DataTable<T>` component.
+- Split Supervisor dashboard overview utilities and presentation into
+  feature-local components.
+- Split child snapshot controls, utilities, and visual widgets out of the main
+  snapshot client.
+- Split academic settings PACE policy and standard-year panels into
+  feature-local components.
+- Split Head rota date/shift utilities and week schedule presentation into
+  feature-local components.
+- Moved shared table, badge, avatar, empty-state, and row styles from
+  `admin.css` into `styles/primitives.css`.
+- Kept the existing `components/admin/motion.tsx` import path as a compatibility
+  re-export over the new shared motion primitives.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - first
+  sandboxed run failed because Next could not bind `0.0.0.0:3000` (`EPERM`);
+  escalated run passed the one runnable unauthenticated supervisor protection
+  test, with five credential-gated tests skipped.
+- `git diff --check` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+## Previous status - PR-2.11 follow-up child log and behaviour reporting
 
 Working branch: `fix/phase-2-pr2.11a-attendance-supervisor-rbac`.
 

@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { Filter, RotateCcw } from 'lucide-react';
-import { api } from '@/lib/trpc';
-import { MotionList, MotionTableRow } from '@/components/admin/motion';
+import { api, type RouterOutputs } from '@/lib/trpc';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
 
 const ACTIONS = [
@@ -27,6 +29,7 @@ type AuditFilters = {
   from: string;
   to: string;
 };
+type AuditRow = RouterOutputs['audit']['list']['rows'][number];
 
 const ENTITIES = ['', 'Student', 'StudentSubject', 'Guardian', 'Invitation', 'User'] as const;
 
@@ -144,6 +147,42 @@ export function AuditLogViewer() {
 
   const auditQuery = api.audit.list.useQuery(queryInput, { retry: false });
   const rows = auditQuery.data?.rows ?? [];
+  const columns: DataTableColumn<AuditRow>[] = [
+    { id: 'date', header: 'Date', render: (row) => formatDate(row.createdAt) },
+    {
+      id: 'action',
+      header: 'Action',
+      render: (row) => <Badge>{row.action}</Badge>,
+    },
+    {
+      id: 'entity',
+      header: 'Entity',
+      render: (row) => (
+        <span className="student-row__text">
+          <strong>{row.entity}</strong>
+          <span>{row.entityId ?? row.id}</span>
+        </span>
+      ),
+    },
+    {
+      id: 'actor',
+      header: 'Actor',
+      render: (row) =>
+        row.actor ? (
+          <span className="student-row__text">
+            <strong>{row.actor.fullName}</strong>
+            <span>{row.actor.email}</span>
+          </span>
+        ) : (
+          <span className="muted">System</span>
+        ),
+    },
+    {
+      id: 'metadata',
+      header: 'Metadata',
+      render: (row) => <MetaDetails meta={row.meta} />,
+    },
+  ];
 
   return (
     <section className="grid">
@@ -230,59 +269,21 @@ export function AuditLogViewer() {
       </form>
 
       <div className="panel panel--scroll">
-        {auditQuery.isLoading ? (
-          <div className="empty-state">Loading audit log...</div>
-        ) : auditQuery.error ? (
-          <div className="empty-state status--error">{auditQuery.error.message}</div>
-        ) : rows.length === 0 ? (
-          <div className="empty-state">
-            <strong>No audit rows found</strong>
-            <span>Adjust the filters or run an onboarding action first.</span>
-          </div>
-        ) : (
-          <MotionList>
-            <table className="table audit-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Action</th>
-                  <th>Entity</th>
-                  <th>Actor</th>
-                  <th>Metadata</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <MotionTableRow key={row.id}>
-                    <td>{formatDate(row.createdAt)}</td>
-                    <td>
-                      <span className="badge">{row.action}</span>
-                    </td>
-                    <td>
-                      <span className="student-row__text">
-                        <strong>{row.entity}</strong>
-                        <span>{row.entityId ?? row.id}</span>
-                      </span>
-                    </td>
-                    <td>
-                      {row.actor ? (
-                        <span className="student-row__text">
-                          <strong>{row.actor.fullName}</strong>
-                          <span>{row.actor.email}</span>
-                        </span>
-                      ) : (
-                        <span className="muted">System</span>
-                      )}
-                    </td>
-                    <td>
-                      <MetaDetails meta={row.meta} />
-                    </td>
-                  </MotionTableRow>
-                ))}
-              </tbody>
-            </table>
-          </MotionList>
-        )}
+        <DataTable
+          columns={columns}
+          empty={
+            <EmptyState
+              detail="Adjust the filters or run an onboarding action first."
+              title="No audit rows found"
+            />
+          }
+          errorMessage={auditQuery.error?.message}
+          getRowKey={(row) => row.id}
+          loading={auditQuery.isLoading}
+          loadingLabel="Loading audit log..."
+          rows={rows}
+          tableClassName="audit-table"
+        />
       </div>
 
       <div className="toolbar">

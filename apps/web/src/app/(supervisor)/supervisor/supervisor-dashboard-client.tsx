@@ -1,20 +1,13 @@
 'use client';
 
 import {
-  type CSSProperties,
   type FormEvent,
-  type ReactNode,
   useEffect,
   useMemo,
   useState,
 } from 'react';
-import Link from 'next/link';
 import {
-  ArrowRight,
   BookOpenCheck,
-  ClipboardCheck,
-  FileText,
-  MessageSquare,
   Plus,
   Save,
   Send,
@@ -25,210 +18,27 @@ import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
-
-const weekdays = [
-  { value: 0, label: 'Sunday' },
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
-] as const;
-
-const shortWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-const shortMonths = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const;
-
-type BehaviourType = 'Merit' | 'Demerit';
-type BehaviourVisibility = 'General' | 'Sensitive';
-type PaceTestType = 'SelfTest' | 'FinalTest';
-
-type AvailabilityDraft = {
-  id: string;
-  dayOfWeek: number;
-  startMinute: number;
-  endMinute: number;
-};
-
-type DashboardMessageSummary = {
-  id: string;
-  subject: string;
-  latestPreview: string;
-  updatedAt: Date | null;
-  unreadCount: number;
-};
-
-type DashboardNoticeSummary = {
-  id: string;
-  title: string;
-  bodyPreview: string;
-  postedAt: Date | null;
-  read: boolean;
-};
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function asDate(date: string): Date {
-  return new Date(`${date}T00:00:00.000Z`);
-}
-
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function mondayFor(date: Date): Date {
-  const next = new Date(date);
-  const day = next.getUTCDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  next.setUTCDate(next.getUTCDate() + offset);
-  next.setUTCHours(0, 0, 0, 0);
-  return next;
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
-function toTimeValue(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-}
-
-function fromTimeValue(value: string): number {
-  const [hour = '0', minute = '0'] = value.split(':');
-  return Number(hour) * 60 + Number(minute);
-}
-
-function formatDate(value: string | Date): string {
-  const date = typeof value === 'string' ? asDate(value) : value;
-  const weekday = shortWeekdays[date.getUTCDay()] ?? '';
-  const month = shortMonths[date.getUTCMonth()] ?? '';
-  return `${weekday}, ${String(date.getUTCDate()).padStart(2, '0')} ${month}`;
-}
-
-function formatDateTime(value: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  }).format(value);
-}
-
-function formatTime(value: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(value);
-}
-
-function formatShortDateTime(value: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(value);
-}
-
-function formatShift(shift: {
-  date: string;
-  startsAt: Date;
-  endsAt: Date;
-  bandName: string | null;
-}): string {
-  return `${formatDate(shift.date)} · ${formatDateTime(shift.startsAt)}-${formatDateTime(shift.endsAt)} · ${
-    shift.bandName ?? 'Unassigned band'
-  }`;
-}
-
-function dayLabel(date: Date): string {
-  return shortWeekdays[date.getUTCDay()] ?? '';
-}
-
-function dayNumber(date: Date): string {
-  return `${String(date.getUTCDate()).padStart(2, '0')} ${shortMonths[date.getUTCMonth()] ?? ''}`;
-}
-
-function isSameDay(left: Date, right: Date): boolean {
-  return dateKey(left) === dateKey(right);
-}
-
-function messageDashboardAdapter(): DashboardMessageSummary[] {
-  return [];
-}
-
-function noticeDashboardAdapter(): DashboardNoticeSummary[] {
-  return [];
-}
-
-function DashboardAction({ href, icon, label }: { href: string; icon: ReactNode; label: string }) {
-  return (
-    <Link className="head-action" href={{ pathname: href }}>
-      <span className="head-action__content">
-        {icon}
-        <span>{label}</span>
-      </span>
-      <ArrowRight aria-hidden="true" size={16} />
-    </Link>
-  );
-}
-
-function AttendanceSummary({
-  label,
-  tone,
-  value,
-}: {
-  label: string;
-  tone: 'amber' | 'green' | 'red';
-  value: number;
-}) {
-  return (
-    <div className={`attendance-summary attendance-summary--${tone}`}>
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
-  );
-}
-
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
-
-function avatarColour(index: number): string {
-  return ['#7C3F98', '#8B1E2D', '#0E7892', '#5B90C5', '#006B4A', '#B45309'][index % 6] ?? '#5B90C5';
-}
-
-function emptyAvailabilityRow(): AvailabilityDraft {
-  return {
-    id: `draft_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
-    dayOfWeek: 1,
-    startMinute: 540,
-    endMinute: 720,
-  };
-}
+import { SupervisorDashboardOverview } from './_components/supervisor-dashboard-overview';
+import {
+  addDays,
+  asDate,
+  dateKey,
+  emptyAvailabilityRow,
+  formatDateTime,
+  formatShift,
+  formatShortDateTime,
+  fromTimeValue,
+  messageDashboardAdapter,
+  mondayFor,
+  noticeDashboardAdapter,
+  todayKey,
+  toTimeValue,
+  weekdays,
+  type AvailabilityDraft,
+  type BehaviourType,
+  type BehaviourVisibility,
+  type PaceTestType,
+} from './_components/supervisor-utils';
 
 type SupervisorDashboardClientProps = {
   canExportAttendance: boolean;
@@ -472,316 +282,30 @@ export function SupervisorDashboardClient({
 
   if (view === 'dashboard') {
     return (
-      <div className="supervisor-dashboard-home" aria-label="Supervisor daily overview">
-        <div className="dashboard-hero">
-          <p>{formatDate(date)} · Supervisor workspace</p>
-          <h1>Good morning, Supervisor</h1>
-          <span>Daily workflow · Oasis Learning Centre</span>
-        </div>
-
-        <section
-          className="dashboard-grid dashboard-grid--hero"
-          aria-label="Supervisor dashboard summary"
-        >
-          <div
-            className="panel panel__body stat-card head-stat-card"
-            style={{ '--accent': '#166534' } as CSSProperties}
-          >
-            <p className="stat-card__label">Present today</p>
-            <p className="stat-card__value">
-              {presentCount}/{totalStudents}
-            </p>
-            <p className="stat-card__sub">
-              {absentCount} absent · {lateCount} late
-            </p>
-          </div>
-          <div
-            className="panel panel__body stat-card head-stat-card"
-            style={{ '--accent': '#5B90C5' } as CSSProperties}
-          >
-            <p className="stat-card__label">Today&apos;s shifts</p>
-            <p className="stat-card__value">{todayShifts.length}</p>
-            <p className="stat-card__sub">assigned to you</p>
-          </div>
-          <div
-            className="panel panel__body stat-card head-stat-card"
-            style={{ '--accent': '#92400E' } as CSSProperties}
-          >
-            <p className="stat-card__label">Open items</p>
-            <p className="stat-card__value">{openItems}</p>
-            <p className="stat-card__sub">messages and swaps</p>
-          </div>
-          <div
-            className="panel panel__body stat-card head-stat-card"
-            style={{ '--accent': '#8B1E2D' } as CSSProperties}
-          >
-            <p className="stat-card__label">Notices</p>
-            <p className="stat-card__value">{unreadNotices}</p>
-            <p className="stat-card__sub">unread notices</p>
-          </div>
-        </section>
-
-        <div className="head-dashboard-layout">
-          <div className="supervisor-dashboard-main">
-            <section className="panel panel__body supervisor-week-panel">
-              <div className="section-title">
-                <div>
-                  <h2>This week</h2>
-                  <p className="muted">
-                    {dateKey(weekStart)} to {dateKey(weekEnd)}
-                  </p>
-                </div>
-                <Link className="button button--secondary button--sm" href="/supervisor/rota">
-                  Open rota
-                </Link>
-              </div>
-
-              {weekRotaQuery.error ? (
-                <p className="status--error">{weekRotaQuery.error.message}</p>
-              ) : null}
-              <div className="supervisor-week-grid">
-                {weekDays.map((dayItem) => {
-                  const dayKey = dateKey(dayItem);
-                  const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
-                  const isToday = isSameDay(dayItem, date);
-                  const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
-                  const className = [
-                    'supervisor-day-card',
-                    isToday ? 'is-today' : undefined,
-                    isPast ? 'is-past' : undefined,
-                    shiftsForDay.length === 0 ? 'is-unscheduled' : undefined,
-                  ]
-                    .filter(Boolean)
-                    .join(' ');
-
-                  return (
-                    <article className={className} key={dayKey}>
-                      <div className="supervisor-day-card__head">
-                        <span>{dayLabel(dayItem)}</span>
-                        <strong>{dayNumber(dayItem)}</strong>
-                      </div>
-                      {shiftsForDay.length === 0 ? (
-                        <p className="supervisor-day-card__empty">No shift scheduled</p>
-                      ) : (
-                        <div className="supervisor-day-card__shifts">
-                          {shiftsForDay.map((shift) => (
-                            <div className="supervisor-day-shift" key={shift.id}>
-                              <span
-                                aria-hidden="true"
-                                className="supervisor-day-shift__swatch"
-                                style={{ backgroundColor: shift.bandColour ?? undefined }}
-                              />
-                              <div>
-                                <strong>
-                                  {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
-                                </strong>
-                                <span>{shift.bandName ?? 'Unassigned band'}</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="panel panel__body head-activity-panel">
-              <div className="section-title">
-                <h2>Today&apos;s Activity</h2>
-              </div>
-              {dashboardActivityQuery.error ? (
-                <p className="status--error">{dashboardActivityQuery.error.message}</p>
-              ) : null}
-              <div className="head-activity-list">
-                {dashboardActivityQuery.isLoading ? (
-                  <div className="empty-state">Loading today&apos;s activity...</div>
-                ) : null}
-                {!dashboardActivityQuery.isLoading && dashboardActivity.length === 0 ? (
-                  <div className="empty-state">No behaviour activity recorded today.</div>
-                ) : null}
-                {dashboardActivity.map((entry, index) => (
-                  <div className="head-activity-row" key={entry.id}>
-                    <span
-                      className="head-activity-avatar"
-                      style={{ backgroundColor: avatarColour(index) }}
-                    >
-                      {initials(entry.studentName)}
-                    </span>
-                    <div>
-                      <strong>{entry.studentName}</strong>
-                      <span
-                        className={
-                          entry.meritDelta >= 0
-                            ? 'head-merit-pill head-merit-pill--plus'
-                            : 'head-merit-pill head-merit-pill--minus'
-                        }
-                      >
-                        {entry.meritDelta >= 0
-                          ? `+${String(entry.meritDelta)}`
-                          : String(entry.meritDelta)}{' '}
-                        merits
-                      </span>
-                      <p>
-                        {entry.category}
-                        {entry.note ? ` · ${entry.note}` : null}
-                      </p>
-                    </div>
-                    <time>{formatTime(entry.createdAt)}</time>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-
-          <aside className="head-dashboard-side">
-            <section className="panel panel__body">
-              <div className="section-title">
-                <h2>Quick Actions</h2>
-              </div>
-              <div className="head-action-list">
-                <DashboardAction
-                  href="/supervisor/attendance"
-                  icon={<ClipboardCheck size={16} />}
-                  label="Mark Attendance"
-                />
-                <DashboardAction
-                  href="/supervisor/behaviour"
-                  icon={<Star size={16} />}
-                  label="Log Behaviour"
-                />
-                <DashboardAction
-                  href="/supervisor/pace"
-                  icon={<BookOpenCheck size={16} />}
-                  label="Record PACE Score"
-                />
-                <DashboardAction
-                  href="/supervisor/snapshot"
-                  icon={<FileText size={16} />}
-                  label="Child Snapshot"
-                />
-              </div>
-            </section>
-
-            <section className="panel panel__body supervisor-dashboard-card supervisor-dashboard-card--rail">
-              <div className="section-title">
-                <div>
-                  <h2>Pending</h2>
-                  <p className="muted">Messages and shift swap requests needing attention.</p>
-                </div>
-                <span className="badge badge--blue">
-                  {dashboardMessages.length + mySwapRequests.length} open
-                </span>
-              </div>
-
-              <div className="supervisor-dashboard-list">
-                <h3>
-                  <MessageSquare aria-hidden="true" size={15} />
-                  Messages
-                </h3>
-                {dashboardMessages.length === 0 ? (
-                  <div className="dashboard-empty-state">
-                    Messages will appear here when the messaging API is connected.
-                  </div>
-                ) : (
-                  dashboardMessages.map((message) => (
-                    <article className="dashboard-list-row" key={message.id}>
-                      <strong>{message.subject}</strong>
-                      <span>{message.latestPreview}</span>
-                      {message.updatedAt ? (
-                        <small>{formatShortDateTime(message.updatedAt)}</small>
-                      ) : null}
-                    </article>
-                  ))
-                )}
-              </div>
-
-              <div className="supervisor-dashboard-list">
-                <h3>
-                  <Send aria-hidden="true" size={15} />
-                  Swap requests
-                </h3>
-                {mySwapRequestsQuery.error ? (
-                  <p className="status--error">{mySwapRequestsQuery.error.message}</p>
-                ) : null}
-                {!mySwapRequestsQuery.isLoading && mySwapRequests.length === 0 ? (
-                  <div className="dashboard-empty-state">No pending shift swap requests.</div>
-                ) : null}
-                {mySwapRequests.map((request) => {
-                  const otherPerson =
-                    request.direction === 'Requested'
-                      ? request.targetUser.fullName
-                      : request.requester.fullName;
-                  return (
-                    <article className="dashboard-list-row" key={request.id}>
-                      <strong>
-                        {request.direction === 'Requested'
-                          ? 'Awaiting Head review'
-                          : 'Incoming request'}{' '}
-                        with {otherPerson}
-                      </strong>
-                      <span>
-                        {request.fromShift.date} {formatTime(request.fromShift.startsAt)} →{' '}
-                        {request.toShift.date} {formatTime(request.toShift.startsAt)}
-                      </span>
-                      <small>{formatShortDateTime(request.createdAt)}</small>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="panel panel__body supervisor-dashboard-card supervisor-dashboard-card--rail">
-              <div className="section-title">
-                <div>
-                  <h2>Notices</h2>
-                  <p className="muted">Admin notices for staff.</p>
-                </div>
-                <span className="badge badge--blue">
-                  {dashboardNotices.filter((notice) => !notice.read).length} unread
-                </span>
-              </div>
-              {dashboardNotices.length === 0 ? (
-                <div className="dashboard-empty-state">
-                  Admin notices will appear here when notice publishing is connected.
-                </div>
-              ) : (
-                <div className="supervisor-dashboard-list">
-                  {dashboardNotices.map((notice) => (
-                    <article
-                      className={
-                        notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'
-                      }
-                      key={notice.id}
-                    >
-                      <strong>{notice.title}</strong>
-                      <span>{notice.bodyPreview}</span>
-                      {notice.postedAt ? (
-                        <small>{formatShortDateTime(notice.postedAt)}</small>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="panel panel__body">
-              <div className="section-title">
-                <h2>Attendance Today</h2>
-              </div>
-              <div className="attendance-summary-grid">
-                <AttendanceSummary label="Present" tone="green" value={presentCount} />
-                <AttendanceSummary label="Absent" tone="red" value={absentCount} />
-                <AttendanceSummary label="Late" tone="amber" value={lateCount} />
-              </div>
-              {attendanceRosterQuery.error ? (
-                <p className="status--error">{attendanceRosterQuery.error.message}</p>
-              ) : null}
-            </section>
-          </aside>
-        </div>
-      </div>
+      <SupervisorDashboardOverview
+        absentCount={absentCount}
+        attendanceError={attendanceRosterQuery.error?.message}
+        dashboardActivity={dashboardActivity}
+        dashboardActivityError={dashboardActivityQuery.error?.message}
+        dashboardActivityLoading={dashboardActivityQuery.isLoading}
+        dashboardMessages={dashboardMessages}
+        dashboardNotices={dashboardNotices}
+        date={date}
+        lateCount={lateCount}
+        mySwapRequests={mySwapRequests}
+        mySwapRequestsError={mySwapRequestsQuery.error?.message}
+        mySwapRequestsLoading={mySwapRequestsQuery.isLoading}
+        openItems={openItems}
+        presentCount={presentCount}
+        todayShifts={todayShifts}
+        totalStudents={totalStudents}
+        unreadNotices={unreadNotices}
+        weekDays={weekDays}
+        weekEnd={weekEnd}
+        weekRotaError={weekRotaQuery.error?.message}
+        weekShifts={weekShifts}
+        weekStart={weekStart}
+      />
     );
   }
 
