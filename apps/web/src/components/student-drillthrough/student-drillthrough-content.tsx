@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { ArrowLeft, Edit3 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -19,9 +19,20 @@ import {
   SummaryTotal,
 } from '@/components/child-log/snapshot-widgets';
 import { formatShortDate, scoreLabel, scoreTone } from '@/components/child-log/snapshot-utils';
+import { AttendanceCalendar } from './attendance-calendar';
+import { NotesList } from './notes-list';
 
 type DrillThrough = RouterOutputs['childLog']['drillThrough'];
-type DrillThroughTab = 'overview' | 'attendance' | 'behaviour' | 'pace' | 'merits';
+type DrillThroughTab = 'overview' | 'attendance' | 'behaviour' | 'pace' | 'merits' | 'notes';
+
+const DRILL_THROUGH_TABS = [
+  ['overview', 'Overview'],
+  ['attendance', 'Attendance'],
+  ['behaviour', 'Behaviour'],
+  ['pace', 'Pace'],
+  ['merits', 'Merits'],
+  ['notes', 'Notes'],
+] as const satisfies readonly (readonly [DrillThroughTab, string])[];
 
 interface StudentDrillThroughContentProps {
   backHref: Route;
@@ -32,12 +43,6 @@ interface StudentDrillThroughContentProps {
 
 function signed(value: number): string {
   return value > 0 ? `+${String(value)}` : String(value);
-}
-
-function attendanceTone(status: DrillThrough['attendance'][number]['status']): 'amber' | 'green' | 'red' {
-  if (status === 'Present') return 'green';
-  if (status === 'Late') return 'amber';
-  return 'red';
 }
 
 function formatLongDate(value: Date | string): string {
@@ -93,28 +98,14 @@ function StudentHero({
 
 function StudentTabs({
   activeTab,
-  data,
   onSelect,
 }: {
   activeTab: DrillThroughTab;
-  data: DrillThrough;
   onSelect: (tab: DrillThroughTab) => void;
 }) {
-  const tabs = useMemo(
-    () =>
-      [
-        ['overview', 'Overview', 0],
-        ['attendance', 'Attendance', data.attendance.length],
-        ['behaviour', 'Behaviour', data.behaviour.length],
-        ['pace', 'Pace', data.pace.length],
-        ['merits', 'Merits', 0],
-      ] as const,
-    [data.attendance.length, data.behaviour.length, data.pace.length],
-  );
-
   return (
     <div className="student-detail-tabs" role="tablist">
-      {tabs.map(([id, label, count]) => (
+      {DRILL_THROUGH_TABS.map(([id, label]) => (
         <button
           aria-selected={activeTab === id}
           className={activeTab === id ? 'is-selected' : undefined}
@@ -126,7 +117,6 @@ function StudentTabs({
           type="button"
         >
           {label}
-          {count > 0 ? <span>{count}</span> : null}
         </button>
       ))}
     </div>
@@ -251,20 +241,7 @@ function OverviewTab({ data }: { data: DrillThrough }) {
 }
 
 function AttendanceTab({ data }: { data: DrillThrough }) {
-  return (
-    <div className="snapshot-tab-panel snapshot-list-panel">
-      {data.attendance.length === 0 ? <EmptyCard>No attendance records this academic year.</EmptyCard> : null}
-      {data.attendance.map((entry) => (
-        <article className="panel panel__body student-attendance-row" key={entry.id}>
-          <SnapshotBadge tone={attendanceTone(entry.status)}>{entry.status}</SnapshotBadge>
-          <div>
-            <strong>{formatLongDate(entry.date)}</strong>
-            <span>Recorded {formatShortDate(entry.recordedAt)}</span>
-          </div>
-        </article>
-      ))}
-    </div>
-  );
+  return <AttendanceCalendar attendance={data.attendance} fallbackDateKey={data.range.to} />;
 }
 
 function BehaviourTab({ data }: { data: DrillThrough }) {
@@ -359,6 +336,10 @@ function MeritsTab({ data }: { data: DrillThrough }) {
   );
 }
 
+function NotesTab({ data }: { data: DrillThrough }) {
+  return <NotesList notes={data.notes} />;
+}
+
 export function StudentDrillThroughContent({
   backHref,
   backLabel,
@@ -384,12 +365,13 @@ export function StudentDrillThroughContent({
   return (
     <div className="student-drillthrough">
       <StudentHero backHref={backHref} backLabel={backLabel} data={data} onEdit={onEdit} />
-      <StudentTabs activeTab={activeTab} data={data} onSelect={setActiveTab} />
+      <StudentTabs activeTab={activeTab} onSelect={setActiveTab} />
       {activeTab === 'overview' ? <OverviewTab data={data} /> : null}
       {activeTab === 'attendance' ? <AttendanceTab data={data} /> : null}
       {activeTab === 'behaviour' ? <BehaviourTab data={data} /> : null}
       {activeTab === 'pace' ? <PaceTab data={data} /> : null}
       {activeTab === 'merits' ? <MeritsTab data={data} /> : null}
+      {activeTab === 'notes' ? <NotesTab data={data} /> : null}
     </div>
   );
 }

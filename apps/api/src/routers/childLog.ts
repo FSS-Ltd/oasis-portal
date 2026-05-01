@@ -191,6 +191,7 @@ export const childLogRouter = router({
     const from = academicYearStart();
     const to = dayEnd(new Date());
     const canReadSensitiveBehaviour = canViewSensitiveStudentDrillThrough(ctx.user);
+    const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
 
     const student = await ctx.db.student.findUnique({
       where: { id: input.studentId },
@@ -203,7 +204,7 @@ export const childLogRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
     }
 
-    const [attendance, paceTests, behaviour, meritBalances, policy] = await Promise.all([
+    const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
       ctx.db.attendance.findMany({
         where: { studentId: input.studentId, date: { gte: from, lt: to } },
         select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
@@ -234,6 +235,17 @@ export const childLogRouter = router({
           orderBy: { createdAt: 'desc' },
         }),
       ),
+      ctx.db.childNote.findMany({
+        where: {
+          studentId: input.studentId,
+          createdAt: { gte: from, lt: to },
+          ...(canReadSensitiveNotes ? {} : { sensitive: false }),
+        },
+        include: {
+          createdBy: { select: { id: true, fullNameEnc: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
       ctx.db.meritLedger.groupBy({
         by: ['account'],
         where: {
@@ -263,6 +275,7 @@ export const childLogRouter = router({
     const presentDays = attendance.filter((row) => row.status === 'Present').length;
     const recordedAttendanceDays = attendance.length;
     const sensitiveBehaviourCount = behaviour.filter((entry) => entry.visibility === 'Sensitive').length;
+    const sensitiveNoteCount = notes.filter((note) => note.sensitive).length;
 
     if (sensitiveBehaviourCount > 0) {
       await ctx.db.auditLog.create({
@@ -279,6 +292,21 @@ export const childLogRouter = router({
       });
     }
 
+    if (sensitiveNoteCount > 0) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'ReadSensitive',
+          entity: 'ChildNote',
+          meta: {
+            studentId: input.studentId,
+            count: sensitiveNoteCount,
+            source: 'childLog.drillThrough',
+          },
+        },
+      });
+    }
+
     await ctx.db.auditLog.create({
       data: {
         userId: ctx.user.id,
@@ -287,8 +315,15 @@ export const childLogRouter = router({
         entityId: input.studentId,
         meta: {
           source: 'childLog.drillThrough',
-          fields: ['student.fullName', 'behaviour.recordedBy.fullName', 'pace.recordedBy.fullName'],
+          fields: [
+            'student.fullName',
+            'behaviour.recordedBy.fullName',
+            'pace.recordedBy.fullName',
+            'childNote.note',
+            'childNote.createdBy.fullName',
+          ],
           behaviourCount: behaviour.length,
+          noteCount: notes.length,
           paceCount: paceTests.length,
         },
       },
@@ -343,6 +378,15 @@ export const childLogRouter = router({
         recordedByRole: record.recordedBy.role,
         completedAt: record.completedAt,
         createdAt: record.createdAt,
+      })),
+      notes: notes.map((note) => ({
+        id: note.id,
+        note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
+        sensitive: note.sensitive,
+        createdById: note.createdById,
+        createdByName: decryptRequired(ctx.db.$enc.decrypt, note.createdBy.fullNameEnc, 'user PII'),
+        createdByRole: note.createdBy.role,
+        createdAt: note.createdAt,
       })),
     };
   }),

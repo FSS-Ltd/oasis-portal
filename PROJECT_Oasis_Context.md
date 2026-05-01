@@ -42,6 +42,10 @@ Changed scope:
 - Added `/parent` and `/parent/children/[id]` for linked-parent viewing.
 - Updated admin sidebar styling so only the active nav item gets the blue left
   border.
+- Follow-up: replaced the drill-through Attendance list with the design-source
+  calendar card and added a Notes tab backed by existing child notes. Sensitive
+  notes use the existing `sensitive-note-viewer` policy; sensitive behaviour
+  remains Head-only on this surface.
 
 Verification:
 
@@ -55,6 +59,12 @@ Verification:
   `/parent/children/[id]`.
 - `git diff --check` - pass.
 - `graphify update .` - completed; graphify rebuilt the code graph.
+- Follow-up checks on the attendance calendar and Notes tab:
+  `pnpm --filter @oasis/api test -- childNotes.router.test.ts`,
+  `pnpm --filter @oasis/api typecheck`,
+  `pnpm --filter @oasis/web typecheck`, `pnpm lint`,
+  `pnpm --filter @oasis/web build`, `git diff --check`, and
+  `graphify update .` all passed.
 
 Notes:
 

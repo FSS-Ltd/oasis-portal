@@ -17,7 +17,7 @@ const taggedSupervisorUser: SessionUser = {
 const sensitiveViewerUser: SessionUser = {
   id: 'u_sensitive',
   role: 'Supervisor',
-  tags: ['sensitive-note-viewer'],
+  tags: ['student-drillthrough-viewer', 'sensitive-note-viewer'],
   requires2fa: false,
 };
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
@@ -334,6 +334,16 @@ describe('childLog.snapshot', () => {
 
   it('returns drill-through data and sensitive behaviour only to Head', async () => {
     const { db } = makeFakeDb();
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'General drill-through note',
+      sensitive: false,
+    });
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Sensitive drill-through note',
+      sensitive: true,
+    });
 
     const headView = await makeCaller(headUser, db).childLog.drillThrough({ studentId: 'student_1' });
     expect(headView.metrics.meritBalances).toEqual({ Spend: 10, Saving: 5, Investment: 2 });
@@ -344,6 +354,12 @@ describe('childLog.snapshot', () => {
         expect.objectContaining({ visibility: 'Sensitive', note: 'Sensitive behaviour' }),
       ]),
     );
+    expect(headView.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ note: 'General drill-through note', sensitive: false }),
+        expect.objectContaining({ note: 'Sensitive drill-through note', sensitive: true }),
+      ]),
+    );
 
     const principalView = await makeCaller(principalUser, db).childLog.drillThrough({
       studentId: 'student_1',
@@ -351,17 +367,45 @@ describe('childLog.snapshot', () => {
     expect(principalView.behaviour).toEqual([
       expect.objectContaining({ visibility: 'General', note: 'Focused well' }),
     ]);
+    expect(principalView.notes).toEqual([
+      expect.objectContaining({ note: 'General drill-through note', sensitive: false }),
+    ]);
+
+    const taggedSensitiveView = await makeCaller(sensitiveViewerUser, db).childLog.drillThrough({
+      studentId: 'student_1',
+    });
+    expect(taggedSensitiveView.behaviour).toEqual([
+      expect.objectContaining({ visibility: 'General', note: 'Focused well' }),
+    ]);
+    expect(taggedSensitiveView.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ note: 'General drill-through note', sensitive: false }),
+        expect.objectContaining({ note: 'Sensitive drill-through note', sensitive: true }),
+      ]),
+    );
   });
 
   it('allows tagged staff and linked parents, and denies untagged staff or unlinked parents', async () => {
     const { db } = makeFakeDb();
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Parent-visible note',
+      sensitive: false,
+    });
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Parent-hidden note',
+      sensitive: true,
+    });
 
     await expect(
       makeCaller(taggedSupervisorUser, db).childLog.drillThrough({ studentId: 'student_1' }),
     ).resolves.toMatchObject({ student: { id: 'student_1', fullName: 'Jane Learner' } });
-    await expect(
-      makeCaller(parentUser, db).childLog.drillThrough({ studentId: 'student_1' }),
-    ).resolves.toMatchObject({ student: { id: 'student_1', fullName: 'Jane Learner' } });
+    const parentView = await makeCaller(parentUser, db).childLog.drillThrough({ studentId: 'student_1' });
+    expect(parentView).toMatchObject({ student: { id: 'student_1', fullName: 'Jane Learner' } });
+    expect(parentView.notes).toEqual([
+      expect.objectContaining({ note: 'Parent-visible note', sensitive: false }),
+    ]);
     await expect(
       makeCaller(supervisorUser, db).childLog.drillThrough({ studentId: 'student_1' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
