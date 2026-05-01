@@ -6,7 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
+import {
+  STANDARD_SCHOOL_YEARS,
+  displaySchoolYearLabel,
+  type StandardSchoolYear,
+} from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
 import { Button } from '@/components/ui/button';
@@ -94,7 +98,7 @@ export function NewStudentForm() {
               <option value="">Choose year group</option>
               {STANDARD_SCHOOL_YEARS.map((year) => (
                 <option key={year} value={year}>
-                  {year}
+                  {displaySchoolYearLabel(year)}
                 </option>
               ))}
             </SelectInput>

@@ -25,6 +25,12 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const fullPaceSupervisorUser: SessionUser = {
+  id: 'u_pace',
+  role: 'Supervisor',
+  tags: ['pace-full-access'],
+  requires2fa: false,
+};
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
 const studentUser: SessionUser = {
   id: 'u_student',
@@ -57,7 +63,11 @@ interface StoredPaceRecord {
 
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
-  student: { findUnique: ReturnType<typeof vi.fn> };
+  $enc: { decrypt: ReturnType<typeof vi.fn> };
+  student: {
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+  };
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -70,6 +80,8 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
   };
+  staffShift: { findMany: ReturnType<typeof vi.fn> };
+  yearGroupBand: { findMany: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 }
 
@@ -89,6 +101,31 @@ const defaultAssignments = [
     subject: { id: SUBJECT_2_ID, code: 'MATH', name: 'Maths', active: true },
   },
 ];
+
+const defaultBands = [
+  {
+    id: 'band_lower',
+    name: 'Lower Primary',
+    standardYears: ['Year 5', 'Year 6'],
+    colour: '#5B90C5',
+    active: true,
+  },
+  {
+    id: 'band_secondary',
+    name: 'Secondary',
+    standardYears: ['Year 7', 'Year 8'],
+    colour: '#7D1C2C',
+    active: true,
+  },
+];
+
+const defaultStudent = {
+  id: STUDENT_ID,
+  active: true,
+  fullNameEnc: 'enc:Jane Learner',
+  yearGroup: 'Year 6',
+  subjects: defaultAssignments,
+};
 
 function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const records: StoredPaceRecord[] = [];
@@ -121,12 +158,29 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
 
   const db: FakeDb = {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    $enc: {
+      decrypt: vi.fn((value: string | null | undefined) =>
+        value ? value.replace(/^enc:/u, '') : null,
+      ),
+    },
     student: {
-      findUnique: vi.fn().mockResolvedValue({
-        id: STUDENT_ID,
-        active: true,
-        subjects: defaultAssignments,
+      findMany: vi.fn(({ where }: { where?: { yearGroup?: { in: string[] } } } = {}) => {
+        const students = [
+          defaultStudent,
+          {
+            id: 'ckstudent0000000000000002',
+            active: true,
+            fullNameEnc: 'enc:Secondary Learner',
+            yearGroup: 'Year 8',
+          },
+        ];
+        return Promise.resolve(
+          where?.yearGroup?.in
+            ? students.filter((student) => where.yearGroup?.in.includes(student.yearGroup))
+            : students,
+        );
       }),
+      findUnique: vi.fn().mockResolvedValue(defaultStudent),
     },
     subject: {
       findUnique: vi.fn().mockResolvedValue({ id: SUBJECT_ID, active: true }),
@@ -146,6 +200,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       create,
+    },
+    staffShift: {
+      findMany: vi.fn().mockResolvedValue([{ yearGroupBand: defaultBands[0] }]),
+    },
+    yearGroupBand: {
+      findMany: vi.fn().mockResolvedValue(defaultBands),
     },
     $transaction,
     ...overrides,
@@ -193,6 +253,17 @@ describe('pace.forStudent RBAC', () => {
     });
   });
 
+  it('allows pace-full-access tagged Supervisors to read without a rota assignment', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([]);
+    const { caller } = makeCaller(fullPaceSupervisorUser, db);
+
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      studentId: STUDENT_ID,
+    });
+    expect(db.staffShift.findMany).not.toHaveBeenCalled();
+  });
+
   it('rejects Parent as FORBIDDEN', async () => {
     const { caller } = makeCaller(parentUser);
     await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
@@ -229,6 +300,8 @@ describe('pace.forStudent validation', () => {
     db.student.findUnique.mockResolvedValue({
       id: legacyStudentId,
       active: true,
+      fullNameEnc: 'enc:Legacy Learner',
+      yearGroup: 'Year 6',
       subjects: [],
     });
     const { caller } = makeCaller(headUser, db);
@@ -259,6 +332,77 @@ describe('pace.forStudent validation', () => {
     await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
+  });
+});
+
+describe('pace.roster access scope', () => {
+  it('returns all active children for full-admin users', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    const result = await caller.pace.roster();
+
+    expect(result.fullAccess).toBe(true);
+    expect(result.assignedBands).toEqual([]);
+    expect(result.students).toHaveLength(2);
+    expect(result.students[0]).toMatchObject({
+      studentId: STUDENT_ID,
+      studentName: 'Jane Learner',
+      yearGroup: 'Year 6',
+        yearGroupLabel: 'Level 6',
+    });
+    expect(result.students[0]?.band?.id).toBe('band_lower');
+    expect(result.students[1]).toMatchObject({
+      studentName: 'Secondary Learner',
+      yearGroup: 'Year 8',
+      yearGroupLabel: 'Level 8',
+    });
+    expect(result.students[1]?.band?.id).toBe('band_secondary');
+    expect(db.student.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { active: true } }),
+    );
+  });
+
+  it('returns only today assigned band children for normal Supervisors', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    const result = await caller.pace.roster();
+
+    expect(result.fullAccess).toBe(false);
+    expect(result.assignedBands).toEqual([
+      {
+        id: 'band_lower',
+        name: 'Lower Primary',
+        standardYears: ['Year 5', 'Year 6'],
+        colour: '#5B90C5',
+      },
+    ]);
+    expect(result.students).toHaveLength(1);
+    expect(result.students[0]).toMatchObject({
+      studentId: STUDENT_ID,
+      yearGroup: 'Year 6',
+    });
+    expect(db.student.findMany).toHaveBeenCalledWith({
+      where: { active: true, yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        fullNameEnc: true,
+        yearGroup: true,
+      },
+    });
+  });
+
+  it('returns an empty roster when a normal Supervisor has no shift today', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([]);
+    const { caller } = makeCaller(supervisorUser, db);
+
+    const result = await caller.pace.roster();
+
+    expect(result.fullAccess).toBe(false);
+    expect(result.assignedBands).toEqual([]);
+    expect(result.students).toEqual([]);
+    expect(db.student.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -312,8 +456,12 @@ describe('pace.forStudent read model', () => {
       ],
     };
     db.paceRecord.findMany.mockImplementation(
-      ({ where, take }: { where: { subjectId: string }; take: number }) =>
-        Promise.resolve(recordsBySubject[where.subjectId]?.slice(0, take) ?? []),
+      ({ where }: { where: { subjectId: { in: string[] } } }) =>
+        Promise.resolve(
+          Object.values(recordsBySubject)
+            .flat()
+            .filter((record) => where.subjectId.in.includes(record.subjectId)),
+        ),
     );
     const { caller } = makeCaller(headUser, db);
 
@@ -336,13 +484,29 @@ describe('pace.forStudent read model', () => {
         atLimit: false,
       },
     });
-    expect(result.subjects).toEqual([
+    expect(result.subjects).toMatchObject([
       {
         subjectId: SUBJECT_ID,
         code: 'ENG',
         name: 'English',
         active: true,
         currentPaceNumber: 1001,
+        latestSelfTest: {
+          paceNumber: 1001,
+          score: 74,
+          completedAt: new Date('2026-04-29T10:00:00.000Z'),
+        },
+        latestFinalTest: {
+          paceNumber: 1000,
+          score: 90,
+          completedAt: new Date('2026-04-28T10:00:00.000Z'),
+        },
+        latestCompletedAt: new Date('2026-04-29T10:00:00.000Z'),
+        status: {
+          status: 'Behind',
+          detail: 'Testing at Level 1',
+          tone: 'amber',
+        },
         recentRecords: [
           {
             id: 'pace_self',
@@ -368,6 +532,17 @@ describe('pace.forStudent read model', () => {
         name: 'Maths',
         active: true,
         currentPaceNumber: 1007,
+        latestFinalTest: {
+          paceNumber: 1006,
+          score: 81,
+          completedAt: null,
+        },
+        latestCompletedAt: new Date('2026-04-27T10:01:00.000Z'),
+        status: {
+          status: 'Behind',
+          detail: 'Testing at Level 1',
+          tone: 'amber',
+        },
         recentRecords: [
           {
             id: 'pace_math',
@@ -389,9 +564,51 @@ describe('pace.forStudent read model', () => {
         },
       },
     });
-    expect(db.paceRecord.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 5 }),
-    );
+    expect(db.paceRecord.findMany).toHaveBeenCalledWith({
+      where: {
+        studentId: STUDENT_ID,
+        subjectId: { in: [SUBJECT_ID, SUBJECT_2_ID] },
+        OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
+      },
+      orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        subjectId: true,
+        paceNumber: true,
+        selfTestScore: true,
+        paceTestScore: true,
+        completedAt: true,
+        createdAt: true,
+      },
+    });
+  });
+
+  it('canonicalises legacy year-group abbreviations before computing status', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      ...defaultStudent,
+      yearGroup: 'Y5',
+      subjects: [
+        {
+          id: ASSIGNMENT_ID,
+          studentId: STUDENT_ID,
+          subjectId: SUBJECT_ID,
+          currentPaceNumber: 1023,
+          subject: { id: SUBJECT_ID, code: 'ENG', name: 'English', active: true },
+        },
+      ],
+    });
+    const { caller } = makeCaller(supervisorUser, db);
+
+    const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
+
+    expect(result.yearGroup).toBe('Year 5');
+    expect(result.yearGroupLabel).toBe('Level 5');
+    expect(result.subjects[0]?.status).toMatchObject({
+      status: 'Behind',
+      detail: 'Testing at Level 2',
+      tone: 'amber',
+    });
   });
 
   it('uses stored policy values for warning state', async () => {
@@ -437,6 +654,53 @@ describe('pace.record RBAC', () => {
   it('allows Supervisor to record', async () => {
     const { caller } = makeCaller(supervisorUser);
     await expect(caller.pace.record(validInput)).resolves.toMatchObject({ paceNumber: 1001 });
+  });
+
+  it('allows pace-full-access tagged Supervisors to record without a rota assignment', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([]);
+    const { caller } = makeCaller(fullPaceSupervisorUser, db);
+
+    await expect(caller.pace.record(validInput)).resolves.toMatchObject({ paceNumber: 1001 });
+    expect(db.staffShift.findMany).not.toHaveBeenCalled();
+  });
+
+  it("blocks a normal Supervisor when the student is outside today's assigned band", async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      ...defaultStudent,
+      yearGroup: 'Year 8',
+    });
+    const { caller } = makeCaller(supervisorUser, db);
+
+    await expect(caller.pace.record(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(auditCalls(db)).toContainEqual(
+      expect.objectContaining({ action: 'PermissionDenied', entity: 'pace.record' }),
+    );
+  });
+
+  it('blocks a normal Supervisor when they have no shift today', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([]);
+    const { caller } = makeCaller(supervisorUser, db);
+
+    await expect(caller.pace.record(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('blocks normal Supervisor backdated records', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+    try {
+      const { caller } = makeCaller(supervisorUser);
+      await expect(
+        caller.pace.record({
+          ...validInput,
+          completedAt: new Date('2026-04-28T10:00:00.000Z'),
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects Parent as FORBIDDEN', async () => {

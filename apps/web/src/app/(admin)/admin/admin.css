@@ -846,8 +846,7 @@
   align-items: end;
 }
 
-.student-context-card,
-.pace-student-summary {
+.student-context-card {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -865,8 +864,7 @@
   gap: 2px;
 }
 
-.student-context-card strong,
-.pace-student-summary strong {
+.student-context-card strong {
   color: var(--oasis-navy);
 }
 
@@ -883,14 +881,12 @@
   resize: vertical;
 }
 
-.activity-list,
-.pace-subject-list {
+.activity-list {
   display: grid;
   gap: 10px;
 }
 
-.activity-list h3,
-.pace-subject-list h3 {
+.activity-list h3 {
   margin: 0;
   color: var(--oasis-text-secondary);
   font-size: 0.76rem;
@@ -899,8 +895,7 @@
   text-transform: uppercase;
 }
 
-.activity-row,
-.pace-subject-row {
+.activity-row {
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -914,15 +909,13 @@
   align-items: start;
 }
 
-.activity-row strong,
-.pace-subject-row strong {
+.activity-row strong {
   display: block;
   color: var(--oasis-navy);
   font-size: 0.86rem;
 }
 
-.activity-row span,
-.pace-subject-row span {
+.activity-row span {
   color: var(--oasis-text-secondary);
   font-size: 0.76rem;
 }
@@ -932,10 +925,6 @@
   color: var(--oasis-text);
   font-size: 0.82rem;
   line-height: 1.45;
-}
-
-.pace-student-summary {
-  justify-content: flex-start;
 }
 
 .workflow-alert {
@@ -1017,13 +1006,336 @@
   background: var(--oasis-blue);
 }
 
-.pace-subject-row {
-  grid-template-columns: minmax(150px, 0.32fr) minmax(0, 1fr);
+.pace-workflow-page {
+  display: grid;
+  gap: 16px;
 }
 
-.pace-record-list {
+.pace-workflow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pace-workflow-header h1 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: clamp(1.55rem, 2vw, 1.95rem);
+  letter-spacing: 0;
+}
+
+.pace-workflow-header__primary,
+.pace-workflow-header__secondary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pace-workflow-header__primary {
+  flex: 1 1 520px;
+}
+
+.pace-workflow-header__secondary {
+  justify-content: flex-end;
+}
+
+.pace-workflow-header__select .input {
+  width: min(100vw - 48px, 260px);
+  min-height: 44px;
+  border-color: var(--oasis-border);
+  border-radius: 8px;
+  background-color: var(--oasis-surface);
+  font-weight: 700;
+}
+
+.pace-workflow-header__secondary .input {
+  width: auto;
+  min-width: 150px;
+}
+
+.pace-workflow-header__secondary .button {
+  min-height: 38px;
+}
+
+.pace-student-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 0 2px;
+}
+
+.pace-student-summary__avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.pace-student-summary h2 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1rem;
+}
+
+.pace-student-summary p {
+  margin: 2px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+}
+
+.pace-table-panel {
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+}
+
+.pace-progress-table {
+  min-width: 980px;
+}
+
+.pace-progress-table th {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--oasis-border);
+  background: var(--oasis-bg);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.pace-progress-table td {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--oasis-border);
+  font-size: 0.9rem;
+}
+
+.pace-progress-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.pace-subject-cell {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+}
+
+.pace-subject-cell strong {
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+}
+
+.pace-status-cell {
   display: grid;
-  gap: 5px;
+  gap: 4px;
+  justify-items: start;
+}
+
+.pace-status-cell span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+}
+
+.pace-number {
+  color: var(--oasis-blue);
+  font-size: 0.92rem;
+}
+
+.pace-score {
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+
+.pace-score--success {
+  color: var(--oasis-success);
+}
+
+.pace-score--warning {
+  color: var(--oasis-warning);
+}
+
+.pace-score--danger {
+  color: var(--oasis-danger);
+}
+
+.pace-score--muted {
+  color: var(--oasis-text-muted);
+}
+
+.pace-progress-table .badge {
+  min-height: 24px;
+  padding: 0 12px;
+  font-size: 0.76rem;
+}
+
+.pace-action-heading,
+.pace-action-cell {
+  width: 190px;
+}
+
+.pace-action-cell {
+  text-align: left;
+}
+
+.pace-update-button {
+  min-width: 128px;
+  justify-content: center;
+}
+
+.pace-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 18, 40, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.pace-modal {
+  display: grid;
+  width: min(100%, 540px);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.28);
+}
+
+.pace-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px;
+  background: linear-gradient(130deg, var(--oasis-navy) 0%, var(--oasis-navy-light) 100%);
+}
+
+.pace-modal__header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.05rem;
+}
+
+.pace-modal__header p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+}
+
+.pace-modal__header .button {
+  color: #fff;
+}
+
+.pace-modal__body {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 22px;
+}
+
+.pace-test-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.pace-test-toggle button {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.pace-test-toggle button.is-selected {
+  background: var(--oasis-navy);
+  color: #fff;
+}
+
+.pace-score-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+
+.pace-score-ring {
+  --ring-colour: var(--oasis-text-muted);
+  display: grid;
+  place-items: center;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, var(--oasis-surface) 58%, transparent 60%),
+    conic-gradient(var(--ring-colour) var(--score-percent), var(--oasis-border-light) 0);
+}
+
+.pace-score-ring strong {
+  grid-area: 1 / 1;
+  color: var(--ring-colour);
+  font-size: 1.2rem;
+}
+
+.pace-score-ring span {
+  grid-area: 1 / 1;
+  align-self: end;
+  margin-bottom: 17px;
+  color: var(--oasis-text-muted);
+  font-size: 0.58rem;
+}
+
+.pace-score-ring--success {
+  --ring-colour: var(--oasis-success);
+}
+
+.pace-score-ring--warning {
+  --ring-colour: var(--oasis-warning);
+}
+
+.pace-score-ring--danger {
+  --ring-colour: var(--oasis-danger);
+}
+
+.pace-modal__summary {
+  display: grid;
+  gap: 4px;
+  align-self: end;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.pace-modal__summary span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pace-modal__summary strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.pace-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px;
+  border-top: 1px solid var(--oasis-border);
 }
 
 .toolbar {
@@ -3423,7 +3735,7 @@
   .supervisor-rota-grid,
   .supervisor-selected-student,
   .supervisor-workflow-grid,
-  .pace-subject-row,
+  .pace-score-entry,
   .rota-layout,
   .snapshot-grid,
   .policy-grid,
@@ -3440,6 +3752,21 @@
 
   .student-detail-hero {
     flex-direction: column;
+  }
+
+  .pace-workflow-header,
+  .pace-workflow-header__primary,
+  .pace-workflow-header__secondary,
+  .pace-modal__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pace-workflow-header__select .input,
+  .pace-workflow-header__primary .button,
+  .pace-workflow-header__secondary .button,
+  .pace-workflow-header__secondary .input {
+    width: 100%;
   }
 
   .behaviour-chart__row {

@@ -5,7 +5,12 @@ import { Link2, Save } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
+import {
+  STANDARD_SCHOOL_YEARS,
+  canonicalSchoolYear,
+  displaySchoolYearLabel,
+  type StandardSchoolYear,
+} from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
 import { MotionItem } from '@/components/admin/motion';
@@ -109,7 +114,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
     reset({
       fullName: student.fullName,
       dob: student.dob,
-      yearGroup: isStandardSchoolYear(student.yearGroup) ? student.yearGroup : '',
+      yearGroup: canonicalSchoolYear(student.yearGroup) ?? '',
       enrolmentDate: new Date(student.enrolmentDate).toISOString().slice(0, 10),
       address: student.address ?? '',
       active: student.active,
@@ -195,7 +200,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                     <option value="">Choose year group</option>
                     {STANDARD_SCHOOL_YEARS.map((year) => (
                       <option key={year} value={year}>
-                        {year}
+                        {displaySchoolYearLabel(year)}
                       </option>
                     ))}
                   </SelectInput>

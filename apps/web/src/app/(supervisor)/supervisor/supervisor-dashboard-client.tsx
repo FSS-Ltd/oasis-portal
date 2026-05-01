@@ -7,13 +7,12 @@ import {
   useState,
 } from 'react';
 import {
-  BookOpenCheck,
   Plus,
   Save,
   Send,
-  Star,
   Trash2,
 } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { Button } from '@/components/ui/button';
@@ -37,13 +36,12 @@ import {
   type AvailabilityDraft,
   type BehaviourType,
   type BehaviourVisibility,
-  type PaceTestType,
 } from './_components/supervisor-utils';
 
 type SupervisorDashboardClientProps = {
   canExportAttendance: boolean;
   canRecordAttendance?: boolean;
-  view?: 'dashboard' | 'attendance' | 'behaviour' | 'pace' | 'rota';
+  view?: 'dashboard' | 'attendance' | 'behaviour' | 'rota';
 };
 
 export function SupervisorDashboardClient({
@@ -62,25 +60,16 @@ export function SupervisorDashboardClient({
     note: '',
     amount: '1',
   });
-  const [paceForm, setPaceForm] = useState({
-    subjectId: '',
-    paceNumber: '',
-    testType: 'SelfTest' as PaceTestType,
-    score: '',
-    completedAt: selectedDate,
-  });
   const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
   const [behaviourStatus, setBehaviourStatus] = useState<string | null>(null);
-  const [paceStatus, setPaceStatus] = useState<string | null>(null);
 
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const weekStart = useMemo(() => mondayFor(date), [date]);
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const utils = api.useUtils();
 
-  const usesStudentRoster =
-    view === 'dashboard' || view === 'attendance' || view === 'behaviour' || view === 'pace';
+  const usesStudentRoster = view === 'dashboard' || view === 'attendance' || view === 'behaviour';
   const usesRota = view === 'dashboard' || view === 'rota';
 
   const attendanceRosterQuery = api.attendance.forDate.useQuery(
@@ -115,15 +104,9 @@ export function SupervisorDashboardClient({
     { studentId: selectedStudentId, includeSensitive: false },
     { enabled: view === 'behaviour' && selectedStudentId.length > 0, retry: false },
   );
-  const paceQuery = api.pace.forStudent.useQuery(
-    { studentId: selectedStudentId },
-    { enabled: view === 'pace' && selectedStudentId.length > 0, retry: false },
-  );
 
   const selectedStudent =
     attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentId) ?? null;
-  const selectedPaceSubject =
-    paceQuery.data?.subjects.find((subject) => subject.subjectId === paceForm.subjectId) ?? null;
 
   const saveAvailability = api.rota.setMyAvailability.useMutation({
     onSuccess: async () => {
@@ -160,18 +143,6 @@ export function SupervisorDashboardClient({
       });
     },
   });
-  const recordPace = api.pace.record.useMutation({
-    onSuccess: async (result) => {
-      setPaceStatus(
-        result.advanced
-          ? `PACE recorded. Current PACE advanced to ${String(result.newPaceNumber)} for this subject.`
-          : 'PACE record saved.',
-      );
-      setPaceForm((current) => ({ ...current, score: '' }));
-      await utils.pace.forStudent.invalidate({ studentId: result.studentId });
-    },
-  });
-
   useEffect(() => {
     if (!availabilityQuery.data) return;
     setAvailabilityDraft(
@@ -190,44 +161,11 @@ export function SupervisorDashboardClient({
     setSelectedStudentId(rows[0]?.studentId ?? '');
   }, [attendanceRosterQuery.data, selectedStudentId]);
 
-  useEffect(() => {
-    setPaceForm((current) => ({ ...current, completedAt: selectedDate }));
-  }, [selectedDate]);
-
-  useEffect(() => {
-    const subjects = paceQuery.data?.subjects ?? [];
-    if (subjects.length === 0) {
-      setPaceForm((current) => ({ ...current, subjectId: '', paceNumber: '' }));
-      return;
-    }
-
-    const currentSubject = subjects.find((subject) => subject.subjectId === paceForm.subjectId);
-    if (currentSubject) {
-      if (!paceForm.paceNumber) {
-        setPaceForm((current) => ({
-          ...current,
-          paceNumber: String(currentSubject.currentPaceNumber),
-        }));
-      }
-      return;
-    }
-
-    const firstActiveSubject = subjects.find((subject) => subject.active) ?? subjects[0];
-    if (firstActiveSubject) {
-      setPaceForm((current) => ({
-        ...current,
-        subjectId: firstActiveSubject.subjectId,
-        paceNumber: String(firstActiveSubject.currentPaceNumber),
-      }));
-    }
-  }, [paceForm.paceNumber, paceForm.subjectId, paceQuery.data?.subjects]);
-
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
   const swapCandidates = swapCandidatesQuery.data ?? [];
   const mySwapRequests = mySwapRequestsQuery.data ?? [];
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
-  const paceSubjects = paceQuery.data?.subjects ?? [];
   const rosterRows = attendanceRosterQuery.data ?? [];
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
@@ -246,8 +184,6 @@ export function SupervisorDashboardClient({
   function handleStudentChange(studentId: string): void {
     setSelectedStudentId(studentId);
     setBehaviourStatus(null);
-    setPaceStatus(null);
-    setPaceForm((current) => ({ ...current, subjectId: '', paceNumber: '', score: '' }));
   }
 
   async function submitBehaviour(event: FormEvent<HTMLFormElement>) {
@@ -262,21 +198,6 @@ export function SupervisorDashboardClient({
       category: behaviourForm.category,
       note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
       ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
-    });
-  }
-
-  async function submitPace(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedStudentId || !paceForm.subjectId) return;
-
-    setPaceStatus(null);
-    await recordPace.mutateAsync({
-      studentId: selectedStudentId,
-      subjectId: paceForm.subjectId,
-      paceNumber: Number(paceForm.paceNumber),
-      testType: paceForm.testType,
-      score: Number(paceForm.score),
-      completedAt: asDate(paceForm.completedAt),
     });
   }
 
@@ -349,7 +270,7 @@ export function SupervisorDashboardClient({
             <div className="supervisor-selected-student">
               <Field label="Selected student">
                 <SelectInput
-                  aria-label="Selected student for behaviour and PACE"
+                  aria-label="Selected student for behaviour"
                   disabled={
                     attendanceRosterQuery.isLoading ||
                     (attendanceRosterQuery.data ?? []).length === 0
@@ -362,7 +283,7 @@ export function SupervisorDashboardClient({
                   <option value="">Choose a student</option>
                   {(attendanceRosterQuery.data ?? []).map((student) => (
                     <option key={student.studentId} value={student.studentId}>
-                      {student.studentName} · {student.yearGroup}
+                      {student.studentName} · {displaySchoolYearLabel(student.yearGroup)}
                     </option>
                   ))}
                 </SelectInput>
@@ -370,7 +291,7 @@ export function SupervisorDashboardClient({
               {selectedStudent ? (
                 <div className="student-context-card">
                   <strong>{selectedStudent.studentName}</strong>
-                  <span>{selectedStudent.yearGroup}</span>
+                  <span>{displaySchoolYearLabel(selectedStudent.yearGroup)}</span>
                   <span>{selectedStudent.status ?? 'Attendance unmarked'}</span>
                 </div>
               ) : null}
@@ -501,203 +422,6 @@ export function SupervisorDashboardClient({
                         · {formatShortDateTime(entry.createdAt)}
                       </span>
                       {entry.note ? <p>{entry.note}</p> : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-        ) : null}
-
-        {view === 'pace' ? (
-          <section className="panel panel__body supervisor-workflow" id="pace-entry">
-            <div className="section-title">
-              <div>
-                <h2>PACE entry</h2>
-                <p className="muted">
-                  Record self tests and final PACE tests against the selected student&apos;s
-                  subjects.
-                </p>
-              </div>
-              <span className="badge badge--blue">Subject progress</span>
-            </div>
-
-            {selectedStudent ? (
-              <div className="pace-student-summary">
-                <BookOpenCheck aria-hidden="true" size={18} />
-                <span>
-                  Recording for <strong>{selectedStudent.studentName}</strong>
-                </span>
-              </div>
-            ) : (
-              <div className="empty-state">
-                Choose a student above before recording PACE progress.
-              </div>
-            )}
-
-            {paceQuery.error ? <p className="status--error">{paceQuery.error.message}</p> : null}
-            {paceQuery.data?.warnings.dailyLimitEnabled ? (
-              <div
-                className={
-                  paceQuery.data.warnings.atLimit
-                    ? 'workflow-alert workflow-alert--danger'
-                    : 'workflow-alert'
-                }
-              >
-                <strong>
-                  {paceQuery.data.warnings.atLimit
-                    ? 'Daily PACE test limit reached'
-                    : `${String(paceQuery.data.warnings.remaining)} PACE test(s) remaining today`}
-                </strong>
-                <span>
-                  {String(paceQuery.data.warnings.count)} of {String(paceQuery.data.warnings.limit)}{' '}
-                  tests recorded for {paceQuery.data.today.date}.
-                </span>
-              </div>
-            ) : null}
-
-            <div className="supervisor-workflow-grid">
-              <form
-                className="form-grid"
-                onSubmit={(event) => {
-                  void submitPace(event);
-                }}
-              >
-                <Field label="Subject">
-                  <SelectInput
-                    aria-label="PACE subject"
-                    disabled={!selectedStudentId || paceSubjects.length === 0}
-                    onChange={(event) => {
-                      const subject = paceSubjects.find(
-                        (item) => item.subjectId === event.target.value,
-                      );
-                      setPaceForm((form) => ({
-                        ...form,
-                        subjectId: event.target.value,
-                        paceNumber: subject ? String(subject.currentPaceNumber) : form.paceNumber,
-                      }));
-                    }}
-                    required
-                    value={paceForm.subjectId}
-                  >
-                    <option value="">Choose a subject</option>
-                    {paceSubjects.map((subject) => (
-                      <option
-                        disabled={!subject.active}
-                        key={subject.subjectId}
-                        value={subject.subjectId}
-                      >
-                        {subject.code} · {subject.name}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <div className="form-grid form-grid--two">
-                  <Field label="PACE number">
-                    <TextInput
-                      aria-label="PACE number"
-                      min={1}
-                      onChange={(event) => {
-                        setPaceForm((form) => ({ ...form, paceNumber: event.target.value }));
-                      }}
-                      required
-                      type="number"
-                      value={paceForm.paceNumber}
-                    />
-                  </Field>
-                  <Field label="Score">
-                    <TextInput
-                      aria-label="PACE score"
-                      max={100}
-                      min={0}
-                      onChange={(event) => {
-                        setPaceForm((form) => ({ ...form, score: event.target.value }));
-                      }}
-                      required
-                      type="number"
-                      value={paceForm.score}
-                    />
-                  </Field>
-                </div>
-                <div className="form-grid form-grid--two">
-                  <Field label="Test type">
-                    <SelectInput
-                      aria-label="PACE test type"
-                      onChange={(event) => {
-                        setPaceForm((form) => ({
-                          ...form,
-                          testType: event.target.value as PaceTestType,
-                        }));
-                      }}
-                      value={paceForm.testType}
-                    >
-                      <option value="SelfTest">Self test</option>
-                      <option value="FinalTest">Final PACE test</option>
-                    </SelectInput>
-                  </Field>
-                  <Field label="Completion date">
-                    <TextInput
-                      aria-label="PACE completion date"
-                      onChange={(event) => {
-                        setPaceForm((form) => ({ ...form, completedAt: event.target.value }));
-                      }}
-                      required
-                      type="date"
-                      value={paceForm.completedAt}
-                    />
-                  </Field>
-                </div>
-                {selectedPaceSubject ? (
-                  <p className="field__hint">
-                    Current {selectedPaceSubject.code} PACE is{' '}
-                    {String(selectedPaceSubject.currentPaceNumber)}.
-                  </p>
-                ) : null}
-                <Button
-                  disabled={
-                    !selectedStudentId || !paceForm.subjectId || paceQuery.data?.warnings.atLimit
-                  }
-                  pending={recordPace.isPending}
-                  type="submit"
-                >
-                  <Star aria-hidden="true" size={16} />
-                  Record PACE
-                </Button>
-                {paceStatus ? <p className="status--success">{paceStatus}</p> : null}
-                {recordPace.error ? (
-                  <p className="status--error">{recordPace.error.message}</p>
-                ) : null}
-              </form>
-
-              <div className="pace-subject-list" aria-label="Student PACE progress">
-                <h3>Subject progress</h3>
-                {paceQuery.isLoading ? (
-                  <div className="empty-state">Loading PACE progress...</div>
-                ) : null}
-                {!paceQuery.isLoading && selectedStudentId && paceSubjects.length === 0 ? (
-                  <div className="empty-state">No subjects assigned yet.</div>
-                ) : null}
-                {paceSubjects.map((subject) => (
-                  <article className="pace-subject-row" key={subject.subjectId}>
-                    <div>
-                      <strong>
-                        {subject.code} · {subject.name}
-                      </strong>
-                      <span>Current PACE {String(subject.currentPaceNumber)}</span>
-                    </div>
-                    <div className="pace-record-list">
-                      {subject.recentRecords.length === 0 ? (
-                        <span className="muted">No recent records</span>
-                      ) : null}
-                      {subject.recentRecords.map((record) => (
-                        <span key={record.id}>
-                          {record.testType === 'SelfTest' ? 'Self' : 'Final'} · PACE{' '}
-                          {String(record.paceNumber)} · {String(record.score)}% ·{' '}
-                          {record.completedAt
-                            ? formatShortDateTime(record.completedAt)
-                            : 'No date recorded'}
-                        </span>
-                      ))}
                     </div>
                   </article>
                 ))}

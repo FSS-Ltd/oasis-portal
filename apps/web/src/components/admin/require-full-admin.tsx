@@ -5,6 +5,7 @@ import { prisma } from '@oasis/db';
 import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
+  canUseFullPaceAccess,
   isFullAdmin,
   requireFullAdmin,
   requireStaff,
@@ -97,7 +98,8 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     if (
       !isFullAdmin(ctx.user) &&
       !canViewBehaviourReports(ctx.user) &&
-      !canViewAnyStudentDrillThrough(ctx.user)
+      !canViewAnyStudentDrillThrough(ctx.user) &&
+      !canUseFullPaceAccess(ctx.user)
     ) {
       notFound();
     }

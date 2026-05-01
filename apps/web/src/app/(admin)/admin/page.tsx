@@ -181,7 +181,7 @@ export default async function AdminIndexPage() {
             <div className="head-action-list">
               <QuickAction href="/admin/attendance" label="Mark Attendance" />
               <QuickAction href="/admin/behaviour" label="Log Behaviour" />
-              <QuickAction href="/supervisor/pace" label="Record PACE Score" />
+              <QuickAction href="/admin/pace" label="Record PACE Score" />
               <QuickAction href="/admin/snapshot" label="Generate Report" />
             </div>
           </section>

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canonicalSchoolYear,
   createYearGroupBandInput,
   deriveEnglandWalesSchoolYear,
+  displaySchoolYearLabel,
+  expectedPaceLevelForYear,
+  schoolYearStorageAliases,
   updateYearGroupBandInput,
 } from '../schoolYears.js';
 
@@ -37,6 +41,33 @@ describe('deriveEnglandWalesSchoolYear', () => {
     expect(() => deriveEnglandWalesSchoolYear(date('2007-08-31'), referenceDate)).toThrow(
       'date of birth does not map',
     );
+  });
+});
+
+describe('displaySchoolYearLabel', () => {
+  it('canonicalises legacy year-group abbreviations without changing schema validation', () => {
+    expect(canonicalSchoolYear('Y5')).toBe('Year 5');
+    expect(canonicalSchoolYear('year5')).toBe('Year 5');
+    expect(canonicalSchoolYear('ABC')).toBe('Reception');
+    expect(canonicalSchoolYear('Custom')).toBeNull();
+    expect(schoolYearStorageAliases('Year 5')).toEqual(['Year 5', 'Y5']);
+  });
+
+  it('keeps stored values stable while showing Oasis level labels', () => {
+    expect(displaySchoolYearLabel('Nursery')).toBe('Nursery');
+    expect(displaySchoolYearLabel('Reception')).toBe('ABC');
+    expect(displaySchoolYearLabel('Y5')).toBe('Level 5');
+    expect(displaySchoolYearLabel('Year 1')).toBe('Level 1');
+    expect(displaySchoolYearLabel('Year 13')).toBe('Level 13');
+    expect(displaySchoolYearLabel('Custom')).toBe('Custom');
+  });
+
+  it('maps year groups to expected PACE levels for status comparisons', () => {
+    expect(expectedPaceLevelForYear('Nursery')).toBeNull();
+    expect(expectedPaceLevelForYear('Reception')).toBe(0);
+    expect(expectedPaceLevelForYear('Year 1')).toBe(1);
+    expect(expectedPaceLevelForYear('Y5')).toBe(5);
+    expect(expectedPaceLevelForYear('Year 13')).toBe(13);
   });
 });
 

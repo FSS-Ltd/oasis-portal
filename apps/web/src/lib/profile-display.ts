@@ -40,6 +40,7 @@ export function permissionTagLabel(tag: string): string {
     'sensitive-note-viewer': 'Sensitive Note Viewer',
     'behaviour-viewer': 'Behaviour Viewer',
     'student-drillthrough-viewer': 'Student Profile Viewer',
+    'pace-full-access': 'Full PACE Access',
   };
   return labels[tag as PermissionTag] ?? tag;
 }

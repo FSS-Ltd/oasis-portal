@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ExternalLink, GraduationCap } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -26,7 +27,7 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
         <div className="profile-hero__body">
           <div>
             <h2>{student.fullName}</h2>
-            <p>{student.yearGroup} · Enrolled {formatDate(student.enrolmentDate)}</p>
+            <p>{displaySchoolYearLabel(student.yearGroup)} · Enrolled {formatDate(student.enrolmentDate)}</p>
           </div>
           <div className="profile-hero__badges">
             <span>Student</span>
@@ -72,7 +73,7 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
             </div>
             <div className="profile-field-row">
               <span>Year group</span>
-              <strong>{student.yearGroup}</strong>
+              <strong>{displaySchoolYearLabel(student.yearGroup)}</strong>
             </div>
             <div className="profile-field-row">
               <span>Enrolment date</span>

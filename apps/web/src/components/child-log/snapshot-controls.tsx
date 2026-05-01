@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { avatarColour, firstName, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { formatRange, type RangePreset, type SnapshotTab } from './snapshot-utils';
 
@@ -49,7 +50,7 @@ export function SnapshotStudentPicker({
           >
             <span>{getInitials(student.fullName)}</span>
             <strong>{firstName(student.fullName)}</strong>
-            <small>{student.yearGroup}</small>
+            <small>{displaySchoolYearLabel(student.yearGroup)}</small>
           </button>
         );
       })}
@@ -65,7 +66,7 @@ interface SnapshotHeroProps {
 
 export function SnapshotHeroStudent({ colour, selectedStudent, snapshotStudent }: SnapshotHeroProps) {
   const name = snapshotStudent?.fullName ?? selectedStudent?.fullName ?? 'Select a student';
-  const yearGroup = snapshotStudent?.yearGroup ?? selectedStudent?.yearGroup ?? 'Year group';
+  const yearGroup = snapshotStudent?.yearGroup ?? selectedStudent?.yearGroup;
 
   return (
     <div className="snapshot-hero__student">
@@ -75,7 +76,8 @@ export function SnapshotHeroStudent({ colour, selectedStudent, snapshotStudent }
       <div>
         <h2>{name}</h2>
         <p>
-          {yearGroup} · Supervisor: {snapshotStudent?.supervisorName ?? 'Not assigned'}
+          {yearGroup ? displaySchoolYearLabel(yearGroup) : 'Year group'} · Supervisor:{' '}
+          {snapshotStudent?.supervisorName ?? 'Not assigned'}
         </p>
       </div>
       <div className="snapshot-hero__merits">

@@ -3,6 +3,7 @@
 import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import { ShieldCheck } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { permissionTagLabel } from '@/lib/profile-display';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 
@@ -60,7 +61,7 @@ export function UserTagManager() {
                   type="checkbox"
                 />
                 <ShieldCheck aria-hidden="true" size={14} />
-                <span>{tag}</span>
+                <span>{permissionTagLabel(tag)}</span>
               </label>
             );
           })}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AccessDeniedError,
   canRecordStudentAttendance,
+  canUseFullPaceAccess,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canViewSensitiveChildNotes,
@@ -109,6 +110,15 @@ describe('workflow tags', () => {
     expect(canViewSensitiveStudentDrillThrough(hod)).toBe(false);
     expect(canViewSensitiveStudentDrillThrough({ ...supervisor, tags: ['student-drillthrough-viewer'] })).toBe(false);
     expect(canViewSensitiveStudentDrillThrough(parent)).toBe(false);
+  });
+
+  it('allows full PACE access for full-admin roles or the pace-full-access tag', () => {
+    expect(canUseFullPaceAccess(head)).toBe(true);
+    expect(canUseFullPaceAccess(hod)).toBe(true);
+    expect(canUseFullPaceAccess(supervisor)).toBe(false);
+    expect(canUseFullPaceAccess({ ...supervisor, tags: ['pace-full-access'] })).toBe(true);
+    expect(canUseFullPaceAccess(parent)).toBe(false);
+    expect(canUseFullPaceAccess({ ...parent, tags: ['pace-full-access'] })).toBe(true);
   });
 });
 

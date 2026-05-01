@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-01
 **Agent:** Technical Agent (Codex)
-**Phase:** MVP student drill-through and parent access in progress.
+**Phase:** PACE workflow access implementation complete.
 
 ---
 
@@ -18,7 +18,67 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - MVP student drill-through and parent access
+## Current status - PACE workflow access
+
+Working branch: `feat/pace-workflow-access`.
+
+**PR scope:** Replace the old Supervisor PACE page with the new design-source
+PACE workflow, add scoped PACE access, and expose an Admin PACE route for
+full-access users.
+
+Changed scope:
+
+- Added `pace-full-access` and `canUseFullPaceAccess`.
+- Added display-only school year labels for Nursery, ABC Reception, and
+  Level 1 through Level 13.
+- Added ACE/CEE PACE number-to-level and Behind/On Track/Ahead status helpers.
+- Added `pace.roster`, extended `pace.forStudent` with date-aware access
+  checks and grouped subject record loading, and added write-time access checks
+  to `pace.record`.
+- Scoped normal Supervisors to today's assigned `StaffShift` year-group bands;
+  full-admin and `pace-full-access` users can view and record against all active
+  children.
+- Replaced `/supervisor/pace` with a shared PACE workflow component and added
+  `/admin/pace` with Admin nav visibility for full PACE access.
+- Updated PACE UI to match the design-source flow: PACE Progress heading,
+  student selector, subject progress table, and score update modal.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts schoolYears.test.ts subjects.test.ts` - pass; current Vitest argument handling executed the full 112-test domain suite.
+- `pnpm --filter @oasis/api test -- pace.router.test.ts` - pass; current Vitest argument handling executed the full 150-test API suite.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass after fixing typed test assertions.
+- `pnpm --filter @oasis/web build` - pass; route table includes `/admin/pace`
+  and `/supervisor/pace`.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass
+  when rerun with elevated sandbox permissions for the local dev server; one
+  unauthenticated supervisor protection smoke passed and five credential-gated
+  tests skipped because local E2E credentials are not set.
+- `git diff --check` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- `design/Oasis Learning Center.zip` was already modified before this branch
+  work and remains intentionally unrelated to this implementation.
+- PACE records remain append-only; only `StudentSubject.currentPaceNumber`
+  advances on passing final tests as before.
+- Follow-up: legacy year-group abbreviations such as `Y5` are now
+  canonicalised to `Year 5` for PACE status, display labels, and Supervisor
+  roster scope matching. This keeps old local data working without changing
+  stored values.
+- Follow-up: staff-facing year labels now use the short Oasis labels (`ABC`,
+  `Level 1`, `Level 5`) without parenthetical stored-year explanations, and
+  the Admin student/academic selectors render those labels while preserving
+  canonical stored values.
+- Follow-up: the shared PACE workflow screen was tightened to match the design
+  reference more closely: title, student selector, and record action sit on one
+  row; the separate roster/scope card was removed; the student summary is an
+  inline avatar row; and the progress table spacing/actions now follow the
+  design-source card/table treatment.
+
+## Previous status - MVP student drill-through and parent access
 
 Working branch: `feat/mvp-student-drillthrough`.
 
