@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { runtimeDatabaseUrl } from './database-url.js';
 import { withEncryption } from './encryption.js';
 
 export { AuditAction, Prisma } from '@prisma/client';
@@ -10,7 +11,9 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createClient() {
+  const databaseUrl = runtimeDatabaseUrl(process.env['DATABASE_URL']);
   const base = new PrismaClient({
+    ...(databaseUrl ? { datasources: { db: { url: databaseUrl } } } : {}),
     log: process.env['NODE_ENV'] === 'production' ? ['error'] : ['warn', 'error'],
   });
   return withEncryption(base);

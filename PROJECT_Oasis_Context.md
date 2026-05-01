@@ -18,7 +18,52 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Production Prisma runtime packaging fix
+## Current status - Production Clerk webhook DB sync fix
+
+Working branch: `fix/auth-post-sign-in-missing-user`.
+
+**PR scope:** Fix production Clerk sign-up handoff and local DB user creation
+when Prisma runs through the Supabase transaction pooler.
+
+Changed scope:
+
+- Pulled latest production Vercel logs for deployment
+  `dpl_6yXpQUHK6kBrfYX9VyZ2FTG8rDq9`; `/post-sign-in` now fails with Postgres
+  `42P05 prepared statement "s0" already exists`, not the previous missing
+  Prisma query engine error.
+- Added `runtimeDatabaseUrl` in `@oasis/db` so Supabase transaction-pooler URLs
+  on port `6543` automatically receive `pgbouncer=true&connection_limit=1`
+  before Prisma Client connects.
+- Updated `/post-sign-in` so an authenticated Clerk session without a local
+  `User` redirects to `/not-ready` instead of bouncing back to `/sign-in/`.
+- Updated `/not-ready` copy and action so users can sign out of the current
+  Clerk session instead of being pushed straight back into `/post-sign-in`.
+- Documented the Supabase pooler/Prisma runtime requirement in `docs/runbook.md`.
+
+Verification:
+
+- `pnpm --filter @oasis/db test -- database-url.test.ts` - pass; Vitest
+  currently runs the full db package suite.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/api test -- clerkWebhook.test.ts` - pass; Vitest
+  currently runs the full api package suite.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm exec prettier --check packages/db/src/database-url.ts packages/db/src/__tests__/database-url.test.ts packages/db/src/index.ts apps/web/src/app/post-sign-in/page.tsx apps/web/src/app/not-ready/page.tsx docs/runbook.md PROJECT_Oasis_Context.md` -
+  pass after formatting the not-ready page.
+- `pnpm --filter @oasis/web build` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph without
+  tracked graph output changes.
+
+Notes:
+
+- After redeploy, replay the failed Clerk `user.created` / `user.updated`
+  webhook or create the user again so the local encrypted `User` row is written.
+- `apps/web/next-env.d.ts` was already locally modified before this branch work
+  and was intentionally left untouched.
+
+## Previous status - Production Prisma runtime packaging fix
 
 Working branch: `fix/prisma-query-engine-vercel`.
 
