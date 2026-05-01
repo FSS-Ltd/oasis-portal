@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NotReadyPage() {
   const { userId } = await auth();
-  if (!userId) redirect('/sign-in');
+  if (!userId) redirect('/sign-in/');
 
   return (
     <main style={{ display: 'grid', minHeight: '100vh', placeItems: 'center', padding: 24 }}>
@@ -16,7 +16,7 @@ export default async function NotReadyPage() {
           This role has a valid account, but its portal is not ready in this phase. Contact the
           centre team if you expected access today.
         </p>
-        <form action="/sign-in">
+        <form action="/sign-in/">
           <button type="submit">Return to sign-in</button>
         </form>
       </section>

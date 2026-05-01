@@ -6,11 +6,11 @@ each procedure is a script you can follow at 03:00 with minimal thinking.
 
 ## 1. Environments
 
-| Env        | Web                     | API (same as web) | DB                    | Key source     | Clerk env |
-| ---------- | ----------------------- | ----------------- | --------------------- | -------------- | --------- |
-| local      | http://localhost:3000   | /api/trpc         | local Postgres        | env master key | test      |
-| preview    | <vercel preview URL>    | /api/trpc         | Supabase preview DB   | env master key | test      |
-| production | https://portal.oasis... | /api/trpc         | Supabase Postgres     | env master key | live      |
+| Env        | Web                     | API (same as web) | DB                  | Key source     | Clerk env |
+| ---------- | ----------------------- | ----------------- | ------------------- | -------------- | --------- |
+| local      | http://localhost:3000   | /api/trpc         | local Postgres      | env master key | test      |
+| preview    | <vercel preview URL>    | /api/trpc         | Supabase preview DB | env master key | test      |
+| production | https://portal.oasis... | /api/trpc         | Supabase Postgres   | env master key | live      |
 
 All production data stores and auth services are pinned to UK/EU. The
 application-level master key and blind-index pepper are stored only in the
@@ -66,7 +66,8 @@ Required env vars (copy from `.env.example`):
   `postgresql://oasis:oasis@localhost:5432/oasis_dev`)
 - `NEXT_PUBLIC_SUPABASE_URL` — browser-safe Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — browser-safe Supabase publishable key
-- `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+- `CLERK_WEBHOOK_SIGNING_SECRET`
 - `OASIS_MASTER_KEY` — 32 random bytes, base64-encoded
 - `OASIS_MASTER_KEY_VERSION` — current master-key version, usually `1`
 - `OASIS_BIDX_PEPPER` — pepper for HMAC blind indexes
@@ -110,12 +111,59 @@ Those roles can bypass the protection this platform relies on.
 
 ## 4. Deploy
 
-- Web: push to `main` → Vercel builds → auto-deploy to production.
-- DB migrations: `pnpm db:migrate` runs as part of the release pipeline
-  **before** the new web build is promoted. Roll back = promote previous
-  Vercel deployment; DO NOT `prisma migrate reset` in production.
+- Web + API deploy as one Vercel project from `apps/web`. The Next.js app owns
+  the `/api/trpc` route handler and Clerk webhook handlers, so there is no
+  separate backend service to deploy for the current architecture.
+- GitHub Actions is the release gate. Disable or ignore Vercel's built-in Git
+  auto-deploys so production is not deployed twice.
+- Pull requests from the same repository run the full CI gate and then create a
+  Vercel preview deployment. Forked pull requests run checks only because they
+  must not receive deployment secrets.
+- Pushes to `main` run the full CI gate, run `pnpm db:migrate` against the
+  production database, then run `vercel pull`, `vercel build --prod`, and
+  `vercel deploy --prebuilt --prod --archive=tgz`.
+- Roll back web code by promoting or rolling back to the previous Vercel
+  production deployment. DO NOT `prisma migrate reset` in production.
 - Mobile: EAS build per release tag, submitted to TestFlight / Play
   internal track for QA before store submission.
+
+Required GitHub Actions secrets:
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+- `PROD_DATABASE_URL` — production runtime Postgres URL.
+- `PROD_DIRECT_URL` — production owner/direct Postgres URL for migrations.
+
+The CI workflow reads these from repository-level GitHub Actions secrets. Local
+`.env` files and Vercel project runtime variables are not visible to GitHub
+Actions. If `vercel pull` reports `No existing credentials found` during CI, the
+most likely cause is a missing or empty `VERCEL_TOKEN` secret in GitHub.
+
+Required Vercel project settings:
+
+- Root Directory: `apps/web`.
+- Production and preview runtime env vars configured with non-empty values in
+  Vercel, including
+  `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+  `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`,
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+  `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, and `OASIS_BIDX_PEPPER`.
+  The web middleware reads `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at runtime; using
+  `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
+  missing publishable-key error. Vercel may still list an env var whose value is
+  empty; the CI env validator treats empty values as invalid.
+- Because GitHub Actions uses `vercel build` and `vercel deploy --prebuilt`,
+  build-time public variables must be available through `vercel pull`.
+  Vercel pulls Sensitive variables as empty strings, so keep
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` as non-sensitive project variables, or
+  mirror them into GitHub Actions secrets and export them before `vercel build`.
+- Any Vercel project variable needed during `@oasis/web#build` must also be
+  declared in `turbo.json` under the `build` task's `env` or `passThroughEnv`
+  list. Turborepo strict env mode otherwise strips it during Vercel builds.
+- Supabase browser/server clients live in `apps/web/src/lib/supabase`. Clerk
+  remains the authentication source; Supabase Auth middleware is not configured.
 
 ## 5. Incident playbooks
 
@@ -149,7 +197,7 @@ wrong-length `OASIS_MASTER_KEY` / `OASIS_MASTER_KEY_V<n>`.
 an account that should be non-negative.
 
 1. `SELECT correlation_id, SUM(amount) FROM merit_ledger_entry GROUP BY
-   correlation_id HAVING SUM(amount) <> 0;` — list bad correlation ids.
+correlation_id HAVING SUM(amount) <> 0;` — list bad correlation ids.
 2. For each: pull all rows, identify the missing leg. Common cause is a
    partially-committed transaction from a pre-tRPC-transaction-wrapper
    migration window.

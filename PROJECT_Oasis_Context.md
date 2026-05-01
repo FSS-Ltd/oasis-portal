@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-01
 **Agent:** Technical Agent (Codex)
-**Phase:** PACE workflow access implementation complete.
+**Phase:** Supabase SSR + Vercel CI/CD implementation.
 
 ---
 
@@ -18,7 +18,140 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PACE workflow access
+## Current status - Supabase SSR + Vercel CI/CD
+
+Working branch: `chore/supabase-vercel-cicd`.
+
+**PR scope:** Add Supabase SSR client utilities for web data features and move
+production deployment behind GitHub Actions CI/CD with Vercel prebuilt deploys.
+
+Changed scope:
+
+- Added `@supabase/ssr` to `@oasis/web`.
+- Added browser and server Supabase client helpers under
+  `apps/web/src/lib/supabase`, with shared validation for the browser-safe
+  Supabase URL and publishable key.
+- Kept Clerk as the only auth authority and left `apps/web/src/middleware.ts`
+  unchanged.
+- Extended `.github/workflows/ci.yml` so same-repo pull requests create Vercel
+  preview deployments after checks pass, while forked pull requests skip deploy
+  secrets.
+- Added gated production deployment on `main`: run CI, apply production
+  migrations using GitHub secrets, then build and deploy Vercel prebuilt output
+  from the repository root, allowing the Vercel project root-directory setting
+  (`apps/web`) to resolve once.
+- Added explicit Vercel deploy secret preflight checks so missing GitHub Actions
+  secrets fail with named missing keys before the Vercel CLI attempts auth.
+- Let Vercel CLI commands read `VERCEL_TOKEN` from the CI environment instead
+  of passing the token as a command-line flag.
+- Added the Vercel build-time environment allowlist to `turbo.json` so
+  Turborepo strict env mode does not strip required variables during
+  `@oasis/web#build`.
+- Added `apps/web/vercel.json` with `git.deploymentEnabled: false` so native
+  Vercel Git deployments do not race the GitHub Actions prebuilt deployment
+  checks on pull requests or `main`.
+- Added `pnpm.onlyBuiltDependencies` in `package.json` for the build-script
+  packages pnpm 10 reported during CI installs.
+- Upgraded `@oasis/web` from `next`/`eslint-config-next` 15.0.3 to 15.5.15
+  after Vercel blocked deployments for a vulnerable Next.js version.
+- Updated Next config for 15.5: moved `typedRoutes` out of `experimental` and
+  set an explicit repository `outputFileTracingRoot` so local/global lockfiles
+  do not confuse workspace-root detection.
+- Normalised internal unauthenticated redirects/forms to `/sign-in/` because
+  Next 15.5 typed routes model the Clerk optional catch-all sign-in route as a
+  slash-suffixed dynamic route.
+- Investigated preview deployment
+  `oasis-portal-dega3aszu-jean-fidele-ntagengwas-projects.vercel.app`; Vercel
+  runtime logs showed `@clerk/nextjs: Missing publishableKey` for `GET /`,
+  confirming the deployed middleware could not read a Clerk publishable key.
+  `vercel env ls preview` showed `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` exists,
+  but `vercel env pull --environment=preview` pulled it as an empty string.
+- Added a reusable env-file validator and wired it after `vercel pull` for
+  preview and production deploy jobs so missing or empty Vercel build-time
+  public env vars fail before `vercel build`/`vercel deploy`. The public
+  build-time values now come from GitHub Actions secrets because Sensitive
+  Vercel variables are intentionally pulled as empty strings by the CLI. Runtime
+  secrets stay in Vercel.
+- Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
+  setting, migration order, rollback guidance, Turbo env allowlisting, and the
+  `vercel pull` missing credentials failure mode.
+
+Verification:
+
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass.
+- `CI=true pnpm install --frozen-lockfile` - pass after rerunning with network
+  access to restore `node_modules`.
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm --filter @oasis/web lint` - pass after replacing unsafe generic
+  return types with explicit Supabase client aliases.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `gh api repos/jntagengwa/oasis-portal/actions/secrets --jq '.secrets[].name'`
+  - returned no repository-level Actions secrets; `VERCEL_TOKEN` is not
+    currently configured in GitHub.
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass after adding Vercel secret preflight checks.
+- `git diff --check` - pass after the Vercel deploy workflow update.
+- `pnpm exec turbo run build --filter=@oasis/web --dry=json` - pass after the
+  `turbo.json` env allowlist update.
+- `pnpm --filter @oasis/web build` - pass after the `turbo.json` env allowlist
+  update.
+- `pnpm exec turbo run build --filter=@oasis/web` - pass after the
+  `turbo.json` env allowlist update.
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass after running Vercel CLI steps from the repo root.
+- `pnpm exec prettier --check package.json apps/web/vercel.json .github/workflows/ci.yml` -
+  pass.
+- `CI=true pnpm install --frozen-lockfile` - pass with the pnpm
+  `onlyBuiltDependencies` allowlist.
+- `pnpm rebuild` - pass.
+- `pnpm --filter @oasis/web build` - pass after the Vercel CI root-directory
+  correction.
+- `git diff --check` - pass after the Vercel CI root-directory correction.
+- `pnpm view next@15.5.15 peerDependencies` - pass with network approval;
+  confirmed React 18 remains supported.
+- `pnpm --store-dir .pnpm-store --filter @oasis/web add next@15.5.15 eslint-config-next@15.5.15` -
+  pass with network approval.
+- `CI=true pnpm --store-dir .pnpm-store install --frozen-lockfile` - pass after
+  updating the lockfile.
+- `pnpm --filter @oasis/web build` - pass after the Next 15.5.15 upgrade and
+  typed-route/config fixes.
+- `pnpm --filter @oasis/web typecheck` - pass after rerunning once build had
+  regenerated `.next/types`.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm exec prettier --check apps/web/package.json apps/web/next.config.mjs apps/web/src/app/not-ready/page.tsx apps/web/src/app/post-sign-in/page.tsx PROJECT_Oasis_Context.md` -
+  pass.
+- `git diff --check` - pass after the Next 15.5.15 upgrade.
+- `npx --yes vercel@53.0.1 logs dpl_6sTvuHKuoEWZz4iaKTWs5LW2EF6Z --project oasis-portal-web --scope jean-fidele-ntagengwas-projects --no-follow --status-code 500 --limit 20 --expand` -
+  pass; logs showed missing Clerk publishable key for `GET /`.
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass after adding Vercel runtime env validation.
+- `node scripts/require-env-file-keys.mjs /private/tmp/oasis-env-test A B` -
+  pass.
+- `pnpm exec prettier --check .github/workflows/ci.yml docs/runbook.md PROJECT_Oasis_Context.md scripts/require-env-file-keys.mjs` -
+  pass.
+- `git diff --check` - pass after adding Vercel runtime env validation.
+- `graphify update .` - completed; graphify rebuilt the code graph without
+  tracked graph output changes.
+
+Notes:
+
+- Required GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+  `VERCEL_PROJECT_ID`, `PROD_DATABASE_URL`, and `PROD_DIRECT_URL`.
+- As of this session, the repo has no GitHub Actions secrets or environment
+  secrets configured for Vercel deploys. Add the required secrets in GitHub
+  before expecting preview or production deployment jobs to pass.
+- Vercel connector lookup found team `team_qvufVWPpOoZtQcAtRv8KQenE` and project
+  `prj_Olv8bn7wGSG7NfeOBP4mRIyNQpzC` (`oasis-portal-web`).
+- Vercel project root is expected to be `apps/web`.
+- Supabase Auth middleware remains deferred until there is a specific
+  Supabase-backed login/session flow.
+
+## Previous status - PACE workflow access
 
 Working branch: `feat/pace-workflow-access`.
 

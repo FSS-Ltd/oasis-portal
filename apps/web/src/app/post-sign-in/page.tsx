@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function PostSignInPage() {
   const { userId } = await auth();
-  if (!userId) redirect('/sign-in');
+  if (!userId) redirect('/sign-in/');
 
   const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-  if (!ctx.user) redirect('/sign-in');
+  if (!ctx.user) redirect('/sign-in/');
 
   if (isFullAdmin(ctx.user)) redirect('/admin');
   if (ctx.user.role === 'Supervisor') redirect('/supervisor');

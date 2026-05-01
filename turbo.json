@@ -4,7 +4,27 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": [
+        "APP_URL",
+        "FEATURE_PUSH_NOTIFICATIONS",
+        "INVESTMENT_NAV_SEED",
+        "NEXT_PUBLIC_*",
+        "NODE_ENV"
+      ],
+      "passThroughEnv": [
+        "AXIOM_TOKEN",
+        "CLERK_SECRET_KEY",
+        "CLERK_WEBHOOK_SIGNING_SECRET",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "OASIS_BIDX_PEPPER",
+        "OASIS_MASTER_KEY",
+        "OASIS_MASTER_KEY_VERSION",
+        "RESEND_API_KEY",
+        "RESEND_FROM",
+        "SENTRY_DSN"
+      ]
     },
     "dev": {
       "cache": false,
