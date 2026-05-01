@@ -134,6 +134,11 @@ Required GitHub Actions secrets:
 - `PROD_DATABASE_URL` — production runtime Postgres URL.
 - `PROD_DIRECT_URL` — production owner/direct Postgres URL for migrations.
 
+The CI workflow reads these from repository-level GitHub Actions secrets. Local
+`.env` files and Vercel project runtime variables are not visible to GitHub
+Actions. If `vercel pull` reports `No existing credentials found` during CI, the
+most likely cause is a missing or empty `VERCEL_TOKEN` secret in GitHub.
+
 Required Vercel project settings:
 
 - Root Directory: `apps/web`.

@@ -39,8 +39,13 @@ Changed scope:
 - Added gated production deployment on `main`: run CI, apply production
   migrations using GitHub secrets, then build and deploy Vercel prebuilt output
   from `apps/web`.
+- Added explicit Vercel deploy secret preflight checks so missing GitHub Actions
+  secrets fail with named missing keys before the Vercel CLI attempts auth.
+- Let Vercel CLI commands read `VERCEL_TOKEN` from the CI environment instead
+  of passing the token as a command-line flag.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
-  setting, migration order, and rollback guidance.
+  setting, migration order, rollback guidance, and the `vercel pull` missing
+  credentials failure mode.
 
 Verification:
 
@@ -56,6 +61,12 @@ Verification:
 - `pnpm typecheck` - pass.
 - `pnpm test` - pass.
 - `pnpm --filter @oasis/web build` - pass.
+- `gh api repos/jntagengwa/oasis-portal/actions/secrets --jq '.secrets[].name'`
+  - returned no repository-level Actions secrets; `VERCEL_TOKEN` is not
+  currently configured in GitHub.
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass after adding Vercel secret preflight checks.
+- `git diff --check` - pass after the Vercel deploy workflow update.
 - `graphify update .` - completed; graphify rebuilt the code graph without
   tracked graph output changes.
 
@@ -63,6 +74,9 @@ Notes:
 
 - Required GitHub secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
   `VERCEL_PROJECT_ID`, `PROD_DATABASE_URL`, and `PROD_DIRECT_URL`.
+- As of this session, the repo has no GitHub Actions secrets or environment
+  secrets configured for Vercel deploys. Add the required secrets in GitHub
+  before expecting preview or production deployment jobs to pass.
 - Vercel project root is expected to be `apps/web`.
 - Supabase Auth middleware remains deferred until there is a specific
   Supabase-backed login/session flow.

@@ -215,22 +215,37 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @oasis/db generate
 
+      - name: Validate Vercel CI secrets
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            printf 'Add the missing secrets under repository Settings > Secrets and variables > Actions before running Vercel deploy jobs.\n' >&2
+            exit 1
+          fi
+
       - name: Install Vercel CLI
         run: npm install --global vercel@${{ env.VERCEL_CLI_VERSION }}
 
       - name: Pull Vercel preview environment
         working-directory: apps/web
-        run: vercel pull --yes --environment=preview --token="${VERCEL_TOKEN}"
+        run: vercel pull --yes --environment=preview
 
       - name: Build preview deployment
         working-directory: apps/web
-        run: vercel build --token="${VERCEL_TOKEN}"
+        run: vercel build
 
       - name: Deploy preview
         id: deploy
         working-directory: apps/web
         run: |
-          deployment_url="$(vercel deploy --prebuilt --archive=tgz --token="${VERCEL_TOKEN}")"
+          deployment_url="$(vercel deploy --prebuilt --archive=tgz)"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "Preview deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
 
@@ -279,6 +294,29 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @oasis/db generate
 
+      - name: Validate production deploy secrets
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if [ -z "${DATABASE_URL}" ]; then
+            missing+=("PROD_DATABASE_URL")
+          fi
+
+          if [ -z "${DIRECT_URL}" ]; then
+            missing+=("PROD_DIRECT_URL")
+          fi
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            printf 'Add the missing secrets under repository Settings > Secrets and variables > Actions before running production deploy jobs.\n' >&2
+            exit 1
+          fi
+
       - name: Apply production database migrations
         run: pnpm db:migrate
 
@@ -287,16 +325,16 @@ jobs:
 
       - name: Pull Vercel production environment
         working-directory: apps/web
-        run: vercel pull --yes --environment=production --token="${VERCEL_TOKEN}"
+        run: vercel pull --yes --environment=production
 
       - name: Build production deployment
         working-directory: apps/web
-        run: vercel build --prod --token="${VERCEL_TOKEN}"
+        run: vercel build --prod
 
       - name: Deploy production
         id: deploy
         working-directory: apps/web
         run: |
-          deployment_url="$(vercel deploy --prebuilt --prod --archive=tgz --token="${VERCEL_TOKEN}")"
+          deployment_url="$(vercel deploy --prebuilt --prod --archive=tgz)"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "Production deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
