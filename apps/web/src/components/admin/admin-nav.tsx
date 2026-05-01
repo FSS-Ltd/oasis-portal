@@ -35,6 +35,8 @@ const navItems = [
 
 type AdminNavProps = {
   canViewAudit: boolean;
+  canViewBehaviour: boolean;
+  canViewStudents: boolean;
   fullAdmin: boolean;
 };
 
@@ -46,12 +48,26 @@ function isActiveRoute(pathname: string, href: string, label: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminSidebarNav({ canViewAudit, fullAdmin }: AdminNavProps) {
+function visibleForUser(
+  item: (typeof navItems)[number],
+  access: Pick<AdminNavProps, 'canViewAudit' | 'canViewBehaviour' | 'canViewStudents' | 'fullAdmin'>,
+) {
+  if (access.fullAdmin) return item.label !== 'Audit' || access.canViewAudit;
+  if (item.label === 'Students') return access.canViewStudents;
+  if (item.label === 'Behaviour') return access.canViewBehaviour;
+  return false;
+}
+
+export function AdminSidebarNav({
+  canViewAudit,
+  canViewBehaviour,
+  canViewStudents,
+  fullAdmin,
+}: AdminNavProps) {
   const pathname = usePathname();
-  const visibleNavItems = navItems.filter((item) => {
-    if (!fullAdmin) return item.label === 'Behaviour';
-    return item.label !== 'Audit' || canViewAudit;
-  });
+  const visibleNavItems = navItems.filter((item) =>
+    visibleForUser(item, { canViewAudit, canViewBehaviour, canViewStudents, fullAdmin }),
+  );
 
   return (
     <nav className="admin-shell__nav">
@@ -85,13 +101,17 @@ export function AdminSidebarNav({ canViewAudit, fullAdmin }: AdminNavProps) {
   );
 }
 
-export function AdminBottomNav({ canViewAudit, fullAdmin }: AdminNavProps) {
+export function AdminBottomNav({
+  canViewAudit,
+  canViewBehaviour,
+  canViewStudents,
+  fullAdmin,
+}: AdminNavProps) {
   const pathname = usePathname();
   const mobileNavItems = navItems
-    .filter((item) => {
-      if (!fullAdmin) return item.label === 'Behaviour';
-      return item.label !== 'Audit' || canViewAudit;
-    })
+    .filter((item) =>
+      visibleForUser(item, { canViewAudit, canViewBehaviour, canViewStudents, fullAdmin }),
+    )
     .slice(0, 5);
 
   return (

@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-01
 **Agent:** Technical Agent (Codex)
-**Phase:** Web UI component refactor in progress.
+**Phase:** MVP student drill-through and parent access in progress.
 
 ---
 
@@ -18,7 +18,68 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Web UI component refactor
+## Current status - MVP student drill-through and parent access
+
+Working branch: `feat/mvp-student-drillthrough`.
+
+**PR scope:** Add the MVP student drill-through experience and parent linked-child
+viewing while keeping the change focused on student access, child overview UI,
+and the requested active-sidebar nav polish.
+
+Changed scope:
+
+- Added `student-drillthrough-viewer` as a permission tag for staff read-only
+  drill-through access.
+- Added Head-only control over granting/removing that tag, including invite
+  metadata and user tag updates.
+- Added child-log drill-through APIs for accessible-student lists, current
+  academic-year attendance, behaviour, PACE results, and merit balances.
+- Restricted sensitive behaviour in the drill-through to `Head`; non-Head
+  full-admin users, tagged staff, and linked parents receive general behaviour
+  only.
+- Replaced `/admin/students/[id]` with the drill-through layout and moved the
+  existing edit/subject/guardian tools behind Head-only `Edit Profile`.
+- Added `/parent` and `/parent/children/[id]` for linked-parent viewing.
+- Updated admin sidebar styling so only the active nav item gets the blue left
+  border.
+- Follow-up: replaced the drill-through Attendance list with the design-source
+  calendar card and added a Notes tab backed by existing child notes. Sensitive
+  notes use the existing `sensitive-note-viewer` policy; sensitive behaviour
+  remains Head-only on this surface.
+- Follow-up: adjusted the Attendance calendar to default to the current month,
+  support month back/forward navigation, disable forward navigation past the
+  current month, and grey Monday/Saturday/Sunday as centre-closed days.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts` - pass; package test
+  runner executed 105 domain tests.
+- `pnpm --filter @oasis/api test -- childNotes.router.test.ts behaviour.router.test.ts student.router.test.ts` - pass; current Vitest argument handling executed 137 API tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass; route table includes `/parent` and
+  `/parent/children/[id]`.
+- `git diff --check` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+- Follow-up checks on the attendance calendar and Notes tab:
+  `pnpm --filter @oasis/api test -- childNotes.router.test.ts`,
+  `pnpm --filter @oasis/api typecheck`,
+  `pnpm --filter @oasis/web typecheck`, `pnpm lint`,
+  `pnpm --filter @oasis/web build`, `git diff --check`, and
+  `graphify update .` all passed.
+- Calendar navigation follow-up checks: `pnpm --filter @oasis/web typecheck`,
+  `pnpm lint`, `pnpm --filter @oasis/web build`, `git diff --check`, and
+  `graphify update .` all passed. The first typecheck attempt was run in
+  parallel with `next build` and failed because `.next/types` was being
+  regenerated; rerunning after build completed passed.
+
+Notes:
+
+- `design/Oasis Learning Center.zip` was already modified before this branch
+  work and remains intentionally unrelated to this implementation.
+
+## Previous status - Web UI component refactor
 
 Working branch: `chore/refactor-web-ui-components`.
 

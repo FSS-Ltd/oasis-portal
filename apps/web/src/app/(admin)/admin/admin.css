@@ -116,12 +116,9 @@
   color: #ffffff;
 }
 
-.admin-shell__nav-item:not(.is-disabled) {
-  border-left-color: var(--oasis-blue);
-}
-
 .admin-shell__nav-item.is-active {
   background: rgba(255, 255, 255, 0.16);
+  border-left-color: var(--oasis-blue);
   color: #ffffff;
   box-shadow:
     inset 0 0 0 1px rgba(212, 229, 245, 0.16),
@@ -1413,6 +1410,333 @@
   gap: 18px;
 }
 
+.student-drillthrough,
+.student-profile-edit {
+  display: grid;
+  gap: 16px;
+}
+
+.student-drillthrough__top {
+  display: grid;
+  gap: 12px;
+}
+
+.student-drillthrough__back {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  color: var(--oasis-blue);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.student-detail-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.student-detail-hero__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 16px;
+}
+
+.student-detail-hero__avatar {
+  width: 56px;
+  height: 56px;
+  font-size: 1rem;
+}
+
+.student-detail-hero h1 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1.25rem;
+  font-weight: 850;
+}
+
+.student-detail-hero p {
+  margin: 3px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+}
+
+.student-detail-hero__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-detail-tabs {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--oasis-border);
+}
+
+.student-detail-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.student-detail-tabs button.is-selected {
+  border-bottom-color: var(--oasis-crimson);
+  color: var(--oasis-crimson);
+}
+
+.student-detail-tabs span {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 0.66rem;
+}
+
+.student-detail-summary-grid,
+.student-merit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.student-attendance-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.student-attendance-row div {
+  display: grid;
+  gap: 2px;
+}
+
+.student-attendance-row strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.student-attendance-row span:not(.snapshot-badge) {
+  color: var(--oasis-text-muted);
+  font-size: 0.74rem;
+}
+
+.student-attendance-calendar {
+  display: grid;
+  gap: 14px;
+}
+
+.student-attendance-calendar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-attendance-calendar h3 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
+.student-attendance-calendar__controls {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.student-attendance-calendar__controls button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid var(--oasis-border);
+  border-radius: 7px;
+  background: var(--oasis-surface);
+  color: var(--oasis-navy);
+  cursor: pointer;
+}
+
+.student-attendance-calendar__controls button:disabled {
+  color: var(--oasis-text-muted);
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.student-attendance-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+
+.student-attendance-calendar__weekday {
+  padding: 4px 0;
+  color: var(--oasis-text-muted);
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.student-attendance-calendar__day {
+  min-height: 26px;
+  padding: 6px 2px;
+  border-radius: 6px;
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.student-attendance-calendar__day.is-present {
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+
+.student-attendance-calendar__day.is-absent {
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.student-attendance-calendar__day.is-late {
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+}
+
+.student-attendance-calendar__day.is-unrecorded {
+  background: color-mix(in srgb, var(--oasis-border) 36%, transparent);
+}
+
+.student-attendance-calendar__day.is-closed {
+  background: #f1f4f9;
+  color: var(--oasis-text-muted);
+}
+
+.student-attendance-calendar__blank {
+  min-height: 26px;
+}
+
+.student-attendance-calendar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.student-attendance-calendar__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+}
+
+.student-attendance-calendar__legend-item i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--legend-bg);
+  border: 1px solid var(--legend-colour);
+}
+
+.student-attendance-calendar__legend-item.is-present {
+  --legend-bg: var(--oasis-success-bg);
+  --legend-colour: var(--oasis-success);
+}
+
+.student-attendance-calendar__legend-item.is-absent {
+  --legend-bg: var(--oasis-danger-bg);
+  --legend-colour: var(--oasis-danger);
+}
+
+.student-attendance-calendar__legend-item.is-late {
+  --legend-bg: var(--oasis-warning-bg);
+  --legend-colour: var(--oasis-warning);
+}
+
+.student-attendance-calendar__legend-item.is-closed {
+  --legend-bg: #f1f4f9;
+  --legend-colour: var(--oasis-text-muted);
+}
+
+.student-note-card {
+  display: grid;
+  gap: 12px;
+  border-left: 4px solid var(--oasis-blue);
+}
+
+.student-note-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.student-note-card__author {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-note-card__avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+}
+
+.student-note-card__author div {
+  display: grid;
+  gap: 2px;
+}
+
+.student-note-card__author strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+}
+
+.student-note-card__author span,
+.student-note-card__meta time {
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+}
+
+.student-note-card__meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+
+.student-note-card p {
+  margin: 0;
+  color: var(--oasis-text);
+  font-size: 0.84rem;
+  line-height: 1.72;
+}
+
+.student-profile-edit__toolbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .snapshot-page__header p {
   margin: 6px 0 0;
   color: var(--oasis-text-secondary);
@@ -2578,8 +2902,20 @@
   .pace-subject-row,
   .rota-layout,
   .snapshot-grid,
-  .policy-grid {
+  .policy-grid,
+  .student-detail-summary-grid,
+  .student-merit-grid {
     grid-template-columns: 1fr;
+  }
+
+  .student-detail-hero,
+  .student-detail-hero__identity,
+  .student-detail-hero__actions {
+    align-items: flex-start;
+  }
+
+  .student-detail-hero {
+    flex-direction: column;
   }
 
   .behaviour-chart__row {

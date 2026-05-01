@@ -9,7 +9,7 @@
  *
  * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`,
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
- * `sensitive-note-viewer`, `behaviour-viewer`.
+ * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`.
  */
 
 export const ROLES = [
@@ -34,6 +34,7 @@ export const PERMISSION_TAGS = [
   'audit-viewer',
   'sensitive-note-viewer',
   'behaviour-viewer',
+  'student-drillthrough-viewer',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
@@ -104,6 +105,18 @@ export function canViewSensitiveChildNotes(user: SessionUser): boolean {
 
 export function canViewBehaviourReports(user: SessionUser): boolean {
   return user.role === 'Head' || user.role === 'HeadOfDiscipline' || hasTag(user, 'behaviour-viewer');
+}
+
+export function canViewAnyStudentDrillThrough(user: SessionUser): boolean {
+  return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'));
+}
+
+export function canViewStudentDrillThrough(user: SessionUser): boolean {
+  return canViewAnyStudentDrillThrough(user) || user.role === 'Parent';
+}
+
+export function canViewSensitiveStudentDrillThrough(user: SessionUser): boolean {
+  return user.role === 'Head';
 }
 
 export function requireClubsAdminOrFullAdmin(user: SessionUser): void {

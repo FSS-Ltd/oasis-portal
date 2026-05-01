@@ -1,0 +1,20 @@
+import { MotionPage } from '@/components/admin/motion';
+import { getParentUser } from '@/components/admin/require-full-admin';
+import { ParentChildrenList } from './parent-children-list';
+
+export default async function ParentPage() {
+  await getParentUser();
+
+  return (
+    <MotionPage>
+      <div className="page-header">
+        <div>
+          <p>Parent view</p>
+          <h1>My Children</h1>
+          <p>Open linked child records for attendance, behaviour, PACE, and merit progress.</p>
+        </div>
+      </div>
+      <ParentChildrenList />
+    </MotionPage>
+  );
+}

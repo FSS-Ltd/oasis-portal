@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   AccessDeniedError,
   canRecordStudentAttendance,
+  canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canViewSensitiveChildNotes,
+  canViewSensitiveStudentDrillThrough,
+  canViewStudentDrillThrough,
   isFullAdmin,
   requireCanViewSensitive,
   requireClubsAdminOrFullAdmin,
@@ -90,6 +93,22 @@ describe('workflow tags', () => {
     expect(canViewBehaviourReports(hod)).toBe(true);
     expect(canViewBehaviourReports(supervisor)).toBe(false);
     expect(canViewBehaviourReports({ ...supervisor, tags: ['behaviour-viewer'] })).toBe(true);
+  });
+
+  it('limits student drill-through reads to full-admin, tagged staff, or parents', () => {
+    expect(canViewAnyStudentDrillThrough(head)).toBe(true);
+    expect(canViewAnyStudentDrillThrough(hod)).toBe(true);
+    expect(canViewAnyStudentDrillThrough(supervisor)).toBe(false);
+    expect(canViewAnyStudentDrillThrough({ ...supervisor, tags: ['student-drillthrough-viewer'] })).toBe(true);
+    expect(canViewStudentDrillThrough(parent)).toBe(true);
+    expect(canViewStudentDrillThrough(student)).toBe(false);
+  });
+
+  it('limits sensitive student drill-through data to Head', () => {
+    expect(canViewSensitiveStudentDrillThrough(head)).toBe(true);
+    expect(canViewSensitiveStudentDrillThrough(hod)).toBe(false);
+    expect(canViewSensitiveStudentDrillThrough({ ...supervisor, tags: ['student-drillthrough-viewer'] })).toBe(false);
+    expect(canViewSensitiveStudentDrillThrough(parent)).toBe(false);
   });
 });
 

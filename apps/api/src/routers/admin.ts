@@ -50,6 +50,23 @@ const updateUserTagsInput = z.object({
   tags: z.array(permissionTagSchema).default([]),
 });
 
+const STUDENT_DRILLTHROUGH_TAG = 'student-drillthrough-viewer';
+
+function assertCanAssignStudentDrillThroughTag(
+  actorRole: string,
+  currentTags: readonly string[],
+  nextTags: readonly string[],
+) {
+  const currentHasTag = currentTags.includes(STUDENT_DRILLTHROUGH_TAG);
+  const nextHasTag = nextTags.includes(STUDENT_DRILLTHROUGH_TAG);
+  if (currentHasTag === nextHasTag || actorRole === 'Head') return;
+
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: 'student drill-through tag can only be changed by Head',
+  });
+}
+
 async function assertUniqueBandName(
   ctx: {
     db: {
@@ -443,6 +460,15 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .input(updateUserTagsInput)
       .mutation(async ({ ctx, input }) => {
         const tags = [...new Set(input.tags)].sort();
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, tags: true },
+        });
+        if (!existingUser) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+        }
+        assertCanAssignStudentDrillThroughTag(ctx.user.role, existingUser.tags, tags);
+
         try {
           const user = await ctx.db.user.update({
             where: { id: input.userId },
@@ -505,6 +531,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     }),
 
     inviteUser: fullAdminProcedure.input(inviteUserInput).mutation(async ({ ctx, input }) => {
+      assertCanAssignStudentDrillThroughTag(ctx.user.role, [], input.tags);
       const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
         emailAddress: input.email,
         publicMetadata: { role: input.role, tags: input.tags },
