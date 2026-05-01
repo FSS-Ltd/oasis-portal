@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
 import {
+  canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   isFullAdmin,
   requireFullAdmin,
@@ -93,7 +94,13 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     if (userId) await ensureDevHeadUser(userId);
     const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
     if (!ctx.user) notFound();
-    if (!isFullAdmin(ctx.user) && !canViewBehaviourReports(ctx.user)) notFound();
+    if (
+      !isFullAdmin(ctx.user) &&
+      !canViewBehaviourReports(ctx.user) &&
+      !canViewAnyStudentDrillThrough(ctx.user)
+    ) {
+      notFound();
+    }
     return ctx.user;
   } catch {
     notFound();
@@ -134,6 +141,27 @@ export async function assertBehaviourReportViewer() {
   try {
     const user = await getAdminShellUser();
     if (!canViewBehaviourReports(user)) notFound();
+  } catch {
+    notFound();
+  }
+}
+
+export async function getStudentDrillThroughAdminUser(): Promise<SessionUser> {
+  try {
+    const user = await getAdminShellUser();
+    if (!canViewAnyStudentDrillThrough(user)) notFound();
+    return user;
+  } catch {
+    notFound();
+  }
+}
+
+export async function getParentUser(): Promise<SessionUser> {
+  try {
+    const { userId } = await auth();
+    const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
+    if (!ctx.user || ctx.user.role !== 'Parent') notFound();
+    return ctx.user;
   } catch {
     notFound();
   }

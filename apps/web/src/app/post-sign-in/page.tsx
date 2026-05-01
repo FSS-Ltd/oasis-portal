@@ -14,6 +14,7 @@ export default async function PostSignInPage() {
 
   if (isFullAdmin(ctx.user)) redirect('/admin');
   if (ctx.user.role === 'Supervisor') redirect('/supervisor');
+  if (ctx.user.role === 'Parent') redirect('/parent');
 
   redirect('/not-ready');
 }

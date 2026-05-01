@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { hasTag, isFullAdmin } from '@oasis/domain';
+import {
+  canViewAnyStudentDrillThrough,
+  canViewBehaviourReports,
+  hasTag,
+  isFullAdmin,
+} from '@oasis/domain';
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getAdminShellUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -12,7 +17,10 @@ export const dynamic = 'force-dynamic';
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await getAdminShellUser();
   const canViewAudit = hasTag(user, 'audit-viewer');
+  const canViewBehaviour = canViewBehaviourReports(user);
   const fullAdmin = isFullAdmin(user);
+  const canViewStudents = canViewAnyStudentDrillThrough(user);
+  const roleLabel = user.role === 'Head' ? 'Head of Centre' : user.role;
 
   return (
     <div className="admin-shell">
@@ -29,10 +37,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             />
           </div>
           <p>Staff Portal</p>
-          <strong>Head of Centre</strong>
+          <strong>{roleLabel}</strong>
           <span>Phase 1 onboarding</span>
         </div>
-        <AdminSidebarNav canViewAudit={canViewAudit} fullAdmin={fullAdmin} />
+        <AdminSidebarNav
+          canViewAudit={canViewAudit}
+          canViewBehaviour={canViewBehaviour}
+          canViewStudents={canViewStudents}
+          fullAdmin={fullAdmin}
+        />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -45,13 +58,18 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
               <small>Staff Portal</small>
-              <strong>Head of Centre</strong>
+              <strong>{roleLabel}</strong>
             </span>
           </Link>
           <LogoutButton className="logout-button logout-button--mobile" />
         </header>
         <main className="admin-shell__main">{children}</main>
-        <AdminBottomNav canViewAudit={canViewAudit} fullAdmin={fullAdmin} />
+        <AdminBottomNav
+          canViewAudit={canViewAudit}
+          canViewBehaviour={canViewBehaviour}
+          canViewStudents={canViewStudents}
+          fullAdmin={fullAdmin}
+        />
       </div>
     </div>
   );

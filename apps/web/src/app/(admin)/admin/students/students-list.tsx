@@ -11,16 +11,19 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TextInput } from '@/components/ui/field';
 
-type StudentRow = RouterOutputs['student']['list'][number];
+type StudentRow = RouterOutputs['childLog']['listAccessibleStudents'][number];
 
 export function StudentsList() {
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState<string | undefined>(undefined);
-  const studentsQuery = api.student.list.useQuery(search ? { search } : undefined, {
-    retry: false,
-  });
+  const studentsQuery = api.childLog.listAccessibleStudents.useQuery(undefined, { retry: false });
 
-  const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+  const students = useMemo(() => {
+    const rows = studentsQuery.data ?? [];
+    if (!search) return rows;
+    const query = search.toLowerCase();
+    return rows.filter((student) => student.fullName.toLowerCase().includes(query));
+  }, [search, studentsQuery.data]);
   const columns = useMemo<readonly DataTableColumn<StudentRow>[]>(
     () => [
       {
@@ -31,7 +34,7 @@ export function StudentsList() {
             <Avatar className="student-row__avatar" name={student.fullName} />
             <span className="student-row__text">
               <strong>{student.fullName}</strong>
-              <span>DOB {student.dob}</span>
+              <span>Enrolled {student.enrolmentDate}</span>
             </span>
           </div>
         ),
@@ -86,11 +89,11 @@ export function StudentsList() {
           }}
         >
           <TextInput
-            aria-label="Search students by exact name"
+            aria-label="Search students by name"
             onChange={(event) => {
               setDraftSearch(event.target.value);
             }}
-            placeholder="Search by exact student name"
+            placeholder="Search students"
             value={draftSearch}
           />
           <Button type="submit" variant="secondary">
@@ -116,10 +119,7 @@ export function StudentsList() {
         <DataTable
           columns={columns}
           empty={
-            <EmptyState
-              detail="Create the first student or adjust the exact-name search."
-              title="No students found"
-            />
+            <EmptyState detail="Create the first student or adjust the search." title="No students found" />
           }
           errorMessage={studentsQuery.error?.message}
           getRowKey={(student) => student.id}

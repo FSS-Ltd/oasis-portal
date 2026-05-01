@@ -7,6 +7,12 @@ import { router } from '../trpc.js';
 import type { ClerkInvitationClient, ClerkInvitationResult } from '../lib/clerk.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const principalUser: SessionUser = {
+  id: 'u_principal',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'u_sup',
   role: 'Supervisor',
@@ -442,6 +448,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
 
   it('updates permission tags and writes an audit row', async () => {
     const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: [] });
     db.user.update.mockResolvedValue({
       id: 'u_sup',
       tags: ['attendance-exporter', 'audit-viewer'],
@@ -471,6 +478,29 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         meta: { tags: ['attendance-exporter', 'audit-viewer'], source: 'admin.updateUserTags' },
       },
     });
+  });
+
+  it('limits student drill-through tag changes to Head', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: [] });
+    const blocked = makeCaller(principalUser, { db });
+
+    await expect(
+      blocked.caller.admin.updateUserTags({
+        userId: 'u_sup',
+        tags: ['student-drillthrough-viewer'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
+
+    db.user.update.mockResolvedValue({ id: 'u_sup', tags: ['student-drillthrough-viewer'] });
+    const allowed = makeCaller(headUser, { db });
+    await expect(
+      allowed.caller.admin.updateUserTags({
+        userId: 'u_sup',
+        tags: ['student-drillthrough-viewer'],
+      }),
+    ).resolves.toEqual({ id: 'u_sup', tags: ['student-drillthrough-viewer'] });
   });
 
   it('rejects tag management for non-full-admin callers', async () => {
@@ -567,6 +597,19 @@ describe('admin.inviteUser', () => {
       status: 'pending',
       url: 'https://clerk.example/invite/abc',
     });
+  });
+
+  it('limits student drill-through invite tags to Head', async () => {
+    const { caller, createInvitation } = makeCaller(principalUser);
+
+    await expect(
+      caller.admin.inviteUser({
+        email: 'viewer@example.com',
+        role: 'Supervisor',
+        tags: ['student-drillthrough-viewer'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(createInvitation).not.toHaveBeenCalled();
   });
 });
 
