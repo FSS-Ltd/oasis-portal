@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
+import { canonicalSchoolYear, displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -61,7 +62,14 @@ function downloadCsv(filename: string, csv: string, contentType: string): void {
 }
 
 function bandForRow(row: Pick<AttendanceRow, 'yearGroup'>, bands: readonly Band[]): Band | null {
-  return bands.find((band) => band.standardYears.includes(row.yearGroup)) ?? null;
+  const canonical = canonicalSchoolYear(row.yearGroup);
+  return (
+    bands.find(
+      (band) =>
+        band.standardYears.includes(row.yearGroup) ||
+        (canonical !== null && band.standardYears.includes(canonical)),
+    ) ?? null
+  );
 }
 
 function withoutRecordKey<T>(record: Record<string, T>, keyToRemove: string): Record<string, T> {
@@ -148,7 +156,7 @@ export function AttendanceCapture({
         </div>
       ),
     },
-    { id: 'year', header: 'Year', render: (row) => row.yearGroup },
+    { id: 'year', header: 'Year', render: (row) => displaySchoolYearLabel(row.yearGroup) },
   ];
 
   if (showBandFilter) {

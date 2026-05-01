@@ -172,6 +172,11 @@
   color: var(--oasis-success);
 }
 
+.badge--grey {
+  background: #f1f5f9;
+  color: var(--oasis-text-secondary);
+}
+
 .badge--blue {
   gap: 6px;
   background: var(--oasis-blue-light);

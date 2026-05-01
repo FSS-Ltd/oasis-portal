@@ -1,5 +1,5 @@
 import { Save, SlidersHorizontal } from 'lucide-react';
-import { STANDARD_SCHOOL_YEARS } from '@oasis/domain';
+import { STANDARD_SCHOOL_YEARS, displaySchoolYearLabel } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
 
@@ -25,7 +25,7 @@ export function StandardYearsPanel({ yearCount }: StandardYearsPanelProps) {
         <div className="year-chip-grid" aria-label="Standard school years">
           {STANDARD_SCHOOL_YEARS.map((year) => (
             <span className="year-chip" key={year}>
-              {year}
+              {displaySchoolYearLabel(year)}
             </span>
           ))}
         </div>

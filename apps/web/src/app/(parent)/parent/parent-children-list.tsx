@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +24,7 @@ const columns: readonly DataTableColumn<ChildRow>[] = [
       </div>
     ),
   },
-  { id: 'year', header: 'Year', render: (student) => student.yearGroup },
+  { id: 'year', header: 'Year', render: (student) => displaySchoolYearLabel(student.yearGroup) },
   {
     id: 'status',
     header: 'Status',

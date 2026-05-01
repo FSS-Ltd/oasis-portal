@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { GraduationCap, UserPlus, UsersRound } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { roleLabel } from '@/lib/profile-display';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -28,7 +29,7 @@ export function PeopleProfilesClient() {
       kind: 'student',
       student,
       title: student.fullName,
-      subtitle: student.yearGroup,
+      subtitle: displaySchoolYearLabel(student.yearGroup),
       searchText: `${student.fullName} ${student.yearGroup}`.toLowerCase(),
     }));
 

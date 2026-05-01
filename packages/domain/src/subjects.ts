@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { expectedPaceLevelForYear } from './schoolYears.js';
 
 // ---------------------------------------------------------------------------
 // Subject management
@@ -61,3 +62,84 @@ export const paceRecordInput = z.object({
 });
 
 export type PaceRecordInput = z.infer<typeof paceRecordInput>;
+
+export type PaceProgressStatus = 'Behind' | 'On Track' | 'Ahead' | 'Unavailable';
+export type PaceProgressStatusTone = 'amber' | 'blue' | 'green' | 'grey';
+
+export interface PaceProgressStatusResult {
+  status: PaceProgressStatus;
+  tone: PaceProgressStatusTone;
+  testingLevel: number | null;
+  testingLevelLabel: string | null;
+  detail: string;
+}
+
+export function paceNumberToAceLevel(paceNumber: number): number | null {
+  if (!Number.isInteger(paceNumber) || paceNumber <= 0) return null;
+
+  if (paceNumber >= 1001 && paceNumber <= 1144) {
+    return Math.floor((paceNumber - 1001) / 12) + 1;
+  }
+
+  if (paceNumber >= 1 && paceNumber <= 144) {
+    return Math.floor((paceNumber - 1) / 12) + 1;
+  }
+
+  return null;
+}
+
+export function paceProgressStatusForYear(
+  paceNumber: number,
+  yearGroup: string,
+): PaceProgressStatusResult {
+  const testingLevel = paceNumberToAceLevel(paceNumber);
+  if (testingLevel === null) {
+    return {
+      status: 'Unavailable',
+      tone: 'grey',
+      testingLevel: null,
+      testingLevelLabel: null,
+      detail: 'Status unavailable',
+    };
+  }
+
+  const testingLevelLabel = `Testing at Level ${String(testingLevel)}`;
+  const expectedLevel = expectedPaceLevelForYear(yearGroup);
+  if (expectedLevel === null) {
+    return {
+      status: 'Unavailable',
+      tone: 'grey',
+      testingLevel,
+      testingLevelLabel,
+      detail: testingLevelLabel,
+    };
+  }
+
+  if (testingLevel > expectedLevel) {
+    return {
+      status: 'Ahead',
+      tone: 'green',
+      testingLevel,
+      testingLevelLabel,
+      detail: testingLevelLabel,
+    };
+  }
+
+  if (testingLevel < expectedLevel) {
+    return {
+      status: 'Behind',
+      tone: 'amber',
+      testingLevel,
+      testingLevelLabel,
+      detail: testingLevelLabel,
+    };
+  }
+
+  return {
+    status: 'On Track',
+    tone: 'blue',
+    testingLevel,
+    testingLevelLabel,
+    detail: testingLevelLabel,
+  };
+}

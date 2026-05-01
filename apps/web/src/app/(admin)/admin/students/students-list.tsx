@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +40,7 @@ export function StudentsList() {
           </div>
         ),
       },
-      { id: 'year', header: 'Year', render: (student) => student.yearGroup },
+      { id: 'year', header: 'Year', render: (student) => displaySchoolYearLabel(student.yearGroup) },
       {
         id: 'subjects',
         header: 'Subjects',

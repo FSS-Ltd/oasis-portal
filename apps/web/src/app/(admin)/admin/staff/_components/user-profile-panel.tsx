@@ -4,7 +4,7 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Mail, MapPin, Phone, Save, ShieldCheck } from 'lucide-react';
-import { PERMISSION_TAGS } from '@oasis/domain';
+import { PERMISSION_TAGS, displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { permissionTagLabel, personTypeLabel, roleLabel } from '@/lib/profile-display';
 import { Avatar } from '@/components/ui/avatar';
@@ -260,7 +260,7 @@ export function UserProfilePanel({ kind, user }: UserProfilePanelProps) {
                   <Avatar name={child.fullName} />
                   <span>
                     <strong>{child.fullName}</strong>
-                    <small>{child.yearGroup}</small>
+                    <small>{displaySchoolYearLabel(child.yearGroup)}</small>
                   </span>
                   <Badge tone={statusTone(child.active)}>{child.active ? 'Active' : 'Inactive'}</Badge>
                 </Link>

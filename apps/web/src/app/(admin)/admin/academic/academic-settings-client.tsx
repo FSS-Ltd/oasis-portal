@@ -3,7 +3,11 @@
 import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
+import {
+  STANDARD_SCHOOL_YEARS,
+  displaySchoolYearLabel,
+  type StandardSchoolYear,
+} from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
@@ -208,7 +212,7 @@ export function AcademicSettingsClient() {
                     }}
                     type="checkbox"
                   />
-                  {year}
+                  {displaySchoolYearLabel(year)}
                 </label>
               ))}
             </div>
@@ -312,7 +316,7 @@ export function AcademicSettingsClient() {
                             }}
                             type="checkbox"
                           />
-                          {year}
+                          {displaySchoolYearLabel(year)}
                         </label>
                       ))}
                     </div>
@@ -339,7 +343,7 @@ export function AcademicSettingsClient() {
                   <>
                     <div>
                       <strong>{band.name}</strong>
-                      <span>{band.standardYears.join(', ')}</span>
+                      <span>{band.standardYears.map(displaySchoolYearLabel).join(', ')}</span>
                     </div>
                     <span
                       className="colour-pill"

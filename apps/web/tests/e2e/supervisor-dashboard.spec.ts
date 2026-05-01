@@ -64,7 +64,7 @@ test.describe('Supervisor dashboard shell', () => {
 
     await page.goto('/supervisor/behaviour');
     await expect(page.getByRole('heading', { name: /behaviour/i })).toBeVisible();
-    const selectedStudent = page.getByLabel('Selected student for behaviour and PACE');
+    const selectedStudent = page.getByLabel('Selected student for behaviour');
     const selectedStudentOptions = await selectedStudent.locator('option').count();
     if (selectedStudentOptions > 1) {
       await selectedStudent.selectOption({ index: 1 });
@@ -89,19 +89,20 @@ test.describe('Supervisor dashboard shell', () => {
       await expect(page.getByText(sensitiveCategory)).toHaveCount(0);
 
       await page.goto('/supervisor/pace');
-      await expect(page.getByRole('heading', { name: /PACE/i })).toBeVisible();
-      const subjectSelect = page.getByLabel('PACE subject');
-      const subjectOptions = await subjectSelect.locator('option').count();
-      if (subjectOptions > 1 && !(await page.getByRole('button', { name: /record PACE/i }).isDisabled())) {
-        const firstCurrentPace = page.locator('.pace-subject-row').first().getByText(/Current PACE/i);
-        const beforeText = await firstCurrentPace.textContent();
-        const beforePace = Number(beforeText?.match(/\d+/u)?.[0] ?? '1001');
-        await subjectSelect.selectOption({ index: 1 });
-        await page.getByLabel('PACE test type').selectOption('FinalTest');
-        await page.getByLabel('PACE number').fill(String(beforePace));
-        await page.getByLabel('PACE score').fill('100');
-        await page.getByRole('button', { name: /record PACE/i }).click();
-        await expect(page.getByText(/PACE recorded|PACE record saved/i)).toBeVisible();
+      await expect(page.getByRole('heading', { name: /PACE Progress/i })).toBeVisible();
+      await expect(page.getByLabel('PACE student')).toBeVisible();
+      const recordButton = page.getByRole('button', { name: /record new score/i });
+      if (!(await recordButton.isDisabled())) {
+        await recordButton.click();
+        const subjectSelect = page.getByLabel('PACE subject');
+        const subjectOptions = await subjectSelect.locator('option').count();
+        if (subjectOptions > 0) {
+          await subjectSelect.selectOption({ index: 0 });
+          await page.getByRole('button', { name: /PACE Test/i }).click();
+          await page.getByLabel('PACE score').fill('100');
+          await page.getByRole('button', { name: /save score/i }).click();
+          await expect(page.getByText(/PACE recorded|PACE score saved/i)).toBeVisible();
+        }
       }
     }
 

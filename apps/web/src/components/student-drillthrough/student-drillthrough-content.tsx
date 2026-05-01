@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { ArrowLeft, Edit3 } from 'lucide-react';
 import { useState } from 'react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -76,7 +77,8 @@ function StudentHero({
           <div>
             <h1>{data.student.fullName}</h1>
             <p>
-              {data.student.yearGroup} · Enrolled {formatLongDate(data.student.enrolmentDate)}
+              {displaySchoolYearLabel(data.student.yearGroup)} · Enrolled{' '}
+              {formatLongDate(data.student.enrolmentDate)}
             </p>
           </div>
         </div>

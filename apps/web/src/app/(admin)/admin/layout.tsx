@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
+  canUseFullPaceAccess,
   hasTag,
   isFullAdmin,
 } from '@oasis/domain';
@@ -22,6 +23,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canViewBehaviour = canViewBehaviourReports(user);
   const fullAdmin = isFullAdmin(user);
   const canViewStudents = canViewAnyStudentDrillThrough(user);
+  const canViewPace = canUseFullPaceAccess(user);
   const userRoleLabel = roleLabel(user.role);
 
   return (
@@ -46,6 +48,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <AdminSidebarNav
           canViewAudit={canViewAudit}
           canViewBehaviour={canViewBehaviour}
+          canViewPace={canViewPace}
           canViewStudents={canViewStudents}
           fullAdmin={fullAdmin}
         />
@@ -73,6 +76,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <AdminBottomNav
           canViewAudit={canViewAudit}
           canViewBehaviour={canViewBehaviour}
+          canViewPace={canViewPace}
           canViewStudents={canViewStudents}
           fullAdmin={fullAdmin}
         />

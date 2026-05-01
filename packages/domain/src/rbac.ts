@@ -9,7 +9,8 @@
  *
  * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`,
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
- * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`.
+ * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`,
+ * `pace-full-access`.
  */
 
 export const ROLES = [
@@ -35,6 +36,7 @@ export const PERMISSION_TAGS = [
   'sensitive-note-viewer',
   'behaviour-viewer',
   'student-drillthrough-viewer',
+  'pace-full-access',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
@@ -109,6 +111,10 @@ export function canViewBehaviourReports(user: SessionUser): boolean {
 
 export function canViewAnyStudentDrillThrough(user: SessionUser): boolean {
   return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'));
+}
+
+export function canUseFullPaceAccess(user: SessionUser): boolean {
+  return isFullAdmin(user) || hasTag(user, 'pace-full-access');
 }
 
 export function canViewStudentDrillThrough(user: SessionUser): boolean {

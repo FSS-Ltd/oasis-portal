@@ -26,6 +26,59 @@ export const standardSchoolYearSchema = z.enum(
 
 const yearSet = new Set<string>(STANDARD_SCHOOL_YEARS);
 
+export function canonicalSchoolYear(year: string): StandardSchoolYear | null {
+  const trimmed = year.trim();
+  if (yearSet.has(trimmed)) return trimmed as StandardSchoolYear;
+  if (/^nursery$/iu.test(trimmed)) return 'Nursery';
+  if (/^(reception|abc|r)$/iu.test(trimmed)) return 'Reception';
+
+  const yearMatch = /^(?:year\s*|y)([1-9]|1[0-3])$/iu.exec(trimmed);
+  if (!yearMatch) return null;
+
+  const canonical = `Year ${String(Number(yearMatch[1]))}`;
+  return yearSet.has(canonical) ? (canonical as StandardSchoolYear) : null;
+}
+
+export function schoolYearStorageAliases(year: string): string[] {
+  const canonical = canonicalSchoolYear(year);
+  if (canonical === null) return [year];
+
+  const aliases = new Set<string>([canonical]);
+  if (canonical === 'Nursery') aliases.add('N');
+  if (canonical === 'Reception') {
+    aliases.add('R');
+    aliases.add('ABC');
+  }
+
+  const match = /^Year ([1-9]|1[0-3])$/u.exec(canonical);
+  if (match) aliases.add(`Y${String(Number(match[1]))}`);
+  return [...aliases];
+}
+
+export function displaySchoolYearLabel(year: string): string {
+  const canonical = canonicalSchoolYear(year);
+  if (canonical === 'Nursery') return 'Nursery';
+  if (canonical === 'Reception') return 'ABC';
+  if (canonical === null) return year;
+
+  const match = /^Year ([1-9]|1[0-3])$/u.exec(canonical);
+  if (!match) return year;
+
+  const level = Number(match[1]);
+  return `Level ${String(level)}`;
+}
+
+export function expectedPaceLevelForYear(year: string): number | null {
+  const canonical = canonicalSchoolYear(year);
+  if (canonical === 'Reception') return 0;
+  if (canonical === null) return null;
+
+  const match = /^Year ([1-9]|1[0-3])$/u.exec(canonical);
+  if (!match) return null;
+
+  return Number(match[1]);
+}
+
 const trimmedNameSchema = z.string().trim().min(1).max(80);
 const colourSchema = z
   .string()

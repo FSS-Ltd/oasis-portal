@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { PERMISSION_TAGS, ROLES } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import { permissionTagLabel } from '@/lib/profile-display';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
@@ -80,7 +81,7 @@ export function InviteUserForm() {
               <option value="">No extra tag</option>
               {PERMISSION_TAGS.map((tag) => (
                 <option key={tag} value={tag}>
-                  {tag}
+                  {permissionTagLabel(tag)}
                 </option>
               ))}
             </SelectInput>
