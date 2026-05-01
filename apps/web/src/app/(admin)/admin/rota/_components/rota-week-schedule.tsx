@@ -93,7 +93,7 @@ export function RotaWeekSchedule({
                         <span>
                           {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
                         </span>
-                        <strong>{shift.staff?.fullName ?? 'Unassigned staff'}</strong>
+                        <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
                         <small>
                           <i style={{ backgroundColor: shift.bandColour ?? '#5B90C5' }} />
                           {shift.bandName ?? 'Band'}

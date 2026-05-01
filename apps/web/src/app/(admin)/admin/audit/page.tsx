@@ -11,7 +11,7 @@ export default async function AuditPage() {
         <div>
           <p>Audit trail</p>
           <h1>Audit log</h1>
-          <p>Review admin actions, PII decrypts, and permission events from Phase 1 onboarding.</p>
+          <p>Review admin actions, PII decrypts, and permission events across the portal.</p>
         </div>
       </div>
       <AuditLogViewer />

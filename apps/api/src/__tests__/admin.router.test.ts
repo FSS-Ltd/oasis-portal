@@ -25,6 +25,7 @@ interface FakeDb {
   $enc: {
     blindIndex: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
+    encrypt: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: {
     findMany: ReturnType<typeof vi.fn>;
@@ -70,6 +71,9 @@ function makeFakeDb(): FakeDb {
       blindIndex: vi.fn((value: string) => `bidx:${value.toLowerCase()}`),
       decrypt: vi.fn((value: string | null | undefined) =>
         value ? value.replace(/^enc:/, '') : null,
+      ),
+      encrypt: vi.fn((value: string | null | undefined) =>
+        value === null || value === undefined ? null : `enc:${value}`,
       ),
     },
     yearGroupBand: {
@@ -411,6 +415,21 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: ['audit-viewer'],
         fullNameEnc: 'enc:Jean Head',
         emailEnc: 'enc:head@example.com',
+        phoneEnc: 'enc:07700 900123',
+        addressEnc: null,
+        active: true,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+        guardianOf: [
+          {
+            student: {
+              id: 's_child',
+              fullNameEnc: 'enc:Child One',
+              yearGroup: 'Year 7',
+              active: true,
+            },
+          },
+        ],
       },
     ]);
     const { caller } = makeCaller(headUser, { db });
@@ -422,6 +441,19 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: ['audit-viewer'],
         fullName: 'Jean Head',
         email: 'head@example.com',
+        phone: '07700 900123',
+        address: null,
+        active: true,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+        children: [
+          {
+            id: 's_child',
+            fullName: 'Child One',
+            yearGroup: 'Year 7',
+            active: true,
+          },
+        ],
       },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
@@ -434,6 +466,24 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: true,
         fullNameEnc: true,
         emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+        guardianOf: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            student: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                yearGroup: true,
+                active: true,
+              },
+            },
+          },
+        },
       },
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -441,7 +491,86 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         userId: headUser.id,
         action: 'DecryptPii',
         entity: 'User',
-        meta: { count: 1, source: 'admin.listUsers' },
+        meta: { count: 1, linkedChildCount: 1, source: 'admin.listUsers' },
+      },
+    });
+  });
+
+  it('updates a user profile for full-admin callers and writes an audit row', async () => {
+    const db = makeFakeDb();
+    db.user.update.mockResolvedValue({
+      id: 'u_parent',
+      role: 'Parent',
+      tags: [],
+      fullNameEnc: 'enc:Jane Parent',
+      emailEnc: 'enc:jane@example.com',
+      phoneEnc: 'enc:07700 900456',
+      addressEnc: null,
+      active: true,
+      createdAt: new Date('2026-04-29T09:00:00.000Z'),
+      updatedAt: new Date('2026-04-29T11:00:00.000Z'),
+      guardianOf: [],
+    });
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserProfile({
+        userId: 'u_parent',
+        fullName: 'Jane Parent',
+        phone: ' 07700 900456 ',
+        address: '',
+      }),
+    ).resolves.toMatchObject({
+      id: 'u_parent',
+      fullName: 'Jane Parent',
+      email: 'jane@example.com',
+      phone: '07700 900456',
+      address: null,
+      children: [],
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_parent' },
+      data: {
+        fullNameEnc: 'enc:Jane Parent',
+        phoneEnc: 'enc:07700 900456',
+        addressEnc: null,
+      },
+      select: {
+        id: true,
+        role: true,
+        tags: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+        guardianOf: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            student: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                yearGroup: true,
+                active: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_parent',
+        meta: {
+          fields: ['addressEnc', 'fullNameEnc', 'phoneEnc'],
+          source: 'admin.updateUserProfile',
+        },
       },
     });
   });
@@ -509,6 +638,9 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     await expect(caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
       caller.admin.updateUserTags({ userId: 'u_sup', tags: ['audit-viewer'] }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.admin.updateUserProfile({ userId: 'u_sup', phone: '07700 900000' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.user.update).not.toHaveBeenCalled();

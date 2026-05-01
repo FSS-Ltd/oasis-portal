@@ -1,22 +1,23 @@
 import { MotionPage } from '@/components/admin/motion';
 import { assertFullAdmin } from '@/components/admin/require-full-admin';
-import { InviteUserForm } from './invite-user-form';
-import { UserTagManager } from './user-tag-manager';
+import { PeopleProfilesClient } from './people-profiles-client';
 
-export default async function StaffPage() {
+export default async function PeopleProfilesPage() {
   await assertFullAdmin();
 
   return (
     <MotionPage>
       <div className="page-header">
         <div>
-          <p>Access management</p>
-          <h1>Staff and parents</h1>
-          <p>Send Clerk invitations with the correct Oasis role and optional permission tags.</p>
+          <p>Access and profiles</p>
+          <h1>People & Profiles</h1>
+          <p>
+            Manage students, supervisors, and parents from one directory while preserving role and
+            permission boundaries.
+          </p>
         </div>
       </div>
-      <InviteUserForm />
-      <UserTagManager />
+      <PeopleProfilesClient />
     </MotionPage>
   );
 }

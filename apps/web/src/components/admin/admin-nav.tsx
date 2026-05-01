@@ -22,7 +22,7 @@ const navItems = [
   { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
-  { href: '/admin/staff', label: 'Staff and parents', icon: UsersRound, badge: undefined },
+  { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound, badge: undefined },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
   { href: '/admin/behaviour', label: 'Behaviour', icon: Star, badge: undefined },
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList, badge: undefined },

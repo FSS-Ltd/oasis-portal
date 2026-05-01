@@ -89,7 +89,9 @@ async function requireSnapshotWorkflow(ctx: AuthedContext): Promise<void> {
 }
 
 async function denyDrillThrough(ctx: AuthedContext, meta: Record<string, unknown>): Promise<never> {
-  const denied = new AccessDeniedError('student drill-through requires full-admin, tagged staff, or linked parent');
+  const denied = new AccessDeniedError(
+    'student drill-through requires full-admin, tagged supervisor, or linked parent',
+  );
   await ctx.db.auditLog.create({
     data: {
       userId: ctx.user.id,

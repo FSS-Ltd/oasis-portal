@@ -12,7 +12,7 @@ export default async function SupervisorAttendancePage() {
     <MotionPage>
       <div className="page-header">
         <div>
-          <p>Supervisor workspace</p>
+          <p>Daily register</p>
           <h1>Attendance</h1>
           <p>Mark the daily register and export attendance where your role allows it.</p>
         </div>

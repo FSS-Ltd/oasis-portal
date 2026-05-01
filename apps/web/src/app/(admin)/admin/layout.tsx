@@ -10,6 +10,8 @@ import {
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getAdminShellUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
+import { roleLabel } from '@/lib/profile-display';
 import './admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -20,11 +22,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canViewBehaviour = canViewBehaviourReports(user);
   const fullAdmin = isFullAdmin(user);
   const canViewStudents = canViewAnyStudentDrillThrough(user);
-  const roleLabel = user.role === 'Head' ? 'Head of Centre' : user.role;
+  const userRoleLabel = roleLabel(user.role);
 
   return (
     <div className="admin-shell">
-      <aside className="admin-shell__sidebar" aria-label="Staff portal navigation">
+      <aside className="admin-shell__sidebar" aria-label="Supervisor portal navigation">
         <div className="admin-shell__profile">
           <div className="admin-shell__logo-frame">
             <Image
@@ -36,9 +38,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               width={180}
             />
           </div>
-          <p>Staff Portal</p>
-          <strong>{roleLabel}</strong>
-          <span>Phase 1 onboarding</span>
+          <p>Supervisor Portal</p>
+          <strong>{userRoleLabel}</strong>
+          <span>Centre operations</span>
+          <ProfileBadgeLink href="/admin/profile" />
         </div>
         <AdminSidebarNav
           canViewAudit={canViewAudit}
@@ -57,11 +60,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <Link className="admin-shell__mobile-brand" href="/admin/students">
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
-              <small>Staff Portal</small>
-              <strong>{roleLabel}</strong>
+              <small>Supervisor Portal</small>
+              <strong>{userRoleLabel}</strong>
             </span>
           </Link>
-          <LogoutButton className="logout-button logout-button--mobile" />
+          <div className="admin-shell__mobile-actions">
+            <ProfileBadgeLink href="/admin/profile" variant="mobile" />
+            <LogoutButton className="logout-button logout-button--mobile" />
+          </div>
         </header>
         <main className="admin-shell__main">{children}</main>
         <AdminBottomNav

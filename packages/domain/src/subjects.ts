@@ -52,8 +52,8 @@ export type UpdatePacePolicyInput = z.infer<typeof updatePacePolicyInput>;
 // ---------------------------------------------------------------------------
 
 export const paceRecordInput = z.object({
-  studentId: z.string().cuid(),
-  subjectId: z.string().cuid(),
+  studentId: z.string().trim().min(1),
+  subjectId: z.string().trim().min(1),
   paceNumber: z.number().int().positive(),
   testType: z.enum(['SelfTest', 'FinalTest']),
   score: z.number().int().min(0).max(100),

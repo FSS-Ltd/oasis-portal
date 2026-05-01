@@ -117,7 +117,7 @@ function assertStaffWorkflow(user: SessionUser): void {
   } catch (err) {
     throw new TRPCError({
       code: 'FORBIDDEN',
-      message: err instanceof Error ? err.message : 'staff workflow access denied',
+      message: err instanceof Error ? err.message : 'supervisor workflow access denied',
       cause: err instanceof Error ? err : undefined,
     });
   }
@@ -153,10 +153,10 @@ async function assertActiveStaffUser(
     select: { id: true, role: true, active: true },
   });
   if (!user) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'staff user not found' });
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'supervisor user not found' });
   }
   if (!user.active || !isStaff(user)) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not active staff' });
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not an active supervisor' });
   }
 }
 
@@ -191,7 +191,10 @@ async function assertNoShiftOverlap(
     select: { id: true },
   });
   if (overlap) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'staff shift overlaps an existing shift' });
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'supervisor shift overlaps an existing shift',
+    });
   }
 }
 
@@ -511,7 +514,7 @@ export const rotaRouter = router({
       },
     });
     if (!existing) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'staff shift not found' });
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'supervisor shift not found' });
     }
 
     const next = {

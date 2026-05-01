@@ -326,7 +326,7 @@ export function SupervisorDashboardClient({
             <AttendanceCapture
               canExport={canExportAttendance}
               canRecord={canRecordAttendance}
-              emptyMessage="Head of Centre can add students before the daily workflow starts."
+              emptyMessage="Head of Centre can add students to populate the register."
               onSelectedDateChange={setSelectedDate}
               selectedDate={selectedDate}
               showBandFilter
@@ -932,10 +932,10 @@ export function SupervisorDashboardClient({
                   }}
                   value={swapForm.toShiftId}
                 >
-                  <option value="">Choose another staff shift</option>
+                  <option value="">Choose another supervisor shift</option>
                   {swapCandidates.map((shift) => (
                     <option key={shift.id} value={shift.id}>
-                      {shift.staff?.fullName ?? 'Staff'} · {formatShift(shift)}
+                      {shift.staff?.fullName ?? 'Supervisor'} · {formatShift(shift)}
                     </option>
                   ))}
                 </SelectInput>
@@ -946,7 +946,7 @@ export function SupervisorDashboardClient({
               <p className="status--error">{swapCandidatesQuery.error.message}</p>
             ) : null}
             {!swapCandidatesQuery.isLoading && swapCandidates.length === 0 ? (
-              <p className="muted">No other staff shifts are available in this week.</p>
+              <p className="muted">No other supervisor shifts are available in this week.</p>
             ) : null}
 
             <Button

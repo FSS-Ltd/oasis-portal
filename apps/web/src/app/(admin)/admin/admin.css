@@ -90,6 +90,81 @@
   font-size: 0.72rem;
 }
 
+.profile-badge {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 10px;
+  border: 1px solid rgba(212, 229, 245, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+  text-align: left;
+}
+
+.profile-badge:hover,
+.profile-badge:focus-visible,
+.profile-badge.is-active {
+  border-color: rgba(212, 229, 245, 0.32);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.profile-badge__avatar {
+  width: 32px;
+  height: 32px;
+  background: rgba(91, 144, 197, 0.85);
+}
+
+.profile-badge__text {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.profile-badge__text strong,
+.profile-badge__text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-badge__text strong {
+  color: #ffffff;
+  font-size: 0.76rem;
+}
+
+.profile-badge__text small {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.64rem;
+}
+
+.profile-badge--mobile {
+  display: inline-flex;
+  width: auto;
+  min-height: 34px;
+  margin-top: 0;
+  padding: 0 10px 0 7px;
+}
+
+.profile-badge--mobile .profile-badge__avatar {
+  width: 24px;
+  height: 24px;
+}
+
+.profile-badge--mobile .profile-badge__text strong {
+  max-width: 86px;
+  font-size: 0.72rem;
+}
+
+.admin-shell__mobile-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .admin-shell__nav {
   display: grid;
   gap: 2px;
@@ -963,6 +1038,419 @@
   display: flex;
   width: min(100%, 520px);
   gap: 8px;
+}
+
+.people-profiles {
+  display: grid;
+  gap: 18px;
+}
+
+.people-profiles__summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.people-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 10px;
+  background: var(--oasis-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.people-summary-card svg {
+  color: var(--oasis-blue);
+}
+
+.people-summary-card span {
+  display: grid;
+  gap: 3px;
+}
+
+.people-summary-card strong {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+}
+
+.people-summary-card small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.75rem;
+}
+
+.people-profiles__layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.people-directory {
+  position: sticky;
+  top: 18px;
+  overflow: hidden;
+}
+
+.people-directory__filters {
+  display: flex;
+  gap: 4px;
+  padding: 12px 12px 8px;
+}
+
+.people-directory__filters button,
+.profile-tabs button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.people-directory__filters button {
+  flex: 1;
+}
+
+.people-directory__filters button.is-selected,
+.profile-tabs button.is-selected {
+  background: var(--oasis-navy);
+  color: #ffffff;
+}
+
+.people-directory__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 10px;
+  padding: 0 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-text-muted);
+}
+
+.people-directory__search input {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--oasis-text);
+  font: inherit;
+  font-size: 0.8rem;
+  outline: 0;
+}
+
+.people-directory__list {
+  max-height: min(680px, calc(100vh - 260px));
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.people-directory-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.people-directory-row:hover,
+.people-directory-row:focus-visible,
+.people-directory-row.is-active {
+  background: #f7faff;
+  border-left-color: var(--oasis-blue);
+}
+
+.people-directory-row > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.people-directory-row strong,
+.people-directory-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-directory-row strong {
+  color: var(--oasis-navy);
+  font-size: 0.84rem;
+}
+
+.people-directory-row small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+}
+
+.people-directory-row small i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--oasis-blue);
+}
+
+.people-avatar--parent,
+.person-profile--parent .profile-hero__avatar,
+.self-profile--crimson .profile-hero__avatar {
+  background: var(--oasis-crimson);
+}
+
+.people-avatar--supervisor,
+.person-profile--supervisor .profile-hero__avatar,
+.self-profile--navy .profile-hero__avatar {
+  background: var(--oasis-navy);
+}
+
+.people-avatar--student,
+.person-profile--student .profile-hero__avatar {
+  background: var(--oasis-blue);
+}
+
+.people-profiles__detail,
+.person-profile,
+.self-profile {
+  min-width: 0;
+}
+
+.person-profile,
+.self-profile {
+  display: grid;
+  gap: 16px;
+}
+
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 10px;
+  background: linear-gradient(130deg, var(--oasis-navy) 0%, var(--oasis-navy-light) 100%);
+  color: #ffffff;
+}
+
+.person-profile--parent .profile-hero,
+.self-profile--crimson .profile-hero {
+  background: linear-gradient(130deg, var(--oasis-crimson) 0%, #9b2235 100%);
+}
+
+.person-profile--student .profile-hero {
+  background: linear-gradient(130deg, var(--oasis-blue) 0%, var(--oasis-navy-light) 100%);
+}
+
+.profile-hero__avatar {
+  width: 66px;
+  height: 66px;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 1.05rem;
+}
+
+.profile-hero__body {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+}
+
+.profile-hero h1,
+.profile-hero h2,
+.profile-hero p {
+  margin: 0;
+}
+
+.profile-hero h1,
+.profile-hero h2 {
+  color: #ffffff;
+  font-size: 1.36rem;
+  line-height: 1.15;
+}
+
+.profile-hero p {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.83rem;
+}
+
+.profile-hero__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-hero__badges span {
+  min-height: 26px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.13);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.profile-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.profile-hero__actions .button {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.profile-tabs {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 3px;
+  overflow-x: auto;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--oasis-bg);
+}
+
+.profile-tabs button {
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.person-profile--parent .profile-tabs button.is-selected,
+.self-profile--crimson .profile-tabs button.is-selected {
+  background: var(--oasis-crimson);
+}
+
+.person-profile--student .profile-tabs button.is-selected {
+  background: var(--oasis-blue);
+}
+
+.profile-field-list {
+  display: grid;
+}
+
+.profile-field-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.profile-field-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-field-row > span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-field-row strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.profile-field-row--stacked {
+  align-items: start;
+}
+
+.profile-contact-strip {
+  display: grid;
+  gap: 8px;
+}
+
+.profile-contact-strip span,
+.people-linked-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+}
+
+.profile-contact-strip svg,
+.people-linked-row__icon svg {
+  color: var(--oasis-blue);
+}
+
+.people-linked-list {
+  display: grid;
+  gap: 10px;
+}
+
+.people-linked-row {
+  color: var(--oasis-text);
+}
+
+.people-linked-row > span:not(.avatar, .people-linked-row__icon) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.people-linked-row strong {
+  color: var(--oasis-navy);
+  font-size: 0.88rem;
+}
+
+.people-linked-row small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+}
+
+.people-linked-row__icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--oasis-blue-light);
+}
+
+.profile-security-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.people-invite-section {
+  display: grid;
+  gap: 12px;
 }
 
 .audit-filters {
@@ -2882,6 +3370,42 @@
 
   .audit-filters {
     grid-template-columns: 1fr;
+  }
+
+  .people-profiles__summary,
+  .people-profiles__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .people-directory {
+    position: static;
+  }
+
+  .people-directory__list {
+    max-height: 340px;
+  }
+
+  .profile-hero {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  .profile-hero__actions {
+    justify-content: flex-start;
+  }
+
+  .profile-field-row {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .admin-shell__mobile-actions {
+    justify-content: flex-end;
+  }
+
+  .profile-badge--mobile .profile-badge__text strong {
+    max-width: 62px;
   }
 
   .dashboard-grid {

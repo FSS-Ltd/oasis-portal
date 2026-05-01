@@ -647,7 +647,10 @@ describe('rota scheduling', () => {
         startsAt: at('2026-04-29T11:00:00.000Z'),
         endsAt: at('2026-04-29T13:00:00.000Z'),
       }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'staff shift overlaps an existing shift' });
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'supervisor shift overlaps an existing shift',
+    });
 
     await expect(
       head.rota.updateShift({

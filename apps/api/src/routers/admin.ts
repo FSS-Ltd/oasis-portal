@@ -50,6 +50,41 @@ const updateUserTagsInput = z.object({
   tags: z.array(permissionTagSchema).default([]),
 });
 
+const updateUserProfileInput = z.object({
+  userId: z.string().min(1),
+  fullName: z.string().trim().min(1, 'Enter the user name').optional(),
+  phone: z.string().trim().max(50, 'Phone number is too long').nullable().optional(),
+  address: z.string().trim().max(500, 'Address is too long').nullable().optional(),
+});
+
+const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
+  id: true,
+  role: true,
+  tags: true,
+  fullNameEnc: true,
+  emailEnc: true,
+  phoneEnc: true,
+  addressEnc: true,
+  active: true,
+  createdAt: true,
+  updatedAt: true,
+  guardianOf: {
+    orderBy: { createdAt: 'desc' },
+    select: {
+      student: {
+        select: {
+          id: true,
+          fullNameEnc: true,
+          yearGroup: true,
+          active: true,
+        },
+      },
+    },
+  },
+});
+
+type AdminUserProfileRow = Prisma.UserGetPayload<{ select: typeof adminUserProfileSelect }>;
+
 const STUDENT_DRILLTHROUGH_TAG = 'student-drillthrough-viewer';
 
 function assertCanAssignStudentDrillThroughTag(
@@ -65,6 +100,49 @@ function assertCanAssignStudentDrillThroughTag(
     code: 'FORBIDDEN',
     message: 'student drill-through tag can only be changed by Head',
   });
+}
+
+function decryptRequired(
+  decrypt: (value: string | null | undefined) => string | null,
+  value: string,
+  entity: string,
+): string {
+  const decrypted = decrypt(value);
+  if (!decrypted) {
+    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
+  }
+  return decrypted;
+}
+
+function normaliseNullableText(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function mapAdminUserProfile(
+  ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
+  user: AdminUserProfileRow,
+) {
+  return {
+    id: user.id,
+    role: user.role,
+    tags: user.tags,
+    fullName: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'user PII'),
+    email: decryptRequired(ctx.db.$enc.decrypt, user.emailEnc, 'user PII'),
+    phone: ctx.db.$enc.decrypt(user.phoneEnc),
+    address: ctx.db.$enc.decrypt(user.addressEnc),
+    active: user.active,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    children: user.guardianOf.map((guardian) => ({
+      id: guardian.student.id,
+      fullName: decryptRequired(ctx.db.$enc.decrypt, guardian.student.fullNameEnc, 'student PII'),
+      yearGroup: guardian.student.yearGroup,
+      active: guardian.student.active,
+    })),
+  };
 }
 
 async function assertUniqueBandName(
@@ -423,38 +501,66 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         where: { active: true },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
-        select: {
-          id: true,
-          role: true,
-          tags: true,
-          fullNameEnc: true,
-          emailEnc: true,
-        },
+        select: adminUserProfileSelect,
       });
 
-      const rows = users.map((user) => {
-        const fullName = ctx.db.$enc.decrypt(user.fullNameEnc);
-        const email = ctx.db.$enc.decrypt(user.emailEnc);
-        if (!fullName || !email) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'user PII decrypt failed',
-          });
-        }
-        return { id: user.id, role: user.role, tags: user.tags, fullName, email };
-      });
+      const rows = users.map((user) => mapAdminUserProfile(ctx, user));
+      const linkedChildCount = rows.reduce((count, row) => count + row.children.length, 0);
 
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
           action: 'DecryptPii',
           entity: 'User',
-          meta: { count: rows.length, source: 'admin.listUsers' },
+          meta: { count: rows.length, linkedChildCount, source: 'admin.listUsers' },
         },
       });
 
       return rows;
     }),
+
+    updateUserProfile: fullAdminProcedure
+      .input(updateUserProfileInput)
+      .mutation(async ({ ctx, input }) => {
+        const data: Prisma.UserUpdateInput = {};
+        if (input.fullName !== undefined) data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
+        if (input.phone !== undefined) {
+          data.phoneEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.phone));
+        }
+        if (input.address !== undefined) {
+          data.addressEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.address));
+        }
+
+        const fields = Object.keys(data).sort();
+        if (fields.length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'no user profile fields provided' });
+        }
+
+        try {
+          const user = await ctx.db.user.update({
+            where: { id: input.userId },
+            data,
+            select: adminUserProfileSelect,
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'User',
+              entityId: user.id,
+              meta: { fields, source: 'admin.updateUserProfile' },
+            },
+          });
+
+          return mapAdminUserProfile(ctx, user);
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+          }
+          throw err;
+        }
+      }),
 
     updateUserTags: fullAdminProcedure
       .input(updateUserTagsInput)

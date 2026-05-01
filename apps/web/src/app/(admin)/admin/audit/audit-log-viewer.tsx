@@ -273,7 +273,7 @@ export function AuditLogViewer() {
           columns={columns}
           empty={
             <EmptyState
-              detail="Adjust the filters or run an onboarding action first."
+              detail="Adjust the filters or try a different date range."
               title="No audit rows found"
             />
           }
