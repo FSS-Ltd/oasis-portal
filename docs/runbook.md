@@ -153,6 +153,10 @@ Required Vercel project settings:
   `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
   missing publishable-key error. Vercel may still list an env var whose value is
   empty; the CI env validator treats empty values as invalid.
+- If `DATABASE_URL` uses Supabase's transaction pooler on port `6543`, Prisma
+  runtime traffic must use `pgbouncer=true` and `connection_limit=1`. The shared
+  DB client adds those parameters defensively when they are missing, but keeping
+  them in the Vercel value makes the runtime configuration explicit.
 - Because GitHub Actions uses `vercel build` and `vercel deploy --prebuilt`,
   build-time public variables must be available through `vercel pull`.
   Vercel pulls Sensitive variables as empty strings, so keep

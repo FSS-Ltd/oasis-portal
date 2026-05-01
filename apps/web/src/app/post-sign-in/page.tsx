@@ -10,7 +10,7 @@ export default async function PostSignInPage() {
   if (!userId) redirect('/sign-in/');
 
   const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-  if (!ctx.user) redirect('/sign-in/');
+  if (!ctx.user) redirect('/not-ready');
 
   if (isFullAdmin(ctx.user)) redirect('/admin');
   if (ctx.user.role === 'Supervisor') redirect('/supervisor');
