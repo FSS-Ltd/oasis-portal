@@ -20,7 +20,13 @@ const meritCategories = [
   'Creativity',
 ] as const;
 
-const demeritCategories = ['Punctuality', 'Conduct', 'Disrespect', 'Negligence', 'Dishonesty'] as const;
+const demeritCategories = [
+  'Punctuality',
+  'Conduct',
+  'Disrespect',
+  'Negligence',
+  'Dishonesty',
+] as const;
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -128,10 +134,16 @@ export function BehaviourLogClient({
           <h2>Log New Entry</h2>
           {!canLogBehaviour ? (
             <div className="workflow-alert">
-              Behaviour reporting access is enabled for this account. Recording new entries still requires Head/full-admin or Supervisor access.
+              Behaviour reporting access is enabled for this account. Recording new entries still
+              requires Head/full-admin or Supervisor access.
             </div>
           ) : null}
-          <form className="behaviour-log-form" onSubmit={submit}>
+          <form
+            className="behaviour-log-form"
+            onSubmit={(event) => {
+              void submit(event);
+            }}
+          >
             <div aria-label="Behaviour type" className="behaviour-toggle" role="group">
               {(['Merit', 'Demerit'] as const).map((item) => (
                 <button
@@ -153,7 +165,9 @@ export function BehaviourLogClient({
               <SelectInput
                 aria-label="Student"
                 disabled={!canLogBehaviour || studentsQuery.isLoading}
-                onChange={(event) => setStudentId(event.target.value)}
+                onChange={(event) => {
+                  setStudentId(event.target.value);
+                }}
                 value={studentId}
               >
                 <option value="">Select a student</option>
@@ -169,7 +183,9 @@ export function BehaviourLogClient({
               <SelectInput
                 aria-label="Category"
                 disabled={!canLogBehaviour}
-                onChange={(event) => setCategory(event.target.value)}
+                onChange={(event) => {
+                  setCategory(event.target.value);
+                }}
                 value={category}
               >
                 {categories.map((item) => (
@@ -186,7 +202,9 @@ export function BehaviourLogClient({
                 className="input textarea"
                 disabled={!canLogBehaviour}
                 maxLength={2000}
-                onChange={(event) => setNote(event.target.value)}
+                onChange={(event) => {
+                  setNote(event.target.value);
+                }}
                 placeholder="Describe the behaviour..."
                 rows={4}
                 value={note}
@@ -200,7 +218,9 @@ export function BehaviourLogClient({
                     className={item === visibility ? 'is-selected' : undefined}
                     disabled={!canLogBehaviour || (item === 'Sensitive' && !canCreateSensitive)}
                     key={item}
-                    onClick={() => chooseVisibility(item)}
+                    onClick={() => {
+                      chooseVisibility(item);
+                    }}
                     type="button"
                   >
                     {item}
@@ -224,7 +244,9 @@ export function BehaviourLogClient({
                   aria-label="Merit amount"
                   disabled={!canLogBehaviour}
                   min={1}
-                  onChange={(event) => setAmount(event.target.value)}
+                  onChange={(event) => {
+                    setAmount(event.target.value);
+                  }}
                   required
                   type="number"
                   value={amount}
@@ -232,23 +254,43 @@ export function BehaviourLogClient({
               </Field>
             ) : null}
 
-            <Button disabled={!canLogBehaviour || !studentId} pending={logBehaviour.isPending} type="submit">
+            <Button
+              disabled={!canLogBehaviour || !studentId}
+              pending={logBehaviour.isPending}
+              type="submit"
+            >
               {type === 'Merit' ? `Record +${amount || '0'} Merit` : 'Record -5 Demerit'}
             </Button>
             {status ? <p className="status--success">{status}</p> : null}
-            {studentsQuery.error ? <p className="status--error">{studentsQuery.error.message}</p> : null}
-            {logBehaviour.error ? <p className="status--error">{logBehaviour.error.message}</p> : null}
+            {studentsQuery.error ? (
+              <p className="status--error">{studentsQuery.error.message}</p>
+            ) : null}
+            {logBehaviour.error ? (
+              <p className="status--error">{logBehaviour.error.message}</p>
+            ) : null}
           </form>
         </section>
 
         <section className="behaviour-recent-panel">
           <div className="section-title">
             <h2>Recent Entries</h2>
-            <TextInput aria-label="Recent behaviour date" onChange={(event) => setDate(event.target.value)} style={{ width: 'auto' }} type="date" value={date} />
+            <TextInput
+              aria-label="Recent behaviour date"
+              onChange={(event) => {
+                setDate(event.target.value);
+              }}
+              style={{ width: 'auto' }}
+              type="date"
+              value={date}
+            />
           </div>
-          {recentQuery.isLoading ? <div className="empty-state">Loading recent entries...</div> : null}
+          {recentQuery.isLoading ? (
+            <div className="empty-state">Loading recent entries...</div>
+          ) : null}
           {recentQuery.error ? <p className="status--error">{recentQuery.error.message}</p> : null}
-          {!recentQuery.isLoading && entries.length === 0 ? <div className="empty-state">No behaviour entries today.</div> : null}
+          {!recentQuery.isLoading && entries.length === 0 ? (
+            <div className="empty-state">No behaviour entries today.</div>
+          ) : null}
           <div className="behaviour-entry-list">
             {entries.map((entry, index) => (
               <article className="panel panel__body behaviour-entry-card" key={entry.id}>
@@ -258,11 +300,20 @@ export function BehaviourLogClient({
                 <div>
                   <div className="behaviour-entry-card__head">
                     <strong>{entry.studentName}</strong>
-                    <span className={entry.meritDelta >= 0 ? 'head-merit-pill head-merit-pill--plus' : 'head-merit-pill head-merit-pill--minus'}>
-                      {entry.meritDelta >= 0 ? `+${entry.meritDelta}` : entry.meritDelta} merits
+                    <span
+                      className={
+                        entry.meritDelta >= 0
+                          ? 'head-merit-pill head-merit-pill--plus'
+                          : 'head-merit-pill head-merit-pill--minus'
+                      }
+                    >
+                      {entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : entry.meritDelta}{' '}
+                      merits
                     </span>
                     <span className="behaviour-category-pill">{entry.category}</span>
-                    {entry.visibility === 'Sensitive' ? <span className="head-merit-pill head-merit-pill--sensitive">Sensitive</span> : null}
+                    {entry.visibility === 'Sensitive' ? (
+                      <span className="head-merit-pill head-merit-pill--sensitive">Sensitive</span>
+                    ) : null}
                   </div>
                   {entry.note ? <p>{entry.note}</p> : null}
                   <span>
@@ -295,7 +346,10 @@ function BehaviourTrendsPanel() {
   );
 
   const maxTotal = useMemo(() => {
-    return Math.max(1, ...(trendsQuery.data?.points ?? []).map((point) => point.meritTotal + point.demeritTotal));
+    return Math.max(
+      1,
+      ...(trendsQuery.data?.points ?? []).map((point) => point.meritTotal + point.demeritTotal),
+    );
   }, [trendsQuery.data?.points]);
 
   return (
@@ -308,13 +362,33 @@ function BehaviourTrendsPanel() {
         <BarChart3 aria-hidden="true" size={20} />
       </div>
       <div className="form-grid form-grid--two behaviour-report-controls">
-        <SelectInput aria-label="Trend bucket" onChange={(event) => setBucket(event.target.value as TrendBucket)} value={bucket}>
+        <SelectInput
+          aria-label="Trend bucket"
+          onChange={(event) => {
+            setBucket(event.target.value as TrendBucket);
+          }}
+          value={bucket}
+        >
           <option value="daily">Daily</option>
           <option value="weekly">Weekly</option>
           <option value="monthly">Monthly</option>
         </SelectInput>
-        <TextInput aria-label="Trend from" onChange={(event) => setFrom(event.target.value)} type="date" value={from} />
-        <TextInput aria-label="Trend to" onChange={(event) => setTo(event.target.value)} type="date" value={to} />
+        <TextInput
+          aria-label="Trend from"
+          onChange={(event) => {
+            setFrom(event.target.value);
+          }}
+          type="date"
+          value={from}
+        />
+        <TextInput
+          aria-label="Trend to"
+          onChange={(event) => {
+            setTo(event.target.value);
+          }}
+          type="date"
+          value={to}
+        />
       </div>
       {trendsQuery.isLoading ? <div className="empty-state">Loading trends...</div> : null}
       {trendsQuery.error ? <p className="status--error">{trendsQuery.error.message}</p> : null}
@@ -327,7 +401,7 @@ function BehaviourTrendsPanel() {
               <div className="behaviour-chart__track">
                 <div
                   className="behaviour-chart__bar"
-                  style={{ width: `${Math.max(6, Math.round((total / maxTotal) * 100))}%` }}
+                  style={{ width: `${String(Math.max(6, Math.round((total / maxTotal) * 100)))}%` }}
                 />
               </div>
               <strong>

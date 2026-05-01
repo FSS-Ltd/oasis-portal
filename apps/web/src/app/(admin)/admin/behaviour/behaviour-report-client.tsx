@@ -44,7 +44,10 @@ export function BehaviourReportClient() {
   );
 
   const maxTotal = useMemo(() => {
-    return Math.max(1, ...(trendsQuery.data?.points ?? []).map((point) => point.meritTotal + point.demeritTotal));
+    return Math.max(
+      1,
+      ...(trendsQuery.data?.points ?? []).map((point) => point.meritTotal + point.demeritTotal),
+    );
   }, [trendsQuery.data?.points]);
 
   return (
@@ -55,7 +58,14 @@ export function BehaviourReportClient() {
             <h2>Daily merits</h2>
             <p className="muted">All merits recorded on the selected day.</p>
           </div>
-          <TextInput aria-label="Merit report date" onChange={(event) => setDate(event.target.value)} type="date" value={date} />
+          <TextInput
+            aria-label="Merit report date"
+            onChange={(event) => {
+              setDate(event.target.value);
+            }}
+            type="date"
+            value={date}
+          />
         </div>
         {meritsQuery.isLoading ? <div className="empty-state">Loading merits...</div> : null}
         {meritsQuery.error ? <p className="status--error">{meritsQuery.error.message}</p> : null}
@@ -71,7 +81,8 @@ export function BehaviourReportClient() {
                   {merit.studentName} · +{merit.meritDelta}
                 </strong>
                 <span>
-                  {merit.category} · {merit.visibility} · {merit.recordedByName} · {formatDateTime(merit.createdAt)}
+                  {merit.category} · {merit.visibility} · {merit.recordedByName} ·{' '}
+                  {formatDateTime(merit.createdAt)}
                 </span>
               </div>
             </div>
@@ -88,13 +99,33 @@ export function BehaviourReportClient() {
           <BarChart3 aria-hidden="true" size={20} />
         </div>
         <div className="form-grid form-grid--two behaviour-report-controls">
-          <SelectInput aria-label="Trend bucket" onChange={(event) => setBucket(event.target.value as TrendBucket)} value={bucket}>
+          <SelectInput
+            aria-label="Trend bucket"
+            onChange={(event) => {
+              setBucket(event.target.value as TrendBucket);
+            }}
+            value={bucket}
+          >
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
             <option value="monthly">Monthly</option>
           </SelectInput>
-          <TextInput aria-label="Trend from" onChange={(event) => setFrom(event.target.value)} type="date" value={from} />
-          <TextInput aria-label="Trend to" onChange={(event) => setTo(event.target.value)} type="date" value={to} />
+          <TextInput
+            aria-label="Trend from"
+            onChange={(event) => {
+              setFrom(event.target.value);
+            }}
+            type="date"
+            value={from}
+          />
+          <TextInput
+            aria-label="Trend to"
+            onChange={(event) => {
+              setTo(event.target.value);
+            }}
+            type="date"
+            value={to}
+          />
         </div>
         {trendsQuery.isLoading ? <div className="empty-state">Loading trends...</div> : null}
         {trendsQuery.error ? <p className="status--error">{trendsQuery.error.message}</p> : null}
@@ -107,7 +138,9 @@ export function BehaviourReportClient() {
                 <div className="behaviour-chart__track">
                   <div
                     className="behaviour-chart__bar"
-                    style={{ width: `${Math.max(6, Math.round((total / maxTotal) * 100))}%` }}
+                    style={{
+                      width: `${String(Math.max(6, Math.round((total / maxTotal) * 100)))}%`,
+                    }}
                   />
                 </div>
                 <strong>

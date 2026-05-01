@@ -50,28 +50,34 @@ function decrypt(value: string | null | undefined): string {
 export default async function AdminIndexPage() {
   const user = await getFullAdminUser();
   const { start, end } = todayBounds();
-  const [currentUser, activeStudentCount, attendanceRows, activityRows, unreadMessages, reportsDue] =
-    await Promise.all([
-      prisma.user.findUnique({
-        where: { id: user.id },
-        select: { fullNameEnc: true },
-      }),
-      prisma.student.count({ where: { active: true } }),
-      prisma.attendance.findMany({
-        where: { date: start },
-        select: { status: true },
-      }),
-      prisma.behaviourEntry.findMany({
-        where: { createdAt: { gte: start, lt: end } },
-        include: {
-          student: { select: { fullNameEnc: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 6,
-      }),
-      prisma.message.count({ where: { createdAt: { gte: start, lt: end } } }),
-      prisma.termReport.count({ where: { status: { in: ['Draft', 'UnderReview'] } } }),
-    ]);
+  const [
+    currentUser,
+    activeStudentCount,
+    attendanceRows,
+    activityRows,
+    unreadMessages,
+    reportsDue,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { fullNameEnc: true },
+    }),
+    prisma.student.count({ where: { active: true } }),
+    prisma.attendance.findMany({
+      where: { date: start },
+      select: { status: true },
+    }),
+    prisma.behaviourEntry.findMany({
+      where: { createdAt: { gte: start, lt: end } },
+      include: {
+        student: { select: { fullNameEnc: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 6,
+    }),
+    prisma.message.count({ where: { createdAt: { gte: start, lt: end } } }),
+    prisma.termReport.count({ where: { status: { in: ['Draft', 'UnderReview'] } } }),
+  ]);
 
   const present = attendanceRows.filter((row) => row.status === 'Present').length;
   const absent = attendanceRows.filter((row) => row.status === 'Absent').length;
@@ -93,8 +99,8 @@ export default async function AdminIndexPage() {
         <StatCard
           accent="#166534"
           label="Present today"
-          sub={`${absent} absent · ${late} late`}
-          value={`${present}/${String(activeStudentCount)}`}
+          sub={`${String(absent)} absent · ${String(late)} late`}
+          value={`${String(present)}/${String(activeStudentCount)}`}
         />
         <StatCard
           accent="#5B90C5"
@@ -102,8 +108,18 @@ export default async function AdminIndexPage() {
           sub="today across all students"
           value={`+${String(meritTotal)}`}
         />
-        <StatCard accent="#92400E" label="Unread messages" sub="from parents" value={String(unreadMessages)} />
-        <StatCard accent="#8B1E2D" label="Reports due" sub="end of term deadline" value={String(reportsDue)} />
+        <StatCard
+          accent="#92400E"
+          label="Unread messages"
+          sub="from parents"
+          value={String(unreadMessages)}
+        />
+        <StatCard
+          accent="#8B1E2D"
+          label="Reports due"
+          sub="end of term deadline"
+          value={String(reportsDue)}
+        />
       </section>
 
       <div className="head-dashboard-layout">
@@ -119,17 +135,31 @@ export default async function AdminIndexPage() {
                 const studentName = decrypt(entry.student.fullNameEnc);
                 return (
                   <div className="head-activity-row" key={entry.id}>
-                    <span className="head-activity-avatar" style={{ backgroundColor: avatarColour(index) }}>
+                    <span
+                      className="head-activity-avatar"
+                      style={{ backgroundColor: avatarColour(index) }}
+                    >
                       {initials(studentName)}
                     </span>
                     <div>
                       <strong>{studentName}</strong>
                       <span
-                        className={entry.meritDelta >= 0 ? 'head-merit-pill head-merit-pill--plus' : 'head-merit-pill head-merit-pill--minus'}
+                        className={
+                          entry.meritDelta >= 0
+                            ? 'head-merit-pill head-merit-pill--plus'
+                            : 'head-merit-pill head-merit-pill--minus'
+                        }
                       >
-                        {entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits
+                        {entry.meritDelta >= 0
+                          ? `+${String(entry.meritDelta)}`
+                          : String(entry.meritDelta)}{' '}
+                        merits
                       </span>
-                      {entry.visibility === 'Sensitive' ? <span className="head-merit-pill head-merit-pill--sensitive">Sensitive</span> : null}
+                      {entry.visibility === 'Sensitive' ? (
+                        <span className="head-merit-pill head-merit-pill--sensitive">
+                          Sensitive
+                        </span>
+                      ) : null}
                       <p>
                         {entry.category}
                         {entry.noteEnc ? ` · ${decrypt(entry.noteEnc)}` : null}
@@ -184,7 +214,10 @@ function StatCard({
   sub: string;
 }) {
   return (
-    <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': accent } as CSSProperties}>
+    <div
+      className="panel panel__body stat-card head-stat-card"
+      style={{ '--accent': accent } as CSSProperties}
+    >
       <p className="stat-card__label">{label}</p>
       <p className="stat-card__value">{value}</p>
       <p className="stat-card__sub">{sub}</p>
@@ -201,7 +234,15 @@ function QuickAction({ href, label }: { href: Route; label: string }) {
   );
 }
 
-function AttendanceSummary({ label, value, tone }: { label: string; value: number; tone: 'green' | 'red' | 'amber' }) {
+function AttendanceSummary({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'green' | 'red' | 'amber';
+}) {
   return (
     <div className={`attendance-summary attendance-summary--${tone}`}>
       <strong>{value}</strong>

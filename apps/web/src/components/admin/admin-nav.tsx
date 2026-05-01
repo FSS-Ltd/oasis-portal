@@ -73,7 +73,7 @@ export function AdminSidebarNav({ canViewAudit, fullAdmin }: AdminNavProps) {
             aria-disabled={!enabled}
             className={className}
             href={item.href}
-            key={`${item.label}-${index}`}
+            key={`${item.label}-${String(index)}`}
           >
             <Icon aria-hidden="true" size={18} />
             <span>{item.label}</span>
@@ -99,14 +99,16 @@ export function AdminBottomNav({ canViewAudit, fullAdmin }: AdminNavProps) {
       {mobileNavItems.map((item, index) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined].filter(Boolean).join(' ');
+        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
+          .filter(Boolean)
+          .join(' ');
 
         return (
           <Link
             aria-current={active ? 'page' : undefined}
             className={className}
             href={item.href}
-            key={`${item.label}-${index}`}
+            key={`${item.label}-${String(index)}`}
           >
             <Icon aria-hidden="true" size={18} />
             <span>{item.label}</span>

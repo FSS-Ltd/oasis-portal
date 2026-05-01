@@ -40,22 +40,24 @@ export function InviteUserForm() {
   return (
     <form
       className="panel"
-      onSubmit={handleSubmit((values) =>
-        inviteUser.mutate(
-          {
-            email: values.email,
-            role: values.role,
-            tags: values.tag ? [values.tag] : [],
-            redirectUrl: values.redirectUrl || undefined,
-          },
-          {
-            onSuccess: () => {
-              setCopiedInviteUrl(false);
-              reset({ email: '', role: values.role, tag: '', redirectUrl: values.redirectUrl });
+      onSubmit={(event) => {
+        void handleSubmit((values) => {
+          inviteUser.mutate(
+            {
+              email: values.email,
+              role: values.role,
+              tags: values.tag ? [values.tag] : [],
+              redirectUrl: values.redirectUrl || undefined,
             },
-          },
-        ),
-      )}
+            {
+              onSuccess: () => {
+                setCopiedInviteUrl(false);
+                reset({ email: '', role: values.role, tag: '', redirectUrl: values.redirectUrl });
+              },
+            },
+          );
+        })(event);
+      }}
     >
       <div className="panel__body form-grid">
         <div className="form-grid form-grid--two">

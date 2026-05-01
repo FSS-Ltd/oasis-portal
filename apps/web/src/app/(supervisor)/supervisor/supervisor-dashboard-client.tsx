@@ -1,8 +1,26 @@
 'use client';
 
-import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import Link from 'next/link';
-import { ArrowRight, BookOpenCheck, ClipboardCheck, FileText, MessageSquare, Plus, Save, Send, Star, Trash2 } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpenCheck,
+  ClipboardCheck,
+  FileText,
+  MessageSquare,
+  Plus,
+  Save,
+  Send,
+  Star,
+  Trash2,
+} from 'lucide-react';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { Button } from '@/components/ui/button';
@@ -19,7 +37,20 @@ const weekdays = [
 ] as const;
 
 const shortWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
 
 type BehaviourType = 'Merit' | 'Demerit';
 type BehaviourVisibility = 'General' | 'Sensitive';
@@ -117,7 +148,12 @@ function formatShortDateTime(value: Date): string {
   }).format(value);
 }
 
-function formatShift(shift: { date: string; startsAt: Date; endsAt: Date; bandName: string | null }): string {
+function formatShift(shift: {
+  date: string;
+  startsAt: Date;
+  endsAt: Date;
+  bandName: string | null;
+}): string {
   return `${formatDate(shift.date)} · ${formatDateTime(shift.startsAt)}-${formatDateTime(shift.endsAt)} · ${
     shift.bandName ?? 'Unassigned band'
   }`;
@@ -187,7 +223,7 @@ function avatarColour(index: number): string {
 
 function emptyAvailabilityRow(): AvailabilityDraft {
   return {
-    id: `draft_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    id: `draft_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,
     dayOfWeek: 1,
     startMinute: 540,
     endMinute: 720,
@@ -233,19 +269,26 @@ export function SupervisorDashboardClient({
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const utils = api.useUtils();
 
-  const usesStudentRoster = view === 'dashboard' || view === 'attendance' || view === 'behaviour' || view === 'pace';
+  const usesStudentRoster =
+    view === 'dashboard' || view === 'attendance' || view === 'behaviour' || view === 'pace';
   const usesRota = view === 'dashboard' || view === 'rota';
 
   const attendanceRosterQuery = api.attendance.forDate.useQuery(
     { date },
     { enabled: usesStudentRoster, retry: false },
   );
-  const todayRotaQuery = api.rota.myRota.useQuery({ from: date, to: date }, { enabled: usesRota, retry: false });
+  const todayRotaQuery = api.rota.myRota.useQuery(
+    { from: date, to: date },
+    { enabled: usesRota, retry: false },
+  );
   const weekRotaQuery = api.rota.myRota.useQuery(
     { from: weekStart, to: weekEnd },
     { enabled: usesRota, retry: false },
   );
-  const availabilityQuery = api.rota.myAvailability.useQuery(undefined, { enabled: view === 'rota', retry: false });
+  const availabilityQuery = api.rota.myAvailability.useQuery(undefined, {
+    enabled: view === 'rota',
+    retry: false,
+  });
   const swapCandidatesQuery = api.rota.swapCandidates.useQuery(
     { from: weekStart, to: weekEnd },
     { enabled: view === 'rota', retry: false },
@@ -267,8 +310,10 @@ export function SupervisorDashboardClient({
     { enabled: view === 'pace' && selectedStudentId.length > 0, retry: false },
   );
 
-  const selectedStudent = attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentId) ?? null;
-  const selectedPaceSubject = paceQuery.data?.subjects.find((subject) => subject.subjectId === paceForm.subjectId) ?? null;
+  const selectedStudent =
+    attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentId) ?? null;
+  const selectedPaceSubject =
+    paceQuery.data?.subjects.find((subject) => subject.subjectId === paceForm.subjectId) ?? null;
 
   const saveAvailability = api.rota.setMyAvailability.useMutation({
     onSuccess: async () => {
@@ -299,7 +344,10 @@ export function SupervisorDashboardClient({
         note: '',
         amount: current.type === 'Merit' ? current.amount : '1',
       }));
-      await utils.behaviour.listForStudent.invalidate({ studentId: input.studentId, includeSensitive: false });
+      await utils.behaviour.listForStudent.invalidate({
+        studentId: input.studentId,
+        includeSensitive: false,
+      });
     },
   });
   const recordPace = api.pace.record.useMutation({
@@ -346,7 +394,10 @@ export function SupervisorDashboardClient({
     const currentSubject = subjects.find((subject) => subject.subjectId === paceForm.subjectId);
     if (currentSubject) {
       if (!paceForm.paceNumber) {
-        setPaceForm((current) => ({ ...current, paceNumber: String(currentSubject.currentPaceNumber) }));
+        setPaceForm((current) => ({
+          ...current,
+          paceNumber: String(currentSubject.currentPaceNumber),
+        }));
       }
       return;
     }
@@ -368,7 +419,10 @@ export function SupervisorDashboardClient({
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
   const paceSubjects = paceQuery.data?.subjects ?? [];
   const rosterRows = attendanceRosterQuery.data ?? [];
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
+    [weekStart],
+  );
   const dashboardMessages = useMemo(() => messageDashboardAdapter(), []);
   const dashboardNotices = useMemo(() => noticeDashboardAdapter(), []);
   const dashboardActivity = dashboardActivityQuery.data?.entries ?? [];
@@ -425,8 +479,14 @@ export function SupervisorDashboardClient({
           <span>Daily workflow · Oasis Learning Centre</span>
         </div>
 
-        <section className="dashboard-grid dashboard-grid--hero" aria-label="Supervisor dashboard summary">
-          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#166534' } as CSSProperties}>
+        <section
+          className="dashboard-grid dashboard-grid--hero"
+          aria-label="Supervisor dashboard summary"
+        >
+          <div
+            className="panel panel__body stat-card head-stat-card"
+            style={{ '--accent': '#166534' } as CSSProperties}
+          >
             <p className="stat-card__label">Present today</p>
             <p className="stat-card__value">
               {presentCount}/{totalStudents}
@@ -435,17 +495,26 @@ export function SupervisorDashboardClient({
               {absentCount} absent · {lateCount} late
             </p>
           </div>
-          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#5B90C5' } as CSSProperties}>
+          <div
+            className="panel panel__body stat-card head-stat-card"
+            style={{ '--accent': '#5B90C5' } as CSSProperties}
+          >
             <p className="stat-card__label">Today&apos;s shifts</p>
             <p className="stat-card__value">{todayShifts.length}</p>
             <p className="stat-card__sub">assigned to you</p>
           </div>
-          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#92400E' } as CSSProperties}>
+          <div
+            className="panel panel__body stat-card head-stat-card"
+            style={{ '--accent': '#92400E' } as CSSProperties}
+          >
             <p className="stat-card__label">Open items</p>
             <p className="stat-card__value">{openItems}</p>
             <p className="stat-card__sub">messages and swaps</p>
           </div>
-          <div className="panel panel__body stat-card head-stat-card" style={{ '--accent': '#8B1E2D' } as CSSProperties}>
+          <div
+            className="panel panel__body stat-card head-stat-card"
+            style={{ '--accent': '#8B1E2D' } as CSSProperties}
+          >
             <p className="stat-card__label">Notices</p>
             <p className="stat-card__value">{unreadNotices}</p>
             <p className="stat-card__sub">unread notices</p>
@@ -467,7 +536,9 @@ export function SupervisorDashboardClient({
                 </Link>
               </div>
 
-              {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
+              {weekRotaQuery.error ? (
+                <p className="status--error">{weekRotaQuery.error.message}</p>
+              ) : null}
               <div className="supervisor-week-grid">
                 {weekDays.map((dayItem) => {
                   const dayKey = dateKey(dayItem);
@@ -498,7 +569,7 @@ export function SupervisorDashboardClient({
                               <span
                                 aria-hidden="true"
                                 className="supervisor-day-shift__swatch"
-                                style={{ backgroundColor: shift.bandColour ?? undefined } as CSSProperties}
+                                style={{ backgroundColor: shift.bandColour ?? undefined }}
                               />
                               <div>
                                 <strong>
@@ -520,23 +591,37 @@ export function SupervisorDashboardClient({
               <div className="section-title">
                 <h2>Today&apos;s Activity</h2>
               </div>
-              {dashboardActivityQuery.error ? <p className="status--error">{dashboardActivityQuery.error.message}</p> : null}
+              {dashboardActivityQuery.error ? (
+                <p className="status--error">{dashboardActivityQuery.error.message}</p>
+              ) : null}
               <div className="head-activity-list">
-                {dashboardActivityQuery.isLoading ? <div className="empty-state">Loading today&apos;s activity...</div> : null}
+                {dashboardActivityQuery.isLoading ? (
+                  <div className="empty-state">Loading today&apos;s activity...</div>
+                ) : null}
                 {!dashboardActivityQuery.isLoading && dashboardActivity.length === 0 ? (
                   <div className="empty-state">No behaviour activity recorded today.</div>
                 ) : null}
                 {dashboardActivity.map((entry, index) => (
                   <div className="head-activity-row" key={entry.id}>
-                    <span className="head-activity-avatar" style={{ backgroundColor: avatarColour(index) }}>
+                    <span
+                      className="head-activity-avatar"
+                      style={{ backgroundColor: avatarColour(index) }}
+                    >
                       {initials(entry.studentName)}
                     </span>
                     <div>
                       <strong>{entry.studentName}</strong>
                       <span
-                        className={entry.meritDelta >= 0 ? 'head-merit-pill head-merit-pill--plus' : 'head-merit-pill head-merit-pill--minus'}
+                        className={
+                          entry.meritDelta >= 0
+                            ? 'head-merit-pill head-merit-pill--plus'
+                            : 'head-merit-pill head-merit-pill--minus'
+                        }
                       >
-                        {entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits
+                        {entry.meritDelta >= 0
+                          ? `+${String(entry.meritDelta)}`
+                          : String(entry.meritDelta)}{' '}
+                        merits
                       </span>
                       <p>
                         {entry.category}
@@ -556,10 +641,26 @@ export function SupervisorDashboardClient({
                 <h2>Quick Actions</h2>
               </div>
               <div className="head-action-list">
-                <DashboardAction href="/supervisor/attendance" icon={<ClipboardCheck size={16} />} label="Mark Attendance" />
-                <DashboardAction href="/supervisor/behaviour" icon={<Star size={16} />} label="Log Behaviour" />
-                <DashboardAction href="/supervisor/pace" icon={<BookOpenCheck size={16} />} label="Record PACE Score" />
-                <DashboardAction href="/supervisor/snapshot" icon={<FileText size={16} />} label="Child Snapshot" />
+                <DashboardAction
+                  href="/supervisor/attendance"
+                  icon={<ClipboardCheck size={16} />}
+                  label="Mark Attendance"
+                />
+                <DashboardAction
+                  href="/supervisor/behaviour"
+                  icon={<Star size={16} />}
+                  label="Log Behaviour"
+                />
+                <DashboardAction
+                  href="/supervisor/pace"
+                  icon={<BookOpenCheck size={16} />}
+                  label="Record PACE Score"
+                />
+                <DashboardAction
+                  href="/supervisor/snapshot"
+                  icon={<FileText size={16} />}
+                  label="Child Snapshot"
+                />
               </div>
             </section>
 
@@ -569,7 +670,9 @@ export function SupervisorDashboardClient({
                   <h2>Pending</h2>
                   <p className="muted">Messages and shift swap requests needing attention.</p>
                 </div>
-                <span className="badge badge--blue">{dashboardMessages.length + mySwapRequests.length} open</span>
+                <span className="badge badge--blue">
+                  {dashboardMessages.length + mySwapRequests.length} open
+                </span>
               </div>
 
               <div className="supervisor-dashboard-list">
@@ -578,13 +681,17 @@ export function SupervisorDashboardClient({
                   Messages
                 </h3>
                 {dashboardMessages.length === 0 ? (
-                  <div className="dashboard-empty-state">Messages will appear here when the messaging API is connected.</div>
+                  <div className="dashboard-empty-state">
+                    Messages will appear here when the messaging API is connected.
+                  </div>
                 ) : (
                   dashboardMessages.map((message) => (
                     <article className="dashboard-list-row" key={message.id}>
                       <strong>{message.subject}</strong>
                       <span>{message.latestPreview}</span>
-                      {message.updatedAt ? <small>{formatShortDateTime(message.updatedAt)}</small> : null}
+                      {message.updatedAt ? (
+                        <small>{formatShortDateTime(message.updatedAt)}</small>
+                      ) : null}
                     </article>
                   ))
                 )}
@@ -595,21 +702,28 @@ export function SupervisorDashboardClient({
                   <Send aria-hidden="true" size={15} />
                   Swap requests
                 </h3>
-                {mySwapRequestsQuery.error ? <p className="status--error">{mySwapRequestsQuery.error.message}</p> : null}
+                {mySwapRequestsQuery.error ? (
+                  <p className="status--error">{mySwapRequestsQuery.error.message}</p>
+                ) : null}
                 {!mySwapRequestsQuery.isLoading && mySwapRequests.length === 0 ? (
                   <div className="dashboard-empty-state">No pending shift swap requests.</div>
                 ) : null}
                 {mySwapRequests.map((request) => {
                   const otherPerson =
-                    request.direction === 'Requested' ? request.targetUser.fullName : request.requester.fullName;
+                    request.direction === 'Requested'
+                      ? request.targetUser.fullName
+                      : request.requester.fullName;
                   return (
                     <article className="dashboard-list-row" key={request.id}>
                       <strong>
-                        {request.direction === 'Requested' ? 'Awaiting Head review' : 'Incoming request'} with {otherPerson}
+                        {request.direction === 'Requested'
+                          ? 'Awaiting Head review'
+                          : 'Incoming request'}{' '}
+                        with {otherPerson}
                       </strong>
                       <span>
-                        {request.fromShift.date} {formatTime(request.fromShift.startsAt)} → {request.toShift.date}{' '}
-                        {formatTime(request.toShift.startsAt)}
+                        {request.fromShift.date} {formatTime(request.fromShift.startsAt)} →{' '}
+                        {request.toShift.date} {formatTime(request.toShift.startsAt)}
                       </span>
                       <small>{formatShortDateTime(request.createdAt)}</small>
                     </article>
@@ -624,17 +738,28 @@ export function SupervisorDashboardClient({
                   <h2>Notices</h2>
                   <p className="muted">Admin notices for staff.</p>
                 </div>
-                <span className="badge badge--blue">{dashboardNotices.filter((notice) => !notice.read).length} unread</span>
+                <span className="badge badge--blue">
+                  {dashboardNotices.filter((notice) => !notice.read).length} unread
+                </span>
               </div>
               {dashboardNotices.length === 0 ? (
-                <div className="dashboard-empty-state">Admin notices will appear here when notice publishing is connected.</div>
+                <div className="dashboard-empty-state">
+                  Admin notices will appear here when notice publishing is connected.
+                </div>
               ) : (
                 <div className="supervisor-dashboard-list">
                   {dashboardNotices.map((notice) => (
-                    <article className={notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'} key={notice.id}>
+                    <article
+                      className={
+                        notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'
+                      }
+                      key={notice.id}
+                    >
                       <strong>{notice.title}</strong>
                       <span>{notice.bodyPreview}</span>
-                      {notice.postedAt ? <small>{formatShortDateTime(notice.postedAt)}</small> : null}
+                      {notice.postedAt ? (
+                        <small>{formatShortDateTime(notice.postedAt)}</small>
+                      ) : null}
                     </article>
                   ))}
                 </div>
@@ -650,7 +775,9 @@ export function SupervisorDashboardClient({
                 <AttendanceSummary label="Absent" tone="red" value={absentCount} />
                 <AttendanceSummary label="Late" tone="amber" value={lateCount} />
               </div>
-              {attendanceRosterQuery.error ? <p className="status--error">{attendanceRosterQuery.error.message}</p> : null}
+              {attendanceRosterQuery.error ? (
+                <p className="status--error">{attendanceRosterQuery.error.message}</p>
+              ) : null}
             </section>
           </aside>
         </div>
@@ -662,538 +789,661 @@ export function SupervisorDashboardClient({
     <div className="supervisor-layout">
       <section className="supervisor-layout__main">
         {view === 'attendance' ? (
-        <section className="panel panel__body" id="attendance-capture">
-          <div className="section-title">
-            <div>
-              <h2>Attendance capture</h2>
-              <p className="muted">Mark the daily register and filter students by configured year-group bands.</p>
+          <section className="panel panel__body" id="attendance-capture">
+            <div className="section-title">
+              <div>
+                <h2>Attendance capture</h2>
+                <p className="muted">
+                  Mark the daily register and filter students by configured year-group bands.
+                </p>
+              </div>
+              <span className="badge badge--blue">Student register</span>
             </div>
-            <span className="badge badge--blue">Student register</span>
-          </div>
-          <AttendanceCapture
-            canExport={canExportAttendance}
-            canRecord={canRecordAttendance}
-            emptyMessage="Head of Centre can add students before the daily workflow starts."
-            onSelectedDateChange={setSelectedDate}
-            selectedDate={selectedDate}
-            showBandFilter
-          />
-        </section>
+            <AttendanceCapture
+              canExport={canExportAttendance}
+              canRecord={canRecordAttendance}
+              emptyMessage="Head of Centre can add students before the daily workflow starts."
+              onSelectedDateChange={setSelectedDate}
+              selectedDate={selectedDate}
+              showBandFilter
+            />
+          </section>
         ) : null}
 
         {view === 'behaviour' ? (
-        <section className="panel panel__body supervisor-workflow" id="behaviour-entry">
-          <div className="section-title">
-            <div>
-              <h2>Behaviour entry</h2>
-              <p className="muted">Record merits, demerits, and visibility-controlled notes for the selected student.</p>
-            </div>
-            <span className="badge badge--blue">Merit workflow</span>
-          </div>
-
-          <div className="supervisor-selected-student">
-            <Field label="Selected student">
-              <SelectInput
-                aria-label="Selected student for behaviour and PACE"
-                disabled={attendanceRosterQuery.isLoading || (attendanceRosterQuery.data ?? []).length === 0}
-                onChange={(event) => handleStudentChange(event.target.value)}
-                value={selectedStudentId}
-              >
-                <option value="">Choose a student</option>
-                {(attendanceRosterQuery.data ?? []).map((student) => (
-                  <option key={student.studentId} value={student.studentId}>
-                    {student.studentName} · {student.yearGroup}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-            {selectedStudent ? (
-              <div className="student-context-card">
-                <strong>{selectedStudent.studentName}</strong>
-                <span>{selectedStudent.yearGroup}</span>
-                <span>{selectedStudent.status ?? 'Attendance unmarked'}</span>
+          <section className="panel panel__body supervisor-workflow" id="behaviour-entry">
+            <div className="section-title">
+              <div>
+                <h2>Behaviour entry</h2>
+                <p className="muted">
+                  Record merits, demerits, and visibility-controlled notes for the selected student.
+                </p>
               </div>
-            ) : null}
-          </div>
-          {attendanceRosterQuery.error ? <p className="status--error">{attendanceRosterQuery.error.message}</p> : null}
-
-          <div className="supervisor-workflow-grid">
-            <form className="form-grid" onSubmit={submitBehaviour}>
-              <div className="form-grid form-grid--two">
-                <Field label="Type">
-                  <SelectInput
-                    aria-label="Behaviour type"
-                    onChange={(event) =>
-                      setBehaviourForm((form) => ({ ...form, type: event.target.value as BehaviourType }))
-                    }
-                    value={behaviourForm.type}
-                  >
-                    <option value="Merit">Merit</option>
-                    <option value="Demerit">Demerit</option>
-                  </SelectInput>
-                </Field>
-                <Field label="Visibility">
-                  <SelectInput
-                    aria-label="Behaviour visibility"
-                    onChange={(event) =>
-                      setBehaviourForm((form) => ({ ...form, visibility: event.target.value as BehaviourVisibility }))
-                    }
-                    value={behaviourForm.visibility}
-                  >
-                    <option value="General">General</option>
-                    <option value="Sensitive">Sensitive</option>
-                  </SelectInput>
-                </Field>
-              </div>
-              <Field label="Category">
-                <TextInput
-                  aria-label="Behaviour category"
-                  maxLength={120}
-                  onChange={(event) => setBehaviourForm((form) => ({ ...form, category: event.target.value }))}
-                  required
-                  value={behaviourForm.category}
-                />
-              </Field>
-              {behaviourForm.type === 'Merit' ? (
-                <Field label="Merit amount">
-                  <TextInput
-                    aria-label="Merit amount"
-                    min={1}
-                    onChange={(event) => setBehaviourForm((form) => ({ ...form, amount: event.target.value }))}
-                    required
-                    type="number"
-                    value={behaviourForm.amount}
-                  />
-                </Field>
-              ) : null}
-              <Field label="Note" hint="Sensitive notes save securely but do not appear in the Supervisor activity list.">
-                <textarea
-                  aria-label="Behaviour note"
-                  className="input textarea"
-                  maxLength={2000}
-                  onChange={(event) => setBehaviourForm((form) => ({ ...form, note: event.target.value }))}
-                  rows={4}
-                  value={behaviourForm.note}
-                />
-              </Field>
-              <Button disabled={!selectedStudentId} pending={logBehaviour.isPending} type="submit">
-                <Save aria-hidden="true" size={16} />
-                Save behaviour
-              </Button>
-              {behaviourStatus ? <p className="status--success">{behaviourStatus}</p> : null}
-              {logBehaviour.error ? <p className="status--error">{logBehaviour.error.message}</p> : null}
-            </form>
-
-            <div className="activity-list" aria-label="Student behaviour activity">
-              <h3>General activity</h3>
-              {behaviourQuery.isLoading ? <div className="empty-state">Loading behaviour...</div> : null}
-              {behaviourQuery.error ? <p className="status--error">{behaviourQuery.error.message}</p> : null}
-              {!behaviourQuery.isLoading && selectedStudentId && behaviourEntries.length === 0 ? (
-                <div className="empty-state">No General behaviour entries yet.</div>
-              ) : null}
-              {behaviourEntries.map((entry) => (
-                <article className="activity-row" key={entry.id}>
-                  <span className={entry.type === 'Merit' ? 'badge badge--green' : 'badge badge--amber'}>
-                    {entry.type}
-                  </span>
-                  <div>
-                    <strong>{entry.category}</strong>
-                    <span>
-                      {entry.meritDelta > 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} ·{' '}
-                      {formatShortDateTime(entry.createdAt)}
-                    </span>
-                    {entry.note ? <p>{entry.note}</p> : null}
-                  </div>
-                </article>
-              ))}
+              <span className="badge badge--blue">Merit workflow</span>
             </div>
-          </div>
-        </section>
-        ) : null}
 
-        {view === 'pace' ? (
-        <section className="panel panel__body supervisor-workflow" id="pace-entry">
-          <div className="section-title">
-            <div>
-              <h2>PACE entry</h2>
-              <p className="muted">Record self tests and final PACE tests against the selected student&apos;s subjects.</p>
-            </div>
-            <span className="badge badge--blue">Subject progress</span>
-          </div>
-
-          {selectedStudent ? (
-            <div className="pace-student-summary">
-              <BookOpenCheck aria-hidden="true" size={18} />
-              <span>
-                Recording for <strong>{selectedStudent.studentName}</strong>
-              </span>
-            </div>
-          ) : (
-            <div className="empty-state">Choose a student above before recording PACE progress.</div>
-          )}
-
-          {paceQuery.error ? <p className="status--error">{paceQuery.error.message}</p> : null}
-          {paceQuery.data?.warnings.dailyLimitEnabled ? (
-            <div className={paceQuery.data.warnings.atLimit ? 'workflow-alert workflow-alert--danger' : 'workflow-alert'}>
-              <strong>
-                {paceQuery.data.warnings.atLimit
-                  ? 'Daily PACE test limit reached'
-                  : `${String(paceQuery.data.warnings.remaining)} PACE test(s) remaining today`}
-              </strong>
-              <span>
-                {String(paceQuery.data.warnings.count)} of {String(paceQuery.data.warnings.limit)} tests recorded for{' '}
-                {paceQuery.data.today.date}.
-              </span>
-            </div>
-          ) : null}
-
-          <div className="supervisor-workflow-grid">
-            <form className="form-grid" onSubmit={submitPace}>
-              <Field label="Subject">
+            <div className="supervisor-selected-student">
+              <Field label="Selected student">
                 <SelectInput
-                  aria-label="PACE subject"
-                  disabled={!selectedStudentId || paceSubjects.length === 0}
+                  aria-label="Selected student for behaviour and PACE"
+                  disabled={
+                    attendanceRosterQuery.isLoading ||
+                    (attendanceRosterQuery.data ?? []).length === 0
+                  }
                   onChange={(event) => {
-                    const subject = paceSubjects.find((item) => item.subjectId === event.target.value);
-                    setPaceForm((form) => ({
-                      ...form,
-                      subjectId: event.target.value,
-                      paceNumber: subject ? String(subject.currentPaceNumber) : form.paceNumber,
-                    }));
+                    handleStudentChange(event.target.value);
                   }}
-                  required
-                  value={paceForm.subjectId}
+                  value={selectedStudentId}
                 >
-                  <option value="">Choose a subject</option>
-                  {paceSubjects.map((subject) => (
-                    <option disabled={!subject.active} key={subject.subjectId} value={subject.subjectId}>
-                      {subject.code} · {subject.name}
+                  <option value="">Choose a student</option>
+                  {(attendanceRosterQuery.data ?? []).map((student) => (
+                    <option key={student.studentId} value={student.studentId}>
+                      {student.studentName} · {student.yearGroup}
                     </option>
                   ))}
                 </SelectInput>
               </Field>
-              <div className="form-grid form-grid--two">
-                <Field label="PACE number">
+              {selectedStudent ? (
+                <div className="student-context-card">
+                  <strong>{selectedStudent.studentName}</strong>
+                  <span>{selectedStudent.yearGroup}</span>
+                  <span>{selectedStudent.status ?? 'Attendance unmarked'}</span>
+                </div>
+              ) : null}
+            </div>
+            {attendanceRosterQuery.error ? (
+              <p className="status--error">{attendanceRosterQuery.error.message}</p>
+            ) : null}
+
+            <div className="supervisor-workflow-grid">
+              <form
+                className="form-grid"
+                onSubmit={(event) => {
+                  void submitBehaviour(event);
+                }}
+              >
+                <div className="form-grid form-grid--two">
+                  <Field label="Type">
+                    <SelectInput
+                      aria-label="Behaviour type"
+                      onChange={(event) => {
+                        setBehaviourForm((form) => ({
+                          ...form,
+                          type: event.target.value as BehaviourType,
+                        }));
+                      }}
+                      value={behaviourForm.type}
+                    >
+                      <option value="Merit">Merit</option>
+                      <option value="Demerit">Demerit</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="Visibility">
+                    <SelectInput
+                      aria-label="Behaviour visibility"
+                      onChange={(event) => {
+                        setBehaviourForm((form) => ({
+                          ...form,
+                          visibility: event.target.value as BehaviourVisibility,
+                        }));
+                      }}
+                      value={behaviourForm.visibility}
+                    >
+                      <option value="General">General</option>
+                      <option value="Sensitive">Sensitive</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+                <Field label="Category">
                   <TextInput
-                    aria-label="PACE number"
-                    min={1}
-                    onChange={(event) => setPaceForm((form) => ({ ...form, paceNumber: event.target.value }))}
+                    aria-label="Behaviour category"
+                    maxLength={120}
+                    onChange={(event) => {
+                      setBehaviourForm((form) => ({ ...form, category: event.target.value }));
+                    }}
                     required
-                    type="number"
-                    value={paceForm.paceNumber}
+                    value={behaviourForm.category}
                   />
                 </Field>
-                <Field label="Score">
-                  <TextInput
-                    aria-label="PACE score"
-                    max={100}
-                    min={0}
-                    onChange={(event) => setPaceForm((form) => ({ ...form, score: event.target.value }))}
-                    required
-                    type="number"
-                    value={paceForm.score}
+                {behaviourForm.type === 'Merit' ? (
+                  <Field label="Merit amount">
+                    <TextInput
+                      aria-label="Merit amount"
+                      min={1}
+                      onChange={(event) => {
+                        setBehaviourForm((form) => ({ ...form, amount: event.target.value }));
+                      }}
+                      required
+                      type="number"
+                      value={behaviourForm.amount}
+                    />
+                  </Field>
+                ) : null}
+                <Field
+                  label="Note"
+                  hint="Sensitive notes save securely but do not appear in the Supervisor activity list."
+                >
+                  <textarea
+                    aria-label="Behaviour note"
+                    className="input textarea"
+                    maxLength={2000}
+                    onChange={(event) => {
+                      setBehaviourForm((form) => ({ ...form, note: event.target.value }));
+                    }}
+                    rows={4}
+                    value={behaviourForm.note}
                   />
                 </Field>
+                <Button
+                  disabled={!selectedStudentId}
+                  pending={logBehaviour.isPending}
+                  type="submit"
+                >
+                  <Save aria-hidden="true" size={16} />
+                  Save behaviour
+                </Button>
+                {behaviourStatus ? <p className="status--success">{behaviourStatus}</p> : null}
+                {logBehaviour.error ? (
+                  <p className="status--error">{logBehaviour.error.message}</p>
+                ) : null}
+              </form>
+
+              <div className="activity-list" aria-label="Student behaviour activity">
+                <h3>General activity</h3>
+                {behaviourQuery.isLoading ? (
+                  <div className="empty-state">Loading behaviour...</div>
+                ) : null}
+                {behaviourQuery.error ? (
+                  <p className="status--error">{behaviourQuery.error.message}</p>
+                ) : null}
+                {!behaviourQuery.isLoading && selectedStudentId && behaviourEntries.length === 0 ? (
+                  <div className="empty-state">No General behaviour entries yet.</div>
+                ) : null}
+                {behaviourEntries.map((entry) => (
+                  <article className="activity-row" key={entry.id}>
+                    <span
+                      className={
+                        entry.type === 'Merit' ? 'badge badge--green' : 'badge badge--amber'
+                      }
+                    >
+                      {entry.type}
+                    </span>
+                    <div>
+                      <strong>{entry.category}</strong>
+                      <span>
+                        {entry.meritDelta > 0
+                          ? `+${String(entry.meritDelta)}`
+                          : String(entry.meritDelta)}{' '}
+                        · {formatShortDateTime(entry.createdAt)}
+                      </span>
+                      {entry.note ? <p>{entry.note}</p> : null}
+                    </div>
+                  </article>
+                ))}
               </div>
-              <div className="form-grid form-grid--two">
-                <Field label="Test type">
+            </div>
+          </section>
+        ) : null}
+
+        {view === 'pace' ? (
+          <section className="panel panel__body supervisor-workflow" id="pace-entry">
+            <div className="section-title">
+              <div>
+                <h2>PACE entry</h2>
+                <p className="muted">
+                  Record self tests and final PACE tests against the selected student&apos;s
+                  subjects.
+                </p>
+              </div>
+              <span className="badge badge--blue">Subject progress</span>
+            </div>
+
+            {selectedStudent ? (
+              <div className="pace-student-summary">
+                <BookOpenCheck aria-hidden="true" size={18} />
+                <span>
+                  Recording for <strong>{selectedStudent.studentName}</strong>
+                </span>
+              </div>
+            ) : (
+              <div className="empty-state">
+                Choose a student above before recording PACE progress.
+              </div>
+            )}
+
+            {paceQuery.error ? <p className="status--error">{paceQuery.error.message}</p> : null}
+            {paceQuery.data?.warnings.dailyLimitEnabled ? (
+              <div
+                className={
+                  paceQuery.data.warnings.atLimit
+                    ? 'workflow-alert workflow-alert--danger'
+                    : 'workflow-alert'
+                }
+              >
+                <strong>
+                  {paceQuery.data.warnings.atLimit
+                    ? 'Daily PACE test limit reached'
+                    : `${String(paceQuery.data.warnings.remaining)} PACE test(s) remaining today`}
+                </strong>
+                <span>
+                  {String(paceQuery.data.warnings.count)} of {String(paceQuery.data.warnings.limit)}{' '}
+                  tests recorded for {paceQuery.data.today.date}.
+                </span>
+              </div>
+            ) : null}
+
+            <div className="supervisor-workflow-grid">
+              <form
+                className="form-grid"
+                onSubmit={(event) => {
+                  void submitPace(event);
+                }}
+              >
+                <Field label="Subject">
                   <SelectInput
-                    aria-label="PACE test type"
-                    onChange={(event) => setPaceForm((form) => ({ ...form, testType: event.target.value as PaceTestType }))}
-                    value={paceForm.testType}
+                    aria-label="PACE subject"
+                    disabled={!selectedStudentId || paceSubjects.length === 0}
+                    onChange={(event) => {
+                      const subject = paceSubjects.find(
+                        (item) => item.subjectId === event.target.value,
+                      );
+                      setPaceForm((form) => ({
+                        ...form,
+                        subjectId: event.target.value,
+                        paceNumber: subject ? String(subject.currentPaceNumber) : form.paceNumber,
+                      }));
+                    }}
+                    required
+                    value={paceForm.subjectId}
                   >
-                    <option value="SelfTest">Self test</option>
-                    <option value="FinalTest">Final PACE test</option>
+                    <option value="">Choose a subject</option>
+                    {paceSubjects.map((subject) => (
+                      <option
+                        disabled={!subject.active}
+                        key={subject.subjectId}
+                        value={subject.subjectId}
+                      >
+                        {subject.code} · {subject.name}
+                      </option>
+                    ))}
                   </SelectInput>
                 </Field>
-                <Field label="Completion date">
-                  <TextInput
-                    aria-label="PACE completion date"
-                    onChange={(event) => setPaceForm((form) => ({ ...form, completedAt: event.target.value }))}
-                    required
-                    type="date"
-                    value={paceForm.completedAt}
-                  />
-                </Field>
-              </div>
-              {selectedPaceSubject ? (
-                <p className="field__hint">
-                  Current {selectedPaceSubject.code} PACE is {String(selectedPaceSubject.currentPaceNumber)}.
-                </p>
-              ) : null}
-              <Button
-                disabled={!selectedStudentId || !paceForm.subjectId || paceQuery.data?.warnings.atLimit}
-                pending={recordPace.isPending}
-                type="submit"
-              >
-                <Star aria-hidden="true" size={16} />
-                Record PACE
-              </Button>
-              {paceStatus ? <p className="status--success">{paceStatus}</p> : null}
-              {recordPace.error ? <p className="status--error">{recordPace.error.message}</p> : null}
-            </form>
+                <div className="form-grid form-grid--two">
+                  <Field label="PACE number">
+                    <TextInput
+                      aria-label="PACE number"
+                      min={1}
+                      onChange={(event) => {
+                        setPaceForm((form) => ({ ...form, paceNumber: event.target.value }));
+                      }}
+                      required
+                      type="number"
+                      value={paceForm.paceNumber}
+                    />
+                  </Field>
+                  <Field label="Score">
+                    <TextInput
+                      aria-label="PACE score"
+                      max={100}
+                      min={0}
+                      onChange={(event) => {
+                        setPaceForm((form) => ({ ...form, score: event.target.value }));
+                      }}
+                      required
+                      type="number"
+                      value={paceForm.score}
+                    />
+                  </Field>
+                </div>
+                <div className="form-grid form-grid--two">
+                  <Field label="Test type">
+                    <SelectInput
+                      aria-label="PACE test type"
+                      onChange={(event) => {
+                        setPaceForm((form) => ({
+                          ...form,
+                          testType: event.target.value as PaceTestType,
+                        }));
+                      }}
+                      value={paceForm.testType}
+                    >
+                      <option value="SelfTest">Self test</option>
+                      <option value="FinalTest">Final PACE test</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="Completion date">
+                    <TextInput
+                      aria-label="PACE completion date"
+                      onChange={(event) => {
+                        setPaceForm((form) => ({ ...form, completedAt: event.target.value }));
+                      }}
+                      required
+                      type="date"
+                      value={paceForm.completedAt}
+                    />
+                  </Field>
+                </div>
+                {selectedPaceSubject ? (
+                  <p className="field__hint">
+                    Current {selectedPaceSubject.code} PACE is{' '}
+                    {String(selectedPaceSubject.currentPaceNumber)}.
+                  </p>
+                ) : null}
+                <Button
+                  disabled={
+                    !selectedStudentId || !paceForm.subjectId || paceQuery.data?.warnings.atLimit
+                  }
+                  pending={recordPace.isPending}
+                  type="submit"
+                >
+                  <Star aria-hidden="true" size={16} />
+                  Record PACE
+                </Button>
+                {paceStatus ? <p className="status--success">{paceStatus}</p> : null}
+                {recordPace.error ? (
+                  <p className="status--error">{recordPace.error.message}</p>
+                ) : null}
+              </form>
 
-            <div className="pace-subject-list" aria-label="Student PACE progress">
-              <h3>Subject progress</h3>
-              {paceQuery.isLoading ? <div className="empty-state">Loading PACE progress...</div> : null}
-              {!paceQuery.isLoading && selectedStudentId && paceSubjects.length === 0 ? (
-                <div className="empty-state">No subjects assigned yet.</div>
-              ) : null}
-              {paceSubjects.map((subject) => (
-                <article className="pace-subject-row" key={subject.subjectId}>
-                  <div>
-                    <strong>
-                      {subject.code} · {subject.name}
-                    </strong>
-                    <span>Current PACE {String(subject.currentPaceNumber)}</span>
-                  </div>
-                  <div className="pace-record-list">
-                    {subject.recentRecords.length === 0 ? <span className="muted">No recent records</span> : null}
-                    {subject.recentRecords.map((record) => (
-                      <span key={record.id}>
-                        {record.testType === 'SelfTest' ? 'Self' : 'Final'} · PACE {String(record.paceNumber)} ·{' '}
-                        {String(record.score)}% ·{' '}
-                        {record.completedAt ? formatShortDateTime(record.completedAt) : 'No date recorded'}
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              ))}
+              <div className="pace-subject-list" aria-label="Student PACE progress">
+                <h3>Subject progress</h3>
+                {paceQuery.isLoading ? (
+                  <div className="empty-state">Loading PACE progress...</div>
+                ) : null}
+                {!paceQuery.isLoading && selectedStudentId && paceSubjects.length === 0 ? (
+                  <div className="empty-state">No subjects assigned yet.</div>
+                ) : null}
+                {paceSubjects.map((subject) => (
+                  <article className="pace-subject-row" key={subject.subjectId}>
+                    <div>
+                      <strong>
+                        {subject.code} · {subject.name}
+                      </strong>
+                      <span>Current PACE {String(subject.currentPaceNumber)}</span>
+                    </div>
+                    <div className="pace-record-list">
+                      {subject.recentRecords.length === 0 ? (
+                        <span className="muted">No recent records</span>
+                      ) : null}
+                      {subject.recentRecords.map((record) => (
+                        <span key={record.id}>
+                          {record.testType === 'SelfTest' ? 'Self' : 'Final'} · PACE{' '}
+                          {String(record.paceNumber)} · {String(record.score)}% ·{' '}
+                          {record.completedAt
+                            ? formatShortDateTime(record.completedAt)
+                            : 'No date recorded'}
+                        </span>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
         ) : null}
 
         {view === 'rota' ? (
-        <section className="panel panel__body" id="rota">
-          <div className="section-title">
-            <div>
-              <h2>Your rota</h2>
-              <p className="muted">
-                Today and week of {dateKey(weekStart)} to {dateKey(weekEnd)}.
-              </p>
-            </div>
-            <span className="badge badge--blue">{weekShifts.length} this week</span>
-          </div>
-
-          <div className="supervisor-rota-grid">
-            <div>
-              <h3>Today</h3>
-              {todayRotaQuery.isLoading ? <div className="empty-state">Loading today&apos;s rota...</div> : null}
-              {todayRotaQuery.error ? <p className="status--error">{todayRotaQuery.error.message}</p> : null}
-              {!todayRotaQuery.isLoading && todayShifts.length === 0 ? (
-                <div className="empty-state">No shift scheduled for today.</div>
-              ) : (
-                <div className="rota-shift-list">
-                  {todayShifts.map((shift) => (
-                    <article
-                      className="rota-shift"
-                      key={shift.id}
-                      style={{ borderLeftColor: shift.bandColour ?? undefined }}
-                    >
-                      <strong>{shift.bandName ?? 'Unassigned band'}</strong>
-                      <span>
-                        {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
-                      </span>
-                      {shift.notes ? <em>{shift.notes}</em> : null}
-                    </article>
-                  ))}
-                </div>
-              )}
+          <section className="panel panel__body" id="rota">
+            <div className="section-title">
+              <div>
+                <h2>Your rota</h2>
+                <p className="muted">
+                  Today and week of {dateKey(weekStart)} to {dateKey(weekEnd)}.
+                </p>
+              </div>
+              <span className="badge badge--blue">{weekShifts.length} this week</span>
             </div>
 
-            <div>
-              <h3>This week</h3>
-              {weekRotaQuery.isLoading ? <div className="empty-state">Loading weekly rota...</div> : null}
-              {weekRotaQuery.error ? <p className="status--error">{weekRotaQuery.error.message}</p> : null}
-              {!weekRotaQuery.isLoading && weekShifts.length === 0 ? (
-                <div className="empty-state">No shifts scheduled this week.</div>
-              ) : (
-                <div className="rota-shift-list">
-                  {weekShifts.map((shift) => (
-                    <article
-                      className="rota-shift"
-                      key={shift.id}
-                      style={{ borderLeftColor: shift.bandColour ?? undefined }}
-                    >
-                      <strong>{shift.bandName ?? 'Unassigned band'}</strong>
-                      <span>{formatShift(shift)}</span>
-                    </article>
-                  ))}
-                </div>
-              )}
+            <div className="supervisor-rota-grid">
+              <div>
+                <h3>Today</h3>
+                {todayRotaQuery.isLoading ? (
+                  <div className="empty-state">Loading today&apos;s rota...</div>
+                ) : null}
+                {todayRotaQuery.error ? (
+                  <p className="status--error">{todayRotaQuery.error.message}</p>
+                ) : null}
+                {!todayRotaQuery.isLoading && todayShifts.length === 0 ? (
+                  <div className="empty-state">No shift scheduled for today.</div>
+                ) : (
+                  <div className="rota-shift-list">
+                    {todayShifts.map((shift) => (
+                      <article
+                        className="rota-shift"
+                        key={shift.id}
+                        style={{ borderLeftColor: shift.bandColour ?? undefined }}
+                      >
+                        <strong>{shift.bandName ?? 'Unassigned band'}</strong>
+                        <span>
+                          {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
+                        </span>
+                        {shift.notes ? <em>{shift.notes}</em> : null}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3>This week</h3>
+                {weekRotaQuery.isLoading ? (
+                  <div className="empty-state">Loading weekly rota...</div>
+                ) : null}
+                {weekRotaQuery.error ? (
+                  <p className="status--error">{weekRotaQuery.error.message}</p>
+                ) : null}
+                {!weekRotaQuery.isLoading && weekShifts.length === 0 ? (
+                  <div className="empty-state">No shifts scheduled this week.</div>
+                ) : (
+                  <div className="rota-shift-list">
+                    {weekShifts.map((shift) => (
+                      <article
+                        className="rota-shift"
+                        key={shift.id}
+                        style={{ borderLeftColor: shift.bandColour ?? undefined }}
+                      >
+                        <strong>{shift.bandName ?? 'Unassigned band'}</strong>
+                        <span>{formatShift(shift)}</span>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
         ) : null}
       </section>
 
       {view === 'rota' ? (
-      <aside className="supervisor-layout__side">
-        <section className="panel panel__body">
-          <div className="section-title">
-            <h2>Weekly availability</h2>
-            <Button
-              onClick={() => setAvailabilityDraft((rows) => [...rows, emptyAvailabilityRow()])}
-              size="sm"
-              type="button"
-              variant="secondary"
-            >
-              <Plus aria-hidden="true" size={14} />
-              Add
-            </Button>
-          </div>
+        <aside className="supervisor-layout__side">
+          <section className="panel panel__body">
+            <div className="section-title">
+              <h2>Weekly availability</h2>
+              <Button
+                onClick={() => {
+                  setAvailabilityDraft((rows) => [...rows, emptyAvailabilityRow()]);
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Plus aria-hidden="true" size={14} />
+                Add
+              </Button>
+            </div>
 
-          {availabilityQuery.isLoading ? <div className="empty-state">Loading availability...</div> : null}
-          {availabilityQuery.error ? <p className="status--error">{availabilityQuery.error.message}</p> : null}
+            {availabilityQuery.isLoading ? (
+              <div className="empty-state">Loading availability...</div>
+            ) : null}
+            {availabilityQuery.error ? (
+              <p className="status--error">{availabilityQuery.error.message}</p>
+            ) : null}
 
-          <div className="availability-editor">
-            {availabilityDraft.length === 0 ? (
-              <div className="empty-state">No availability set.</div>
-            ) : (
-              availabilityDraft.map((window) => (
-                <div className="availability-editor__row" key={window.id}>
-                  <Field label="Day">
-                    <SelectInput
-                      aria-label="Availability day"
-                      onChange={(event) =>
-                        setAvailabilityDraft((rows) =>
-                          rows.map((row) =>
-                            row.id === window.id ? { ...row, dayOfWeek: Number(event.target.value) } : row,
-                          ),
-                        )
-                      }
-                      value={window.dayOfWeek}
+            <div className="availability-editor">
+              {availabilityDraft.length === 0 ? (
+                <div className="empty-state">No availability set.</div>
+              ) : (
+                availabilityDraft.map((window) => (
+                  <div className="availability-editor__row" key={window.id}>
+                    <Field label="Day">
+                      <SelectInput
+                        aria-label="Availability day"
+                        onChange={(event) => {
+                          setAvailabilityDraft((rows) =>
+                            rows.map((row) =>
+                              row.id === window.id
+                                ? { ...row, dayOfWeek: Number(event.target.value) }
+                                : row,
+                            ),
+                          );
+                        }}
+                        value={window.dayOfWeek}
+                      >
+                        {weekdays.map((day) => (
+                          <option key={day.value} value={day.value}>
+                            {day.label}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    </Field>
+                    <Field label="Start">
+                      <TextInput
+                        aria-label="Availability start time"
+                        onChange={(event) => {
+                          setAvailabilityDraft((rows) =>
+                            rows.map((row) =>
+                              row.id === window.id
+                                ? { ...row, startMinute: fromTimeValue(event.target.value) }
+                                : row,
+                            ),
+                          );
+                        }}
+                        type="time"
+                        value={toTimeValue(window.startMinute)}
+                      />
+                    </Field>
+                    <Field label="End">
+                      <TextInput
+                        aria-label="Availability end time"
+                        onChange={(event) => {
+                          setAvailabilityDraft((rows) =>
+                            rows.map((row) =>
+                              row.id === window.id
+                                ? { ...row, endMinute: fromTimeValue(event.target.value) }
+                                : row,
+                            ),
+                          );
+                        }}
+                        type="time"
+                        value={toTimeValue(window.endMinute)}
+                      />
+                    </Field>
+                    <Button
+                      aria-label="Remove availability window"
+                      onClick={() => {
+                        setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id));
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
                     >
-                      {weekdays.map((day) => (
-                        <option key={day.value} value={day.value}>
-                          {day.label}
-                        </option>
-                      ))}
-                    </SelectInput>
-                  </Field>
-                  <Field label="Start">
-                    <TextInput
-                      aria-label="Availability start time"
-                      onChange={(event) =>
-                        setAvailabilityDraft((rows) =>
-                          rows.map((row) =>
-                            row.id === window.id ? { ...row, startMinute: fromTimeValue(event.target.value) } : row,
-                          ),
-                        )
-                      }
-                      type="time"
-                      value={toTimeValue(window.startMinute)}
-                    />
-                  </Field>
-                  <Field label="End">
-                    <TextInput
-                      aria-label="Availability end time"
-                      onChange={(event) =>
-                        setAvailabilityDraft((rows) =>
-                          rows.map((row) =>
-                            row.id === window.id ? { ...row, endMinute: fromTimeValue(event.target.value) } : row,
-                          ),
-                        )
-                      }
-                      type="time"
-                      value={toTimeValue(window.endMinute)}
-                    />
-                  </Field>
-                  <Button
-                    aria-label="Remove availability window"
-                    onClick={() => setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id))}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Trash2 aria-hidden="true" size={14} />
-                  </Button>
-                </div>
-              ))
-            )}
-          </div>
+                      <Trash2 aria-hidden="true" size={14} />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
 
-          <Button
-            className="supervisor-submit"
-            onClick={() => {
-              setAvailabilityStatus(null);
-              saveAvailability.mutate({
-                windows: availabilityDraft.map(({ dayOfWeek, startMinute, endMinute }) => ({
-                  dayOfWeek,
-                  startMinute,
-                  endMinute,
-                })),
-              });
-            }}
-            pending={saveAvailability.isPending}
-            type="button"
-          >
-            Save availability
-          </Button>
-          {availabilityStatus ? <p className="status--success">{availabilityStatus}</p> : null}
-          {saveAvailability.error ? <p className="status--error">{saveAvailability.error.message}</p> : null}
-        </section>
+            <Button
+              className="supervisor-submit"
+              onClick={() => {
+                setAvailabilityStatus(null);
+                saveAvailability.mutate({
+                  windows: availabilityDraft.map(({ dayOfWeek, startMinute, endMinute }) => ({
+                    dayOfWeek,
+                    startMinute,
+                    endMinute,
+                  })),
+                });
+              }}
+              pending={saveAvailability.isPending}
+              type="button"
+            >
+              Save availability
+            </Button>
+            {availabilityStatus ? <p className="status--success">{availabilityStatus}</p> : null}
+            {saveAvailability.error ? (
+              <p className="status--error">{saveAvailability.error.message}</p>
+            ) : null}
+          </section>
 
-        <section className="panel panel__body">
-          <div className="section-title">
-            <h2>Request shift swap</h2>
-          </div>
+          <section className="panel panel__body">
+            <div className="section-title">
+              <h2>Request shift swap</h2>
+            </div>
 
-          <div className="form-grid">
-            <Field label="Your shift">
-              <SelectInput
-                aria-label="Your shift to swap"
-                onChange={(event) => setSwapForm((form) => ({ ...form, fromShiftId: event.target.value }))}
-                value={swapForm.fromShiftId}
-              >
-                <option value="">Choose your shift</option>
-                {weekShifts.map((shift) => (
-                  <option key={shift.id} value={shift.id}>
-                    {formatShift(shift)}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
+            <div className="form-grid">
+              <Field label="Your shift">
+                <SelectInput
+                  aria-label="Your shift to swap"
+                  onChange={(event) => {
+                    setSwapForm((form) => ({ ...form, fromShiftId: event.target.value }));
+                  }}
+                  value={swapForm.fromShiftId}
+                >
+                  <option value="">Choose your shift</option>
+                  {weekShifts.map((shift) => (
+                    <option key={shift.id} value={shift.id}>
+                      {formatShift(shift)}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
 
-            <Field label="Requested shift">
-              <SelectInput
-                aria-label="Requested shift to swap with"
-                onChange={(event) => setSwapForm((form) => ({ ...form, toShiftId: event.target.value }))}
-                value={swapForm.toShiftId}
-              >
-                <option value="">Choose another staff shift</option>
-                {swapCandidates.map((shift) => (
-                  <option key={shift.id} value={shift.id}>
-                    {shift.staff?.fullName ?? 'Staff'} · {formatShift(shift)}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-          </div>
+              <Field label="Requested shift">
+                <SelectInput
+                  aria-label="Requested shift to swap with"
+                  onChange={(event) => {
+                    setSwapForm((form) => ({ ...form, toShiftId: event.target.value }));
+                  }}
+                  value={swapForm.toShiftId}
+                >
+                  <option value="">Choose another staff shift</option>
+                  {swapCandidates.map((shift) => (
+                    <option key={shift.id} value={shift.id}>
+                      {shift.staff?.fullName ?? 'Staff'} · {formatShift(shift)}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+            </div>
 
-          {swapCandidatesQuery.error ? <p className="status--error">{swapCandidatesQuery.error.message}</p> : null}
-          {!swapCandidatesQuery.isLoading && swapCandidates.length === 0 ? (
-            <p className="muted">No other staff shifts are available in this week.</p>
-          ) : null}
+            {swapCandidatesQuery.error ? (
+              <p className="status--error">{swapCandidatesQuery.error.message}</p>
+            ) : null}
+            {!swapCandidatesQuery.isLoading && swapCandidates.length === 0 ? (
+              <p className="muted">No other staff shifts are available in this week.</p>
+            ) : null}
 
-          <Button
-            className="supervisor-submit"
-            disabled={!swapForm.fromShiftId || !swapForm.toShiftId}
-            onClick={() => {
-              setSwapStatus(null);
-              requestSwap.mutate(swapForm);
-            }}
-            pending={requestSwap.isPending}
-            type="button"
-          >
-            <Send aria-hidden="true" size={16} />
-            Send request
-          </Button>
-          {swapStatus ? <p className="status--success">{swapStatus}</p> : null}
-          {requestSwap.error ? <p className="status--error">{requestSwap.error.message}</p> : null}
-        </section>
-      </aside>
+            <Button
+              className="supervisor-submit"
+              disabled={!swapForm.fromShiftId || !swapForm.toShiftId}
+              onClick={() => {
+                setSwapStatus(null);
+                requestSwap.mutate(swapForm);
+              }}
+              pending={requestSwap.isPending}
+              type="button"
+            >
+              <Send aria-hidden="true" size={16} />
+              Send request
+            </Button>
+            {swapStatus ? <p className="status--success">{swapStatus}</p> : null}
+            {requestSwap.error ? (
+              <p className="status--error">{requestSwap.error.message}</p>
+            ) : null}
+          </section>
+        </aside>
       ) : null}
     </div>
   );

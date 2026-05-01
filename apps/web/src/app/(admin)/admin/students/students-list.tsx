@@ -20,10 +20,9 @@ function initials(name: string) {
 export function StudentsList() {
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState<string | undefined>(undefined);
-  const studentsQuery = api.student.list.useQuery(
-    search ? { search } : undefined,
-    { retry: false },
-  );
+  const studentsQuery = api.student.list.useQuery(search ? { search } : undefined, {
+    retry: false,
+  });
 
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
 
@@ -40,7 +39,9 @@ export function StudentsList() {
         >
           <TextInput
             aria-label="Search students by exact name"
-            onChange={(event) => setDraftSearch(event.target.value)}
+            onChange={(event) => {
+              setDraftSearch(event.target.value);
+            }}
             placeholder="Search by exact student name"
             value={draftSearch}
           />
@@ -114,7 +115,9 @@ export function StudentsList() {
                       </div>
                     </td>
                     <td>
-                      <span className={student.active ? 'badge badge--green' : 'badge badge--amber'}>
+                      <span
+                        className={student.active ? 'badge badge--green' : 'badge badge--amber'}
+                      >
                         {student.active ? 'Active' : 'Inactive'}
                       </span>
                     </td>

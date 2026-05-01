@@ -59,16 +59,21 @@ function labelForMetaKey(key: string): string {
     to: 'To',
     type: 'Operation',
   };
-  return labels[key] ?? key.replace(/([A-Z])/gu, ' $1').replace(/^./u, (letter) => letter.toUpperCase());
+  return (
+    labels[key] ?? key.replace(/([A-Z])/gu, ' $1').replace(/^./u, (letter) => letter.toUpperCase())
+  );
 }
 
 function valueForMeta(value: unknown): string {
   if (value === null || value === undefined) return 'None';
-  if (Array.isArray(value)) return value.length > 0 ? value.join(', ') : 'None';
+  if (Array.isArray(value)) return value.length > 0 ? value.map(valueForMeta).join(', ') : 'None';
   if (value instanceof Date) return formatDate(value);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint' || typeof value === 'symbol')
+    return value.toString();
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return 'None';
 }
 
 function formatSource(value: unknown): string {
@@ -153,12 +158,12 @@ export function AuditLogViewer() {
         <div className="panel__body audit-filters">
           <SelectInput
             aria-label="Filter by action"
-            onChange={(event) =>
+            onChange={(event) => {
               setDraft((value) => ({
                 ...value,
                 action: event.target.value as AuditActionFilter,
-              }))
-            }
+              }));
+            }}
             value={draft.action}
           >
             {(['', ...ACTIONS] as const).map((action) => (
@@ -169,7 +174,9 @@ export function AuditLogViewer() {
           </SelectInput>
           <SelectInput
             aria-label="Filter by entity"
-            onChange={(event) => setDraft((value) => ({ ...value, entity: event.target.value }))}
+            onChange={(event) => {
+              setDraft((value) => ({ ...value, entity: event.target.value }));
+            }}
             value={draft.entity}
           >
             {ENTITIES.map((entity) => (
@@ -180,19 +187,25 @@ export function AuditLogViewer() {
           </SelectInput>
           <TextInput
             aria-label="Filter by user id"
-            onChange={(event) => setDraft((value) => ({ ...value, userId: event.target.value }))}
+            onChange={(event) => {
+              setDraft((value) => ({ ...value, userId: event.target.value }));
+            }}
             placeholder="Actor user id"
             value={draft.userId}
           />
           <TextInput
             aria-label="From date"
-            onChange={(event) => setDraft((value) => ({ ...value, from: event.target.value }))}
+            onChange={(event) => {
+              setDraft((value) => ({ ...value, from: event.target.value }));
+            }}
             type="date"
             value={draft.from}
           />
           <TextInput
             aria-label="To date"
-            onChange={(event) => setDraft((value) => ({ ...value, to: event.target.value }))}
+            onChange={(event) => {
+              setDraft((value) => ({ ...value, to: event.target.value }));
+            }}
             type="date"
             value={draft.to}
           />
@@ -254,8 +267,8 @@ export function AuditLogViewer() {
                     <td>
                       {row.actor ? (
                         <span className="student-row__text">
-                          <strong>{row.actor.fullName ?? 'Unknown user'}</strong>
-                          <span>{row.actor.email ?? row.actor.id}</span>
+                          <strong>{row.actor.fullName}</strong>
+                          <span>{row.actor.email}</span>
                         </span>
                       ) : (
                         <span className="muted">System</span>
@@ -275,7 +288,9 @@ export function AuditLogViewer() {
       <div className="toolbar">
         <Button
           disabled={!auditQuery.data?.nextCursor || auditQuery.isFetching}
-          onClick={() => setCursor(auditQuery.data?.nextCursor)}
+          onClick={() => {
+            setCursor(auditQuery.data?.nextCursor);
+          }}
           type="button"
           variant="secondary"
         >
@@ -284,7 +299,9 @@ export function AuditLogViewer() {
         {cursor ? (
           <Button
             disabled={auditQuery.isFetching}
-            onClick={() => setCursor(undefined)}
+            onClick={() => {
+              setCursor(undefined);
+            }}
             type="button"
             variant="ghost"
           >

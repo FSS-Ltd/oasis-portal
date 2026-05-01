@@ -116,10 +116,7 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
     });
     setPaceDrafts(
       Object.fromEntries(
-        student.subjects.map((subject) => [
-          subject.subjectId,
-          String(subject.currentPaceNumber),
-        ]),
+        student.subjects.map((subject) => [subject.subjectId, String(subject.currentPaceNumber)]),
       ),
     );
   }, [reset, studentQuery.data]);
@@ -170,17 +167,19 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
         <MotionItem>
           <form
             className="panel"
-            onSubmit={handleSubmit((values) =>
-              updateStudent.mutate({
-                id: student.id,
-                fullName: values.fullName,
-                dob: new Date(values.dob),
-                yearGroup: parseStandardSchoolYear(values.yearGroup),
-                enrolmentDate: new Date(values.enrolmentDate),
-                active: values.active,
-                address: values.address || null,
-              }),
-            )}
+            onSubmit={(event) => {
+              void handleSubmit((values) => {
+                updateStudent.mutate({
+                  id: student.id,
+                  fullName: values.fullName,
+                  dob: new Date(values.dob),
+                  yearGroup: parseStandardSchoolYear(values.yearGroup),
+                  enrolmentDate: new Date(values.enrolmentDate),
+                  active: values.active,
+                  address: values.address || null,
+                });
+              })(event);
+            }}
           >
             <div className="panel__body form-grid">
               <div className="section-title">
@@ -271,12 +270,12 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                         <TextInput
                           aria-label={`${subject.code} current PACE`}
                           min={1}
-                          onChange={(event) =>
+                          onChange={(event) => {
                             setPaceDrafts((drafts) => ({
                               ...drafts,
                               [subject.subjectId]: event.target.value,
-                            }))
-                          }
+                            }));
+                          }}
                           type="number"
                           value={paceDrafts[subject.subjectId] ?? String(subject.currentPaceNumber)}
                         />
@@ -315,7 +314,9 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                 >
                   <Field label="Assign subject">
                     <SelectInput
-                      onChange={(event) => setSubjectId(event.target.value)}
+                      onChange={(event) => {
+                        setSubjectId(event.target.value);
+                      }}
                       value={subjectId}
                     >
                       <option value="">Choose subject</option>
@@ -329,7 +330,9 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                   <Field label="Current PACE number">
                     <TextInput
                       min={1}
-                      onChange={(event) => setPaceNumber(event.target.value)}
+                      onChange={(event) => {
+                        setPaceNumber(event.target.value);
+                      }}
                       type="number"
                       value={paceNumber}
                     />
@@ -365,7 +368,9 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                   <Field hint="Search by exact parent email." label="Parent email">
                     <TextInput
                       autoComplete="email"
-                      onChange={(event) => setParentEmail(event.target.value)}
+                      onChange={(event) => {
+                        setParentEmail(event.target.value);
+                      }}
                       type="email"
                       value={parentEmail}
                     />
@@ -389,7 +394,9 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
                     <div className="divider" />
                     <Field label="Matched parent">
                       <SelectInput
-                        onChange={(event) => setSelectedParentId(event.target.value)}
+                        onChange={(event) => {
+                          setSelectedParentId(event.target.value);
+                        }}
                         value={selectedParentId}
                       >
                         <option value="">Choose parent</option>

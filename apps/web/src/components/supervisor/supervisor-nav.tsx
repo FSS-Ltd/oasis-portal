@@ -21,7 +21,9 @@ const navItems = [
 ] as const;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
-  return label === 'Dashboard' ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  return label === 'Dashboard'
+    ? pathname === href
+    : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function SupervisorSidebarNav() {
@@ -31,19 +33,14 @@ export function SupervisorSidebarNav() {
     <nav className="admin-shell__nav">
       {navItems.map((item) => {
         const Icon = item.icon;
-        const active = item.enabled && isActiveRoute(pathname, item.href, item.label);
-        const className = [
-          'admin-shell__nav-item',
-          item.enabled ? undefined : 'is-disabled',
-          active ? 'is-active' : undefined,
-        ]
+        const active = isActiveRoute(pathname, item.href, item.label);
+        const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
 
         return (
           <Link
             aria-current={active ? 'page' : undefined}
-            aria-disabled={!item.enabled}
             className={className}
             href={{ pathname: item.href }}
             key={item.label}
@@ -64,8 +61,10 @@ export function SupervisorBottomNav() {
     <nav aria-label="Mobile supervisor sections" className="admin-shell__bottom-nav">
       {navItems.slice(0, 5).map((item) => {
         const Icon = item.icon;
-        const active = item.enabled && isActiveRoute(pathname, item.href, item.label);
-        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined].filter(Boolean).join(' ');
+        const active = isActiveRoute(pathname, item.href, item.label);
+        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
+          .filter(Boolean)
+          .join(' ');
 
         return (
           <Link

@@ -111,7 +111,8 @@ function shiftToForm(shift: RotaShift): ShiftForm {
 }
 
 function availabilityLabel(window: AvailabilityWindow): string {
-  return `${dayLabels[window.dayOfWeek]} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
+  const dayLabel = dayLabels[window.dayOfWeek] ?? 'Unknown';
+  return `${dayLabel} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
 }
 
 export function RotaSchedulerClient() {
@@ -122,15 +123,24 @@ export function RotaSchedulerClient() {
   }));
   const utils = api.useUtils();
 
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
+    [weekStart],
+  );
   const weekEnd = weekDays[6] ?? weekStart;
-  const scheduleQuery = api.rota.weekSchedule.useQuery({ from: weekStart, to: weekEnd }, { retry: false });
+  const scheduleQuery = api.rota.weekSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
   const staffQuery = api.rota.listStaff.useQuery(undefined, { retry: false });
   const availabilityQuery = api.rota.staffAvailability.useQuery(undefined, { retry: false });
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
   const swapsQuery = api.rota.pendingSwapRequests.useQuery(undefined, { retry: false });
 
-  const activeBands = useMemo(() => (bandsQuery.data ?? []).filter((band) => band.active), [bandsQuery.data]);
+  const activeBands = useMemo(
+    () => (bandsQuery.data ?? []).filter((band) => band.active),
+    [bandsQuery.data],
+  );
   const shifts = (scheduleQuery.data ?? []) as RotaShift[];
   const staffAvailability = (availabilityQuery.data ?? []) as StaffAvailability[];
 
@@ -165,8 +175,11 @@ export function RotaSchedulerClient() {
     },
   });
 
-  const selectedStaffAvailability = staffAvailability.find((staff) => staff.id === shiftForm.staffUserId);
-  const mutationError = createShift.error ?? updateShift.error ?? approveSwap.error ?? rejectSwap.error;
+  const selectedStaffAvailability = staffAvailability.find(
+    (staff) => staff.id === shiftForm.staffUserId,
+  );
+  const mutationError =
+    createShift.error ?? updateShift.error ?? approveSwap.error ?? rejectSwap.error;
 
   return (
     <div className="rota-layout">
@@ -182,7 +195,9 @@ export function RotaSchedulerClient() {
             <div className="row-actions">
               <Button
                 aria-label="Previous week"
-                onClick={() => setWeekStart((current) => addDays(current, -7))}
+                onClick={() => {
+                  setWeekStart((current) => addDays(current, -7));
+                }}
                 type="button"
                 variant="secondary"
               >
@@ -201,14 +216,18 @@ export function RotaSchedulerClient() {
               </Button>
               <Button
                 aria-label="Next week"
-                onClick={() => setWeekStart((current) => addDays(current, 7))}
+                onClick={() => {
+                  setWeekStart((current) => addDays(current, 7));
+                }}
                 type="button"
                 variant="secondary"
               >
                 <ChevronRight aria-hidden="true" size={16} />
               </Button>
               <Button
-                onClick={() => scheduleQuery.refetch()}
+                onClick={() => {
+                  void scheduleQuery.refetch();
+                }}
                 pending={scheduleQuery.isFetching}
                 type="button"
                 variant="secondary"
@@ -220,7 +239,9 @@ export function RotaSchedulerClient() {
           </div>
 
           {scheduleQuery.isLoading ? <div className="empty-state">Loading rota...</div> : null}
-          {scheduleQuery.error ? <p className="status--error">{scheduleQuery.error.message}</p> : null}
+          {scheduleQuery.error ? (
+            <p className="status--error">{scheduleQuery.error.message}</p>
+          ) : null}
           <div className="rota-week-grid">
             {weekDays.map((day) => {
               const key = dateKey(day);
@@ -239,7 +260,9 @@ export function RotaSchedulerClient() {
                         <button
                           className="rota-shift"
                           key={shift.id}
-                          onClick={() => setShiftForm(shiftToForm(shift))}
+                          onClick={() => {
+                            setShiftForm(shiftToForm(shift));
+                          }}
                           style={{ borderLeftColor: shift.bandColour ?? '#5B90C5' }}
                           type="button"
                         >
@@ -291,7 +314,9 @@ export function RotaSchedulerClient() {
             >
               <Field label="Staff member">
                 <SelectInput
-                  onChange={(event) => setShiftForm({ ...shiftForm, staffUserId: event.target.value })}
+                  onChange={(event) => {
+                    setShiftForm({ ...shiftForm, staffUserId: event.target.value });
+                  }}
                   required
                   value={shiftForm.staffUserId}
                 >
@@ -305,7 +330,9 @@ export function RotaSchedulerClient() {
               </Field>
               <Field label="Year-group band">
                 <SelectInput
-                  onChange={(event) => setShiftForm({ ...shiftForm, yearGroupBandId: event.target.value })}
+                  onChange={(event) => {
+                    setShiftForm({ ...shiftForm, yearGroupBandId: event.target.value });
+                  }}
                   required
                   value={shiftForm.yearGroupBandId}
                 >
@@ -319,7 +346,9 @@ export function RotaSchedulerClient() {
               </Field>
               <Field label="Date">
                 <TextInput
-                  onChange={(event) => setShiftForm({ ...shiftForm, date: event.target.value })}
+                  onChange={(event) => {
+                    setShiftForm({ ...shiftForm, date: event.target.value });
+                  }}
                   required
                   type="date"
                   value={shiftForm.date}
@@ -328,7 +357,9 @@ export function RotaSchedulerClient() {
               <div className="form-grid form-grid--two rota-time-grid">
                 <Field label="Start time">
                   <TextInput
-                    onChange={(event) => setShiftForm({ ...shiftForm, startsAt: event.target.value })}
+                    onChange={(event) => {
+                      setShiftForm({ ...shiftForm, startsAt: event.target.value });
+                    }}
                     required
                     type="time"
                     value={shiftForm.startsAt}
@@ -336,7 +367,9 @@ export function RotaSchedulerClient() {
                 </Field>
                 <Field label="End time">
                   <TextInput
-                    onChange={(event) => setShiftForm({ ...shiftForm, endsAt: event.target.value })}
+                    onChange={(event) => {
+                      setShiftForm({ ...shiftForm, endsAt: event.target.value });
+                    }}
                     required
                     type="time"
                     value={shiftForm.endsAt}
@@ -345,7 +378,9 @@ export function RotaSchedulerClient() {
               </div>
               <Field label="Notes">
                 <TextInput
-                  onChange={(event) => setShiftForm({ ...shiftForm, notes: event.target.value })}
+                  onChange={(event) => {
+                    setShiftForm({ ...shiftForm, notes: event.target.value });
+                  }}
                   value={shiftForm.notes}
                 />
               </Field>
@@ -356,7 +391,9 @@ export function RotaSchedulerClient() {
               <div className="row-actions">
                 {shiftForm.id ? (
                   <Button
-                    onClick={() => setShiftForm({ ...emptyShiftForm, date: shiftForm.date })}
+                    onClick={() => {
+                      setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
+                    }}
                     type="button"
                     variant="secondary"
                   >
@@ -365,7 +402,11 @@ export function RotaSchedulerClient() {
                   </Button>
                 ) : null}
                 <Button pending={createShift.isPending || updateShift.isPending} type="submit">
-                  {shiftForm.id ? <Pencil aria-hidden="true" size={16} /> : <Save aria-hidden="true" size={16} />}
+                  {shiftForm.id ? (
+                    <Pencil aria-hidden="true" size={16} />
+                  ) : (
+                    <Save aria-hidden="true" size={16} />
+                  )}
                   {shiftForm.id ? 'Update shift' : 'Create shift'}
                 </Button>
               </div>
@@ -378,8 +419,12 @@ export function RotaSchedulerClient() {
             <div className="section-title">
               <h2>Availability</h2>
             </div>
-            {availabilityQuery.isLoading ? <div className="empty-state">Loading availability...</div> : null}
-            {availabilityQuery.error ? <p className="status--error">{availabilityQuery.error.message}</p> : null}
+            {availabilityQuery.isLoading ? (
+              <div className="empty-state">Loading availability...</div>
+            ) : null}
+            {availabilityQuery.error ? (
+              <p className="status--error">{availabilityQuery.error.message}</p>
+            ) : null}
             {selectedStaffAvailability ? (
               <div className="availability-list">
                 <strong>{selectedStaffAvailability.fullName}</strong>
@@ -387,7 +432,10 @@ export function RotaSchedulerClient() {
                   <span className="muted">No availability set</span>
                 ) : (
                   selectedStaffAvailability.availability.map((window) => (
-                    <span className="availability-pill" key={`${window.dayOfWeek}-${window.startMinute}`}>
+                    <span
+                      className="availability-pill"
+                      key={`${String(window.dayOfWeek)}-${String(window.startMinute)}`}
+                    >
                       {availabilityLabel(window)}
                     </span>
                   ))
@@ -428,12 +476,14 @@ export function RotaSchedulerClient() {
                       {swap.requester.fullName} with {swap.targetUser.fullName}
                     </strong>
                     <span>
-                      {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for {swap.toShift.date}{' '}
-                      {formatDateTime(swap.toShift.startsAt)}
+                      {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for{' '}
+                      {swap.toShift.date} {formatDateTime(swap.toShift.startsAt)}
                     </span>
                     <div className="row-actions">
                       <Button
-                        onClick={() => rejectSwap.mutate({ id: swap.id })}
+                        onClick={() => {
+                          rejectSwap.mutate({ id: swap.id });
+                        }}
                         pending={rejectSwap.isPending}
                         type="button"
                         variant="secondary"
@@ -442,7 +492,9 @@ export function RotaSchedulerClient() {
                         Reject
                       </Button>
                       <Button
-                        onClick={() => approveSwap.mutate({ id: swap.id })}
+                        onClick={() => {
+                          approveSwap.mutate({ id: swap.id });
+                        }}
                         pending={approveSwap.isPending}
                         type="button"
                       >

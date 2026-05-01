@@ -4,7 +4,6 @@ import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import { ShieldCheck } from 'lucide-react';
 import { api } from '@/lib/trpc';
 import { MotionList, MotionTableRow } from '@/components/admin/motion';
-import { Button } from '@/components/ui/button';
 
 function toggleTag(tags: readonly string[], tag: PermissionTag): PermissionTag[] {
   const next = new Set(tags);
@@ -31,7 +30,9 @@ export function UserTagManager() {
       <div className="section-title">
         <div>
           <h2>Permission tags</h2>
-          <p className="muted">Grant or revoke temporary access without changing a user&apos;s role.</p>
+          <p className="muted">
+            Grant or revoke temporary access without changing a user&apos;s role.
+          </p>
         </div>
       </div>
       <div className="panel panel--scroll">
@@ -69,16 +70,19 @@ export function UserTagManager() {
                         {PERMISSION_TAGS.map((tag) => {
                           const checked = user.tags.includes(tag);
                           return (
-                            <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>
+                            <label
+                              className={checked ? 'tag-toggle is-checked' : 'tag-toggle'}
+                              key={tag}
+                            >
                               <input
                                 checked={checked}
                                 disabled={updateTags.isPending}
-                                onChange={() =>
+                                onChange={() => {
                                   updateTags.mutate({
                                     userId: user.id,
                                     tags: toggleTag(user.tags, tag),
-                                  })
-                                }
+                                  });
+                                }}
                                 type="checkbox"
                               />
                               <ShieldCheck aria-hidden="true" size={14} />
