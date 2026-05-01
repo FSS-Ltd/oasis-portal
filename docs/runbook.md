@@ -145,6 +145,9 @@ Required Vercel project settings:
 - Production and preview runtime env vars configured in Vercel, including
   `DATABASE_URL`, `DIRECT_URL`, Clerk vars, Supabase public vars,
   `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, and `OASIS_BIDX_PEPPER`.
+- Any Vercel project variable needed during `@oasis/web#build` must also be
+  declared in `turbo.json` under the `build` task's `env` or `passThroughEnv`
+  list. Turborepo strict env mode otherwise strips it during Vercel builds.
 - Supabase browser/server clients live in `apps/web/src/lib/supabase`. Clerk
   remains the authentication source; Supabase Auth middleware is not configured.
 

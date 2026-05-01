@@ -43,9 +43,12 @@ Changed scope:
   secrets fail with named missing keys before the Vercel CLI attempts auth.
 - Let Vercel CLI commands read `VERCEL_TOKEN` from the CI environment instead
   of passing the token as a command-line flag.
+- Added the Vercel build-time environment allowlist to `turbo.json` so
+  Turborepo strict env mode does not strip required variables during
+  `@oasis/web#build`.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
-  setting, migration order, rollback guidance, and the `vercel pull` missing
-  credentials failure mode.
+  setting, migration order, rollback guidance, Turbo env allowlisting, and the
+  `vercel pull` missing credentials failure mode.
 
 Verification:
 
@@ -67,6 +70,12 @@ Verification:
 - `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
   pass after adding Vercel secret preflight checks.
 - `git diff --check` - pass after the Vercel deploy workflow update.
+- `pnpm exec turbo run build --filter=@oasis/web --dry=json` - pass after the
+  `turbo.json` env allowlist update.
+- `pnpm --filter @oasis/web build` - pass after the `turbo.json` env allowlist
+  update.
+- `pnpm exec turbo run build --filter=@oasis/web` - pass after the
+  `turbo.json` env allowlist update.
 - `graphify update .` - completed; graphify rebuilt the code graph without
   tracked graph output changes.
 
@@ -77,6 +86,8 @@ Notes:
 - As of this session, the repo has no GitHub Actions secrets or environment
   secrets configured for Vercel deploys. Add the required secrets in GitHub
   before expecting preview or production deployment jobs to pass.
+- Vercel connector lookup found team `team_qvufVWPpOoZtQcAtRv8KQenE` and project
+  `prj_Olv8bn7wGSG7NfeOBP4mRIyNQpzC` (`oasis-portal-web`).
 - Vercel project root is expected to be `apps/web`.
 - Supabase Auth middleware remains deferred until there is a specific
   Supabase-backed login/session flow.
