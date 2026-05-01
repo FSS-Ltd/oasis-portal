@@ -3,8 +3,11 @@
 import { useMemo, useState } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/trpc';
-import { MotionList, MotionTableRow } from '@/components/admin/motion';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
 
 const attendanceStatuses = ['Present', 'Absent', 'Late'] as const;
@@ -43,15 +46,6 @@ function todayKey(): string {
 
 function asDate(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
-}
-
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }
 
 function downloadCsv(filename: string, csv: string, contentType: string): void {
@@ -133,6 +127,106 @@ export function AttendanceCapture({
     }
   }
 
+  const tableEmpty =
+    rows.length === 0 ? (
+      <EmptyState detail={emptyMessage} title="No active students found" />
+    ) : (
+      <EmptyState detail="Choose another band or return to all bands." title="No students in this band" />
+    );
+
+  const columns: DataTableColumn<AttendanceRow>[] = [
+    {
+      id: 'name',
+      header: 'Name',
+      render: (row) => (
+        <div className="student-row">
+          <Avatar className="student-row__avatar" name={row.studentName} />
+          <span className="student-row__text">
+            <strong>{row.studentName}</strong>
+            <span>{row.studentId}</span>
+          </span>
+        </div>
+      ),
+    },
+    { id: 'year', header: 'Year', render: (row) => row.yearGroup },
+  ];
+
+  if (showBandFilter) {
+    columns.push({
+      id: 'band',
+      header: 'Band',
+      render: (row) => {
+        const band = bandForRow(row, bands);
+        return band ? (
+          <span className="attendance-band">
+            <span style={{ backgroundColor: band.colour }} />
+            {band.name}
+          </span>
+        ) : (
+          <span className="muted">Unbanded</span>
+        );
+      },
+    });
+  }
+
+  columns.push(
+    { id: 'date', header: 'Date', render: (row) => row.date },
+    {
+      id: 'status',
+      header: 'Status',
+      render: (row) => {
+        const selectedStatus = selectedStatuses[row.studentId] ?? row.status;
+        const pending = pendingRows[row.studentId] ?? false;
+        const rowError = rowErrors[row.studentId];
+
+        return (
+          <>
+            <Badge tone={selectedStatus ? 'green' : 'amber'}>{selectedStatus ?? 'Unmarked'}</Badge>
+            {pending ? <span className="attendance-row-note">Saving...</span> : null}
+            {rowError ? <span className="attendance-row-error">{rowError}</span> : null}
+          </>
+        );
+      },
+    },
+    {
+      id: 'recorded',
+      header: 'Recorded',
+      render: (row) =>
+        row.recordedAt ? row.recordedAt.toLocaleString() : <span className="muted">Not recorded</span>,
+    },
+  );
+
+  if (canRecord) {
+    columns.push({
+      id: 'actions',
+      header: <span className="sr-only">Mark attendance</span>,
+      render: (row) => {
+        const selectedStatus = selectedStatuses[row.studentId] ?? row.status;
+        const pending = pendingRows[row.studentId] ?? false;
+
+        return (
+          <div className="segmented-actions">
+            {attendanceStatuses.map((status) => (
+              <Button
+                className={selectedStatus === status ? 'is-selected' : undefined}
+                disabled={pending}
+                key={status}
+                onClick={() => {
+                  void markAttendance(row, status);
+                }}
+                size="sm"
+                type="button"
+                variant={selectedStatus === status ? 'primary' : 'secondary'}
+              >
+                {status}
+              </Button>
+            ))}
+          </div>
+        );
+      },
+    });
+  }
+
   return (
     <section>
       <div className="toolbar attendance-toolbar">
@@ -200,114 +294,16 @@ export function AttendanceCapture({
       ) : null}
 
       <div className="panel panel--scroll">
-        {attendanceQuery.isLoading ? (
-          <div className="empty-state">Loading attendance...</div>
-        ) : attendanceQuery.error ? (
-          <div className="empty-state status--error">{attendanceQuery.error.message}</div>
-        ) : rows.length === 0 ? (
-          <div className="empty-state">
-            <strong>No active students found</strong>
-            <span>{emptyMessage}</span>
-          </div>
-        ) : filteredRows.length === 0 ? (
-          <div className="empty-state">
-            <strong>No students in this band</strong>
-            <span>Choose another band or return to all bands.</span>
-          </div>
-        ) : (
-          <MotionList>
-            <table className="table attendance-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Year</th>
-                  {showBandFilter ? <th>Band</th> : null}
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Recorded</th>
-                  {canRecord ? (
-                    <th>
-                      <span className="sr-only">Mark attendance</span>
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRows.map((row) => {
-                  const band = bandForRow(row, bands);
-                  const selectedStatus = selectedStatuses[row.studentId] ?? row.status;
-                  const pending = pendingRows[row.studentId] ?? false;
-                  const rowError = rowErrors[row.studentId];
-
-                  return (
-                    <MotionTableRow key={row.studentId}>
-                      <td>
-                        <div className="student-row">
-                          <span className="student-row__avatar">{initials(row.studentName)}</span>
-                          <span className="student-row__text">
-                            <strong>{row.studentName}</strong>
-                            <span>{row.studentId}</span>
-                          </span>
-                        </div>
-                      </td>
-                      <td>{row.yearGroup}</td>
-                      {showBandFilter ? (
-                        <td>
-                          {band ? (
-                            <span className="attendance-band">
-                              <span style={{ backgroundColor: band.colour }} />
-                              {band.name}
-                            </span>
-                          ) : (
-                            <span className="muted">Unbanded</span>
-                          )}
-                        </td>
-                      ) : null}
-                      <td>{row.date}</td>
-                      <td>
-                        <span
-                          className={selectedStatus ? 'badge badge--green' : 'badge badge--amber'}
-                        >
-                          {selectedStatus ?? 'Unmarked'}
-                        </span>
-                        {pending ? <span className="attendance-row-note">Saving...</span> : null}
-                        {rowError ? <span className="attendance-row-error">{rowError}</span> : null}
-                      </td>
-                      <td>
-                        {row.recordedAt ? (
-                          row.recordedAt.toLocaleString()
-                        ) : (
-                          <span className="muted">Not recorded</span>
-                        )}
-                      </td>
-                      {canRecord ? (
-                        <td>
-                          <div className="segmented-actions">
-                            {attendanceStatuses.map((status) => (
-                              <Button
-                                className={selectedStatus === status ? 'is-selected' : undefined}
-                                disabled={pending}
-                                key={status}
-                                onClick={() => {
-                                  void markAttendance(row, status);
-                                }}
-                                size="sm"
-                                type="button"
-                                variant={selectedStatus === status ? 'primary' : 'secondary'}
-                              >
-                                {status}
-                              </Button>
-                            ))}
-                          </div>
-                        </td>
-                      ) : null}
-                    </MotionTableRow>
-                  );
-                })}
-              </tbody>
-            </table>
-          </MotionList>
-        )}
+        <DataTable
+          columns={columns}
+          empty={tableEmpty}
+          errorMessage={attendanceQuery.error?.message}
+          getRowKey={(row) => row.studentId}
+          loading={attendanceQuery.isLoading}
+          loadingLabel="Loading attendance..."
+          rows={filteredRows}
+          tableClassName="attendance-table"
+        />
       </div>
 
       {exportQuery.error ? (

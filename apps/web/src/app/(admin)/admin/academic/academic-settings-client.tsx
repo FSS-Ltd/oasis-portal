@@ -1,25 +1,23 @@
 'use client';
 
-import { Save, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { STANDARD_SCHOOL_YEARS, type StandardSchoolYear } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
+import {
+  PacePolicyPanel,
+  StandardYearsPanel,
+  type PolicyForm,
+} from './_components/academic-panels';
 
 type BandForm = {
   name: string;
   colour: string;
   sortOrder: string;
   standardYears: StandardSchoolYear[];
-};
-
-type PolicyForm = {
-  dailyTestLimitEnabled: boolean;
-  maxTestsPerStudentPerDay: string;
-  samePaceSameDayBlockEnabled: boolean;
-  passThreshold: string;
 };
 
 const emptyBandForm: BandForm = {
@@ -141,21 +139,7 @@ export function AcademicSettingsClient() {
 
   return (
     <div className="settings-grid">
-      <section className="panel settings-wide">
-        <div className="panel__body">
-          <div className="section-title">
-            <h2>Standard school years</h2>
-            <span className="badge">{STANDARD_SCHOOL_YEARS.length} years</span>
-          </div>
-          <div className="year-chip-grid" aria-label="Standard school years">
-            {STANDARD_SCHOOL_YEARS.map((year) => (
-              <span className="year-chip" key={year}>
-                {year}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+      <StandardYearsPanel yearCount={STANDARD_SCHOOL_YEARS.length} />
 
       <section className="panel">
         <div className="panel__body">
@@ -532,99 +516,22 @@ export function AcademicSettingsClient() {
         </div>
       </section>
 
-      <section className="panel settings-wide">
-        <div className="panel__body">
-          <div className="section-title">
-            <h2>PACE policy</h2>
-            <SlidersHorizontal aria-hidden="true" color="#5B90C5" size={18} />
-          </div>
-          <form
-            className="form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              updatePolicy.mutate({
-                dailyTestLimitEnabled: policyForm.dailyTestLimitEnabled,
-                maxTestsPerStudentPerDay: Number(policyForm.maxTestsPerStudentPerDay),
-                samePaceSameDayBlockEnabled: policyForm.samePaceSameDayBlockEnabled,
-                passThreshold: Number(policyForm.passThreshold),
-              });
-            }}
-          >
-            <div className="policy-grid">
-              <label className="field">
-                <span className="field__label">Daily test limit</span>
-                <input
-                  checked={policyForm.dailyTestLimitEnabled}
-                  className="switch-input"
-                  onChange={(event) => {
-                    setPolicyForm({
-                      ...policyForm,
-                      dailyTestLimitEnabled: event.target.checked,
-                    });
-                  }}
-                  type="checkbox"
-                />
-              </label>
-              <Field label="Maximum tests per student per day">
-                <TextInput
-                  min={1}
-                  max={20}
-                  onChange={(event) => {
-                    setPolicyForm({
-                      ...policyForm,
-                      maxTestsPerStudentPerDay: event.target.value,
-                    });
-                  }}
-                  type="number"
-                  value={policyForm.maxTestsPerStudentPerDay}
-                />
-              </Field>
-              <label className="field">
-                <span className="field__label">Same-day self/final block</span>
-                <input
-                  checked={policyForm.samePaceSameDayBlockEnabled}
-                  className="switch-input"
-                  onChange={(event) => {
-                    setPolicyForm({
-                      ...policyForm,
-                      samePaceSameDayBlockEnabled: event.target.checked,
-                    });
-                  }}
-                  type="checkbox"
-                />
-              </label>
-              <Field label="Pass threshold">
-                <TextInput
-                  min={1}
-                  max={100}
-                  onChange={(event) => {
-                    setPolicyForm({ ...policyForm, passThreshold: event.target.value });
-                  }}
-                  type="number"
-                  value={policyForm.passThreshold}
-                />
-              </Field>
-            </div>
-            {policyQuery.error ? (
-              <p className="status--error" role="alert">
-                {policyQuery.error.message}
-              </p>
-            ) : null}
-            {updatePolicy.error ? (
-              <p className="status--error" role="alert">
-                {updatePolicy.error.message}
-              </p>
-            ) : null}
-            {updatePolicy.isSuccess ? <p className="status--success">PACE policy saved</p> : null}
-            <div>
-              <Button pending={updatePolicy.isPending} type="submit">
-                <Save aria-hidden="true" size={16} />
-                Save PACE policy
-              </Button>
-            </div>
-          </form>
-        </div>
-      </section>
+      <PacePolicyPanel
+        form={policyForm}
+        onChange={setPolicyForm}
+        onSubmit={() => {
+          updatePolicy.mutate({
+            dailyTestLimitEnabled: policyForm.dailyTestLimitEnabled,
+            maxTestsPerStudentPerDay: Number(policyForm.maxTestsPerStudentPerDay),
+            samePaceSameDayBlockEnabled: policyForm.samePaceSameDayBlockEnabled,
+            passThreshold: Number(policyForm.passThreshold),
+          });
+        }}
+        policyError={policyQuery.error?.message}
+        saveError={updatePolicy.error?.message}
+        savePending={updatePolicy.isPending}
+        saveSuccess={updatePolicy.isSuccess}
+      />
     </div>
   );
 }

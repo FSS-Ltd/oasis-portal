@@ -3,19 +3,15 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
-import { api } from '@/lib/trpc';
-import { MotionList, MotionTableRow } from '@/components/admin/motion';
+import { api, type RouterOutputs } from '@/lib/trpc';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/ui/empty-state';
 import { TextInput } from '@/components/ui/field';
 
-function initials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-}
+type StudentRow = RouterOutputs['student']['list'][number];
 
 export function StudentsList() {
   const [draftSearch, setDraftSearch] = useState('');
@@ -25,6 +21,58 @@ export function StudentsList() {
   });
 
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+  const columns = useMemo<readonly DataTableColumn<StudentRow>[]>(
+    () => [
+      {
+        id: 'name',
+        header: 'Name',
+        render: (student) => (
+          <div className="student-row">
+            <Avatar className="student-row__avatar" name={student.fullName} />
+            <span className="student-row__text">
+              <strong>{student.fullName}</strong>
+              <span>DOB {student.dob}</span>
+            </span>
+          </div>
+        ),
+      },
+      { id: 'year', header: 'Year', render: (student) => student.yearGroup },
+      {
+        id: 'subjects',
+        header: 'Subjects',
+        render: (student) => (
+          <div className="badge-list">
+            {student.subjects.length > 0 ? (
+              student.subjects.map((subject) => (
+                <Badge key={subject.subjectId}>{subject.code}</Badge>
+              ))
+            ) : (
+              <span className="muted">None assigned</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: 'status',
+        header: 'Status',
+        render: (student) => (
+          <Badge tone={student.active ? 'green' : 'amber'}>
+            {student.active ? 'Active' : 'Inactive'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'actions',
+        header: <span className="sr-only">Actions</span>,
+        render: (student) => (
+          <Link className="button button--secondary button--sm" href={`/admin/students/${student.id}`}>
+            Open
+          </Link>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <section>
@@ -65,76 +113,20 @@ export function StudentsList() {
       </div>
 
       <div className="panel panel--scroll">
-        {studentsQuery.isLoading ? (
-          <div className="empty-state">Loading students...</div>
-        ) : studentsQuery.error ? (
-          <div className="empty-state status--error">{studentsQuery.error.message}</div>
-        ) : students.length === 0 ? (
-          <div className="empty-state">
-            <strong>No students found</strong>
-            <span>Create the first student or adjust the exact-name search.</span>
-          </div>
-        ) : (
-          <MotionList>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Year</th>
-                  <th>Subjects</th>
-                  <th>Status</th>
-                  <th>
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <MotionTableRow key={student.id}>
-                    <td>
-                      <div className="student-row">
-                        <span className="student-row__avatar">{initials(student.fullName)}</span>
-                        <span className="student-row__text">
-                          <strong>{student.fullName}</strong>
-                          <span>DOB {student.dob}</span>
-                        </span>
-                      </div>
-                    </td>
-                    <td>{student.yearGroup}</td>
-                    <td>
-                      <div className="badge-list">
-                        {student.subjects.length > 0 ? (
-                          student.subjects.map((subject) => (
-                            <span className="badge" key={subject.subjectId}>
-                              {subject.code}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="muted">None assigned</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={student.active ? 'badge badge--green' : 'badge badge--amber'}
-                      >
-                        {student.active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
-                      <Link
-                        className="button button--secondary button--sm"
-                        href={`/admin/students/${student.id}`}
-                      >
-                        Open
-                      </Link>
-                    </td>
-                  </MotionTableRow>
-                ))}
-              </tbody>
-            </table>
-          </MotionList>
-        )}
+        <DataTable
+          columns={columns}
+          empty={
+            <EmptyState
+              detail="Create the first student or adjust the exact-name search."
+              title="No students found"
+            />
+          }
+          errorMessage={studentsQuery.error?.message}
+          getRowKey={(student) => student.id}
+          loading={studentsQuery.isLoading}
+          loadingLabel="Loading students..."
+          rows={students}
+        />
       </div>
     </section>
   );

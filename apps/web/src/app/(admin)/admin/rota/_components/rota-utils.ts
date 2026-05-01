@@ -1,0 +1,108 @@
+export const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+export type ShiftForm = {
+  id: string | null;
+  staffUserId: string;
+  yearGroupBandId: string;
+  date: string;
+  startsAt: string;
+  endsAt: string;
+  notes: string;
+};
+
+export type AvailabilityWindow = {
+  dayOfWeek: number;
+  startMinute: number;
+  endMinute: number;
+};
+
+export type StaffAvailability = {
+  id: string;
+  fullName: string;
+  role: string;
+  availability: AvailabilityWindow[];
+};
+
+export type RotaShift = {
+  id: string;
+  staffUserId: string;
+  yearGroupBandId: string;
+  date: string;
+  startsAt: Date;
+  endsAt: Date;
+  notes: string | null;
+  bandName: string | null;
+  bandColour: string | null;
+  staff: { fullName: string; email: string; role: string } | null;
+};
+
+export const emptyShiftForm: ShiftForm = {
+  id: null,
+  staffUserId: '',
+  yearGroupBandId: '',
+  date: '',
+  startsAt: '09:00',
+  endsAt: '12:00',
+  notes: '',
+};
+
+export function dateKey(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export function today(): Date {
+  return new Date(`${dateKey(new Date())}T00:00:00.000Z`);
+}
+
+export function mondayFor(date: Date): Date {
+  const base = new Date(`${dateKey(date)}T00:00:00.000Z`);
+  const day = base.getUTCDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  base.setUTCDate(base.getUTCDate() + offset);
+  return base;
+}
+
+export function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+export function formatDateLabel(date: Date): string {
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+export function formatDateTime(value: Date): string {
+  return value.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
+export function formatMinute(minute: number): string {
+  const hours = Math.floor(minute / 60);
+  const minutes = minute % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+export function asDateTime(date: string, time: string): Date {
+  return new Date(`${date}T${time}:00.000Z`);
+}
+
+export function shiftToForm(shift: RotaShift): ShiftForm {
+  return {
+    id: shift.id,
+    staffUserId: shift.staffUserId,
+    yearGroupBandId: shift.yearGroupBandId,
+    date: shift.date,
+    startsAt: formatDateTime(shift.startsAt),
+    endsAt: formatDateTime(shift.endsAt),
+    notes: shift.notes ?? '',
+  };
+}
+
+export function availabilityLabel(window: AvailabilityWindow): string {
+  const dayLabel = dayLabels[window.dayOfWeek] ?? 'Unknown';
+  return `${dayLabel} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
+}

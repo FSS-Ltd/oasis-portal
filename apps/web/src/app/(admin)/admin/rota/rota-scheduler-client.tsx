@@ -1,119 +1,25 @@
 'use client';
 
-import { Check, ChevronLeft, ChevronRight, Pencil, RefreshCw, Save, X } from 'lucide-react';
+import { Check, Pencil, Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
-
-const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-
-type ShiftForm = {
-  id: string | null;
-  staffUserId: string;
-  yearGroupBandId: string;
-  date: string;
-  startsAt: string;
-  endsAt: string;
-  notes: string;
-};
-
-type AvailabilityWindow = {
-  dayOfWeek: number;
-  startMinute: number;
-  endMinute: number;
-};
-
-type StaffAvailability = {
-  id: string;
-  fullName: string;
-  role: string;
-  availability: AvailabilityWindow[];
-};
-
-type RotaShift = {
-  id: string;
-  staffUserId: string;
-  yearGroupBandId: string;
-  date: string;
-  startsAt: Date;
-  endsAt: Date;
-  notes: string | null;
-  bandName: string | null;
-  bandColour: string | null;
-  staff: { fullName: string; email: string; role: string } | null;
-};
-
-const emptyShiftForm: ShiftForm = {
-  id: null,
-  staffUserId: '',
-  yearGroupBandId: '',
-  date: '',
-  startsAt: '09:00',
-  endsAt: '12:00',
-  notes: '',
-};
-
-function dateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
-function today(): Date {
-  return new Date(`${dateKey(new Date())}T00:00:00.000Z`);
-}
-
-function mondayFor(date: Date): Date {
-  const base = new Date(`${dateKey(date)}T00:00:00.000Z`);
-  const day = base.getUTCDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  base.setUTCDate(base.getUTCDate() + offset);
-  return base;
-}
-
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
-function formatDateLabel(date: Date): string {
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-}
-
-function formatDateTime(value: Date): string {
-  return value.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  });
-}
-
-function formatMinute(minute: number): string {
-  const hours = Math.floor(minute / 60);
-  const minutes = minute % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-function asDateTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}:00.000Z`);
-}
-
-function shiftToForm(shift: RotaShift): ShiftForm {
-  return {
-    id: shift.id,
-    staffUserId: shift.staffUserId,
-    yearGroupBandId: shift.yearGroupBandId,
-    date: shift.date,
-    startsAt: formatDateTime(shift.startsAt),
-    endsAt: formatDateTime(shift.endsAt),
-    notes: shift.notes ?? '',
-  };
-}
-
-function availabilityLabel(window: AvailabilityWindow): string {
-  const dayLabel = dayLabels[window.dayOfWeek] ?? 'Unknown';
-  return `${dayLabel} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
-}
+import { RotaWeekSchedule } from './_components/rota-week-schedule';
+import {
+  addDays,
+  asDateTime,
+  availabilityLabel,
+  dateKey,
+  emptyShiftForm,
+  formatDateTime,
+  mondayFor,
+  shiftToForm,
+  today,
+  type RotaShift,
+  type ShiftForm,
+  type StaffAvailability,
+} from './_components/rota-utils';
 
 export function RotaSchedulerClient() {
   const [weekStart, setWeekStart] = useState(() => mondayFor(today()));
@@ -183,108 +89,32 @@ export function RotaSchedulerClient() {
 
   return (
     <div className="rota-layout">
-      <section className="panel rota-layout__main">
-        <div className="panel__body">
-          <div className="rota-toolbar">
-            <div>
-              <h2>Week rota</h2>
-              <p>
-                {formatDateLabel(weekStart)} - {formatDateLabel(weekEnd)}
-              </p>
-            </div>
-            <div className="row-actions">
-              <Button
-                aria-label="Previous week"
-                onClick={() => {
-                  setWeekStart((current) => addDays(current, -7));
-                }}
-                type="button"
-                variant="secondary"
-              >
-                <ChevronLeft aria-hidden="true" size={16} />
-              </Button>
-              <Button
-                onClick={() => {
-                  const nextWeek = mondayFor(today());
-                  setWeekStart(nextWeek);
-                  setShiftForm((current) => ({ ...current, date: dateKey(nextWeek) }));
-                }}
-                type="button"
-                variant="secondary"
-              >
-                This week
-              </Button>
-              <Button
-                aria-label="Next week"
-                onClick={() => {
-                  setWeekStart((current) => addDays(current, 7));
-                }}
-                type="button"
-                variant="secondary"
-              >
-                <ChevronRight aria-hidden="true" size={16} />
-              </Button>
-              <Button
-                onClick={() => {
-                  void scheduleQuery.refetch();
-                }}
-                pending={scheduleQuery.isFetching}
-                type="button"
-                variant="secondary"
-              >
-                <RefreshCw aria-hidden="true" size={16} />
-                Refresh
-              </Button>
-            </div>
-          </div>
-
-          {scheduleQuery.isLoading ? <div className="empty-state">Loading rota...</div> : null}
-          {scheduleQuery.error ? (
-            <p className="status--error">{scheduleQuery.error.message}</p>
-          ) : null}
-          <div className="rota-week-grid">
-            {weekDays.map((day) => {
-              const key = dateKey(day);
-              const dayShifts = shifts.filter((shift) => shift.date === key);
-              return (
-                <article className="rota-day" key={key}>
-                  <header>
-                    <span>{dayLabels[day.getUTCDay()]}</span>
-                    <strong>{formatDateLabel(day)}</strong>
-                  </header>
-                  {dayShifts.length === 0 ? (
-                    <p className="muted">No shifts</p>
-                  ) : (
-                    <div className="rota-shift-list">
-                      {dayShifts.map((shift) => (
-                        <button
-                          className="rota-shift"
-                          key={shift.id}
-                          onClick={() => {
-                            setShiftForm(shiftToForm(shift));
-                          }}
-                          style={{ borderLeftColor: shift.bandColour ?? '#5B90C5' }}
-                          type="button"
-                        >
-                          <span>
-                            {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
-                          </span>
-                          <strong>{shift.staff?.fullName ?? 'Unassigned staff'}</strong>
-                          <small>
-                            <i style={{ backgroundColor: shift.bandColour ?? '#5B90C5' }} />
-                            {shift.bandName ?? 'Band'}
-                          </small>
-                          {shift.notes ? <em>{shift.notes}</em> : null}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <RotaWeekSchedule
+        errorMessage={scheduleQuery.error?.message}
+        isFetching={scheduleQuery.isFetching}
+        isLoading={scheduleQuery.isLoading}
+        onNextWeek={() => {
+          setWeekStart((current) => addDays(current, 7));
+        }}
+        onPreviousWeek={() => {
+          setWeekStart((current) => addDays(current, -7));
+        }}
+        onRefresh={() => {
+          void scheduleQuery.refetch();
+        }}
+        onSelectShift={(shift) => {
+          setShiftForm(shiftToForm(shift));
+        }}
+        onThisWeek={() => {
+          const nextWeek = mondayFor(today());
+          setWeekStart(nextWeek);
+          setShiftForm((current) => ({ ...current, date: dateKey(nextWeek) }));
+        }}
+        shifts={shifts}
+        weekDays={weekDays}
+        weekEnd={weekEnd}
+        weekStart={weekStart}
+      />
 
       <aside className="rota-layout__side">
         <section className="panel">
