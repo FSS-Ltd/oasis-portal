@@ -1,6 +1,12 @@
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  typedRoutes: true,
+  outputFileTracingRoot: repoRoot,
   transpilePackages: ['@oasis/api', '@oasis/db', '@oasis/domain'],
   webpack(config) {
     config.resolve.extensionAlias = {
@@ -9,9 +15,6 @@ const nextConfig = {
       '.mjs': ['.mts', '.mjs'],
     };
     return config;
-  },
-  experimental: {
-    typedRoutes: true,
   },
 };
 

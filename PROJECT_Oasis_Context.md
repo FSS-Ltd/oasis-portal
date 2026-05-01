@@ -52,6 +52,14 @@ Changed scope:
   checks on pull requests or `main`.
 - Added `pnpm.onlyBuiltDependencies` in `package.json` for the build-script
   packages pnpm 10 reported during CI installs.
+- Upgraded `@oasis/web` from `next`/`eslint-config-next` 15.0.3 to 15.5.15
+  after Vercel blocked deployments for a vulnerable Next.js version.
+- Updated Next config for 15.5: moved `typedRoutes` out of `experimental` and
+  set an explicit repository `outputFileTracingRoot` so local/global lockfiles
+  do not confuse workspace-root detection.
+- Normalised internal unauthenticated redirects/forms to `/sign-in/` because
+  Next 15.5 typed routes model the Clerk optional catch-all sign-in route as a
+  slash-suffixed dynamic route.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
   setting, migration order, rollback guidance, Turbo env allowlisting, and the
   `vercel pull` missing credentials failure mode.
@@ -92,6 +100,20 @@ Verification:
 - `pnpm --filter @oasis/web build` - pass after the Vercel CI root-directory
   correction.
 - `git diff --check` - pass after the Vercel CI root-directory correction.
+- `pnpm view next@15.5.15 peerDependencies` - pass with network approval;
+  confirmed React 18 remains supported.
+- `pnpm --store-dir .pnpm-store --filter @oasis/web add next@15.5.15 eslint-config-next@15.5.15` -
+  pass with network approval.
+- `CI=true pnpm --store-dir .pnpm-store install --frozen-lockfile` - pass after
+  updating the lockfile.
+- `pnpm --filter @oasis/web build` - pass after the Next 15.5.15 upgrade and
+  typed-route/config fixes.
+- `pnpm --filter @oasis/web typecheck` - pass after rerunning once build had
+  regenerated `.next/types`.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm exec prettier --check apps/web/package.json apps/web/next.config.mjs apps/web/src/app/not-ready/page.tsx apps/web/src/app/post-sign-in/page.tsx PROJECT_Oasis_Context.md` -
+  pass.
+- `git diff --check` - pass after the Next 15.5.15 upgrade.
 - `graphify update .` - completed; graphify rebuilt the code graph without
   tracked graph output changes.
 
