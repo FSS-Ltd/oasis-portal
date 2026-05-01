@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-01
 **Agent:** Technical Agent (Codex)
-**Phase:** Supabase SSR + Vercel CI/CD implementation.
+**Phase:** Production Prisma runtime fix.
 
 ---
 
@@ -18,7 +18,43 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Supabase SSR + Vercel CI/CD
+## Current status - Production Prisma runtime fix
+
+Working branch: `fix/prod-migration-config`.
+
+**PR scope:** Fix production Prisma Client runtime packaging for Vercel without
+changing database schema or deployment flow.
+
+Changed scope:
+
+- Added `rhel-openssl-3.0.x` to the Prisma Client `binaryTargets` so the
+  generated client includes the query engine required by the production Vercel
+  runtime.
+- Confirmed the reported production failure is runtime packaging, not a failed
+  Prisma migration: the production GitHub Actions deploy log applied all 5
+  Prisma migrations and then applied 12 RLS statements.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate` - pass after rerunning with network access
+  so Prisma could download the `rhel-openssl-3.0.x` query engine.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm exec prettier --check PROJECT_Oasis_Context.md` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph without
+  tracked graph output changes.
+
+Notes:
+
+- The Supabase dashboard migration UI will not show these migrations because
+  this project uses Prisma migrations tracked in `public._prisma_migrations`,
+  not Supabase CLI migrations tracked in `supabase_migrations`.
+- The production database URL was exposed in chat/editor context during
+  investigation; rotate the production database password and update GitHub
+  Actions/Vercel secrets.
+
+## Previous status - Supabase SSR + Vercel CI/CD
 
 Working branch: `chore/supabase-vercel-cicd`.
 
