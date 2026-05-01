@@ -79,7 +79,7 @@ export function requireFullAdmin(user: SessionUser): void {
 
 export function requireStaff(user: SessionUser): void {
   if (!isStaff(user)) {
-    throw new AccessDeniedError('staff workflow requires full-admin or Supervisor');
+    throw new AccessDeniedError('supervisor workflow requires full-admin or Supervisor');
   }
 }
 

@@ -2,6 +2,7 @@
 
 import { Check, Pencil, Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -142,7 +143,7 @@ export function RotaSchedulerClient() {
                 }
               }}
             >
-              <Field label="Staff member">
+              <Field label="Supervisor">
                 <SelectInput
                   onChange={(event) => {
                     setShiftForm({ ...shiftForm, staffUserId: event.target.value });
@@ -150,10 +151,10 @@ export function RotaSchedulerClient() {
                   required
                   value={shiftForm.staffUserId}
                 >
-                  <option value="">Choose staff</option>
+                  <option value="">Choose supervisor</option>
                   {(staffQuery.data ?? []).map((staff) => (
                     <option key={staff.id} value={staff.id}>
-                      {staff.fullName} - {staff.role}
+                      {staff.fullName} - {roleLabel(staff.role)}
                     </option>
                   ))}
                 </SelectInput>

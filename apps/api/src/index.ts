@@ -18,6 +18,7 @@ export {
   createAdminRouter,
   type AdminRouterDeps,
 } from './routers/admin.js';
+export { profileRouter } from './routers/profile.js';
 export {
   createDefaultClerkInvitationClient,
   type ClerkInvitationClient,

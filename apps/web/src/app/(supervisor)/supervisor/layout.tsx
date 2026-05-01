@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
 import { getStaffUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
+import { roleLabel } from '@/lib/profile-display';
 import '../../(admin)/admin/admin.css';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SupervisorLayout({ children }: { children: ReactNode }) {
   const user = await getStaffUser();
-  const roleLabel = user.role === 'Supervisor' ? 'Supervisor' : 'Full-admin cover';
+  const userRoleLabel = user.role === 'Supervisor' ? 'Supervisor' : roleLabel(user.role);
 
   return (
     <div className="admin-shell supervisor-shell">
@@ -27,8 +29,9 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
             />
           </div>
           <p>Supervisor Portal</p>
-          <strong>{roleLabel}</strong>
-          <span>Daily workflow</span>
+          <strong>{userRoleLabel}</strong>
+          <span>Daily operations</span>
+          <ProfileBadgeLink href="/supervisor/profile" />
         </div>
         <SupervisorSidebarNav />
         <div className="admin-shell__foot">
@@ -43,10 +46,13 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
               <small>Supervisor Portal</small>
-              <strong>{roleLabel}</strong>
+              <strong>{userRoleLabel}</strong>
             </span>
           </Link>
-          <LogoutButton className="logout-button logout-button--mobile" />
+          <div className="admin-shell__mobile-actions">
+            <ProfileBadgeLink href="/supervisor/profile" variant="mobile" />
+            <LogoutButton className="logout-button logout-button--mobile" />
+          </div>
         </header>
         <main className="admin-shell__main">{children}</main>
         <SupervisorBottomNav />

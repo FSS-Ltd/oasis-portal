@@ -105,10 +105,10 @@ async function assertActiveStaffUser(
     select: { id: true, role: true, active: true },
   });
   if (!user) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'staff user not found' });
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'supervisor user not found' });
   }
   if (!user.active || !isStaff(user)) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not active staff' });
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not an active supervisor' });
   }
 }
 
@@ -396,7 +396,7 @@ export const attendanceRouter = router({
     });
 
     const csv = buildCsv(
-      ['Date', 'Staff User ID', 'Staff Name', 'Email', 'Role', 'Status', 'Recorded At'],
+      ['Date', 'Supervisor User ID', 'Supervisor Name', 'Email', 'Role', 'Status', 'Recorded At'],
       rows.map((row) => [
         dateKey(row.date),
         row.staffUser.id,
@@ -431,7 +431,7 @@ export const attendanceRouter = router({
     });
 
     return {
-      filename: `staff-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
+      filename: `supervisor-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
       contentType: 'text/csv; charset=utf-8',
       csv,
     };

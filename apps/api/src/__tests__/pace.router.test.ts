@@ -223,6 +223,24 @@ describe('pace.forStudent RBAC', () => {
 });
 
 describe('pace.forStudent validation', () => {
+  it('accepts non-CUID student ids and lets the database resolve them', async () => {
+    const legacyStudentId = 'student_1';
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      id: legacyStudentId,
+      active: true,
+      subjects: [],
+    });
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(caller.pace.forStudent({ studentId: legacyStudentId })).resolves.toMatchObject({
+      studentId: legacyStudentId,
+    });
+    expect(db.student.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: legacyStudentId } }),
+    );
+  });
+
   it('returns NOT_FOUND for missing student', async () => {
     const db = makeFakeDb();
     db.student.findUnique.mockResolvedValue(null);

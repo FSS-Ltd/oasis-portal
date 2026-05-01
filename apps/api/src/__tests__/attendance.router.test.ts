@@ -762,14 +762,17 @@ describe('attendance.markStaff', () => {
         date: day('2026-04-29'),
         status: 'Present',
       }),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'staff user not found' });
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'supervisor user not found' });
     await expect(
       caller.attendance.markStaff({
         staffUserId: parentUser.id,
         date: day('2026-04-29'),
         status: 'Present',
       }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'user is not active staff' });
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'user is not an active supervisor',
+    });
   });
 });
 
@@ -794,10 +797,10 @@ describe('attendance.exportStaffCsv', () => {
     });
 
     expect(exported).toEqual({
-      filename: 'staff-attendance-2026-04-28-to-2026-04-29.csv',
+      filename: 'supervisor-attendance-2026-04-28-to-2026-04-29.csv',
       contentType: 'text/csv; charset=utf-8',
       csv: [
-        'Date,Staff User ID,Staff Name,Email,Role,Status,Recorded At',
+        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Recorded At',
         '2026-04-28,ckusersup000000000000001,Supervisor User,supervisor@example.test,Supervisor,Absent,2026-04-29T11:00:00.000Z',
         '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,2026-04-29T11:01:00.000Z',
       ].join('\n'),
@@ -824,7 +827,9 @@ describe('attendance.exportStaffCsv', () => {
         from: day('2026-04-29'),
         to: day('2026-04-29'),
       }),
-    ).resolves.toMatchObject({ filename: 'staff-attendance-2026-04-29-to-2026-04-29.csv' });
+    ).resolves.toMatchObject({
+      filename: 'supervisor-attendance-2026-04-29-to-2026-04-29.csv',
+    });
     await expect(
       makeCaller(supervisorUser, db).attendance.exportStaffCsv({
         from: day('2026-04-28'),

@@ -84,7 +84,7 @@ export function UserTagManager() {
           columns={columns}
           empty={
             <EmptyState
-              detail="Invite staff or parents before assigning permission tags."
+              detail="Invite supervisors or parents before assigning permission tags."
               title="No active users found"
             />
           }

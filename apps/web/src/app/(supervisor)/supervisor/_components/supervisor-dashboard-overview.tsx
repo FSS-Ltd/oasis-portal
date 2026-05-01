@@ -134,9 +134,9 @@ export function SupervisorDashboardOverview({
   return (
     <div className="supervisor-dashboard-home" aria-label="Supervisor daily overview">
       <div className="dashboard-hero">
-        <p>{formatDate(date)} · Supervisor workspace</p>
+        <p>{formatDate(date)} · Daily overview</p>
         <h1>Good morning, Supervisor</h1>
-        <span>Daily workflow · Oasis Learning Centre</span>
+        <span>Oasis Learning Centre</span>
       </div>
 
       <section className="dashboard-grid dashboard-grid--hero" aria-label="Supervisor dashboard summary">
@@ -353,7 +353,7 @@ export function SupervisorDashboardOverview({
             <div className="section-title">
               <div>
                 <h2>Notices</h2>
-                <p className="muted">Admin notices for staff.</p>
+                <p className="muted">Admin notices for supervisors.</p>
               </div>
               <span className="badge badge--blue">{dashboardNotices.filter((notice) => !notice.read).length} unread</span>
             </div>

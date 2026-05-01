@@ -1,9 +1,5 @@
 /**
  * Root tRPC router — composes all module routers.
- *
- * Phase 0 ships skeleton routers so the shape is frozen and web/mobile clients
- * can be typed against it. Each router is fleshed out in its own Phase during
- * the build plan.
  */
 import { router } from './trpc.js';
 import { adminRouter } from './routers/admin.js';
@@ -23,6 +19,7 @@ import { leaderboardRouter } from './routers/leaderboard.js';
 import { clubRouter } from './routers/club.js';
 import { noticeRouter } from './routers/notice.js';
 import { messageRouter } from './routers/message.js';
+import { profileRouter } from './routers/profile.js';
 import { reportRouter } from './routers/report.js';
 import { rotaRouter } from './routers/rota.js';
 
@@ -44,6 +41,7 @@ export const appRouter = router({
   club: clubRouter,
   notice: noticeRouter,
   message: messageRouter,
+  profile: profileRouter,
   report: reportRouter,
   rota: rotaRouter,
 });

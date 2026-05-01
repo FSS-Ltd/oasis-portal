@@ -6,7 +6,7 @@ export default function SupervisorPacePage() {
     <MotionPage>
       <div className="page-header">
         <div>
-          <p>Supervisor workspace</p>
+          <p>Subject progress</p>
           <h1>PACE</h1>
           <p>Record self tests and final PACE tests against assigned subjects.</p>
         </div>

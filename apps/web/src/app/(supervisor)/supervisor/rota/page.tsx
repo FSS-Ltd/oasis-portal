@@ -6,7 +6,7 @@ export default function SupervisorRotaPage() {
     <MotionPage>
       <div className="page-header">
         <div>
-          <p>Supervisor workspace</p>
+          <p>My schedule</p>
           <h1>Rota</h1>
           <p>Review your shifts, maintain weekly availability, and request shift swaps.</p>
         </div>

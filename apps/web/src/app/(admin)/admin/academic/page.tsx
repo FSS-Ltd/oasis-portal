@@ -10,11 +10,11 @@ export default async function AcademicSettingsPage() {
     <MotionPage>
       <div className="page-header">
         <div>
-          <p>Phase 2 configuration</p>
+          <p>Academic setup</p>
           <h1>Academic settings</h1>
           <p>
-            Configure school years, centre groups, subjects, and PACE test rules before
-            supervisors use the daily workflow.
+            Configure school years, centre groups, subjects, and PACE test rules used across the
+            portal.
           </p>
         </div>
         <span className="badge badge--blue">

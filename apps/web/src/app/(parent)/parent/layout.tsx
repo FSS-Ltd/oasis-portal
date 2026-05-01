@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getParentUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import '../../(admin)/admin/admin.css';
 
 export const dynamic = 'force-dynamic';
@@ -27,10 +28,14 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <p>Parent Portal</p>
           <strong>Guardian access</strong>
           <span>Linked children only</span>
+          <ProfileBadgeLink href="/parent/profile" />
         </div>
         <nav className="admin-shell__nav">
-          <Link className="admin-shell__nav-item is-active" href="/parent">
+          <Link className="admin-shell__nav-item" href="/parent">
             <span>Children</span>
+          </Link>
+          <Link className="admin-shell__nav-item" href="/parent/profile">
+            <span>My Profile</span>
           </Link>
         </nav>
         <div className="admin-shell__foot">
@@ -48,7 +53,10 @@ export default async function ParentLayout({ children }: { children: ReactNode }
               <strong>Linked children</strong>
             </span>
           </Link>
-          <LogoutButton className="logout-button logout-button--mobile" />
+          <div className="admin-shell__mobile-actions">
+            <ProfileBadgeLink href="/parent/profile" variant="mobile" />
+            <LogoutButton className="logout-button logout-button--mobile" />
+          </div>
         </header>
         <main className="admin-shell__main">{children}</main>
       </div>
