@@ -63,11 +63,12 @@ Changed scope:
 - Investigated preview deployment
   `oasis-portal-dega3aszu-jean-fidele-ntagengwas-projects.vercel.app`; Vercel
   runtime logs showed `@clerk/nextjs: Missing publishableKey` for `GET /`,
-  confirming the Vercel Preview environment is missing
-  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+  confirming the deployed middleware could not read a Clerk publishable key.
+  `vercel env ls preview` showed `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` exists,
+  but `vercel env pull --environment=preview` pulled it as an empty string.
 - Added a reusable env-file validator and wired it after `vercel pull` for
-  preview and production deploy jobs so missing Vercel runtime env vars fail
-  before `vercel build`/`vercel deploy`.
+  preview and production deploy jobs so missing or empty Vercel runtime env vars
+  fail before `vercel build`/`vercel deploy`.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
   setting, migration order, rollback guidance, Turbo env allowlisting, and the
   `vercel pull` missing credentials failure mode.

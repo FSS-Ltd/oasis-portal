@@ -143,14 +143,16 @@ most likely cause is a missing or empty `VERCEL_TOKEN` secret in GitHub.
 Required Vercel project settings:
 
 - Root Directory: `apps/web`.
-- Production and preview runtime env vars configured in Vercel, including
+- Production and preview runtime env vars configured with non-empty values in
+  Vercel, including
   `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
   `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`,
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
   `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, and `OASIS_BIDX_PEPPER`.
   The web middleware reads `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at runtime; using
   `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
-  missing publishable-key error.
+  missing publishable-key error. Vercel may still list an env var whose value is
+  empty; the CI env validator treats empty values as invalid.
 - Any Vercel project variable needed during `@oasis/web#build` must also be
   declared in `turbo.json` under the `build` task's `env` or `passThroughEnv`
   list. Turborepo strict env mode otherwise strips it during Vercel builds.

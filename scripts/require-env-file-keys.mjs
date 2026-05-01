@@ -52,8 +52,8 @@ const values = loadEnvKeys(envFile);
 const missing = requiredKeys.filter((key) => !values.get(key));
 
 if (missing.length > 0) {
-  console.error(`Missing required env vars in ${envFile}: ${missing.join(', ')}`);
-  console.error('Add the missing keys in Vercel Project Settings > Environment Variables.');
+  console.error(`Missing or empty required env vars in ${envFile}: ${missing.join(', ')}`);
+  console.error('Add non-empty values in Vercel Project Settings > Environment Variables.');
   process.exit(1);
 }
 
