@@ -36,28 +36,41 @@ function loadEnvKeys(path) {
   return values;
 }
 
-const [envFile, ...requiredKeys] = process.argv.slice(2);
+function loadProcessEnvKeys() {
+  return new Map(Object.entries(process.env));
+}
 
-if (!envFile || requiredKeys.length === 0) {
-  console.error('Usage: node scripts/require-env-file-keys.mjs <env-file> <KEY> [...KEY]');
+const [source, ...requiredKeys] = process.argv.slice(2);
+const readsProcessEnv = source === '--process-env';
+
+if (!source || requiredKeys.length === 0) {
+  console.error(
+    'Usage: node scripts/require-env-file-keys.mjs <env-file|--process-env> <KEY> [...KEY]',
+  );
   process.exit(2);
 }
 
-if (!existsSync(envFile)) {
-  console.error(`Required env file not found: ${envFile}`);
+if (!readsProcessEnv && !existsSync(source)) {
+  console.error(`Required env file not found: ${source}`);
   process.exit(1);
 }
 
-const values = loadEnvKeys(envFile);
+const values = readsProcessEnv ? loadProcessEnvKeys() : loadEnvKeys(source);
 const missing = requiredKeys.filter((key) => !values.get(key));
 
 if (missing.length > 0) {
-  console.error(`Missing or empty required env vars in ${envFile}: ${missing.join(', ')}`);
-  console.error('Add non-empty values in Vercel Project Settings > Environment Variables.');
-  console.error(
-    'If the keys exist but this still fails after `vercel pull`, check whether they are marked Sensitive. Vercel pulls Sensitive values as empty strings for local/CI prebuilt builds.',
-  );
+  const label = readsProcessEnv ? 'process.env' : source;
+  console.error(`Missing or empty required env vars in ${label}: ${missing.join(', ')}`);
+  if (readsProcessEnv) {
+    console.error('Add non-empty values in GitHub Actions secrets or the job environment.');
+  } else {
+    console.error('Add non-empty values in Vercel Project Settings > Environment Variables.');
+    console.error(
+      'If the keys exist but this still fails after `vercel pull`, check whether they are marked Sensitive. Vercel pulls Sensitive values as empty strings for local/CI prebuilt builds.',
+    );
+  }
   process.exit(1);
 }
 
-console.log(`Verified ${requiredKeys.length} required env vars in ${envFile}.`);
+const label = readsProcessEnv ? 'process.env' : source;
+console.log(`Verified ${requiredKeys.length} required env vars in ${label}.`);
