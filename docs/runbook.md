@@ -6,11 +6,11 @@ each procedure is a script you can follow at 03:00 with minimal thinking.
 
 ## 1. Environments
 
-| Env        | Web                     | API (same as web) | DB                    | Key source     | Clerk env |
-| ---------- | ----------------------- | ----------------- | --------------------- | -------------- | --------- |
-| local      | http://localhost:3000   | /api/trpc         | local Postgres        | env master key | test      |
-| preview    | <vercel preview URL>    | /api/trpc         | Supabase preview DB   | env master key | test      |
-| production | https://portal.oasis... | /api/trpc         | Supabase Postgres     | env master key | live      |
+| Env        | Web                     | API (same as web) | DB                  | Key source     | Clerk env |
+| ---------- | ----------------------- | ----------------- | ------------------- | -------------- | --------- |
+| local      | http://localhost:3000   | /api/trpc         | local Postgres      | env master key | test      |
+| preview    | <vercel preview URL>    | /api/trpc         | Supabase preview DB | env master key | test      |
+| production | https://portal.oasis... | /api/trpc         | Supabase Postgres   | env master key | live      |
 
 All production data stores and auth services are pinned to UK/EU. The
 application-level master key and blind-index pepper are stored only in the
@@ -66,7 +66,8 @@ Required env vars (copy from `.env.example`):
   `postgresql://oasis:oasis@localhost:5432/oasis_dev`)
 - `NEXT_PUBLIC_SUPABASE_URL` — browser-safe Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — browser-safe Supabase publishable key
-- `CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
+- `CLERK_WEBHOOK_SIGNING_SECRET`
 - `OASIS_MASTER_KEY` — 32 random bytes, base64-encoded
 - `OASIS_MASTER_KEY_VERSION` — current master-key version, usually `1`
 - `OASIS_BIDX_PEPPER` — pepper for HMAC blind indexes
@@ -143,8 +144,13 @@ Required Vercel project settings:
 
 - Root Directory: `apps/web`.
 - Production and preview runtime env vars configured in Vercel, including
-  `DATABASE_URL`, `DIRECT_URL`, Clerk vars, Supabase public vars,
+  `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
+  `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`,
+  `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
   `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, and `OASIS_BIDX_PEPPER`.
+  The web middleware reads `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at runtime; using
+  `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
+  missing publishable-key error.
 - Any Vercel project variable needed during `@oasis/web#build` must also be
   declared in `turbo.json` under the `build` task's `env` or `passThroughEnv`
   list. Turborepo strict env mode otherwise strips it during Vercel builds.
@@ -183,7 +189,7 @@ wrong-length `OASIS_MASTER_KEY` / `OASIS_MASTER_KEY_V<n>`.
 an account that should be non-negative.
 
 1. `SELECT correlation_id, SUM(amount) FROM merit_ledger_entry GROUP BY
-   correlation_id HAVING SUM(amount) <> 0;` — list bad correlation ids.
+correlation_id HAVING SUM(amount) <> 0;` — list bad correlation ids.
 2. For each: pull all rows, identify the missing leg. Common cause is a
    partially-committed transaction from a pre-tRPC-transaction-wrapper
    migration window.

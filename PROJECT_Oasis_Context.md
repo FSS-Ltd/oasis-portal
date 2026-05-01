@@ -60,6 +60,14 @@ Changed scope:
 - Normalised internal unauthenticated redirects/forms to `/sign-in/` because
   Next 15.5 typed routes model the Clerk optional catch-all sign-in route as a
   slash-suffixed dynamic route.
+- Investigated preview deployment
+  `oasis-portal-dega3aszu-jean-fidele-ntagengwas-projects.vercel.app`; Vercel
+  runtime logs showed `@clerk/nextjs: Missing publishableKey` for `GET /`,
+  confirming the Vercel Preview environment is missing
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
+- Added a reusable env-file validator and wired it after `vercel pull` for
+  preview and production deploy jobs so missing Vercel runtime env vars fail
+  before `vercel build`/`vercel deploy`.
 - Updated `docs/runbook.md` with required GitHub secrets, Vercel root-directory
   setting, migration order, rollback guidance, Turbo env allowlisting, and the
   `vercel pull` missing credentials failure mode.
@@ -114,6 +122,15 @@ Verification:
 - `pnpm exec prettier --check apps/web/package.json apps/web/next.config.mjs apps/web/src/app/not-ready/page.tsx apps/web/src/app/post-sign-in/page.tsx PROJECT_Oasis_Context.md` -
   pass.
 - `git diff --check` - pass after the Next 15.5.15 upgrade.
+- `npx --yes vercel@53.0.1 logs dpl_6sTvuHKuoEWZz4iaKTWs5LW2EF6Z --project oasis-portal-web --scope jean-fidele-ntagengwas-projects --no-follow --status-code 500 --limit 20 --expand` -
+  pass; logs showed missing Clerk publishable key for `GET /`.
+- `ruby -e "require 'yaml'; YAML.load_file('.github/workflows/ci.yml')"` -
+  pass after adding Vercel runtime env validation.
+- `node scripts/require-env-file-keys.mjs /private/tmp/oasis-env-test A B` -
+  pass.
+- `pnpm exec prettier --check .github/workflows/ci.yml docs/runbook.md PROJECT_Oasis_Context.md scripts/require-env-file-keys.mjs` -
+  pass.
+- `git diff --check` - pass after adding Vercel runtime env validation.
 - `graphify update .` - completed; graphify rebuilt the code graph without
   tracked graph output changes.
 
