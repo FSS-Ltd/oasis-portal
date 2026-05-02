@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-01
+**Last updated:** 2026-05-02
 **Agent:** Technical Agent (Codex)
-**Phase:** Production Prisma runtime fix.
+**Phase:** Technical Support role and account-access onboarding.
 
 ---
 
@@ -18,7 +18,54 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Production Clerk webhook DB sync fix
+## Current status - Technical Support account administration
+
+Working branch: `feat/technical-support-role`.
+
+**PR scope:** Add a Technical Support role for safe account-shell onboarding and
+profile administration without exposing student, PACE, attendance, behaviour, or
+guardian-link data.
+
+Changed scope:
+
+- Added `TechnicalSupport` to the domain role list and Prisma `Role` enum,
+  including a migration that adds the enum value.
+- Added account-admin RBAC helpers that keep `TechnicalSupport` separate from
+  full-admin and staff access.
+- Added safe admin API procedures for account listing, account profile updates,
+  activation/deactivation, and restricted invites. Technical Support can manage
+  only `Parent` and `TechnicalSupport` account shells and cannot assign
+  permission tags.
+- Added `/admin/access` with a sanitized account directory, invite form, profile
+  editor, and account status controls. The route does not call student, guardian,
+  PACE, attendance, or behaviour APIs.
+- Updated admin shell access, nav visibility, role labels, and post-sign-in
+  routing so Technical Support lands on `/admin/access`.
+- Added tests for the Technical Support boundary and updated Next route types
+  after adding the route.
+- Added a small `EmailEnv` index signature compatibility fix in the existing
+  resend email code because it was blocking web/root typecheck.
+
+Verification:
+
+- `pnpm db:generate` - pass.
+- `pnpm --filter @oasis/domain test` - pass.
+- `pnpm --filter @oasis/api test` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/domain typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- Jean-Fidele will assign his own account to `TechnicalSupport` manually after
+  deployment.
+- Existing resend email files were present in the worktree and are outside this
+  role-change scope, apart from the type compatibility fix needed for checks.
+
+## Previous status - Production Clerk webhook DB sync fix
 
 Working branch: `fix/auth-post-sign-in-missing-user`.
 

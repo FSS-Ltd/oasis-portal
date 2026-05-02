@@ -5,6 +5,7 @@ import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canUseFullPaceAccess,
+  canManageUserAccounts,
   hasTag,
   isFullAdmin,
 } from '@oasis/domain';
@@ -24,7 +25,19 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const fullAdmin = isFullAdmin(user);
   const canViewStudents = canViewAnyStudentDrillThrough(user);
   const canViewPace = canUseFullPaceAccess(user);
+  const canManageAccounts = canManageUserAccounts(user);
   const userRoleLabel = roleLabel(user.role);
+  const homeHref = fullAdmin
+    ? '/admin'
+    : canManageAccounts
+      ? '/admin/access'
+      : canViewStudents
+        ? '/admin/students'
+        : canViewBehaviour
+          ? '/admin/behaviour'
+          : canViewPace
+            ? '/admin/pace'
+            : '/admin/profile';
 
   return (
     <div className="admin-shell">
@@ -50,6 +63,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewBehaviour={canViewBehaviour}
           canViewPace={canViewPace}
           canViewStudents={canViewStudents}
+          canManageUserAccounts={canManageAccounts}
           fullAdmin={fullAdmin}
         />
         <div className="admin-shell__foot">
@@ -60,7 +74,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
       <div className="admin-shell__content">
         <header className="admin-shell__mobile-header">
-          <Link className="admin-shell__mobile-brand" href="/admin/students">
+          <Link className="admin-shell__mobile-brand" href={homeHref}>
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
               <small>Supervisor Portal</small>
@@ -78,6 +92,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewBehaviour={canViewBehaviour}
           canViewPace={canViewPace}
           canViewStudents={canViewStudents}
+          canManageUserAccounts={canManageAccounts}
           fullAdmin={fullAdmin}
         />
       </div>

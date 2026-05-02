@@ -11,6 +11,7 @@ import {
   AccessDeniedError,
   requireFullAdmin,
   requireRole,
+  requireUserAccountAdmin,
   type Role,
 } from '@oasis/domain';
 import type { AppContext } from './context.js';
@@ -62,6 +63,15 @@ function toTrpcError(err: unknown): TRPCError {
 export const fullAdminProcedure = authedProcedure.use(({ ctx, next }) => {
   try {
     requireFullAdmin(ctx.user);
+  } catch (err) {
+    throw toTrpcError(err);
+  }
+  return next();
+});
+
+export const userAccountAdminProcedure = authedProcedure.use(({ ctx, next }) => {
+  try {
+    requireUserAccountAdmin(ctx.user);
   } catch (err) {
     throw toTrpcError(err);
   }

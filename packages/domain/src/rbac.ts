@@ -2,6 +2,7 @@
  * Role-based access control (ADR-002, ADR-003).
  *
  * - Head, Principal, Pastor, HeadOfDiscipline all have full-admin parity.
+ * - TechnicalSupport: account administration for Parent / TechnicalSupport shells.
  * - ClubsAdmin: clubs module only.
  * - Supervisor: daily operations, general-visibility behaviour only.
  * - Parent: own children only.
@@ -18,6 +19,7 @@ export const ROLES = [
   'Principal',
   'Pastor',
   'HeadOfDiscipline',
+  'TechnicalSupport',
   'ClubsAdmin',
   'Supervisor',
   'Parent',
@@ -54,6 +56,14 @@ const FULL_ADMIN_ROLES: ReadonlySet<Role> = new Set([
   'HeadOfDiscipline',
 ]);
 
+export const TECHNICAL_SUPPORT_MANAGEABLE_ROLES = [
+  'Parent',
+  'TechnicalSupport',
+] as const satisfies readonly Role[];
+const TECHNICAL_SUPPORT_MANAGEABLE_ROLE_SET: ReadonlySet<Role> = new Set(
+  TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
+);
+
 export function isFullAdmin(user: Pick<SessionUser, 'role'>): boolean {
   return FULL_ADMIN_ROLES.has(user.role);
 }
@@ -76,6 +86,30 @@ export class AccessDeniedError extends Error {
 export function requireFullAdmin(user: SessionUser): void {
   if (!isFullAdmin(user)) {
     throw new AccessDeniedError(`role ${user.role} is not a full admin`);
+  }
+}
+
+export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean {
+  return isFullAdmin(user) || user.role === 'TechnicalSupport';
+}
+
+export function requireUserAccountAdmin(user: SessionUser): void {
+  if (!canManageUserAccounts(user)) {
+    throw new AccessDeniedError(`role ${user.role} cannot manage user accounts`);
+  }
+}
+
+export function canManageUserAccountRole(
+  actor: Pick<SessionUser, 'role'>,
+  targetRole: Role,
+): boolean {
+  if (isFullAdmin(actor)) return true;
+  return actor.role === 'TechnicalSupport' && TECHNICAL_SUPPORT_MANAGEABLE_ROLE_SET.has(targetRole);
+}
+
+export function requireCanManageUserAccountRole(actor: SessionUser, targetRole: Role): void {
+  if (!canManageUserAccountRole(actor, targetRole)) {
+    throw new AccessDeniedError(`role ${actor.role} cannot manage ${targetRole} accounts`);
   }
 }
 
@@ -106,7 +140,9 @@ export function canViewSensitiveChildNotes(user: SessionUser): boolean {
 }
 
 export function canViewBehaviourReports(user: SessionUser): boolean {
-  return user.role === 'Head' || user.role === 'HeadOfDiscipline' || hasTag(user, 'behaviour-viewer');
+  return (
+    user.role === 'Head' || user.role === 'HeadOfDiscipline' || hasTag(user, 'behaviour-viewer')
+  );
 }
 
 export function canViewAnyStudentDrillThrough(user: SessionUser): boolean {

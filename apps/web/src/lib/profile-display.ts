@@ -6,6 +6,7 @@ export function roleLabel(role: Role): string {
     Principal: 'Principal',
     Pastor: 'Pastor',
     HeadOfDiscipline: 'Head of Discipline',
+    TechnicalSupport: 'Technical Support',
     ClubsAdmin: 'Clubs Admin',
     Supervisor: 'Supervisor',
     Parent: 'Parent',

@@ -6,6 +6,7 @@ import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canUseFullPaceAccess,
+  canManageUserAccounts,
   isFullAdmin,
   requireFullAdmin,
   requireStaff,
@@ -99,7 +100,8 @@ export async function getAdminShellUser(): Promise<SessionUser> {
       !isFullAdmin(ctx.user) &&
       !canViewBehaviourReports(ctx.user) &&
       !canViewAnyStudentDrillThrough(ctx.user) &&
-      !canUseFullPaceAccess(ctx.user)
+      !canUseFullPaceAccess(ctx.user) &&
+      !canManageUserAccounts(ctx.user)
     ) {
       notFound();
     }
@@ -111,6 +113,16 @@ export async function getAdminShellUser(): Promise<SessionUser> {
 
 export async function assertFullAdmin() {
   await getFullAdminUser();
+}
+
+export async function getUserAccountAdminUser(): Promise<SessionUser> {
+  try {
+    const user = await getAdminShellUser();
+    if (!canManageUserAccounts(user)) notFound();
+    return user;
+  } catch {
+    notFound();
+  }
 }
 
 export async function getStaffUser(): Promise<SessionUser> {
