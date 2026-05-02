@@ -49,6 +49,14 @@ Changed scope:
   normalises to `Oasis Portal <no-reply@oasisportal.space>`, the generic
   hello-world smoke email is now a branded deliverability check, and the invite
   copy no longer names the auth provider.
+- Moved Resend message bodies to versioned React Email templates with a shared
+  Oasis email shell, role-aware invite copy, text fallbacks, and Resend's
+  `react` payload path.
+- Added `APP_URL`-based logo URL support so email images use absolute public
+  URLs when configured and are omitted when absent.
+- Added an email-safe Oasis logo asset under the web public directory.
+- Fixed the invite success icon sizing in both access and staff invite forms so
+  the check mark fits cleanly inside the existing white status circle.
 - Added a deliverability runbook covering Resend verification, DMARC monitoring,
   Gmail/Outlook header checks, Google Postmaster Tools, and recipient junk
   reports.
@@ -57,13 +65,21 @@ Verification:
 
 - `pnpm db:generate` - pass.
 - `pnpm --filter @oasis/api test` - pass.
+- `pnpm --filter @oasis/api test -- email.router.test.ts` - pass; Vitest ran the
+  API suite with 172/172 tests passing.
 - `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
 - `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
 - `pnpm --filter @oasis/db typecheck` - pass.
 - `pnpm --filter @oasis/db test` - pass.
 - `pnpm lint` - pass.
 - `pnpm typecheck` - pass.
 - `pnpm --filter @oasis/web build` - pass.
+- `HOME=/private/tmp/react-email-home ./node_modules/.bin/email export --dir
+  src/emails --outDir /private/tmp/oasis-email-out --pretty` from `apps/api` -
+  pass; rendered `smoke-test-email.html` and `user-invite-email.html`.
+- `git diff --check` - pass.
 - `graphify update .` - completed; graphify rebuilt the code graph.
 
 Notes:
@@ -74,6 +90,8 @@ Notes:
   session. Rotate it in Resend/Vercel before the next production deploy.
 - Add `_dmarc.oasisportal.space` TXT `v=DMARC1; p=none;` before retesting
   mailbox placement.
+- Run `pnpm --filter @oasis/api email:smoke` only after the Resend key is
+  rotated and SPF/DKIM/DMARC checks are confirmed.
 - Existing Clerk webhook delivery remains the source of truth for activating the
   local user row.
 

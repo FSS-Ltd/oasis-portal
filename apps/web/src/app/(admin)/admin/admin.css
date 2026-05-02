@@ -1867,6 +1867,12 @@
   color: var(--oasis-success);
 }
 
+.invite-result__icon svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+
 .invite-result__summary strong,
 .invite-result__summary span {
   display: block;

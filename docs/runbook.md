@@ -149,7 +149,7 @@ Required Vercel project settings:
   `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`,
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
   `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`,
-  `RESEND_API_KEY`, and `RESEND_FROM`.
+  `APP_URL`, `RESEND_API_KEY`, and `RESEND_FROM`.
   The web middleware reads `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at runtime; using
   `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
   missing publishable-key error. Vercel may still list an env var whose value is
@@ -179,8 +179,13 @@ header checks after every DNS or sender change.
 Required production sender:
 
 ```bash
+APP_URL=https://www.oasisportal.space
 RESEND_FROM="Oasis Portal <no-reply@oasisportal.space>"
 ```
+
+`APP_URL` is used to build absolute URLs for email-safe public assets such as
+the Oasis logo. If it is missing, templates omit the logo instead of sending a
+broken image.
 
 Required DNS state:
 
