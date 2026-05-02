@@ -2,6 +2,7 @@ import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 
 export type UserRow = RouterOutputs['admin']['listUsers'][number];
+export type InvitationRow = RouterOutputs['admin']['listUserInvitations'][number];
 export type StudentRow = RouterOutputs['student']['list'][number];
 export type DirectoryFilter = 'all' | 'student' | 'supervisor' | 'parent';
 export type UserProfileTab = 'personal' | 'role' | 'contact' | 'children';
@@ -23,6 +24,14 @@ export type DirectoryItem =
       subtitle: string;
       title: string;
       user: UserRow;
+    }
+  | {
+      invitation: InvitationRow;
+      key: string;
+      kind: 'invite';
+      searchText: string;
+      subtitle: string;
+      title: string;
     };
 
 export const directoryFilters: readonly { id: DirectoryFilter; label: string }[] = [
@@ -43,7 +52,10 @@ export const userTabs = {
     { id: 'contact', label: 'Contact' },
     { id: 'children', label: 'Children' },
   ],
-} as const satisfies Record<'parent' | 'supervisor', readonly { id: UserProfileTab; label: string }[]>;
+} as const satisfies Record<
+  'parent' | 'supervisor',
+  readonly { id: UserProfileTab; label: string }[]
+>;
 
 export const studentTabs: readonly { id: StudentProfileTab; label: string }[] = [
   { id: 'personal', label: 'Personal' },

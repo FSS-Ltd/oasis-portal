@@ -1,10 +1,6 @@
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
 import { prisma } from '@oasis/db';
-import {
-  resolveInviteMetadata,
-  type PermissionTag,
-  type Role,
-} from '@oasis/domain';
+import { resolveInviteMetadata, type PermissionTag, type Role } from '@oasis/domain';
 
 type ClerkWebhookEventType = 'user.created' | 'user.updated' | 'user.deleted';
 
@@ -49,38 +45,8 @@ export interface ClerkUserStore {
   deactivateUser(clerkUserId: string): Promise<void>;
 }
 
-interface PrismaUserCreateArgs {
-  data: {
-    clerkId: string;
-    role: Role;
-    tags: string[];
-    fullNameEnc: string;
-    emailEnc: string;
-    emailBidx: string;
-    phoneEnc: string | null;
-    active: true;
-  };
-}
-
-interface PrismaUserUpdatePiiArgs {
-  where: { clerkId: string };
-  data: {
-    fullNameEnc: string;
-    emailEnc: string;
-    emailBidx: string;
-    phoneEnc: string | null;
-    active: true;
-  };
-}
-
-interface PrismaUserDeactivateArgs {
-  where: { clerkId: string };
-  data: { active: false };
-}
-
-interface PrismaUserFindUniqueArgs {
-  where: { clerkId: string };
-}
+type PrismaUserDelegate = Pick<typeof prisma.user, 'create' | 'findUnique' | 'update'>;
+type PrismaUserInvitationDelegate = Pick<typeof prisma.userInvitation, 'updateMany'>;
 
 export interface PrismaClerkUserStoreDb {
   $enc: {
@@ -88,11 +54,8 @@ export interface PrismaClerkUserStoreDb {
     encrypt(value: string | null | undefined): string | null;
     blindIndex(value: string): string;
   };
-  user: {
-    findUnique(args: PrismaUserFindUniqueArgs): Promise<{ id: string } | null>;
-    create(args: PrismaUserCreateArgs): Promise<unknown>;
-    update(args: PrismaUserUpdatePiiArgs | PrismaUserDeactivateArgs): Promise<unknown>;
-  };
+  user: PrismaUserDelegate;
+  userInvitation: PrismaUserInvitationDelegate;
 }
 
 export interface ClerkWebhookVerifier {
@@ -164,6 +127,13 @@ export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUser
 }
 
 export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma): ClerkUserStore {
+  async function acceptPendingInvitations(emailBidx: string, userId: string): Promise<void> {
+    await db.userInvitation.updateMany({
+      where: { emailBidx, status: 'Pending' },
+      data: { status: 'Accepted', acceptedAt: new Date(), acceptedUserId: userId },
+    });
+  }
+
   return {
     async upsertUser(input) {
       const fullNameEnc = db.$enc.encrypt(input.fullName);
@@ -175,7 +145,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
       // user.updated must not overwrite them with stale Clerk metadata.
       const existing = await db.user.findUnique({ where: { clerkId: input.clerkUserId } });
       if (!existing) {
-        await db.user.create({
+        const created = await db.user.create({
           data: {
             clerkId: input.clerkUserId,
             role: input.role,
@@ -186,10 +156,12 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
             phoneEnc,
             active: true,
           },
+          select: { id: true },
         });
+        await acceptPendingInvitations(emailBidx, created.id);
         return;
       }
-      await db.user.update({
+      const updated = await db.user.update({
         where: { clerkId: input.clerkUserId },
         data: {
           fullNameEnc,
@@ -198,7 +170,9 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           phoneEnc,
           active: true,
         },
+        select: { id: true },
       });
+      await acceptPendingInvitations(emailBidx, updated.id);
     },
     async deactivateUser(clerkUserId) {
       await db.user.update({

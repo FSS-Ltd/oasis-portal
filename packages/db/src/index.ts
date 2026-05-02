@@ -2,7 +2,12 @@ import { PrismaClient } from '@prisma/client';
 import { runtimeDatabaseUrl } from './database-url.js';
 import { withEncryption } from './encryption.js';
 
-export { AuditAction, Prisma } from '@prisma/client';
+export {
+  AuditAction,
+  Prisma,
+  UserInvitationEmailStatus,
+  UserInvitationStatus,
+} from '@prisma/client';
 export type { PrismaClient } from '@prisma/client';
 export * from './encryption.js';
 

@@ -8,6 +8,7 @@ import { roleLabel } from '@/lib/profile-display';
 import { EmptyState } from '@/components/ui/empty-state';
 import { InviteUserForm } from './invite-user-form';
 import { PeopleDirectory } from './_components/people-directory';
+import { PendingInviteProfilePanel } from './_components/pending-invite-profile-panel';
 import { StudentProfilePanel } from './_components/student-profile-panel';
 import { UserProfilePanel } from './_components/user-profile-panel';
 import {
@@ -21,6 +22,7 @@ export function PeopleProfilesClient() {
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
   const usersQuery = api.admin.listUsers.useQuery(undefined, { retry: false });
+  const invitationsQuery = api.admin.listUserInvitations.useQuery(undefined, { retry: false });
   const studentsQuery = api.student.list.useQuery({ includeInactive: true }, { retry: false });
 
   const directoryItems = useMemo<DirectoryItem[]>(() => {
@@ -47,13 +49,30 @@ export function PeopleProfilesClient() {
         };
       });
 
-    return [...studentItems, ...userItems].sort((a, b) => a.title.localeCompare(b.title));
-  }, [studentsQuery.data, usersQuery.data]);
+    const invitationItems: DirectoryItem[] = (invitationsQuery.data ?? []).map((invitation) => ({
+      key: `invite:${invitation.id}`,
+      kind: 'invite',
+      invitation,
+      title: invitation.email,
+      subtitle: roleLabel(invitation.role),
+      searchText: `${invitation.email} ${roleLabel(invitation.role)} pending`.toLowerCase(),
+    }));
+
+    return [...studentItems, ...userItems, ...invitationItems].sort((a, b) =>
+      a.title.localeCompare(b.title),
+    );
+  }, [invitationsQuery.data, studentsQuery.data, usersQuery.data]);
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     return directoryItems.filter((item) => {
-      const matchesFilter = filter === 'all' || item.kind === filter;
+      const filterKind =
+        item.kind === 'invite'
+          ? item.invitation.role === 'Parent'
+            ? 'parent'
+            : 'supervisor'
+          : item.kind;
+      const matchesFilter = filter === 'all' || filterKind === filter;
       const matchesSearch = query.length === 0 || item.searchText.includes(query);
       return matchesFilter && matchesSearch;
     });
@@ -70,9 +89,12 @@ export function PeopleProfilesClient() {
   }, [filteredItems, selectedKey]);
 
   const selectedItem = filteredItems.find((item) => item.key === selectedKey) ?? filteredItems[0];
-  const loading = usersQuery.isLoading || studentsQuery.isLoading;
-  const error = usersQuery.error?.message ?? studentsQuery.error?.message;
-  const accountCount = usersQuery.data?.filter((user) => user.role !== 'Student').length ?? 0;
+  const loading = usersQuery.isLoading || studentsQuery.isLoading || invitationsQuery.isLoading;
+  const error =
+    usersQuery.error?.message ?? studentsQuery.error?.message ?? invitationsQuery.error?.message;
+  const accountCount =
+    (usersQuery.data?.filter((user) => user.role !== 'Student').length ?? 0) +
+    (invitationsQuery.data?.length ?? 0);
 
   return (
     <div className="people-profiles">
@@ -81,7 +103,7 @@ export function PeopleProfilesClient() {
           <UsersRound aria-hidden="true" size={18} />
           <span>
             <strong>{String(accountCount)}</strong>
-            <small>Supervisor and parent accounts</small>
+            <small>Accounts and pending invites</small>
           </span>
         </div>
         <div className="people-summary-card">
@@ -115,13 +137,19 @@ export function PeopleProfilesClient() {
         />
         <div className="people-profiles__detail">
           {!selectedItem && !loading ? (
-            <EmptyState detail="Invite a person or create a student to begin." title="No profile selected" />
+            <EmptyState
+              detail="Invite a person or create a student to begin."
+              title="No profile selected"
+            />
           ) : null}
           {selectedItem?.kind === 'student' ? (
             <StudentProfilePanel student={selectedItem.student} />
           ) : null}
           {selectedItem?.kind === 'parent' || selectedItem?.kind === 'supervisor' ? (
             <UserProfilePanel kind={selectedItem.kind} user={selectedItem.user} />
+          ) : null}
+          {selectedItem?.kind === 'invite' ? (
+            <PendingInviteProfilePanel invitation={selectedItem.invitation} />
           ) : null}
         </div>
       </div>

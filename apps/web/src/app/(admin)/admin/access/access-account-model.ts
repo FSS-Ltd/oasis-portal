@@ -2,6 +2,7 @@ import type { Role } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 
 export type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];
+export type AccessInvitation = RouterOutputs['admin']['listUserInvitations'][number];
 export type AccessFilter = 'all' | 'active' | 'inactive' | 'Parent' | 'TechnicalSupport';
 
 export const ACCESS_INVITE_ROLES = [
