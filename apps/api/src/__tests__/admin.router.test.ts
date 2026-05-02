@@ -1201,8 +1201,9 @@ describe('admin.inviteUser', () => {
       to: 'jane@example.com',
       subject: 'Your Oasis Portal invitation',
     });
-    expect(sentEmail?.html).toContain('https://clerk.example/invite/abc');
     expect(sentEmail?.text).toContain('https://clerk.example/invite/abc');
+    expect(sentEmail && 'react' in sentEmail).toBe(true);
+    expect(sentEmail && 'html' in sentEmail).toBe(false);
     expect(db.userInvitation.update).toHaveBeenCalledWith({
       where: { id: 'invite_row_1' },
       data: { emailStatus: 'Sent', emailMessageId: 'email_123' },

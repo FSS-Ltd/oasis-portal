@@ -19,15 +19,15 @@ export {
 } from './lib/clerk.js';
 export {
   DEFAULT_RESEND_FROM,
-  HELLO_WORLD_EMAIL_HTML,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  EMAIL_LOGO_PATH,
   PRODUCTION_RESEND_FROM,
-  SMOKE_TEST_EMAIL_HTML,
   SMOKE_TEST_EMAIL_SUBJECT,
   SMOKE_TEST_EMAIL_TEXT,
   SMOKE_TEST_EMAIL_TO,
   USER_INVITE_EMAIL_SUBJECT,
+  buildEmailLogoUrl,
   buildHelloWorldEmail,
   buildSmokeTestEmail,
   buildUserInviteEmail,

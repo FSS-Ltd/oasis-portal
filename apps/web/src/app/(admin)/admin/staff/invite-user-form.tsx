@@ -107,7 +107,7 @@ export function InviteUserForm() {
           <div className="invite-result" role="status">
             <div className="invite-result__summary">
               <span className="invite-result__icon">
-                <CheckCircle2 aria-hidden="true" size={18} />
+                <CheckCircle2 aria-hidden="true" />
               </span>
               <div>
                 <strong>Invitation email sent</strong>
