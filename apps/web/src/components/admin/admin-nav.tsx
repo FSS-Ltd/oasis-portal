@@ -15,6 +15,7 @@ import {
   MessageSquare,
   ShoppingBag,
   Star,
+  UserCog,
   UsersRound,
 } from 'lucide-react';
 
@@ -23,6 +24,7 @@ const navItems = [
   { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
+  { href: '/admin/access', label: 'User Access', icon: UserCog, badge: undefined },
   { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound, badge: undefined },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
   { href: '/admin/behaviour', label: 'Behaviour', icon: Star, badge: undefined },
@@ -40,6 +42,7 @@ type AdminNavProps = {
   canViewBehaviour: boolean;
   canViewPace: boolean;
   canViewStudents: boolean;
+  canManageUserAccounts: boolean;
   fullAdmin: boolean;
 };
 
@@ -55,10 +58,16 @@ function visibleForUser(
   item: (typeof navItems)[number],
   access: Pick<
     AdminNavProps,
-    'canViewAudit' | 'canViewBehaviour' | 'canViewPace' | 'canViewStudents' | 'fullAdmin'
+    | 'canManageUserAccounts'
+    | 'canViewAudit'
+    | 'canViewBehaviour'
+    | 'canViewPace'
+    | 'canViewStudents'
+    | 'fullAdmin'
   >,
 ) {
   if (access.fullAdmin) return item.label !== 'Audit' || access.canViewAudit;
+  if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
   if (item.label === 'Behaviour') return access.canViewBehaviour;
   if (item.label === 'PACE') return access.canViewPace;
@@ -70,11 +79,19 @@ export function AdminSidebarNav({
   canViewBehaviour,
   canViewPace,
   canViewStudents,
+  canManageUserAccounts,
   fullAdmin,
 }: AdminNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter((item) =>
-    visibleForUser(item, { canViewAudit, canViewBehaviour, canViewPace, canViewStudents, fullAdmin }),
+    visibleForUser(item, {
+      canManageUserAccounts,
+      canViewAudit,
+      canViewBehaviour,
+      canViewPace,
+      canViewStudents,
+      fullAdmin,
+    }),
   );
 
   return (
@@ -114,12 +131,20 @@ export function AdminBottomNav({
   canViewBehaviour,
   canViewPace,
   canViewStudents,
+  canManageUserAccounts,
   fullAdmin,
 }: AdminNavProps) {
   const pathname = usePathname();
   const mobileNavItems = navItems
     .filter((item) =>
-      visibleForUser(item, { canViewAudit, canViewBehaviour, canViewPace, canViewStudents, fullAdmin }),
+      visibleForUser(item, {
+        canManageUserAccounts,
+        canViewAudit,
+        canViewBehaviour,
+        canViewPace,
+        canViewStudents,
+        fullAdmin,
+      }),
     )
     .slice(0, 5);
 

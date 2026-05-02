@@ -1,23 +1,15 @@
 export { appRouter, type AppRouter } from './router.js';
-export {
-  createContext,
-  type AppContext,
-  type CreateContextArgs,
-  type RlsTx,
-} from './context.js';
+export { createContext, type AppContext, type CreateContextArgs, type RlsTx } from './context.js';
 export {
   router,
   publicProcedure,
   authedProcedure,
   fullAdminProcedure,
+  userAccountAdminProcedure,
   roleProcedure,
   auditedProcedure,
 } from './trpc.js';
-export {
-  adminRouter,
-  createAdminRouter,
-  type AdminRouterDeps,
-} from './routers/admin.js';
+export { adminRouter, createAdminRouter, type AdminRouterDeps } from './routers/admin.js';
 export { profileRouter } from './routers/profile.js';
 export {
   createDefaultClerkInvitationClient,

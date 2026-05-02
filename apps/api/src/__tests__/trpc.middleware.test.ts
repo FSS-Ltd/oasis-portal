@@ -7,9 +7,16 @@ import {
   authedProcedure,
   fullAdminProcedure,
   router,
+  userAccountAdminProcedure,
 } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const technicalSupportUser: SessionUser = {
+  id: 'u_support',
+  role: 'TechnicalSupport',
+  tags: [],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'u_sup',
   role: 'Supervisor',
@@ -73,6 +80,30 @@ describe('fullAdminProcedure', () => {
   });
 });
 
+describe('userAccountAdminProcedure', () => {
+  it('allows full admins and Technical Support', async () => {
+    const appRouter = router({
+      accountAdminOnly: userAccountAdminProcedure.query(() => 'ok'),
+    });
+
+    await expect(appRouter.createCaller(makeCtx(headUser).ctx).accountAdminOnly()).resolves.toBe(
+      'ok',
+    );
+    await expect(
+      appRouter.createCaller(makeCtx(technicalSupportUser).ctx).accountAdminOnly(),
+    ).resolves.toBe('ok');
+  });
+
+  it('rejects non-account-admin roles as FORBIDDEN', async () => {
+    const appRouter = router({
+      accountAdminOnly: userAccountAdminProcedure.query(() => 'ok'),
+    });
+    const { ctx } = makeCtx(supervisorUser);
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.accountAdminOnly()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
 describe('auditedProcedure', () => {
   it('writes an Update audit row on successful mutation', async () => {
     const appRouter = router({
@@ -113,7 +144,14 @@ describe('auditedProcedure', () => {
     await expect(caller.blocked()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(auditLog.create).toHaveBeenCalledTimes(1);
     const call = auditLog.create.mock.calls[0]?.[0] as
-      | { data: { userId: string; action: string; entity: string; meta: { type: string; reason: string } } }
+      | {
+          data: {
+            userId: string;
+            action: string;
+            entity: string;
+            meta: { type: string; reason: string };
+          };
+        }
       | undefined;
     expect(call).toBeDefined();
     expect(call?.data.userId).toBe(headUser.id);

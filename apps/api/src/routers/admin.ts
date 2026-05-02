@@ -6,7 +6,8 @@
  * - `admin.linkGuardian`: idempotent guardian-student link via `create` +
  *   P2002 catch (atomic, no TOCTOU race).
  *
- * RBAC is enforced by `fullAdminProcedure`. Audit rows are written manually
+ * Most RBAC is enforced by `fullAdminProcedure`; safe account-shell operations
+ * use `userAccountAdminProcedure`. Audit rows are written manually
  * (entity-specific) rather than via `auditedProcedure`'s generic Update row.
  */
 import { TRPCError } from '@trpc/server';
@@ -14,17 +15,22 @@ import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
   PERMISSION_TAGS,
+  TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
+  canManageUserAccountRole,
   createSubjectInput,
   createYearGroupBandInput,
   deactivateSubjectInput,
   deactivateYearGroupBandInput,
   inviteUserInput,
+  isFullAdmin,
   linkGuardianInput,
+  type Role,
+  type SessionUser,
   updatePacePolicyInput,
   updateSubjectInput,
   updateYearGroupBandInput,
 } from '@oasis/domain';
-import { fullAdminProcedure, router } from '../trpc.js';
+import { fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
 import { createDefaultClerkInvitationClient, type ClerkInvitationClient } from '../lib/clerk.js';
 
 export interface AdminRouterDeps {
@@ -55,6 +61,12 @@ const updateUserProfileInput = z.object({
   fullName: z.string().trim().min(1, 'Enter the user name').optional(),
   phone: z.string().trim().max(50, 'Phone number is too long').nullable().optional(),
   address: z.string().trim().max(500, 'Address is too long').nullable().optional(),
+});
+type UpdateUserProfileInput = z.infer<typeof updateUserProfileInput>;
+
+const updateUserAccountStatusInput = z.object({
+  userId: z.string().min(1),
+  active: z.boolean(),
 });
 
 const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
@@ -87,6 +99,25 @@ type AdminUserProfileRow = Prisma.UserGetPayload<{ select: typeof adminUserProfi
 
 const STUDENT_DRILLTHROUGH_TAG = 'student-drillthrough-viewer';
 
+const userAccountSelect = Prisma.validator<Prisma.UserSelect>()({
+  id: true,
+  role: true,
+  fullNameEnc: true,
+  emailEnc: true,
+  phoneEnc: true,
+  addressEnc: true,
+  active: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+type UserAccountRow = Prisma.UserGetPayload<{ select: typeof userAccountSelect }>;
+
+function accountScopeWhereFor(actor: SessionUser): Prisma.UserWhereInput {
+  if (isFullAdmin(actor)) return {};
+  return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
+}
+
 function assertCanAssignStudentDrillThroughTag(
   actorRole: string,
   currentTags: readonly string[],
@@ -99,6 +130,35 @@ function assertCanAssignStudentDrillThroughTag(
   throw new TRPCError({
     code: 'FORBIDDEN',
     message: 'student drill-through tag can only be changed by Head',
+  });
+}
+
+function assertCanInviteUser(actor: SessionUser, role: Role, tags: readonly string[]) {
+  if (isFullAdmin(actor)) {
+    assertCanAssignStudentDrillThroughTag(actor.role, [], tags);
+    return;
+  }
+
+  if (!canManageUserAccountRole(actor, role)) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: `Technical Support cannot invite ${role} accounts`,
+    });
+  }
+
+  if (tags.length > 0) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Technical Support cannot assign permission tags',
+    });
+  }
+}
+
+function assertCanManageTargetRole(actor: SessionUser, role: Role) {
+  if (canManageUserAccountRole(actor, role)) return;
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: `Technical Support cannot manage ${role} accounts`,
   });
 }
 
@@ -119,6 +179,29 @@ function normaliseNullableText(value: string | null | undefined): string | null 
   if (value === null) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function userProfileUpdateData(
+  ctx: {
+    db: {
+      $enc: {
+        encrypt(value: string): string;
+        encrypt(value: string | null | undefined): string | null;
+      };
+    };
+  },
+  input: UpdateUserProfileInput,
+): { data: Prisma.UserUpdateInput; fields: string[] } {
+  const data: Prisma.UserUpdateInput = {};
+  if (input.fullName !== undefined) data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
+  if (input.phone !== undefined) {
+    data.phoneEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.phone));
+  }
+  if (input.address !== undefined) {
+    data.addressEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.address));
+  }
+
+  return { data, fields: Object.keys(data).sort() };
 }
 
 function mapAdminUserProfile(
@@ -142,6 +225,23 @@ function mapAdminUserProfile(
       yearGroup: guardian.student.yearGroup,
       active: guardian.student.active,
     })),
+  };
+}
+
+function mapUserAccount(
+  ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
+  user: UserAccountRow,
+) {
+  return {
+    id: user.id,
+    role: user.role,
+    fullName: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'user PII'),
+    email: decryptRequired(ctx.db.$enc.decrypt, user.emailEnc, 'user PII'),
+    phone: ctx.db.$enc.decrypt(user.phoneEnc),
+    address: ctx.db.$enc.decrypt(user.addressEnc),
+    active: user.active,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
   };
 }
 
@@ -337,65 +437,61 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       });
     }),
 
-    createSubject: fullAdminProcedure
-      .input(createSubjectInput)
-      .mutation(async ({ ctx, input }) => {
-        try {
-          const subject = await ctx.db.subject.create({
-            data: { code: input.code, name: input.name },
-            select: { id: true, code: true, name: true, active: true },
-          });
+    createSubject: fullAdminProcedure.input(createSubjectInput).mutation(async ({ ctx, input }) => {
+      try {
+        const subject = await ctx.db.subject.create({
+          data: { code: input.code, name: input.name },
+          select: { id: true, code: true, name: true, active: true },
+        });
 
-          await ctx.db.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Create',
-              entity: 'Subject',
-              entityId: subject.id,
-              meta: { code: subject.code, name: subject.name },
-            },
-          });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'Subject',
+            entityId: subject.id,
+            meta: { code: subject.code, name: subject.name },
+          },
+        });
 
-          return subject;
-        } catch (err) {
-          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: `subject code "${input.code}" already exists`,
-            });
-          }
-          throw err;
+        return subject;
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `subject code "${input.code}" already exists`,
+          });
         }
-      }),
+        throw err;
+      }
+    }),
 
-    updateSubject: fullAdminProcedure
-      .input(updateSubjectInput)
-      .mutation(async ({ ctx, input }) => {
-        try {
-          const subject = await ctx.db.subject.update({
-            where: { id: input.id },
-            data: { ...(input.name !== undefined ? { name: input.name } : {}) },
-            select: { id: true, code: true, name: true, active: true },
-          });
+    updateSubject: fullAdminProcedure.input(updateSubjectInput).mutation(async ({ ctx, input }) => {
+      try {
+        const subject = await ctx.db.subject.update({
+          where: { id: input.id },
+          data: { ...(input.name !== undefined ? { name: input.name } : {}) },
+          select: { id: true, code: true, name: true, active: true },
+        });
 
-          await ctx.db.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Update',
-              entity: 'Subject',
-              entityId: subject.id,
-              meta: { name: subject.name, source: 'admin.updateSubject' },
-            },
-          });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'Subject',
+            entityId: subject.id,
+            meta: { name: subject.name, source: 'admin.updateSubject' },
+          },
+        });
 
-          return subject;
-        } catch (err) {
-          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-            throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
-          }
-          throw err;
+        return subject;
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
         }
-      }),
+        throw err;
+      }
+    }),
 
     deactivateSubject: fullAdminProcedure
       .input(deactivateSubjectInput)
@@ -413,7 +509,11 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               action: 'Update',
               entity: 'Subject',
               entityId: subject.id,
-              meta: { code: subject.code, active: subject.active, source: 'admin.deactivateSubject' },
+              meta: {
+                code: subject.code,
+                active: subject.active,
+                source: 'admin.deactivateSubject',
+              },
             },
           });
 
@@ -496,6 +596,116 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return subjects;
     }),
 
+    listUserAccounts: userAccountAdminProcedure.query(async ({ ctx }) => {
+      const users = await ctx.db.user.findMany({
+        where: accountScopeWhereFor(ctx.user),
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        take: 100,
+        select: userAccountSelect,
+      });
+
+      const rows = users.map((user) => mapUserAccount(ctx, user));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'User',
+          meta: { count: rows.length, source: 'admin.listUserAccounts' },
+        },
+      });
+
+      return rows;
+    }),
+
+    updateUserAccountProfile: userAccountAdminProcedure
+      .input(updateUserProfileInput)
+      .mutation(async ({ ctx, input }) => {
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, role: true },
+        });
+        if (!existingUser) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+        }
+        assertCanManageTargetRole(ctx.user, existingUser.role);
+
+        const { data, fields } = userProfileUpdateData(ctx, input);
+        if (fields.length === 0) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'no user profile fields provided' });
+        }
+
+        try {
+          const user = await ctx.db.user.update({
+            where: { id: input.userId },
+            data,
+            select: userAccountSelect,
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'User',
+              entityId: user.id,
+              meta: { fields, source: 'admin.updateUserAccountProfile' },
+            },
+          });
+
+          return mapUserAccount(ctx, user);
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+          }
+          throw err;
+        }
+      }),
+
+    updateUserAccountStatus: userAccountAdminProcedure
+      .input(updateUserAccountStatusInput)
+      .mutation(async ({ ctx, input }) => {
+        if (input.userId === ctx.user.id && !input.active) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'cannot deactivate your own account',
+          });
+        }
+
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, role: true },
+        });
+        if (!existingUser) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+        }
+        assertCanManageTargetRole(ctx.user, existingUser.role);
+
+        try {
+          const user = await ctx.db.user.update({
+            where: { id: input.userId },
+            data: { active: input.active },
+            select: userAccountSelect,
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'User',
+              entityId: user.id,
+              meta: { active: user.active, source: 'admin.updateUserAccountStatus' },
+            },
+          });
+
+          return mapUserAccount(ctx, user);
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+          }
+          throw err;
+        }
+      }),
+
     listUsers: fullAdminProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
         where: { active: true },
@@ -522,16 +732,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     updateUserProfile: fullAdminProcedure
       .input(updateUserProfileInput)
       .mutation(async ({ ctx, input }) => {
-        const data: Prisma.UserUpdateInput = {};
-        if (input.fullName !== undefined) data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
-        if (input.phone !== undefined) {
-          data.phoneEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.phone));
-        }
-        if (input.address !== undefined) {
-          data.addressEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.address));
-        }
-
-        const fields = Object.keys(data).sort();
+        const { data, fields } = userProfileUpdateData(ctx, input);
         if (fields.length === 0) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'no user profile fields provided' });
         }
@@ -636,33 +837,35 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return rows;
     }),
 
-    inviteUser: fullAdminProcedure.input(inviteUserInput).mutation(async ({ ctx, input }) => {
-      assertCanAssignStudentDrillThroughTag(ctx.user.role, [], input.tags);
-      const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
-        emailAddress: input.email,
-        publicMetadata: { role: input.role, tags: input.tags },
-        ignoreExisting: true,
-        notify: true,
-      };
-      if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
-      const invitation = await getClerk().createInvitation(inviteParams);
+    inviteUser: userAccountAdminProcedure
+      .input(inviteUserInput)
+      .mutation(async ({ ctx, input }) => {
+        assertCanInviteUser(ctx.user, input.role, input.tags);
+        const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
+          emailAddress: input.email,
+          publicMetadata: { role: input.role, tags: input.tags },
+          ignoreExisting: true,
+          notify: true,
+        };
+        if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
+        const invitation = await getClerk().createInvitation(inviteParams);
 
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'Invitation',
-          entityId: invitation.id,
-          meta: { role: input.role, tags: input.tags, invitationStatus: invitation.status },
-        },
-      });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'Invitation',
+            entityId: invitation.id,
+            meta: { role: input.role, tags: input.tags, invitationStatus: invitation.status },
+          },
+        });
 
-      return {
-        invitationId: invitation.id,
-        status: invitation.status,
-        url: invitation.url,
-      };
-    }),
+        return {
+          invitationId: invitation.id,
+          status: invitation.status,
+          url: invitation.url,
+        };
+      }),
 
     linkGuardian: fullAdminProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
       const [parentUser, student] = await Promise.all([

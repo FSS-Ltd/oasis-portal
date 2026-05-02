@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  inviteUserInput,
-  linkGuardianInput,
-  resolveInviteMetadata,
-} from '../users.js';
+import { inviteUserInput, linkGuardianInput, resolveInviteMetadata } from '../users.js';
 
 describe('inviteUserInput', () => {
   it('accepts a valid payload and defaults tags to []', () => {
@@ -13,6 +9,15 @@ describe('inviteUserInput', () => {
     });
     expect(parsed.email).toBe('jane@example.com');
     expect(parsed.role).toBe('Supervisor');
+    expect(parsed.tags).toEqual([]);
+  });
+
+  it('accepts TechnicalSupport as a known role', () => {
+    const parsed = inviteUserInput.parse({
+      email: 'support@example.com',
+      role: 'TechnicalSupport',
+    });
+    expect(parsed.role).toBe('TechnicalSupport');
     expect(parsed.tags).toEqual([]);
   });
 
@@ -83,9 +88,10 @@ describe('inviteUserInput', () => {
 
 describe('linkGuardianInput', () => {
   it('accepts a valid pair', () => {
-    expect(
-      linkGuardianInput.parse({ userId: 'u_parent', studentId: 's_student' }),
-    ).toEqual({ userId: 'u_parent', studentId: 's_student' });
+    expect(linkGuardianInput.parse({ userId: 'u_parent', studentId: 's_student' })).toEqual({
+      userId: 'u_parent',
+      studentId: 's_student',
+    });
   });
 
   it('rejects empty ids', () => {
@@ -103,9 +109,14 @@ describe('resolveInviteMetadata', () => {
   });
 
   it('parses valid metadata', () => {
-    expect(
-      resolveInviteMetadata({ role: 'Supervisor', tags: ['shopkeeper'] }, defaults),
-    ).toEqual({ role: 'Supervisor', tags: ['shopkeeper'] });
+    expect(resolveInviteMetadata({ role: 'Supervisor', tags: ['shopkeeper'] }, defaults)).toEqual({
+      role: 'Supervisor',
+      tags: ['shopkeeper'],
+    });
+    expect(resolveInviteMetadata({ role: 'TechnicalSupport' }, defaults)).toEqual({
+      role: 'TechnicalSupport',
+      tags: [],
+    });
   });
 
   it('falls back to defaults silently on malformed input (does not throw)', () => {

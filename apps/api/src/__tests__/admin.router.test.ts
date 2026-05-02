@@ -13,6 +13,12 @@ const principalUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const technicalSupportUser: SessionUser = {
+  id: 'u_support',
+  role: 'TechnicalSupport',
+  tags: [],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'u_sup',
   role: 'Supervisor',
@@ -402,6 +408,10 @@ describe('admin.searchParents', () => {
     await expect(caller.admin.searchParents()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
+
+    const support = makeCaller(technicalSupportUser);
+    await expect(support.caller.admin.searchParents()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(support.db.user.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -644,11 +654,213 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.user.update).not.toHaveBeenCalled();
+
+    const support = makeCaller(technicalSupportUser);
+    await expect(support.caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      support.caller.admin.updateUserTags({ userId: 'u_sup', tags: ['audit-viewer'] }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      support.caller.admin.updateUserProfile({ userId: 'u_sup', phone: '07700 900000' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(support.db.user.findMany).not.toHaveBeenCalled();
+    expect(support.db.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin.listUserAccounts and account support updates', () => {
+  it('lists safe account rows for Technical Support without tags or child links', async () => {
+    const db = makeFakeDb();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'u_parent',
+        role: 'Parent',
+        fullNameEnc: 'enc:Jane Parent',
+        emailEnc: 'enc:jane@example.com',
+        phoneEnc: 'enc:07700 900456',
+        addressEnc: 'enc:12 High Street',
+        active: true,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+      },
+      {
+        id: 'u_support',
+        role: 'TechnicalSupport',
+        fullNameEnc: 'enc:Tech Support',
+        emailEnc: 'enc:support@example.com',
+        phoneEnc: null,
+        addressEnc: null,
+        active: false,
+        createdAt: new Date('2026-04-30T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-30T10:00:00.000Z'),
+      },
+    ]);
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    const result = await caller.admin.listUserAccounts();
+
+    expect(result).toEqual([
+      {
+        id: 'u_parent',
+        role: 'Parent',
+        fullName: 'Jane Parent',
+        email: 'jane@example.com',
+        phone: '07700 900456',
+        address: '12 High Street',
+        active: true,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+      },
+      {
+        id: 'u_support',
+        role: 'TechnicalSupport',
+        fullName: 'Tech Support',
+        email: 'support@example.com',
+        phone: null,
+        address: null,
+        active: false,
+        createdAt: new Date('2026-04-30T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-30T10:00:00.000Z'),
+      },
+    ]);
+    expect(result[0]).not.toHaveProperty('children');
+    expect(result[0]).not.toHaveProperty('tags');
+    expect(db.user.findMany).toHaveBeenCalledWith({
+      where: { role: { in: ['Parent', 'TechnicalSupport'] } },
+      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      take: 100,
+      select: {
+        id: true,
+        role: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: 2, source: 'admin.listUserAccounts' },
+      },
+    });
+  });
+
+  it('updates safe profile fields and account status for manageable roles', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent' });
+    db.user.update
+      .mockResolvedValueOnce({
+        id: 'u_parent',
+        role: 'Parent',
+        fullNameEnc: 'enc:Jane Parent',
+        emailEnc: 'enc:jane@example.com',
+        phoneEnc: 'enc:07700 900456',
+        addressEnc: null,
+        active: true,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T11:00:00.000Z'),
+      })
+      .mockResolvedValueOnce({
+        id: 'u_parent',
+        role: 'Parent',
+        fullNameEnc: 'enc:Jane Parent',
+        emailEnc: 'enc:jane@example.com',
+        phoneEnc: 'enc:07700 900456',
+        addressEnc: null,
+        active: false,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T12:00:00.000Z'),
+      });
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.updateUserAccountProfile({
+        userId: 'u_parent',
+        fullName: 'Jane Parent',
+        phone: ' 07700 900456 ',
+        address: '',
+      }),
+    ).resolves.toMatchObject({
+      id: 'u_parent',
+      fullName: 'Jane Parent',
+      phone: '07700 900456',
+      address: null,
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_parent' },
+      data: {
+        fullNameEnc: 'enc:Jane Parent',
+        phoneEnc: 'enc:07700 900456',
+        addressEnc: null,
+      },
+      select: {
+        id: true,
+        role: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await expect(
+      caller.admin.updateUserAccountStatus({ userId: 'u_parent', active: false }),
+    ).resolves.toMatchObject({ id: 'u_parent', active: false });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_parent' },
+      data: { active: false },
+      select: {
+        id: true,
+        role: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_parent',
+        meta: {
+          fields: ['addressEnc', 'fullNameEnc', 'phoneEnc'],
+          source: 'admin.updateUserAccountProfile',
+        },
+      },
+    });
+  });
+
+  it('blocks Technical Support from unsafe account targets and self-deactivation', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_sup', role: 'Supervisor' });
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.updateUserAccountProfile({ userId: 'u_sup', phone: '07700 900000' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.admin.updateUserAccountStatus({ userId: technicalSupportUser.id, active: false }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 });
 
 describe('admin.inviteUser', () => {
-  it('rejects non-full-admin callers as FORBIDDEN and writes nothing', async () => {
+  it('rejects non-account-admin callers as FORBIDDEN and writes nothing', async () => {
     const { caller, db, createInvitation } = makeCaller(supervisorUser);
     await expect(
       caller.admin.inviteUser({
@@ -659,6 +871,71 @@ describe('admin.inviteUser', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(createInvitation).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('allows Technical Support to invite Parent and TechnicalSupport accounts without tags', async () => {
+    const { caller, db, createInvitation } = makeCaller(technicalSupportUser);
+
+    await expect(
+      caller.admin.inviteUser({
+        email: 'parent@example.com',
+        role: 'Parent',
+        tags: [],
+      }),
+    ).resolves.toMatchObject({ invitationId: 'inv_xyz', status: 'pending' });
+    await expect(
+      caller.admin.inviteUser({
+        email: 'support@example.com',
+        role: 'TechnicalSupport',
+        tags: [],
+      }),
+    ).resolves.toMatchObject({ invitationId: 'inv_xyz', status: 'pending' });
+
+    expect(createInvitation).toHaveBeenNthCalledWith(1, {
+      emailAddress: 'parent@example.com',
+      publicMetadata: { role: 'Parent', tags: [] },
+      ignoreExisting: true,
+      notify: true,
+    });
+    expect(createInvitation).toHaveBeenNthCalledWith(2, {
+      emailAddress: 'support@example.com',
+      publicMetadata: { role: 'TechnicalSupport', tags: [] },
+      ignoreExisting: true,
+      notify: true,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Create',
+        entity: 'Invitation',
+        entityId: 'inv_xyz',
+        meta: {
+          role: 'Parent',
+          tags: [],
+          invitationStatus: 'pending',
+        },
+      },
+    });
+  });
+
+  it('blocks Technical Support from student-data roles and permission tags', async () => {
+    const { caller, createInvitation } = makeCaller(technicalSupportUser);
+
+    await expect(
+      caller.admin.inviteUser({
+        email: 'supervisor@example.com',
+        role: 'Supervisor',
+        tags: [],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.admin.inviteUser({
+        email: 'parent@example.com',
+        role: 'Parent',
+        tags: ['shopkeeper'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(createInvitation).not.toHaveBeenCalled();
   });
 
   it('rejects unknown role with BAD_REQUEST (zod)', async () => {
@@ -753,6 +1030,12 @@ describe('admin.linkGuardian', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.guardian.create).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
+
+    const support = makeCaller(technicalSupportUser);
+    await expect(
+      support.caller.admin.linkGuardian({ userId: 'u_parent', studentId: 's_kid' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(support.db.guardian.create).not.toHaveBeenCalled();
   });
 
   it('happy path: creates guardian + writes one audit row', async () => {
@@ -902,16 +1185,21 @@ describe('admin subject management', () => {
 
   it('createSubject rejects Supervisors as FORBIDDEN', async () => {
     const { caller, db } = makeCaller(supervisorUser);
-    await expect(
-      caller.admin.createSubject({ code: 'MATH', name: 'Maths' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(caller.admin.createSubject({ code: 'MATH', name: 'Maths' })).rejects.toMatchObject(
+      { code: 'FORBIDDEN' },
+    );
     expect(db.subject.create).not.toHaveBeenCalled();
   });
 
   it('updateSubject updates name and writes audit row', async () => {
     const db = makeFakeDb();
     const subId = 'cksubject00000000000000001';
-    db.subject.update.mockResolvedValue({ id: subId, code: 'MATH', name: 'Maths Revised', active: true });
+    db.subject.update.mockResolvedValue({
+      id: subId,
+      code: 'MATH',
+      name: 'Maths Revised',
+      active: true,
+    });
     const { caller } = makeCaller(headUser, { db });
 
     const result = await caller.admin.updateSubject({ id: subId, name: 'Maths Revised' });
@@ -930,7 +1218,10 @@ describe('admin subject management', () => {
   it('updateSubject returns NOT_FOUND for missing id', async () => {
     const db = makeFakeDb();
     db.subject.update.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' }),
+      new Prisma.PrismaClientKnownRequestError('Not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
     );
     const { caller } = makeCaller(headUser, { db });
 
@@ -973,7 +1264,10 @@ describe('admin subject management', () => {
   it('deactivateSubject returns NOT_FOUND for missing id', async () => {
     const db = makeFakeDb();
     db.subject.update.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('Not found', { code: 'P2025', clientVersion: 'test' }),
+      new Prisma.PrismaClientKnownRequestError('Not found', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
     );
     const { caller } = makeCaller(headUser, { db });
 
@@ -993,9 +1287,7 @@ describe('admin subject management', () => {
 
   it('listActiveSubjects returns only active subjects', async () => {
     const db = makeFakeDb();
-    db.subject.findMany.mockResolvedValue([
-      { id: 'sub_math', code: 'MATH', name: 'Mathematics' },
-    ]);
+    db.subject.findMany.mockResolvedValue([{ id: 'sub_math', code: 'MATH', name: 'Mathematics' }]);
     const { caller } = makeCaller(headUser, { db });
 
     const result = await caller.admin.listActiveSubjects();
@@ -1081,9 +1373,9 @@ describe('admin PACE policy', () => {
 
   it('updatePacePolicy rejects invalid passThreshold (0)', async () => {
     const { caller } = makeCaller(headUser);
-    await expect(
-      caller.admin.updatePacePolicy({ passThreshold: 0 }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller.admin.updatePacePolicy({ passThreshold: 0 })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
   });
 
   it('updatePacePolicy rejects invalid maxTestsPerStudentPerDay (0)', async () => {

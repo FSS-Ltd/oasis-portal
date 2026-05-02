@@ -25,6 +25,7 @@ enum Role {
   Principal
   Pastor
   HeadOfDiscipline
+  TechnicalSupport
   ClubsAdmin
   Supervisor
   Parent
