@@ -147,7 +147,6 @@ jobs:
     env:
       DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
       DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-      PG_DUMP_CONTAINER_ID: ${{ job.services.postgres.id }}
 
     steps:
       - uses: actions/checkout@v4
@@ -175,6 +174,8 @@ jobs:
         run: pnpm db:integration
 
       - name: Verify encrypted dump
+        env:
+          PG_DUMP_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: pnpm verify:encryption
 
   deploy-preview:
