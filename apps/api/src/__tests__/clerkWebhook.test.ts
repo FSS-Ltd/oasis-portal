@@ -41,6 +41,18 @@ function fakeEncrypt(value: string | null | undefined): string | null {
   return value === null || value === undefined ? null : `enc:${value}`;
 }
 
+type FakeInvitationUpdateMany = (args: {
+  data: {
+    acceptedAt: Date;
+    acceptedUserId: string;
+    status: 'Accepted';
+  };
+  where: {
+    emailBidx: string;
+    status: 'Pending';
+  };
+}) => Promise<{ count: number }>;
+
 describe('mapClerkUserToUpsertInput', () => {
   it('maps Clerk user payloads to the local user sync contract with default role/tags', () => {
     expect(mapClerkUserToUpsertInput(userCreatedEvent.data)).toEqual({
@@ -139,6 +151,7 @@ describe('createPrismaClerkUserStore', () => {
     const findUnique = vi.fn().mockResolvedValue(existing);
     const create = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
+    const updateMany = vi.fn<FakeInvitationUpdateMany>().mockResolvedValue({ count: 1 });
     const db = {
       $enc: {
         encrypt: fakeEncrypt,
@@ -147,12 +160,20 @@ describe('createPrismaClerkUserStore', () => {
         },
       },
       user: { findUnique, create, update },
-    } satisfies PrismaClerkUserStoreDb;
-    return { db, findUnique, create, update };
+      userInvitation: { updateMany },
+    };
+    return {
+      db: db as unknown as PrismaClerkUserStoreDb,
+      findUnique,
+      create,
+      update,
+      updateMany,
+    };
   }
 
   it('creates a new user with role/tags from input on first sync', async () => {
-    const { db, findUnique, create, update } = makeDb(null);
+    const { db, findUnique, create, update, updateMany } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_new' });
     const store = createPrismaClerkUserStore(db);
 
     await store.upsertUser({
@@ -176,12 +197,23 @@ describe('createPrismaClerkUserStore', () => {
         phoneEnc: 'enc:+447700900123',
         active: true,
       },
+      select: { id: true },
     });
     expect(update).not.toHaveBeenCalled();
+    expect(updateMany).toHaveBeenCalledOnce();
+    const updateManyArgs = updateMany.mock.calls[0]?.[0];
+    expect(updateManyArgs?.where).toEqual({
+      emailBidx: 'bidx:jean@example.com',
+      status: 'Pending',
+    });
+    expect(updateManyArgs?.data.status).toBe('Accepted');
+    expect(updateManyArgs?.data.acceptedUserId).toBe('cuid_new');
+    expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
   });
 
   it('updates PII only on existing-user re-sync (does not stomp role/tags)', async () => {
-    const { db, findUnique, create, update } = makeDb({ id: 'cuid_existing' });
+    const { db, findUnique, create, update, updateMany } = makeDb({ id: 'cuid_existing' });
+    update.mockResolvedValue({ id: 'cuid_existing' });
     const store = createPrismaClerkUserStore(db);
 
     await store.upsertUser({
@@ -204,7 +236,17 @@ describe('createPrismaClerkUserStore', () => {
         phoneEnc: 'enc:+447700900123',
         active: true,
       },
+      select: { id: true },
     });
+    expect(updateMany).toHaveBeenCalledOnce();
+    const updateManyArgs = updateMany.mock.calls[0]?.[0];
+    expect(updateManyArgs?.where).toEqual({
+      emailBidx: 'bidx:jean@example.com',
+      status: 'Pending',
+    });
+    expect(updateManyArgs?.data.status).toBe('Accepted');
+    expect(updateManyArgs?.data.acceptedUserId).toBe('cuid_existing');
+    expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
   });
 });
 

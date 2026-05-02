@@ -56,8 +56,7 @@
   border: 1px solid rgba(212, 229, 245, 0.72);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 242, 249, 0.94)),
-    #ffffff;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(238, 242, 249, 0.94)), #ffffff;
   box-shadow:
     0 14px 30px rgba(7, 13, 34, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.85);
@@ -1409,6 +1408,7 @@
 
 .people-directory__filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 12px 12px 8px;
 }
@@ -1427,7 +1427,9 @@
 }
 
 .people-directory__filters button {
-  flex: 1;
+  flex: 1 1 104px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .people-directory__filters button.is-selected,
@@ -1493,8 +1495,7 @@
   gap: 3px;
 }
 
-.people-directory-row strong,
-.people-directory-row small {
+.people-directory-row strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1508,16 +1509,25 @@
 .people-directory-row small {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   color: var(--oasis-text-secondary);
   font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .people-directory-row small i {
+  flex: 0 0 auto;
   width: 6px;
   height: 6px;
   border-radius: 999px;
   background: var(--oasis-blue);
+}
+
+.people-directory-row .badge {
+  min-height: 18px;
+  padding: 0 7px;
+  font-size: 0.62rem;
 }
 
 .people-avatar--parent,
@@ -1926,16 +1936,14 @@
   border: 1px solid var(--oasis-border);
   border-radius: 999px;
   background:
-    radial-gradient(circle at 11px 50%, #ffffff 0 7px, transparent 8px),
-    var(--oasis-text-muted);
+    radial-gradient(circle at 11px 50%, #ffffff 0 7px, transparent 8px), var(--oasis-text-muted);
   cursor: pointer;
   transition: background 160ms ease;
 }
 
 .switch-input:checked {
   background:
-    radial-gradient(circle at 29px 50%, #ffffff 0 7px, transparent 8px),
-    var(--oasis-blue);
+    radial-gradient(circle at 29px 50%, #ffffff 0 7px, transparent 8px), var(--oasis-blue);
 }
 
 .button {
@@ -2181,7 +2189,8 @@
 }
 
 .behaviour-entry-card p,
-.behaviour-entry-card span:not(.behaviour-avatar):not(.head-merit-pill):not(.behaviour-category-pill) {
+.behaviour-entry-card
+  span:not(.behaviour-avatar):not(.head-merit-pill):not(.behaviour-category-pill) {
   margin: 0;
   color: var(--oasis-text-secondary);
   font-size: 0.8rem;

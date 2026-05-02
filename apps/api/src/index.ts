@@ -22,7 +22,9 @@ export {
   HELLO_WORLD_EMAIL_HTML,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  USER_INVITE_EMAIL_SUBJECT,
   buildHelloWorldEmail,
+  buildUserInviteEmail,
   createResendEmailClient,
   readEmailConfig,
   type EmailClient,
@@ -30,6 +32,7 @@ export {
   type EmailEnv,
   type SendEmailInput,
   type SendEmailResult,
+  type UserInviteEmailInput,
 } from './lib/email.js';
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
 export {

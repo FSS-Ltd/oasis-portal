@@ -3,15 +3,30 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search, UserCheck, UserCog, UserPlus, UsersRound } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { AccessAccountPanel } from './access-account-panel';
-import { accessFilters, type AccessAccount, type AccessFilter } from './access-account-model';
+import {
+  accessFilters,
+  type AccessAccount,
+  type AccessFilter,
+  type AccessInvitation,
+} from './access-account-model';
 import { AccessInviteForm } from './access-invite-form';
+import { AccessPendingInvitePanel } from './access-pending-invite-panel';
 
 interface AccessManagementClientProps {
   currentUserId: string;
+}
+
+type AccessDirectoryRow =
+  | { account: AccessAccount; key: string; kind: 'account' }
+  | { invitation: AccessInvitation; key: string; kind: 'invitation' };
+
+function rowRole(row: AccessDirectoryRow): AccessAccount['role'] {
+  return row.kind === 'account' ? row.account.role : row.invitation.role;
 }
 
 function filterAccount(account: AccessAccount, filter: AccessFilter, query: string): boolean {
@@ -26,33 +41,66 @@ function filterAccount(account: AccessAccount, filter: AccessFilter, query: stri
   return matchesFilter && matchesSearch;
 }
 
+function filterInvitation(
+  invitation: AccessInvitation,
+  filter: AccessFilter,
+  query: string,
+): boolean {
+  const matchesFilter = filter === 'all' || invitation.role === filter;
+  const matchesSearch =
+    query.length === 0 ||
+    `${invitation.email} ${roleLabel(invitation.role)} pending`.toLowerCase().includes(query);
+  return matchesFilter && matchesSearch;
+}
+
 export function AccessManagementClient({ currentUserId }: AccessManagementClientProps) {
   const [filter, setFilter] = useState<AccessFilter>('all');
   const [search, setSearch] = useState('');
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedKey, setSelectedKey] = useState('');
   const accountsQuery = api.admin.listUserAccounts.useQuery(undefined, { retry: false });
-  const accounts = accountsQuery.data ?? [];
+  const invitationsQuery = api.admin.listUserInvitations.useQuery(undefined, { retry: false });
+  const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
+  const invitations = useMemo(() => invitationsQuery.data ?? [], [invitationsQuery.data]);
 
-  const filteredAccounts = useMemo(() => {
+  const directoryRows = useMemo<AccessDirectoryRow[]>(() => {
+    const invitationRows = invitations.map((invitation) => ({
+      key: `invitation:${invitation.id}`,
+      kind: 'invitation' as const,
+      invitation,
+    }));
+    const accountRows = accounts.map((account) => ({
+      key: `account:${account.id}`,
+      kind: 'account' as const,
+      account,
+    }));
+    return [...invitationRows, ...accountRows];
+  }, [accounts, invitations]);
+
+  const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return accounts.filter((account) => filterAccount(account, filter, query));
-  }, [accounts, filter, search]);
+    return directoryRows.filter((row) =>
+      row.kind === 'account'
+        ? filterAccount(row.account, filter, query)
+        : filterInvitation(row.invitation, filter, query),
+    );
+  }, [directoryRows, filter, search]);
 
   useEffect(() => {
-    if (filteredAccounts.length === 0) {
-      setSelectedId('');
+    if (filteredRows.length === 0) {
+      setSelectedKey('');
       return;
     }
-    if (!filteredAccounts.some((account) => account.id === selectedId)) {
-      setSelectedId(filteredAccounts[0]?.id ?? '');
+    if (!filteredRows.some((row) => row.key === selectedKey)) {
+      setSelectedKey(filteredRows[0]?.key ?? '');
     }
-  }, [filteredAccounts, selectedId]);
+  }, [filteredRows, selectedKey]);
 
-  const selectedAccount =
-    filteredAccounts.find((account) => account.id === selectedId) ?? filteredAccounts[0];
-  const parentCount = accounts.filter((account) => account.role === 'Parent').length;
-  const supportCount = accounts.filter((account) => account.role === 'TechnicalSupport').length;
+  const selectedRow = filteredRows.find((row) => row.key === selectedKey) ?? filteredRows[0];
+  const parentCount = directoryRows.filter((row) => rowRole(row) === 'Parent').length;
+  const supportCount = directoryRows.filter((row) => rowRole(row) === 'TechnicalSupport').length;
   const activeCount = accounts.filter((account) => account.active).length;
+  const loading = accountsQuery.isLoading || invitationsQuery.isLoading;
+  const error = accountsQuery.error?.message ?? invitationsQuery.error?.message;
 
   return (
     <div className="people-profiles">
@@ -60,8 +108,8 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
         <div className="people-summary-card">
           <UsersRound aria-hidden="true" size={18} />
           <span>
-            <strong>{String(accounts.length)}</strong>
-            <small>Account shells</small>
+            <strong>{String(directoryRows.length)}</strong>
+            <small>Accounts and invites</small>
           </span>
         </div>
         <div className="people-summary-card">
@@ -87,7 +135,7 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
         </div>
       </div>
 
-      {accountsQuery.error ? <p className="status--error">{accountsQuery.error.message}</p> : null}
+      {error ? <p className="status--error">{error}</p> : null}
 
       <div className="people-profiles__layout">
         <aside className="people-directory panel" aria-label="User access directory">
@@ -120,38 +168,47 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
             />
           </label>
           <div className="people-directory__list">
-            {accountsQuery.isLoading ? (
-              <div className="empty-state">Loading accounts...</div>
-            ) : null}
-            {!accountsQuery.isLoading && filteredAccounts.length === 0 ? (
+            {loading ? <div className="empty-state">Loading accounts...</div> : null}
+            {!loading && filteredRows.length === 0 ? (
               <EmptyState
                 detail="Try another filter or invite a new account."
                 title="No accounts found"
               />
             ) : null}
-            {filteredAccounts.map((account, index) => (
+            {filteredRows.map((row, index) => (
               <button
                 className={
-                  account.id === selectedAccount?.id
+                  row.key === selectedRow?.key
                     ? 'people-directory-row is-active'
                     : 'people-directory-row'
                 }
-                key={account.id}
+                key={row.key}
                 onClick={() => {
-                  setSelectedId(account.id);
+                  setSelectedKey(row.key);
                 }}
                 type="button"
               >
                 <Avatar
                   className="people-avatar people-avatar--supervisor"
                   index={index}
-                  name={account.fullName}
+                  name={row.kind === 'account' ? row.account.fullName : row.invitation.email}
                 />
                 <span>
-                  <strong>{account.fullName}</strong>
+                  <strong>
+                    {row.kind === 'account' ? row.account.fullName : row.invitation.email}
+                  </strong>
                   <small>
                     <i aria-hidden="true" />
-                    {roleLabel(account.role)} · {account.active ? 'Active' : 'Inactive'}
+                    {row.kind === 'account' ? (
+                      <>
+                        {roleLabel(row.account.role)} · {row.account.active ? 'Active' : 'Inactive'}
+                      </>
+                    ) : (
+                      <>
+                        {roleLabel(row.invitation.role)}
+                        <Badge tone="amber">Pending</Badge>
+                      </>
+                    )}
                   </small>
                 </span>
               </button>
@@ -159,11 +216,14 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
           </div>
         </aside>
         <div className="people-profiles__detail">
-          {!selectedAccount && !accountsQuery.isLoading ? (
+          {!selectedRow && !loading ? (
             <EmptyState detail="Invite a person to begin." title="No account selected" />
           ) : null}
-          {selectedAccount ? (
-            <AccessAccountPanel account={selectedAccount} currentUserId={currentUserId} />
+          {selectedRow?.kind === 'account' ? (
+            <AccessAccountPanel account={selectedRow.account} currentUserId={currentUserId} />
+          ) : null}
+          {selectedRow?.kind === 'invitation' ? (
+            <AccessPendingInvitePanel invitation={selectedRow.invitation} />
           ) : null}
         </div>
       </div>

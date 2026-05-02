@@ -6,7 +6,9 @@ import {
   HELLO_WORLD_EMAIL_HTML,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  USER_INVITE_EMAIL_SUBJECT,
   buildHelloWorldEmail,
+  buildUserInviteEmail,
   readEmailConfig,
   type EmailClient,
 } from '../lib/email.js';
@@ -78,6 +80,23 @@ describe('email config', () => {
 
   it('rejects missing API keys before constructing a Resend client', () => {
     expect(() => readEmailConfig({})).toThrow('RESEND_API_KEY is required to send email');
+  });
+});
+
+describe('email builders', () => {
+  it('builds a user invite email with html and text fallbacks', () => {
+    const email = buildUserInviteEmail({
+      to: 'parent@example.com',
+      role: 'Parent',
+      inviteUrl: 'https://clerk.example/invite/abc?x=1&y=2',
+    });
+
+    expect(email.to).toBe('parent@example.com');
+    expect(email.subject).toBe(USER_INVITE_EMAIL_SUBJECT);
+    expect(email.html).toContain('Accept invitation');
+    expect(email.text).toContain('https://clerk.example/invite/abc?x=1&y=2');
+    expect(email.html).toContain('Parent / Guardian');
+    expect(email.html).toContain('x=1&amp;y=2');
   });
 });
 

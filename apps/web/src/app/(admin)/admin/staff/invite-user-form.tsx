@@ -1,8 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, Clipboard, ExternalLink, Send } from 'lucide-react';
-import { useState } from 'react';
+import { CheckCircle2, Send } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { PERMISSION_TAGS, ROLES } from '@oasis/domain';
@@ -21,8 +20,15 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function InviteUserForm() {
-  const [copiedInviteUrl, setCopiedInviteUrl] = useState(false);
-  const inviteUser = api.admin.inviteUser.useMutation();
+  const utils = api.useUtils();
+  const inviteUser = api.admin.inviteUser.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.admin.listUsers.invalidate(),
+        utils.admin.listUserInvitations.invalidate(),
+      ]);
+    },
+  });
   const {
     formState: { errors },
     handleSubmit,
@@ -52,7 +58,6 @@ export function InviteUserForm() {
             },
             {
               onSuccess: () => {
-                setCopiedInviteUrl(false);
                 reset({ email: '', role: values.role, tag: '', redirectUrl: values.redirectUrl });
               },
             },
@@ -105,40 +110,11 @@ export function InviteUserForm() {
                 <CheckCircle2 aria-hidden="true" size={18} />
               </span>
               <div>
-                <strong>Invitation sent</strong>
-                <span>The invite is ready for the recipient.</span>
+                <strong>Invitation email sent</strong>
+                <span>The recipient can accept the invite from their inbox.</span>
               </div>
-              <span className="badge badge--green">{inviteUser.data.status}</span>
+              <span className="badge badge--green">{inviteUser.data.emailStatus}</span>
             </div>
-            {inviteUser.data.url ? (
-              <div className="invite-result__link-row">
-                <code className="invite-result__url">{inviteUser.data.url}</code>
-                <div className="invite-result__actions">
-                  <Button
-                    onClick={() => {
-                      void navigator.clipboard.writeText(inviteUser.data.url ?? '').then(() => {
-                        setCopiedInviteUrl(true);
-                      });
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="secondary"
-                  >
-                    <Clipboard aria-hidden="true" size={14} />
-                    {copiedInviteUrl ? 'Copied' : 'Copy'}
-                  </Button>
-                  <a
-                    className="button button--secondary button--sm"
-                    href={inviteUser.data.url}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    <ExternalLink aria-hidden="true" size={14} />
-                    Open
-                  </a>
-                </div>
-              </div>
-            ) : null}
           </div>
         ) : null}
         <div>

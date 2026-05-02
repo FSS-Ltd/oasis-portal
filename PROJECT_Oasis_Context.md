@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-02
 **Agent:** Technical Agent (Codex)
-**Phase:** Technical Support role and account-access onboarding.
+**Phase:** Resend user invites with pending directory rows.
 
 ---
 
@@ -18,7 +18,54 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Technical Support account administration
+## Current status - Resend user invites with pending directory rows
+
+Working branch: `feat/resend-user-invites`.
+
+**PR scope:** Send user invitations through Resend using Clerk-generated links,
+persist pending invite rows, and show those pending users in the admin
+directories until Clerk acceptance creates the local encrypted `User`.
+
+Changed scope:
+
+- Added `UserInvitation` persistence with encrypted invite email, blind index,
+  Clerk invitation id, role/tags, pending/accepted status, email delivery
+  status, inviter, accepted user, and supporting indexes.
+- Updated `admin.inviteUser` so Clerk generates and stamps the invite with
+  `notify: false`, Resend sends the branded button email, duplicate users or
+  pending invites are blocked, and audit rows avoid email/link leakage.
+- Added `admin.listUserInvitations` with the same role scope as account
+  management. Technical Support sees only pending `Parent` and
+  `TechnicalSupport` invites.
+- Updated the Clerk webhook sync path so matching pending invites become
+  `Accepted` once a Clerk-created or updated user exists in the local DB.
+- Merged pending invitation rows into `/admin/access` and `/admin/staff`, with
+  read-only pending panels and `Pending` badges.
+- Simplified invite success UI to confirm email delivery instead of exposing the
+  Clerk invite URL in the browser.
+- Fixed the directory filter bar so labels wrap instead of being cut off.
+
+Verification:
+
+- `pnpm db:generate` - pass.
+- `pnpm --filter @oasis/api test` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/db test` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- `RESEND_API_KEY` and `RESEND_FROM` must be configured in each environment for
+  invites to deliver.
+- Existing Clerk webhook delivery remains the source of truth for activating the
+  local user row.
+
+## Previous status - Technical Support account administration
 
 Working branch: `feat/technical-support-role`.
 

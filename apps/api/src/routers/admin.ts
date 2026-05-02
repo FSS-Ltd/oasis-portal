@@ -24,6 +24,7 @@ import {
   inviteUserInput,
   isFullAdmin,
   linkGuardianInput,
+  type PermissionTag,
   type Role,
   type SessionUser,
   updatePacePolicyInput,
@@ -32,9 +33,11 @@ import {
 } from '@oasis/domain';
 import { fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
 import { createDefaultClerkInvitationClient, type ClerkInvitationClient } from '../lib/clerk.js';
+import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 
 export interface AdminRouterDeps {
   clerk?: ClerkInvitationClient;
+  emailClient?: EmailClient;
 }
 
 const searchParentsInput = z
@@ -113,7 +116,28 @@ const userAccountSelect = Prisma.validator<Prisma.UserSelect>()({
 
 type UserAccountRow = Prisma.UserGetPayload<{ select: typeof userAccountSelect }>;
 
+const userInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()({
+  id: true,
+  clerkInvitationId: true,
+  role: true,
+  tags: true,
+  emailEnc: true,
+  status: true,
+  emailStatus: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+type UserInvitationRow = Prisma.UserInvitationGetPayload<{
+  select: typeof userInvitationSelect;
+}>;
+
 function accountScopeWhereFor(actor: SessionUser): Prisma.UserWhereInput {
+  if (isFullAdmin(actor)) return {};
+  return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
+}
+
+function invitationScopeWhereFor(actor: SessionUser): Prisma.UserInvitationWhereInput {
   if (isFullAdmin(actor)) return {};
   return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
 }
@@ -245,6 +269,23 @@ function mapUserAccount(
   };
 }
 
+function mapUserInvitation(
+  ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
+  invitation: UserInvitationRow,
+) {
+  return {
+    id: invitation.id,
+    invitationId: invitation.clerkInvitationId,
+    role: invitation.role,
+    tags: invitation.tags as PermissionTag[],
+    email: decryptRequired(ctx.db.$enc.decrypt, invitation.emailEnc, 'invitation PII'),
+    status: invitation.status,
+    emailStatus: invitation.emailStatus,
+    createdAt: invitation.createdAt,
+    updatedAt: invitation.updatedAt,
+  };
+}
+
 async function assertUniqueBandName(
   ctx: {
     db: {
@@ -271,10 +312,16 @@ async function assertUniqueBandName(
 
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
+  let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
   const getClerk = (): ClerkInvitationClient => {
     if (cachedClerk) return cachedClerk;
     cachedClerk = createDefaultClerkInvitationClient();
     return cachedClerk;
+  };
+  const getEmailClient = (): EmailClient => {
+    if (cachedEmailClient) return cachedEmailClient;
+    cachedEmailClient = createResendEmailClient();
+    return cachedEmailClient;
   };
 
   return router({
@@ -618,6 +665,28 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return rows;
     }),
 
+    listUserInvitations: userAccountAdminProcedure.query(async ({ ctx }) => {
+      const invitations = await ctx.db.userInvitation.findMany({
+        where: { ...invitationScopeWhereFor(ctx.user), status: 'Pending' },
+        orderBy: [{ createdAt: 'desc' }],
+        take: 100,
+        select: userInvitationSelect,
+      });
+
+      const rows = invitations.map((invitation) => mapUserInvitation(ctx, invitation));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'UserInvitation',
+          meta: { count: rows.length, source: 'admin.listUserInvitations' },
+        },
+      });
+
+      return rows;
+    }),
+
     updateUserAccountProfile: userAccountAdminProcedure
       .input(updateUserProfileInput)
       .mutation(async ({ ctx, input }) => {
@@ -841,14 +910,102 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .input(inviteUserInput)
       .mutation(async ({ ctx, input }) => {
         assertCanInviteUser(ctx.user, input.role, input.tags);
+        const emailBidx = ctx.db.$enc.blindIndex(input.email);
+
+        const [existingUser, existingPendingInvite] = await Promise.all([
+          ctx.db.user.findUnique({
+            where: { emailBidx },
+            select: { id: true },
+          }),
+          ctx.db.userInvitation.findFirst({
+            where: { emailBidx, status: 'Pending' },
+            select: { id: true },
+          }),
+        ]);
+
+        if (existingUser) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'a user account already exists for this email',
+          });
+        }
+
+        if (existingPendingInvite) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'a pending invitation already exists for this email',
+          });
+        }
+
         const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
           emailAddress: input.email,
           publicMetadata: { role: input.role, tags: input.tags },
           ignoreExisting: true,
-          notify: true,
+          notify: false,
         };
         if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
         const invitation = await getClerk().createInvitation(inviteParams);
+        if (!invitation.url) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'clerk invitation link missing',
+          });
+        }
+
+        let storedInvitation: UserInvitationRow;
+        try {
+          storedInvitation = await ctx.db.userInvitation.create({
+            data: {
+              clerkInvitationId: invitation.id,
+              role: input.role,
+              tags: [...input.tags],
+              emailEnc: ctx.db.$enc.encrypt(input.email),
+              emailBidx,
+              status: 'Pending',
+              emailStatus: 'NotSent',
+              invitedById: ctx.user.id,
+            },
+            select: userInvitationSelect,
+          });
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'a pending invitation already exists for this email',
+            });
+          }
+          throw err;
+        }
+
+        const email = buildUserInviteEmail({
+          to: input.email,
+          role: input.role,
+          inviteUrl: invitation.url,
+        });
+        let emailResult: Awaited<ReturnType<EmailClient['send']>>;
+        try {
+          emailResult = await getEmailClient().send(email);
+        } catch (err) {
+          await ctx.db.userInvitation.update({
+            where: { id: storedInvitation.id },
+            data: { emailStatus: 'Failed' },
+            select: { id: true },
+          });
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'invitation email send failed',
+            cause: err instanceof Error ? err : undefined,
+          });
+        }
+
+        await ctx.db.userInvitation.update({
+          where: { id: storedInvitation.id },
+          data: {
+            emailStatus: 'Sent',
+            emailMessageId: emailResult.id,
+          },
+          select: { id: true },
+        });
 
         await ctx.db.auditLog.create({
           data: {
@@ -856,14 +1013,32 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
             action: 'Create',
             entity: 'Invitation',
             entityId: invitation.id,
-            meta: { role: input.role, tags: input.tags, invitationStatus: invitation.status },
+            meta: {
+              role: input.role,
+              tags: input.tags,
+              invitationStatus: invitation.status,
+              emailStatus: 'Sent',
+            },
+          },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'Email',
+            entityId: emailResult.id,
+            meta: {
+              invitationId: invitation.id,
+              subject: email.subject,
+              source: 'admin.inviteUser',
+            },
           },
         });
 
         return {
           invitationId: invitation.id,
           status: invitation.status,
-          url: invitation.url,
+          emailStatus: 'Sent' as const,
         };
       }),
 

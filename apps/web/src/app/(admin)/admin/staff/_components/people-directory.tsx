@@ -2,12 +2,9 @@
 
 import { Search } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
-import {
-  directoryFilters,
-  type DirectoryFilter,
-  type DirectoryItem,
-} from './people-profile-model';
+import { directoryFilters, type DirectoryFilter, type DirectoryItem } from './people-profile-model';
 
 interface PeopleDirectoryProps {
   filter: DirectoryFilter;
@@ -67,19 +64,26 @@ export function PeopleDirectory({
         ) : null}
         {items.map((item, index) => (
           <button
-            className={item.key === selectedKey ? 'people-directory-row is-active' : 'people-directory-row'}
+            className={
+              item.key === selectedKey ? 'people-directory-row is-active' : 'people-directory-row'
+            }
             key={item.key}
             onClick={() => {
               onSelect(item.key);
             }}
             type="button"
           >
-            <Avatar className={`people-avatar people-avatar--${item.kind}`} index={index} name={item.title} />
+            <Avatar
+              className={`people-avatar people-avatar--${item.kind === 'invite' ? 'supervisor' : item.kind}`}
+              index={index}
+              name={item.title}
+            />
             <span>
               <strong>{item.title}</strong>
               <small>
                 <i aria-hidden="true" />
                 {item.subtitle}
+                {item.kind === 'invite' ? <Badge tone="amber">Pending</Badge> : null}
               </small>
             </span>
           </button>
