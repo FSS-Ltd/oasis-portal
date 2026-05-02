@@ -26,6 +26,21 @@ export {
   type ClerkInvitationResult,
 } from './lib/clerk.js';
 export {
+  DEFAULT_RESEND_FROM,
+  HELLO_WORLD_EMAIL_HTML,
+  HELLO_WORLD_EMAIL_SUBJECT,
+  HELLO_WORLD_EMAIL_TO,
+  buildHelloWorldEmail,
+  createResendEmailClient,
+  readEmailConfig,
+  type EmailClient,
+  type EmailConfig,
+  type EmailEnv,
+  type SendEmailInput,
+  type SendEmailResult,
+} from './lib/email.js';
+export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
+export {
   handleClerkWebhookRequest,
   mapClerkUserToUpsertInput,
   processClerkWebhookEvent,
