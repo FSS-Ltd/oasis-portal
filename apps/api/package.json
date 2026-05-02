@@ -15,6 +15,7 @@
     "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "email:smoke": "tsx scripts/send-resend-smoke.ts",
     "smoke:context-rls": "tsx scripts/smoke-context-rls.ts"
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@oasis/db": "workspace:*",
     "@oasis/domain": "workspace:*",
     "@trpc/server": "^11.0.0-rc.600",
+    "resend": "^6.12.2",
     "superjson": "^2.2.1",
     "zod": "^3.23.8"
   },
