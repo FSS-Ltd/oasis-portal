@@ -1,11 +1,11 @@
-import { buildHelloWorldEmail, createResendEmailClient } from '../src/lib/email.js';
+import { buildSmokeTestEmail, createResendEmailClient } from '../src/lib/email.js';
 
 async function main() {
-  const email = buildHelloWorldEmail();
+  const email = buildSmokeTestEmail();
   const result = await createResendEmailClient().send(email);
   const recipient = Array.isArray(email.to) ? email.to.join(', ') : email.to;
   const suffix = result.id ? ` (${result.id})` : '';
-  console.warn(`Sent Resend hello-world email to ${recipient}${suffix}.`);
+  console.warn(`Sent Resend deliverability smoke test to ${recipient}${suffix}.`);
 }
 
 main().catch((err: unknown) => {

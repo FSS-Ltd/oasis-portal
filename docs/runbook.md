@@ -148,7 +148,8 @@ Required Vercel project settings:
   `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
   `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SIGNING_SECRET`,
   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
-  `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, and `OASIS_BIDX_PEPPER`.
+  `OASIS_MASTER_KEY`, `OASIS_MASTER_KEY_VERSION`, `OASIS_BIDX_PEPPER`,
+  `RESEND_API_KEY`, and `RESEND_FROM`.
   The web middleware reads `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at runtime; using
   `CLERK_PUBLISHABLE_KEY` instead causes every request to fail with a Clerk
   missing publishable-key error. Vercel may still list an env var whose value is
@@ -168,6 +169,49 @@ Required Vercel project settings:
   list. Turborepo strict env mode otherwise strips it during Vercel builds.
 - Supabase browser/server clients live in `apps/web/src/lib/supabase`. Clerk
   remains the authentication source; Supabase Auth middleware is not configured.
+
+### 4.1 Transactional email deliverability
+
+Oasis Portal sends transactional email through Resend. Keep this path boring:
+authenticated domain, branded sender, low-volume transactional content, and
+header checks after every DNS or sender change.
+
+Required production sender:
+
+```bash
+RESEND_FROM="Oasis Portal <no-reply@oasisportal.space>"
+```
+
+Required DNS state:
+
+| Host                       | Type | Value / source                     | Purpose                        |
+| -------------------------- | ---- | ---------------------------------- | ------------------------------ |
+| `send.oasisportal.space`   | TXT  | Resend-provided SPF value          | Return-path SPF alignment      |
+| `send.oasisportal.space`   | MX   | Resend-provided bounce/feedback MX | Return-path bounce handling    |
+| `resend._domainkey...`     | TXT  | Resend-provided DKIM public key    | DKIM signing                   |
+| `_dmarc.oasisportal.space` | TXT  | `v=DMARC1; p=none;`                | DMARC monitoring before policy |
+
+After adding or changing records:
+
+1. In Resend, confirm `oasisportal.space` is verified.
+2. Run `pnpm --filter @oasis/api email:smoke` from an environment with the
+   production Resend variables loaded.
+3. Send one smoke email to Gmail and one to Outlook.
+4. Inspect received headers. The expected result is `spf=pass`, `dkim=pass`,
+   and `dmarc=pass`.
+5. Register and monitor `oasisportal.space` in Google Postmaster Tools once
+   volume is high enough for data to appear.
+
+If a recipient reports junk placement:
+
+1. Ask for the original message headers, not a screenshot.
+2. Confirm SPF, DKIM, and DMARC pass in those headers.
+3. Check Resend logs for bounce, complaint, suppression, or delivery delay
+   events around the message id stored in `UserInvitation.emailMessageId`.
+4. Confirm the recipient has not marked previous Oasis mail as junk.
+5. If authentication passes but junking continues, keep DMARC at `p=none`,
+   reduce test sends, and build reputation with normal transactional traffic
+   before considering stricter DMARC policy.
 
 ## 5. Incident playbooks
 

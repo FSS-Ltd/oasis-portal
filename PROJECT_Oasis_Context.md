@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-02
 **Agent:** Technical Agent (Codex)
-**Phase:** Resend user invites with pending directory rows.
+**Phase:** Resend user invites and email deliverability hardening.
 
 ---
 
@@ -18,7 +18,7 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Resend user invites with pending directory rows
+## Current status - Resend user invites and email deliverability hardening
 
 Working branch: `feat/resend-user-invites`.
 
@@ -44,6 +44,14 @@ Changed scope:
 - Simplified invite success UI to confirm email delivery instead of exposing the
   Clerk invite URL in the browser.
 - Fixed the directory filter bar so labels wrap instead of being cut off.
+- Hardened the Resend sender path after a production test email landed in junk:
+  production now requires an explicit sender, bare `no-reply@oasisportal.space`
+  normalises to `Oasis Portal <no-reply@oasisportal.space>`, the generic
+  hello-world smoke email is now a branded deliverability check, and the invite
+  copy no longer names the auth provider.
+- Added a deliverability runbook covering Resend verification, DMARC monitoring,
+  Gmail/Outlook header checks, Google Postmaster Tools, and recipient junk
+  reports.
 
 Verification:
 
@@ -62,6 +70,10 @@ Notes:
 
 - `RESEND_API_KEY` and `RESEND_FROM` must be configured in each environment for
   invites to deliver.
+- The Resend API key shown in local `.env.production` was exposed in this
+  session. Rotate it in Resend/Vercel before the next production deploy.
+- Add `_dmarc.oasisportal.space` TXT `v=DMARC1; p=none;` before retesting
+  mailbox placement.
 - Existing Clerk webhook delivery remains the source of truth for activating the
   local user row.
 

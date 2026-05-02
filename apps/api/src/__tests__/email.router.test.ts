@@ -6,8 +6,14 @@ import {
   HELLO_WORLD_EMAIL_HTML,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  PRODUCTION_RESEND_FROM,
+  SMOKE_TEST_EMAIL_HTML,
+  SMOKE_TEST_EMAIL_SUBJECT,
+  SMOKE_TEST_EMAIL_TEXT,
+  SMOKE_TEST_EMAIL_TO,
   USER_INVITE_EMAIL_SUBJECT,
   buildHelloWorldEmail,
+  buildSmokeTestEmail,
   buildUserInviteEmail,
   readEmailConfig,
   type EmailClient,
@@ -78,12 +84,43 @@ describe('email config', () => {
     });
   });
 
+  it('requires an explicit sender in production', () => {
+    expect(() =>
+      readEmailConfig({ NODE_ENV: 'production', RESEND_API_KEY: 're_test_123' }),
+    ).toThrow('RESEND_FROM is required to send email in production');
+  });
+
+  it('normalises the production no-reply address to the branded sender', () => {
+    expect(
+      readEmailConfig({
+        NODE_ENV: 'production',
+        RESEND_API_KEY: 're_test_123',
+        RESEND_FROM: ' no-reply@oasisportal.space ',
+      }),
+    ).toEqual({
+      apiKey: 're_test_123',
+      defaultFrom: PRODUCTION_RESEND_FROM,
+    });
+  });
+
   it('rejects missing API keys before constructing a Resend client', () => {
     expect(() => readEmailConfig({})).toThrow('RESEND_API_KEY is required to send email');
   });
 });
 
 describe('email builders', () => {
+  it('builds a branded smoke-test email with html and text fallbacks', () => {
+    const email = buildSmokeTestEmail('ops@example.com');
+
+    expect(email).toEqual({
+      to: 'ops@example.com',
+      subject: SMOKE_TEST_EMAIL_SUBJECT,
+      html: SMOKE_TEST_EMAIL_HTML,
+      text: SMOKE_TEST_EMAIL_TEXT,
+    });
+    expect(buildHelloWorldEmail('ops@example.com')).toEqual(email);
+  });
+
   it('builds a user invite email with html and text fallbacks', () => {
     const email = buildUserInviteEmail({
       to: 'parent@example.com',
@@ -97,11 +134,40 @@ describe('email builders', () => {
     expect(email.text).toContain('https://clerk.example/invite/abc?x=1&y=2');
     expect(email.html).toContain('Parent / Guardian');
     expect(email.html).toContain('x=1&amp;y=2');
+    expect(email.html).not.toContain('create your Clerk account');
+    expect(email.text).toContain('set up your Oasis Portal account');
   });
 });
 
 describe('email router', () => {
-  it('sends the hello-world email for full admins and audits the send', async () => {
+  it('sends the smoke-test email for full admins and audits the send', async () => {
+    const email = makeFakeEmailClient();
+    const { caller, db } = makeCaller(headUser, { emailClient: email.client });
+
+    await expect(caller.email.sendSmokeTest()).resolves.toEqual({ id: 'email_123' });
+
+    expect(email.send).toHaveBeenCalledWith({
+      to: SMOKE_TEST_EMAIL_TO,
+      subject: SMOKE_TEST_EMAIL_SUBJECT,
+      html: SMOKE_TEST_EMAIL_HTML,
+      text: SMOKE_TEST_EMAIL_TEXT,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Create',
+        entity: 'Email',
+        entityId: 'email_123',
+        meta: {
+          to: SMOKE_TEST_EMAIL_TO,
+          subject: SMOKE_TEST_EMAIL_SUBJECT,
+          source: 'email.sendSmokeTest',
+        },
+      },
+    });
+  });
+
+  it('keeps the hello-world procedure as a compatibility alias', async () => {
     const email = makeFakeEmailClient();
     const { caller, db } = makeCaller(headUser, { emailClient: email.client });
 
@@ -111,6 +177,7 @@ describe('email router', () => {
       to: HELLO_WORLD_EMAIL_TO,
       subject: HELLO_WORLD_EMAIL_SUBJECT,
       html: HELLO_WORLD_EMAIL_HTML,
+      text: SMOKE_TEST_EMAIL_TEXT,
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -118,7 +185,11 @@ describe('email router', () => {
         action: 'Create',
         entity: 'Email',
         entityId: 'email_123',
-        meta: { to: HELLO_WORLD_EMAIL_TO, subject: HELLO_WORLD_EMAIL_SUBJECT },
+        meta: {
+          to: HELLO_WORLD_EMAIL_TO,
+          subject: HELLO_WORLD_EMAIL_SUBJECT,
+          source: 'email.sendHelloWorld',
+        },
       },
     });
   });
@@ -127,9 +198,9 @@ describe('email router', () => {
     const email = makeFakeEmailClient();
     const { caller } = makeCaller(headUser, { emailClient: email.client });
 
-    await caller.email.sendHelloWorld({ to: ' jean@example.com ' });
+    await caller.email.sendSmokeTest({ to: ' jean@example.com ' });
 
-    expect(email.send).toHaveBeenCalledWith(buildHelloWorldEmail('jean@example.com'));
+    expect(email.send).toHaveBeenCalledWith(buildSmokeTestEmail('jean@example.com'));
   });
 
   it('rejects non-full-admin callers without sending email', async () => {
