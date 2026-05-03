@@ -1841,6 +1841,18 @@
   font-weight: 650;
 }
 
+.pending-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.pending-invite-actions .status--error,
+.pending-invite-actions .status--success {
+  margin: 0;
+}
+
 .invite-result {
   display: grid;
   gap: 12px;

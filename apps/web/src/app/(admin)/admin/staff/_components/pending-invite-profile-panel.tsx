@@ -4,6 +4,7 @@ import { Clock, Mail, ShieldCheck } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { permissionTagLabel, roleLabel } from '@/lib/profile-display';
+import { PendingInviteResendAction } from '../../_components/pending-invite-resend-action';
 import type { InvitationRow } from './people-profile-model';
 import { formatDate } from './people-profile-model';
 
@@ -78,6 +79,7 @@ export function PendingInviteProfilePanel({ invitation }: PendingInviteProfilePa
               This person appears here until they accept the invite.
             </span>
           </div>
+          <PendingInviteResendAction invitationId={invitation.id} />
         </div>
       </section>
     </section>
