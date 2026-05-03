@@ -27,6 +27,33 @@ const supervisorUser: SessionUser = {
   requires2fa: false,
 };
 
+function makeInvitationRow(
+  overrides: Partial<{
+    clerkInvitationId: string;
+    createdAt: Date;
+    emailEnc: string;
+    emailStatus: 'Failed' | 'NotSent' | 'Sent';
+    id: string;
+    role: SessionUser['role'];
+    status: 'Accepted' | 'Pending';
+    tags: string[];
+    updatedAt: Date;
+  }> = {},
+) {
+  return {
+    id: 'invite_row_1',
+    clerkInvitationId: 'inv_xyz',
+    role: 'Parent',
+    tags: [],
+    emailEnc: 'enc:jane@example.com',
+    status: 'Pending',
+    emailStatus: 'NotSent',
+    createdAt: new Date('2026-05-02T09:00:00.000Z'),
+    updatedAt: new Date('2026-05-02T09:00:00.000Z'),
+    ...overrides,
+  };
+}
+
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
   $enc: {
@@ -153,17 +180,30 @@ function makeFakeDb(): FakeDb {
     userInvitation: {
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn().mockResolvedValue(null),
-      create: vi.fn().mockResolvedValue({
-        id: 'invite_row_1',
-        clerkInvitationId: 'inv_xyz',
-        role: 'Parent',
-        tags: [],
-        emailEnc: 'enc:jane@example.com',
-        status: 'Pending',
-        emailStatus: 'NotSent',
-        createdAt: new Date('2026-05-02T09:00:00.000Z'),
-        updatedAt: new Date('2026-05-02T09:00:00.000Z'),
-      }),
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: {
+            clerkInvitationId: string;
+            emailEnc: string;
+            emailStatus: 'Failed' | 'NotSent' | 'Sent';
+            role: SessionUser['role'];
+            status: 'Accepted' | 'Pending';
+            tags: string[];
+          };
+        }) =>
+          Promise.resolve(
+            makeInvitationRow({
+              clerkInvitationId: data.clerkInvitationId,
+              emailEnc: data.emailEnc,
+              emailStatus: data.emailStatus,
+              role: data.role,
+              status: data.status,
+              tags: data.tags,
+            }),
+          ),
+      ),
       update: vi.fn().mockResolvedValue({ id: 'invite_row_1' }),
     },
     student: { findUnique: vi.fn() },
@@ -187,10 +227,24 @@ function makeFakeClerk(
     status: 'pending',
     url: 'https://clerk.example/invite/abc',
   },
+  options: {
+    findResult?: ClerkInvitationResult | null;
+    revokeResult?: ClerkInvitationResult;
+  } = {},
 ) {
   const createInvitation = vi.fn().mockResolvedValue(result);
-  const client: ClerkInvitationClient = { createInvitation };
-  return { client, createInvitation };
+  const findResult = Object.prototype.hasOwnProperty.call(options, 'findResult')
+    ? options.findResult
+    : result;
+  const findInvitation = vi.fn().mockResolvedValue(findResult);
+  const revokeInvitation = vi.fn().mockResolvedValue(
+    options.revokeResult ?? {
+      ...(findResult ?? result),
+      status: 'revoked',
+    },
+  );
+  const client: ClerkInvitationClient = { createInvitation, findInvitation, revokeInvitation };
+  return { client, createInvitation, findInvitation, revokeInvitation };
 }
 
 function makeFakeEmailClient(result = { id: 'email_123' }) {
@@ -218,6 +272,8 @@ function makeCaller(
     caller: appRouter.createCaller(ctx),
     db,
     createInvitation: clerk.createInvitation,
+    findInvitation: clerk.findInvitation,
+    revokeInvitation: clerk.revokeInvitation,
     sendEmail: email.send,
   };
 }
@@ -1037,6 +1093,7 @@ describe('admin.inviteUser', () => {
           tags: [],
           invitationStatus: 'pending',
           emailStatus: 'Sent',
+          source: 'admin.inviteUser',
         },
       },
     });
@@ -1089,7 +1146,7 @@ describe('admin.inviteUser', () => {
     expect(createInvitation).not.toHaveBeenCalled();
   });
 
-  it('rejects existing users and duplicate pending invitations before calling Clerk', async () => {
+  it('rejects existing users and already-sent pending invitations before calling Clerk', async () => {
     const existingUserDb = makeFakeDb();
     existingUserDb.user.findUnique.mockResolvedValue({ id: 'u_existing' });
     const existingUser = makeCaller(headUser, { db: existingUserDb });
@@ -1108,7 +1165,9 @@ describe('admin.inviteUser', () => {
     expect(existingUser.sendEmail).not.toHaveBeenCalled();
 
     const pendingInviteDb = makeFakeDb();
-    pendingInviteDb.userInvitation.findFirst.mockResolvedValue({ id: 'invite_existing' });
+    pendingInviteDb.userInvitation.findFirst.mockResolvedValue(
+      makeInvitationRow({ emailStatus: 'Sent' }),
+    );
     const pendingInvite = makeCaller(headUser, { db: pendingInviteDb });
 
     await expect(
@@ -1119,10 +1178,90 @@ describe('admin.inviteUser', () => {
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'a pending invitation already exists for this email',
+      message:
+        'a pending invitation already exists for this email; use resend on the pending invite if needed',
     });
     expect(pendingInvite.createInvitation).not.toHaveBeenCalled();
     expect(pendingInvite.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(['Failed', 'NotSent'] as const)(
+    'retries a %s pending invitation from the invite form',
+    async (emailStatus) => {
+      const db = makeFakeDb();
+      db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow({ emailStatus }));
+      const {
+        caller,
+        createInvitation,
+        db: usedDb,
+        findInvitation,
+        sendEmail,
+      } = makeCaller(headUser, { db });
+
+      await expect(
+        caller.admin.inviteUser({
+          email: 'JANE@example.com',
+          role: 'Parent',
+          tags: [],
+        }),
+      ).resolves.toEqual({
+        invitationId: 'inv_xyz',
+        status: 'pending',
+        emailStatus: 'Sent',
+      });
+
+      expect(findInvitation).toHaveBeenCalledWith('inv_xyz');
+      expect(createInvitation).not.toHaveBeenCalled();
+      expect(usedDb.userInvitation.create).not.toHaveBeenCalled();
+      expect(sendEmail).toHaveBeenCalledOnce();
+      expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
+        where: { id: 'invite_row_1' },
+        data: { emailStatus: 'NotSent', emailMessageId: null },
+        select: { id: true },
+      });
+      expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
+        where: { id: 'invite_row_1' },
+        data: { emailStatus: 'Sent', emailMessageId: 'email_123' },
+        select: { id: true },
+      });
+      expect(usedDb.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: headUser.id,
+          action: 'Update',
+          entity: 'Invitation',
+          entityId: 'inv_xyz',
+          meta: {
+            role: 'Parent',
+            tags: [],
+            invitationStatus: 'pending',
+            emailStatus: 'Sent',
+            source: 'admin.inviteUser',
+          },
+        },
+      });
+    },
+  );
+
+  it('blocks invite-form retry when the pending invitation role or tags differ', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(
+      makeInvitationRow({ emailStatus: 'Failed', role: 'Supervisor', tags: ['shopkeeper'] }),
+    );
+    const { caller, createInvitation, findInvitation, sendEmail } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.inviteUser({
+        email: 'jane@example.com',
+        role: 'Parent',
+        tags: [],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'a pending invitation already exists for this email with a different role or tags',
+    });
+    expect(findInvitation).not.toHaveBeenCalled();
+    expect(createInvitation).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it('marks the pending invitation email as failed when Resend rejects the send', async () => {
@@ -1143,10 +1282,24 @@ describe('admin.inviteUser', () => {
 
     expect(db.userInvitation.update).toHaveBeenCalledWith({
       where: { id: 'invite_row_1' },
-      data: { emailStatus: 'Failed' },
+      data: { emailStatus: 'Failed', emailMessageId: null },
       select: { id: true },
     });
-    expect(db.auditLog.create).not.toHaveBeenCalled();
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'Invitation',
+        entityId: 'inv_xyz',
+        meta: {
+          role: 'Parent',
+          tags: [],
+          invitationStatus: 'pending',
+          emailStatus: 'Failed',
+          source: 'admin.inviteUser',
+        },
+      },
+    });
   });
 
   it('happy path: calls Clerk with pre-stamped metadata, sends Resend email, writes audit rows, returns slim result', async () => {
@@ -1220,6 +1373,7 @@ describe('admin.inviteUser', () => {
           tags: ['shopkeeper'],
           invitationStatus: 'pending',
           emailStatus: 'Sent',
+          source: 'admin.inviteUser',
         },
       },
     });
@@ -1256,6 +1410,250 @@ describe('admin.inviteUser', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(createInvitation).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin.resendUserInvitation', () => {
+  it.each(['Failed', 'NotSent', 'Sent'] as const)(
+    'resends a %s pending invitation',
+    async (emailStatus) => {
+      const db = makeFakeDb();
+      db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow({ emailStatus }));
+      const { caller, db: usedDb, findInvitation, sendEmail } = makeCaller(headUser, { db });
+
+      await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).resolves.toEqual({
+        invitationId: 'inv_xyz',
+        status: 'pending',
+        emailStatus: 'Sent',
+      });
+
+      expect(usedDb.userInvitation.findFirst).toHaveBeenCalledWith({
+        where: { id: 'invite_row_1', status: 'Pending' },
+        select: {
+          id: true,
+          clerkInvitationId: true,
+          role: true,
+          tags: true,
+          emailEnc: true,
+          status: true,
+          emailStatus: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      expect(findInvitation).toHaveBeenCalledWith('inv_xyz');
+      expect(sendEmail).toHaveBeenCalledOnce();
+      expect(sendEmail.mock.calls[0]?.[0]).toMatchObject({
+        to: 'jane@example.com',
+        subject: 'Your Oasis Portal invitation',
+      });
+      expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
+        where: { id: 'invite_row_1' },
+        data: { emailStatus: 'Sent', emailMessageId: 'email_123' },
+        select: { id: true },
+      });
+      expect(usedDb.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: headUser.id,
+          action: 'Update',
+          entity: 'Invitation',
+          entityId: 'inv_xyz',
+          meta: {
+            role: 'Parent',
+            tags: [],
+            invitationStatus: 'pending',
+            emailStatus: 'Sent',
+            source: 'admin.resendUserInvitation',
+          },
+        },
+      });
+    },
+  );
+
+  it('creates a replacement when the Clerk invitation expired', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(
+      makeInvitationRow({ clerkInvitationId: 'inv_old', emailStatus: 'Failed' }),
+    );
+    const clerk = makeFakeClerk(
+      {
+        id: 'inv_new',
+        emailAddress: 'jane@example.com',
+        status: 'pending',
+        url: 'https://clerk.example/invite/new',
+      },
+      {
+        findResult: {
+          id: 'inv_old',
+          emailAddress: 'jane@example.com',
+          status: 'expired',
+        },
+      },
+    );
+    const {
+      caller,
+      createInvitation,
+      db: usedDb,
+      revokeInvitation,
+    } = makeCaller(headUser, {
+      clerk,
+      db,
+    });
+
+    await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).resolves.toEqual({
+      invitationId: 'inv_new',
+      status: 'pending',
+      emailStatus: 'Sent',
+    });
+
+    expect(revokeInvitation).not.toHaveBeenCalled();
+    expect(createInvitation).toHaveBeenCalledWith({
+      emailAddress: 'jane@example.com',
+      publicMetadata: { role: 'Parent', tags: [] },
+      ignoreExisting: true,
+      notify: false,
+    });
+    expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
+      where: { id: 'invite_row_1' },
+      data: {
+        clerkInvitationId: 'inv_new',
+        emailStatus: 'NotSent',
+        emailMessageId: null,
+      },
+      select: { id: true },
+    });
+  });
+
+  it('revokes and replaces a pending Clerk invitation that has no URL', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow({ emailStatus: 'Failed' }));
+    const clerk = makeFakeClerk(
+      {
+        id: 'inv_new',
+        emailAddress: 'jane@example.com',
+        status: 'pending',
+        url: 'https://clerk.example/invite/new',
+      },
+      {
+        findResult: {
+          id: 'inv_xyz',
+          emailAddress: 'jane@example.com',
+          status: 'pending',
+        },
+      },
+    );
+    const { caller, createInvitation, revokeInvitation } = makeCaller(headUser, { clerk, db });
+
+    await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).resolves.toMatchObject({
+      invitationId: 'inv_new',
+      emailStatus: 'Sent',
+    });
+    expect(revokeInvitation).toHaveBeenCalledWith('inv_xyz');
+    expect(createInvitation).toHaveBeenCalledOnce();
+  });
+
+  it('creates a replacement when the Clerk invitation cannot be found', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow({ emailStatus: 'Failed' }));
+    const clerk = makeFakeClerk(
+      {
+        id: 'inv_new',
+        emailAddress: 'jane@example.com',
+        status: 'pending',
+        url: 'https://clerk.example/invite/new',
+      },
+      { findResult: null },
+    );
+    const { caller, createInvitation, db: usedDb } = makeCaller(headUser, { clerk, db });
+
+    await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).resolves.toMatchObject({
+      invitationId: 'inv_new',
+      emailStatus: 'Sent',
+    });
+    expect(createInvitation).toHaveBeenCalledOnce();
+    expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
+      where: { id: 'invite_row_1' },
+      data: {
+        clerkInvitationId: 'inv_new',
+        emailStatus: 'NotSent',
+        emailMessageId: null,
+      },
+      select: { id: true },
+    });
+  });
+
+  it('marks the pending invitation as failed when resend email delivery fails', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow({ emailStatus: 'Sent' }));
+    const email = makeFakeEmailClient();
+    email.send.mockRejectedValueOnce(new Error('resend unavailable'));
+    const { caller, db: usedDb } = makeCaller(headUser, { db, email });
+
+    await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'invitation email send failed',
+    });
+
+    expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
+      where: { id: 'invite_row_1' },
+      data: { emailStatus: 'Failed', emailMessageId: null },
+      select: { id: true },
+    });
+    expect(usedDb.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'Invitation',
+        entityId: 'inv_xyz',
+        meta: {
+          role: 'Parent',
+          tags: [],
+          invitationStatus: 'pending',
+          emailStatus: 'Failed',
+          source: 'admin.resendUserInvitation',
+        },
+      },
+    });
+  });
+
+  it('scopes Technical Support resend lookups to manageable invitation roles', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(null);
+    const {
+      caller,
+      createInvitation,
+      db: usedDb,
+      findInvitation,
+      sendEmail,
+    } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.resendUserInvitation({ id: 'invite_supervisor' }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'pending invitation not found',
+    });
+    expect(usedDb.userInvitation.findFirst).toHaveBeenCalledWith({
+      where: {
+        role: { in: ['Parent', 'TechnicalSupport'] },
+        id: 'invite_supervisor',
+        status: 'Pending',
+      },
+      select: {
+        id: true,
+        clerkInvitationId: true,
+        role: true,
+        tags: true,
+        emailEnc: true,
+        status: true,
+        emailStatus: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    expect(findInvitation).not.toHaveBeenCalled();
+    expect(createInvitation).not.toHaveBeenCalled();
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });
 

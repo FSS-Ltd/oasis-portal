@@ -34,6 +34,7 @@ import {
 import { fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
 import { createDefaultClerkInvitationClient, type ClerkInvitationClient } from '../lib/clerk.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
+import type { AppContext } from '../context.js';
 
 export interface AdminRouterDeps {
   clerk?: ClerkInvitationClient;
@@ -70,6 +71,10 @@ type UpdateUserProfileInput = z.infer<typeof updateUserProfileInput>;
 const updateUserAccountStatusInput = z.object({
   userId: z.string().min(1),
   active: z.boolean(),
+});
+
+const resendUserInvitationInput = z.object({
+  id: z.string().min(1),
 });
 
 const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
@@ -205,6 +210,41 @@ function normaliseNullableText(value: string | null | undefined): string | null 
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normaliseTags(tags: readonly string[]): string[] {
+  return [...new Set(tags)].sort();
+}
+
+function hasSameTags(left: readonly string[], right: readonly string[]): boolean {
+  const leftTags = normaliseTags(left);
+  const rightTags = normaliseTags(right);
+  return (
+    leftTags.length === rightTags.length && leftTags.every((tag, index) => tag === rightTags[index])
+  );
+}
+
+function assertPendingInvitationMatchesInput(
+  invitation: UserInvitationRow,
+  input: { role: Role; tags: readonly PermissionTag[] },
+) {
+  if (invitation.role === input.role && hasSameTags(invitation.tags, input.tags)) return;
+
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: 'a pending invitation already exists for this email with a different role or tags',
+  });
+}
+
+function assertInvitationCanUseClerkStatus(invitation: ClerkInvitationClientResult) {
+  if (invitation.status === 'accepted') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'this invitation has already been accepted and cannot be resent',
+    });
+  }
+}
+
+type ClerkInvitationClientResult = Awaited<ReturnType<ClerkInvitationClient['createInvitation']>>;
+
 function userProfileUpdateData(
   ctx: {
     db: {
@@ -322,6 +362,172 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     if (cachedEmailClient) return cachedEmailClient;
     cachedEmailClient = createResendEmailClient();
     return cachedEmailClient;
+  };
+
+  const createClerkInvitation = async (input: {
+    email: string;
+    redirectUrl?: string | undefined;
+    role: Role;
+    tags: readonly PermissionTag[];
+  }): Promise<ClerkInvitationClientResult> => {
+    const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
+      emailAddress: input.email,
+      publicMetadata: { role: input.role, tags: [...input.tags] },
+      ignoreExisting: true,
+      notify: false,
+    };
+    if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
+    const invitation = await getClerk().createInvitation(inviteParams);
+    if (!invitation.url) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'clerk invitation link missing',
+      });
+    }
+    return invitation;
+  };
+
+  const resolveClerkInvitationForDelivery = async (input: {
+    email: string;
+    existingInvitation?: ClerkInvitationClientResult | undefined;
+    redirectUrl?: string | undefined;
+    storedInvitation: UserInvitationRow;
+  }): Promise<ClerkInvitationClientResult> => {
+    const current =
+      input.existingInvitation ??
+      (await getClerk().findInvitation(input.storedInvitation.clerkInvitationId));
+
+    if (current) {
+      assertInvitationCanUseClerkStatus(current);
+      if (current.status === 'pending' && current.url) return current;
+      if (current.status === 'pending') {
+        await getClerk().revokeInvitation(current.id);
+      }
+    }
+
+    const replacement = await createClerkInvitation({
+      email: input.email,
+      redirectUrl: input.redirectUrl,
+      role: input.storedInvitation.role,
+      tags: input.storedInvitation.tags as PermissionTag[],
+    });
+
+    return replacement;
+  };
+
+  const deliverInvitationEmail = async (input: {
+    auditAction: 'Create' | 'Update';
+    ctx: AppContext & { user: SessionUser };
+    email: string;
+    existingInvitation?: ClerkInvitationClientResult | undefined;
+    redirectUrl?: string | undefined;
+    source: 'admin.inviteUser' | 'admin.resendUserInvitation';
+    storedInvitation: UserInvitationRow;
+  }) => {
+    const invitation = await resolveClerkInvitationForDelivery({
+      email: input.email,
+      existingInvitation: input.existingInvitation,
+      redirectUrl: input.redirectUrl,
+      storedInvitation: input.storedInvitation,
+    });
+    if (!invitation.url) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'clerk invitation link missing',
+      });
+    }
+
+    await input.ctx.db.userInvitation.update({
+      where: { id: input.storedInvitation.id },
+      data: {
+        emailStatus: 'NotSent',
+        emailMessageId: null,
+        ...(invitation.id === input.storedInvitation.clerkInvitationId
+          ? {}
+          : { clerkInvitationId: invitation.id }),
+      },
+      select: { id: true },
+    });
+
+    const email = buildUserInviteEmail({
+      to: input.email,
+      role: input.storedInvitation.role,
+      inviteUrl: invitation.url,
+    });
+    let emailResult: Awaited<ReturnType<EmailClient['send']>>;
+    try {
+      emailResult = await getEmailClient().send(email);
+    } catch (err) {
+      await input.ctx.db.userInvitation.update({
+        where: { id: input.storedInvitation.id },
+        data: { emailStatus: 'Failed', emailMessageId: null },
+        select: { id: true },
+      });
+      await input.ctx.db.auditLog.create({
+        data: {
+          userId: input.ctx.user.id,
+          action: 'Update',
+          entity: 'Invitation',
+          entityId: invitation.id,
+          meta: {
+            role: input.storedInvitation.role,
+            tags: input.storedInvitation.tags,
+            invitationStatus: invitation.status,
+            emailStatus: 'Failed',
+            source: input.source,
+          },
+        },
+      });
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'invitation email send failed',
+        cause: err instanceof Error ? err : undefined,
+      });
+    }
+
+    await input.ctx.db.userInvitation.update({
+      where: { id: input.storedInvitation.id },
+      data: {
+        emailStatus: 'Sent',
+        emailMessageId: emailResult.id,
+      },
+      select: { id: true },
+    });
+
+    await input.ctx.db.auditLog.create({
+      data: {
+        userId: input.ctx.user.id,
+        action: input.auditAction,
+        entity: 'Invitation',
+        entityId: invitation.id,
+        meta: {
+          role: input.storedInvitation.role,
+          tags: input.storedInvitation.tags,
+          invitationStatus: invitation.status,
+          emailStatus: 'Sent',
+          source: input.source,
+        },
+      },
+    });
+    await input.ctx.db.auditLog.create({
+      data: {
+        userId: input.ctx.user.id,
+        action: 'Create',
+        entity: 'Email',
+        entityId: emailResult.id,
+        meta: {
+          invitationId: invitation.id,
+          subject: email.subject,
+          source: input.source,
+        },
+      },
+    });
+
+    return {
+      invitationId: invitation.id,
+      status: invitation.status,
+      emailStatus: 'Sent' as const,
+    };
   };
 
   return router({
@@ -919,7 +1125,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           }),
           ctx.db.userInvitation.findFirst({
             where: { emailBidx, status: 'Pending' },
-            select: { id: true },
+            select: userInvitationSelect,
           }),
         ]);
 
@@ -931,26 +1137,31 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
 
         if (existingPendingInvite) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'a pending invitation already exists for this email',
+          assertPendingInvitationMatchesInput(existingPendingInvite, input);
+          if (existingPendingInvite.emailStatus === 'Sent') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message:
+                'a pending invitation already exists for this email; use resend on the pending invite if needed',
+            });
+          }
+
+          return deliverInvitationEmail({
+            auditAction: 'Update',
+            ctx,
+            email: input.email,
+            redirectUrl: input.redirectUrl,
+            source: 'admin.inviteUser',
+            storedInvitation: existingPendingInvite,
           });
         }
 
-        const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
-          emailAddress: input.email,
-          publicMetadata: { role: input.role, tags: input.tags },
-          ignoreExisting: true,
-          notify: false,
-        };
-        if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
-        const invitation = await getClerk().createInvitation(inviteParams);
-        if (!invitation.url) {
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'clerk invitation link missing',
-          });
-        }
+        const invitation = await createClerkInvitation({
+          email: input.email,
+          redirectUrl: input.redirectUrl,
+          role: input.role,
+          tags: input.tags,
+        });
 
         let storedInvitation: UserInvitationRow;
         try {
@@ -971,75 +1182,48 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
             throw new TRPCError({
               code: 'BAD_REQUEST',
-              message: 'a pending invitation already exists for this email',
+              message:
+                'a pending invitation already exists for this email; refresh pending invites and resend if needed',
             });
           }
           throw err;
         }
 
-        const email = buildUserInviteEmail({
-          to: input.email,
-          role: input.role,
-          inviteUrl: invitation.url,
+        return deliverInvitationEmail({
+          auditAction: 'Create',
+          ctx,
+          email: input.email,
+          existingInvitation: invitation,
+          redirectUrl: input.redirectUrl,
+          source: 'admin.inviteUser',
+          storedInvitation,
         });
-        let emailResult: Awaited<ReturnType<EmailClient['send']>>;
-        try {
-          emailResult = await getEmailClient().send(email);
-        } catch (err) {
-          await ctx.db.userInvitation.update({
-            where: { id: storedInvitation.id },
-            data: { emailStatus: 'Failed' },
-            select: { id: true },
-          });
-          throw new TRPCError({
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'invitation email send failed',
-            cause: err instanceof Error ? err : undefined,
-          });
+      }),
+
+    resendUserInvitation: userAccountAdminProcedure
+      .input(resendUserInvitationInput)
+      .mutation(async ({ ctx, input }) => {
+        const storedInvitation = await ctx.db.userInvitation.findFirst({
+          where: { ...invitationScopeWhereFor(ctx.user), id: input.id, status: 'Pending' },
+          select: userInvitationSelect,
+        });
+        if (!storedInvitation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'pending invitation not found' });
         }
 
-        await ctx.db.userInvitation.update({
-          where: { id: storedInvitation.id },
-          data: {
-            emailStatus: 'Sent',
-            emailMessageId: emailResult.id,
-          },
-          select: { id: true },
-        });
+        const email = decryptRequired(
+          ctx.db.$enc.decrypt,
+          storedInvitation.emailEnc,
+          'invitation PII',
+        );
 
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'Invitation',
-            entityId: invitation.id,
-            meta: {
-              role: input.role,
-              tags: input.tags,
-              invitationStatus: invitation.status,
-              emailStatus: 'Sent',
-            },
-          },
+        return deliverInvitationEmail({
+          auditAction: 'Update',
+          ctx,
+          email,
+          source: 'admin.resendUserInvitation',
+          storedInvitation,
         });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'Email',
-            entityId: emailResult.id,
-            meta: {
-              invitationId: invitation.id,
-              subject: email.subject,
-              source: 'admin.inviteUser',
-            },
-          },
-        });
-
-        return {
-          invitationId: invitation.id,
-          status: invitation.status,
-          emailStatus: 'Sent' as const,
-        };
       }),
 
     linkGuardian: fullAdminProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {

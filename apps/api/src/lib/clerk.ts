@@ -24,14 +24,29 @@ export interface ClerkInvitationResult {
 
 export interface ClerkInvitationClient {
   createInvitation(input: ClerkInvitationCreateInput): Promise<ClerkInvitationResult>;
+  findInvitation(invitationId: string): Promise<ClerkInvitationResult | null>;
+  revokeInvitation(invitationId: string): Promise<ClerkInvitationResult>;
+}
+
+function mapInvitation(invitation: {
+  emailAddress: string;
+  id: string;
+  status: string;
+  url?: string | undefined;
+}): ClerkInvitationResult {
+  const result: ClerkInvitationResult = {
+    id: invitation.id,
+    emailAddress: invitation.emailAddress,
+    status: invitation.status,
+  };
+  if (invitation.url !== undefined) result.url = invitation.url;
+  return result;
 }
 
 export function createDefaultClerkInvitationClient(): ClerkInvitationClient {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
-    throw new Error(
-      'CLERK_SECRET_KEY is required to create the default Clerk invitation client',
-    );
+    throw new Error('CLERK_SECRET_KEY is required to create the default Clerk invitation client');
   }
   const client = createClerkClient({ secretKey });
   return {
@@ -45,13 +60,19 @@ export function createDefaultClerkInvitationClient(): ClerkInvitationClient {
       if (input.notify !== undefined) params.notify = input.notify;
 
       const invitation = await client.invitations.createInvitation(params);
-      const result: ClerkInvitationResult = {
-        id: invitation.id,
-        emailAddress: invitation.emailAddress,
-        status: invitation.status,
-      };
-      if (invitation.url !== undefined) result.url = invitation.url;
-      return result;
+      return mapInvitation(invitation);
+    },
+    async findInvitation(invitationId) {
+      const invitations = await client.invitations.getInvitationList({
+        limit: 10,
+        query: invitationId,
+      });
+      const invitation = invitations.data.find((candidate) => candidate.id === invitationId);
+      return invitation ? mapInvitation(invitation) : null;
+    },
+    async revokeInvitation(invitationId) {
+      const invitation = await client.invitations.revokeInvitation(invitationId);
+      return mapInvitation(invitation);
     },
   };
 }

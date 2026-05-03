@@ -4,6 +4,7 @@ import { Clock, Mail } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { roleLabel } from '@/lib/profile-display';
+import { PendingInviteResendAction } from '../_components/pending-invite-resend-action';
 import { formatAccountDate, type AccessInvitation } from './access-account-model';
 
 interface AccessPendingInvitePanelProps {
@@ -62,6 +63,7 @@ export function AccessPendingInvitePanel({ invitation }: AccessPendingInvitePane
               This account becomes active after the invite is accepted.
             </span>
           </div>
+          <PendingInviteResendAction invitationId={invitation.id} />
         </div>
       </section>
     </section>
