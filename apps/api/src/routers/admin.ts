@@ -37,9 +37,12 @@ import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from 
 import type { AppContext } from '../context.js';
 
 export interface AdminRouterDeps {
+  appUrl?: string;
   clerk?: ClerkInvitationClient;
   emailClient?: EmailClient;
 }
+
+const POST_SIGN_IN_PATH = '/post-sign-in';
 
 const searchParentsInput = z
   .object({
@@ -259,6 +262,25 @@ function assertInvitationCanUseClerkStatus(invitation: ClerkInvitationClientResu
 
 type ClerkInvitationClientResult = Awaited<ReturnType<ClerkInvitationClient['createInvitation']>>;
 
+function buildPostSignInRedirectUrl(appUrl: string | undefined): string {
+  const trimmed = appUrl?.trim();
+  if (!trimmed) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'APP_URL is required to create invitation redirect URL',
+    });
+  }
+
+  try {
+    return new URL(POST_SIGN_IN_PATH, trimmed).toString();
+  } catch {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'APP_URL must be a valid absolute URL to create invitation redirect URL',
+    });
+  }
+}
+
 function userProfileUpdateData(
   ctx: {
     db: {
@@ -377,20 +399,21 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     cachedEmailClient = createResendEmailClient();
     return cachedEmailClient;
   };
+  const getInvitationRedirectUrl = (): string =>
+    buildPostSignInRedirectUrl(deps.appUrl ?? process.env.APP_URL);
 
   const createClerkInvitation = async (input: {
     email: string;
-    redirectUrl?: string | undefined;
     role: Role;
     tags: readonly PermissionTag[];
   }): Promise<ClerkInvitationClientResult> => {
     const inviteParams: Parameters<ClerkInvitationClient['createInvitation']>[0] = {
       emailAddress: input.email,
       publicMetadata: { role: input.role, tags: [...input.tags] },
+      redirectUrl: getInvitationRedirectUrl(),
       ignoreExisting: true,
       notify: false,
     };
-    if (input.redirectUrl !== undefined) inviteParams.redirectUrl = input.redirectUrl;
     const invitation = await getClerk().createInvitation(inviteParams);
     if (!invitation.url) {
       throw new TRPCError({
@@ -404,7 +427,6 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
   const resolveClerkInvitationForDelivery = async (input: {
     email: string;
     existingInvitation?: ClerkInvitationClientResult | undefined;
-    redirectUrl?: string | undefined;
     storedInvitation: UserInvitationRow;
   }): Promise<ClerkInvitationClientResult> => {
     const current =
@@ -413,7 +435,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     if (current) {
       assertInvitationCanUseClerkStatus(current);
-      if (current.status === 'pending' && current.url) return current;
+      if (input.existingInvitation && current.status === 'pending' && current.url) return current;
       if (current.status === 'pending') {
         await getClerk().revokeInvitation(current.id);
       }
@@ -421,7 +443,6 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     const replacement = await createClerkInvitation({
       email: input.email,
-      redirectUrl: input.redirectUrl,
       role: input.storedInvitation.role,
       tags: input.storedInvitation.tags as PermissionTag[],
     });
@@ -434,14 +455,12 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     ctx: AppContext & { user: SessionUser };
     email: string;
     existingInvitation?: ClerkInvitationClientResult | undefined;
-    redirectUrl?: string | undefined;
     source: 'admin.inviteUser' | 'admin.resendUserInvitation';
     storedInvitation: UserInvitationRow;
   }) => {
     const invitation = await resolveClerkInvitationForDelivery({
       email: input.email,
       existingInvitation: input.existingInvitation,
-      redirectUrl: input.redirectUrl,
       storedInvitation: input.storedInvitation,
     });
     if (!invitation.url) {
@@ -1171,7 +1190,6 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
             auditAction: 'Update',
             ctx,
             email: input.email,
-            redirectUrl: input.redirectUrl,
             source: 'admin.inviteUser',
             storedInvitation: existingPendingInvite,
           });
@@ -1179,7 +1197,6 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
         const invitation = await createClerkInvitation({
           email: input.email,
-          redirectUrl: input.redirectUrl,
           role: input.role,
           tags: input.tags,
         });
@@ -1215,7 +1232,6 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           ctx,
           email: input.email,
           existingInvitation: invitation,
-          redirectUrl: input.redirectUrl,
           source: 'admin.inviteUser',
           storedInvitation,
         });

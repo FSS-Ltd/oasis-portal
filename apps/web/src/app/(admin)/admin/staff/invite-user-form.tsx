@@ -14,7 +14,6 @@ const schema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
   role: z.enum(ROLES),
   tag: z.enum(PERMISSION_TAGS).or(z.literal('')),
-  redirectUrl: z.string().trim().url('Enter a valid URL').or(z.literal('')).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -40,7 +39,6 @@ export function InviteUserForm() {
       email: '',
       role: 'Parent',
       tag: '',
-      redirectUrl: '',
     },
   });
 
@@ -54,11 +52,10 @@ export function InviteUserForm() {
               email: values.email,
               role: values.role,
               tags: values.tag ? [values.tag] : [],
-              redirectUrl: values.redirectUrl || undefined,
             },
             {
               onSuccess: () => {
-                reset({ email: '', role: values.role, tag: '', redirectUrl: values.redirectUrl });
+                reset({ email: '', role: values.role, tag: '' });
               },
             },
           );
@@ -90,12 +87,6 @@ export function InviteUserForm() {
                 </option>
               ))}
             </SelectInput>
-          </Field>
-          <Field error={errors.redirectUrl?.message} label="Redirect URL">
-            <TextInput
-              placeholder="https://portal.example.com/admin/students"
-              {...register('redirectUrl')}
-            />
           </Field>
         </div>
         {inviteUser.error ? (

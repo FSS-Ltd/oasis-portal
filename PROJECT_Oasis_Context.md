@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-03
+**Last updated:** 2026-05-04
 **Agent:** Technical Agent (Codex)
-**Phase:** Invite resend sender normalisation.
+**Phase:** Invite post-signup routing fix.
 
 ---
 
@@ -18,7 +18,52 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Invite resend sender normalisation
+## Current status - Invite post-signup routing fix
+
+Working branch: `fix/invite-post-sign-in-redirect`.
+
+**PR scope:** Ensure Clerk invitation acceptance always hands users to the
+role-aware `/post-sign-in` router so Parents land on `/parent`, Supervisors
+land on `/supervisor`, and Head/full-admin users land on `/admin`.
+
+Changed scope:
+
+- Added a server-owned canonical invitation redirect built from `APP_URL` and
+  `/post-sign-in`; admin invite callers can no longer provide custom redirect
+  URLs.
+- Changed resend/retry handling so existing pending Clerk invitations are
+  replaced before delivery, ensuring older pending links are regenerated with
+  the canonical post-sign-in route.
+- Updated `/` so authenticated users who land on the home page are immediately
+  sent through `/post-sign-in`.
+- Removed the optional Redirect URL controls from both staff and access invite
+  forms.
+- Tightened invite input validation and updated focused tests for the canonical
+  redirect behavior.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- users.test.ts` - pass; Vitest ran the
+  domain suite with 116/116 tests passing.
+- `pnpm --filter @oasis/api test -- admin.router.test.ts` - pass; Vitest ran
+  the API suite with 185/185 tests passing.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm build` - pass.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Production must keep `APP_URL` configured as the portal origin, for example
+  `https://oasisportal.space`, because new Clerk invitations now require it to
+  create the post-sign-in redirect.
+- Existing pending invite emails should be resent so recipients receive a fresh
+  Clerk link with the canonical redirect.
+
+## Previous status - Invite resend sender normalisation
 
 Working branch: `fix/invite-email-diagnostics`.
 
