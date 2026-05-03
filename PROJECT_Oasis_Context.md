@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-03
 **Agent:** Technical Agent (Codex)
-**Phase:** Invite resend diagnostics.
+**Phase:** Invite resend sender normalisation.
 
 ---
 
@@ -18,7 +18,47 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Invite resend diagnostics
+## Current status - Invite resend sender normalisation
+
+Working branch: `fix/invite-email-diagnostics`.
+
+**PR scope:** Fix production invite resend failures caused by a quoted
+`RESEND_FROM` value in Vercel while preserving the diagnostics added for the
+same incident.
+
+Changed scope:
+
+- Root cause confirmed from production diagnostics:
+  `Invalid from field. The email address needs to follow the email@example.com
+  or Name <email@example.com> format.`
+- Added sender normalisation that strips one pair of matching shell-style
+  wrapping quotes from `RESEND_FROM` before passing it to Resend. This tolerates
+  Vercel values copied from `.env` syntax such as
+  `"Oasis Portal <no-reply@oasisportal.space>"`.
+- Added email config regression coverage for both double-quoted and
+  single-quoted sender env values.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- email.router.test.ts` - pass; Vitest ran
+  the API suite with 185/185 tests passing.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm --filter @oasis/api email:smoke` with `.env.production` loaded and a
+  deliberately quoted `RESEND_FROM` override - pass; Resend accepted the smoke
+  email and returned message id `602f0b2a-aac1-4fa1-9cb2-bf0c1bd76c1d`.
+- `pnpm build` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- This code fix makes the app resilient to the current Vercel value. The
+  operational cleanup is still to edit Vercel `RESEND_FROM` to the unquoted
+  value `Oasis Portal <no-reply@oasisportal.space>` when convenient.
+- After deployment, retry the pending Supervisor invite; it should now move from
+  `Failed` to `Sent` with an `emailMessageId`.
+
+## Previous status - Invite resend diagnostics
 
 Working branch: `fix/invite-email-diagnostics`.
 

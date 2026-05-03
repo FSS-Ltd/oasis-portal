@@ -52,8 +52,22 @@ function isProductionEmailEnvironment(env: EmailEnv): boolean {
   return env.VERCEL_ENV === 'production' || env.NODE_ENV === 'production';
 }
 
+function stripWrappingQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length < 2) return trimmed;
+
+  const first = trimmed[0];
+  const last = trimmed[trimmed.length - 1];
+  if ((first === '"' || first === "'") && first === last) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
 function normaliseSender(value: string): string {
-  return value === 'no-reply@oasisportal.space' ? PRODUCTION_RESEND_FROM : value;
+  const sender = stripWrappingQuotes(value);
+  return sender === 'no-reply@oasisportal.space' ? PRODUCTION_RESEND_FROM : sender;
 }
 
 function normaliseAppUrl(value: string | undefined): string | undefined {

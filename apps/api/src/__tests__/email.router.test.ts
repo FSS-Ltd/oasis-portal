@@ -104,6 +104,22 @@ describe('email config', () => {
     });
   });
 
+  it.each([
+    ['"Oasis Portal <no-reply@oasisportal.space>"'],
+    ["'Oasis Portal <no-reply@oasisportal.space>'"],
+  ])('strips wrapping shell quotes from sender env values', (sender) => {
+    expect(
+      readEmailConfig({
+        NODE_ENV: 'production',
+        RESEND_API_KEY: 're_test_123',
+        RESEND_FROM: sender,
+      }),
+    ).toEqual({
+      apiKey: 're_test_123',
+      defaultFrom: PRODUCTION_RESEND_FROM,
+    });
+  });
+
   it('rejects missing API keys before constructing a Resend client', () => {
     expect(() => readEmailConfig({})).toThrow('RESEND_API_KEY is required to send email');
   });
