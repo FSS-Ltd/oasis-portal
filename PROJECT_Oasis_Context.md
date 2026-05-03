@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-03
 **Agent:** Technical Agent (Codex)
-**Phase:** Invite resend recovery.
+**Phase:** Invite resend diagnostics.
 
 ---
 
@@ -18,7 +18,50 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Invite email render/runtime recovery
+## Current status - Invite resend diagnostics
+
+Working branch: `fix/invite-email-diagnostics`.
+
+**PR scope:** Add sanitized production diagnostics for failed Resend invite
+delivery after the React Email render fix deployed but the admin resend flow
+continued returning 500.
+
+Changed scope:
+
+- Confirmed production is now on PR #56
+  `fix/invite-email-render-runtime`, deployment
+  `dpl_GGHYi8s4VdKx39zXhxosrZGuTgBJ`, commit
+  `8729c71cc45488180ff7510e3597570c38c96cc4`.
+- Queried recent production invitation/audit state without decrypting or
+  printing PII. The pending Supervisor invite remains `emailStatus=Failed`,
+  and recent `admin.resendUserInvitation` audit rows show the failure reaches
+  the email-delivery catch after Clerk lookup/replacement.
+- Added server-side sanitized logging in the invite delivery catch so the next
+  production retry logs the underlying email error name/message, invitation id,
+  role, source, and Clerk invitation status without logging recipient email or
+  invite URL.
+- Updated invite failure tests to assert the diagnostic log is emitted and does
+  not include the recipient email.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- admin.router.test.ts` - pass; Vitest ran
+  the API suite with 183/183 tests passing.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm build` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- The diagnostics branch does not change the browser error message or expose
+  sensitive details to users. It exists so Vercel runtime logs can reveal
+  whether production Resend is rejecting the recipient, sender, API key, domain,
+  or account state.
+- After this branch is deployed, retry the same pending invite and inspect
+  Vercel runtime logs for `Invitation email delivery failed`.
+
+## Previous status - Invite email render/runtime recovery
 
 Working branch: `fix/invite-email-render-runtime`.
 
