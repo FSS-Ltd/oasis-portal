@@ -110,7 +110,7 @@ describe('email config', () => {
 });
 
 describe('email builders', () => {
-  it('builds a branded smoke-test email with react markup and text fallback', () => {
+  it('builds a branded smoke-test email with react markup and text fallback', async () => {
     const email = buildSmokeTestEmail('ops@example.com');
 
     expect(email).toMatchObject({
@@ -128,6 +128,11 @@ describe('email builders', () => {
       text: SMOKE_TEST_EMAIL_TEXT,
     });
     expect('react' in alias).toBe(true);
+
+    if (!('react' in email)) throw new Error('expected react email payload');
+    const html = await render(email.react);
+    expect(html).toContain('Email deliverability check');
+    expect(html).toContain('transactional smoke test');
   });
 
   it('builds a user invite email with react markup and text fallback', async () => {
