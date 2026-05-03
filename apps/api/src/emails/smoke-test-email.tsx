@@ -1,3 +1,4 @@
+import React from 'react';
 import { OasisEmailShell, paragraphStyle, Text } from './_components/oasis-email-shell.js';
 
 export interface SmokeTestEmailProps {

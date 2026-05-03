@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-02
+**Last updated:** 2026-05-03
 **Agent:** Technical Agent (Codex)
-**Phase:** Resend user invites and email deliverability hardening.
+**Phase:** Invite resend recovery.
 
 ---
 
@@ -18,7 +18,53 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Resend user invites and email deliverability hardening
+## Current status - Invite email render/runtime recovery
+
+Working branch: `fix/invite-email-render-runtime`.
+
+**PR scope:** Fix the server-side React Email render path used by Resend
+smoke tests, first-time invite delivery, and `admin.resendUserInvitation`.
+
+Changed scope:
+
+- Confirmed production Vercel project `oasis-portal-web` is on deployment
+  `dpl_2kCwyCpZuTTzA7rmSJ9Yqbg8Giv3`, PR #55
+  `fix/retry-failed-invites`, commit `5cdda7c35f8f84b660e1de4332da0e5ff2b6546a`.
+- Confirmed Vercel production/preview has `APP_URL`, `RESEND_API_KEY`, and
+  `RESEND_FROM` configured as sensitive env vars.
+- Reproduced the production email path failure locally with production env:
+  `pnpm --filter @oasis/api email:smoke` failed before reaching Resend with
+  `React is not defined`.
+- Added explicit runtime React imports to the API email TSX modules so Resend's
+  server-side renderer can execute the smoke and invite templates.
+- Added a smoke-template render assertion alongside the existing user-invite
+  render test.
+
+Verification:
+
+- React Email smoke template render via `@react-email/render` - pass.
+- React Email user invite template render via `@react-email/render` - pass.
+- `pnpm --filter @oasis/api email:smoke` with `.env.production` loaded - pass;
+  Resend accepted the smoke email and returned message id
+  `8d61f4b2-4dae-4ef4-b668-23b9232cc2c9`.
+- `pnpm --filter @oasis/api test` - pass; 183/183 tests passing.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm build` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- `_dmarc.oasisportal.space` returned no TXT record during DNS verification.
+  SPF, return-path MX, and the likely Resend DKIM record were present. Add the
+  runbook DMARC record before judging long-term mailbox placement.
+- Local `.env.production` currently uses `APP_URL=https://oasisportal.space`;
+  the runbook expects `https://www.oasisportal.space`. This is not the render
+  failure, but keep Vercel and local production env consistent.
+- Production still needs this branch deployed before admin invite resend can use
+  the fixed render path.
+
+## Previous status - Resend user invites and email deliverability hardening
 
 Working branch: `feat/resend-user-invites`.
 
