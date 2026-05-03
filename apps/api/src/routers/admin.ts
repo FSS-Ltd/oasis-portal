@@ -203,6 +203,20 @@ function decryptRequired(
   return decrypted;
 }
 
+function sanitizeEmailDeliveryError(err: unknown) {
+  if (err instanceof Error) {
+    return {
+      name: err.name,
+      message: err.message,
+    };
+  }
+
+  return {
+    name: 'UnknownEmailDeliveryError',
+    message: typeof err === 'string' ? err : 'non-error thrown during email delivery',
+  };
+}
+
 function normaliseNullableText(value: string | null | undefined): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -477,6 +491,13 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
             source: input.source,
           },
         },
+      });
+      console.error('Invitation email delivery failed', {
+        error: sanitizeEmailDeliveryError(err),
+        invitationId: invitation.id,
+        role: input.storedInvitation.role,
+        source: input.source,
+        status: invitation.status,
       });
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',

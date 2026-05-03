@@ -1268,17 +1268,30 @@ describe('admin.inviteUser', () => {
     const email = makeFakeEmailClient();
     email.send.mockRejectedValueOnce(new Error('resend unavailable'));
     const { caller, db } = makeCaller(headUser, { email });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    await expect(
-      caller.admin.inviteUser({
-        email: 'jane@example.com',
+    try {
+      await expect(
+        caller.admin.inviteUser({
+          email: 'jane@example.com',
+          role: 'Parent',
+          tags: [],
+        }),
+      ).rejects.toMatchObject({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'invitation email send failed',
+      });
+      expect(consoleError).toHaveBeenCalledWith('Invitation email delivery failed', {
+        error: { name: 'Error', message: 'resend unavailable' },
+        invitationId: 'inv_xyz',
         role: 'Parent',
-        tags: [],
-      }),
-    ).rejects.toMatchObject({
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'invitation email send failed',
-    });
+        source: 'admin.inviteUser',
+        status: 'pending',
+      });
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain('jane@example.com');
+    } finally {
+      consoleError.mockRestore();
+    }
 
     expect(db.userInvitation.update).toHaveBeenCalledWith({
       where: { id: 'invite_row_1' },
@@ -1588,11 +1601,26 @@ describe('admin.resendUserInvitation', () => {
     const email = makeFakeEmailClient();
     email.send.mockRejectedValueOnce(new Error('resend unavailable'));
     const { caller, db: usedDb } = makeCaller(headUser, { db, email });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).rejects.toMatchObject({
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'invitation email send failed',
-    });
+    try {
+      await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).rejects.toMatchObject(
+        {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'invitation email send failed',
+        },
+      );
+      expect(consoleError).toHaveBeenCalledWith('Invitation email delivery failed', {
+        error: { name: 'Error', message: 'resend unavailable' },
+        invitationId: 'inv_xyz',
+        role: 'Parent',
+        source: 'admin.resendUserInvitation',
+        status: 'pending',
+      });
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain('jane@example.com');
+    } finally {
+      consoleError.mockRestore();
+    }
 
     expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
       where: { id: 'invite_row_1' },
