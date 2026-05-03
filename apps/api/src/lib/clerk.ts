@@ -26,12 +26,16 @@ export interface ClerkInvitationClient {
   createInvitation(input: ClerkInvitationCreateInput): Promise<ClerkInvitationResult>;
 }
 
-export function createDefaultClerkInvitationClient(): ClerkInvitationClient {
+export interface ClerkUserDeletionClient {
+  deleteUser(userId: string): Promise<void>;
+}
+
+export interface ClerkAdminClient extends ClerkInvitationClient, ClerkUserDeletionClient {}
+
+export function createDefaultClerkAdminClient(): ClerkAdminClient {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
-    throw new Error(
-      'CLERK_SECRET_KEY is required to create the default Clerk invitation client',
-    );
+    throw new Error('CLERK_SECRET_KEY is required to create the default Clerk admin client');
   }
   const client = createClerkClient({ secretKey });
   return {
@@ -53,5 +57,16 @@ export function createDefaultClerkInvitationClient(): ClerkInvitationClient {
       if (invitation.url !== undefined) result.url = invitation.url;
       return result;
     },
+    async deleteUser(userId) {
+      await client.users.deleteUser(userId);
+    },
   };
+}
+
+export function createDefaultClerkInvitationClient(): ClerkInvitationClient {
+  return createDefaultClerkAdminClient();
+}
+
+export function createDefaultClerkUserDeletionClient(): ClerkUserDeletionClient {
+  return createDefaultClerkAdminClient();
 }

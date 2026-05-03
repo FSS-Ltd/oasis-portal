@@ -45,6 +45,7 @@ interface StoredStudent {
   yearGroup: string;
   enrolmentDate: Date;
   active: boolean;
+  archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -123,13 +124,17 @@ function makeFakeDb() {
         ({
           data,
         }: {
-          data: Omit<StoredStudent, 'id' | 'userId' | 'active' | 'createdAt' | 'updatedAt'>;
+          data: Omit<
+            StoredStudent,
+            'id' | 'userId' | 'active' | 'archivedAt' | 'createdAt' | 'updatedAt'
+          >;
         }) => {
           const now = new Date('2026-04-27T10:00:00.000Z');
           const student: StoredStudent = {
             id: studentId,
             userId: null,
             active: true,
+            archivedAt: null,
             createdAt: now,
             updatedAt: now,
             ...data,
@@ -155,6 +160,13 @@ function makeFakeDb() {
         Promise.resolve(
           students
             .filter((student) => where?.active === undefined || student.active === where.active)
+            .filter((student) => {
+              const archivedAt = (where as { archivedAt?: null | { not: null } } | undefined)
+                ?.archivedAt;
+              if (archivedAt === undefined) return true;
+              if (archivedAt === null) return student.archivedAt === null;
+              return student.archivedAt !== null;
+            })
             .filter(
               (student) => where?.nameBidx === undefined || student.nameBidx === where.nameBidx,
             )
@@ -355,6 +367,40 @@ describe('student router CRUD', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('keeps archived students Head-only and out of default lists', async () => {
+    const { db, students } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await createStudent(headCaller);
+    const archivedAt = new Date('2026-05-02T10:00:00.000Z');
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.active = false;
+    storedStudent.archivedAt = archivedAt;
+
+    await expect(headCaller.student.list()).resolves.toHaveLength(0);
+    await expect(
+      headCaller.student.list({ archivedOnly: true, includeInactive: true }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: studentId,
+        active: false,
+        archivedAt,
+      }),
+    ]);
+    await expect(headCaller.student.byId({ id: studentId })).resolves.toMatchObject({
+      id: studentId,
+      archivedAt,
+    });
+
+    const supervisorCaller = makeCaller(supervisorUser, db);
+    await expect(
+      supervisorCaller.student.list({ archivedOnly: true, includeInactive: true }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(supervisorCaller.student.byId({ id: studentId })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 });
 

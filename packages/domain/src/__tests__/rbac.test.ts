@@ -11,11 +11,13 @@ import {
   canViewSensitiveStudentDrillThrough,
   canViewStudentDrillThrough,
   isFullAdmin,
+  isHead,
   isStaff,
   requireCanViewSensitive,
   requireClubsAdminOrFullAdmin,
   requireUserAccountAdmin,
   requireFullAdmin,
+  requireHead,
   requireOwnChild,
   requireSelfStudent,
   requireTag,
@@ -68,6 +70,19 @@ describe('requireFullAdmin', () => {
     }).toThrow(AccessDeniedError);
     expect(() => {
       requireFullAdmin(technicalSupport);
+    }).toThrow(AccessDeniedError);
+  });
+});
+
+describe('Head-only operations', () => {
+  it('distinguishes Head from other full-admin roles', () => {
+    expect(isHead(head)).toBe(true);
+    expect(isHead(principal)).toBe(false);
+    expect(() => {
+      requireHead(head);
+    }).not.toThrow();
+    expect(() => {
+      requireHead(principal);
     }).toThrow(AccessDeniedError);
   });
 });

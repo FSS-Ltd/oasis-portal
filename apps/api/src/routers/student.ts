@@ -42,6 +42,8 @@ const listInput = z
   .object({
     search: z.string().trim().min(1).optional(),
     includeInactive: z.boolean().optional(),
+    includeArchived: z.boolean().optional(),
+    archivedOnly: z.boolean().optional(),
   })
   .optional();
 
@@ -84,6 +86,7 @@ function decryptStudent(
     yearGroup: student.yearGroup,
     enrolmentDate: student.enrolmentDate,
     active: student.active,
+    archivedAt: student.archivedAt,
     createdAt: student.createdAt,
     updatedAt: student.updatedAt,
     subjects: student.subjects.map((assignment) => ({
@@ -121,7 +124,15 @@ export const studentRouter = router({
     .input(listInput)
     .query(async ({ ctx, input }) => {
       const where: Prisma.StudentWhereInput = {};
-      if (!input?.includeInactive) where.active = true;
+      if ((input?.includeArchived || input?.archivedOnly) && ctx.user.role !== 'Head') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'archived students are Head-only' });
+      }
+      if (input?.archivedOnly) {
+        where.archivedAt = { not: null };
+      } else if (!input?.includeArchived) {
+        where.archivedAt = null;
+      }
+      if (!input?.includeInactive && !input?.archivedOnly) where.active = true;
       if (input?.search) where.nameBidx = ctx.db.$enc.blindIndex(input.search);
 
       const students = await ctx.db.student.findMany({
@@ -144,6 +155,9 @@ export const studentRouter = router({
       });
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+      }
+      if (student.archivedAt && ctx.user.role !== 'Head') {
+        throw new TRPCError({ code: 'FORBIDDEN', message: 'archived students are Head-only' });
       }
 
       const row = decryptStudent(ctx, student);

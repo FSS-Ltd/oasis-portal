@@ -68,6 +68,10 @@ export function isFullAdmin(user: Pick<SessionUser, 'role'>): boolean {
   return FULL_ADMIN_ROLES.has(user.role);
 }
 
+export function isHead(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Head';
+}
+
 export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user) || user.role === 'Supervisor';
 }
@@ -86,6 +90,12 @@ export class AccessDeniedError extends Error {
 export function requireFullAdmin(user: SessionUser): void {
   if (!isFullAdmin(user)) {
     throw new AccessDeniedError(`role ${user.role} is not a full admin`);
+  }
+}
+
+export function requireHead(user: SessionUser): void {
+  if (!isHead(user)) {
+    throw new AccessDeniedError(`role ${user.role} is not Head`);
   }
 }
 

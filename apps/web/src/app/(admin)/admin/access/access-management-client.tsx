@@ -18,6 +18,7 @@ import { AccessInviteForm } from './access-invite-form';
 import { AccessPendingInvitePanel } from './access-pending-invite-panel';
 
 interface AccessManagementClientProps {
+  canDeleteAccounts: boolean;
   currentUserId: string;
 }
 
@@ -53,7 +54,10 @@ function filterInvitation(
   return matchesFilter && matchesSearch;
 }
 
-export function AccessManagementClient({ currentUserId }: AccessManagementClientProps) {
+export function AccessManagementClient({
+  canDeleteAccounts,
+  currentUserId,
+}: AccessManagementClientProps) {
   const [filter, setFilter] = useState<AccessFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
@@ -220,7 +224,11 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
             <EmptyState detail="Invite a person to begin." title="No account selected" />
           ) : null}
           {selectedRow?.kind === 'account' ? (
-            <AccessAccountPanel account={selectedRow.account} currentUserId={currentUserId} />
+            <AccessAccountPanel
+              account={selectedRow.account}
+              canDeleteAccounts={canDeleteAccounts}
+              currentUserId={currentUserId}
+            />
           ) : null}
           {selectedRow?.kind === 'invitation' ? (
             <AccessPendingInvitePanel invitation={selectedRow.invitation} />

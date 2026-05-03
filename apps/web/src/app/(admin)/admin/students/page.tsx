@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Archive, Plus } from 'lucide-react';
 import { MotionPage } from '@/components/admin/motion';
 import { getStudentDrillThroughAdminUser } from '@/components/admin/require-full-admin';
 import { StudentsList } from './students-list';
@@ -21,10 +21,16 @@ export default async function StudentsPage() {
           </p>
         </div>
         {canManageStudents ? (
-          <Link className="button button--primary button--md" href="/admin/students/new">
-            <Plus aria-hidden="true" size={17} />
-            New student
-          </Link>
+          <div className="page-header__actions">
+            <Link className="button button--secondary button--md" href="/admin/students/archive">
+              <Archive aria-hidden="true" size={17} />
+              Archive
+            </Link>
+            <Link className="button button--primary button--md" href="/admin/students/new">
+              <Plus aria-hidden="true" size={17} />
+              New student
+            </Link>
+          </div>
         ) : null}
       </div>
       <StudentsList />

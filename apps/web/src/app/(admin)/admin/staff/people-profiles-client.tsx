@@ -17,7 +17,15 @@ import {
   type DirectoryItem,
 } from './_components/people-profile-model';
 
-export function PeopleProfilesClient() {
+interface PeopleProfilesClientProps {
+  canDeleteAccounts: boolean;
+  currentUserId: string;
+}
+
+export function PeopleProfilesClient({
+  canDeleteAccounts,
+  currentUserId,
+}: PeopleProfilesClientProps) {
   const [filter, setFilter] = useState<DirectoryFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
@@ -146,7 +154,12 @@ export function PeopleProfilesClient() {
             <StudentProfilePanel student={selectedItem.student} />
           ) : null}
           {selectedItem?.kind === 'parent' || selectedItem?.kind === 'supervisor' ? (
-            <UserProfilePanel kind={selectedItem.kind} user={selectedItem.user} />
+            <UserProfilePanel
+              canDeleteAccounts={canDeleteAccounts}
+              currentUserId={currentUserId}
+              kind={selectedItem.kind}
+              user={selectedItem.user}
+            />
           ) : null}
           {selectedItem?.kind === 'invite' ? (
             <PendingInviteProfilePanel invitation={selectedItem.invitation} />

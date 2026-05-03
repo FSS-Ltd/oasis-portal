@@ -6,8 +6,18 @@ import { childNotesRouter } from '../routers/childNotes.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
-const principalUser: SessionUser = { id: 'u_principal', role: 'Principal', tags: [], requires2fa: false };
-const supervisorUser: SessionUser = { id: 'u_sup', role: 'Supervisor', tags: [], requires2fa: false };
+const principalUser: SessionUser = {
+  id: 'u_principal',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
+const supervisorUser: SessionUser = {
+  id: 'u_sup',
+  role: 'Supervisor',
+  tags: [],
+  requires2fa: false,
+};
 const taggedSupervisorUser: SessionUser = {
   id: 'u_tagged_sup',
   role: 'Supervisor',
@@ -21,7 +31,12 @@ const sensitiveViewerUser: SessionUser = {
   requires2fa: false,
 };
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
-const unlinkedParentUser: SessionUser = { id: 'u_other_parent', role: 'Parent', tags: [], requires2fa: false };
+const unlinkedParentUser: SessionUser = {
+  id: 'u_other_parent',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
 
 interface StoredChildNote {
   id: string;
@@ -61,6 +76,7 @@ function makeFakeDb() {
     {
       id: 'student_1',
       active: true,
+      archivedAt: null as Date | null,
       fullNameEnc: 'enc:Jane Learner',
       yearGroup: 'Year 6',
       enrolmentDate: day('2024-09-01'),
@@ -74,12 +90,14 @@ function makeFakeDb() {
       ],
     },
   ];
+  const guardianStudent = students[0];
+  if (!guardianStudent) throw new Error('test student missing');
   const guardians = [
     {
       id: 'guardian_1',
       userId: parentUser.id,
       studentId: 'student_1',
-      student: students[0],
+      student: guardianStudent,
       createdAt: day('2024-09-01'),
     },
   ];
@@ -87,8 +105,16 @@ function makeFakeDb() {
     { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
     { id: principalUser.id, fullNameEnc: 'enc:Principal User', role: principalUser.role },
     { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: supervisorUser.role },
-    { id: taggedSupervisorUser.id, fullNameEnc: 'enc:Tagged Supervisor', role: taggedSupervisorUser.role },
-    { id: sensitiveViewerUser.id, fullNameEnc: 'enc:Sensitive Viewer', role: sensitiveViewerUser.role },
+    {
+      id: taggedSupervisorUser.id,
+      fullNameEnc: 'enc:Tagged Supervisor',
+      role: taggedSupervisorUser.role,
+    },
+    {
+      id: sensitiveViewerUser.id,
+      fullNameEnc: 'enc:Sensitive Viewer',
+      role: sensitiveViewerUser.role,
+    },
   ];
   const db = {
     $enc: {
@@ -97,7 +123,13 @@ function makeFakeDb() {
     },
     auditLog: { create: vi.fn(() => Promise.resolve({ id: 'audit' })) },
     student: {
-      findMany: vi.fn(() => Promise.resolve(students)),
+      findMany: vi.fn(({ where }: { where?: { active?: boolean; archivedAt?: null } } = {}) =>
+        Promise.resolve(
+          students
+            .filter((student) => where?.active === undefined || student.active === where.active)
+            .filter((student) => where?.archivedAt === undefined || student.archivedAt === null),
+        ),
+      ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const student = students.find((row) => row.id === where.id);
         if (!student) return Promise.resolve(null);
@@ -105,17 +137,38 @@ function makeFakeDb() {
       }),
     },
     guardian: {
-      findUnique: vi.fn(({ where }: { where: { userId_studentId: { userId: string; studentId: string } } }) =>
-        Promise.resolve(
-          guardians.find(
-            (guardian) =>
-              guardian.userId === where.userId_studentId.userId &&
-              guardian.studentId === where.userId_studentId.studentId,
-          ) ?? null,
-        ),
+      findUnique: vi.fn(
+        ({ where }: { where: { userId_studentId: { userId: string; studentId: string } } }) =>
+          Promise.resolve(
+            guardians.find(
+              (guardian) =>
+                guardian.userId === where.userId_studentId.userId &&
+                guardian.studentId === where.userId_studentId.studentId,
+            ) ?? null,
+          ),
       ),
-      findMany: vi.fn(({ where }: { where: { userId: string } }) =>
-        Promise.resolve(guardians.filter((guardian) => guardian.userId === where.userId)),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            userId: string;
+            student?: { active?: boolean; archivedAt?: null };
+          };
+        }) =>
+          Promise.resolve(
+            guardians
+              .filter((guardian) => guardian.userId === where.userId)
+              .filter(
+                (guardian) =>
+                  where.student?.active === undefined ||
+                  guardian.student.active === where.student.active,
+              )
+              .filter(
+                (guardian) =>
+                  where.student?.archivedAt === undefined || guardian.student.archivedAt === null,
+              ),
+          ),
       ),
     },
     childNote: {
@@ -132,23 +185,25 @@ function makeFakeDb() {
         notes.push(row);
         return Promise.resolve(row);
       }),
-      findMany: vi.fn(({ where, include }: { where: ChildNoteWhere; include?: { createdBy?: unknown } }) => {
-        const rows = notes.filter((note) => {
-          if (note.studentId !== where.studentId) return false;
-          if (where.sensitive === false && note.sensitive) return false;
-          if (where.createdAt) {
-            return note.createdAt >= where.createdAt.gte && note.createdAt < where.createdAt.lt;
-          }
-          return true;
-        });
-        if (!include?.createdBy) return Promise.resolve(rows);
-        return Promise.resolve(
-          rows.map((note) => ({
-            ...note,
-            createdBy: users.find((user) => user.id === note.createdById) ?? users[0],
-          })),
-        );
-      }),
+      findMany: vi.fn(
+        ({ where, include }: { where: ChildNoteWhere; include?: { createdBy?: unknown } }) => {
+          const rows = notes.filter((note) => {
+            if (note.studentId !== where.studentId) return false;
+            if (where.sensitive === false && note.sensitive) return false;
+            if (where.createdAt) {
+              return note.createdAt >= where.createdAt.gte && note.createdAt < where.createdAt.lt;
+            }
+            return true;
+          });
+          if (!include?.createdBy) return Promise.resolve(rows);
+          return Promise.resolve(
+            rows.map((note) => ({
+              ...note,
+              createdBy: users.find((user) => user.id === note.createdById) ?? users[0],
+            })),
+          );
+        },
+      ),
     },
     attendance: {
       findMany: vi.fn(() =>
@@ -196,38 +251,44 @@ function makeFakeDb() {
         ({
           where,
         }: {
-          where?: { visibility?: 'General'; createdAt?: { gte: Date; lt: Date }; studentId?: string };
+          where?: {
+            visibility?: 'General';
+            createdAt?: { gte: Date; lt: Date };
+            studentId?: string;
+          };
         }) => {
           const rows = [
-          {
-            id: 'behaviour_1',
-            studentId: 'student_1',
-            type: 'Merit',
-            category: 'Focus',
-            visibility: 'General',
-            meritDelta: 3,
-            recordedById: supervisorUser.id,
-            createdAt: day('2026-04-29'),
-            noteEnc: 'enc:Focused well',
-            recordedBy: users.find((user) => user.id === supervisorUser.id),
-          },
-          {
-            id: 'behaviour_2',
-            studentId: 'student_1',
-            type: 'Demerit',
-            category: 'Pastoral',
-            visibility: 'Sensitive',
-            meritDelta: -5,
-            recordedById: headUser.id,
-            createdAt: day('2026-04-29'),
-            noteEnc: 'enc:Sensitive behaviour',
-            recordedBy: users.find((user) => user.id === headUser.id),
-          },
+            {
+              id: 'behaviour_1',
+              studentId: 'student_1',
+              type: 'Merit',
+              category: 'Focus',
+              visibility: 'General',
+              meritDelta: 3,
+              recordedById: supervisorUser.id,
+              createdAt: day('2026-04-29'),
+              noteEnc: 'enc:Focused well',
+              recordedBy: users.find((user) => user.id === supervisorUser.id),
+            },
+            {
+              id: 'behaviour_2',
+              studentId: 'student_1',
+              type: 'Demerit',
+              category: 'Pastoral',
+              visibility: 'Sensitive',
+              meritDelta: -5,
+              recordedById: headUser.id,
+              createdAt: day('2026-04-29'),
+              noteEnc: 'enc:Sensitive behaviour',
+              recordedBy: users.find((user) => user.id === headUser.id),
+            },
           ];
           return Promise.resolve(
             rows
               .filter((row) => where?.studentId === undefined || row.studentId === where.studentId)
-              .filter((row) => where?.visibility === undefined || row.visibility === where.visibility)
+              .filter(
+                (row) => where?.visibility === undefined || row.visibility === where.visibility,
+              )
               .filter(
                 (row) =>
                   where?.createdAt === undefined ||
@@ -239,7 +300,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, notes };
+  return { db, notes, students };
 }
 
 function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>['db']): AppContext {
@@ -273,21 +334,29 @@ describe('childNotes', () => {
     expect(notes.map((note) => note.noteEnc)).toEqual(['enc:General note', 'enc:Sensitive note']);
     expect(notes[0]?.createdById).toBe(supervisorUser.id);
 
-    await expect(makeCaller(parentUser, db).childNotes.create({ studentId: 'student_1', note: 'x' })).rejects.toMatchObject({
+    await expect(
+      makeCaller(parentUser, db).childNotes.create({ studentId: 'student_1', note: 'x' }),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
 
-    await expect(makeCaller(supervisorUser, db).childNotes.listForStudent({ studentId: 'student_1' })).resolves.toMatchObject({
+    await expect(
+      makeCaller(supervisorUser, db).childNotes.listForStudent({ studentId: 'student_1' }),
+    ).resolves.toMatchObject({
       notes: [{ note: 'General note', sensitive: false }],
     });
-    const headNotes = await makeCaller(headUser, db).childNotes.listForStudent({ studentId: 'student_1' });
+    const headNotes = await makeCaller(headUser, db).childNotes.listForStudent({
+      studentId: 'student_1',
+    });
     expect(headNotes.notes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ note: 'Sensitive note', sensitive: true }),
         expect.objectContaining({ note: 'General note', sensitive: false }),
       ]),
     );
-    const taggedNotes = await makeCaller(sensitiveViewerUser, db).childNotes.listForStudent({ studentId: 'student_1' });
+    const taggedNotes = await makeCaller(sensitiveViewerUser, db).childNotes.listForStudent({
+      studentId: 'student_1',
+    });
     expect(taggedNotes.notes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ note: 'Sensitive note', sensitive: true }),
@@ -319,17 +388,21 @@ describe('childLog.snapshot', () => {
 
     expect(snapshot.tardiness).toHaveLength(1);
     expect(snapshot.passedTests).toMatchObject([{ subjectCode: 'MATH', score: 90 }]);
-    expect(snapshot.behaviour).toMatchObject([{ type: 'Merit', meritDelta: 3, note: 'Focused well', recordedByName: 'Supervisor User' }]);
+    expect(snapshot.behaviour).toMatchObject([
+      { type: 'Merit', meritDelta: 3, note: 'Focused well', recordedByName: 'Supervisor User' },
+    ]);
     expect(snapshot.notes).toMatchObject([{ note: 'Visible note', sensitive: false }]);
     expect(snapshot.student).toMatchObject({ supervisorName: 'Supervisor User', totalMerits: 17 });
   });
 
   it('lists only accessible students for linked parents', async () => {
     const { db } = makeFakeDb();
-    await expect(makeCaller(parentUser, db).childLog.listAccessibleStudents()).resolves.toMatchObject([
-      { id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' },
-    ]);
-    await expect(makeCaller(unlinkedParentUser, db).childLog.listAccessibleStudents()).resolves.toEqual([]);
+    await expect(
+      makeCaller(parentUser, db).childLog.listAccessibleStudents(),
+    ).resolves.toMatchObject([{ id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' }]);
+    await expect(
+      makeCaller(unlinkedParentUser, db).childLog.listAccessibleStudents(),
+    ).resolves.toEqual([]);
   });
 
   it('returns drill-through data and sensitive behaviour only to Head', async () => {
@@ -345,7 +418,9 @@ describe('childLog.snapshot', () => {
       sensitive: true,
     });
 
-    const headView = await makeCaller(headUser, db).childLog.drillThrough({ studentId: 'student_1' });
+    const headView = await makeCaller(headUser, db).childLog.drillThrough({
+      studentId: 'student_1',
+    });
     expect(headView.metrics.meritBalances).toEqual({ Spend: 10, Saving: 5, Investment: 2 });
     expect(headView.metrics.pacesCompletedThisAcademicYear).toBe(1);
     expect(headView.behaviour).toEqual(
@@ -401,7 +476,9 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(taggedSupervisorUser, db).childLog.drillThrough({ studentId: 'student_1' }),
     ).resolves.toMatchObject({ student: { id: 'student_1', fullName: 'Jane Learner' } });
-    const parentView = await makeCaller(parentUser, db).childLog.drillThrough({ studentId: 'student_1' });
+    const parentView = await makeCaller(parentUser, db).childLog.drillThrough({
+      studentId: 'student_1',
+    });
     expect(parentView).toMatchObject({ student: { id: 'student_1', fullName: 'Jane Learner' } });
     expect(parentView.notes).toEqual([
       expect.objectContaining({ note: 'Parent-visible note', sensitive: false }),
@@ -412,5 +489,23 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(unlinkedParentUser, db).childLog.drillThrough({ studentId: 'student_1' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('keeps archived drill-through Head-only and out of accessible lists', async () => {
+    const { db, students } = makeFakeDb();
+    const student = students[0];
+    if (!student) throw new Error('test student missing');
+    student.active = false;
+    student.archivedAt = day('2026-05-02');
+
+    await expect(makeCaller(parentUser, db).childLog.listAccessibleStudents()).resolves.toEqual([]);
+    await expect(
+      makeCaller(principalUser, db).childLog.drillThrough({ studentId: 'student_1' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(headUser, db).childLog.drillThrough({ studentId: 'student_1' }),
+    ).resolves.toMatchObject({
+      student: { id: 'student_1', archivedAt: day('2026-05-02') },
+    });
   });
 });

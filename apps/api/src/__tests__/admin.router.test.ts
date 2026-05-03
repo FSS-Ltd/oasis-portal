@@ -4,7 +4,11 @@ import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { createAdminRouter } from '../routers/admin.js';
 import { router } from '../trpc.js';
-import type { ClerkInvitationClient, ClerkInvitationResult } from '../lib/clerk.js';
+import type {
+  ClerkInvitationClient,
+  ClerkInvitationResult,
+  ClerkUserDeletionClient,
+} from '../lib/clerk.js';
 import type { EmailClient } from '../lib/email.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
@@ -28,6 +32,7 @@ const supervisorUser: SessionUser = {
 };
 
 interface FakeDb {
+  $transaction: ReturnType<typeof vi.fn>;
   auditLog: { create: ReturnType<typeof vi.fn> };
   $enc: {
     blindIndex: ReturnType<typeof vi.fn>;
@@ -60,7 +65,7 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
-  student: { findUnique: ReturnType<typeof vi.fn> };
+  student: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   guardian: { create: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
 }
 
@@ -78,7 +83,8 @@ function makeFakeDb(): FakeDb {
     },
   ];
 
-  return {
+  const db: FakeDb = {
+    $transaction: vi.fn(),
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     $enc: {
       blindIndex: vi.fn((value: string) => `bidx:${value.toLowerCase()}`),
@@ -166,9 +172,11 @@ function makeFakeDb(): FakeDb {
       }),
       update: vi.fn().mockResolvedValue({ id: 'invite_row_1' }),
     },
-    student: { findUnique: vi.fn() },
+    student: { findUnique: vi.fn(), update: vi.fn() },
     guardian: { create: vi.fn(), findUnique: vi.fn() },
   };
+  db.$transaction.mockImplementation(async (fn: (tx: FakeDb) => Promise<unknown>) => fn(db));
+  return db;
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -199,25 +207,38 @@ function makeFakeEmailClient(result = { id: 'email_123' }) {
   return { client, send };
 }
 
+function makeFakeClerkUserDeletion() {
+  const deleteUser = vi.fn<ClerkUserDeletionClient['deleteUser']>().mockResolvedValue(undefined);
+  const client: ClerkUserDeletionClient = { deleteUser };
+  return { client, deleteUser };
+}
+
 function makeCaller(
   user: SessionUser | null,
   deps: {
     clerk?: ReturnType<typeof makeFakeClerk>;
+    clerkUserDeletion?: ReturnType<typeof makeFakeClerkUserDeletion>;
     db?: FakeDb;
     email?: ReturnType<typeof makeFakeEmailClient>;
   } = {},
 ) {
   const db = deps.db ?? makeFakeDb();
   const clerk = deps.clerk ?? makeFakeClerk();
+  const clerkUserDeletion = deps.clerkUserDeletion ?? makeFakeClerkUserDeletion();
   const email = deps.email ?? makeFakeEmailClient();
   const appRouter = router({
-    admin: createAdminRouter({ clerk: clerk.client, emailClient: email.client }),
+    admin: createAdminRouter({
+      clerk: clerk.client,
+      clerkUserDeletion: clerkUserDeletion.client,
+      emailClient: email.client,
+    }),
   });
   const ctx = makeCtx(user, db);
   return {
     caller: appRouter.createCaller(ctx),
     db,
     createInvitation: clerk.createInvitation,
+    deleteClerkUser: clerkUserDeletion.deleteUser,
     sendEmail: email.send,
   };
 }
@@ -428,7 +449,12 @@ describe('admin.searchParents', () => {
       { id: 'u_parent', fullName: 'Jane Parent', email: 'jane@example.com' },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { role: 'Parent', active: true, emailBidx: 'bidx:jane@example.com' },
+      where: {
+        role: 'Parent',
+        active: true,
+        deletedAt: null,
+        emailBidx: 'bidx:jane@example.com',
+      },
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: { id: true, fullNameEnc: true, emailEnc: true },
@@ -508,7 +534,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { active: true },
+      where: { active: true, deletedAt: null },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {
@@ -520,6 +546,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         phoneEnc: true,
         addressEnc: true,
         active: true,
+        deletedAt: true,
         createdAt: true,
         updatedAt: true,
         guardianOf: {
@@ -549,6 +576,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
 
   it('updates a user profile for full-admin callers and writes an audit row', async () => {
     const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', deletedAt: null });
     db.user.update.mockResolvedValue({
       id: 'u_parent',
       role: 'Parent',
@@ -595,6 +623,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         phoneEnc: true,
         addressEnc: true,
         active: true,
+        deletedAt: true,
         createdAt: true,
         updatedAt: true,
         guardianOf: {
@@ -767,7 +796,7 @@ describe('admin.listUserAccounts and account support updates', () => {
     expect(result[0]).not.toHaveProperty('children');
     expect(result[0]).not.toHaveProperty('tags');
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { role: { in: ['Parent', 'TechnicalSupport'] } },
+      where: { deletedAt: null, role: { in: ['Parent', 'TechnicalSupport'] } },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {
@@ -778,6 +807,7 @@ describe('admin.listUserAccounts and account support updates', () => {
         phoneEnc: true,
         addressEnc: true,
         active: true,
+        deletedAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -904,6 +934,7 @@ describe('admin.listUserAccounts and account support updates', () => {
         phoneEnc: true,
         addressEnc: true,
         active: true,
+        deletedAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -923,6 +954,7 @@ describe('admin.listUserAccounts and account support updates', () => {
         phoneEnc: true,
         addressEnc: true,
         active: true,
+        deletedAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -953,6 +985,258 @@ describe('admin.listUserAccounts and account support updates', () => {
       caller.admin.updateUserAccountStatus({ userId: technicalSupportUser.id, active: false }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('admin Head-only deletion and student archive', () => {
+  it('deletes Clerk access and tombstones non-student users without removing history', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_parent',
+      clerkId: 'user_parent',
+      role: 'Parent',
+      deletedAt: null,
+      studentProfile: null,
+    });
+    db.user.update.mockImplementation(
+      ({ data }: { data: { deletedAt: Date; authDeletedAt: Date } }) =>
+        Promise.resolve({
+          id: 'u_parent',
+          deletedAt: data.deletedAt,
+          authDeletedAt: data.authDeletedAt,
+        }),
+    );
+    const { caller, deleteClerkUser } = makeCaller(headUser, { db });
+
+    const deletedUser = await caller.admin.deleteUserAccount({
+      userId: 'u_parent',
+      confirmation: 'DELETE',
+    });
+    expect(deletedUser.id).toBe('u_parent');
+    expect(deletedUser.deletedAt).toBeInstanceOf(Date);
+    expect(deletedUser.authDeletedAt).toBeInstanceOf(Date);
+
+    expect(deleteClerkUser).toHaveBeenCalledWith('user_parent');
+    const updateArgs = db.user.update.mock.calls[0]?.[0] as
+      | {
+          where?: { id?: string };
+          data?: {
+            active?: boolean;
+            addressEnc?: string | null;
+            authDeletedAt?: Date;
+            deletedAt?: Date;
+            emailBidx?: string;
+            emailEnc?: string;
+            fullNameEnc?: string;
+            phoneEnc?: string | null;
+            tags?: string[];
+          };
+          select?: { authDeletedAt?: boolean; deletedAt?: boolean; id?: boolean };
+        }
+      | undefined;
+    expect(updateArgs?.where).toEqual({ id: 'u_parent' });
+    expect(updateArgs?.select).toEqual({ id: true, deletedAt: true, authDeletedAt: true });
+    expect(updateArgs?.data).toMatchObject({
+      active: false,
+      tags: [],
+      fullNameEnc: 'enc:Deleted user u_parent',
+      phoneEnc: null,
+      addressEnc: null,
+    });
+    expect(updateArgs?.data?.deletedAt).toBeInstanceOf(Date);
+    expect(updateArgs?.data?.authDeletedAt).toBeInstanceOf(Date);
+    expect(updateArgs?.data?.emailEnc).toMatch(/^enc:deleted-u_parent-/);
+    expect(updateArgs?.data?.emailBidx).toMatch(/^bidx:deleted-u_parent-/);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Delete',
+        entity: 'User',
+        entityId: 'u_parent',
+        meta: {
+          role: 'Parent',
+          source: 'admin.deleteUserAccount',
+          authDeleted: true,
+          piiScrubbed: true,
+        },
+      },
+    });
+  });
+
+  it('blocks non-Head callers, self-deletion, and student-login account deletion', async () => {
+    const principal = makeCaller(principalUser);
+    await expect(
+      principal.caller.admin.deleteUserAccount({ userId: 'u_parent', confirmation: 'DELETE' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(principal.deleteClerkUser).not.toHaveBeenCalled();
+
+    const self = makeCaller(headUser);
+    await expect(
+      self.caller.admin.deleteUserAccount({ userId: headUser.id, confirmation: 'DELETE' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(self.deleteClerkUser).not.toHaveBeenCalled();
+
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_student',
+      clerkId: 'user_student',
+      role: 'Student',
+      deletedAt: null,
+      studentProfile: { id: 's1' },
+    });
+    const studentAccount = makeCaller(headUser, { db });
+    await expect(
+      studentAccount.caller.admin.deleteUserAccount({
+        userId: 'u_student',
+        confirmation: 'DELETE',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'student login accounts must be archived from the student record',
+    });
+    expect(studentAccount.deleteClerkUser).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('does not tombstone locally when Clerk user deletion fails', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_parent',
+      clerkId: 'user_parent',
+      role: 'Parent',
+      deletedAt: null,
+      studentProfile: null,
+    });
+    const clerkUserDeletion = makeFakeClerkUserDeletion();
+    clerkUserDeletion.deleteUser.mockRejectedValue(new Error('clerk down'));
+    const { caller } = makeCaller(headUser, { db, clerkUserDeletion });
+
+    await expect(
+      caller.admin.deleteUserAccount({ userId: 'u_parent', confirmation: 'DELETE' }),
+    ).rejects.toMatchObject({ code: 'INTERNAL_SERVER_ERROR' });
+    expect(db.user.update).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('archives students, tombstones linked student login users, and keeps records linked', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      id: 's1',
+      archivedAt: null,
+      user: {
+        id: 'u_student',
+        clerkId: 'user_student',
+        role: 'Student',
+        deletedAt: null,
+      },
+    });
+    db.user.update.mockResolvedValue({ id: 'u_student' });
+    db.student.update.mockImplementation(
+      ({ data }: { data: { archivedAt: Date; active: boolean; user?: { disconnect: boolean } } }) =>
+        Promise.resolve({
+          id: 's1',
+          active: data.active,
+          archivedAt: data.archivedAt,
+          userId: null,
+        }),
+    );
+    const { caller, deleteClerkUser } = makeCaller(headUser, { db });
+
+    const archivedStudent = await caller.admin.archiveStudent({
+      studentId: 's1',
+      confirmation: 'ARCHIVE',
+    });
+    expect(archivedStudent.id).toBe('s1');
+    expect(archivedStudent.active).toBe(false);
+    expect(archivedStudent.archivedAt).toBeInstanceOf(Date);
+    expect(archivedStudent.userId).toBeNull();
+    expect(archivedStudent.deletedUserId).toBe('u_student');
+
+    expect(deleteClerkUser).toHaveBeenCalledWith('user_student');
+    const userUpdateArgs = db.user.update.mock.calls[0]?.[0] as
+      | {
+          where?: { id?: string };
+          data?: {
+            active?: boolean;
+            addressEnc?: string | null;
+            authDeletedAt?: Date;
+            deletedAt?: Date;
+            fullNameEnc?: string;
+            phoneEnc?: string | null;
+            tags?: string[];
+          };
+          select?: { id?: boolean };
+        }
+      | undefined;
+    expect(userUpdateArgs?.where).toEqual({ id: 'u_student' });
+    expect(userUpdateArgs?.select).toEqual({ id: true });
+    expect(userUpdateArgs?.data).toMatchObject({
+      active: false,
+      tags: [],
+      fullNameEnc: 'enc:Deleted user u_student',
+      phoneEnc: null,
+      addressEnc: null,
+    });
+    expect(userUpdateArgs?.data?.deletedAt).toBeInstanceOf(Date);
+    expect(userUpdateArgs?.data?.authDeletedAt).toBeInstanceOf(Date);
+    const studentUpdateArgs = db.student.update.mock.calls[0]?.[0] as
+      | {
+          where?: { id?: string };
+          data?: { active?: boolean; archivedAt?: Date; user?: { disconnect?: boolean } };
+          select?: { active?: boolean; archivedAt?: boolean; id?: boolean; userId?: boolean };
+        }
+      | undefined;
+    expect(studentUpdateArgs?.where).toEqual({ id: 's1' });
+    expect(studentUpdateArgs?.data?.active).toBe(false);
+    expect(studentUpdateArgs?.data?.archivedAt).toBeInstanceOf(Date);
+    expect(studentUpdateArgs?.data?.user).toEqual({ disconnect: true });
+    expect(studentUpdateArgs?.select).toEqual({
+      id: true,
+      active: true,
+      archivedAt: true,
+      userId: true,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'Student',
+        entityId: 's1',
+        meta: {
+          archived: true,
+          previousUserId: 'u_student',
+          authDeleted: true,
+          source: 'admin.archiveStudent',
+        },
+      },
+    });
+  });
+
+  it('restores archived student profiles without recreating a login', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      id: 's1',
+      archivedAt: new Date('2026-05-02T10:00:00.000Z'),
+    });
+    db.student.update.mockResolvedValue({
+      id: 's1',
+      active: true,
+      archivedAt: null,
+      userId: null,
+    });
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(caller.admin.restoreArchivedStudent({ studentId: 's1' })).resolves.toEqual({
+      id: 's1',
+      active: true,
+      archivedAt: null,
+      userId: null,
+    });
+    expect(db.student.update).toHaveBeenCalledWith({
+      where: { id: 's1' },
+      data: { active: true, archivedAt: null },
+      select: { id: true, active: true, archivedAt: true, userId: true },
+    });
   });
 });
 

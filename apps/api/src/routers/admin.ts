@@ -31,12 +31,18 @@ import {
   updateSubjectInput,
   updateYearGroupBandInput,
 } from '@oasis/domain';
-import { fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
-import { createDefaultClerkInvitationClient, type ClerkInvitationClient } from '../lib/clerk.js';
+import { fullAdminProcedure, headProcedure, router, userAccountAdminProcedure } from '../trpc.js';
+import {
+  createDefaultClerkInvitationClient,
+  createDefaultClerkUserDeletionClient,
+  type ClerkInvitationClient,
+  type ClerkUserDeletionClient,
+} from '../lib/clerk.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 
 export interface AdminRouterDeps {
   clerk?: ClerkInvitationClient;
+  clerkUserDeletion?: ClerkUserDeletionClient;
   emailClient?: EmailClient;
 }
 
@@ -72,6 +78,20 @@ const updateUserAccountStatusInput = z.object({
   active: z.boolean(),
 });
 
+const deleteUserAccountInput = z.object({
+  userId: z.string().min(1),
+  confirmation: z.literal('DELETE'),
+});
+
+const archiveStudentInput = z.object({
+  studentId: z.string().min(1),
+  confirmation: z.literal('ARCHIVE'),
+});
+
+const restoreArchivedStudentInput = z.object({
+  studentId: z.string().min(1),
+});
+
 const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
   role: true,
@@ -81,6 +101,7 @@ const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
   phoneEnc: true,
   addressEnc: true,
   active: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
   guardianOf: {
@@ -110,6 +131,7 @@ const userAccountSelect = Prisma.validator<Prisma.UserSelect>()({
   phoneEnc: true,
   addressEnc: true,
   active: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
 });
@@ -133,13 +155,21 @@ type UserInvitationRow = Prisma.UserInvitationGetPayload<{
 }>;
 
 function accountScopeWhereFor(actor: SessionUser): Prisma.UserWhereInput {
-  if (isFullAdmin(actor)) return {};
-  return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
+  if (isFullAdmin(actor)) return { deletedAt: null };
+  return { deletedAt: null, role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
 }
 
 function invitationScopeWhereFor(actor: SessionUser): Prisma.UserInvitationWhereInput {
   if (isFullAdmin(actor)) return {};
   return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
+}
+
+function assertUserIsManageable<T extends { id: string; deletedAt?: Date | null }>(
+  existingUser: T | null,
+): asserts existingUser is T {
+  if (!existingUser || existingUser.deletedAt) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+  }
 }
 
 function assertCanAssignStudentDrillThroughTag(
@@ -203,6 +233,34 @@ function normaliseNullableText(value: string | null | undefined): string | null 
   if (value === null) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function tombstoneUserUpdateData(
+  ctx: {
+    db: {
+      $enc: {
+        blindIndex(value: string): string;
+        encrypt(value: string): string;
+        encrypt(value: string | null | undefined): string | null;
+      };
+    };
+  },
+  userId: string,
+  deletedAt: Date,
+): Prisma.UserUpdateInput {
+  const suffix = `${userId}-${String(deletedAt.getTime())}`;
+  const tombstoneEmail = `deleted-${suffix}@deleted.oasis.local`;
+  return {
+    active: false,
+    deletedAt,
+    authDeletedAt: deletedAt,
+    tags: [],
+    fullNameEnc: ctx.db.$enc.encrypt(`Deleted user ${userId}`),
+    emailEnc: ctx.db.$enc.encrypt(tombstoneEmail),
+    emailBidx: ctx.db.$enc.blindIndex(tombstoneEmail),
+    phoneEnc: null,
+    addressEnc: null,
+  };
 }
 
 function userProfileUpdateData(
@@ -312,11 +370,17 @@ async function assertUniqueBandName(
 
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
+  let cachedClerkUserDeletion: ClerkUserDeletionClient | null = deps.clerkUserDeletion ?? null;
   let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
   const getClerk = (): ClerkInvitationClient => {
     if (cachedClerk) return cachedClerk;
     cachedClerk = createDefaultClerkInvitationClient();
     return cachedClerk;
+  };
+  const getClerkUserDeletion = (): ClerkUserDeletionClient => {
+    if (cachedClerkUserDeletion) return cachedClerkUserDeletion;
+    cachedClerkUserDeletion = createDefaultClerkUserDeletionClient();
+    return cachedClerkUserDeletion;
   };
   const getEmailClient = (): EmailClient => {
     if (cachedEmailClient) return cachedEmailClient;
@@ -692,11 +756,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .mutation(async ({ ctx, input }) => {
         const existingUser = await ctx.db.user.findUnique({
           where: { id: input.userId },
-          select: { id: true, role: true },
+          select: { id: true, role: true, deletedAt: true },
         });
-        if (!existingUser) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
-        }
+        assertUserIsManageable(existingUser);
         assertCanManageTargetRole(ctx.user, existingUser.role);
 
         const { data, fields } = userProfileUpdateData(ctx, input);
@@ -742,11 +804,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
         const existingUser = await ctx.db.user.findUnique({
           where: { id: input.userId },
-          select: { id: true, role: true },
+          select: { id: true, role: true, deletedAt: true },
         });
-        if (!existingUser) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
-        }
+        assertUserIsManageable(existingUser);
         assertCanManageTargetRole(ctx.user, existingUser.role);
 
         try {
@@ -775,9 +835,199 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
+    deleteUserAccount: headProcedure
+      .input(deleteUserAccountInput)
+      .mutation(async ({ ctx, input }) => {
+        if (input.userId === ctx.user.id) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'cannot delete your own account',
+          });
+        }
+
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: {
+            id: true,
+            clerkId: true,
+            role: true,
+            deletedAt: true,
+            studentProfile: { select: { id: true } },
+          },
+        });
+        assertUserIsManageable(existingUser);
+        if (existingUser.studentProfile) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'student login accounts must be archived from the student record',
+          });
+        }
+
+        await getClerkUserDeletion().deleteUser(existingUser.clerkId);
+
+        const deletedAt = new Date();
+        const data = tombstoneUserUpdateData(ctx, existingUser.id, deletedAt);
+        const deleted = await ctx.db.$transaction(async (tx) => {
+          const user = await tx.user.update({
+            where: { id: existingUser.id },
+            data,
+            select: { id: true, deletedAt: true, authDeletedAt: true },
+          });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Delete',
+              entity: 'User',
+              entityId: existingUser.id,
+              meta: {
+                role: existingUser.role,
+                source: 'admin.deleteUserAccount',
+                authDeleted: true,
+                piiScrubbed: true,
+              },
+            },
+          });
+          return user;
+        });
+
+        return {
+          id: deleted.id,
+          deletedAt: deleted.deletedAt,
+          authDeletedAt: deleted.authDeletedAt,
+        };
+      }),
+
+    archiveStudent: headProcedure.input(archiveStudentInput).mutation(async ({ ctx, input }) => {
+      const student = await ctx.db.student.findUnique({
+        where: { id: input.studentId },
+        select: {
+          id: true,
+          archivedAt: true,
+          user: {
+            select: {
+              id: true,
+              clerkId: true,
+              role: true,
+              deletedAt: true,
+            },
+          },
+        },
+      });
+      if (!student) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+      }
+      if (student.archivedAt) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is already archived' });
+      }
+
+      const linkedUser = student.user && !student.user.deletedAt ? student.user : null;
+      if (linkedUser) {
+        await getClerkUserDeletion().deleteUser(linkedUser.clerkId);
+      }
+
+      const archivedAt = new Date();
+      const userTombstoneData = linkedUser
+        ? tombstoneUserUpdateData(ctx, linkedUser.id, archivedAt)
+        : null;
+      const studentUpdateData: Prisma.StudentUpdateInput = {
+        active: false,
+        archivedAt,
+      };
+      if (student.user) studentUpdateData.user = { disconnect: true };
+
+      const archived = await ctx.db.$transaction(async (tx) => {
+        if (linkedUser && userTombstoneData) {
+          await tx.user.update({
+            where: { id: linkedUser.id },
+            data: userTombstoneData,
+            select: { id: true },
+          });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Delete',
+              entity: 'User',
+              entityId: linkedUser.id,
+              meta: {
+                role: linkedUser.role,
+                studentId: student.id,
+                source: 'admin.archiveStudent',
+                authDeleted: true,
+                piiScrubbed: true,
+              },
+            },
+          });
+        }
+
+        const row = await tx.student.update({
+          where: { id: student.id },
+          data: studentUpdateData,
+          select: { id: true, active: true, archivedAt: true, userId: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'Student',
+            entityId: student.id,
+            meta: {
+              archived: true,
+              previousUserId: student.user?.id ?? null,
+              authDeleted: Boolean(linkedUser),
+              source: 'admin.archiveStudent',
+            },
+          },
+        });
+        return row;
+      });
+
+      return {
+        id: archived.id,
+        active: archived.active,
+        archivedAt: archived.archivedAt,
+        userId: archived.userId,
+        deletedUserId: linkedUser?.id ?? null,
+      };
+    }),
+
+    restoreArchivedStudent: headProcedure
+      .input(restoreArchivedStudentInput)
+      .mutation(async ({ ctx, input }) => {
+        const existingStudent = await ctx.db.student.findUnique({
+          where: { id: input.studentId },
+          select: { id: true, archivedAt: true },
+        });
+        if (!existingStudent) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+        }
+        if (!existingStudent.archivedAt) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not archived' });
+        }
+
+        const restored = await ctx.db.student.update({
+          where: { id: input.studentId },
+          data: { active: true, archivedAt: null },
+          select: { id: true, active: true, archivedAt: true, userId: true },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'Student',
+            entityId: restored.id,
+            meta: {
+              archived: false,
+              userId: restored.userId,
+              source: 'admin.restoreArchivedStudent',
+            },
+          },
+        });
+        return restored;
+      }),
+
     listUsers: fullAdminProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
-        where: { active: true },
+        where: { active: true, deletedAt: null },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
         select: adminUserProfileSelect,
@@ -801,6 +1051,12 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     updateUserProfile: fullAdminProcedure
       .input(updateUserProfileInput)
       .mutation(async ({ ctx, input }) => {
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, deletedAt: true },
+        });
+        assertUserIsManageable(existingUser);
+
         const { data, fields } = userProfileUpdateData(ctx, input);
         if (fields.length === 0) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'no user profile fields provided' });
@@ -838,11 +1094,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         const tags = [...new Set(input.tags)].sort();
         const existingUser = await ctx.db.user.findUnique({
           where: { id: input.userId },
-          select: { id: true, tags: true },
+          select: { id: true, tags: true, deletedAt: true },
         });
-        if (!existingUser) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
-        }
+        assertUserIsManageable(existingUser);
         assertCanAssignStudentDrillThroughTag(ctx.user.role, existingUser.tags, tags);
 
         try {
@@ -872,7 +1126,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       }),
 
     searchParents: fullAdminProcedure.input(searchParentsInput).query(async ({ ctx, input }) => {
-      const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
+      const where: Prisma.UserWhereInput = { role: 'Parent', active: true, deletedAt: null };
       if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
 
       const parents = await ctx.db.user.findMany({
@@ -915,7 +1169,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         const [existingUser, existingPendingInvite] = await Promise.all([
           ctx.db.user.findUnique({
             where: { emailBidx },
-            select: { id: true },
+            select: { id: true, deletedAt: true },
           }),
           ctx.db.userInvitation.findFirst({
             where: { emailBidx, status: 'Pending' },
@@ -923,7 +1177,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           }),
         ]);
 
-        if (existingUser) {
+        if (existingUser && !existingUser.deletedAt) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'a user account already exists for this email',
@@ -1044,12 +1298,13 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     linkGuardian: fullAdminProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
       const [parentUser, student] = await Promise.all([
-        ctx.db.user.findUnique({ where: { id: input.userId } }),
+        ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, role: true, deletedAt: true },
+        }),
         ctx.db.student.findUnique({ where: { id: input.studentId } }),
       ]);
-      if (!parentUser) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
-      }
+      assertUserIsManageable(parentUser);
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
       }

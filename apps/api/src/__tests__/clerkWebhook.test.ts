@@ -147,7 +147,7 @@ describe('processClerkWebhookEvent', () => {
 });
 
 describe('createPrismaClerkUserStore', () => {
-  function makeDb(existing: { id: string } | null) {
+  function makeDb(existing: { id: string; deletedAt?: Date | null } | null) {
     const findUnique = vi.fn().mockResolvedValue(existing);
     const create = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
@@ -247,6 +247,27 @@ describe('createPrismaClerkUserStore', () => {
     expect(updateManyArgs?.data.status).toBe('Accepted');
     expect(updateManyArgs?.data.acceptedUserId).toBe('cuid_existing');
     expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
+  });
+
+  it('does not reactivate tombstoned users on stale Clerk sync events', async () => {
+    const { db, create, update, updateMany } = makeDb({
+      id: 'cuid_deleted',
+      deletedAt: new Date('2026-05-02T10:00:00.000Z'),
+    });
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Jean Ntagengwa',
+      email: 'Jean@Example.com',
+      phone: '+447700900123',
+      role: 'Supervisor',
+      tags: ['shopkeeper'],
+    });
+
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });
 

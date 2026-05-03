@@ -19,7 +19,7 @@ export default async function AccessManagementPage() {
           Technical Support
         </span>
       </div>
-      <AccessManagementClient currentUserId={user.id} />
+      <AccessManagementClient canDeleteAccounts={user.role === 'Head'} currentUserId={user.id} />
     </MotionPage>
   );
 }

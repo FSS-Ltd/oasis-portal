@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { ArrowLeft, Edit3 } from 'lucide-react';
+import { Archive, ArrowLeft, Edit3 } from 'lucide-react';
 import { useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
@@ -36,8 +36,10 @@ const DRILL_THROUGH_TABS = [
 ] as const satisfies readonly (readonly [DrillThroughTab, string])[];
 
 interface StudentDrillThroughContentProps {
+  archivePending?: boolean | undefined;
   backHref: Route;
   backLabel: string;
+  onArchive?: (() => void) | undefined;
   onEdit?: (() => void) | undefined;
   studentId: string;
 }
@@ -58,13 +60,18 @@ function StudentHero({
   backHref,
   backLabel,
   data,
+  archivePending,
+  onArchive,
   onEdit,
 }: {
+  archivePending?: boolean | undefined;
   backHref: Route;
   backLabel: string;
   data: DrillThrough;
+  onArchive?: (() => void) | undefined;
   onEdit?: (() => void) | undefined;
 }) {
+  const archived = Boolean(data.student.archivedAt);
   return (
     <div className="student-drillthrough__top">
       <Link className="student-drillthrough__back" href={backHref}>
@@ -83,13 +90,25 @@ function StudentHero({
           </div>
         </div>
         <div className="student-detail-hero__actions">
-          <Badge tone={data.student.active ? 'green' : 'amber'}>
-            {data.student.active ? 'Active' : 'Inactive'}
+          <Badge tone={archived ? 'grey' : data.student.active ? 'green' : 'amber'}>
+            {archived ? 'Archived' : data.student.active ? 'Active' : 'Inactive'}
           </Badge>
           {onEdit ? (
             <Button onClick={onEdit} size="sm" type="button" variant="secondary">
               <Edit3 aria-hidden="true" size={14} />
               Edit Profile
+            </Button>
+          ) : null}
+          {onArchive && !archived ? (
+            <Button
+              onClick={onArchive}
+              pending={archivePending ?? false}
+              size="sm"
+              type="button"
+              variant="danger"
+            >
+              <Archive aria-hidden="true" size={14} />
+              Archive
             </Button>
           ) : null}
         </div>
@@ -164,7 +183,9 @@ function OverviewTab({ data }: { data: DrillThrough }) {
           sub={`${String(data.metrics.presentDays)}/${String(
             data.metrics.recordedAttendanceDays,
           )} days this year`}
-          value={data.metrics.attendanceRate === null ? '—' : `${String(data.metrics.attendanceRate)}%`}
+          value={
+            data.metrics.attendanceRate === null ? '—' : `${String(data.metrics.attendanceRate)}%`
+          }
         />
       </div>
 
@@ -224,7 +245,9 @@ function OverviewTab({ data }: { data: DrillThrough }) {
         </section>
         <section className="panel panel__body snapshot-pace-compact">
           <h3>Assigned subjects</h3>
-          {data.student.subjects.length === 0 ? <p className="muted">No subjects assigned.</p> : null}
+          {data.student.subjects.length === 0 ? (
+            <p className="muted">No subjects assigned.</p>
+          ) : null}
           {data.student.subjects.map((subject) => (
             <div key={subject.subjectId}>
               <SnapshotBadge tone="blue">{subject.code}</SnapshotBadge>
@@ -255,7 +278,9 @@ function AttendanceTab({ data }: { data: DrillThrough }) {
 function BehaviourTab({ data }: { data: DrillThrough }) {
   return (
     <div className="snapshot-tab-panel snapshot-list-panel">
-      {data.behaviour.length === 0 ? <EmptyCard>No behaviour entries this academic year.</EmptyCard> : null}
+      {data.behaviour.length === 0 ? (
+        <EmptyCard>No behaviour entries this academic year.</EmptyCard>
+      ) : null}
       {data.behaviour.map((entry) => (
         <article
           className={
@@ -268,9 +293,13 @@ function BehaviourTab({ data }: { data: DrillThrough }) {
           <span>{signed(entry.meritDelta)}</span>
           <div>
             <div>
-              <SnapshotBadge tone={entry.meritDelta > 0 ? 'green' : 'red'}>{entry.type}</SnapshotBadge>
+              <SnapshotBadge tone={entry.meritDelta > 0 ? 'green' : 'red'}>
+                {entry.type}
+              </SnapshotBadge>
               <SnapshotBadge tone="blue">{entry.category}</SnapshotBadge>
-              {entry.visibility === 'Sensitive' ? <SnapshotBadge tone="amber">Sensitive</SnapshotBadge> : null}
+              {entry.visibility === 'Sensitive' ? (
+                <SnapshotBadge tone="amber">Sensitive</SnapshotBadge>
+              ) : null}
             </div>
             {entry.note ? <p>{entry.note}</p> : null}
             <small>
@@ -287,7 +316,9 @@ function BehaviourTab({ data }: { data: DrillThrough }) {
 function PaceTab({ data }: { data: DrillThrough }) {
   return (
     <div className="snapshot-tab-panel snapshot-list-panel">
-      {data.pace.length === 0 ? <EmptyCard>No PACE scores recorded this academic year.</EmptyCard> : null}
+      {data.pace.length === 0 ? (
+        <EmptyCard>No PACE scores recorded this academic year.</EmptyCard>
+      ) : null}
       {data.pace.map((item) => (
         <article className="panel panel__body snapshot-pace-row" key={item.id}>
           <ScoreDonut score={item.score} />
@@ -349,8 +380,10 @@ function NotesTab({ data }: { data: DrillThrough }) {
 }
 
 export function StudentDrillThroughContent({
+  archivePending,
   backHref,
   backLabel,
+  onArchive,
   onEdit,
   studentId,
 }: StudentDrillThroughContentProps) {
@@ -372,7 +405,14 @@ export function StudentDrillThroughContent({
 
   return (
     <div className="student-drillthrough">
-      <StudentHero backHref={backHref} backLabel={backLabel} data={data} onEdit={onEdit} />
+      <StudentHero
+        archivePending={archivePending}
+        backHref={backHref}
+        backLabel={backLabel}
+        data={data}
+        onArchive={onArchive}
+        onEdit={onEdit}
+      />
       <StudentTabs activeTab={activeTab} onSelect={setActiveTab} />
       {activeTab === 'overview' ? <OverviewTab data={data} /> : null}
       {activeTab === 'attendance' ? <AttendanceTab data={data} /> : null}

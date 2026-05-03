@@ -10,6 +10,7 @@ import superjson from 'superjson';
 import {
   AccessDeniedError,
   requireFullAdmin,
+  requireHead,
   requireRole,
   requireUserAccountAdmin,
   type Role,
@@ -63,6 +64,15 @@ function toTrpcError(err: unknown): TRPCError {
 export const fullAdminProcedure = authedProcedure.use(({ ctx, next }) => {
   try {
     requireFullAdmin(ctx.user);
+  } catch (err) {
+    throw toTrpcError(err);
+  }
+  return next();
+});
+
+export const headProcedure = authedProcedure.use(({ ctx, next }) => {
+  try {
+    requireHead(ctx.user);
   } catch (err) {
     throw toTrpcError(err);
   }

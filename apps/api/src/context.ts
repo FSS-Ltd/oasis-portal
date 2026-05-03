@@ -35,14 +35,15 @@ interface UserLookupRow {
   role: Role;
   tags: string[];
   active: boolean;
+  deletedAt: Date | null;
 }
 
 async function loadSessionUser(clerkUserId: string): Promise<SessionUser | null> {
   const user: UserLookupRow | null = await prisma.user.findUnique({
     where: { clerkId: clerkUserId },
-    select: { id: true, role: true, tags: true, active: true },
+    select: { id: true, role: true, tags: true, active: true, deletedAt: true },
   });
-  if (!user || !user.active) return null;
+  if (!user || !user.active || user.deletedAt) return null;
   return {
     id: user.id,
     role: user.role,

@@ -44,20 +44,22 @@ enum UserInvitationEmailStatus {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  clerkId     String   @unique
-  role        Role
-  tags        String[] @default([])
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  role          Role
+  tags          String[]  @default([])
   // --- PII (encrypted, ADR-005) ---
-  fullNameEnc String
-  emailEnc    String
-  emailBidx   String   @unique
-  phoneEnc    String?
-  addressEnc  String?
+  fullNameEnc   String
+  emailEnc      String
+  emailBidx     String    @unique
+  phoneEnc      String?
+  addressEnc    String?
   // --- operational ---
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  active        Boolean   @default(true)
+  deletedAt     DateTime?
+  authDeletedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   guardianOf              Guardian[]
   studentProfile          Student?                  @relation("StudentLogin")
@@ -87,6 +89,7 @@ model User {
   acceptedInvitations     UserInvitation[]          @relation("AcceptedUserInvitations")
 
   @@index([role])
+  @@index([deletedAt])
 }
 
 model UserInvitation {
@@ -119,9 +122,9 @@ model UserInvitation {
 // ---------------------------------------------------------------------------
 
 model Student {
-  id            String   @id @default(cuid())
-  userId        String?  @unique
-  user          User?    @relation("StudentLogin", fields: [userId], references: [id])
+  id            String    @id @default(cuid())
+  userId        String?   @unique
+  user          User?     @relation("StudentLogin", fields: [userId], references: [id])
   // --- PII (encrypted) ---
   fullNameEnc   String
   nameBidx      String // HMAC of normalised name for staff search
@@ -130,9 +133,10 @@ model Student {
   // --- operational ---
   yearGroup     String
   enrolmentDate DateTime
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  active        Boolean   @default(true)
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   guardians     Guardian[]
   subjects      StudentSubject[]
@@ -151,6 +155,7 @@ model Student {
 
   @@index([yearGroup])
   @@index([nameBidx])
+  @@index([archivedAt])
 }
 
 model Guardian {

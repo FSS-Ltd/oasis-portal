@@ -144,6 +144,9 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
       // Find-then-branch: role/tags are admin-managed, so re-syncs from
       // user.updated must not overwrite them with stale Clerk metadata.
       const existing = await db.user.findUnique({ where: { clerkId: input.clerkUserId } });
+      if (existing?.deletedAt) {
+        return;
+      }
       if (!existing) {
         const created = await db.user.create({
           data: {

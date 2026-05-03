@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-02
 **Agent:** Technical Agent (Codex)
-**Phase:** Resend user invites and email deliverability hardening.
+**Phase:** Head-only account deletion and student archive.
 
 ---
 
@@ -18,7 +18,62 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Resend user invites and email deliverability hardening
+## Current status - Head-only account deletion and student archive
+
+Working branch: `feat/head-user-archive-delete`.
+
+**PR scope:** Add Head-only account deletion and student archival without
+breaking historical references, audit rows, or linked student records.
+
+Changed scope:
+
+- Added soft-delete/tombstone fields to `User` and archive state to `Student`,
+  with migration `20260502020000_account_deletion_student_archive`.
+- Added Head-only RBAC and tRPC procedure support so only the literal `Head`
+  role can delete accounts, archive students, restore archived students, or
+  view archived student drill-through.
+- Added `admin.deleteUserAccount`, `admin.archiveStudent`, and
+  `admin.restoreArchivedStudent`.
+- User deletion now calls Clerk's backend deletion API, rejects self-deletion,
+  rejects student-linked users, disables the local account, scrubs encrypted
+  PII, clears tags, and writes a non-PII tombstone email blind index.
+- Student archive now hides the student from active workflows, deletes and
+  tombstones the linked login when present, disconnects `Student.user`, keeps
+  existing student-linked records in place, and supports Head-only restore of
+  the student profile without recreating a login.
+- Active account/profile/search/status/guardian-linking flows now exclude
+  deleted users.
+- Student list APIs now support `includeArchived` and `archivedOnly`, with
+  archived access limited to Head.
+- Added Head-only danger controls to account/profile surfaces, a shared
+  confirmation dialog, student archive action, and `/admin/students/archive`
+  using the existing compact Oasis admin visual language.
+- Hardened Clerk webhook sync so stale Clerk events do not reactivate locally
+  tombstoned users.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm --filter @oasis/domain test` - pass.
+- `pnpm --filter @oasis/api test` - pass, 180/180 tests passing.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - completed; graphify rebuilt the code graph.
+
+Notes:
+
+- This branch was intentionally created from `feat/resend-user-invites` because
+  the new deletion/archive work builds on the invite and directory management
+  code from that scope.
+- Deleted non-student users are not recoverable through the UI. The local row
+  remains only for historical integrity.
+- Restoring an archived student restores the student profile only. It does not
+  recreate a Clerk login automatically.
+
+## Previous status - Resend user invites and email deliverability hardening
 
 Working branch: `feat/resend-user-invites`.
 
@@ -77,7 +132,7 @@ Verification:
 - `pnpm typecheck` - pass.
 - `pnpm --filter @oasis/web build` - pass.
 - `HOME=/private/tmp/react-email-home ./node_modules/.bin/email export --dir
-  src/emails --outDir /private/tmp/oasis-email-out --pretty` from `apps/api` -
+src/emails --outDir /private/tmp/oasis-email-out --pretty` from `apps/api` -
   pass; rendered `smoke-test-email.html` and `user-invite-email.html`.
 - `git diff --check` - pass.
 - `graphify update .` - completed; graphify rebuilt the code graph.
