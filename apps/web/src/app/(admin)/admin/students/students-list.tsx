@@ -12,20 +12,72 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { TextInput } from '@/components/ui/field';
 
-type StudentRow = RouterOutputs['childLog']['listAccessibleStudents'][number];
+type AccessibleStudentRow = RouterOutputs['childLog']['listAccessibleStudents'][number];
+type ManagedStudentRow = RouterOutputs['student']['list'][number];
+type StudentDirectoryRow = Pick<
+  ManagedStudentRow | AccessibleStudentRow,
+  'active' | 'fullName' | 'id' | 'subjects' | 'yearGroup'
+> & {
+  enrolmentDate: Date | string;
+};
 
-export function StudentsList() {
+type StudentStatusFilter = 'active' | 'archived' | 'all';
+
+interface StudentsListProps {
+  canManageStudents: boolean;
+}
+
+const statusFilters: readonly { id: StudentStatusFilter; label: string }[] = [
+  { id: 'active', label: 'Active' },
+  { id: 'archived', label: 'Archived' },
+  { id: 'all', label: 'All' },
+];
+
+function formatStudentDate(value: Date | string): string {
+  if (typeof value === 'string') return value;
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(value);
+}
+
+export function StudentsList({ canManageStudents }: StudentsListProps) {
   const [draftSearch, setDraftSearch] = useState('');
   const [search, setSearch] = useState<string | undefined>(undefined);
-  const studentsQuery = api.childLog.listAccessibleStudents.useQuery(undefined, { retry: false });
+  const [statusFilter, setStatusFilter] = useState<StudentStatusFilter>('active');
+  const activeStudentsQuery = api.childLog.listAccessibleStudents.useQuery(undefined, {
+    enabled: !canManageStudents,
+    retry: false,
+  });
+  const managedStudentsQuery = api.student.list.useQuery(
+    { includeInactive: true },
+    { enabled: canManageStudents, retry: false },
+  );
+  const rows = (canManageStudents ? managedStudentsQuery.data : activeStudentsQuery.data) as
+    | readonly StudentDirectoryRow[]
+    | undefined;
+  const loading = canManageStudents
+    ? managedStudentsQuery.isLoading
+    : activeStudentsQuery.isLoading;
+  const errorMessage = canManageStudents
+    ? managedStudentsQuery.error?.message
+    : activeStudentsQuery.error?.message;
 
   const students = useMemo(() => {
-    const rows = studentsQuery.data ?? [];
-    if (!search) return rows;
-    const query = search.toLowerCase();
-    return rows.filter((student) => student.fullName.toLowerCase().includes(query));
-  }, [search, studentsQuery.data]);
-  const columns = useMemo<readonly DataTableColumn<StudentRow>[]>(
+    const availableRows = rows ?? [];
+    const query = search?.toLowerCase() ?? '';
+    return availableRows.filter((student) => {
+      const matchesSearch = !search || student.fullName.toLowerCase().includes(query);
+      const matchesStatus =
+        !canManageStudents ||
+        statusFilter === 'all' ||
+        (statusFilter === 'active' && student.active) ||
+        (statusFilter === 'archived' && !student.active);
+      return matchesSearch && matchesStatus;
+    });
+  }, [canManageStudents, rows, search, statusFilter]);
+  const columns = useMemo<readonly DataTableColumn<StudentDirectoryRow>[]>(
     () => [
       {
         id: 'name',
@@ -35,12 +87,16 @@ export function StudentsList() {
             <Avatar className="student-row__avatar" name={student.fullName} />
             <span className="student-row__text">
               <strong>{student.fullName}</strong>
-              <span>Enrolled {student.enrolmentDate}</span>
+              <span>Enrolled {formatStudentDate(student.enrolmentDate)}</span>
             </span>
           </div>
         ),
       },
-      { id: 'year', header: 'Year', render: (student) => displaySchoolYearLabel(student.yearGroup) },
+      {
+        id: 'year',
+        header: 'Year',
+        render: (student) => displaySchoolYearLabel(student.yearGroup),
+      },
       {
         id: 'subjects',
         header: 'Subjects',
@@ -61,7 +117,7 @@ export function StudentsList() {
         header: 'Status',
         render: (student) => (
           <Badge tone={student.active ? 'green' : 'amber'}>
-            {student.active ? 'Active' : 'Inactive'}
+            {student.active ? 'Active' : 'Archived'}
           </Badge>
         ),
       },
@@ -69,7 +125,10 @@ export function StudentsList() {
         id: 'actions',
         header: <span className="sr-only">Actions</span>,
         render: (student) => (
-          <Link className="button button--secondary button--sm" href={`/admin/students/${student.id}`}>
+          <Link
+            className="button button--secondary button--sm"
+            href={`/admin/students/${student.id}`}
+          >
             Open
           </Link>
         ),
@@ -114,17 +173,38 @@ export function StudentsList() {
             Clear
           </Button>
         ) : null}
+        {canManageStudents ? (
+          <div className="toolbar__filters" role="tablist">
+            {statusFilters.map((option) => (
+              <button
+                aria-selected={statusFilter === option.id}
+                className={statusFilter === option.id ? 'is-selected' : undefined}
+                key={option.id}
+                onClick={() => {
+                  setStatusFilter(option.id);
+                }}
+                role="tab"
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="panel panel--scroll">
         <DataTable
           columns={columns}
           empty={
-            <EmptyState detail="Create the first student or adjust the search." title="No students found" />
+            <EmptyState
+              detail="Create the first student or adjust the search."
+              title="No students found"
+            />
           }
-          errorMessage={studentsQuery.error?.message}
+          errorMessage={errorMessage}
           getRowKey={(student) => student.id}
-          loading={studentsQuery.isLoading}
+          loading={loading}
           loadingLabel="Loading students..."
           rows={students}
         />

@@ -27,7 +27,7 @@ export default async function StudentsPage() {
           </Link>
         ) : null}
       </div>
-      <StudentsList />
+      <StudentsList canManageStudents={canManageStudents} />
     </MotionPage>
   );
 }

@@ -17,7 +17,11 @@ import {
   type DirectoryItem,
 } from './_components/people-profile-model';
 
-export function PeopleProfilesClient() {
+interface PeopleProfilesClientProps {
+  currentUserId: string;
+}
+
+export function PeopleProfilesClient({ currentUserId }: PeopleProfilesClientProps) {
   const [filter, setFilter] = useState<DirectoryFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
@@ -31,8 +35,9 @@ export function PeopleProfilesClient() {
       kind: 'student',
       student,
       title: student.fullName,
-      subtitle: displaySchoolYearLabel(student.yearGroup),
-      searchText: `${student.fullName} ${student.yearGroup}`.toLowerCase(),
+      subtitle: `${displaySchoolYearLabel(student.yearGroup)} · ${student.active ? 'Active' : 'Archived'}`,
+      searchText:
+        `${student.fullName} ${student.yearGroup} ${student.active ? 'active' : 'archived'}`.toLowerCase(),
     }));
 
     const userItems: DirectoryItem[] = (usersQuery.data ?? [])
@@ -44,8 +49,12 @@ export function PeopleProfilesClient() {
           kind,
           user,
           title: user.fullName,
-          subtitle: kind === 'parent' ? childLabel(user.children.length) : roleLabel(user.role),
-          searchText: `${user.fullName} ${user.email} ${roleLabel(user.role)}`.toLowerCase(),
+          subtitle:
+            kind === 'parent'
+              ? `${childLabel(user.children.length)} · ${user.active ? 'Active' : 'Inactive'}`
+              : `${roleLabel(user.role)} · ${user.active ? 'Active' : 'Inactive'}`,
+          searchText:
+            `${user.fullName} ${user.email} ${roleLabel(user.role)} ${user.active ? 'active' : 'inactive'}`.toLowerCase(),
         };
       });
 
@@ -146,7 +155,11 @@ export function PeopleProfilesClient() {
             <StudentProfilePanel student={selectedItem.student} />
           ) : null}
           {selectedItem?.kind === 'parent' || selectedItem?.kind === 'supervisor' ? (
-            <UserProfilePanel kind={selectedItem.kind} user={selectedItem.user} />
+            <UserProfilePanel
+              currentUserId={currentUserId}
+              kind={selectedItem.kind}
+              user={selectedItem.user}
+            />
           ) : null}
           {selectedItem?.kind === 'invite' ? (
             <PendingInviteProfilePanel invitation={selectedItem.invitation} />

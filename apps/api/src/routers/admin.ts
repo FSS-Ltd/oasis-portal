@@ -1023,7 +1023,6 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     listUsers: fullAdminProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
-        where: { active: true },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
         select: adminUserProfileSelect,
