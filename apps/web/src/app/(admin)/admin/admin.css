@@ -1740,6 +1740,12 @@
   color: #ffffff;
 }
 
+.lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .profile-tabs {
   display: flex;
   width: fit-content;
