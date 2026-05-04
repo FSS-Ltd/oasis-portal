@@ -192,7 +192,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
                 <p className="muted">Control whether this person can sign in.</p>
               </div>
             </div>
-            <div className="profile-hero__actions">
+            <div className="lifecycle-actions">
               {account.active ? (
                 <Button
                   disabled={isSelf}

@@ -256,7 +256,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                     <strong>{student.active ? 'Active' : 'Archived'}</strong>
                   </div>
                 </div>
-                <div className="profile-hero__actions">
+                <div className="lifecycle-actions">
                   {student.active ? (
                     <Button
                       onClick={() => {

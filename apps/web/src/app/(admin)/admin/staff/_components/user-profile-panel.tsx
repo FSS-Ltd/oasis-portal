@@ -315,7 +315,7 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
                 <Badge tone={statusTone(user.active)}>{user.active ? 'Active' : 'Inactive'}</Badge>
               </div>
             </div>
-            <div className="profile-hero__actions">
+            <div className="lifecycle-actions">
               {user.active ? (
                 <Button
                   disabled={isSelf}
