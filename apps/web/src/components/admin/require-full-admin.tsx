@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
 import {
+  AccessDeniedError,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canUseFullPaceAccess,
@@ -77,38 +78,57 @@ async function ensureDevHeadUser(clerkUserId: string) {
   });
 }
 
-export async function getFullAdminUser(): Promise<SessionUser> {
-  try {
-    const { userId } = await auth();
-    if (userId) await ensureDevHeadUser(userId);
-    const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-    if (!ctx.user) notFound();
-    requireFullAdmin(ctx.user);
-    return ctx.user;
-  } catch {
+function notFoundOnAccessDenied(error: unknown): never {
+  if (error instanceof AccessDeniedError) {
     notFound();
   }
+
+  throw error;
+}
+
+async function getSessionUser(
+  options: { ensureDevHead?: boolean } = {},
+): Promise<SessionUser | null> {
+  const { userId } = await auth();
+  if (userId && options.ensureDevHead !== false) await ensureDevHeadUser(userId);
+  const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
+  return ctx.user;
+}
+
+async function getRequiredSessionUser(
+  options: { ensureDevHead?: boolean } = {},
+): Promise<SessionUser> {
+  const user = await getSessionUser(options);
+  if (!user) notFound();
+  return user;
+}
+
+export async function getFullAdminUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+
+  try {
+    requireFullAdmin(user);
+  } catch (error) {
+    notFoundOnAccessDenied(error);
+  }
+
+  return user;
 }
 
 export async function getAdminShellUser(): Promise<SessionUser> {
-  try {
-    const { userId } = await auth();
-    if (userId) await ensureDevHeadUser(userId);
-    const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-    if (!ctx.user) notFound();
-    if (
-      !isFullAdmin(ctx.user) &&
-      !canViewBehaviourReports(ctx.user) &&
-      !canViewAnyStudentDrillThrough(ctx.user) &&
-      !canUseFullPaceAccess(ctx.user) &&
-      !canManageUserAccounts(ctx.user)
-    ) {
-      notFound();
-    }
-    return ctx.user;
-  } catch {
+  const user = await getRequiredSessionUser();
+
+  if (
+    !isFullAdmin(user) &&
+    !canViewBehaviourReports(user) &&
+    !canViewAnyStudentDrillThrough(user) &&
+    !canUseFullPaceAccess(user) &&
+    !canManageUserAccounts(user)
+  ) {
     notFound();
   }
+
+  return user;
 }
 
 export async function assertFullAdmin() {
@@ -116,26 +136,24 @@ export async function assertFullAdmin() {
 }
 
 export async function getUserAccountAdminUser(): Promise<SessionUser> {
-  try {
-    const user = await getAdminShellUser();
-    if (!canManageUserAccounts(user)) notFound();
-    return user;
-  } catch {
+  const user = await getAdminShellUser();
+  if (!canManageUserAccounts(user)) {
     notFound();
   }
+
+  return user;
 }
 
 export async function getStaffUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+
   try {
-    const { userId } = await auth();
-    if (userId) await ensureDevHeadUser(userId);
-    const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-    if (!ctx.user) notFound();
-    requireStaff(ctx.user);
-    return ctx.user;
-  } catch {
-    notFound();
+    requireStaff(user);
+  } catch (error) {
+    notFoundOnAccessDenied(error);
   }
+
+  return user;
 }
 
 export async function assertStaffUser() {
@@ -143,40 +161,36 @@ export async function assertStaffUser() {
 }
 
 export async function assertAuditViewer() {
+  const user = await getFullAdminUser();
+
   try {
-    const user = await getFullAdminUser();
     requireTag(user, 'audit-viewer');
-  } catch {
-    notFound();
+  } catch (error) {
+    notFoundOnAccessDenied(error);
   }
 }
 
 export async function assertBehaviourReportViewer() {
-  try {
-    const user = await getAdminShellUser();
-    if (!canViewBehaviourReports(user)) notFound();
-  } catch {
+  const user = await getAdminShellUser();
+  if (!canViewBehaviourReports(user)) {
     notFound();
   }
 }
 
 export async function getStudentDrillThroughAdminUser(): Promise<SessionUser> {
-  try {
-    const user = await getAdminShellUser();
-    if (!canViewAnyStudentDrillThrough(user)) notFound();
-    return user;
-  } catch {
+  const user = await getAdminShellUser();
+  if (!canViewAnyStudentDrillThrough(user)) {
     notFound();
   }
+
+  return user;
 }
 
 export async function getParentUser(): Promise<SessionUser> {
-  try {
-    const { userId } = await auth();
-    const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-    if (!ctx.user || ctx.user.role !== 'Parent') notFound();
-    return ctx.user;
-  } catch {
+  const user = await getSessionUser({ ensureDevHead: false });
+  if (!user || user.role !== 'Parent') {
     notFound();
   }
+
+  return user;
 }

@@ -6,7 +6,6 @@ const isProtectedRoute = createRouteMatcher([
   '/supervisor(.*)',
   '/parent(.*)',
   '/2fa(.*)',
-  '/post-sign-in(.*)',
   '/not-ready(.*)',
 ]);
 

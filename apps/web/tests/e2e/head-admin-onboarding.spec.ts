@@ -6,8 +6,8 @@ const headPassword = process.env.E2E_HEAD_PASSWORD;
 async function signInAsHead(page: import('@playwright/test').Page) {
   await page.goto('/sign-in');
   await page.getByLabel(/email/i).fill(headEmail ?? '');
-  await page.getByLabel(/password/i).fill(headPassword ?? '');
-  await page.getByRole('button', { name: /continue|sign in/i }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill(headPassword ?? '');
+  await page.getByRole('button', { name: /^continue$/i }).click();
   await page.waitForURL(/admin|dashboard|2fa/, { timeout: 30_000 });
 }
 
@@ -115,7 +115,9 @@ test.describe('Head admin onboarding', () => {
     await page.getByRole('button', { name: /create student/i }).click();
     await expect(page.getByRole('heading', { name: studentName })).toBeVisible();
 
-    await page.getByLabel('Assign subject').selectOption({ label: `${subjectCode} - ${subjectName} Updated` });
+    await page
+      .getByLabel('Assign subject')
+      .selectOption({ label: `${subjectCode} - ${subjectName} Updated` });
     await page.getByLabel('Current PACE number').fill('1004');
     await page.getByRole('button', { name: /assign subject/i }).click();
     await expect(page.getByText(/subject assignment updated/i)).toBeVisible();

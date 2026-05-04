@@ -93,6 +93,19 @@ export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean 
   return isFullAdmin(user) || user.role === 'TechnicalSupport';
 }
 
+export function resolvePostSignInPortal(
+  user: SessionUser | null,
+): 'full-admin' | 'account-admin' | 'supervisor' | 'parent' | 'not-ready' {
+  if (!user) return 'not-ready';
+
+  if (isFullAdmin(user)) return 'full-admin';
+  if (canManageUserAccounts(user)) return 'account-admin';
+  if (user.role === 'Supervisor') return 'supervisor';
+  if (user.role === 'Parent') return 'parent';
+
+  return 'not-ready';
+}
+
 export function requireUserAccountAdmin(user: SessionUser): void {
   if (!canManageUserAccounts(user)) {
     throw new AccessDeniedError(`role ${user.role} cannot manage user accounts`);

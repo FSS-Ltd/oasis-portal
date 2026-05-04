@@ -1,21 +1,16 @@
-import { auth } from '@clerk/nextjs/server';
-import { createContext } from '@oasis/api';
-import { canManageUserAccounts, isFullAdmin } from '@oasis/domain';
-import { redirect } from 'next/navigation';
+import { hasClerkPublishableKey } from '../(auth)/clerk-config';
+import { PostSignInHandoff } from './post-sign-in-handoff';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PostSignInPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/sign-in/');
+export default function PostSignInPage() {
+  if (!hasClerkPublishableKey()) {
+    return (
+      <main style={{ display: 'grid', minHeight: '100vh', placeItems: 'center', padding: 24 }}>
+        <p>Clerk publishable key is required for post sign-in routing.</p>
+      </main>
+    );
+  }
 
-  const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-  if (!ctx.user) redirect('/not-ready');
-
-  if (isFullAdmin(ctx.user)) redirect('/admin');
-  if (canManageUserAccounts(ctx.user)) redirect('/admin/access');
-  if (ctx.user.role === 'Supervisor') redirect('/supervisor');
-  if (ctx.user.role === 'Parent') redirect('/parent');
-
-  redirect('/not-ready');
+  return <PostSignInHandoff />;
 }

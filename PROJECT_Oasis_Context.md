@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-04
 **Agent:** Technical Agent (Codex)
-**Phase:** Admin lifecycle UI.
+**Phase:** Post-sign-in auth handoff.
 
 ---
 
@@ -18,7 +18,62 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Admin lifecycle UI
+## Current status - Post-sign-in auth handoff
+
+Working branch: `fix/post-sign-in-handoff`.
+
+**PR scope:** Stabilise the Clerk-to-Oasis post-sign-in handoff so fresh
+sessions route through a public client landing page before server-side
+role resolution.
+
+Changed scope:
+
+- Changed `/post-sign-in` into a public client handoff page that waits for
+  Clerk client auth to load, then performs a full document navigation.
+- Added `/post-sign-in/resolve` as the server-side resolver using Clerk
+  `auth()`, API context creation, and the shared role portal selector.
+- Removed `/post-sign-in(.*)` from the protected middleware matcher so the
+  handoff page is not pre-empted before Clerk cookies settle.
+- Added shared post-sign-in portal selection coverage for full admins,
+  account admins, Supervisors, Parents, not-ready local users, and missing
+  local users.
+- Tightened admin route guards so expected access denials still become
+  `notFound()`, while unexpected auth/database failures bubble instead of
+  becoming fake 404s.
+- Updated stale Playwright password-field selectors to avoid Clerk's
+  "Show password" button.
+- Added web `predev`/`prebuild` Prisma generation so cached generated clients
+  cannot keep querying removed columns such as `Student.archivedAt`.
+- Updated production `APP_URL` in Vercel and local ignored
+  `.env.production` to `https://www.oasisportal.space`.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm --filter @oasis/domain typecheck` - pass.
+- `pnpm --filter @oasis/domain test` - pass, 121/121 tests passing.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts -g "unauthenticated post-sign-in"` - pass, 2 passed and 5 credentialed tests skipped.
+- Generated-client/bundle check for `archivedAt` - pass; no occurrences remain
+  in the regenerated Prisma client or latest Next build output.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- Vercel production `APP_URL` is verified as
+  `https://www.oasisportal.space`; Vercel applies env changes to new
+  deployments, so the production deployment after this branch lands is still
+  required before functions use the new value.
+- Existing pending Clerk invitations still need to be resent after deploy so
+  recipients receive fresh invite URLs with the canonical host and
+  `/post-sign-in` redirect.
+- Authenticated production browser smoke was not completed in this session
+  because the code is not deployed yet and the available real sign-in flow is
+  2FA-gated.
+
+## Previous status - Admin lifecycle UI
 
 Working branch: `feat/admin-lifecycle-ui`.
 
