@@ -68,21 +68,18 @@ describe('inviteUserInput', () => {
     );
   });
 
-  it('accepts an optional redirectUrl and rejects invalid ones', () => {
-    expect(
-      inviteUserInput.safeParse({
-        email: 'x@example.com',
-        role: 'Supervisor',
-        redirectUrl: 'https://app.example.com/welcome',
-      }).success,
-    ).toBe(true);
-    expect(
-      inviteUserInput.safeParse({
-        email: 'x@example.com',
-        role: 'Supervisor',
-        redirectUrl: 'not-a-url',
-      }).success,
-    ).toBe(false);
+  it('rejects custom redirect URLs because invites use the canonical post-sign-in route', () => {
+    const result = inviteUserInput.safeParse({
+      email: 'x@example.com',
+      role: 'Supervisor',
+      redirectUrl: 'https://app.example.com/welcome',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual([]);
+      expect(result.error.issues[0]?.code).toBe('unrecognized_keys');
+    }
   });
 });
 

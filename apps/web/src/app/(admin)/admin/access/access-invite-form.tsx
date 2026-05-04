@@ -13,7 +13,6 @@ import { ACCESS_INVITE_ROLES } from './access-account-model';
 const schema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
   role: z.enum(ACCESS_INVITE_ROLES),
-  redirectUrl: z.string().trim().url('Enter a valid URL').or(z.literal('')).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -38,7 +37,6 @@ export function AccessInviteForm() {
     defaultValues: {
       email: '',
       role: 'Parent',
-      redirectUrl: '',
     },
   });
 
@@ -52,11 +50,10 @@ export function AccessInviteForm() {
               email: values.email,
               role: values.role,
               tags: [],
-              redirectUrl: values.redirectUrl || undefined,
             },
             {
               onSuccess: () => {
-                reset({ email: '', role: values.role, redirectUrl: values.redirectUrl });
+                reset({ email: '', role: values.role });
               },
             },
           );
@@ -78,12 +75,6 @@ export function AccessInviteForm() {
             </SelectInput>
           </Field>
         </div>
-        <Field error={errors.redirectUrl?.message} label="Redirect URL">
-          <TextInput
-            placeholder="https://portal.example.com/post-sign-in"
-            {...register('redirectUrl')}
-          />
-        </Field>
         {inviteUser.error ? (
           <p className="status--error" role="alert">
             {inviteUser.error.message}

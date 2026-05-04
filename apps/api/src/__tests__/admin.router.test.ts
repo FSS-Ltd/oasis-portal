@@ -26,6 +26,8 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const TEST_APP_URL = 'https://portal.example.com';
+const INVITATION_REDIRECT_URL = `${TEST_APP_URL}/post-sign-in`;
 
 function makeInvitationRow(
   overrides: Partial<{
@@ -256,6 +258,7 @@ function makeFakeEmailClient(result = { id: 'email_123' }) {
 function makeCaller(
   user: SessionUser | null,
   deps: {
+    appUrl?: string;
     clerk?: ReturnType<typeof makeFakeClerk>;
     db?: FakeDb;
     email?: ReturnType<typeof makeFakeEmailClient>;
@@ -265,7 +268,11 @@ function makeCaller(
   const clerk = deps.clerk ?? makeFakeClerk();
   const email = deps.email ?? makeFakeEmailClient();
   const appRouter = router({
-    admin: createAdminRouter({ clerk: clerk.client, emailClient: email.client }),
+    admin: createAdminRouter({
+      appUrl: deps.appUrl ?? TEST_APP_URL,
+      clerk: clerk.client,
+      emailClient: email.client,
+    }),
   });
   const ctx = makeCtx(user, db);
   return {
@@ -1049,12 +1056,14 @@ describe('admin.inviteUser', () => {
     expect(createInvitation).toHaveBeenNthCalledWith(1, {
       emailAddress: 'parent@example.com',
       publicMetadata: { role: 'Parent', tags: [] },
+      redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
     });
     expect(createInvitation).toHaveBeenNthCalledWith(2, {
       emailAddress: 'support@example.com',
       publicMetadata: { role: 'TechnicalSupport', tags: [] },
+      redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
     });
@@ -1195,6 +1204,7 @@ describe('admin.inviteUser', () => {
         createInvitation,
         db: usedDb,
         findInvitation,
+        revokeInvitation,
         sendEmail,
       } = makeCaller(headUser, { db });
 
@@ -1211,7 +1221,14 @@ describe('admin.inviteUser', () => {
       });
 
       expect(findInvitation).toHaveBeenCalledWith('inv_xyz');
-      expect(createInvitation).not.toHaveBeenCalled();
+      expect(revokeInvitation).toHaveBeenCalledWith('inv_xyz');
+      expect(createInvitation).toHaveBeenCalledWith({
+        emailAddress: 'jane@example.com',
+        publicMetadata: { role: 'Parent', tags: [] },
+        redirectUrl: INVITATION_REDIRECT_URL,
+        ignoreExisting: true,
+        notify: false,
+      });
       expect(usedDb.userInvitation.create).not.toHaveBeenCalled();
       expect(sendEmail).toHaveBeenCalledOnce();
       expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
@@ -1328,13 +1345,12 @@ describe('admin.inviteUser', () => {
       email: 'JANE@example.com',
       role: 'Supervisor',
       tags: ['shopkeeper'],
-      redirectUrl: 'https://app.example.com/welcome',
     });
 
     expect(createInvitation).toHaveBeenCalledWith({
       emailAddress: 'jane@example.com',
       publicMetadata: { role: 'Supervisor', tags: ['shopkeeper'] },
-      redirectUrl: 'https://app.example.com/welcome',
+      redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
     });
@@ -1428,14 +1444,39 @@ describe('admin.inviteUser', () => {
 
 describe('admin.resendUserInvitation', () => {
   it.each(['Failed', 'NotSent', 'Sent'] as const)(
-    'resends a %s pending invitation',
+    'resends a %s pending invitation with a fresh canonical redirect',
     async (emailStatus) => {
       const db = makeFakeDb();
-      db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow({ emailStatus }));
-      const { caller, db: usedDb, findInvitation, sendEmail } = makeCaller(headUser, { db });
+      db.userInvitation.findFirst.mockResolvedValue(
+        makeInvitationRow({ clerkInvitationId: 'inv_old', emailStatus }),
+      );
+      const clerk = makeFakeClerk(
+        {
+          id: 'inv_new',
+          emailAddress: 'jane@example.com',
+          status: 'pending',
+          url: 'https://clerk.example/invite/new',
+        },
+        {
+          findResult: {
+            id: 'inv_old',
+            emailAddress: 'jane@example.com',
+            status: 'pending',
+            url: 'https://clerk.example/invite/old',
+          },
+        },
+      );
+      const {
+        caller,
+        createInvitation,
+        db: usedDb,
+        findInvitation,
+        revokeInvitation,
+        sendEmail,
+      } = makeCaller(headUser, { clerk, db });
 
       await expect(caller.admin.resendUserInvitation({ id: 'invite_row_1' })).resolves.toEqual({
-        invitationId: 'inv_xyz',
+        invitationId: 'inv_new',
         status: 'pending',
         emailStatus: 'Sent',
       });
@@ -1454,7 +1495,15 @@ describe('admin.resendUserInvitation', () => {
           updatedAt: true,
         },
       });
-      expect(findInvitation).toHaveBeenCalledWith('inv_xyz');
+      expect(findInvitation).toHaveBeenCalledWith('inv_old');
+      expect(revokeInvitation).toHaveBeenCalledWith('inv_old');
+      expect(createInvitation).toHaveBeenCalledWith({
+        emailAddress: 'jane@example.com',
+        publicMetadata: { role: 'Parent', tags: [] },
+        redirectUrl: INVITATION_REDIRECT_URL,
+        ignoreExisting: true,
+        notify: false,
+      });
       expect(sendEmail).toHaveBeenCalledOnce();
       expect(sendEmail.mock.calls[0]?.[0]).toMatchObject({
         to: 'jane@example.com',
@@ -1470,7 +1519,7 @@ describe('admin.resendUserInvitation', () => {
           userId: headUser.id,
           action: 'Update',
           entity: 'Invitation',
-          entityId: 'inv_xyz',
+          entityId: 'inv_new',
           meta: {
             role: 'Parent',
             tags: [],
@@ -1523,6 +1572,7 @@ describe('admin.resendUserInvitation', () => {
     expect(createInvitation).toHaveBeenCalledWith({
       emailAddress: 'jane@example.com',
       publicMetadata: { role: 'Parent', tags: [] },
+      redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
     });
@@ -1562,7 +1612,13 @@ describe('admin.resendUserInvitation', () => {
       emailStatus: 'Sent',
     });
     expect(revokeInvitation).toHaveBeenCalledWith('inv_xyz');
-    expect(createInvitation).toHaveBeenCalledOnce();
+    expect(createInvitation).toHaveBeenCalledWith({
+      emailAddress: 'jane@example.com',
+      publicMetadata: { role: 'Parent', tags: [] },
+      redirectUrl: INVITATION_REDIRECT_URL,
+      ignoreExisting: true,
+      notify: false,
+    });
   });
 
   it('creates a replacement when the Clerk invitation cannot be found', async () => {
@@ -1583,7 +1639,13 @@ describe('admin.resendUserInvitation', () => {
       invitationId: 'inv_new',
       emailStatus: 'Sent',
     });
-    expect(createInvitation).toHaveBeenCalledOnce();
+    expect(createInvitation).toHaveBeenCalledWith({
+      emailAddress: 'jane@example.com',
+      publicMetadata: { role: 'Parent', tags: [] },
+      redirectUrl: INVITATION_REDIRECT_URL,
+      ignoreExisting: true,
+      notify: false,
+    });
     expect(usedDb.userInvitation.update).toHaveBeenCalledWith({
       where: { id: 'invite_row_1' },
       data: {

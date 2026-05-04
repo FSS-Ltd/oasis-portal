@@ -16,8 +16,7 @@ export const inviteUserInput = z.object({
   email: z.string().trim().toLowerCase().email(),
   role: roleEnum,
   tags: z.array(tagEnum).default([]),
-  redirectUrl: z.string().url().optional(),
-});
+}).strict();
 export type InviteUserInput = z.infer<typeof inviteUserInput>;
 
 export const linkGuardianInput = z.object({
