@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "predev": "pnpm --filter @oasis/db generate",
     "dev": "next dev",
+    "prebuild": "pnpm --filter @oasis/db generate",
     "build": "next build",
     "start": "next start",
     "lint": "eslint src",

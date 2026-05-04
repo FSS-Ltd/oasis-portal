@@ -19,6 +19,7 @@ import {
   requireOwnChild,
   requireSelfStudent,
   requireTag,
+  resolvePostSignInPortal,
   type SessionUser,
 } from '../rbac.js';
 
@@ -89,6 +90,31 @@ describe('TechnicalSupport account administration', () => {
     expect(canManageUserAccountRole(technicalSupport, 'Student')).toBe(false);
     expect(canManageUserAccountRole(technicalSupport, 'Head')).toBe(false);
     expect(canManageUserAccountRole(head, 'Supervisor')).toBe(true);
+  });
+});
+
+describe('resolvePostSignInPortal', () => {
+  it('sends full admins to the admin portal', () => {
+    expect(resolvePostSignInPortal(head)).toBe('full-admin');
+    expect(resolvePostSignInPortal(principal)).toBe('full-admin');
+  });
+
+  it('sends account admins to the access portal', () => {
+    expect(resolvePostSignInPortal(technicalSupport)).toBe('account-admin');
+  });
+
+  it('sends supervisors and parents to their portals', () => {
+    expect(resolvePostSignInPortal(supervisor)).toBe('supervisor');
+    expect(resolvePostSignInPortal(parent)).toBe('parent');
+  });
+
+  it('sends signed-in users without a ready local portal to not-ready', () => {
+    expect(resolvePostSignInPortal(student)).toBe('not-ready');
+    expect(resolvePostSignInPortal(clubsAdmin)).toBe('not-ready');
+  });
+
+  it('sends missing local users to not-ready', () => {
+    expect(resolvePostSignInPortal(null)).toBe('not-ready');
   });
 });
 
