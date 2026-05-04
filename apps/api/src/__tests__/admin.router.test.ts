@@ -520,7 +520,7 @@ describe('admin.searchParents', () => {
 });
 
 describe('admin.listUsers and admin.updateUserTags', () => {
-  it('lists active users with decrypted display fields and writes one PII audit row', async () => {
+  it('lists users with decrypted display fields and writes one PII audit row', async () => {
     const db = makeFakeDb();
     db.user.findMany.mockResolvedValue([
       {
@@ -571,7 +571,6 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { active: true },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {

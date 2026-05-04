@@ -27,11 +27,14 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
         <div className="profile-hero__body">
           <div>
             <h2>{student.fullName}</h2>
-            <p>{displaySchoolYearLabel(student.yearGroup)} · Enrolled {formatDate(student.enrolmentDate)}</p>
+            <p>
+              {displaySchoolYearLabel(student.yearGroup)} · Enrolled{' '}
+              {formatDate(student.enrolmentDate)}
+            </p>
           </div>
           <div className="profile-hero__badges">
             <span>Student</span>
-            <span>{student.active ? 'Active' : 'Inactive'}</span>
+            <span>{student.active ? 'Active' : 'Archived'}</span>
             <span>{student.subjects.length} subjects</span>
           </div>
         </div>
@@ -87,7 +90,10 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
         <section className="panel">
           <div className="panel__body people-linked-list">
             {student.subjects.length === 0 ? (
-              <EmptyState detail="Assign subjects from the student record." title="No subjects assigned" />
+              <EmptyState
+                detail="Assign subjects from the student record."
+                title="No subjects assigned"
+              />
             ) : (
               student.subjects.map((subject) => (
                 <div className="people-linked-row" key={subject.subjectId}>

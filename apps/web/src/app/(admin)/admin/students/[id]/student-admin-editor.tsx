@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link2, Save } from 'lucide-react';
+import { Archive, Link2, RotateCcw, Save } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import {
 } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { MotionItem } from '@/components/admin/motion';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -32,7 +33,6 @@ const editSchema = z.object({
   yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
   enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
   address: z.string().trim().optional(),
-  active: z.boolean(),
 });
 
 type EditValues = z.input<typeof editSchema>;
@@ -54,12 +54,24 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   const utils = api.useUtils();
   const studentQuery = api.student.byId.useQuery({ id: studentId }, { retry: false });
   const subjectsQuery = api.admin.listActiveSubjects.useQuery(undefined, { retry: false });
+  const [statusAction, setStatusAction] = useState<'archive' | 'restore' | null>(null);
   const updateStudent = api.student.update.useMutation({
     async onSuccess() {
       await Promise.all([
         utils.student.byId.invalidate({ id: studentId }),
         utils.student.list.invalidate(),
       ]);
+    },
+  });
+  const updateStudentStatus = api.student.update.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.student.byId.invalidate({ id: studentId }),
+        utils.student.list.invalidate(),
+        utils.childLog.listAccessibleStudents.invalidate(),
+        utils.childLog.drillThrough.invalidate({ studentId }),
+      ]);
+      setStatusAction(null);
     },
   });
   const assignSubject = api.student.assignSubject.useMutation({
@@ -99,7 +111,6 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       yearGroup: '',
       enrolmentDate: '',
       address: '',
-      active: true,
     },
   });
   const lastAutoYear = useRef<StandardSchoolYear | null>(null);
@@ -117,13 +128,13 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       yearGroup: canonicalSchoolYear(student.yearGroup) ?? '',
       enrolmentDate: new Date(student.enrolmentDate).toISOString().slice(0, 10),
       address: student.address ?? '',
-      active: student.active,
     });
     setPaceDrafts(
       Object.fromEntries(
         student.subjects.map((subject) => [subject.subjectId, String(subject.currentPaceNumber)]),
       ),
     );
+    setStatusAction(null);
   }, [reset, studentQuery.data]);
 
   useEffect(() => {
@@ -164,74 +175,117 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
           </div>
         </div>
         <span className={student.active ? 'badge badge--green' : 'badge badge--amber'}>
-          {student.active ? 'Active' : 'Inactive'}
+          {student.active ? 'Active' : 'Archived'}
         </span>
       </div>
 
       <div className="grid grid--two">
         <MotionItem>
-          <form
-            className="panel"
-            onSubmit={(event) => {
-              void handleSubmit((values) => {
-                updateStudent.mutate({
-                  id: student.id,
-                  fullName: values.fullName,
-                  dob: new Date(values.dob),
-                  yearGroup: parseStandardSchoolYear(values.yearGroup),
-                  enrolmentDate: new Date(values.enrolmentDate),
-                  active: values.active,
-                  address: values.address || null,
-                });
-              })(event);
-            }}
-          >
-            <div className="panel__body form-grid">
-              <div className="section-title">
-                <h2>Student details</h2>
-                {updateStudent.isSuccess ? <span className="status--success">Saved</span> : null}
+          <div className="grid">
+            <form
+              className="panel"
+              onSubmit={(event) => {
+                void handleSubmit((values) => {
+                  updateStudent.mutate({
+                    id: student.id,
+                    fullName: values.fullName,
+                    dob: new Date(values.dob),
+                    yearGroup: parseStandardSchoolYear(values.yearGroup),
+                    enrolmentDate: new Date(values.enrolmentDate),
+                    address: values.address || null,
+                  });
+                })(event);
+              }}
+            >
+              <div className="panel__body form-grid">
+                <div className="section-title">
+                  <h2>Student details</h2>
+                  {updateStudent.isSuccess ? <span className="status--success">Saved</span> : null}
+                </div>
+                <div className="form-grid form-grid--two">
+                  <Field error={errors.fullName?.message} label="Full name">
+                    <TextInput {...register('fullName')} />
+                  </Field>
+                  <Field error={errors.yearGroup?.message} label="Year group">
+                    <SelectInput {...register('yearGroup')}>
+                      <option value="">Choose year group</option>
+                      {STANDARD_SCHOOL_YEARS.map((year) => (
+                        <option key={year} value={year}>
+                          {displaySchoolYearLabel(year)}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  <Field error={errors.dob?.message} label="Date of birth">
+                    <TextInput type="date" {...register('dob')} />
+                  </Field>
+                  <Field error={errors.enrolmentDate?.message} label="Enrolment date">
+                    <TextInput type="date" {...register('enrolmentDate')} />
+                  </Field>
+                </div>
+                <Field error={errors.address?.message} label="Address">
+                  <TextInput {...register('address')} />
+                </Field>
+                {updateStudent.error ? (
+                  <p className="status--error" role="alert">
+                    {updateStudent.error.message}
+                  </p>
+                ) : null}
+                <div>
+                  <Button pending={updateStudent.isPending} type="submit">
+                    <Save aria-hidden="true" size={16} />
+                    Save changes
+                  </Button>
+                </div>
               </div>
-              <div className="form-grid form-grid--two">
-                <Field error={errors.fullName?.message} label="Full name">
-                  <TextInput {...register('fullName')} />
-                </Field>
-                <Field error={errors.yearGroup?.message} label="Year group">
-                  <SelectInput {...register('yearGroup')}>
-                    <option value="">Choose year group</option>
-                    {STANDARD_SCHOOL_YEARS.map((year) => (
-                      <option key={year} value={year}>
-                        {displaySchoolYearLabel(year)}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <Field error={errors.dob?.message} label="Date of birth">
-                  <TextInput type="date" {...register('dob')} />
-                </Field>
-                <Field error={errors.enrolmentDate?.message} label="Enrolment date">
-                  <TextInput type="date" {...register('enrolmentDate')} />
-                </Field>
+            </form>
+
+            <section className="panel">
+              <div className="panel__body form-grid">
+                <div className="section-title">
+                  <div>
+                    <h2>Student archive</h2>
+                    <p className="muted">
+                      Archived students are hidden from active workflows but retained for records.
+                    </p>
+                  </div>
+                </div>
+                <div className="profile-field-list">
+                  <div className="profile-field-row">
+                    <span>Status</span>
+                    <strong>{student.active ? 'Active' : 'Archived'}</strong>
+                  </div>
+                </div>
+                <div className="profile-hero__actions">
+                  {student.active ? (
+                    <Button
+                      onClick={() => {
+                        setStatusAction('archive');
+                      }}
+                      pending={updateStudentStatus.isPending}
+                      type="button"
+                      variant="danger"
+                    >
+                      <Archive aria-hidden="true" size={16} />
+                      Archive student
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        setStatusAction('restore');
+                      }}
+                      pending={updateStudentStatus.isPending}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <RotateCcw aria-hidden="true" size={16} />
+                      Restore student
+                    </Button>
+                  )}
+                </div>
               </div>
-              <Field error={errors.address?.message} label="Address">
-                <TextInput {...register('address')} />
-              </Field>
-              <label className="field">
-                <span className="field__label">Active</span>
-                <input className="switch-input" type="checkbox" {...register('active')} />
-              </label>
-              {updateStudent.error ? (
-                <p className="status--error" role="alert">
-                  {updateStudent.error.message}
-                </p>
-              ) : null}
-              <div>
-                <Button pending={updateStudent.isPending} type="submit">
-                  <Save aria-hidden="true" size={16} />
-                  Save changes
-                </Button>
-              </div>
-            </div>
-          </form>
+            </section>
+          </div>
         </MotionItem>
 
         <div className="grid">
@@ -431,6 +485,31 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
           </MotionItem>
         </div>
       </div>
+      <ConfirmationDialog
+        confirmLabel={statusAction === 'archive' ? 'Archive student' : 'Restore student'}
+        errorMessage={updateStudentStatus.error?.message}
+        onCancel={() => {
+          if (!updateStudentStatus.isPending) setStatusAction(null);
+        }}
+        onConfirm={() => {
+          if (!statusAction) return;
+          updateStudentStatus.mutate({ id: student.id, active: statusAction === 'restore' });
+        }}
+        open={statusAction !== null}
+        pending={updateStudentStatus.isPending}
+        title={
+          statusAction === 'archive'
+            ? `Archive ${student.fullName}?`
+            : `Restore ${student.fullName}?`
+        }
+        variant={statusAction === 'restore' ? 'primary' : 'danger'}
+      >
+        <p>
+          {statusAction === 'archive'
+            ? 'This will remove the student from active workflows while keeping their profile, history, and audit records.'
+            : 'This will return the student to active workflows and student directories.'}
+        </p>
+      </ConfirmationDialog>
     </>
   );
 }

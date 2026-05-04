@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-04
 **Agent:** Technical Agent (Codex)
-**Phase:** Invite post-signup routing fix.
+**Phase:** Admin lifecycle UI.
 
 ---
 
@@ -18,7 +18,46 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Invite post-signup routing fix
+## Current status - Admin lifecycle UI
+
+Working branch: `feat/admin-lifecycle-ui`.
+
+**PR scope:** Add guarded UI controls for account deactivation/reactivation and
+student archive/restore while preserving records and audit history.
+
+Changed scope:
+
+- Added a reusable admin confirmation dialog for lifecycle actions.
+- Added confirmation-gated account deactivation/reactivation in User Access and
+  People & Profiles, with self-deactivation still blocked.
+- Changed People & Profiles user listing to include inactive accounts so they
+  can be reactivated.
+- Replaced the ambiguous student `Active` checkbox with explicit Archive
+  student and Restore student actions on the student edit view.
+- Added Head-only Active, Archived, and All filters to the Students directory,
+  while non-managing users continue to see active accessible students only.
+- Updated student/profile labels so archived students are presented as
+  Archived rather than Inactive.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm --filter @oasis/api test` - pass, 185/185 tests passing.
+- `graphify update .` - pass.
+- Browser smoke check at `http://localhost:3002/admin/students` - pass; route
+  redirected to Clerk sign-in as expected with no console errors or Next.js
+  overlay.
+
+Notes:
+
+- User delete remains a soft access deactivation. No Clerk or database hard
+  delete was added.
+- Student archive remains `Student.active = false`; restore sets it back to
+  `true`.
+
+## Previous status - Invite post-signup routing fix
 
 Working branch: `fix/invite-post-sign-in-redirect`.
 

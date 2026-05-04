@@ -1337,6 +1337,79 @@
   border-top: 1px solid var(--oasis-border);
 }
 
+.admin-confirmation-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 18, 40, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.admin-confirmation-dialog {
+  display: grid;
+  width: min(100%, 520px);
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.28);
+}
+
+.admin-confirmation-dialog__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.admin-confirmation-dialog__header h2 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1rem;
+}
+
+.admin-confirmation-dialog__copy {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.83rem;
+  line-height: 1.55;
+}
+
+.admin-confirmation-dialog__copy p {
+  margin: 0;
+}
+
+.admin-confirmation-dialog__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+}
+
+.admin-confirmation-dialog__icon--danger {
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.admin-confirmation-dialog__icon--primary {
+  background: var(--oasis-blue-light);
+  color: var(--oasis-blue);
+}
+
+.admin-confirmation-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -1349,6 +1422,33 @@
   display: flex;
   width: min(100%, 520px);
   gap: 8px;
+}
+
+.toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--oasis-bg);
+}
+
+.toolbar__filters button {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.toolbar__filters button.is-selected {
+  background: var(--oasis-navy);
+  color: #ffffff;
 }
 
 .people-profiles {
