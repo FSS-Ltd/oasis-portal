@@ -5,6 +5,7 @@ import { withEncryption } from './encryption.js';
 export {
   AuditAction,
   Prisma,
+  StudentRegistrationConsentType,
   UserInvitationEmailStatus,
   UserInvitationStatus,
 } from '@prisma/client';

@@ -1876,6 +1876,158 @@
   font-weight: 700;
 }
 
+.registration-read-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-profile-layout {
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
+  align-items: start;
+}
+
+.student-profile-main,
+.student-profile-side {
+  align-content: start;
+}
+
+.student-registration-panel .panel__body {
+  display: grid;
+  gap: 18px;
+}
+
+.student-registration-panel__header {
+  align-items: flex-start;
+}
+
+.student-registration-panel__header .muted {
+  margin-top: 4px;
+}
+
+.registration-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.registration-summary-item {
+  display: grid;
+  gap: 7px;
+  align-content: start;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.registration-summary-item > span,
+.registration-read-section h3,
+.registration-contact-grid h4,
+.registration-notes-block span,
+.registration-consent-item span {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.registration-summary-item > strong {
+  color: var(--oasis-navy);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.registration-summary-item .badge-list {
+  display: flex;
+}
+
+.registration-read-section {
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.registration-field-list--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+}
+
+.registration-field-list .profile-field-row {
+  grid-template-columns: 140px minmax(0, 1fr);
+}
+
+.registration-field-list .profile-field-row strong,
+.registration-notes-block strong,
+.registration-consent-item strong {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.registration-notes-block {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0 0;
+}
+
+.registration-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.registration-contact-grid h4 {
+  margin-bottom: 8px;
+}
+
+.registration-read-list--compact {
+  gap: 8px;
+}
+
+.registration-read-card {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.registration-read-card strong {
+  color: var(--oasis-navy);
+  font-size: 0.84rem;
+}
+
+.registration-read-card span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+}
+
+.registration-consent-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+}
+
+.registration-consent-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.registration-consent-item strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .people-invite-section {
   display: grid;
   gap: 12px;
@@ -3843,6 +3995,23 @@
   .profile-field-row {
     grid-template-columns: 1fr;
     gap: 5px;
+  }
+
+  .student-profile-layout,
+  .registration-summary-grid,
+  .registration-field-list--two,
+  .registration-contact-grid,
+  .registration-consent-list {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-field-list .profile-field-row,
+  .registration-consent-item {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-consent-item strong {
+    white-space: normal;
   }
 
   .admin-shell__mobile-actions {

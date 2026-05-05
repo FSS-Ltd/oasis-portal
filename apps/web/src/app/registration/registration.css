@@ -1,0 +1,117 @@
+.registration-shell {
+  display: block;
+}
+
+.registration-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.registration-brand {
+  display: inline-grid;
+  place-items: center;
+  margin-bottom: 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.registration-form {
+  display: grid;
+  gap: 18px;
+}
+
+.registration-section-title,
+.registration-subsection__header,
+.registration-student__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.registration-subsection {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.registration-subsection__header strong,
+.registration-student__header strong {
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+}
+
+.registration-student {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.registration-student__header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.registration-student__header div {
+  display: grid;
+  gap: 3px;
+}
+
+.registration-student__header span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.registration-textarea {
+  min-height: 94px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
+.registration-consents {
+  display: grid;
+  gap: 10px;
+}
+
+.registration-consent-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 120px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.registration-consent-row span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+@media (max-width: 780px) {
+  .registration-page {
+    padding: 20px 16px 48px;
+  }
+
+  .registration-section-title,
+  .registration-subsection__header,
+  .registration-student__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .registration-consent-row {
+    grid-template-columns: 1fr;
+  }
+}

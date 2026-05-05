@@ -31,7 +31,15 @@ type AuditFilters = {
 };
 type AuditRow = RouterOutputs['audit']['list']['rows'][number];
 
-const ENTITIES = ['', 'Student', 'StudentSubject', 'Guardian', 'Invitation', 'User'] as const;
+const ENTITIES = [
+  '',
+  'Student',
+  'StudentSubject',
+  'Guardian',
+  'Invitation',
+  'ParentRegistration',
+  'User',
+] as const;
 
 function formatDate(value: string | Date) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -88,6 +96,8 @@ function formatSource(value: unknown): string {
     'attendance.exportStudentsCsv': 'Student attendance export',
     'attendance.forDate': 'Attendance register',
     'audit.list': 'Audit log',
+    'registration.byStudent': 'Registration form read',
+    'registration.submitInitial': 'Parent registration submit',
     'student.byId': 'Student record',
     'student.list': 'Student list',
   };

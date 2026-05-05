@@ -18,6 +18,13 @@ const studentInclude = Prisma.validator<Prisma.StudentInclude>()({
   subjects: {
     include: { subject: true },
   },
+  registrationProfile: {
+    select: {
+      registration: {
+        select: { homeAddressEnc: true },
+      },
+    },
+  },
 });
 
 const createInput = z.object({
@@ -80,7 +87,9 @@ function decryptStudent(
     userId: student.userId,
     fullName,
     dob,
-    address: ctx.db.$enc.decrypt(student.addressEnc),
+    address:
+      ctx.db.$enc.decrypt(student.addressEnc) ??
+      ctx.db.$enc.decrypt(student.registrationProfile?.registration.homeAddressEnc),
     yearGroup: student.yearGroup,
     enrolmentDate: student.enrolmentDate,
     active: student.active,

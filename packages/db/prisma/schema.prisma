@@ -85,6 +85,7 @@ model User {
   auditEvents             AuditLog[]
   invitationsSent         UserInvitation[]          @relation("InvitedUserInvitations")
   acceptedInvitations     UserInvitation[]          @relation("AcceptedUserInvitations")
+  parentRegistration      ParentRegistration?       @relation("ParentRegistrationParent")
 
   @@index([role])
 }
@@ -134,20 +135,21 @@ model Student {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  guardians     Guardian[]
-  subjects      StudentSubject[]
-  paceRecords   PaceRecord[]
-  attendance    Attendance[]
-  behaviour     BehaviourEntry[]
-  childNotes    ChildNote[]
-  meritLedger   MeritLedger[]
-  titheConfig   TitheConfig?
-  titheRuns     TitheRun[]
-  investment    InvestmentAccount?
-  investmentTx  InvestmentTransaction[]
-  shopPurchases ShopPurchase[]
-  clubSignups   ClubSignup[]
-  termReports   TermReport[]
+  guardians           Guardian[]
+  subjects            StudentSubject[]
+  paceRecords         PaceRecord[]
+  attendance          Attendance[]
+  behaviour           BehaviourEntry[]
+  childNotes          ChildNote[]
+  meritLedger         MeritLedger[]
+  titheConfig         TitheConfig?
+  titheRuns           TitheRun[]
+  investment          InvestmentAccount?
+  investmentTx        InvestmentTransaction[]
+  shopPurchases       ShopPurchase[]
+  clubSignups         ClubSignup[]
+  termReports         TermReport[]
+  registrationProfile StudentRegistrationProfile?
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -225,6 +227,126 @@ model PacePolicy {
   samePaceSameDayBlockEnabled Boolean  @default(true)
   passThreshold               Int      @default(80)
   updatedAt                   DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Parent-submitted registration
+// ---------------------------------------------------------------------------
+
+enum StudentRegistrationConsentType {
+  Contact
+  EmergencyMedical
+  LocalActivities
+  PhotoVideo
+  Accuracy
+}
+
+model ParentRegistration {
+  id               String   @id @default(cuid())
+  parentUserId     String   @unique
+  parentUser       User     @relation("ParentRegistrationParent", fields: [parentUserId], references: [id])
+  homeAddressEnc   String
+  agreementNameEnc String
+  agreementDate    DateTime @db.Date
+  submittedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  guardianContacts  RegistrationGuardianContact[]
+  emergencyContacts RegistrationEmergencyContact[]
+  pickupContacts    RegistrationPickupContact[]
+  studentProfiles   StudentRegistrationProfile[]
+
+  @@index([submittedAt])
+}
+
+model RegistrationGuardianContact {
+  id                String             @id @default(cuid())
+  registrationId    String
+  registration      ParentRegistration @relation(fields: [registrationId], references: [id])
+  position          Int
+  fullNameEnc       String
+  relationshipEnc   String
+  primaryPhoneEnc   String
+  secondaryPhoneEnc String?
+  emailEnc          String?
+  workPhoneEnc      String?
+  addressEnc        String?
+  createdAt         DateTime           @default(now())
+
+  @@unique([registrationId, position])
+  @@index([registrationId])
+}
+
+model RegistrationEmergencyContact {
+  id                String             @id @default(cuid())
+  registrationId    String
+  registration      ParentRegistration @relation(fields: [registrationId], references: [id])
+  position          Int
+  fullNameEnc       String
+  relationshipEnc   String
+  primaryPhoneEnc   String
+  secondaryPhoneEnc String?
+  emailEnc          String?
+  canPickUp         Boolean
+  createdAt         DateTime           @default(now())
+
+  @@unique([registrationId, position])
+  @@index([registrationId])
+}
+
+model RegistrationPickupContact {
+  id                String             @id @default(cuid())
+  registrationId    String
+  registration      ParentRegistration @relation(fields: [registrationId], references: [id])
+  position          Int
+  fullNameEnc       String
+  relationshipEnc   String
+  phoneEnc          String
+  idPasswordNoteEnc String?
+  createdAt         DateTime           @default(now())
+
+  @@unique([registrationId, position])
+  @@index([registrationId])
+}
+
+model StudentRegistrationProfile {
+  id                      String             @id @default(cuid())
+  registrationId          String
+  registration            ParentRegistration @relation(fields: [registrationId], references: [id])
+  studentId               String             @unique
+  student                 Student            @relation(fields: [studentId], references: [id])
+  preferredNameEnc        String?
+  genderEnc               String?
+  homeLanguageEnc         String?
+  studentNotesEnc         String?
+  allergiesEnc            String?
+  medicalConditionsEnc    String?
+  medicationAtCentreEnc   String?
+  dietaryRestrictionsEnc  String?
+  learningSupportEnc      String?
+  interestsStrengthsEnc   String?
+  settlingComfortNotesEnc String?
+  additionalInfoEnc       String?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+
+  consents StudentRegistrationConsent[]
+
+  @@index([registrationId])
+}
+
+model StudentRegistrationConsent {
+  id          String                         @id @default(cuid())
+  profileId   String
+  profile     StudentRegistrationProfile     @relation(fields: [profileId], references: [id])
+  consentType StudentRegistrationConsentType
+  granted     Boolean
+  initialsEnc String
+  createdAt   DateTime                       @default(now())
+
+  @@unique([profileId, consentType])
+  @@index([profileId])
 }
 
 // ---------------------------------------------------------------------------
