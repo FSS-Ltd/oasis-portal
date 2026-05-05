@@ -17,6 +17,7 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { MotionItem } from '@/components/admin/motion';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { StudentRegistrationPanel } from './student-registration-panel';
 
 function isStandardSchoolYear(value: string): value is StandardSchoolYear {
   return STANDARD_SCHOOL_YEARS.includes(value as StandardSchoolYear);
@@ -179,9 +180,9 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
         </span>
       </div>
 
-      <div className="grid grid--two">
+      <div className="grid grid--two student-profile-layout">
         <MotionItem>
-          <div className="grid">
+          <div className="grid student-profile-main">
             <form
               className="panel"
               onSubmit={(event) => {
@@ -240,55 +241,11 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
               </div>
             </form>
 
-            <section className="panel">
-              <div className="panel__body form-grid">
-                <div className="section-title">
-                  <div>
-                    <h2>Student archive</h2>
-                    <p className="muted">
-                      Archived students are hidden from active workflows but retained for records.
-                    </p>
-                  </div>
-                </div>
-                <div className="profile-field-list">
-                  <div className="profile-field-row">
-                    <span>Status</span>
-                    <strong>{student.active ? 'Active' : 'Archived'}</strong>
-                  </div>
-                </div>
-                <div className="lifecycle-actions">
-                  {student.active ? (
-                    <Button
-                      onClick={() => {
-                        setStatusAction('archive');
-                      }}
-                      pending={updateStudentStatus.isPending}
-                      type="button"
-                      variant="danger"
-                    >
-                      <Archive aria-hidden="true" size={16} />
-                      Archive student
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => {
-                        setStatusAction('restore');
-                      }}
-                      pending={updateStudentStatus.isPending}
-                      type="button"
-                      variant="secondary"
-                    >
-                      <RotateCcw aria-hidden="true" size={16} />
-                      Restore student
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </section>
+            <StudentRegistrationPanel studentId={studentId} />
           </div>
         </MotionItem>
 
-        <div className="grid">
+        <div className="grid student-profile-side">
           <MotionItem>
             <section className="panel">
               <div className="panel__body">
@@ -480,6 +437,54 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                     </Button>
                   </form>
                 ) : null}
+              </div>
+            </section>
+          </MotionItem>
+
+          <MotionItem>
+            <section className="panel">
+              <div className="panel__body form-grid">
+                <div className="section-title">
+                  <div>
+                    <h2>Student archive</h2>
+                    <p className="muted">
+                      Archived students are hidden from active workflows but retained for records.
+                    </p>
+                  </div>
+                </div>
+                <div className="profile-field-list">
+                  <div className="profile-field-row">
+                    <span>Status</span>
+                    <strong>{student.active ? 'Active' : 'Archived'}</strong>
+                  </div>
+                </div>
+                <div className="lifecycle-actions">
+                  {student.active ? (
+                    <Button
+                      onClick={() => {
+                        setStatusAction('archive');
+                      }}
+                      pending={updateStudentStatus.isPending}
+                      type="button"
+                      variant="danger"
+                    >
+                      <Archive aria-hidden="true" size={16} />
+                      Archive student
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        setStatusAction('restore');
+                      }}
+                      pending={updateStudentStatus.isPending}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <RotateCcw aria-hidden="true" size={16} />
+                      Restore student
+                    </Button>
+                  )}
+                </div>
               </div>
             </section>
           </MotionItem>

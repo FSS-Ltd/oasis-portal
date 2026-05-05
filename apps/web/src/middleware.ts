@@ -5,6 +5,7 @@ const isProtectedRoute = createRouteMatcher([
   '/dashboard(.*)',
   '/supervisor(.*)',
   '/parent(.*)',
+  '/registration(.*)',
   '/2fa(.*)',
   '/not-ready(.*)',
 ]);

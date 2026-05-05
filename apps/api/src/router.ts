@@ -23,6 +23,7 @@ import { profileRouter } from './routers/profile.js';
 import { reportRouter } from './routers/report.js';
 import { rotaRouter } from './routers/rota.js';
 import { emailRouter } from './routers/email.js';
+import { registrationRouter } from './routers/registration.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -46,6 +47,7 @@ export const appRouter = router({
   report: reportRouter,
   rota: rotaRouter,
   email: emailRouter,
+  registration: registrationRouter,
 });
 
 export type AppRouter = typeof appRouter;

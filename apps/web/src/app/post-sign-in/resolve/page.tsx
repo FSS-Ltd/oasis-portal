@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createContext } from '@oasis/api';
 import { redirect } from 'next/navigation';
-import { resolvePostSignInDestination } from '@/lib/post-sign-in-routing';
+import { resolvePostSignInDestinationForState } from '@/lib/post-sign-in-routing';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,5 +10,13 @@ export default async function PostSignInResolvePage() {
   if (!userId) redirect('/sign-in/');
 
   const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
-  redirect(resolvePostSignInDestination(ctx.user));
+  const parentNeedsRegistration =
+    ctx.user?.role === 'Parent'
+      ? !(await ctx.db.parentRegistration.findUnique({
+          where: { parentUserId: ctx.user.id },
+          select: { id: true },
+        })) && (await ctx.db.guardian.count({ where: { userId: ctx.user.id } })) === 0
+      : false;
+
+  redirect(resolvePostSignInDestinationForState(ctx.user, { parentNeedsRegistration }));
 }

@@ -9,3 +9,4 @@ export * from './leaderboard.js';
 export * from './clubs.js';
 export * from './report.js';
 export * from './schoolYears.js';
+export * from './registration.js';
