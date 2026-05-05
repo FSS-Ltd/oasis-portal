@@ -21,6 +21,7 @@ import {
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home, badge: undefined },
+  { href: '/parent', label: 'My Children', icon: UsersRound, badge: undefined },
   { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
@@ -44,6 +45,7 @@ type AdminNavProps = {
   canViewStudents: boolean;
   canManageUserAccounts: boolean;
   fullAdmin: boolean;
+  hasLinkedChildren: boolean;
 };
 
 function isActiveRoute(pathname: string, href: string, label: string) {
@@ -64,8 +66,10 @@ function visibleForUser(
     | 'canViewPace'
     | 'canViewStudents'
     | 'fullAdmin'
+    | 'hasLinkedChildren'
   >,
 ) {
+  if (item.label === 'My Children') return access.hasLinkedChildren;
   if (access.fullAdmin) return item.label !== 'Audit' || access.canViewAudit;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
@@ -81,6 +85,7 @@ export function AdminSidebarNav({
   canViewStudents,
   canManageUserAccounts,
   fullAdmin,
+  hasLinkedChildren,
 }: AdminNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter((item) =>
@@ -91,6 +96,7 @@ export function AdminSidebarNav({
       canViewPace,
       canViewStudents,
       fullAdmin,
+      hasLinkedChildren,
     }),
   );
 
@@ -133,6 +139,7 @@ export function AdminBottomNav({
   canViewStudents,
   canManageUserAccounts,
   fullAdmin,
+  hasLinkedChildren,
 }: AdminNavProps) {
   const pathname = usePathname();
   const mobileNavItems = navItems
@@ -144,6 +151,7 @@ export function AdminBottomNav({
         canViewPace,
         canViewStudents,
         fullAdmin,
+        hasLinkedChildren,
       }),
     )
     .slice(0, 5);

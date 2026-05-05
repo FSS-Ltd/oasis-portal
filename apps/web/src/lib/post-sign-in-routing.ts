@@ -3,6 +3,7 @@ import { resolvePostSignInPortal, type SessionUser } from '@oasis/domain';
 export type PostSignInDestination =
   | '/admin'
   | '/admin/access'
+  | '/children-check'
   | '/supervisor'
   | '/parent'
   | '/registration'
@@ -19,13 +20,23 @@ const DESTINATION_BY_PORTAL = {
 } satisfies Record<PostSignInPortal, PostSignInDestination>;
 
 export function resolvePostSignInDestination(user: SessionUser | null): PostSignInDestination {
-  return resolvePostSignInDestinationForState(user, { parentNeedsRegistration: false });
+  return resolvePostSignInDestinationForState(user, {
+    childRegistrationPromptRequired: false,
+    childRegistrationRequired: false,
+    parentNeedsRegistration: false,
+  });
 }
 
 export function resolvePostSignInDestinationForState(
   user: SessionUser | null,
-  state: { parentNeedsRegistration: boolean },
+  state: {
+    childRegistrationPromptRequired: boolean;
+    childRegistrationRequired: boolean;
+    parentNeedsRegistration: boolean;
+  },
 ): PostSignInDestination {
   if (user?.role === 'Parent' && state.parentNeedsRegistration) return '/registration';
+  if (state.childRegistrationRequired) return '/registration';
+  if (state.childRegistrationPromptRequired) return '/children-check';
   return DESTINATION_BY_PORTAL[resolvePostSignInPortal(user)];
 }

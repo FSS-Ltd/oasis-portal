@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AccessDeniedError,
+  canAnswerChildRegistrationPrompt,
   canManageUserAccountRole,
   canManageUserAccounts,
   canRecordStudentAttendance,
@@ -10,6 +11,7 @@ import {
   canViewSensitiveChildNotes,
   canViewSensitiveStudentDrillThrough,
   canViewStudentDrillThrough,
+  canSubmitInitialRegistration,
   isFullAdmin,
   isStaff,
   requireCanViewSensitive,
@@ -90,6 +92,29 @@ describe('TechnicalSupport account administration', () => {
     expect(canManageUserAccountRole(technicalSupport, 'Student')).toBe(false);
     expect(canManageUserAccountRole(technicalSupport, 'Head')).toBe(false);
     expect(canManageUserAccountRole(head, 'Supervisor')).toBe(true);
+  });
+});
+
+describe('child registration prompt roles', () => {
+  it('includes adult non-parent roles and excludes Parent/Student', () => {
+    expect(canAnswerChildRegistrationPrompt(head)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(principal)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(pastor)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(hod)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(technicalSupport)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(clubsAdmin)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(supervisor)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(parent)).toBe(false);
+    expect(canAnswerChildRegistrationPrompt(student)).toBe(false);
+  });
+
+  it('allows registration for Parents or adult non-Parents who answered yes', () => {
+    expect(canSubmitInitialRegistration(parent, 'Unanswered')).toBe(true);
+    expect(canSubmitInitialRegistration(supervisor, 'HasChildren')).toBe(true);
+    expect(canSubmitInitialRegistration(technicalSupport, 'HasChildren')).toBe(true);
+    expect(canSubmitInitialRegistration(supervisor, 'Unanswered')).toBe(false);
+    expect(canSubmitInitialRegistration(supervisor, 'NoChildren')).toBe(false);
+    expect(canSubmitInitialRegistration(student, 'HasChildren')).toBe(false);
   });
 });
 
@@ -176,16 +201,18 @@ describe('workflow tags', () => {
     expect(canViewBehaviourReports(technicalSupport)).toBe(false);
   });
 
-  it('limits student drill-through reads to full-admin, tagged staff, or parents', () => {
+  it('limits scoped student drill-through reads to adults who can be linked to children', () => {
     expect(canViewAnyStudentDrillThrough(head)).toBe(true);
     expect(canViewAnyStudentDrillThrough(hod)).toBe(true);
     expect(canViewAnyStudentDrillThrough(supervisor)).toBe(false);
     expect(
       canViewAnyStudentDrillThrough({ ...supervisor, tags: ['student-drillthrough-viewer'] }),
     ).toBe(true);
+    expect(canViewStudentDrillThrough(supervisor)).toBe(true);
     expect(canViewStudentDrillThrough(parent)).toBe(true);
     expect(canViewStudentDrillThrough(student)).toBe(false);
-    expect(canViewStudentDrillThrough(technicalSupport)).toBe(false);
+    expect(canViewStudentDrillThrough(technicalSupport)).toBe(true);
+    expect(canViewStudentDrillThrough(clubsAdmin)).toBe(true);
   });
 
   it('limits sensitive student drill-through data to Head', () => {

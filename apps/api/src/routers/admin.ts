@@ -1151,6 +1151,43 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return rows;
     }),
 
+    searchGuardianAccounts: fullAdminProcedure
+      .input(searchParentsInput)
+      .query(async ({ ctx, input }) => {
+        const where: Prisma.UserWhereInput = { active: true };
+        if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
+
+        const users = await ctx.db.user.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: input?.limit ?? 10,
+          select: { id: true, role: true, fullNameEnc: true, emailEnc: true },
+        });
+
+        const rows = users.map((user) => {
+          const fullName = ctx.db.$enc.decrypt(user.fullNameEnc);
+          const email = ctx.db.$enc.decrypt(user.emailEnc);
+          if (!fullName || !email) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'user PII decrypt failed',
+            });
+          }
+          return { id: user.id, role: user.role, fullName, email };
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'User',
+            meta: { count: rows.length, source: 'admin.searchGuardianAccounts' },
+          },
+        });
+
+        return rows;
+      }),
+
     inviteUser: userAccountAdminProcedure
       .input(inviteUserInput)
       .mutation(async ({ ctx, input }) => {
@@ -1263,20 +1300,23 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       }),
 
     linkGuardian: fullAdminProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
-      const [parentUser, student] = await Promise.all([
-        ctx.db.user.findUnique({ where: { id: input.userId } }),
+      const [targetUser, student] = await Promise.all([
+        ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, role: true, active: true },
+        }),
         ctx.db.student.findUnique({ where: { id: input.studentId } }),
       ]);
-      if (!parentUser) {
+      if (!targetUser) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
       }
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
       }
-      if (parentUser.role !== 'Parent') {
+      if (!targetUser.active) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `cannot link guardian: user role is ${parentUser.role}, expected Parent`,
+          message: 'cannot link guardian: user account is inactive',
         });
       }
 
@@ -1290,7 +1330,11 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
             action: 'Create',
             entity: 'Guardian',
             entityId: created.id,
-            meta: { parentUserId: input.userId, studentId: input.studentId },
+            meta: {
+              guardianUserId: input.userId,
+              studentId: input.studentId,
+              targetRole: targetUser.role,
+            },
           },
         });
         return { created: true, guardianId: created.id };

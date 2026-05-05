@@ -92,10 +92,12 @@ function formatSource(value: unknown): string {
   const labels: Record<string, string> = {
     'admin.listUsers': 'User list',
     'admin.searchParents': 'Parent search',
+    'admin.searchGuardianAccounts': 'Guardian account search',
     'admin.updateUserTags': 'Permission tag update',
     'attendance.exportStudentsCsv': 'Student attendance export',
     'attendance.forDate': 'Attendance register',
     'audit.list': 'Audit log',
+    'registration.answerChildRegistrationPrompt': 'Child registration prompt',
     'registration.byStudent': 'Registration form read',
     'registration.submitInitial': 'Parent registration submit',
     'student.byId': 'Student record',

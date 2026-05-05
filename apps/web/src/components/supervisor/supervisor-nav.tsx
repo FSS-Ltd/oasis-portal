@@ -9,10 +9,12 @@ import {
   ClipboardList,
   Home,
   Star,
+  UsersRound,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
+  { href: '/parent', label: 'My Children', icon: UsersRound, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
@@ -26,12 +28,15 @@ function isActiveRoute(pathname: string, href: string, label: string) {
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SupervisorSidebarNav() {
+export function SupervisorSidebarNav({ hasLinkedChildren }: { hasLinkedChildren: boolean }) {
   const pathname = usePathname();
+  const visibleNavItems = navItems.filter(
+    (item) => item.label !== 'My Children' || hasLinkedChildren,
+  );
 
   return (
     <nav className="admin-shell__nav">
-      {navItems.map((item) => {
+      {visibleNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
         const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
@@ -54,12 +59,15 @@ export function SupervisorSidebarNav() {
   );
 }
 
-export function SupervisorBottomNav() {
+export function SupervisorBottomNav({ hasLinkedChildren }: { hasLinkedChildren: boolean }) {
   const pathname = usePathname();
+  const visibleNavItems = navItems.filter(
+    (item) => item.label !== 'My Children' || hasLinkedChildren,
+  );
 
   return (
     <nav aria-label="Mobile supervisor sections" className="admin-shell__bottom-nav">
-      {navItems.slice(0, 5).map((item) => {
+      {visibleNavItems.slice(0, 5).map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]

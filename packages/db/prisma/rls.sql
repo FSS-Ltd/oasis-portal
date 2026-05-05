@@ -14,6 +14,7 @@ ALTER TABLE "BehaviourEntry" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS behaviour_full_admin_select ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_supervisor_general ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_parent_own_child ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_guardian_own_child ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
 
@@ -30,11 +31,20 @@ CREATE POLICY behaviour_supervisor_general ON "BehaviourEntry"
     AND "visibility" = 'General'
   );
 
--- Parents see General entries only for their own children.
-CREATE POLICY behaviour_parent_own_child ON "BehaviourEntry"
+-- Guardian-linked users see General entries only for their own children.
+CREATE POLICY behaviour_guardian_own_child ON "BehaviourEntry"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor',
+      'Parent'
+    )
     AND "visibility" = 'General'
     AND EXISTS (
       SELECT 1 FROM "Guardian" g

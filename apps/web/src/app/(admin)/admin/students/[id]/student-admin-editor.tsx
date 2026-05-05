@@ -12,6 +12,7 @@ import {
   type StandardSchoolYear,
 } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import { roleLabel } from '@/lib/profile-display';
 import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { MotionItem } from '@/components/admin/motion';
@@ -89,11 +90,11 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   const [subjectId, setSubjectId] = useState('');
   const [paceNumber, setPaceNumber] = useState('1001');
   const [paceDrafts, setPaceDrafts] = useState<Record<string, string>>({});
-  const [parentEmail, setParentEmail] = useState('');
-  const [selectedParentId, setSelectedParentId] = useState('');
+  const [guardianEmail, setGuardianEmail] = useState('');
+  const [selectedGuardianId, setSelectedGuardianId] = useState('');
   const [updatedSubjectId, setUpdatedSubjectId] = useState<string | null>(null);
-  const parentLookup = api.admin.searchParents.useQuery(
-    { search: parentEmail.trim() || 'none', limit: 5 },
+  const guardianLookup = api.admin.searchGuardianAccounts.useQuery(
+    { search: guardianEmail.trim() || 'none', limit: 5 },
     { enabled: false, retry: false },
   );
 
@@ -160,7 +161,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   }
 
   const student = studentQuery.data;
-  const parentRows = parentLookup.data ?? [];
+  const guardianRows = guardianLookup.data ?? [];
 
   return (
     <>
@@ -377,48 +378,48 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                   className="form-grid"
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (!parentEmail.trim()) return;
-                    void parentLookup.refetch();
+                    if (!guardianEmail.trim()) return;
+                    void guardianLookup.refetch();
                   }}
                 >
-                  <Field hint="Search by exact parent email." label="Parent email">
+                  <Field hint="Search by exact account email." label="Guardian account email">
                     <TextInput
                       autoComplete="email"
                       onChange={(event) => {
-                        setParentEmail(event.target.value);
+                        setGuardianEmail(event.target.value);
                       }}
                       type="email"
-                      value={parentEmail}
+                      value={guardianEmail}
                     />
                   </Field>
-                  <Button pending={parentLookup.isFetching} type="submit" variant="secondary">
-                    Search parent
+                  <Button pending={guardianLookup.isFetching} type="submit" variant="secondary">
+                    Search account
                   </Button>
                 </form>
-                {parentLookup.error ? (
-                  <p className="status--error">{parentLookup.error.message}</p>
+                {guardianLookup.error ? (
+                  <p className="status--error">{guardianLookup.error.message}</p>
                 ) : null}
-                {parentRows.length > 0 ? (
+                {guardianRows.length > 0 ? (
                   <form
                     className="form-grid"
                     onSubmit={(event) => {
                       event.preventDefault();
-                      if (!selectedParentId) return;
-                      linkGuardian.mutate({ studentId, userId: selectedParentId });
+                      if (!selectedGuardianId) return;
+                      linkGuardian.mutate({ studentId, userId: selectedGuardianId });
                     }}
                   >
                     <div className="divider" />
-                    <Field label="Matched parent">
+                    <Field label="Matched account">
                       <SelectInput
                         onChange={(event) => {
-                          setSelectedParentId(event.target.value);
+                          setSelectedGuardianId(event.target.value);
                         }}
-                        value={selectedParentId}
+                        value={selectedGuardianId}
                       >
-                        <option value="">Choose parent</option>
-                        {parentRows.map((parent) => (
-                          <option key={parent.id} value={parent.id}>
-                            {parent.fullName} - {parent.email}
+                        <option value="">Choose account</option>
+                        {guardianRows.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.fullName} - {account.email} - {roleLabel(account.role)}
                           </option>
                         ))}
                       </SelectInput>

@@ -43,21 +43,29 @@ enum UserInvitationEmailStatus {
   Failed
 }
 
+enum ChildRegistrationPromptStatus {
+  Unanswered
+  NoChildren
+  HasChildren
+}
+
 model User {
-  id          String   @id @default(cuid())
-  clerkId     String   @unique
-  role        Role
-  tags        String[] @default([])
+  id                                String                        @id @default(cuid())
+  clerkId                           String                        @unique
+  role                              Role
+  tags                              String[]                      @default([])
+  childRegistrationPromptStatus     ChildRegistrationPromptStatus @default(Unanswered)
+  childRegistrationPromptAnsweredAt DateTime?
   // --- PII (encrypted, ADR-005) ---
-  fullNameEnc String
-  emailEnc    String
-  emailBidx   String   @unique
-  phoneEnc    String?
-  addressEnc  String?
+  fullNameEnc                       String
+  emailEnc                          String
+  emailBidx                         String                        @unique
+  phoneEnc                          String?
+  addressEnc                        String?
   // --- operational ---
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  active                            Boolean                       @default(true)
+  createdAt                         DateTime                      @default(now())
+  updatedAt                         DateTime                      @updatedAt
 
   guardianOf              Guardian[]
   studentProfile          Student?                  @relation("StudentLogin")
