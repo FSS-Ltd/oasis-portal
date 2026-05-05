@@ -519,6 +519,55 @@ describe('admin.searchParents', () => {
   });
 });
 
+describe('admin.searchGuardianAccounts', () => {
+  it('decrypts active account display rows across roles and writes one PII audit row', async () => {
+    const db = makeFakeDb();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: 'u_sup',
+        role: 'Supervisor',
+        fullNameEnc: 'enc:Sam Supervisor',
+        emailEnc: 'enc:sam@example.com',
+      },
+    ]);
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.searchGuardianAccounts({ search: 'sam@example.com' }),
+    ).resolves.toEqual([
+      {
+        id: 'u_sup',
+        role: 'Supervisor',
+        fullName: 'Sam Supervisor',
+        email: 'sam@example.com',
+      },
+    ]);
+    expect(db.user.findMany).toHaveBeenCalledWith({
+      where: { active: true, emailBidx: 'bidx:sam@example.com' },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, role: true, fullNameEnc: true, emailEnc: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: 1, source: 'admin.searchGuardianAccounts' },
+      },
+    });
+  });
+
+  it('rejects non-full-admin account lookup as FORBIDDEN', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(caller.admin.searchGuardianAccounts()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(db.user.findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('admin.listUsers and admin.updateUserTags', () => {
   it('lists users with decrypted display fields and writes one PII audit row', async () => {
     const db = makeFakeDb();
@@ -1764,7 +1813,7 @@ describe('admin.linkGuardian', () => {
 
   it('happy path: creates guardian + writes one audit row', async () => {
     const db = makeFakeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent' });
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent', active: true });
     db.student.findUnique.mockResolvedValue({ id: 's_kid' });
     db.guardian.create.mockResolvedValue({ id: 'g_new' });
     const { caller } = makeCaller(headUser, { db });
@@ -1784,15 +1833,30 @@ describe('admin.linkGuardian', () => {
         action: 'Create',
         entity: 'Guardian',
         entityId: 'g_new',
-        meta: { parentUserId: 'u_parent', studentId: 's_kid' },
+        meta: { guardianUserId: 'u_parent', studentId: 's_kid', targetRole: 'Parent' },
       },
     });
     expect(result).toEqual({ created: true, guardianId: 'g_new' });
   });
 
+  it('allows active non-parent accounts to be linked as guardians', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_sup', role: 'Supervisor', active: true });
+    db.student.findUnique.mockResolvedValue({ id: 's_kid' });
+    db.guardian.create.mockResolvedValue({ id: 'g_new' });
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.linkGuardian({ userId: 'u_sup', studentId: 's_kid' }),
+    ).resolves.toEqual({ created: true, guardianId: 'g_new' });
+    expect(db.guardian.create).toHaveBeenCalledWith({
+      data: { userId: 'u_sup', studentId: 's_kid' },
+    });
+  });
+
   it('idempotent: P2002 unique violation returns existing guardian without an audit row', async () => {
     const db = makeFakeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent' });
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent', active: true });
     db.student.findUnique.mockResolvedValue({ id: 's_kid' });
     db.guardian.create.mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
@@ -1815,9 +1879,9 @@ describe('admin.linkGuardian', () => {
     expect(result).toEqual({ created: false, guardianId: 'g_existing' });
   });
 
-  it('rejects with BAD_REQUEST when target user is not a Parent', async () => {
+  it('rejects with BAD_REQUEST when target user is inactive', async () => {
     const db = makeFakeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'u_sup', role: 'Supervisor' });
+    db.user.findUnique.mockResolvedValue({ id: 'u_sup', role: 'Supervisor', active: false });
     db.student.findUnique.mockResolvedValue({ id: 's_kid' });
     const { caller } = makeCaller(headUser, { db });
 
@@ -1837,7 +1901,7 @@ describe('admin.linkGuardian', () => {
       caller.admin.linkGuardian({ userId: 'u_missing', studentId: 's_kid' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
-    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent' });
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent', active: true });
     db.student.findUnique.mockResolvedValue(null);
     await expect(
       caller.admin.linkGuardian({ userId: 'u_parent', studentId: 's_missing' }),

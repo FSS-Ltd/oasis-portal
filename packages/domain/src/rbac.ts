@@ -28,6 +28,26 @@ export const ROLES = [
 
 export type Role = (typeof ROLES)[number];
 
+export const CHILD_REGISTRATION_PROMPT_ROLES = [
+  'Head',
+  'Principal',
+  'Pastor',
+  'HeadOfDiscipline',
+  'TechnicalSupport',
+  'ClubsAdmin',
+  'Supervisor',
+] as const satisfies readonly Role[];
+const CHILD_REGISTRATION_PROMPT_ROLE_SET: ReadonlySet<Role> = new Set(
+  CHILD_REGISTRATION_PROMPT_ROLES,
+);
+
+export const CHILD_REGISTRATION_PROMPT_STATUSES = [
+  'Unanswered',
+  'NoChildren',
+  'HasChildren',
+] as const;
+export type ChildRegistrationPromptStatus = (typeof CHILD_REGISTRATION_PROMPT_STATUSES)[number];
+
 export const PERMISSION_TAGS = [
   'shopkeeper',
   'shopadmin',
@@ -70,6 +90,20 @@ export function isFullAdmin(user: Pick<SessionUser, 'role'>): boolean {
 
 export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user) || user.role === 'Supervisor';
+}
+
+export function canAnswerChildRegistrationPrompt(user: Pick<SessionUser, 'role'>): boolean {
+  return CHILD_REGISTRATION_PROMPT_ROLE_SET.has(user.role);
+}
+
+export function canSubmitInitialRegistration(
+  user: Pick<SessionUser, 'role'>,
+  promptStatus: ChildRegistrationPromptStatus,
+): boolean {
+  return (
+    user.role === 'Parent' ||
+    (canAnswerChildRegistrationPrompt(user) && promptStatus === 'HasChildren')
+  );
 }
 
 export function hasTag(user: Pick<SessionUser, 'tags'>, tag: PermissionTag): boolean {
@@ -167,7 +201,11 @@ export function canUseFullPaceAccess(user: SessionUser): boolean {
 }
 
 export function canViewStudentDrillThrough(user: SessionUser): boolean {
-  return canViewAnyStudentDrillThrough(user) || user.role === 'Parent';
+  return (
+    canViewAnyStudentDrillThrough(user) ||
+    user.role === 'Parent' ||
+    canAnswerChildRegistrationPrompt(user)
+  );
 }
 
 export function canViewSensitiveStudentDrillThrough(user: SessionUser): boolean {

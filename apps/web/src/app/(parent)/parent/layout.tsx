@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getParentUser } from '@/components/admin/require-full-admin';
+import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import '../../(admin)/admin/admin.css';
@@ -9,7 +9,7 @@ import '../../(admin)/admin/admin.css';
 export const dynamic = 'force-dynamic';
 
 export default async function ParentLayout({ children }: { children: ReactNode }) {
-  await getParentUser();
+  await getLinkedChildPortalUser();
 
   return (
     <div className="admin-shell parent-shell">
@@ -25,7 +25,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
               width={180}
             />
           </div>
-          <p>Parent Portal</p>
+          <p>My Children</p>
           <strong>Guardian access</strong>
           <span>Linked children only</span>
           <ProfileBadgeLink href="/parent/profile" />
@@ -49,7 +49,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <Link className="admin-shell__mobile-brand" href="/parent">
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
-              <small>Parent Portal</small>
+              <small>My Children</small>
               <strong>Linked children</strong>
             </span>
           </Link>

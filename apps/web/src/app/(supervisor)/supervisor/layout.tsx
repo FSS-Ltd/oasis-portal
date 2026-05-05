@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
-import { getStaffUser } from '@/components/admin/require-full-admin';
+import { getStaffUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { roleLabel } from '@/lib/profile-display';
@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function SupervisorLayout({ children }: { children: ReactNode }) {
   const user = await getStaffUser();
   const userRoleLabel = user.role === 'Supervisor' ? 'Supervisor' : roleLabel(user.role);
+  const hasLinkedChildren = (await linkedChildCount(user.id)) > 0;
 
   return (
     <div className="admin-shell supervisor-shell">
@@ -33,7 +34,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <span>Daily operations</span>
           <ProfileBadgeLink href="/supervisor/profile" />
         </div>
-        <SupervisorSidebarNav />
+        <SupervisorSidebarNav hasLinkedChildren={hasLinkedChildren} />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -55,7 +56,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
-        <SupervisorBottomNav />
+        <SupervisorBottomNav hasLinkedChildren={hasLinkedChildren} />
       </div>
     </div>
   );

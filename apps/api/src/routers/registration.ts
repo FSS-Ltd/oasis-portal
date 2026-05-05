@@ -3,11 +3,73 @@ import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
   REGISTRATION_CONSENT_TYPES,
+  canAnswerChildRegistrationPrompt,
+  canSubmitInitialRegistration,
   parentInitialRegistrationInput,
+  type ChildRegistrationPromptStatus,
   type ParentInitialRegistrationInput,
   type RegistrationConsentType,
+  type Role,
 } from '@oasis/domain';
-import { fullAdminProcedure, roleProcedure, router } from '../trpc.js';
+import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
+
+const answerChildRegistrationPromptInput = z.object({
+  hasChildren: z.boolean(),
+});
+
+const registrationAccessUserSelect = Prisma.validator<Prisma.UserSelect>()({
+  childRegistrationPromptStatus: true,
+});
+
+type RegistrationAccessUser = Prisma.UserGetPayload<{
+  select: typeof registrationAccessUserSelect;
+}>;
+
+function childRegistrationPromptStatusForAnswer(
+  hasChildren: boolean,
+): Exclude<ChildRegistrationPromptStatus, 'Unanswered'> {
+  return hasChildren ? 'HasChildren' : 'NoChildren';
+}
+
+function denyRegistrationAccess(): never {
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: 'child registration requires a parent account or confirmed children at Oasis',
+  });
+}
+
+async function loadRegistrationAccessUser(ctx: {
+  db: {
+    user: {
+      findUnique: (args: Prisma.UserFindUniqueArgs) => Promise<RegistrationAccessUser | null>;
+    };
+  };
+  user: { id: string };
+}): Promise<RegistrationAccessUser> {
+  const user = await ctx.db.user.findUnique({
+    where: { id: ctx.user.id },
+    select: registrationAccessUserSelect,
+  });
+  if (!user) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+  }
+  return user;
+}
+
+async function requireCanUseInitialRegistration(ctx: {
+  db: {
+    user: {
+      findUnique: (args: Prisma.UserFindUniqueArgs) => Promise<RegistrationAccessUser | null>;
+    };
+  };
+  user: { id: string; role: Role };
+}): Promise<RegistrationAccessUser> {
+  const user = await loadRegistrationAccessUser(ctx);
+  if (!canSubmitInitialRegistration(ctx.user, user.childRegistrationPromptStatus)) {
+    denyRegistrationAccess();
+  }
+  return user;
+}
 
 const registrationStudentInclude = Prisma.validator<Prisma.StudentRegistrationProfileInclude>()({
   consents: true,
@@ -190,7 +252,8 @@ function mapRegistrationByStudent(
 }
 
 export const registrationRouter = router({
-  status: roleProcedure('Parent').query(async ({ ctx }) => {
+  status: authedProcedure.query(async ({ ctx }) => {
+    const accessUser = await requireCanUseInitialRegistration(ctx);
     const [registration, linkedChildrenCount] = await Promise.all([
       ctx.db.parentRegistration.findUnique({
         where: { parentUserId: ctx.user.id },
@@ -204,12 +267,63 @@ export const registrationRouter = router({
       linkedChildrenCount,
       registrationId: registration?.id ?? null,
       submittedAt: registration?.submittedAt ?? null,
+      childRegistrationPromptStatus: accessUser.childRegistrationPromptStatus,
     };
   }),
 
-  submitInitial: roleProcedure('Parent')
+  answerChildRegistrationPrompt: authedProcedure
+    .input(answerChildRegistrationPromptInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!canAnswerChildRegistrationPrompt(ctx.user)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'child registration prompt is only for adult non-parent accounts',
+        });
+      }
+
+      const current = await loadRegistrationAccessUser(ctx);
+      if (current.childRegistrationPromptStatus !== 'Unanswered') {
+        return {
+          childRegistrationPromptStatus: current.childRegistrationPromptStatus,
+          updated: false,
+        };
+      }
+
+      const childRegistrationPromptStatus = childRegistrationPromptStatusForAnswer(
+        input.hasChildren,
+      );
+      const updated = await ctx.db.user.update({
+        where: { id: ctx.user.id },
+        data: {
+          childRegistrationPromptStatus,
+          childRegistrationPromptAnsweredAt: new Date(),
+        },
+        select: registrationAccessUserSelect,
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'User',
+          entityId: ctx.user.id,
+          meta: {
+            childRegistrationPromptStatus: updated.childRegistrationPromptStatus,
+            source: 'registration.answerChildRegistrationPrompt',
+          },
+        },
+      });
+
+      return {
+        childRegistrationPromptStatus: updated.childRegistrationPromptStatus,
+        updated: true,
+      };
+    }),
+
+  submitInitial: authedProcedure
     .input(parentInitialRegistrationInput)
     .mutation(async ({ ctx, input }) => {
+      await requireCanUseInitialRegistration(ctx);
       const [existingRegistration, linkedChildrenCount] = await Promise.all([
         ctx.db.parentRegistration.findUnique({
           where: { parentUserId: ctx.user.id },

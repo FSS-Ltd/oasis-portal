@@ -6,6 +6,7 @@ import { router } from '../trpc.js';
 
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const studentUser: SessionUser = { id: 'u_student', role: 'Student', tags: [], requires2fa: false };
 
 function encrypt(value: string | null | undefined): string | null {
   return value === null || value === undefined ? null : `enc:${value}`;
@@ -93,6 +94,23 @@ function validPayload(): ParentInitialRegistrationInput {
 }
 
 function makeFakeDb() {
+  const users = [
+    {
+      id: parentUser.id,
+      childRegistrationPromptStatus: 'Unanswered',
+      childRegistrationPromptAnsweredAt: null,
+    },
+    {
+      id: headUser.id,
+      childRegistrationPromptStatus: 'Unanswered',
+      childRegistrationPromptAnsweredAt: null,
+    },
+    {
+      id: studentUser.id,
+      childRegistrationPromptStatus: 'Unanswered',
+      childRegistrationPromptAnsweredAt: null,
+    },
+  ];
   const registrations: Array<Record<string, unknown>> = [];
   const guardianContacts: Array<Record<string, unknown>> = [];
   const emergencyContacts: Array<Record<string, unknown>> = [];
@@ -113,6 +131,17 @@ function makeFakeDb() {
       create: vi.fn(({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ id: `audit_${String(data.entityId ?? data.entity)}`, ...data }),
       ),
+    },
+    user: {
+      findUnique: vi.fn(({ where }: { where: { id: string } }) =>
+        Promise.resolve(users.find((user) => user.id === where.id) ?? null),
+      ),
+      update: vi.fn(({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const user = users.find((candidate) => candidate.id === where.id);
+        if (!user) return Promise.resolve(null);
+        Object.assign(user, data);
+        return Promise.resolve(user);
+      }),
     },
     parentRegistration: {
       findUnique: vi.fn(({ where }: { where: { parentUserId: string } }) =>
@@ -241,6 +270,7 @@ function makeFakeDb() {
 
   return {
     db,
+    users,
     registrations,
     guardianContacts,
     emergencyContacts,
@@ -308,7 +338,7 @@ describe('registration.submitInitial', () => {
     });
   });
 
-  it('rejects non-parent users', async () => {
+  it('rejects adult non-parent users until they confirm they have children at Oasis', async () => {
     const store = makeFakeDb();
     await expect(
       makeCaller(headUser, store.db).registration.submitInitial(validPayload()),
@@ -316,6 +346,58 @@ describe('registration.submitInitial', () => {
       code: 'FORBIDDEN',
     });
     expect(store.db.parentRegistration.create).not.toHaveBeenCalled();
+  });
+
+  it('allows adult non-parent users to answer yes and submit registration', async () => {
+    const store = makeFakeDb();
+    const caller = makeCaller(headUser, store.db);
+
+    await expect(
+      caller.registration.answerChildRegistrationPrompt({ hasChildren: true }),
+    ).resolves.toEqual({
+      childRegistrationPromptStatus: 'HasChildren',
+      updated: true,
+    });
+    await expect(caller.registration.submitInitial(validPayload())).resolves.toEqual({
+      registrationId: 'reg_1',
+      studentIds: ['student_1', 'student_2'],
+    });
+    expect(store.guardians).toEqual([
+      { id: 'guardian_1', userId: headUser.id, studentId: 'student_1' },
+      { id: 'guardian_2', userId: headUser.id, studentId: 'student_2' },
+    ]);
+  });
+
+  it('stores a no-children answer without allowing the prompt to be overwritten', async () => {
+    const store = makeFakeDb();
+    const caller = makeCaller(headUser, store.db);
+
+    await expect(
+      caller.registration.answerChildRegistrationPrompt({ hasChildren: false }),
+    ).resolves.toEqual({
+      childRegistrationPromptStatus: 'NoChildren',
+      updated: true,
+    });
+    await expect(
+      caller.registration.answerChildRegistrationPrompt({ hasChildren: true }),
+    ).resolves.toEqual({
+      childRegistrationPromptStatus: 'NoChildren',
+      updated: false,
+    });
+    await expect(caller.registration.submitInitial(validPayload())).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('rejects student accounts from the child-registration prompt', async () => {
+    const store = makeFakeDb();
+
+    await expect(
+      makeCaller(studentUser, store.db).registration.answerChildRegistrationPrompt({
+        hasChildren: true,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(store.db.user.update).not.toHaveBeenCalled();
   });
 
   it('prevents duplicate first registration when a registration or child link already exists', async () => {

@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { getParentUser } from '@/components/admin/require-full-admin';
+import { getRegistrationUser } from '@/components/admin/require-full-admin';
 import '../(admin)/admin/admin.css';
 import './registration.css';
 import { RegistrationForm } from './registration-form';
@@ -7,7 +7,7 @@ import { RegistrationForm } from './registration-form';
 export const dynamic = 'force-dynamic';
 
 export default async function RegistrationPage() {
-  await getParentUser();
+  await getRegistrationUser();
 
   return (
     <main className="admin-shell registration-shell">

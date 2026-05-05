@@ -4,6 +4,8 @@ import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  canAnswerChildRegistrationPrompt,
+  canSubmitInitialRegistration,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canUseFullPaceAccess,
@@ -191,6 +193,40 @@ export async function getParentUser(): Promise<SessionUser> {
   if (!user || user.role !== 'Parent') {
     notFound();
   }
+
+  return user;
+}
+
+export async function getRegistrationUser(): Promise<SessionUser> {
+  const user = await getSessionUser({ ensureDevHead: false });
+  if (!user) notFound();
+
+  const promptUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { childRegistrationPromptStatus: true },
+  });
+  if (
+    !promptUser ||
+    !canSubmitInitialRegistration(user, promptUser.childRegistrationPromptStatus)
+  ) {
+    notFound();
+  }
+
+  return user;
+}
+
+export async function linkedChildCount(userId: string): Promise<number> {
+  return prisma.guardian.count({ where: { userId, student: { active: true } } });
+}
+
+export async function getLinkedChildPortalUser(): Promise<SessionUser> {
+  const user = await getSessionUser({ ensureDevHead: false });
+  if (!user) notFound();
+  if (user.role === 'Parent') return user;
+  if (!canAnswerChildRegistrationPrompt(user)) notFound();
+
+  const count = await linkedChildCount(user.id);
+  if (count === 0) notFound();
 
   return user;
 }

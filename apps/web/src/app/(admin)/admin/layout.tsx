@@ -10,7 +10,7 @@ import {
   isFullAdmin,
 } from '@oasis/domain';
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
-import { getAdminShellUser } from '@/components/admin/require-full-admin';
+import { getAdminShellUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { roleLabel } from '@/lib/profile-display';
@@ -26,6 +26,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canViewStudents = canViewAnyStudentDrillThrough(user);
   const canViewPace = canUseFullPaceAccess(user);
   const canManageAccounts = canManageUserAccounts(user);
+  const hasLinkedChildren = (await linkedChildCount(user.id)) > 0;
   const userRoleLabel = roleLabel(user.role);
   const homeHref = fullAdmin
     ? '/admin'
@@ -65,6 +66,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
           fullAdmin={fullAdmin}
+          hasLinkedChildren={hasLinkedChildren}
         />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
@@ -94,6 +96,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
           fullAdmin={fullAdmin}
+          hasLinkedChildren={hasLinkedChildren}
         />
       </div>
     </div>
