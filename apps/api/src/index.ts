@@ -13,9 +13,11 @@ export { adminRouter, createAdminRouter, type AdminRouterDeps } from './routers/
 export { profileRouter } from './routers/profile.js';
 export {
   createDefaultClerkInvitationClient,
+  resolveClerkUserIdFromBearerToken,
   type ClerkInvitationClient,
   type ClerkInvitationCreateInput,
   type ClerkInvitationResult,
+  type ResolveClerkBearerTokenDeps,
 } from './lib/clerk.js';
 export {
   DEFAULT_RESEND_FROM,

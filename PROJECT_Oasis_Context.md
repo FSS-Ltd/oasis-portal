@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-07
 **Agent:** Technical Agent (Codex)
-**Phase:** Inline diagnostics and favicon cleanup.
+**Phase:** PR-2.12 mobile supervisor workflow smoke.
 
 ---
 
@@ -17,6 +17,63 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - PR-2.12 mobile supervisor workflow smoke
+
+Working branch: `feat/phase-2-pr2.12-mobile-supervisor-smoke`.
+
+**PR scope:** Add the thin Phase 2 mobile smoke for Supervisor daily workflows
+without changing existing tRPC procedure contracts or adding mobile polish
+outside rota, attendance, behaviour, and PACE verification.
+
+Changed scope:
+
+- Added Clerk bearer-token resolution for mobile tRPC requests after the
+  existing web Clerk session path.
+- Wired the Expo app with React Query, superjson, and the typed tRPC client
+  using `EXPO_PUBLIC_TRPC_URL`.
+- Replaced the Phase 0 mobile placeholder with a focused Supervisor smoke
+  screen for session check, rota, attendance, behaviour, and PACE workflows.
+- Added a plain MFA step to the smoke sign-in form for Clerk accounts that
+  return `needs_second_factor`.
+- Added a Clerk Expo Google SSO entry to the mobile smoke login and a callback
+  route for the SSO redirect path.
+- Reworked the mobile smoke UI primitives and supervisor screen against
+  `design/Oasis Learning Center.zip`, using the Oasis logo asset, colour
+  tokens, card/input/button proportions, badges, and dashboard stat patterns.
+- Added documented manual smoke steps for emulator/device verification.
+- Adjusted the mobile Metro resolver for pnpm by allowing package export maps
+  and adding the Babel runtime dependency Metro expects when bundling app code.
+- Pinned Clerk/Expo optional native peers to Expo SDK 52-compatible versions so
+  Expo Go does not load SDK 55 JavaScript expecting unavailable native modules
+  such as `ExpoCryptoAES`.
+- Mobile Expo scripts now run through the repo env loader so root `.env.local`
+  values such as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` are visible from
+  `apps/mobile`.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm --filter @oasis/api test` - pass, 199 tests.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/mobile exec expo install --check` - pass using the
+  local SDK 52 dependency map while offline.
+- `pnpm --filter @oasis/mobile exec node ../../scripts/with-env.mjs expo export --platform ios --output-dir /tmp/oasis-mobile-ios-export` -
+  pass.
+- Targeted Prettier check for changed files - pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- Manual mobile verification requires a reachable web tRPC URL and a Supervisor
+  smoke account; attendance marking requires Head access or the
+  `attendance-recorder` tag.
 
 ## Current status - Inline diagnostics and favicon cleanup
 

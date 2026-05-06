@@ -4,7 +4,7 @@
  * Mirrors the `ClerkUserStore` pattern in `routers/clerkWebhook.ts`: a narrow
  * interface so router tests can pass a fake without needing CLERK_SECRET_KEY.
  */
-import { createClerkClient } from '@clerk/backend';
+import { createClerkClient, verifyToken as verifyClerkToken } from '@clerk/backend';
 import type { PermissionTag, Role } from '@oasis/domain';
 
 export interface ClerkInvitationCreateInput {
@@ -26,6 +26,50 @@ export interface ClerkInvitationClient {
   createInvitation(input: ClerkInvitationCreateInput): Promise<ClerkInvitationResult>;
   findInvitation(invitationId: string): Promise<ClerkInvitationResult | null>;
   revokeInvitation(invitationId: string): Promise<ClerkInvitationResult>;
+}
+
+interface ClerkTokenPayload {
+  sub?: unknown;
+}
+
+type ClerkBearerTokenVerifier = (token: string) => Promise<ClerkTokenPayload>;
+
+export interface ResolveClerkBearerTokenDeps {
+  secretKey?: string | undefined;
+  verifyToken?: ClerkBearerTokenVerifier | undefined;
+}
+
+function bearerTokenFrom(headers: Headers): string | null {
+  const authorization = headers.get('authorization');
+  if (!authorization) return null;
+
+  const [scheme, token] = authorization.trim().split(/\s+/, 2);
+  if (scheme?.toLowerCase() !== 'bearer' || !token) return null;
+  return token;
+}
+
+export async function resolveClerkUserIdFromBearerToken(
+  headers: Headers,
+  deps: ResolveClerkBearerTokenDeps = {},
+): Promise<string | null> {
+  const token = bearerTokenFrom(headers);
+  if (!token) return null;
+
+  try {
+    const verifier = deps.verifyToken;
+    let payload: ClerkTokenPayload;
+    if (verifier) {
+      payload = await verifier(token);
+    } else {
+      const secretKey = deps.secretKey ?? process.env.CLERK_SECRET_KEY;
+      if (!secretKey) return null;
+      payload = await verifyClerkToken(token, { secretKey });
+    }
+
+    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+  } catch {
+    return null;
+  }
 }
 
 function mapInvitation(invitation: {

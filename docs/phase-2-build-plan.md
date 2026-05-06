@@ -745,15 +745,17 @@ Verification:
 Goal: prove the same typed API supports the mobile daily workflow, then close
 Phase 2 with an end-to-end verification story.
 
-### PR-2.12 - `feat(mobile): Phase 2 supervisor workflow smoke` ⏳ PLANNED
+### PR-2.12 - `feat(mobile): Phase 2 supervisor workflow smoke` ⏳ IN PROGRESS
 
 Scope:
 
 - Wire mobile supervisor screens to the typed API client.
 - Add minimal surfaces for rota view, attendance, behaviour, and PACE entry.
 - Surface PACE policy warning/block responses from the API.
-- Keep styling thin and workflow-focused; deeper mobile polish follows the
-  stable web workflow.
+- Keep styling thin and workflow-focused, but ground all mobile UI primitives
+  and screen decisions in `design/Oasis Learning Center.zip`.
+- Add Clerk Expo SSO entry from the mobile smoke login while preserving the
+  email/password and MFA path for manual testing.
 - Document manual verification if emulator automation is not ready.
 
 Tests:
@@ -761,6 +763,15 @@ Tests:
 - Mobile typecheck passes.
 - Smoke test or documented manual check covers rota, attendance, behaviour, and
   PACE calls.
+- Manual smoke default:
+  - Run the web app and set `EXPO_PUBLIC_TRPC_URL` to the reachable tRPC URL,
+    for example `http://<lan-ip>:3000/api/trpc` for a physical device.
+  - Run Expo through the mobile package scripts so repo-root `.env.local` is
+    loaded, sign in as a Supervisor smoke account through Clerk Google SSO or
+    the email/password MFA path, and confirm `health.me` returns the Oasis
+    session.
+  - Verify rota load, attendance read/mark, behaviour create, PACE warning
+    display, and PACE record/block responses.
 
 ### PR-2.13 - `test: Phase 2 verification suite` ⏳ PLANNED
 

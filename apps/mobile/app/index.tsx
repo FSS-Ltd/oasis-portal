@@ -1,18 +1,41 @@
-/**
- * Mobile landing — Phase 0 placeholder.
- *
- * In later phases this splits into three role-aware shells:
- *   - Staff: register, behaviour entry, shop, clubs, messages
- *   - Parent: child overview, tithe, notices, messages, club signup
- *   - Student: results + merits view only
- */
-import { Text, View } from 'react-native';
+import { ClerkLoaded, ClerkLoading, SignedIn, SignedOut } from '@clerk/clerk-expo';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { SignInPanel } from '../src/components/smoke/sign-in-panel';
+import { SupervisorSmokeScreen } from '../src/components/smoke/supervisor-smoke-screen';
+import { C } from '../src/components/smoke/mobile-theme';
 
 export default function Index() {
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <Text style={{ fontSize: 20, fontWeight: '600' }}>Oasis Learning Centre</Text>
-      <Text style={{ marginTop: 8, opacity: 0.7 }}>Phase 0 scaffold</Text>
-    </View>
+    <>
+      <ClerkLoading>
+        <View style={styles.loading}>
+          <ActivityIndicator color={C.blue} />
+          <Text style={styles.loadingText}>Loading Clerk</Text>
+        </View>
+      </ClerkLoading>
+      <ClerkLoaded>
+        <SignedOut>
+          <SignInPanel />
+        </SignedOut>
+        <SignedIn>
+          <SupervisorSmokeScreen />
+        </SignedIn>
+      </ClerkLoaded>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    alignItems: 'center',
+    backgroundColor: C.bg,
+    flex: 1,
+    gap: 10,
+    justifyContent: 'center',
+  },
+  loadingText: {
+    color: C.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});

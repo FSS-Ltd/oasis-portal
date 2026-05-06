@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function parseEnvLine(line) {
   const trimmed = line.trim();
@@ -37,8 +39,12 @@ if (!command) {
   process.exit(1);
 }
 
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
 loadEnvFile('.env.local');
 loadEnvFile('.env');
+loadEnvFile(resolve(repoRoot, '.env.local'));
+loadEnvFile(resolve(repoRoot, '.env'));
 
 const child = spawn(command, args, {
   stdio: 'inherit',
