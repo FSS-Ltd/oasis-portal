@@ -409,7 +409,7 @@ Related Docs: [Links to related decisions]
 ### 5.2 TypeScript
 
 - Strict mode enabled
-- No `any` types without explicit comment
+- No `any` types in application code, tests, scripts, or generated hand-written wrappers. Use `unknown` plus validation or precise domain types instead.
 - Interfaces defined for all public APIs
 - Generics used appropriately
 - All async/await properly handled

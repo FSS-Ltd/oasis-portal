@@ -10,7 +10,7 @@ interface PendingInviteResendActionProps {
 
 export function PendingInviteResendAction({ invitationId }: PendingInviteResendActionProps) {
   const utils = api.useUtils();
-  const resendInvitation = api.admin.resendUserInvitation.useMutation({
+  const resendInvitation = api.admin.resendUserInvitation.useMutation<undefined>({
     async onSuccess() {
       await utils.admin.listUserInvitations.invalidate();
     },

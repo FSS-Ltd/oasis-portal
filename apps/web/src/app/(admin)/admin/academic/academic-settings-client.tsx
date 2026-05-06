@@ -3,11 +3,7 @@
 import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  STANDARD_SCHOOL_YEARS,
-  displaySchoolYearLabel,
-  type StandardSchoolYear,
-} from '@oasis/domain';
+import type { StandardSchoolYear } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
@@ -16,6 +12,27 @@ import {
   StandardYearsPanel,
   type PolicyForm,
 } from './_components/academic-panels';
+import {
+  formatSchoolYearList,
+  standardSchoolYearOptions,
+  standardSchoolYearsFrom,
+} from './_components/school-year-options';
+
+type YearGroupBand = {
+  active: boolean;
+  colour: string;
+  id: string;
+  name: string;
+  sortOrder: number;
+  standardYears: string[];
+};
+
+type Subject = {
+  active: boolean;
+  code: string;
+  id: string;
+  name: string;
+};
 
 type BandForm = {
   name: string;
@@ -70,13 +87,16 @@ export function AcademicSettingsClient() {
   const [editingSubjectName, setEditingSubjectName] = useState('');
   const [policyForm, setPolicyForm] = useState<PolicyForm>(defaultPolicyForm);
 
-  const activeSubjects = useMemo(
-    () => (subjectsQuery.data ?? []).filter((subject) => subject.active),
-    [subjectsQuery.data],
+  const bands = useMemo<YearGroupBand[]>(() => bandsQuery.data ?? [], [bandsQuery.data]);
+  const subjects = useMemo<Subject[]>(() => subjectsQuery.data ?? [], [subjectsQuery.data]);
+
+  const activeSubjects = useMemo<Subject[]>(
+    () => subjects.filter((subject: Subject) => subject.active),
+    [subjects],
   );
-  const inactiveSubjects = useMemo(
-    () => (subjectsQuery.data ?? []).filter((subject) => !subject.active),
-    [subjectsQuery.data],
+  const inactiveSubjects = useMemo<Subject[]>(
+    () => subjects.filter((subject: Subject) => !subject.active),
+    [subjects],
   );
 
   const createBand = api.admin.createYearGroupBand.useMutation({
@@ -143,7 +163,7 @@ export function AcademicSettingsClient() {
 
   return (
     <div className="settings-grid">
-      <StandardYearsPanel yearCount={STANDARD_SCHOOL_YEARS.length} />
+      <StandardYearsPanel yearCount={standardSchoolYearOptions.length} />
 
       <section className="panel">
         <div className="panel__body">
@@ -160,7 +180,9 @@ export function AcademicSettingsClient() {
             <div className="form-grid form-grid--two">
               <Field label="Band name">
                 <TextInput
-                  onChange={(event) => { setBandForm({ ...bandForm, name: event.target.value }); }}
+                  onChange={(event) => {
+                    setBandForm({ ...bandForm, name: event.target.value });
+                  }}
                   value={bandForm.name}
                 />
               </Field>
@@ -192,7 +214,7 @@ export function AcademicSettingsClient() {
               />
             </Field>
             <div className="checkbox-grid" aria-label="Band school years">
-              {STANDARD_SCHOOL_YEARS.map((year) => (
+              {standardSchoolYearOptions.map(({ label, year }) => (
                 <label
                   className={[
                     'checkbox-card',
@@ -212,7 +234,7 @@ export function AcademicSettingsClient() {
                     }}
                     type="checkbox"
                   />
-                  {displaySchoolYearLabel(year)}
+                  {label}
                 </label>
               ))}
             </div>
@@ -238,7 +260,7 @@ export function AcademicSettingsClient() {
             </p>
           ) : null}
           <div className="academic-list">
-            {(bandsQuery.data ?? []).map((band) => (
+            {bands.map((band: YearGroupBand) => (
               <div className="academic-row academic-row--stack" key={band.id}>
                 {editingBandId === band.id ? (
                   <form
@@ -294,13 +316,11 @@ export function AcademicSettingsClient() {
                       />
                     </Field>
                     <div className="checkbox-grid" aria-label={`${band.name} school years`}>
-                      {STANDARD_SCHOOL_YEARS.map((year) => (
+                      {standardSchoolYearOptions.map(({ label, year }) => (
                         <label
                           className={[
                             'checkbox-card',
-                            editingBandForm.standardYears.includes(year)
-                              ? 'is-checked'
-                              : undefined,
+                            editingBandForm.standardYears.includes(year) ? 'is-checked' : undefined,
                           ]
                             .filter(Boolean)
                             .join(' ')}
@@ -316,7 +336,7 @@ export function AcademicSettingsClient() {
                             }}
                             type="checkbox"
                           />
-                          {displaySchoolYearLabel(year)}
+                          {label}
                         </label>
                       ))}
                     </div>
@@ -343,7 +363,7 @@ export function AcademicSettingsClient() {
                   <>
                     <div>
                       <strong>{band.name}</strong>
-                      <span>{band.standardYears.map(displaySchoolYearLabel).join(', ')}</span>
+                      <span>{formatSchoolYearList(band.standardYears)}</span>
                     </div>
                     <span
                       className="colour-pill"
@@ -362,7 +382,7 @@ export function AcademicSettingsClient() {
                             name: band.name,
                             colour: band.colour,
                             sortOrder: String(band.sortOrder),
-                            standardYears: band.standardYears as StandardSchoolYear[],
+                            standardYears: standardSchoolYearsFrom(band.standardYears),
                           });
                         }}
                         size="sm"
@@ -445,7 +465,7 @@ export function AcademicSettingsClient() {
             </p>
           ) : null}
           <div className="academic-list">
-            {activeSubjects.map((subject) => (
+            {activeSubjects.map((subject: Subject) => (
               <div className="academic-row" key={subject.id}>
                 <div>
                   <strong>{subject.code}</strong>
@@ -499,7 +519,7 @@ export function AcademicSettingsClient() {
                 )}
               </div>
             ))}
-            {inactiveSubjects.map((subject) => (
+            {inactiveSubjects.map((subject: Subject) => (
               <div className="academic-row" key={subject.id}>
                 <div>
                   <strong>{subject.code}</strong>
@@ -509,7 +529,9 @@ export function AcademicSettingsClient() {
               </div>
             ))}
           </div>
-          {updateSubject.error ? <p className="status--error">{updateSubject.error.message}</p> : null}
+          {updateSubject.error ? (
+            <p className="status--error">{updateSubject.error.message}</p>
+          ) : null}
           {updateSubject.isSuccess ? <p className="status--success">Subject updated</p> : null}
           {deactivateSubject.error ? (
             <p className="status--error">{deactivateSubject.error.message}</p>

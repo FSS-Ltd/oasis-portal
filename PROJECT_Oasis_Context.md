@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-04
+**Last updated:** 2026-05-06
 **Agent:** Technical Agent (Codex)
-**Phase:** Post-sign-in auth handoff.
+**Phase:** Inline diagnostics and favicon cleanup.
 
 ---
 
@@ -18,7 +18,66 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Post-sign-in auth handoff
+## Current status - Inline diagnostics and favicon cleanup
+
+Working branch: `codex/fix-inline-errors-favicon`.
+
+**PR scope:** Remove fragile strict TypeScript/ESLint inline patterns, keep the
+tRPC client type source resolvable across web/mobile, and wire the Oasis SVG
+logo as the web favicon with a white background.
+
+Changed scope:
+
+- Added typed academic school-year option helpers so the settings panel no
+  longer calls `displaySchoolYearLabel` directly, band rendering no longer
+  passes it as an array callback, and edit state no longer asserts API
+  `standardYears` as `StandardSchoolYear[]`.
+- Replaced academic `RouterOutputs` aliases with explicit local row types so
+  editor fallback inference cannot collapse `Subject` or `YearGroupBand` to
+  `any`.
+- Pointed web and mobile tRPC client helpers directly at
+  `@oasis/api/router` for `AppRouter`, avoiding editor type fallback through
+  the broader API package root.
+- Added a web-local flat ESLint config that delegates to the root config and
+  loads Next rules for web files, so editors opened from `apps/web` use the
+  same typed lint path as repo-level checks.
+- Made the pending invitation resend mutation context type explicit at the
+  failing hook call site, avoiding editor fallback on the assignment line.
+- Tightened agent/build guidance and the shared ESLint config so explicit
+  `any` is forbidden in tests as well as application code.
+- Added `apps/web/public/oasis-favicon.svg`, derived from the existing Oasis
+  SVG logo with a white background.
+- Updated root Next metadata to advertise the SVG favicon.
+
+Verification:
+
+- `pnpm turbo run lint --force` - pass.
+- `pnpm turbo run typecheck --force` - pass.
+- `pnpm --filter @oasis/web build` - pass; Next still emits its plugin
+  detector warning even though `eslint --print-config` shows `@next/next`
+  rules loaded from the web flat config.
+- `pnpm exec eslint 'apps/web/src/app/(admin)/admin/_components/pending-invite-resend-action.tsx'` -
+  pass.
+- `cd apps/web && pnpm exec eslint 'src/app/(admin)/admin/_components/pending-invite-resend-action.tsx'` -
+  pass.
+- `pnpm exec eslint apps/web/src/lib/trpc.ts apps/mobile/src/lib/trpc.ts` -
+  pass.
+- `pnpm exec tsc --noEmit --project apps/web/tsconfig.json` - pass.
+- `pnpm exec prettier --check AGENTS.md PROJECT_Oasis_Context.md packages/config/eslint.config.js apps/web/src/lib/trpc.ts apps/mobile/src/lib/trpc.ts 'apps/web/src/app/(admin)/admin/academic/_components/academic-panels.tsx' 'apps/web/src/app/(admin)/admin/academic/_components/school-year-options.ts' 'apps/web/src/app/(admin)/admin/academic/academic-settings-client.tsx' apps/web/src/app/layout.tsx` -
+  pass.
+- `pnpm exec prettier --parser html --check apps/web/public/oasis-favicon.svg` - pass.
+- Explicit `any` type syntax audit across `apps`, `packages`, and `scripts` -
+  pass; no matches in TS/TSX/JS sources.
+- SVG XML/content validation - pass.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files were left untouched.
+- No raster favicon fallback was added.
+
+## Previous status - Post-sign-in auth handoff
 
 Working branch: `fix/post-sign-in-handoff`.
 
@@ -169,7 +228,7 @@ Changed scope:
 
 - Root cause confirmed from production diagnostics:
   `Invalid from field. The email address needs to follow the email@example.com
-  or Name <email@example.com> format.`
+or Name <email@example.com> format.`
 - Added sender normalisation that strips one pair of matching shell-style
   wrapping quotes from `RESEND_FROM` before passing it to Resend. This tolerates
   Vercel values copied from `.env` syntax such as
@@ -345,7 +404,7 @@ Verification:
 - `pnpm typecheck` - pass.
 - `pnpm --filter @oasis/web build` - pass.
 - `HOME=/private/tmp/react-email-home ./node_modules/.bin/email export --dir
-  src/emails --outDir /private/tmp/oasis-email-out --pretty` from `apps/api` -
+src/emails --outDir /private/tmp/oasis-email-out --pretty` from `apps/api` -
   pass; rendered `smoke-test-email.html` and `user-invite-email.html`.
 - `git diff --check` - pass.
 - `graphify update .` - completed; graphify rebuilt the code graph.
