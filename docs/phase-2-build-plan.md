@@ -1,7 +1,7 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** Daily web workflows merged through PR-2.11c; mobile smoke and closeout planned
-**Last updated:** 2026-05-06
+**Status:** Daily web workflows and mobile smoke merged through PR-2.12; PR-2.13 verification implemented
+**Last updated:** 2026-05-07
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -745,7 +745,9 @@ Verification:
 Goal: prove the same typed API supports the mobile daily workflow, then close
 Phase 2 with an end-to-end verification story.
 
-### PR-2.12 - `feat(mobile): Phase 2 supervisor workflow smoke` ⏳ IN PROGRESS
+### PR-2.12 - `feat(mobile): Phase 2 supervisor workflow smoke` ✅ MERGED
+
+Branch: `feat/phase-2-pr2.12-mobile-supervisor-smoke`
 
 Scope:
 
@@ -773,29 +775,55 @@ Tests:
   - Verify rota load, attendance read/mark, behaviour create, PACE warning
     display, and PACE record/block responses.
 
-### PR-2.13 - `test: Phase 2 verification suite` ⏳ PLANNED
+### PR-2.13 - `test: Phase 2 verification suite` ✅ READY FOR REVIEW
+
+Branch: `test-phase-2-pr2.13-verification-suite`
+
+Note: the originally planned branch name
+`test/phase-2-pr2.13-verification-suite` could not be created in this local
+checkout before implementation; the replacement branch keeps the same single PR
+scope.
 
 Scope:
 
-- Add end-to-end daily workflow coverage:
+- Added end-to-end daily workflow coverage:
   rota -> attendance -> behaviour -> PACE -> audit visibility.
-- Add end-to-end Head-admin coverage for year-group bands, subject management,
+- Added end-to-end Head-admin coverage for year-group bands, subject management,
   PACE policy settings, and rota scheduling.
 - Keep existing attendance export regression coverage green, but put new export
   centre coverage in Phase 2.5.
-- Re-run DB/RLS checks for Sensitive behaviour.
-- Update this plan with completion status, verification output, and
+- Re-ran DB/RLS checks for Sensitive behaviour.
+- Updated this plan with completion status, verification output, and
   carry-forward items.
 
 Verification:
 
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm --filter @oasis/web build`
-- `pnpm db:integration`
-- `pnpm api:smoke-context-rls`
-- Phase 2 Playwright workflow, opt-in where Clerk credentials are required.
+- `pnpm lint` → pass.
+- `pnpm typecheck` → pass.
+- `pnpm test` → pass; 14 API files / 200 tests, 4 DB files / 23 tests, and 12
+  domain files / 128 tests passed.
+- `pnpm --filter @oasis/web build` → pass; `/admin/audit`,
+  `/admin/academic`, `/admin/rota`, `/supervisor/attendance`,
+  `/supervisor/behaviour`, `/supervisor/pace`, and `/supervisor/rota` remain in
+  the route table.
+- `pnpm db:integration` → pass after sandbox escalation for `tsx` IPC; full
+  admin sees Sensitive and Supervisor sees General only.
+- `pnpm api:smoke-context-rls` → pass after sandbox escalation for `tsx` IPC;
+  Head=2, Supervisor=1 General, anonymous=0.
+- `pnpm --filter @oasis/mobile typecheck` → pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-2-verification.spec.ts` → 2
+  credential-gated tests skipped because Clerk E2E credentials were not present
+  in this local run.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` → 2
+  unauthenticated tests passed; 5 Clerk credential-gated tests skipped.
+
+Carry-forward:
+
+- Run the credential-gated Phase 2 Playwright workflow in an environment with
+  `E2E_HEAD_EMAIL`, `E2E_HEAD_PASSWORD`, `E2E_SUPERVISOR_EMAIL`, and
+  `E2E_SUPERVISOR_PASSWORD` configured.
+- Keep any additional mobile manual smoke evidence with PR-2.12 release notes if
+  device or Clerk coverage changes after merge.
 
 ### Phase 2.5 handoff - attendance export centre
 

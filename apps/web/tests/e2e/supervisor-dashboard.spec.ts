@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { signIn } from './helpers/auth';
 
 const headEmail = process.env.E2E_HEAD_EMAIL;
 const headPassword = process.env.E2E_HEAD_PASSWORD;
@@ -8,14 +9,6 @@ const supervisorEmail = process.env.E2E_SUPERVISOR_EMAIL;
 const supervisorPassword = process.env.E2E_SUPERVISOR_PASSWORD;
 const exporterEmail = process.env.E2E_EXPORTER_EMAIL;
 const exporterPassword = process.env.E2E_EXPORTER_PASSWORD;
-
-async function signIn(page: import('@playwright/test').Page, email: string, password: string) {
-  await page.goto('/sign-in');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByRole('textbox', { name: 'Password' }).fill(password);
-  await page.getByRole('button', { name: /^continue$/i }).click();
-  await page.waitForURL(/admin|supervisor|parent|dashboard|2fa|not-ready/, { timeout: 30_000 });
-}
 
 test.describe('Supervisor dashboard shell', () => {
   const headTest = headEmail && headPassword ? test : test.skip;
