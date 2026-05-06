@@ -1,22 +1,24 @@
 /**
  * tRPC HTTP handler (Next.js Route Handler, fetch adapter).
  *
- * Resolves the Clerk session via `auth()` and passes the Clerk user id into
+ * Resolves the Clerk session via web cookies first, then Clerk Expo bearer
+ * tokens for the mobile smoke client. The Clerk user id is passed into
  * `createContext`, which hydrates `ctx.user` and configures RLS session vars.
- * In CI / dev without Clerk secrets, `auth()` throws and we fall back to an
- * anonymous context.
+ * In CI / dev without Clerk secrets, auth resolution falls back to anonymous.
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { auth } from '@clerk/nextjs/server';
-import { appRouter, createContext } from '@oasis/api';
+import { appRouter, createContext, resolveClerkUserIdFromBearerToken } from '@oasis/api';
 
-async function resolveClerkUserId(): Promise<string | null> {
+async function resolveClerkUserId(headers: Headers): Promise<string | null> {
   try {
     const { userId } = await auth();
-    return userId ?? null;
+    if (userId) return userId;
   } catch {
-    return null;
+    // Continue to bearer-token resolution for mobile requests.
   }
+
+  return resolveClerkUserIdFromBearerToken(headers);
 }
 
 const handler = (req: Request): Promise<Response> =>
@@ -25,7 +27,7 @@ const handler = (req: Request): Promise<Response> =>
     req,
     router: appRouter,
     createContext: async () =>
-      createContext({ headers: req.headers, clerkUserId: await resolveClerkUserId() }),
+      createContext({ headers: req.headers, clerkUserId: await resolveClerkUserId(req.headers) }),
   });
 
 export { handler as GET, handler as POST };
