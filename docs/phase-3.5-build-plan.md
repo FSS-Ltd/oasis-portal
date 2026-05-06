@@ -1,0 +1,228 @@
+# Phase 3.5 - Clubs module: sprint & PR plan
+
+**Status:** Planned
+**Last updated:** 2026-05-06
+**Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
+**Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
+
+---
+
+## Context
+
+Phase 3.5 delivers the deliberately minimal clubs module requested for v1:
+tracking clubs, parent signups, rosters, and notifications. The Prisma schema
+and typed placeholder router already exist, but the `club` API currently returns
+`NOT_IMPLEMENTED`.
+
+This phase is intentionally narrow. It does not include club payments, club
+attendance, shop integration, automated waiting lists, or advanced scheduling.
+
+---
+
+## Acceptance criteria
+
+Phase 3.5 is complete when:
+
+1. Full-admin and ClubsAdmin users can create, update, deactivate, and list
+   clubs.
+2. Parents can sign up and withdraw only their own linked children.
+3. Full-admin and ClubsAdmin users can view signup rosters.
+4. Club capacity is enforced when configured.
+5. Duplicate active signups are prevented.
+6. Club notifications can be sent to guardians of signed-up students.
+7. Notification bodies are encrypted if stored, and notification send actions
+   are audited.
+8. ClubsAdmin has no access to academic, behaviour, PACE, attendance, or
+   financial data outside the club module.
+9. Mobile smoke proves parent signup and ClubsAdmin/staff roster reads use the
+   same typed API.
+10. End-of-phase checks pass: `pnpm lint`, `pnpm typecheck`, `pnpm test`,
+    `pnpm --filter @oasis/web build`, DB/RLS smoke, and encryption verification.
+
+---
+
+## Sprint 1 - Clubs API
+
+Goal: implement the backend contract first with strict RBAC and tests.
+
+### PR-3.5.0 - `feat(api): club management and signups` PLANNED
+
+Scope:
+
+- Implement `club.list`, `club.create`, `club.update`, `club.signUp`,
+  `club.withdraw`, and any roster read needed by the web UI.
+- Use `requireClubsAdminOrFullAdmin` for club management.
+- Allow Parent signups only for linked children; full-admin can sign up any
+  active student if needed for centre admin correction.
+- Enforce active club, active student, optional capacity, and one active signup
+  per student/club.
+- Preserve historical withdrawn signup records instead of hard deleting.
+- Audit create/update/deactivate/signup/withdraw actions.
+
+Tests:
+
+- Full-admin and ClubsAdmin can create/update/deactivate clubs.
+- Supervisor/Parent/Student cannot manage clubs.
+- Parent can sign up own linked child and cannot sign up another child.
+- Full-admin can sign up any active student.
+- Duplicate active signup and full club are rejected.
+- Withdraw is idempotent for an active signup and denied for unrelated parents.
+- Audit rows are written.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- club.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm lint`
+- `pnpm typecheck`
+
+---
+
+## Sprint 2 - Clubs web surfaces
+
+Goal: expose the module to ClubsAdmin/full-admin users and parents without
+crossing data boundaries.
+
+### PR-3.5.1 - `feat(web): ClubsAdmin club management` PLANNED
+
+Scope:
+
+- Add ClubsAdmin-accessible route group or admin-shell route for club
+  management.
+- List active/inactive clubs with schedule, capacity, and signup count.
+- Add create/update/deactivate controls with validation and pending/error
+  states.
+- Add roster view showing signed-up students with minimal required display data.
+- Do not show academic, behaviour, PACE, attendance, or financial detail on
+  club roster rows.
+
+Tests:
+
+- ClubsAdmin can create/update/deactivate a club.
+- Full-admin can use the same workflow.
+- Supervisor/Parent cannot access club management routes.
+- Roster displays signup count and minimal student identity.
+
+### PR-3.5.2 - `feat(web): parent club signup` PLANNED
+
+Scope:
+
+- Add parent clubs page listing active clubs.
+- Allow parents to sign up and withdraw linked children.
+- Show capacity/full states, already-signed-up states, and empty linked-child
+  states.
+- Keep signup flow simple: no payments, attendance, or document uploads.
+
+Tests:
+
+- Parent signs up a linked child.
+- Parent withdraws a linked child from a club.
+- Parent cannot sign up another parent's child by direct route/API call.
+- Full club disables signup and direct API call is rejected.
+
+Verification for Sprint 2:
+
+- `pnpm --filter @oasis/api test -- club.router.test.ts`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+
+---
+
+## Sprint 3 - Club notifications
+
+Goal: let club admins send simple notifications to guardians of signed-up
+students.
+
+### PR-3.5.3 - `feat(api): club notifications` PLANNED
+
+Scope:
+
+- Implement `club.notify`.
+- Allow full-admin and ClubsAdmin users to send notifications for active clubs.
+- Resolve recipients from active club signups and guardian links.
+- Store notification title/body and sent metadata; encrypt body if stored as
+  free text.
+- Send email through existing Resend infrastructure when recipient email is
+  available.
+- Audit send attempt, recipient count, and delivery failures without logging
+  plaintext recipient PII.
+
+Tests:
+
+- ClubsAdmin can send to guardians for active signups.
+- Inactive club notification is rejected.
+- Empty recipient list returns a typed no-recipient response or typed error.
+- Parent/Supervisor cannot send club notifications.
+- Email failure is surfaced and audited without leaking PII.
+
+### PR-3.5.4 - `feat(web): club notification UI` PLANNED
+
+Scope:
+
+- Add notification composer to club management detail/roster view.
+- Show recipient count, pending state, success state, and error state.
+- Show sent notification history without exposing recipient PII beyond allowed
+  roster context.
+
+Tests:
+
+- ClubsAdmin sends a notification.
+- Empty/no-recipient state is visible.
+- Delivery error is shown without raw provider details.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- club.router.test.ts email.router.test.ts`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+
+---
+
+## Sprint 4 - Mobile smoke and phase verification
+
+### PR-3.5.5 - `feat(mobile): clubs smoke` PLANNED
+
+Scope:
+
+- Add minimal mobile surfaces for parent club list/signup and ClubsAdmin/staff
+  roster read smoke.
+- Keep styling minimal and use the typed API client.
+
+Tests:
+
+- Mobile typecheck.
+- Manual or automated smoke for listing clubs, parent signup, withdrawal, and
+  roster read.
+
+### PR-3.5.6 - `test: Phase 3.5 verification suite` PLANNED
+
+Scope:
+
+- Add end-to-end web checks for club management, parent signup, withdrawal, and
+  notification flow where credentials are configured.
+- Re-run API/domain tests for clubs, users, RBAC, email, and parent linked-child
+  access.
+- Re-run DB/RLS and encryption verification.
+- Update this plan with merged status and carry-forward items.
+
+Verification:
+
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm test`
+- `pnpm --filter @oasis/web build`
+- `pnpm db:integration`
+- `pnpm api:smoke-context-rls`
+- `pnpm verify:encryption`
+
+---
+
+## Assumptions and defaults
+
+- ClubsAdmin is limited to clubs. Do not grant academic, attendance, behaviour,
+  PACE, parent messaging, or finance access through this module.
+- Club signup is tracking only for v1.
+- Club payments, attendance, waitlists, and calendar sync are out of scope.
+- Existing Resend infrastructure is reused for notification email.

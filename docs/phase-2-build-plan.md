@@ -1,7 +1,7 @@
 # Phase 2 - Daily workflows: sprint & PR plan
 
-**Status:** In progress - PR-2.11 follow-up child log and behaviour reporting
-**Last updated:** 2026-04-30
+**Status:** Daily web workflows merged through PR-2.11c; mobile smoke and closeout planned
+**Last updated:** 2026-05-06
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) §Delivery phases  
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -69,7 +69,7 @@ Phase 2 is complete when:
 11. Configurable PACE test-limit rules block excess daily tests and block a
     self test plus final test for the same student/subject/PACE on the same day
     when enabled; Supervisors see warnings before and at the block.
-12. Supervisor cannot read Sensitive behaviour after saving it.
+12. Sensitive behaviour remains full-admin only: full-admin users can create/read it, and Supervisors cannot create or read Sensitive behaviour unless a future policy explicitly changes that.
 13. Mobile has a minimal daily-workflow smoke surface wired to the typed API
     client.
 14. End-of-phase verification passes:
@@ -592,9 +592,10 @@ Verification:
 - `graphify update .` → completed; graphify reported the existing graph
   node-count warning.
 
-### PR-2.11 - `feat(web): behaviour and PACE entry UI` 🚧 IN PROGRESS
+### PR-2.11 - `feat(web): behaviour and PACE entry UI` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.11-behaviour-pace-entry-ui`
+Merged via PR #36 on 2026-04-30.
 
 Scope:
 
@@ -606,14 +607,15 @@ Scope:
   the current staff user.
 - Add focused Supervisor routes for `/supervisor/attendance`,
   `/supervisor/behaviour`, `/supervisor/pace`, and `/supervisor/rota`.
-- Add behaviour form with General/Sensitive toggle, category, note,
+- Add behaviour form with General/Sensitive visibility where the current user is
+  allowed, category, note,
   Merit/Demerit handling, and amount for Merit only.
 - Add PACE form with subject, PACE number, test type, score, and completion
   date.
 - Show current PACE independently per subject.
 - Show warnings when a student is near or at the configured daily test limit.
 - Show hard-block messages when an enabled policy prevents recording.
-- Ensure Supervisor never sees Sensitive entries after save.
+- Preserve existing Sensitive behaviour policy: full-admin users can create/read Sensitive entries; Supervisors cannot create/read Sensitive entries.
 
 Tests:
 
@@ -625,15 +627,24 @@ Tests:
 - API tests confirm staff can read only their own pending swap requests and
   non-staff roles are denied.
 - Playwright flow logs General behaviour and sees it in the student activity.
-- Playwright flow logs Sensitive behaviour as Supervisor and does not see the
-  Sensitive row afterward.
+- API/UI coverage preserves the Sensitive behaviour policy: full-admin users can create/read Sensitive behaviour, and Supervisors are blocked from Sensitive behaviour creation/read paths.
 - Playwright flow records a passing final PACE test and sees only the matching
   subject advance.
 - Playwright flow shows daily-limit warnings and blocked-state messages.
 
-### PR-2.11a - `fix(web): attendance recorder RBAC and Supervisor copy` 🚧 IN PROGRESS
+Verification:
+
+- `pnpm --filter @oasis/api test -- rota.router.test.ts` → pass, current Vitest argument handling ran the API suite.
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm test` → pass.
+- `pnpm --filter @oasis/web build` → pass; `/supervisor`, `/supervisor/attendance`, `/supervisor/behaviour`, `/supervisor/pace`, and `/supervisor/rota` appear in the route table.
+
+### PR-2.11a - `fix(web): attendance recorder RBAC and Supervisor copy` ✅ MERGED
 
 Branch: `fix/phase-2-pr2.11a-attendance-supervisor-rbac`
+Merged via PR #37 on 2026-04-30 as part of the stacked child-log/reporting branch.
 
 Scope:
 
@@ -653,9 +664,10 @@ Tests:
 - Existing attendance reads and exports remain intact.
 - Tag validation accepts the new permission tags.
 
-### PR-2.11b - `feat(web): child notes and snapshot` 🚧 IN PROGRESS
+### PR-2.11b - `feat(web): child notes and snapshot` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.11b-child-notes-snapshot`
+Merged via PR #37 on 2026-04-30 as part of the stacked child-log/reporting branch.
 
 Scope:
 
@@ -676,9 +688,10 @@ Tests:
 - Snapshot returns tardiness, passed tests, behaviour, and visible notes for the
   selected child/range.
 
-### PR-2.11c - `feat(web): Head behaviour reporting` 🚧 IN PROGRESS
+### PR-2.11c - `feat(web): Head behaviour reporting` ✅ MERGED
 
 Branch: `feat/phase-2-pr2.11c-head-behaviour-reporting`
+Merged via PR #37 on 2026-04-30 as part of the stacked child-log/reporting branch.
 
 Scope:
 
@@ -696,9 +709,38 @@ Tests:
 - Daily merits and trend grouping return correct totals without leaking
   Sensitive note text.
 
+Verification for PR-2.11a/2.11b/2.11c:
+
+- `pnpm db:generate` → pass.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts` → pass.
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts` → pass.
+- `pnpm --filter @oasis/api test -- childNotes.router.test.ts` → pass.
+
+### PR-2.11d - `fix(web): design/source polish and PACE workflow access` ✅ MERGED
+
+Merged via PR #38, PR #39, and PR #43 between 2026-04-30 and 2026-05-01.
+
+Scope:
+
+- Match behaviour, snapshot, dashboard, and PACE workflow screens more closely to `design/Oasis Learning Center.zip`.
+- Clean strict web lint issues introduced during the design pass.
+- Replace the old Supervisor PACE page with the shared PACE workflow component.
+- Add scoped PACE access and an Admin PACE route for users with `pace-full-access`.
+- Keep this as polish/access alignment only; no new daily-workflow module scope.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- pace.router.test.ts` → pass.
+- `pnpm --filter @oasis/api typecheck` → pass.
+- `pnpm --filter @oasis/web typecheck` → pass.
+- `pnpm lint` → pass.
+- `pnpm --filter @oasis/web build` → pass.
+
 ---
 
-## Sprint 4 - Mobile smoke, attendance export, and phase verification
+## Sprint 4 - Mobile smoke and phase verification
 
 Goal: prove the same typed API supports the mobile daily workflow, then close
 Phase 2 with an end-to-end verification story.
@@ -728,13 +770,11 @@ Scope:
   rota -> attendance -> behaviour -> PACE -> audit visibility.
 - Add end-to-end Head-admin coverage for year-group bands, subject management,
   PACE policy settings, and rota scheduling.
-- Add export coverage for student attendance CSV, staff attendance CSV, and
-  `attendance-exporter` tag enforcement. Staff attendance CSV coverage belongs
-  here after the PR-2.4 staff rota/attendance model exists.
+- Keep existing attendance export regression coverage green, but put new export
+  centre coverage in Phase 2.5.
 - Re-run DB/RLS checks for Sensitive behaviour.
-- Update `PROJECT_Oasis_Context.md` and this plan with completion status,
-  verification output, and carry-forward items.
-- Run `graphify update .` after code changes.
+- Update this plan with completion status, verification output, and
+  carry-forward items.
 
 Verification:
 
@@ -746,33 +786,13 @@ Verification:
 - `pnpm api:smoke-context-rls`
 - Phase 2 Playwright workflow, opt-in where Clerk credentials are required.
 
-### PR-2.14 - `feat(web): attendance export centre` ⏳ PLANNED
+### Phase 2.5 handoff - attendance export centre
 
-Scope:
-
-- Add a Head-admin attendance export page for date-range exports.
-- Provide separate export controls for student attendance and staff attendance.
-- Each export control has a dropdown to choose all individuals or one
-  individual.
-- Student export supports all students or one selected student.
-- Staff export supports all staff or one selected staff member once staff
-  attendance data exists.
-- Show export controls only to full-admin users and users with the
-  `attendance-exporter` tag.
-- Audit export attempts and successful exports with date range, export kind,
-  selected individual/all, and row count.
-
-Tests:
-
-- Full-admin can export all student attendance for a date range.
-- Full-admin can export one selected student's attendance for a date range.
-- Tagged `attendance-exporter` user can export student and staff attendance.
-- Untagged Supervisor cannot see export controls and direct calls are denied.
-- Staff export supports all staff and one selected staff member after staff
-  attendance records exist.
-- CSV headers and row counts match the selected date range and individual/all
-  filter.
-- Audit rows are written for successful exports and denied attempts.
+The Head-admin attendance export centre moved out of Phase 2 and into
+[`docs/phase-2.5-build-plan.md`](phase-2.5-build-plan.md). Phase 2 now closes
+around daily workflow capture/reporting, mobile smoke, and verification. Export
+centre work belongs with People & Profiles because it depends on individual
+student/staff detail pages and reusable account/profile navigation.
 
 ---
 
@@ -786,7 +806,8 @@ Tests:
   and Year 1 through Year 13.
 - School-year calculation uses the academic year starting 1 September and the
   child's age on 31 August.
-- Parent and Student reads remain Phase 3+.
+- Parent read surfaces are tracked in Phase 3 and student mobile surfaces remain
+  Phase 4+.
 - Full-admin roles retain parity with Supervisor daily workflow access.
 - The `attendance-exporter` tag grants CSV export access only; it does not grant
   broader attendance editing, student management, rota scheduling, or Sensitive
