@@ -14,8 +14,10 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
+  CHILD_REGISTRATION_PROMPT_ROLES,
   PERMISSION_TAGS,
   TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
+  canAnswerChildRegistrationPrompt,
   canManageUserAccountRole,
   createSubjectInput,
   createYearGroupBandInput,
@@ -43,6 +45,10 @@ export interface AdminRouterDeps {
 }
 
 const POST_SIGN_IN_PATH = '/post-sign-in';
+const GUARDIAN_ACCOUNT_ROLES = [
+  'Parent',
+  ...CHILD_REGISTRATION_PROMPT_ROLES,
+] as const satisfies readonly Role[];
 
 const searchParentsInput = z
   .object({
@@ -1154,7 +1160,10 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     searchGuardianAccounts: fullAdminProcedure
       .input(searchParentsInput)
       .query(async ({ ctx, input }) => {
-        const where: Prisma.UserWhereInput = { active: true };
+        const where: Prisma.UserWhereInput = {
+          active: true,
+          role: { in: [...GUARDIAN_ACCOUNT_ROLES] },
+        };
         if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
 
         const users = await ctx.db.user.findMany({
@@ -1317,6 +1326,12 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'cannot link guardian: user account is inactive',
+        });
+      }
+      if (targetUser.role !== 'Parent' && !canAnswerChildRegistrationPrompt(targetUser)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `cannot link guardian: user role is ${targetUser.role}`,
         });
       }
 

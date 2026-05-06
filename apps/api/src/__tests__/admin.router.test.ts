@@ -543,7 +543,22 @@ describe('admin.searchGuardianAccounts', () => {
       },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { active: true, emailBidx: 'bidx:sam@example.com' },
+      where: {
+        active: true,
+        role: {
+          in: [
+            'Parent',
+            'Head',
+            'Principal',
+            'Pastor',
+            'HeadOfDiscipline',
+            'TechnicalSupport',
+            'ClubsAdmin',
+            'Supervisor',
+          ],
+        },
+        emailBidx: 'bidx:sam@example.com',
+      },
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: { id: true, role: true, fullNameEnc: true, emailEnc: true },
@@ -1887,6 +1902,18 @@ describe('admin.linkGuardian', () => {
 
     await expect(
       caller.admin.linkGuardian({ userId: 'u_sup', studentId: 's_kid' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.guardian.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects with BAD_REQUEST when target user is a Student account', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_student', role: 'Student', active: true });
+    db.student.findUnique.mockResolvedValue({ id: 's_kid' });
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.linkGuardian({ userId: 'u_student', studentId: 's_kid' }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(db.guardian.create).not.toHaveBeenCalled();
   });
