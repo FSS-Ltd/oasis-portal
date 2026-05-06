@@ -1,7 +1,7 @@
 import { Save, SlidersHorizontal } from 'lucide-react';
-import { STANDARD_SCHOOL_YEARS, displaySchoolYearLabel } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
+import { standardSchoolYearOptions } from './school-year-options';
 
 export type PolicyForm = {
   dailyTestLimitEnabled: boolean;
@@ -23,9 +23,9 @@ export function StandardYearsPanel({ yearCount }: StandardYearsPanelProps) {
           <span className="badge">{yearCount} years</span>
         </div>
         <div className="year-chip-grid" aria-label="Standard school years">
-          {STANDARD_SCHOOL_YEARS.map((year) => (
+          {standardSchoolYearOptions.map(({ label, year }) => (
             <span className="year-chip" key={year}>
-              {displaySchoolYearLabel(year)}
+              {label}
             </span>
           ))}
         </div>

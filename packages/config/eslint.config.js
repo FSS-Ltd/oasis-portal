@@ -1,5 +1,5 @@
 // Shared flat ESLint config for the Oasis monorepo.
-// Consumed by apps and packages. Strict TS; no `any` without comment per BUILD.md §4.2.
+// Consumed by apps and packages. Strict TS; no explicit `any` anywhere per AGENTS.md §5.2.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
@@ -22,9 +22,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.test.ts', '**/*.test.tsx'],
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-    },
+    files: ['eslint.config.mjs', 'apps/web/eslint.config.mjs', 'packages/config/eslint.config.js'],
+    ...tseslint.configs.disableTypeChecked,
   },
 );
