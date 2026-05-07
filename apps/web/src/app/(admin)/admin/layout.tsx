@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
+  canExportAttendance,
   canUseFullPaceAccess,
   canManageUserAccounts,
   hasTag,
@@ -26,6 +27,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canViewStudents = canViewAnyStudentDrillThrough(user);
   const canViewPace = canUseFullPaceAccess(user);
   const canManageAccounts = canManageUserAccounts(user);
+  const canExportAttendanceCsv = canExportAttendance(user);
   const hasLinkedChildren = (await linkedChildCount(user.id)) > 0;
   const userRoleLabel = roleLabel(user.role);
   const homeHref = fullAdmin
@@ -62,6 +64,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <AdminSidebarNav
           canViewAudit={canViewAudit}
           canViewBehaviour={canViewBehaviour}
+          canExportAttendance={canExportAttendanceCsv}
           canViewPace={canViewPace}
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
@@ -92,6 +95,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <AdminBottomNav
           canViewAudit={canViewAudit}
           canViewBehaviour={canViewBehaviour}
+          canExportAttendance={canExportAttendanceCsv}
           canViewPace={canViewPace}
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}

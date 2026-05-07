@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
+import { downloadCsv } from './download-csv';
 
 const attendanceStatuses = ['Present', 'Absent', 'Late'] as const;
 const UNBANDED_FILTER = '__unbanded';
@@ -47,18 +48,6 @@ function todayKey(): string {
 
 function asDate(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
-}
-
-function downloadCsv(filename: string, csv: string, contentType: string): void {
-  const blob = new Blob([csv], { type: contentType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 function bandForRow(row: Pick<AttendanceRow, 'yearGroup'>, bands: readonly Band[]): Band | null {

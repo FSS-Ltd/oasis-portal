@@ -182,6 +182,10 @@ export function canRecordStudentAttendance(user: SessionUser): boolean {
   return user.role === 'Head' || hasTag(user, 'attendance-recorder');
 }
 
+export function canExportAttendance(user: SessionUser): boolean {
+  return isFullAdmin(user) || hasTag(user, 'attendance-exporter');
+}
+
 export function canViewSensitiveChildNotes(user: SessionUser): boolean {
   return user.role === 'Head' || hasTag(user, 'sensitive-note-viewer');
 }
