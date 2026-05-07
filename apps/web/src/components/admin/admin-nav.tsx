@@ -44,6 +44,7 @@ type AdminNavProps = {
   canViewPace: boolean;
   canViewStudents: boolean;
   canManageUserAccounts: boolean;
+  canExportAttendance: boolean;
   fullAdmin: boolean;
   hasLinkedChildren: boolean;
 };
@@ -63,6 +64,7 @@ function visibleForUser(
     | 'canManageUserAccounts'
     | 'canViewAudit'
     | 'canViewBehaviour'
+    | 'canExportAttendance'
     | 'canViewPace'
     | 'canViewStudents'
     | 'fullAdmin'
@@ -71,6 +73,7 @@ function visibleForUser(
 ) {
   if (item.label === 'My Children') return access.hasLinkedChildren;
   if (access.fullAdmin) return item.label !== 'Audit' || access.canViewAudit;
+  if (item.label === 'Attendance') return access.canExportAttendance;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
   if (item.label === 'Behaviour') return access.canViewBehaviour;
@@ -84,6 +87,7 @@ export function AdminSidebarNav({
   canViewPace,
   canViewStudents,
   canManageUserAccounts,
+  canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
 }: AdminNavProps) {
@@ -93,6 +97,7 @@ export function AdminSidebarNav({
       canManageUserAccounts,
       canViewAudit,
       canViewBehaviour,
+      canExportAttendance,
       canViewPace,
       canViewStudents,
       fullAdmin,
@@ -138,6 +143,7 @@ export function AdminBottomNav({
   canViewPace,
   canViewStudents,
   canManageUserAccounts,
+  canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
 }: AdminNavProps) {
@@ -148,6 +154,7 @@ export function AdminBottomNav({
         canManageUserAccounts,
         canViewAudit,
         canViewBehaviour,
+        canExportAttendance,
         canViewPace,
         canViewStudents,
         fullAdmin,

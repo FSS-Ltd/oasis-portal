@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AccessDeniedError,
   canAnswerChildRegistrationPrompt,
+  canExportAttendance,
   canManageUserAccountRole,
   canManageUserAccounts,
   canRecordStudentAttendance,
@@ -182,6 +183,14 @@ describe('workflow tags', () => {
     expect(canRecordStudentAttendance(supervisor)).toBe(false);
     expect(canRecordStudentAttendance({ ...supervisor, tags: ['attendance-recorder'] })).toBe(true);
     expect(canRecordStudentAttendance(principal)).toBe(false);
+  });
+
+  it('limits attendance exports to full-admin or attendance-exporter', () => {
+    expect(canExportAttendance(head)).toBe(true);
+    expect(canExportAttendance(principal)).toBe(true);
+    expect(canExportAttendance(supervisor)).toBe(false);
+    expect(canExportAttendance({ ...supervisor, tags: ['attendance-exporter'] })).toBe(true);
+    expect(canExportAttendance(technicalSupport)).toBe(false);
   });
 
   it('limits sensitive child notes to Head or sensitive-note-viewer', () => {

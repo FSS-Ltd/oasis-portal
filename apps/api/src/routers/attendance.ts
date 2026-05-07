@@ -2,9 +2,8 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import {
   AccessDeniedError,
+  canExportAttendance,
   canRecordStudentAttendance,
-  hasTag,
-  isFullAdmin,
   isStaff,
   type SessionUser,
 } from '@oasis/domain';
@@ -23,15 +22,34 @@ const ATTENDANCE_ROLES = [
 
 const attendanceStatusSchema = z.enum(['Present', 'Absent', 'Late']);
 
-const dateRangeInput = z
+const dateRangeShape = {
+  from: z.coerce.date(),
+  to: z.coerce.date(),
+} as const;
+
+const studentExportInput = z
   .object({
-    from: z.coerce.date(),
-    to: z.coerce.date(),
+    ...dateRangeShape,
+    studentId: z.string().min(1).optional(),
   })
-  .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
+  .refine(validateDateRange, {
     message: 'from must be on or before to',
     path: ['to'],
   });
+
+const staffExportInput = z
+  .object({
+    ...dateRangeShape,
+    staffUserId: z.string().min(1).optional(),
+  })
+  .refine(validateDateRange, {
+    message: 'from must be on or before to',
+    path: ['to'],
+  });
+
+function validateDateRange(input: { from: Date; to: Date }): boolean {
+  return normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime();
+}
 
 function normalizeDate(date: Date): Date {
   return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -64,13 +82,22 @@ function buildCsv(headers: readonly string[], rows: readonly (readonly string[])
   return [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\n');
 }
 
-function requireCanExportAttendance(user: SessionUser): void {
-  if (isFullAdmin(user) || hasTag(user, 'attendance-exporter')) return;
-  throw new TRPCError({
-    code: 'FORBIDDEN',
-    message: 'attendance export requires full-admin or attendance-exporter',
-    cause: new AccessDeniedError('attendance export requires full-admin or attendance-exporter'),
+async function requireCanExportAttendance(
+  ctx: AuthedContext,
+  meta: Record<string, string | number | null>,
+): Promise<void> {
+  if (canExportAttendance(ctx.user)) return;
+
+  const denied = new AccessDeniedError('attendance export requires full-admin or attendance-exporter');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'AttendanceExport',
+      meta: { ...meta, role: ctx.user.role, reason: denied.message },
+    },
   });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
 async function requireCanRecordAttendance(ctx: AuthedContext): Promise<void> {
@@ -242,19 +269,100 @@ export const attendanceRouter = router({
       };
     }),
 
-  exportStudentsCsv: authedProcedure
-    .input(dateRangeInput)
-    .query(async ({ ctx, input }) => {
-      requireCanExportAttendance(ctx.user);
+  listExportOptions: authedProcedure.query(async ({ ctx }) => {
+    await requireCanExportAttendance(ctx, { kind: 'options' });
 
+    const [students, staffUsers] = await Promise.all([
+      ctx.db.student.findMany({
+        orderBy: [{ createdAt: 'desc' }],
+        select: {
+          id: true,
+          fullNameEnc: true,
+          yearGroup: true,
+          active: true,
+        },
+      }),
+      ctx.db.user.findMany({
+        where: {
+          role: { in: [...ATTENDANCE_ROLES] },
+        },
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          fullNameEnc: true,
+          emailEnc: true,
+          role: true,
+          active: true,
+        },
+      }),
+    ]);
+
+    const studentOptions = students.map((student) => {
+      const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+      return {
+        id: student.id,
+        label: `${studentName} · ${student.yearGroup}${student.active ? '' : ' · Inactive'}`,
+        name: studentName,
+        yearGroup: student.yearGroup,
+        active: student.active,
+      };
+    });
+    const staffOptions = staffUsers.map((staffUser) => {
+      const staffName = decryptRequired(ctx.db.$enc.decrypt, staffUser.fullNameEnc, 'user');
+      const email = decryptRequired(ctx.db.$enc.decrypt, staffUser.emailEnc, 'user');
+      return {
+        id: staffUser.id,
+        label: `${staffName} · ${staffUser.role}${staffUser.active ? '' : ' · Inactive'}`,
+        name: staffName,
+        email,
+        role: staffUser.role,
+        active: staffUser.active,
+      };
+    });
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: studentOptions.length, source: 'attendance.listExportOptions' },
+      },
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: staffOptions.length, source: 'attendance.listExportOptions' },
+      },
+    });
+
+    return {
+      students: studentOptions,
+      staff: staffOptions,
+    };
+  }),
+
+  exportStudentsCsv: authedProcedure
+    .input(studentExportInput)
+    .query(async ({ ctx, input }) => {
       const from = normalizeDate(input.from);
       const to = normalizeDate(input.to);
+      const selectedStudentId = input.studentId ?? null;
+      await requireCanExportAttendance(ctx, {
+        kind: 'student',
+        from: dateKey(from),
+        to: dateKey(to),
+        studentId: selectedStudentId,
+      });
+
       const rows = await ctx.db.attendance.findMany({
         where: {
           date: {
             gte: from,
             lte: to,
           },
+          ...(selectedStudentId ? { studentId: selectedStudentId } : {}),
         },
         select: {
           date: true,
@@ -300,7 +408,9 @@ export const attendanceRouter = router({
             kind: 'student',
             from: dateKey(from),
             to: dateKey(to),
+            studentId: selectedStudentId,
             rowCount: rows.length,
+            scope: selectedStudentId ? 'individual' : 'all',
           },
         },
       });
@@ -367,17 +477,24 @@ export const attendanceRouter = router({
       };
     }),
 
-  exportStaffCsv: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
-    requireCanExportAttendance(ctx.user);
-
+  exportStaffCsv: authedProcedure.input(staffExportInput).query(async ({ ctx, input }) => {
     const from = normalizeDate(input.from);
     const to = normalizeDate(input.to);
+    const selectedStaffUserId = input.staffUserId ?? null;
+    await requireCanExportAttendance(ctx, {
+      kind: 'staff',
+      from: dateKey(from),
+      to: dateKey(to),
+      staffUserId: selectedStaffUserId,
+    });
+
     const rows = await ctx.db.staffAttendance.findMany({
       where: {
         date: {
           gte: from,
           lte: to,
         },
+        ...(selectedStaffUserId ? { staffUserId: selectedStaffUserId } : {}),
       },
       select: {
         date: true,
@@ -425,7 +542,9 @@ export const attendanceRouter = router({
           kind: 'staff',
           from: dateKey(from),
           to: dateKey(to),
+          staffUserId: selectedStaffUserId,
           rowCount: rows.length,
+          scope: selectedStaffUserId ? 'individual' : 'all',
         },
       },
     });

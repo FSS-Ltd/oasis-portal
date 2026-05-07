@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createContext } from '@oasis/api';
 import { canAnswerChildRegistrationPrompt } from '@oasis/domain';
 import { redirect } from 'next/navigation';
+import { ensureDevHeadUser } from '@/lib/dev-head-user';
 import { resolvePostSignInDestinationForState } from '@/lib/post-sign-in-routing';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,7 @@ export default async function PostSignInResolvePage() {
   const { userId } = await auth();
   if (!userId) redirect('/sign-in/');
 
+  await ensureDevHeadUser(userId);
   const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
   let parentNeedsRegistration = false;
   let childRegistrationPromptRequired = false;

@@ -1,12 +1,14 @@
 import { auth } from '@clerk/nextjs/server';
 import { SignOutButton } from '@clerk/nextjs';
 import { redirect } from 'next/navigation';
+import { ensureDevHeadUser } from '@/lib/dev-head-user';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NotReadyPage() {
   const { userId } = await auth();
   if (!userId) redirect('/sign-in/');
+  if (await ensureDevHeadUser(userId)) redirect('/post-sign-in/resolve');
 
   return (
     <main style={{ display: 'grid', minHeight: '100vh', placeItems: 'center', padding: 24 }}>

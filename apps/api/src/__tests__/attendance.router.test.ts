@@ -107,6 +107,7 @@ interface FakeDb {
   };
   user: {
     findUnique: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
   };
   attendance: {
     create: ReturnType<typeof vi.fn>;
@@ -242,6 +243,7 @@ function makeFakeDb() {
                 id: student.id,
                 fullNameEnc: student.fullNameEnc,
                 yearGroup: student.yearGroup,
+                active: student.active,
                 attendance: attendance
                   .filter((row) => row.studentId === student.id)
                   .filter(
@@ -271,6 +273,28 @@ function makeFakeDb() {
         if (!user) return Promise.resolve(null);
         return Promise.resolve({ id: user.id, role: user.role, active: user.active });
       }),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            active?: boolean;
+            role?: { in?: readonly SessionUser['role'][] };
+          };
+        }) =>
+          Promise.resolve(
+            users
+              .filter((user) => where?.active === undefined || user.active === where.active)
+              .filter((user) => where?.role?.in === undefined || where.role.in.includes(user.role))
+              .map((user) => ({
+                id: user.id,
+                fullNameEnc: user.fullNameEnc,
+                emailEnc: user.emailEnc,
+                role: user.role,
+                active: user.active,
+              })),
+          ),
+      ),
     },
     attendance: {
       create: vi.fn(({ data }: { data: Omit<StoredAttendance, 'id' | 'createdAt'> }) => {
@@ -300,7 +324,8 @@ function makeFakeDb() {
             ) ?? null,
           ),
       ),
-      findMany: vi.fn(({ where }: { where: { date: { gte: Date; lte: Date } } }) =>
+      findMany: vi.fn(
+        ({ where }: { where: { date: { gte: Date; lte: Date }; studentId?: string } }) =>
         Promise.resolve(
           attendance
             .filter(
@@ -308,6 +333,7 @@ function makeFakeDb() {
                 row.date.getTime() >= where.date.gte.getTime() &&
                 row.date.getTime() <= where.date.lte.getTime(),
             )
+            .filter((row) => where.studentId === undefined || row.studentId === where.studentId)
             .sort((a, b) => a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime())
             .map((row) => {
               const student = students.find((candidate) => candidate.id === row.studentId);
@@ -356,7 +382,8 @@ function makeFakeDb() {
             ) ?? null,
           ),
       ),
-      findMany: vi.fn(({ where }: { where: { date: { gte: Date; lte: Date } } }) =>
+      findMany: vi.fn(
+        ({ where }: { where: { date: { gte: Date; lte: Date }; staffUserId?: string } }) =>
         Promise.resolve(
           staffAttendance
             .filter(
@@ -364,6 +391,7 @@ function makeFakeDb() {
                 row.date.getTime() >= where.date.gte.getTime() &&
                 row.date.getTime() <= where.date.lte.getTime(),
             )
+            .filter((row) => where.staffUserId === undefined || row.staffUserId === where.staffUserId)
             .sort(
               (a, b) =>
                 a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime(),
@@ -618,6 +646,100 @@ describe('attendance.mark', () => {
   });
 });
 
+describe('attendance.listExportOptions', () => {
+  it('returns student and staff selectors for export-authorised users and audits PII decrypts', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(makeCaller(attendanceExporterUser, db).attendance.listExportOptions()).resolves.toEqual({
+      students: [
+        {
+          id: inactiveStudentId,
+          label: 'Former Student · Year 7 · Inactive',
+          name: 'Former Student',
+          yearGroup: 'Year 7',
+          active: false,
+        },
+        {
+          id: secondStudentId,
+          label: 'Amos Scholar · Year 5',
+          name: 'Amos Scholar',
+          yearGroup: 'Year 5',
+          active: true,
+        },
+        {
+          id: activeStudentId,
+          label: 'Jane Learner · Year 6',
+          name: 'Jane Learner',
+          yearGroup: 'Year 6',
+          active: true,
+        },
+      ],
+      staff: [
+        {
+          id: headUser.id,
+          label: 'Head User · Head',
+          name: 'Head User',
+          email: 'head@example.test',
+          role: 'Head',
+          active: true,
+        },
+        {
+          id: supervisorUser.id,
+          label: 'Supervisor User · Supervisor',
+          name: 'Supervisor User',
+          email: 'supervisor@example.test',
+          role: 'Supervisor',
+          active: true,
+        },
+        {
+          id: attendanceExporterUser.id,
+          label: 'Exporter User · Supervisor',
+          name: 'Exporter User',
+          email: 'exporter@example.test',
+          role: 'Supervisor',
+          active: true,
+        },
+      ],
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: attendanceExporterUser.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: 3, source: 'attendance.listExportOptions' },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: attendanceExporterUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: 3, source: 'attendance.listExportOptions' },
+      },
+    });
+  });
+
+  it('denies selector loading for unauthorised users', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(makeCaller(supervisorUser, db).attendance.listExportOptions()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'PermissionDenied',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'options',
+          role: 'Supervisor',
+          reason: 'Access denied: attendance export requires full-admin or attendance-exporter',
+        },
+      },
+    });
+  });
+});
+
 describe('attendance.exportStudentsCsv', () => {
   it('allows full-admin and attendance-exporter tag, denies untagged users, and audits export', async () => {
     const { db } = makeFakeDb();
@@ -660,7 +782,14 @@ describe('attendance.exportStudentsCsv', () => {
         userId: attendanceExporterUser.id,
         action: 'Update',
         entity: 'AttendanceExport',
-        meta: { kind: 'student', from: '2026-04-28', to: '2026-04-29', rowCount: 2 },
+        meta: {
+          kind: 'student',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          studentId: null,
+          rowCount: 2,
+          scope: 'all',
+        },
       },
     });
 
@@ -676,6 +805,21 @@ describe('attendance.exportStudentsCsv', () => {
         to: day('2026-04-29'),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'PermissionDenied',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'student',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          studentId: null,
+          role: 'Supervisor',
+          reason: 'Access denied: attendance export requires full-admin or attendance-exporter',
+        },
+      },
+    });
     await expect(
       makeCaller(parentUser, db).attendance.exportStudentsCsv({
         from: day('2026-04-28'),
@@ -688,6 +832,49 @@ describe('attendance.exportStudentsCsv', () => {
         to: day('2026-04-29'),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('exports one selected student within the requested date range', async () => {
+    const { db } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await headCaller.attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-28'),
+      status: 'Absent',
+    });
+    await headCaller.attendance.mark({
+      studentId: secondStudentId,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+
+    const exported = await headCaller.attendance.exportStudentsCsv({
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+      studentId: secondStudentId,
+    });
+
+    expect(exported.csv).toBe(
+      [
+        'Date,Student ID,Student Name,Year Group,Status,Recorded At',
+        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,2026-04-29T10:01:00.000Z',
+      ].join('\n'),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'student',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          studentId: secondStudentId,
+          rowCount: 1,
+          scope: 'individual',
+        },
+      },
+    });
   });
 });
 
@@ -818,7 +1005,14 @@ describe('attendance.exportStaffCsv', () => {
         userId: attendanceExporterUser.id,
         action: 'Update',
         entity: 'AttendanceExport',
-        meta: { kind: 'staff', from: '2026-04-28', to: '2026-04-29', rowCount: 2 },
+        meta: {
+          kind: 'staff',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          staffUserId: null,
+          rowCount: 2,
+          scope: 'all',
+        },
       },
     });
 
@@ -836,6 +1030,21 @@ describe('attendance.exportStaffCsv', () => {
         to: day('2026-04-29'),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'PermissionDenied',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'staff',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          staffUserId: null,
+          role: 'Supervisor',
+          reason: 'Access denied: attendance export requires full-admin or attendance-exporter',
+        },
+      },
+    });
     await expect(
       makeCaller(parentUser, db).attendance.exportStaffCsv({
         from: day('2026-04-28'),
@@ -848,5 +1057,48 @@ describe('attendance.exportStaffCsv', () => {
         to: day('2026-04-29'),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('exports one selected staff member within the requested date range', async () => {
+    const { db } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await headCaller.attendance.markStaff({
+      staffUserId: supervisorUser.id,
+      date: day('2026-04-28'),
+      status: 'Absent',
+    });
+    await headCaller.attendance.markStaff({
+      staffUserId: attendanceExporterUser.id,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+
+    const exported = await headCaller.attendance.exportStaffCsv({
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+      staffUserId: attendanceExporterUser.id,
+    });
+
+    expect(exported.csv).toBe(
+      [
+        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Recorded At',
+        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,2026-04-29T11:01:00.000Z',
+      ].join('\n'),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'staff',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          staffUserId: attendanceExporterUser.id,
+          rowCount: 1,
+          scope: 'individual',
+        },
+      },
+    });
   });
 });
