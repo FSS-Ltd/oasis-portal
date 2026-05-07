@@ -1,15 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { signIn } from './helpers/auth';
 
 const headEmail = process.env.E2E_HEAD_EMAIL;
 const headPassword = process.env.E2E_HEAD_PASSWORD;
-
-async function signInAsHead(page: import('@playwright/test').Page) {
-  await page.goto('/sign-in');
-  await page.getByLabel(/email/i).fill(headEmail ?? '');
-  await page.getByRole('textbox', { name: 'Password' }).fill(headPassword ?? '');
-  await page.getByRole('button', { name: /^continue$/i }).click();
-  await page.waitForURL(/admin|dashboard|2fa/, { timeout: 30_000 });
-}
 
 test.describe('Head admin onboarding', () => {
   test.skip(!headEmail || !headPassword, 'Set E2E_HEAD_EMAIL and E2E_HEAD_PASSWORD to run');
@@ -21,7 +14,7 @@ test.describe('Head admin onboarding', () => {
     const studentName = `E2E Student ${unique}`;
     const parentEmail = `parent.${unique}@example.com`;
 
-    await signInAsHead(page);
+    await signIn(page, headEmail!, headPassword!);
 
     await page.goto('/admin/students/new');
     await page.getByLabel('Full name').fill(studentName);
@@ -60,7 +53,7 @@ test.describe('Head admin onboarding', () => {
     const inactiveCode = `OLD${unique}`.slice(0, 12).toUpperCase();
     const studentName = `E2E Academic ${unique}`;
 
-    await signInAsHead(page);
+    await signIn(page, headEmail!, headPassword!);
 
     await page.goto('/admin/academic');
     await expect(page.getByRole('heading', { name: /academic settings/i })).toBeVisible();
