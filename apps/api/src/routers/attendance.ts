@@ -47,6 +47,26 @@ const staffExportInput = z
     path: ['to'],
   });
 
+const studentHistoryInput = z
+  .object({
+    ...dateRangeShape,
+    studentId: z.string().min(1),
+  })
+  .refine(validateDateRange, {
+    message: 'from must be on or before to',
+    path: ['to'],
+  });
+
+const staffHistoryInput = z
+  .object({
+    ...dateRangeShape,
+    staffUserId: z.string().min(1),
+  })
+  .refine(validateDateRange, {
+    message: 'from must be on or before to',
+    path: ['to'],
+  });
+
 function validateDateRange(input: { from: Date; to: Date }): boolean {
   return normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime();
 }
@@ -422,6 +442,43 @@ export const attendanceRouter = router({
       };
     }),
 
+  studentHistory: authedProcedure.input(studentHistoryInput).query(async ({ ctx, input }) => {
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    await requireCanExportAttendance(ctx, {
+      kind: 'student-history',
+      from: dateKey(from),
+      to: dateKey(to),
+      studentId: input.studentId,
+    });
+
+    const rows = await ctx.db.attendance.findMany({
+      where: {
+        studentId: input.studentId,
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        recordedById: true,
+        createdAt: true,
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      date: dateKey(row.date),
+      status: row.status,
+      recordedById: row.recordedById,
+      recordedAt: row.createdAt,
+    }));
+  }),
+
   markStaff: fullAdminProcedure
     .input(
       z.object({
@@ -554,5 +611,42 @@ export const attendanceRouter = router({
       contentType: 'text/csv; charset=utf-8',
       csv,
     };
+  }),
+
+  staffHistory: authedProcedure.input(staffHistoryInput).query(async ({ ctx, input }) => {
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    await requireCanExportAttendance(ctx, {
+      kind: 'staff-history',
+      from: dateKey(from),
+      to: dateKey(to),
+      staffUserId: input.staffUserId,
+    });
+
+    const rows = await ctx.db.staffAttendance.findMany({
+      where: {
+        staffUserId: input.staffUserId,
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        recordedById: true,
+        createdAt: true,
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      date: dateKey(row.date),
+      status: row.status,
+      recordedById: row.recordedById,
+      recordedAt: row.createdAt,
+    }));
   }),
 });

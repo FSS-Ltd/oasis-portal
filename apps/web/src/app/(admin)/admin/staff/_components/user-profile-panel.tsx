@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
+import { StaffAttendanceHistoryPanel } from './attendance-history-panel';
 import {
   childLabel,
   statusTone,
@@ -297,6 +298,10 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
               )}
             </div>
           </section>
+        ) : null}
+
+        {activeTab === 'attendance' && kind === 'supervisor' ? (
+          <StaffAttendanceHistoryPanel staffUserId={user.id} />
         ) : null}
 
         <section className="panel">
