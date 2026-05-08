@@ -4,7 +4,12 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide-react';
-import { PERMISSION_TAGS, displaySchoolYearLabel } from '@oasis/domain';
+import {
+  ADULT_USER_ACCOUNT_ROLES,
+  PERMISSION_TAGS,
+  displaySchoolYearLabel,
+  type Role,
+} from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { permissionTagLabel, personTypeLabel, roleLabel } from '@/lib/profile-display';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
@@ -12,7 +17,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Field, TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { StaffAttendanceHistoryPanel } from './attendance-history-panel';
 import {
   childLabel,
@@ -26,11 +31,27 @@ import {
 
 interface UserProfilePanelProps {
   currentUserId: string;
+  currentUserRole: Role;
   kind: 'parent' | 'supervisor';
   user: UserRow;
 }
 
-export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanelProps) {
+type AdultUserAccountRole = (typeof ADULT_USER_ACCOUNT_ROLES)[number];
+
+function canShowChildrenTab(kind: 'parent' | 'supervisor', linkedChildCount: number): boolean {
+  return kind === 'parent' || linkedChildCount > 0;
+}
+
+function isAdultUserAccountRole(value: string): value is AdultUserAccountRole {
+  return ADULT_USER_ACCOUNT_ROLES.some((role) => role === value);
+}
+
+export function UserProfilePanel({
+  currentUserId,
+  currentUserRole,
+  kind,
+  user,
+}: UserProfilePanelProps) {
   const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<UserProfileTab>('personal');
   const [editing, setEditing] = useState(false);
@@ -47,6 +68,11 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
       await utils.admin.listUsers.invalidate();
     },
   });
+  const updateRole = api.admin.updateUserRole.useMutation({
+    async onSuccess() {
+      await utils.admin.listUsers.invalidate();
+    },
+  });
   const updateStatus = api.admin.updateUserAccountStatus.useMutation({
     async onSuccess() {
       await Promise.all([
@@ -57,6 +83,10 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
     },
   });
   const isSelf = user.id === currentUserId;
+  const canChangeRole = currentUserRole === 'Head' && !isSelf;
+  const visibleTabs = userTabs[kind].filter(
+    (tab) => tab.id !== 'children' || canShowChildrenTab(kind, user.children.length),
+  );
 
   useEffect(() => {
     setForm(userForm(user));
@@ -74,6 +104,11 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
       phone: form.phone,
       address: form.address,
     });
+  }
+
+  function handleRoleChange(value: string) {
+    if (!isAdultUserAccountRole(value)) return;
+    updateRole.mutate({ userId: user.id, role: value });
   }
 
   return (
@@ -128,7 +163,7 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
         </section>
 
         <div className="profile-tabs" role="tablist">
-          {userTabs[kind].map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               aria-selected={activeTab === tab.id}
               className={activeTab === tab.id ? 'is-selected' : undefined}
@@ -162,16 +197,36 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
                 </Field>
               </div>
               <div className="profile-field-list">
-                <div className="profile-field-row">
-                  <span>Role</span>
-                  <strong>{roleLabel(user.role)}</strong>
-                </div>
+                <Field label="Role">
+                  {canChangeRole ? (
+                    <SelectInput
+                      disabled={updateRole.isPending}
+                      onChange={(event) => {
+                        handleRoleChange(event.target.value);
+                      }}
+                      value={user.role}
+                    >
+                      {ADULT_USER_ACCOUNT_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {roleLabel(role)}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  ) : (
+                    <TextInput disabled value={roleLabel(user.role)} />
+                  )}
+                </Field>
                 <div className="profile-field-row">
                   <span>Status</span>
                   <Badge tone={statusTone(user.active)}>
                     {user.active ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
+                {updateRole.error ? (
+                  <p className="status--error" role="alert">
+                    {updateRole.error.message}
+                  </p>
+                ) : null}
               </div>
             </div>
           </section>
@@ -183,7 +238,23 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
               <div className="profile-field-list">
                 <div className="profile-field-row">
                   <span>Role</span>
-                  <strong>{roleLabel(user.role)}</strong>
+                  {canChangeRole ? (
+                    <SelectInput
+                      disabled={updateRole.isPending}
+                      onChange={(event) => {
+                        handleRoleChange(event.target.value);
+                      }}
+                      value={user.role}
+                    >
+                      {ADULT_USER_ACCOUNT_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {roleLabel(role)}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  ) : (
+                    <strong>{roleLabel(user.role)}</strong>
+                  )}
                 </div>
                 <div className="profile-field-row profile-field-row--stacked">
                   <span>Permission tags</span>
@@ -217,6 +288,11 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
               {updateTags.error ? (
                 <p className="status--error" role="alert">
                   {updateTags.error.message}
+                </p>
+              ) : null}
+              {updateRole.error ? (
+                <p className="status--error" role="alert">
+                  {updateRole.error.message}
                 </p>
               ) : null}
             </div>
@@ -270,12 +346,12 @@ export function UserProfilePanel({ currentUserId, kind, user }: UserProfilePanel
           </section>
         ) : null}
 
-        {activeTab === 'children' && kind === 'parent' ? (
+        {activeTab === 'children' && canShowChildrenTab(kind, user.children.length) ? (
           <section className="panel">
             <div className="panel__body people-linked-list">
               {user.children.length === 0 ? (
                 <EmptyState
-                  detail="Link this parent from a student profile."
+                  detail={`Link this ${kind === 'parent' ? 'parent' : 'account'} from a student profile.`}
                   title="No children linked"
                 />
               ) : (

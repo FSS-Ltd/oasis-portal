@@ -62,6 +62,39 @@ function makeInvitationRow(
   };
 }
 
+function makeAdminUserRow(
+  overrides: Partial<{
+    active: boolean;
+    addressEnc: string | null;
+    createdAt: Date;
+    emailEnc: string;
+    fullNameEnc: string;
+    guardianOf: {
+      student: { id: string; fullNameEnc: string; yearGroup: string; active: boolean };
+    }[];
+    id: string;
+    phoneEnc: string | null;
+    role: SessionUser['role'];
+    tags: string[];
+    updatedAt: Date;
+  }> = {},
+) {
+  return {
+    id: 'u_sup',
+    role: 'Supervisor',
+    tags: ['attendance-exporter'],
+    fullNameEnc: 'enc:Sam Supervisor',
+    emailEnc: 'enc:sam@example.com',
+    phoneEnc: null,
+    addressEnc: null,
+    active: true,
+    createdAt: new Date('2026-04-29T09:00:00.000Z'),
+    updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+    guardianOf: [],
+    ...overrides,
+  };
+}
+
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
   $enc: {
@@ -790,6 +823,167 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         meta: { tags: ['attendance-exporter', 'audit-viewer'], source: 'admin.updateUserTags' },
       },
     });
+  });
+
+  it('lets Head change another adult user role and preserves staff tags', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: ['attendance-exporter'],
+    });
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({
+        role: 'ClubsAdmin',
+        tags: ['attendance-exporter'],
+      }),
+    );
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'ClubsAdmin' }),
+    ).resolves.toMatchObject({
+      id: 'u_sup',
+      role: 'ClubsAdmin',
+      tags: ['attendance-exporter'],
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_sup' },
+      data: { role: 'ClubsAdmin', tags: ['attendance-exporter'] },
+      select: {
+        id: true,
+        role: true,
+        tags: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+        guardianOf: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            student: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                yearGroup: true,
+                active: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_sup',
+        meta: {
+          previousRole: 'Supervisor',
+          nextRole: 'ClubsAdmin',
+          clearedTags: [],
+          source: 'admin.updateUserRole',
+        },
+      },
+    });
+  });
+
+  it('clears permission tags when Head changes a user to Parent', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: ['attendance-exporter', 'audit-viewer'],
+    });
+    db.user.update.mockResolvedValue(makeAdminUserRow({ role: 'Parent', tags: [] }));
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'Parent' }),
+    ).resolves.toMatchObject({ id: 'u_sup', role: 'Parent', tags: [] });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { role: 'Parent', tags: [] },
+      }),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_sup',
+        meta: {
+          previousRole: 'Supervisor',
+          nextRole: 'Parent',
+          clearedTags: ['attendance-exporter', 'audit-viewer'],
+          source: 'admin.updateUserRole',
+        },
+      },
+    });
+  });
+
+  it('blocks self role changes before account lookup', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: headUser.id, role: 'Principal' }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'cannot change your own role',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects role changes from non-Head full-admin users', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(principalUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'Parent' }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'only Head can change user roles',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects Student as a role change target', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, { db });
+    // Network callers can still send invalid roles even though typed callers cannot.
+    const updateUserRoleFromNetwork = caller.admin.updateUserRole as unknown as (input: {
+      userId: string;
+      role: string;
+    }) => Promise<unknown>;
+
+    await expect(
+      updateUserRoleFromNetwork({ userId: 'u_sup', role: 'Student' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('returns NOT_FOUND when changing a missing user role', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue(null);
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_missing', role: 'Parent' }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'user not found',
+    });
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 
   it('limits student drill-through tag changes to Head', async () => {

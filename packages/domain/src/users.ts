@@ -7,16 +7,30 @@
  * `user.public_metadata` at signup.
  */
 import { z } from 'zod';
-import { PERMISSION_TAGS, ROLES, type PermissionTag, type Role } from './rbac.js';
+import {
+  ADULT_USER_ACCOUNT_ROLES,
+  PERMISSION_TAGS,
+  ROLES,
+  type PermissionTag,
+  type Role,
+} from './rbac.js';
 
 const roleEnum = z.enum(ROLES as unknown as readonly [Role, ...Role[]]);
+const adultUserAccountRoleEnum = z.enum(
+  ADULT_USER_ACCOUNT_ROLES as unknown as readonly [
+    (typeof ADULT_USER_ACCOUNT_ROLES)[number],
+    ...(typeof ADULT_USER_ACCOUNT_ROLES)[number][],
+  ],
+);
 const tagEnum = z.enum(PERMISSION_TAGS as unknown as readonly [PermissionTag, ...PermissionTag[]]);
 
-export const inviteUserInput = z.object({
-  email: z.string().trim().toLowerCase().email(),
-  role: roleEnum,
-  tags: z.array(tagEnum).default([]),
-}).strict();
+export const inviteUserInput = z
+  .object({
+    email: z.string().trim().toLowerCase().email(),
+    role: roleEnum,
+    tags: z.array(tagEnum).default([]),
+  })
+  .strict();
 export type InviteUserInput = z.infer<typeof inviteUserInput>;
 
 export const linkGuardianInput = z.object({
@@ -24,6 +38,12 @@ export const linkGuardianInput = z.object({
   studentId: z.string().min(1),
 });
 export type LinkGuardianInput = z.infer<typeof linkGuardianInput>;
+
+export const updateUserRoleInput = z.object({
+  userId: z.string().min(1),
+  role: adultUserAccountRoleEnum,
+});
+export type UpdateUserRoleInput = z.infer<typeof updateUserRoleInput>;
 
 export const userPublicMetadataSchema = z
   .object({
@@ -52,7 +72,10 @@ export function resolveInviteMetadata(
   }
   const parsed = userPublicMetadataSchema.safeParse(raw);
   if (!parsed.success) {
-    console.warn('[users] invalid public_metadata, falling back to defaults', parsed.error.flatten());
+    console.warn(
+      '[users] invalid public_metadata, falling back to defaults',
+      parsed.error.flatten(),
+    );
     return { role: defaults.role, tags: [...defaults.tags] };
   }
   return {

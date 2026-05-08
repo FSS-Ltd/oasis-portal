@@ -29,6 +29,7 @@ import {
   type PermissionTag,
   type Role,
   type SessionUser,
+  updateUserRoleInput,
   updatePacePolicyInput,
   updateSubjectInput,
   updateYearGroupBandInput,
@@ -1071,6 +1072,64 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               entity: 'User',
               entityId: user.id,
               meta: { fields, source: 'admin.updateUserProfile' },
+            },
+          });
+
+          return mapAdminUserProfile(ctx, user);
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+          }
+          throw err;
+        }
+      }),
+
+    updateUserRole: fullAdminProcedure
+      .input(updateUserRoleInput)
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'Head') {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'only Head can change user roles',
+          });
+        }
+        if (input.userId === ctx.user.id) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'cannot change your own role',
+          });
+        }
+
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, role: true, tags: true },
+        });
+        if (!existingUser) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+        }
+
+        const nextTags = input.role === 'Parent' ? [] : existingUser.tags;
+        const clearedTags = input.role === 'Parent' ? existingUser.tags : [];
+
+        try {
+          const user = await ctx.db.user.update({
+            where: { id: input.userId },
+            data: { role: input.role, tags: nextTags },
+            select: adminUserProfileSelect,
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'User',
+              entityId: user.id,
+              meta: {
+                previousRole: existingUser.role,
+                nextRole: user.role,
+                clearedTags,
+                source: 'admin.updateUserRole',
+              },
             },
           });
 

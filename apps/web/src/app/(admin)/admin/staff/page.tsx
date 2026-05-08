@@ -17,7 +17,7 @@ export default async function PeopleProfilesPage() {
           </p>
         </div>
       </div>
-      <PeopleProfilesClient currentUserId={user.id} />
+      <PeopleProfilesClient currentUserId={user.id} currentUserRole={user.role} />
     </MotionPage>
   );
 }

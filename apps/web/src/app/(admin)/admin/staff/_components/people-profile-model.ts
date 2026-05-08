@@ -46,6 +46,7 @@ export const userTabs = {
     { id: 'personal', label: 'Personal' },
     { id: 'role', label: 'Role & Access' },
     { id: 'contact', label: 'Contact' },
+    { id: 'children', label: 'Children' },
     { id: 'attendance', label: 'Attendance' },
   ],
   parent: [
