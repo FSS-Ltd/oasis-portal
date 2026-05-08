@@ -144,12 +144,10 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
       // Find-then-branch: role/tags are admin-managed, so re-syncs from
       // user.updated must not overwrite them with stale Clerk metadata.
       const existing = await db.user.findUnique({ where: { clerkId: input.clerkUserId } });
-      if (!existing) {
-        const created = await db.user.create({
+      if (existing) {
+        const updated = await db.user.update({
+          where: { clerkId: input.clerkUserId },
           data: {
-            clerkId: input.clerkUserId,
-            role: input.role,
-            tags: [...input.tags],
             fullNameEnc,
             emailEnc,
             emailBidx,
@@ -158,12 +156,33 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           },
           select: { id: true },
         });
-        await acceptPendingInvitations(emailBidx, created.id);
+        await acceptPendingInvitations(emailBidx, updated.id);
         return;
       }
-      const updated = await db.user.update({
-        where: { clerkId: input.clerkUserId },
+
+      const existingByEmail = await db.user.findUnique({ where: { emailBidx } });
+      if (existingByEmail) {
+        const updated = await db.user.update({
+          where: { id: existingByEmail.id },
+          data: {
+            clerkId: input.clerkUserId,
+            fullNameEnc,
+            emailEnc,
+            emailBidx,
+            phoneEnc,
+            active: true,
+          },
+          select: { id: true },
+        });
+        await acceptPendingInvitations(emailBidx, updated.id);
+        return;
+      }
+
+      const created = await db.user.create({
         data: {
+          clerkId: input.clerkUserId,
+          role: input.role,
+          tags: [...input.tags],
           fullNameEnc,
           emailEnc,
           emailBidx,
@@ -172,7 +191,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
         },
         select: { id: true },
       });
-      await acceptPendingInvitations(emailBidx, updated.id);
+      await acceptPendingInvitations(emailBidx, created.id);
     },
     async deactivateUser(clerkUserId) {
       await db.user.update({

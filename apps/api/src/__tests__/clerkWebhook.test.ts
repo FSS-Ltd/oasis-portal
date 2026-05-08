@@ -147,8 +147,26 @@ describe('processClerkWebhookEvent', () => {
 });
 
 describe('createPrismaClerkUserStore', () => {
-  function makeDb(existing: { id: string } | null) {
-    const findUnique = vi.fn().mockResolvedValue(existing);
+  interface ExistingUser {
+    id: string;
+  }
+
+  interface UserFindUniqueArgs {
+    where: {
+      clerkId?: string;
+      emailBidx?: string;
+    };
+  }
+
+  function makeDb(
+    existingByClerkId: ExistingUser | null,
+    existingByEmail: ExistingUser | null = null,
+  ) {
+    const findUnique = vi.fn((args: UserFindUniqueArgs): Promise<ExistingUser | null> => {
+      if (args.where.clerkId !== undefined) return Promise.resolve(existingByClerkId);
+      if (args.where.emailBidx !== undefined) return Promise.resolve(existingByEmail);
+      return Promise.resolve(null);
+    });
     const create = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
     const updateMany = vi.fn<FakeInvitationUpdateMany>().mockResolvedValue({ count: 1 });
@@ -186,6 +204,7 @@ describe('createPrismaClerkUserStore', () => {
     });
 
     expect(findUnique).toHaveBeenCalledWith({ where: { clerkId: 'user_123' } });
+    expect(findUnique).toHaveBeenCalledWith({ where: { emailBidx: 'bidx:jean@example.com' } });
     expect(create).toHaveBeenCalledWith({
       data: {
         clerkId: 'user_123',
@@ -211,6 +230,46 @@ describe('createPrismaClerkUserStore', () => {
     expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
   });
 
+  it('links an existing email-matched local user without overwriting role or tags', async () => {
+    const { db, findUnique, create, update, updateMany } = makeDb(null, {
+      id: 'cuid_email_match',
+    });
+    update.mockResolvedValue({ id: 'cuid_email_match' });
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Jean Ntagengwa',
+      email: 'Jean@Example.com',
+      phone: '+447700900123',
+      role: 'Parent',
+      tags: [],
+    });
+
+    expect(findUnique).toHaveBeenCalledWith({ where: { clerkId: 'user_123' } });
+    expect(findUnique).toHaveBeenCalledWith({ where: { emailBidx: 'bidx:jean@example.com' } });
+    expect(create).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'cuid_email_match' },
+      data: {
+        clerkId: 'user_123',
+        fullNameEnc: 'enc:Jean Ntagengwa',
+        emailEnc: 'enc:Jean@Example.com',
+        emailBidx: 'bidx:jean@example.com',
+        phoneEnc: 'enc:+447700900123',
+        active: true,
+      },
+      select: { id: true },
+    });
+    expect(updateMany).toHaveBeenCalledOnce();
+    const updateManyArgs = updateMany.mock.calls[0]?.[0];
+    expect(updateManyArgs?.where).toEqual({
+      emailBidx: 'bidx:jean@example.com',
+      status: 'Pending',
+    });
+    expect(updateManyArgs?.data.acceptedUserId).toBe('cuid_email_match');
+  });
+
   it('updates PII only on existing-user re-sync (does not stomp role/tags)', async () => {
     const { db, findUnique, create, update, updateMany } = makeDb({ id: 'cuid_existing' });
     update.mockResolvedValue({ id: 'cuid_existing' });
@@ -226,6 +285,7 @@ describe('createPrismaClerkUserStore', () => {
     });
 
     expect(findUnique).toHaveBeenCalledWith({ where: { clerkId: 'user_123' } });
+    expect(findUnique).not.toHaveBeenCalledWith({ where: { emailBidx: 'bidx:jean@example.com' } });
     expect(create).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       where: { clerkId: 'user_123' },
