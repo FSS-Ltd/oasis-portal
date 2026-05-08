@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.5.7 Phase 2.5 access and export verification.
+**Phase:** Production Technical Support access fix.
 
 ---
 
@@ -18,7 +18,43 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-2.5.7 Phase 2.5 access and export verification
+## Current status - Production Technical Support access fix
+
+Working branch: `fix/prod-technical-support-access`.
+
+**PR scope:** Fix production Clerk webhook identity sync so an existing local
+Technical Support account can be linked to the signed-in Clerk user and routed
+to User Access.
+
+Changed scope:
+
+- Updated the Clerk webhook user store to look up an existing local user by
+  encrypted email blind index when no user is found by Clerk id.
+- Linked that existing local account to the Clerk id while preserving
+  admin-managed role and permission tags.
+- Added regression coverage for the email-match linking path so Technical
+  Support accounts do not fall through to the not-ready state when production
+  already has a local user row for the email.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- clerkWebhook.test.ts` - pass, 219 tests
+  across the API suite.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm exec prettier --write apps/api/src/routers/clerkWebhook.ts apps/api/src/__tests__/clerkWebhook.test.ts` -
+  pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- If the production Clerk webhook already failed before this fix, replay the
+  affected Clerk `user.created`/`user.updated` event or trigger a Clerk user
+  update after deployment so the local `User.clerkId` is linked.
+
+## Previous status - PR-2.5.7 Phase 2.5 access and export verification
 
 Working branch: `test-phase-2.5-pr2.5.7-access-export-verification`.
 
