@@ -712,14 +712,18 @@ model ClubNotification {
 // ---------------------------------------------------------------------------
 
 model StaffNotice {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   title      String
   bodyEnc    String
   postedById String
-  createdAt  DateTime @default(now())
+  active     Boolean   @default(true)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
 
   postedBy User              @relation("NoticesPosted", fields: [postedById], references: [id])
   reads    StaffNoticeRead[]
+
+  @@index([active, expiresAt, createdAt])
 }
 
 model StaffNoticeRead {

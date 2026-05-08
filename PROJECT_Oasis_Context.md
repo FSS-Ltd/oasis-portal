@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 3.4 parent dashboard polish.
+**Phase:** Phase 3.5 staff notices API.
 
 ---
 
@@ -18,7 +18,47 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Phase 3.4 parent dashboard polish
+## Current status - PR-3.5 staff notices API
+
+Working branch: `feat/phase-3-pr3.5-staff-notices`.
+
+**PR scope:** Implement the backend-only staff notice API with encrypted bodies,
+active/expiry filtering, read receipts, RBAC, and audit rows without starting
+PR-3.6 web noticeboard UI, parent messaging, mobile smoke, clubs, shop, or
+Phase 4 merit-wallet work.
+
+Changed scope:
+
+- Added `StaffNotice.active` and `StaffNotice.expiresAt` with a Prisma
+  migration and index for active/expiry/newest-first listing.
+- Implemented `notice.post`, `notice.listForStaff`, and `notice.markRead`.
+- Restricted posting to full-admin roles and reading/mark-read to full-admin or
+  Supervisor users.
+- Encrypted notice bodies in `bodyEnc`, filtered inactive/expired notices, and
+  made read receipts idempotent per user/notice.
+- Added focused API coverage for posting, RBAC denial, encrypted storage,
+  active/expiry filtering, read state, idempotent read receipts, and audit rows.
+- Updated the Phase 3 build plan to mark PR-3.5 ready for review.
+
+Verification:
+
+- `pnpm db:generate` - pass.
+- `pnpm --filter @oasis/api test -- notice.router.test.ts` - pass, ran 15 API
+  test files / 242 tests because of the repo's Vitest argument handling.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- PR-3.6 web noticeboard UI remains planned and can consume the new notice API.
+
+## Previous status - Phase 3.4 parent dashboard polish
 
 Working branch: `feat/phase-3-pr3.4-parent-dashboard-polish`.
 
