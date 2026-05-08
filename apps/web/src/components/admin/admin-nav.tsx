@@ -35,7 +35,7 @@ const navItems = [
   { href: '/admin', label: 'Merit Shop', icon: ShoppingBag, badge: undefined },
   { href: '/admin', label: 'Reports', icon: BarChart3, badge: undefined },
   { href: '/admin', label: 'Messages', icon: MessageSquare, badge: '2' },
-  { href: '/admin', label: 'Noticeboard', icon: Bell, badge: undefined },
+  { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell, badge: undefined },
 ] as const;
 
 type AdminNavProps = {
@@ -124,7 +124,7 @@ export function AdminSidebarNav({
             aria-current={active ? 'page' : undefined}
             aria-disabled={!enabled}
             className={className}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={`${item.label}-${String(index)}`}
           >
             <Icon aria-hidden="true" size={18} />
@@ -176,7 +176,7 @@ export function AdminBottomNav({
           <Link
             aria-current={active ? 'page' : undefined}
             className={className}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={`${item.label}-${String(index)}`}
           >
             <Icon aria-hidden="true" size={18} />

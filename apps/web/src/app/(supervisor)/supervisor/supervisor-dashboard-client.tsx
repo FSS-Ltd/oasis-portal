@@ -1,17 +1,7 @@
 'use client';
 
-import {
-  type FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-import {
-  Plus,
-  Save,
-  Send,
-  Trash2,
-} from 'lucide-react';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { Plus, Save, Send, Trash2 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
@@ -29,7 +19,6 @@ import {
   fromTimeValue,
   messageDashboardAdapter,
   mondayFor,
-  noticeDashboardAdapter,
   todayKey,
   toTimeValue,
   weekdays,
@@ -100,6 +89,10 @@ export function SupervisorDashboardClient({
     { date },
     { enabled: view === 'dashboard', retry: false },
   );
+  const noticesQuery = api.notice.listForStaff.useQuery(undefined, {
+    enabled: view === 'dashboard',
+    retry: false,
+  });
   const behaviourQuery = api.behaviour.listForStudent.useQuery(
     { studentId: selectedStudentId, includeSensitive: false },
     { enabled: view === 'behaviour' && selectedStudentId.length > 0, retry: false },
@@ -172,7 +165,17 @@ export function SupervisorDashboardClient({
     [weekStart],
   );
   const dashboardMessages = useMemo(() => messageDashboardAdapter(), []);
-  const dashboardNotices = useMemo(() => noticeDashboardAdapter(), []);
+  const dashboardNotices = useMemo(
+    () =>
+      (noticesQuery.data ?? []).slice(0, 4).map((notice) => ({
+        id: notice.id,
+        title: notice.title,
+        bodyPreview: notice.body.length > 96 ? `${notice.body.slice(0, 93)}...` : notice.body,
+        postedAt: notice.createdAt,
+        read: notice.read,
+      })),
+    [noticesQuery.data],
+  );
   const dashboardActivity = dashboardActivityQuery.data?.entries ?? [];
   const presentCount = rosterRows.filter((row) => row.status === 'Present').length;
   const absentCount = rosterRows.filter((row) => row.status === 'Absent').length;
@@ -211,6 +214,8 @@ export function SupervisorDashboardClient({
         dashboardActivityLoading={dashboardActivityQuery.isLoading}
         dashboardMessages={dashboardMessages}
         dashboardNotices={dashboardNotices}
+        dashboardNoticesError={noticesQuery.error?.message}
+        dashboardNoticesLoading={noticesQuery.isLoading}
         date={date}
         lateCount={lateCount}
         mySwapRequests={mySwapRequests}

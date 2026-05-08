@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 3.5 staff notices API.
+**Phase:** Phase 3.6 staff noticeboard UI.
 
 ---
 
@@ -18,7 +18,52 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.5 staff notices API
+## Current status - PR-3.6 staff noticeboard UI
+
+Working branch: `feat/phase-3-pr3.6-staff-noticeboard-ui`.
+
+**PR scope:** Implement the staff noticeboard web UI for full-admin and
+Supervisor users on top of the merged PR-3.5 notice API, without changing the
+backend contract, adding parent notices, parent messaging, read-count analytics,
+attachments, editing, or deletion.
+
+Changed scope:
+
+- Marked PR-3.4 merged via PR #81 and PR-3.5 merged via PR #82 in the Phase 3
+  build plan.
+- Added `/admin/noticeboard` for full-admin users with a notice composer,
+  required title/body validation, optional expiry, pending state, success/error
+  feedback, and active notice list.
+- Added `/supervisor/noticeboard` for staff readers with active notice list,
+  read/unread state, mark-read action, loading, empty, and error states.
+- Wired admin and supervisor navigation to the new noticeboard routes.
+- Replaced the Supervisor dashboard placeholder notice adapter with live
+  `notice.listForStaff` summaries and a link to the full noticeboard.
+- Added credential-gated Playwright coverage for full-admin publishing,
+  Supervisor noticeboard/read persistence, and non-staff denial.
+- Updated the component relationship map generator and regenerated the map for
+  the new shared noticeboard component surface.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- notice.router.test.ts` - pass, ran 15 API
+  test files / 242 tests because of the repo's Vitest argument handling.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm --filter @oasis/web test:e2e` - pass after sandbox escalation for the
+  local Next.js server; 2 passed, 14 credential-gated tests skipped.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- PR-3.4 is merged via PR #81 on 2026-05-08.
+- PR-3.5 is merged via PR #82 on 2026-05-08.
+
+## Previous status - PR-3.5 staff notices API
 
 Working branch: `feat/phase-3-pr3.5-staff-notices`.
 
