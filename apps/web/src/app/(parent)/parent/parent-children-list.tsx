@@ -9,6 +9,25 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 
 type ChildRow = RouterOutputs['childLog']['listAccessibleStudents'][number];
+type ParentChildrenListVariant = 'parent' | 'admin' | 'supervisor';
+
+const CHILDREN_LIST_CONFIG = {
+  admin: {
+    emptyDetail: 'Ask the Head of Centre to link children to this account.',
+    routePrefix: '/admin/children',
+  },
+  parent: {
+    emptyDetail: 'Ask the Head of Centre to link your child to this account.',
+    routePrefix: '/parent/children',
+  },
+  supervisor: {
+    emptyDetail: 'Ask the Head of Centre to link children to this account.',
+    routePrefix: '/supervisor/children',
+  },
+} as const satisfies Record<
+  ParentChildrenListVariant,
+  { emptyDetail: string; routePrefix: string }
+>;
 
 const columns: readonly DataTableColumn<ChildRow>[] = [
   {
@@ -45,9 +64,7 @@ const columns: readonly DataTableColumn<ChildRow>[] = [
   },
 ];
 
-function linkedChildColumns(
-  detailPathFor: (studentId: string) => string,
-): readonly DataTableColumn<ChildRow>[] {
+function linkedChildColumns(routePrefix: string): readonly DataTableColumn<ChildRow>[] {
   return columns.map((column) => {
     if (column.id !== 'actions') return column;
     return {
@@ -55,7 +72,7 @@ function linkedChildColumns(
       render: (student: ChildRow) => (
         <Link
           className="button button--secondary button--sm"
-          href={{ pathname: detailPathFor(student.id) }}
+          href={{ pathname: `${routePrefix}/${student.id}` }}
         >
           View
         </Link>
@@ -65,14 +82,11 @@ function linkedChildColumns(
 }
 
 interface ParentChildrenListProps {
-  detailPathFor?: ((studentId: string) => string) | undefined;
-  emptyDetail?: string | undefined;
+  variant?: ParentChildrenListVariant | undefined;
 }
 
-export function ParentChildrenList({
-  detailPathFor = (studentId) => `/parent/children/${studentId}`,
-  emptyDetail = 'Ask the Head of Centre to link your child to this account.',
-}: ParentChildrenListProps) {
+export function ParentChildrenList({ variant = 'parent' }: ParentChildrenListProps) {
+  const config = CHILDREN_LIST_CONFIG[variant];
   const childrenQuery = api.childLog.listAccessibleStudents.useQuery(
     { linkedOnly: true },
     { retry: false },
@@ -82,8 +96,8 @@ export function ParentChildrenList({
   return (
     <div className="panel panel--scroll">
       <DataTable
-        columns={linkedChildColumns(detailPathFor)}
-        empty={<EmptyState detail={emptyDetail} title="No linked children found" />}
+        columns={linkedChildColumns(config.routePrefix)}
+        empty={<EmptyState detail={config.emptyDetail} title="No linked children found" />}
         errorMessage={childrenQuery.error?.message}
         getRowKey={(student) => student.id}
         loading={childrenQuery.isLoading}

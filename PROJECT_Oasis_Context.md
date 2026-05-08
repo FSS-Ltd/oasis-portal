@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** Production Technical Support access fix.
+**Phase:** Production client component serialization hotfix.
 
 ---
 
@@ -18,7 +18,42 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Production Technical Support access fix
+## Current status - Production client component serialization hotfix
+
+Working branch: `fix/remove-client-function-prop`.
+
+**PR scope:** Fix the production Next.js Server Component serialization error
+caused by passing a `detailPathFor` function from admin/supervisor children
+server pages into the client `ParentChildrenList` component.
+
+Changed scope:
+
+- Replaced `ParentChildrenList` function props with a serializable
+  `variant` prop.
+- Moved role-specific child detail route prefixes and empty-state copy into the
+  client component config.
+- Updated admin and supervisor children pages to pass only string variants.
+
+Verification:
+
+- `rg -n "detailPathFor" apps/web/src` - pass, no matches.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm exec prettier --check 'apps/web/src/app/(parent)/parent/parent-children-list.tsx' 'apps/web/src/app/(admin)/admin/children/page.tsx' 'apps/web/src/app/(supervisor)/supervisor/children/page.tsx'` -
+  pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass, no tracked graph output changed.
+
+Notes:
+
+- GitHub deployment metadata only exposed older Vercel bot records, so the
+  current production SHA was not reliable from that source. The failing
+  `detailPathFor` server-to-client function prop was confirmed on local
+  `main` before branching.
+- Existing untracked `docs/decks/` files remain untouched.
+
+## Previous status - Production Technical Support access fix
 
 Working branch: `fix/prod-technical-support-access`.
 
