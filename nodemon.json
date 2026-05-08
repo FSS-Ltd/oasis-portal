@@ -1,0 +1,29 @@
+{
+  "delay": "750",
+  "exec": "pnpm dev",
+  "ext": "ts,tsx,js,jsx,mjs,cjs,json,prisma",
+  "ignore": [
+    "**/.next/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "apps/mobile/.expo/**",
+    "graphify-out/**"
+  ],
+  "signal": "SIGTERM",
+  "watch": [
+    ".env.local",
+    "apps/api/src",
+    "package.json",
+    "packages/db/prisma",
+    "packages/db/src",
+    "packages/domain/src",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.base.json",
+    "turbo.json"
+  ]
+}

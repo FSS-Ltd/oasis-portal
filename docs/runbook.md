@@ -25,6 +25,7 @@ pnpm install
 pnpm --filter @oasis/db generate      # Prisma client
 pnpm db:dev:setup                     # start Docker Postgres, migrate, seed
 pnpm dev                              # turbo dev across apps
+pnpm dev:watch                        # nodemon wrapper for backend/shared restarts
 ```
 
 Local Docker provides two Postgres roles:

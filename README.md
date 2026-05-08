@@ -33,6 +33,7 @@ pnpm db:generate                     # prisma generate
 pnpm db:migrate                      # prisma migrate dev
 pnpm db:seed                         # seed subjects, test users
 pnpm dev                             # runs web + api, mobile runs separately
+pnpm dev:watch                       # nodemon wrapper for backend/shared restarts
 ```
 
 Mobile:
