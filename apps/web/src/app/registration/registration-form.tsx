@@ -17,8 +17,10 @@ import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { api } from '@/lib/trpc';
 import {
-  blankRegistrationValues,
   blankStudent,
+  clearRegistrationDraftValues,
+  loadRegistrationDraftValues,
+  saveRegistrationDraftValues,
   todayDateInput,
   type RegistrationFormValues,
 } from './registration-form-model';
@@ -142,6 +144,7 @@ export function RegistrationForm() {
   const statusQuery = api.registration.status.useQuery(undefined, { retry: false });
   const submitRegistration = api.registration.submitInitial.useMutation({
     async onSuccess() {
+      clearRegistrationDraftValues();
       await Promise.all([
         utils.registration.status.invalidate(),
         utils.childLog.listAccessibleStudents.invalidate(),
@@ -157,8 +160,9 @@ export function RegistrationForm() {
     handleSubmit,
     register,
     setError,
+    watch,
   } = useForm<RegistrationFormValues>({
-    defaultValues: blankRegistrationValues(),
+    defaultValues: loadRegistrationDraftValues(),
   });
 
   const guardianContacts = useFieldArray({ control, name: 'guardianContacts' });
@@ -174,6 +178,15 @@ export function RegistrationForm() {
       router.replace('/parent');
     }
   }, [router, statusQuery.data]);
+
+  useEffect(() => {
+    const subscription = watch((values) => {
+      saveRegistrationDraftValues(values);
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [watch]);
 
   if (statusQuery.isLoading) {
     return <div className="empty-state">Loading registration...</div>;
@@ -217,6 +230,7 @@ export function RegistrationForm() {
           <div className="section-title">
             <SectionLabel>Household</SectionLabel>
           </div>
+          <p className="registration-draft-note">Draft saved on this device.</p>
           <Field error={errors.homeAddress?.message} label="Home address" required>
             <TextInput autoComplete="street-address" {...register('homeAddress')} />
           </Field>

@@ -63,6 +63,13 @@
   color: var(--oasis-blue);
 }
 
+.registration-draft-note {
+  margin: 0;
+  color: var(--oasis-text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 .registration-subsection {
   display: grid;
   gap: 14px;
