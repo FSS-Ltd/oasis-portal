@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-07
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.12 mobile supervisor workflow smoke.
+**Phase:** PR-2.5.6 individual attendance history.
 
 ---
 
@@ -17,6 +17,44 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - PR-2.5.6 individual attendance history
+
+Working branch: `feat/phase-2.5-pr2.5.6-individual-attendance-history`.
+
+**PR scope:** Add individual student and staff attendance history to People &
+Profiles, reusing the PR-2.5.5 scoped CSV export contracts and keeping parent
+profile surfaces unchanged.
+
+Changed scope:
+
+- Added `attendance.studentHistory` and `attendance.staffHistory` tRPC queries
+  with date-range validation and `canExportAttendance` enforcement.
+- Kept archived student and inactive staff historical attendance queryable for
+  export-authorised users.
+- Added Attendance tabs to student and supervisor/staff profiles with date
+  filters, empty states, refresh controls, and scoped CSV export actions.
+- Clarified the history UI so filters are labelled as attendance-date filters
+  and the recorded timestamp is shown as the entry date.
+- Changed the initial attendance history range to today-to-today so first load
+  does not show the previous 30 days before a user widens the range.
+- Kept parent profiles free of attendance history and export controls.
+- Marked PR-2.5.5 merged and PR-2.5.6 ready for review in the Phase 2.5 plan.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts` - pass, 210
+  tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm typecheck` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
 
 ## Current status - PR-2.12 mobile supervisor workflow smoke
 

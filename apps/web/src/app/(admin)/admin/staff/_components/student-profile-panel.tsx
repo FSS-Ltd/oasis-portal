@@ -6,6 +6,7 @@ import { ExternalLink, GraduationCap } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { Avatar } from '@/components/ui/avatar';
 import { EmptyState } from '@/components/ui/empty-state';
+import { StudentAttendanceHistoryPanel } from './attendance-history-panel';
 import {
   formatDate,
   studentTabs,
@@ -126,6 +127,10 @@ export function StudentProfilePanel({ student }: { student: StudentRow }) {
             </div>
           </div>
         </section>
+      ) : null}
+
+      {activeTab === 'attendance' ? (
+        <StudentAttendanceHistoryPanel studentId={student.id} />
       ) : null}
     </div>
   );

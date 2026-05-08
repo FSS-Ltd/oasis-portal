@@ -50,6 +50,7 @@ const studentUser: SessionUser = {
 const activeStudentId = 'ctx-student';
 const secondStudentId = 'ckstudent000000000000002';
 const inactiveStudentId = 'ckstudent000000000000003';
+const inactiveStaffUserId = 'ckuserinactive000000001';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 
@@ -192,6 +193,13 @@ function makeFakeDb() {
       role: 'Parent',
       active: true,
     },
+    {
+      id: inactiveStaffUserId,
+      fullNameEnc: 'enc:Inactive Supervisor',
+      emailEnc: 'enc:inactive@example.test',
+      role: 'Supervisor',
+      active: false,
+    },
   ];
   const attendance: StoredAttendance[] = [];
   const staffAttendance: StoredStaffAttendance[] = [];
@@ -325,17 +333,41 @@ function makeFakeDb() {
           ),
       ),
       findMany: vi.fn(
-        ({ where }: { where: { date: { gte: Date; lte: Date }; studentId?: string } }) =>
-        Promise.resolve(
-          attendance
+        ({
+          orderBy,
+          select,
+          where,
+        }: {
+          orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+          select?: { id?: true };
+          where: { date: { gte: Date; lte: Date }; studentId?: string };
+        }) => {
+          const sortDirection = orderBy?.[0]?.date === 'desc' ? -1 : 1;
+          const rows = attendance
             .filter(
               (row) =>
                 row.date.getTime() >= where.date.gte.getTime() &&
                 row.date.getTime() <= where.date.lte.getTime(),
             )
             .filter((row) => where.studentId === undefined || row.studentId === where.studentId)
-            .sort((a, b) => a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime())
-            .map((row) => {
+            .sort(
+              (a, b) =>
+                (a.date.getTime() - b.date.getTime() ||
+                  a.createdAt.getTime() - b.createdAt.getTime()) * sortDirection,
+            );
+          if (select?.id) {
+            return Promise.resolve(
+              rows.map((row) => ({
+                id: row.id,
+                date: row.date,
+                status: row.status,
+                recordedById: row.recordedById,
+                createdAt: row.createdAt,
+              })),
+            );
+          }
+          return Promise.resolve(
+            rows.map((row) => {
               const student = students.find((candidate) => candidate.id === row.studentId);
               if (!student) throw new Error('test student missing');
               return {
@@ -349,7 +381,8 @@ function makeFakeDb() {
                 },
               };
             }),
-        ),
+          );
+        },
       ),
     },
     staffAttendance: {
@@ -383,9 +416,17 @@ function makeFakeDb() {
           ),
       ),
       findMany: vi.fn(
-        ({ where }: { where: { date: { gte: Date; lte: Date }; staffUserId?: string } }) =>
-        Promise.resolve(
-          staffAttendance
+        ({
+          orderBy,
+          select,
+          where,
+        }: {
+          orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+          select?: { id?: true };
+          where: { date: { gte: Date; lte: Date }; staffUserId?: string };
+        }) => {
+          const sortDirection = orderBy?.[0]?.date === 'desc' ? -1 : 1;
+          const rows = staffAttendance
             .filter(
               (row) =>
                 row.date.getTime() >= where.date.gte.getTime() &&
@@ -394,9 +435,22 @@ function makeFakeDb() {
             .filter((row) => where.staffUserId === undefined || row.staffUserId === where.staffUserId)
             .sort(
               (a, b) =>
-                a.date.getTime() - b.date.getTime() || a.createdAt.getTime() - b.createdAt.getTime(),
-            )
-            .map((row) => {
+                (a.date.getTime() - b.date.getTime() ||
+                  a.createdAt.getTime() - b.createdAt.getTime()) * sortDirection,
+            );
+          if (select?.id) {
+            return Promise.resolve(
+              rows.map((row) => ({
+                id: row.id,
+                date: row.date,
+                status: row.status,
+                recordedById: row.recordedById,
+                createdAt: row.createdAt,
+              })),
+            );
+          }
+          return Promise.resolve(
+            rows.map((row) => {
               const staffUser = users.find((candidate) => candidate.id === row.staffUserId);
               if (!staffUser) throw new Error('test staff user missing');
               return {
@@ -411,7 +465,8 @@ function makeFakeDb() {
                 },
               };
             }),
-        ),
+          );
+        },
       ),
     },
     yearGroupBand: {
@@ -699,6 +754,14 @@ describe('attendance.listExportOptions', () => {
           role: 'Supervisor',
           active: true,
         },
+        {
+          id: inactiveStaffUserId,
+          label: 'Inactive Supervisor · Supervisor · Inactive',
+          name: 'Inactive Supervisor',
+          email: 'inactive@example.test',
+          role: 'Supervisor',
+          active: false,
+        },
       ],
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -714,7 +777,7 @@ describe('attendance.listExportOptions', () => {
         userId: attendanceExporterUser.id,
         action: 'DecryptPii',
         entity: 'User',
-        meta: { count: 3, source: 'attendance.listExportOptions' },
+        meta: { count: 4, source: 'attendance.listExportOptions' },
       },
     });
   });
@@ -878,6 +941,149 @@ describe('attendance.exportStudentsCsv', () => {
   });
 });
 
+describe('attendance.studentHistory', () => {
+  it('returns selected student history for export-authorised users including archived students', async () => {
+    const { attendance, db } = makeFakeDb();
+    attendance.push({
+      id: 'ckattendanceinactive000001',
+      studentId: inactiveStudentId,
+      date: day('2026-04-27'),
+      status: 'Present',
+      recordedById: headUser.id,
+      createdAt: new Date('2026-04-27T09:00:00.000Z'),
+    });
+    const headCaller = makeCaller(headUser, db);
+    await headCaller.attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-28'),
+      status: 'Absent',
+    });
+    await headCaller.attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+
+    await expect(
+      headCaller.attendance.studentHistory({
+        studentId: activeStudentId,
+        from: day('2026-04-28'),
+        to: day('2026-04-29'),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'ckattendance000000000003',
+        date: '2026-04-29',
+        status: 'Late',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-04-29T10:02:00.000Z'),
+      },
+      {
+        id: 'ckattendance000000000002',
+        date: '2026-04-28',
+        status: 'Absent',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-04-29T10:01:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      makeCaller(attendanceExporterUser, db).attendance.studentHistory({
+        studentId: inactiveStudentId,
+        from: day('2026-04-27'),
+        to: day('2026-04-27'),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'ckattendanceinactive000001',
+        date: '2026-04-27',
+        status: 'Present',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-04-27T09:00:00.000Z'),
+      },
+    ]);
+  });
+
+  it('filters student history by attendance date, not recorded timestamp', async () => {
+    const { attendance, db } = makeFakeDb();
+    attendance.push(
+      {
+        id: 'ckattendanceattended001',
+        studentId: activeStudentId,
+        date: day('2026-04-17'),
+        status: 'Present',
+        recordedById: headUser.id,
+        createdAt: new Date('2026-05-07T09:00:00.000Z'),
+      },
+      {
+        id: 'ckattendancerecorded001',
+        studentId: activeStudentId,
+        date: day('2026-05-07'),
+        status: 'Late',
+        recordedById: headUser.id,
+        createdAt: new Date('2026-04-17T09:00:00.000Z'),
+      },
+    );
+
+    await expect(
+      makeCaller(headUser, db).attendance.studentHistory({
+        studentId: activeStudentId,
+        from: day('2026-04-17'),
+        to: day('2026-04-17'),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'ckattendanceattended001',
+        date: '2026-04-17',
+        status: 'Present',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-05-07T09:00:00.000Z'),
+      },
+    ]);
+  });
+
+  it('denies unauthorised users, audits denied calls, and rejects invalid ranges', async () => {
+    const { db } = makeFakeDb();
+    const input = {
+      studentId: activeStudentId,
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+    };
+
+    await expect(makeCaller(supervisorUser, db).attendance.studentHistory(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'PermissionDenied',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'student-history',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          studentId: activeStudentId,
+          role: 'Supervisor',
+          reason: 'Access denied: attendance export requires full-admin or attendance-exporter',
+        },
+      },
+    });
+    await expect(makeCaller(parentUser, db).attendance.studentHistory(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(makeCaller(studentUser, db).attendance.studentHistory(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      makeCaller(headUser, db).attendance.studentHistory({
+        studentId: activeStudentId,
+        from: day('2026-04-29'),
+        to: day('2026-04-28'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+});
+
 describe('attendance.markStaff', () => {
   it('upserts staff attendance by staff/date and audits create then update', async () => {
     const { db, staffAttendance } = makeFakeDb();
@@ -960,6 +1166,149 @@ describe('attendance.markStaff', () => {
       code: 'BAD_REQUEST',
       message: 'user is not an active supervisor',
     });
+  });
+});
+
+describe('attendance.staffHistory', () => {
+  it('returns selected staff history for export-authorised users including inactive staff', async () => {
+    const { db, staffAttendance } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await headCaller.attendance.markStaff({
+      staffUserId: supervisorUser.id,
+      date: day('2026-04-28'),
+      status: 'Absent',
+    });
+    await headCaller.attendance.markStaff({
+      staffUserId: supervisorUser.id,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+    staffAttendance.push({
+      id: 'ckstaffattendanceinactive01',
+      staffUserId: inactiveStaffUserId,
+      date: day('2026-04-27'),
+      status: 'Present',
+      recordedById: headUser.id,
+      createdAt: new Date('2026-04-27T09:00:00.000Z'),
+    });
+
+    await expect(
+      headCaller.attendance.staffHistory({
+        staffUserId: supervisorUser.id,
+        from: day('2026-04-28'),
+        to: day('2026-04-29'),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'ckstaffattendance00000002',
+        date: '2026-04-29',
+        status: 'Late',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-04-29T11:01:00.000Z'),
+      },
+      {
+        id: 'ckstaffattendance00000001',
+        date: '2026-04-28',
+        status: 'Absent',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-04-29T11:00:00.000Z'),
+      },
+    ]);
+
+    await expect(
+      makeCaller(attendanceExporterUser, db).attendance.staffHistory({
+        staffUserId: inactiveStaffUserId,
+        from: day('2026-04-27'),
+        to: day('2026-04-27'),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'ckstaffattendanceinactive01',
+        date: '2026-04-27',
+        status: 'Present',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-04-27T09:00:00.000Z'),
+      },
+    ]);
+  });
+
+  it('filters staff history by attendance date, not recorded timestamp', async () => {
+    const { db, staffAttendance } = makeFakeDb();
+    staffAttendance.push(
+      {
+        id: 'ckstaffattended001',
+        staffUserId: supervisorUser.id,
+        date: day('2026-04-17'),
+        status: 'Present',
+        recordedById: headUser.id,
+        createdAt: new Date('2026-05-07T09:00:00.000Z'),
+      },
+      {
+        id: 'ckstaffrecorded001',
+        staffUserId: supervisorUser.id,
+        date: day('2026-05-07'),
+        status: 'Late',
+        recordedById: headUser.id,
+        createdAt: new Date('2026-04-17T09:00:00.000Z'),
+      },
+    );
+
+    await expect(
+      makeCaller(headUser, db).attendance.staffHistory({
+        staffUserId: supervisorUser.id,
+        from: day('2026-04-17'),
+        to: day('2026-04-17'),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'ckstaffattended001',
+        date: '2026-04-17',
+        status: 'Present',
+        recordedById: headUser.id,
+        recordedAt: new Date('2026-05-07T09:00:00.000Z'),
+      },
+    ]);
+  });
+
+  it('denies unauthorised users, audits denied calls, and rejects invalid ranges', async () => {
+    const { db } = makeFakeDb();
+    const input = {
+      staffUserId: supervisorUser.id,
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+    };
+
+    await expect(makeCaller(supervisorUser, db).attendance.staffHistory(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'PermissionDenied',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'staff-history',
+          from: '2026-04-28',
+          to: '2026-04-29',
+          staffUserId: supervisorUser.id,
+          role: 'Supervisor',
+          reason: 'Access denied: attendance export requires full-admin or attendance-exporter',
+        },
+      },
+    });
+    await expect(makeCaller(parentUser, db).attendance.staffHistory(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(makeCaller(studentUser, db).attendance.staffHistory(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      makeCaller(headUser, db).attendance.staffHistory({
+        staffUserId: supervisorUser.id,
+        from: day('2026-04-29'),
+        to: day('2026-04-28'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });
 

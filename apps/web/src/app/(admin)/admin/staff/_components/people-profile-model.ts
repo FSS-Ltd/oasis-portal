@@ -5,8 +5,8 @@ export type UserRow = RouterOutputs['admin']['listUsers'][number];
 export type InvitationRow = RouterOutputs['admin']['listUserInvitations'][number];
 export type StudentRow = RouterOutputs['student']['list'][number];
 export type DirectoryFilter = 'all' | 'student' | 'supervisor' | 'parent';
-export type UserProfileTab = 'personal' | 'role' | 'contact' | 'children';
-export type StudentProfileTab = 'personal' | 'academic' | 'contact';
+export type UserProfileTab = 'personal' | 'role' | 'contact' | 'children' | 'attendance';
+export type StudentProfileTab = 'personal' | 'academic' | 'contact' | 'attendance';
 
 export type DirectoryItem =
   | {
@@ -46,6 +46,7 @@ export const userTabs = {
     { id: 'personal', label: 'Personal' },
     { id: 'role', label: 'Role & Access' },
     { id: 'contact', label: 'Contact' },
+    { id: 'attendance', label: 'Attendance' },
   ],
   parent: [
     { id: 'personal', label: 'Personal' },
@@ -61,6 +62,7 @@ export const studentTabs: readonly { id: StudentProfileTab; label: string }[] = 
   { id: 'personal', label: 'Personal' },
   { id: 'academic', label: 'Academic' },
   { id: 'contact', label: 'Contact' },
+  { id: 'attendance', label: 'Attendance' },
 ];
 
 export function formatDate(value: Date | string): string {

@@ -1,7 +1,7 @@
 # Phase 2.5 - People records + attendance exports: sprint & PR plan
 
-**Status:** Partially pre-built - remaining export/history work planned
-**Last updated:** 2026-05-06
+**Status:** Individual attendance history ready for review; PR-2.5.7 remains planned
+**Last updated:** 2026-05-07
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -165,7 +165,9 @@ Tests:
 Goal: give Head/full-admin and `attendance-exporter` users one reliable place to
 export student and staff attendance.
 
-### PR-2.5.5 - `feat(web): attendance export centre` PLANNED
+### PR-2.5.5 - `feat(web): attendance export centre` MERGED
+
+Merged via PR #71 on 2026-05-07.
 
 Scope:
 
@@ -196,7 +198,9 @@ Verification:
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
 
-### PR-2.5.6 - `feat(web): individual attendance history` PLANNED
+### PR-2.5.6 - `feat(web): individual attendance history` READY FOR REVIEW
+
+Working branch: `feat/phase-2.5-pr2.5.6-individual-attendance-history`.
 
 Scope:
 
@@ -207,6 +211,9 @@ Scope:
   pages.
 - Keep all PII decryption and audit patterns consistent with current
   student/staff/profile code.
+- Added focused `attendance.studentHistory` and `attendance.staffHistory`
+  queries for export-authorised users without changing existing CSV export
+  contracts.
 
 Tests:
 
@@ -215,13 +222,17 @@ Tests:
 - Parent detail does not render attendance history or export controls.
 - Scoped export buttons generate the same CSV shape as the export centre.
 - Archive/inactive state is represented without losing historical attendance.
+- API coverage confirms export-authorised access, denied direct calls, invalid
+  ranges, and archived/inactive historical rows.
 
 Verification:
 
 - `pnpm --filter @oasis/api test -- attendance.router.test.ts`
 - `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/api typecheck`
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
+- `graphify update .`
 
 ---
 
