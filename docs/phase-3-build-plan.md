@@ -185,24 +185,42 @@ Verification:
 Goal: create a staff announcement channel with read receipts before parent
 messaging expands the communication model.
 
-### PR-3.5 - `feat(api): staff notices and read receipts` PLANNED
+### PR-3.5 - `feat(api): staff notices and read receipts` READY FOR REVIEW
+
+Working branch: `feat/phase-3-pr3.5-staff-notices`.
 
 Scope:
 
 - Implement `notice.listForStaff`, `notice.post`, and `notice.markRead`.
 - Allow full-admin users to create active staff notices.
 - Allow full-admin and Supervisor users to read notices.
+- Added active/expiry filtering for staff notices; expired and inactive notices
+  are unavailable to list and read-receipt calls.
 - Record read receipts per user/notice and make `markRead` idempotent.
-- Encrypt notice body if the existing schema stores it as PII/sensitive text.
+- Encrypt notice body in `StaffNotice.bodyEnc`.
 - Audit post and read-receipt actions.
 
 Tests:
 
 - Full-admin can post notices; Supervisor cannot post.
-- Staff can list active notices.
-- Parent/Student/ClubsAdmin are denied unless later policy changes.
+- Staff can list active non-expired notices with caller read state.
+- Expired or inactive notices are excluded.
+- Parent/Student/ClubsAdmin/TechnicalSupport are denied unless later policy
+  changes.
 - `markRead` is idempotent and scoped to the caller.
 - Audit rows are written for post and read receipt.
+
+Verification:
+
+- `pnpm db:generate`
+- `pnpm --filter @oasis/api test -- notice.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm lint`
+- `pnpm typecheck`
+- `graphify update .`
+- `pnpm docs:component-map`
+- `git diff --check`
 
 ### PR-3.6 - `feat(web): staff noticeboard UI` PLANNED
 
