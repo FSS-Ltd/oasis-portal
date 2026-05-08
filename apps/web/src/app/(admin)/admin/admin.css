@@ -602,6 +602,176 @@
   align-items: start;
 }
 
+.parent-dashboard,
+.parent-dashboard-stack,
+.parent-child-dashboard {
+  display: grid;
+  gap: 22px;
+}
+
+.parent-dashboard-hero {
+  margin-bottom: 0;
+}
+
+.parent-child-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 18px;
+  align-items: center;
+  padding: 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--oasis-navy) 0%, var(--oasis-navy-light) 100%);
+  color: #ffffff;
+  box-shadow: 0 12px 32px rgba(27, 43, 94, 0.16);
+}
+
+.parent-child-hero__identity,
+.parent-child-hero__stats,
+.parent-profile-shortcut,
+.parent-linked-card,
+.parent-dashboard-row {
+  display: flex;
+  align-items: center;
+}
+
+.parent-child-hero__identity {
+  gap: 14px;
+  min-width: 0;
+}
+
+.parent-child-hero__avatar {
+  width: 56px;
+  height: 56px;
+  background: var(--oasis-blue);
+}
+
+.parent-child-hero h2,
+.parent-child-hero p {
+  margin: 0;
+}
+
+.parent-child-hero h2 {
+  color: #ffffff;
+  font-size: 1.32rem;
+  line-height: 1.15;
+}
+
+.parent-child-hero p,
+.parent-child-hero span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.8rem;
+}
+
+.parent-child-hero__stats {
+  gap: 10px;
+}
+
+.parent-child-hero__stats div {
+  min-width: 104px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  text-align: center;
+}
+
+.parent-child-hero__stats strong,
+.parent-child-hero__stats span {
+  display: block;
+}
+
+.parent-child-hero__stats strong {
+  color: #ffffff;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.parent-dashboard-metrics {
+  margin-bottom: 0;
+}
+
+.parent-dashboard-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.parent-dashboard-card {
+  display: grid;
+  gap: 14px;
+}
+
+.parent-dashboard-card h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.parent-dashboard-row {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.parent-profile-shortcut {
+  gap: 12px;
+}
+
+.parent-profile-shortcut > div {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.parent-profile-shortcut strong {
+  color: var(--oasis-navy);
+  font-size: 0.88rem;
+}
+
+.parent-profile-shortcut span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+}
+
+.parent-linked-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.parent-linked-card {
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+  color: inherit;
+  text-decoration: none;
+}
+
+.parent-linked-card span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.parent-linked-card strong {
+  overflow: hidden;
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parent-linked-card small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+}
+
 .supervisor-week-panel {
   grid-row: span 2;
 }
@@ -4116,6 +4286,9 @@
 
   .settings-grid,
   .head-dashboard-layout,
+  .parent-child-hero,
+  .parent-dashboard-panels,
+  .parent-linked-grid,
   .supervisor-dashboard-overview,
   .supervisor-layout,
   .supervisor-rota-grid,
@@ -4128,6 +4301,24 @@
   .student-detail-summary-grid,
   .student-merit-grid {
     grid-template-columns: 1fr;
+  }
+
+  .parent-child-hero {
+    align-items: stretch;
+  }
+
+  .parent-child-hero__identity,
+  .parent-child-hero__stats {
+    align-items: flex-start;
+  }
+
+  .parent-child-hero__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .parent-child-hero__stats div {
+    min-width: 0;
   }
 
   .student-detail-hero,

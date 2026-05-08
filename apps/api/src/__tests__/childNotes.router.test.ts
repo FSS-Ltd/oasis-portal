@@ -43,6 +43,12 @@ const unlinkedParentUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const studentUser: SessionUser = {
+  id: 'u_student',
+  role: 'Student',
+  tags: [],
+  requires2fa: false,
+};
 
 interface StoredChildNote {
   id: string;
@@ -55,7 +61,7 @@ interface StoredChildNote {
 }
 
 interface ChildNoteWhere {
-  studentId: string;
+  studentId: string | { in: string[] };
   sensitive?: boolean;
   createdAt?: { gte: Date; lt: Date };
 }
@@ -74,6 +80,11 @@ function day(value: string): Date {
 function decrypt(value: string | null | undefined): string | null {
   if (!value) return null;
   return value.replace(/^enc:/u, '');
+}
+
+function matchesStudentId(where: string | { in: string[] }, studentId: string): boolean {
+  if (typeof where === 'string') return where === studentId;
+  return where.in.includes(studentId);
 }
 
 function makeFakeDb() {
@@ -170,7 +181,7 @@ function makeFakeDb() {
       findMany: vi.fn(
         ({ where, include }: { where: ChildNoteWhere; include?: { createdBy?: unknown } }) => {
           const rows = notes.filter((note) => {
-            if (note.studentId !== where.studentId) return false;
+            if (!matchesStudentId(where.studentId, note.studentId)) return false;
             if (where.sensitive === false && note.sensitive) return false;
             if (where.createdAt) {
               return note.createdAt >= where.createdAt.gte && note.createdAt < where.createdAt.lt;
@@ -188,16 +199,39 @@ function makeFakeDb() {
       ),
     },
     attendance: {
-      findMany: vi.fn(() =>
-        Promise.resolve([
-          {
-            id: 'att_1',
-            date: day('2026-04-29'),
-            status: 'Late',
-            recordedById: headUser.id,
-            createdAt: day('2026-04-29'),
-          },
-        ]),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            studentId?: string | { in: string[] };
+            date?: { gte: Date; lt: Date };
+          };
+        } = {}) => {
+          const rows = [
+            {
+              id: 'att_1',
+              studentId: 'student_1',
+              date: day('2026-04-29'),
+              status: 'Late',
+              recordedById: headUser.id,
+              createdAt: day('2026-04-29'),
+            },
+          ];
+          return Promise.resolve(
+            rows
+              .filter(
+                (row) =>
+                  where?.studentId === undefined ||
+                  matchesStudentId(where.studentId, row.studentId),
+              )
+              .filter(
+                (row) =>
+                  where?.date === undefined ||
+                  (row.date >= where.date.gte && row.date < where.date.lt),
+              ),
+          );
+        },
       ),
     },
     pacePolicy: { findUnique: vi.fn(() => Promise.resolve({ passThreshold: 80 })) },
@@ -205,27 +239,52 @@ function makeFakeDb() {
       aggregate: vi.fn(() => Promise.resolve({ _sum: { delta: 17 } })),
       groupBy: vi.fn(() =>
         Promise.resolve([
-          { account: 'Spend', _sum: { delta: 10 } },
-          { account: 'Saving', _sum: { delta: 5 } },
-          { account: 'Investment', _sum: { delta: 2 } },
+          { studentId: 'student_1', account: 'Spend', _sum: { delta: 10 } },
+          { studentId: 'student_1', account: 'Saving', _sum: { delta: 5 } },
+          { studentId: 'student_1', account: 'Investment', _sum: { delta: 2 } },
         ]),
       ),
     },
     paceRecord: {
-      findMany: vi.fn(() =>
-        Promise.resolve([
-          {
-            id: 'pace_1',
-            subjectId: 'subject_1',
-            paceNumber: 1001,
-            paceTestScore: 90,
-            completedAt: day('2026-04-29'),
-            createdAt: day('2026-04-29'),
-            subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
-            recordedById: supervisorUser.id,
-            recordedBy: users.find((user) => user.id === supervisorUser.id),
-          },
-        ]),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            studentId?: string | { in: string[] };
+            completedAt?: { gte: Date; lt: Date };
+          };
+        } = {}) => {
+          const rows = [
+            {
+              id: 'pace_1',
+              studentId: 'student_1',
+              subjectId: 'subject_1',
+              paceNumber: 1001,
+              paceTestScore: 90,
+              selfTestScore: null,
+              completedAt: day('2026-04-29'),
+              createdAt: day('2026-04-29'),
+              subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+              recordedById: supervisorUser.id,
+              recordedBy: users.find((user) => user.id === supervisorUser.id),
+            },
+          ];
+          return Promise.resolve(
+            rows
+              .filter(
+                (row) =>
+                  where?.studentId === undefined ||
+                  matchesStudentId(where.studentId, row.studentId),
+              )
+              .filter(
+                (row) =>
+                  where?.completedAt === undefined ||
+                  (row.completedAt >= where.completedAt.gte &&
+                    row.completedAt < where.completedAt.lt),
+              ),
+          );
+        },
       ),
     },
     behaviourEntry: {
@@ -236,7 +295,7 @@ function makeFakeDb() {
           where?: {
             visibility?: 'General';
             createdAt?: { gte: Date; lt: Date };
-            studentId?: string;
+            studentId?: string | { in: string[] };
           };
         }) => {
           const rows = [
@@ -267,7 +326,11 @@ function makeFakeDb() {
           ];
           return Promise.resolve(
             rows
-              .filter((row) => where?.studentId === undefined || row.studentId === where.studentId)
+              .filter(
+                (row) =>
+                  where?.studentId === undefined ||
+                  matchesStudentId(where.studentId, row.studentId),
+              )
               .filter(
                 (row) => where?.visibility === undefined || row.visibility === where.visibility,
               )
@@ -395,6 +458,69 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(unlinkedParentUser, db).childLog.listAccessibleStudents(),
     ).resolves.toEqual([]);
+  });
+
+  it('returns a scoped parent dashboard for linked active children only', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Parent-visible note',
+      sensitive: false,
+    });
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Parent-hidden note',
+      sensitive: true,
+    });
+
+    const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
+
+    expect(dashboard.children).toHaveLength(1);
+    expect(dashboard.children[0]).toMatchObject({
+      student: { id: 'student_1', fullName: 'Jane Learner', active: true },
+      metrics: {
+        attendanceRate: 0,
+        pacesCompletedThisAcademicYear: 1,
+        totalMerits: 17,
+      },
+      attendance: [{ status: 'Late', date: '2026-04-29' }],
+      behaviour: [
+        {
+          type: 'Merit',
+          category: 'Focus',
+          note: 'Focused well',
+          meritDelta: 3,
+        },
+      ],
+      notes: [{ note: 'Parent-visible note' }],
+      pace: [{ subjectCode: 'MATH', score: 90, passed: true }],
+    });
+    expect(dashboard.children[0]?.behaviour).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ note: 'Sensitive behaviour' })]),
+    );
+    expect(dashboard.children[0]?.notes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ note: 'Parent-hidden note' })]),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: parentUser.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: 1, source: 'childLog.parentDashboard' },
+      },
+    });
+  });
+
+  it('returns an empty parent dashboard for unlinked parents and denies unsupported users', async () => {
+    const { db } = makeFakeDb();
+
+    const unlinkedDashboard = await makeCaller(unlinkedParentUser, db).childLog.parentDashboard();
+    expect(unlinkedDashboard.children).toEqual([]);
+    expect(typeof unlinkedDashboard.range.from).toBe('string');
+    expect(typeof unlinkedDashboard.range.to).toBe('string');
+    await expect(makeCaller(studentUser, db).childLog.parentDashboard()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 
   it('can limit full-admin child lists to linked children', async () => {
