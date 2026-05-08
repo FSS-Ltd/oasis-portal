@@ -47,23 +47,13 @@ function formatDate(value: Date | string): string {
   }).format(new Date(value));
 }
 
-function canUseAdminStudentPath(profile: Profile): boolean {
-  return (
-    profile.role === 'Head' ||
-    profile.role === 'Principal' ||
-    profile.role === 'Pastor' ||
-    profile.role === 'HeadOfDiscipline' ||
-    (profile.role === 'Supervisor' && profile.tags.includes('student-drillthrough-viewer'))
-  );
-}
-
 function isAdultProfile(profile: Profile): boolean {
   return ADULT_USER_ACCOUNT_ROLES.some((role) => role === profile.role);
 }
 
 function childDetailPath(profile: Profile, context: ChildDetailContext, studentId: string): string {
   if (context === 'supervisor') return `/supervisor/children/${studentId}`;
-  if (context === 'admin' && canUseAdminStudentPath(profile)) return `/admin/students/${studentId}`;
+  if (context === 'admin') return `/admin/children/${studentId}`;
   return `/parent/children/${studentId}`;
 }
 
