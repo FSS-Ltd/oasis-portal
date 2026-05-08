@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-07
+**Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-2.5.6 individual attendance history.
+**Phase:** PR-2.5.7 Phase 2.5 access and export verification.
 
 ---
 
@@ -18,7 +18,53 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-2.5.6 individual attendance history
+## Current status - PR-2.5.7 Phase 2.5 access and export verification
+
+Working branch: `test-phase-2.5-pr2.5.7-access-export-verification`.
+
+**PR scope:** Add verification coverage for Phase 2.5 People & Profiles,
+lifecycle, attendance export, audit, RLS, and encryption behavior without
+changing public APIs, schemas, routes, or UI behavior.
+
+Changed scope:
+
+- Added API coverage for attendance export invalid ranges, selected-student and
+  selected-staff denied-call audit metadata, selector denial for Supervisor,
+  Parent, and Student callers, and selected archived/inactive export rows.
+- Added lifecycle/access API coverage for People & Profiles full-admin-only
+  access, account deactivation/reactivation audit metadata, full-admin
+  self-deactivation denial, and archived student list/detail reads.
+- Added credential-gated Playwright coverage for People & Profiles attendance
+  tab boundaries and attendance export control visibility.
+- Marked PR-2.5.6 merged and PR-2.5.7 ready for review in the Phase 2.5 plan.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts admin.router.test.ts student.router.test.ts` -
+  pass, 218 tests.
+- `pnpm --filter @oasis/web test:e2e` - pass after sandbox escalation for the
+  local Next.js server; 2 passed, 13 credential-gated tests skipped.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm db:integration` - pass after sandbox escalation for `tsx` IPC/database
+  access.
+- `pnpm api:smoke-context-rls` - pass after sandbox escalation for `tsx`
+  IPC/database access.
+- `pnpm verify:encryption` - pass after sandbox escalation for `tsx`
+  IPC/database dump access.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- The requested `test/phase-2.5-pr2.5.7-access-export-verification` branch name
+  could not be created because local Git refs block the `test/` namespace, so
+  this work uses `test-phase-2.5-pr2.5.7-access-export-verification`.
+- Credentialed Playwright verification requires the relevant `E2E_*`
+  credentials; unauthenticated checks passed locally.
+
+## Previous status - PR-2.5.6 individual attendance history
 
 Working branch: `feat/phase-2.5-pr2.5.6-individual-attendance-history`.
 

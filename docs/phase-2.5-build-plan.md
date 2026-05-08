@@ -1,7 +1,7 @@
 # Phase 2.5 - People records + attendance exports: sprint & PR plan
 
-**Status:** Individual attendance history ready for review; PR-2.5.7 remains planned
-**Last updated:** 2026-05-07
+**Status:** Phase 2.5 verification ready for review
+**Last updated:** 2026-05-08
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -198,9 +198,9 @@ Verification:
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
 
-### PR-2.5.6 - `feat(web): individual attendance history` READY FOR REVIEW
+### PR-2.5.6 - `feat(web): individual attendance history` MERGED
 
-Working branch: `feat/phase-2.5-pr2.5.6-individual-attendance-history`.
+Merged via PR #72 on 2026-05-07.
 
 Scope:
 
@@ -240,19 +240,24 @@ Verification:
 
 Goal: close people/export work without weakening the security baseline.
 
-### PR-2.5.7 - `test: Phase 2.5 access and export verification` PLANNED
+### PR-2.5.7 - `test: Phase 2.5 access and export verification` READY FOR REVIEW
+
+Working branch: `test-phase-2.5-pr2.5.7-access-export-verification`.
 
 Scope:
 
-- Add focused Playwright coverage for People & Profiles, lifecycle actions, and
+- Added focused Playwright coverage for People & Profiles access boundaries and
   attendance export controls where seeded/credentialed state is available.
-- Add API tests for export selectors, direct-call denial, inactive/archived
-  handling, and audit metadata.
-- Re-run DB/RLS smoke and encryption dump verification.
-- Update this plan with merged status and carry-forward items.
+- Added API tests for export selectors, selected direct-call denial metadata,
+  invalid ranges, inactive/archived selected exports, lifecycle audit metadata,
+  self-deactivation denial, and archived student profile reads.
+- Re-ran DB/RLS smoke and encryption dump verification.
+- Carried forward no Phase 2.5 product work; this PR is verification-only.
 
 Verification:
 
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts admin.router.test.ts student.router.test.ts`
+- `pnpm --filter @oasis/web test:e2e`
 - `pnpm lint`
 - `pnpm typecheck`
 - `pnpm test`
@@ -260,7 +265,7 @@ Verification:
 - `pnpm db:integration`
 - `pnpm api:smoke-context-rls`
 - `pnpm verify:encryption`
-- Credentialed Playwright checks where local/preview credentials are available.
+- `graphify update .`
 
 ---
 
