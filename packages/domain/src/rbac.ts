@@ -41,6 +41,17 @@ const CHILD_REGISTRATION_PROMPT_ROLE_SET: ReadonlySet<Role> = new Set(
   CHILD_REGISTRATION_PROMPT_ROLES,
 );
 
+export const ADULT_USER_ACCOUNT_ROLES = [
+  'Head',
+  'Principal',
+  'Pastor',
+  'HeadOfDiscipline',
+  'TechnicalSupport',
+  'ClubsAdmin',
+  'Supervisor',
+  'Parent',
+] as const satisfies readonly Role[];
+
 export const CHILD_REGISTRATION_PROMPT_STATUSES = [
   'Unanswered',
   'NoChildren',

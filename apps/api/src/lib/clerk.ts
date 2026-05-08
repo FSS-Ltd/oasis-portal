@@ -28,6 +28,20 @@ export interface ClerkInvitationClient {
   revokeInvitation(invitationId: string): Promise<ClerkInvitationResult>;
 }
 
+export interface ClerkUserEmailUpdateInput {
+  clerkUserId: string;
+  email: string;
+}
+
+export interface ClerkUserEmailUpdateResult {
+  emailAddress: string;
+  emailAddressId: string;
+}
+
+export interface ClerkUserEmailClient {
+  updatePrimaryEmail(input: ClerkUserEmailUpdateInput): Promise<ClerkUserEmailUpdateResult>;
+}
+
 interface ClerkTokenPayload {
   sub?: unknown;
 }
@@ -117,6 +131,48 @@ export function createDefaultClerkInvitationClient(): ClerkInvitationClient {
     async revokeInvitation(invitationId) {
       const invitation = await client.invitations.revokeInvitation(invitationId);
       return mapInvitation(invitation);
+    },
+  };
+}
+
+export function createDefaultClerkUserEmailClient(): ClerkUserEmailClient {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('CLERK_SECRET_KEY is required to create the default Clerk user email client');
+  }
+  const client = createClerkClient({ secretKey });
+
+  return {
+    async updatePrimaryEmail(input) {
+      const email = input.email.trim().toLowerCase();
+      const user = await client.users.getUser(input.clerkUserId);
+      const existingEmailAddress = user.emailAddresses.find(
+        (candidate) => candidate.emailAddress.trim().toLowerCase() === email,
+      );
+      const emailAddress =
+        existingEmailAddress ??
+        (await client.emailAddresses.createEmailAddress({
+          userId: input.clerkUserId,
+          emailAddress: email,
+          verified: true,
+        }));
+
+      const verifiedEmailAddress =
+        emailAddress.verification?.status === 'verified'
+          ? emailAddress
+          : await client.emailAddresses.updateEmailAddress(emailAddress.id, { verified: true });
+
+      if (user.primaryEmailAddressId !== verifiedEmailAddress.id) {
+        await client.users.updateUser(input.clerkUserId, {
+          primaryEmailAddressID: verifiedEmailAddress.id,
+          notifyPrimaryEmailAddressChanged: true,
+        });
+      }
+
+      return {
+        emailAddress: verifiedEmailAddress.emailAddress,
+        emailAddressId: verifiedEmailAddress.id,
+      };
     },
   };
 }

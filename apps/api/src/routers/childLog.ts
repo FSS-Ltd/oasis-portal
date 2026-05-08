@@ -24,6 +24,8 @@ const studentListInclude = {
   },
 } as const;
 
+const listAccessibleStudentsInput = z.object({ linkedOnly: z.boolean().default(false) }).optional();
+
 const snapshotInput = z
   .object({
     studentId: z.string().min(1),
@@ -149,15 +151,36 @@ function mapStudentSummary(
 }
 
 export const childLogRouter = router({
-  listAccessibleStudents: authedProcedure.query(async ({ ctx }) => {
-    if (!canViewStudentDrillThrough(ctx.user)) {
-      await denyDrillThrough(ctx, { role: ctx.user.role, source: 'childLog.listAccessibleStudents' });
-    }
+  listAccessibleStudents: authedProcedure
+    .input(listAccessibleStudentsInput)
+    .query(async ({ ctx, input }) => {
+      if (!canViewStudentDrillThrough(ctx.user)) {
+        await denyDrillThrough(ctx, {
+          role: ctx.user.role,
+          source: 'childLog.listAccessibleStudents',
+        });
+      }
 
-    if (canViewAnyStudentDrillThrough(ctx.user)) {
-      const students = await ctx.db.student.findMany({
-        where: { active: true },
-        include: studentListInclude,
+      if (canViewAnyStudentDrillThrough(ctx.user) && !input?.linkedOnly) {
+        const students = await ctx.db.student.findMany({
+          where: { active: true },
+          include: studentListInclude,
+          orderBy: { createdAt: 'desc' },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'Student',
+            meta: { count: students.length, source: 'childLog.listAccessibleStudents' },
+          },
+        });
+        return students.map((student) => mapStudentSummary(ctx, student));
+      }
+
+      const guardians = await ctx.db.guardian.findMany({
+        where: { userId: ctx.user.id, student: { active: true } },
+        include: { student: { include: studentListInclude } },
         orderBy: { createdAt: 'desc' },
       });
       await ctx.db.auditLog.create({
@@ -165,233 +188,235 @@ export const childLogRouter = router({
           userId: ctx.user.id,
           action: 'DecryptPii',
           entity: 'Student',
-          meta: { count: students.length, source: 'childLog.listAccessibleStudents' },
+          meta: { count: guardians.length, source: 'childLog.listAccessibleStudents' },
         },
       });
-      return students.map((student) => mapStudentSummary(ctx, student));
-    }
+      return guardians.map((guardian) => mapStudentSummary(ctx, guardian.student));
+    }),
 
-    const guardians = await ctx.db.guardian.findMany({
-      where: { userId: ctx.user.id, student: { active: true } },
-      include: { student: { include: studentListInclude } },
-      orderBy: { createdAt: 'desc' },
-    });
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'DecryptPii',
-        entity: 'Student',
-        meta: { count: guardians.length, source: 'childLog.listAccessibleStudents' },
-      },
-    });
-    return guardians.map((guardian) => mapStudentSummary(ctx, guardian.student));
-  }),
+  drillThrough: authedProcedure
+    .input(z.object({ studentId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      await requireDrillThroughAccess(ctx, input.studentId);
 
-  drillThrough: authedProcedure.input(z.object({ studentId: z.string().min(1) })).query(async ({ ctx, input }) => {
-    await requireDrillThroughAccess(ctx, input.studentId);
+      const from = academicYearStart();
+      const to = dayEnd(new Date());
+      const canReadSensitiveBehaviour = canViewSensitiveStudentDrillThrough(ctx.user);
+      const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
 
-    const from = academicYearStart();
-    const to = dayEnd(new Date());
-    const canReadSensitiveBehaviour = canViewSensitiveStudentDrillThrough(ctx.user);
-    const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
+      const student = await ctx.db.student.findUnique({
+        where: { id: input.studentId },
+        include: studentListInclude,
+      });
+      if (!student) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+      }
+      if (!student.active && !isFullAdmin(ctx.user)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+      }
 
-    const student = await ctx.db.student.findUnique({
-      where: { id: input.studentId },
-      include: studentListInclude,
-    });
-    if (!student) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
-    }
-    if (!student.active && !isFullAdmin(ctx.user)) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
-    }
-
-    const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
-      ctx.db.attendance.findMany({
-        where: { studentId: input.studentId, date: { gte: from, lt: to } },
-        select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.db.paceRecord.findMany({
-        where: {
-          studentId: input.studentId,
-          completedAt: { gte: from, lt: to },
-          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
-        },
-        include: {
-          subject: { select: { id: true, code: true, name: true } },
-          recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
-        },
-        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.withRls((tx) =>
-        tx.behaviourEntry.findMany({
+      const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
+        ctx.db.attendance.findMany({
+          where: { studentId: input.studentId, date: { gte: from, lt: to } },
+          select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.db.paceRecord.findMany({
+          where: {
+            studentId: input.studentId,
+            completedAt: { gte: from, lt: to },
+            OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+          },
+          include: {
+            subject: { select: { id: true, code: true, name: true } },
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          },
+          orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.withRls((tx) =>
+          tx.behaviourEntry.findMany({
+            where: {
+              studentId: input.studentId,
+              createdAt: { gte: from, lt: to },
+              ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
+            },
+            include: {
+              recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+        ),
+        ctx.db.childNote.findMany({
           where: {
             studentId: input.studentId,
             createdAt: { gte: from, lt: to },
-            ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
+            ...(canReadSensitiveNotes ? {} : { sensitive: false }),
           },
           include: {
-            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+            createdBy: { select: { id: true, fullNameEnc: true, role: true } },
           },
           orderBy: { createdAt: 'desc' },
         }),
-      ),
-      ctx.db.childNote.findMany({
-        where: {
-          studentId: input.studentId,
-          createdAt: { gte: from, lt: to },
-          ...(canReadSensitiveNotes ? {} : { sensitive: false }),
-        },
-        include: {
-          createdBy: { select: { id: true, fullNameEnc: true, role: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      ctx.db.meritLedger.groupBy({
-        by: ['account'],
-        where: {
-          studentId: input.studentId,
-          account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
-        },
-        _sum: { delta: true },
-      }),
-      ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
-    ]);
+        ctx.db.meritLedger.groupBy({
+          by: ['account'],
+          where: {
+            studentId: input.studentId,
+            account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+          },
+          _sum: { delta: true },
+        }),
+        ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+      ]);
 
-    const balances = {
-      Spend: 0,
-      Saving: 0,
-      Investment: 0,
-    };
-    for (const row of meritBalances) {
-      if (row.account === 'Spend' || row.account === 'Saving' || row.account === 'Investment') {
-        balances[row.account] = row._sum.delta ?? 0;
+      const balances = {
+        Spend: 0,
+        Saving: 0,
+        Investment: 0,
+      };
+      for (const row of meritBalances) {
+        if (row.account === 'Spend' || row.account === 'Saving' || row.account === 'Investment') {
+          balances[row.account] = row._sum.delta ?? 0;
+        }
       }
-    }
 
-    const passThreshold = policy?.passThreshold ?? 80;
-    const pacesCompletedThisAcademicYear = paceTests.filter(
-      (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
-    ).length;
-    const presentDays = attendance.filter((row) => row.status === 'Present').length;
-    const recordedAttendanceDays = attendance.length;
-    const sensitiveBehaviourCount = behaviour.filter((entry) => entry.visibility === 'Sensitive').length;
-    const sensitiveNoteCount = notes.filter((note) => note.sensitive).length;
+      const passThreshold = policy?.passThreshold ?? 80;
+      const pacesCompletedThisAcademicYear = paceTests.filter(
+        (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
+      ).length;
+      const presentDays = attendance.filter((row) => row.status === 'Present').length;
+      const recordedAttendanceDays = attendance.length;
+      const sensitiveBehaviourCount = behaviour.filter(
+        (entry) => entry.visibility === 'Sensitive',
+      ).length;
+      const sensitiveNoteCount = notes.filter((note) => note.sensitive).length;
 
-    if (sensitiveBehaviourCount > 0) {
+      if (sensitiveBehaviourCount > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'ReadSensitive',
+            entity: 'BehaviourEntry',
+            meta: {
+              studentId: input.studentId,
+              count: sensitiveBehaviourCount,
+              source: 'childLog.drillThrough',
+            },
+          },
+        });
+      }
+
+      if (sensitiveNoteCount > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'ReadSensitive',
+            entity: 'ChildNote',
+            meta: {
+              studentId: input.studentId,
+              count: sensitiveNoteCount,
+              source: 'childLog.drillThrough',
+            },
+          },
+        });
+      }
+
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
-          action: 'ReadSensitive',
-          entity: 'BehaviourEntry',
+          action: 'DecryptPii',
+          entity: 'Student',
+          entityId: input.studentId,
           meta: {
-            studentId: input.studentId,
-            count: sensitiveBehaviourCount,
             source: 'childLog.drillThrough',
+            fields: [
+              'student.fullName',
+              'behaviour.recordedBy.fullName',
+              'pace.recordedBy.fullName',
+              'childNote.note',
+              'childNote.createdBy.fullName',
+            ],
+            behaviourCount: behaviour.length,
+            noteCount: notes.length,
+            paceCount: paceTests.length,
           },
         },
       });
-    }
 
-    if (sensitiveNoteCount > 0) {
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'ReadSensitive',
-          entity: 'ChildNote',
-          meta: {
-            studentId: input.studentId,
-            count: sensitiveNoteCount,
-            source: 'childLog.drillThrough',
-          },
+      return {
+        student: mapStudentSummary(ctx, student),
+        range: {
+          from: dateKey(from),
+          to: dateKey(new Date()),
         },
-      });
-    }
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'DecryptPii',
-        entity: 'Student',
-        entityId: input.studentId,
-        meta: {
-          source: 'childLog.drillThrough',
-          fields: [
-            'student.fullName',
-            'behaviour.recordedBy.fullName',
-            'pace.recordedBy.fullName',
-            'childNote.note',
-            'childNote.createdBy.fullName',
-          ],
-          behaviourCount: behaviour.length,
-          noteCount: notes.length,
-          paceCount: paceTests.length,
+        metrics: {
+          meritBalances: balances,
+          totalMerits: balances.Spend + balances.Saving + balances.Investment,
+          pacesCompletedThisAcademicYear,
+          attendanceRate: percentage(presentDays, recordedAttendanceDays),
+          presentDays,
+          recordedAttendanceDays,
         },
-      },
-    });
-
-    return {
-      student: mapStudentSummary(ctx, student),
-      range: {
-        from: dateKey(from),
-        to: dateKey(new Date()),
-      },
-      metrics: {
-        meritBalances: balances,
-        totalMerits: balances.Spend + balances.Saving + balances.Investment,
-        pacesCompletedThisAcademicYear,
-        attendanceRate: percentage(presentDays, recordedAttendanceDays),
-        presentDays,
-        recordedAttendanceDays,
-      },
-      attendance: attendance.map((row) => ({
-        id: row.id,
-        date: dateKey(row.date),
-        status: row.status,
-        recordedById: row.recordedById,
-        recordedAt: row.createdAt,
-      })),
-      behaviour: behaviour.map((entry) => ({
-        id: entry.id,
-        type: entry.type,
-        category: entry.category,
-        note: entry.noteEnc ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note') : null,
-        visibility: entry.visibility,
-        meritDelta: entry.meritDelta,
-        recordedById: entry.recordedById,
-        recordedByName: decryptRequired(ctx.db.$enc.decrypt, entry.recordedBy.fullNameEnc, 'user PII'),
-        recordedByRole: entry.recordedBy.role,
-        createdAt: entry.createdAt,
-      })),
-      pace: paceTests.map((record) => ({
-        id: record.id,
-        date: record.completedAt ? dateKey(record.completedAt) : dateKey(record.createdAt),
-        subjectId: record.subjectId,
-        subjectCode: record.subject.code,
-        subjectName: record.subject.name,
-        paceNumber: record.paceNumber,
-        score: record.paceTestScore ?? record.selfTestScore ?? 0,
-        maxScore: 100,
-        testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
-        passed: (record.paceTestScore ?? record.selfTestScore ?? 0) >= passThreshold,
-        recordedById: record.recordedById,
-        recordedByName: decryptRequired(ctx.db.$enc.decrypt, record.recordedBy.fullNameEnc, 'user PII'),
-        recordedByRole: record.recordedBy.role,
-        completedAt: record.completedAt,
-        createdAt: record.createdAt,
-      })),
-      notes: notes.map((note) => ({
-        id: note.id,
-        note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
-        sensitive: note.sensitive,
-        createdById: note.createdById,
-        createdByName: decryptRequired(ctx.db.$enc.decrypt, note.createdBy.fullNameEnc, 'user PII'),
-        createdByRole: note.createdBy.role,
-        createdAt: note.createdAt,
-      })),
-    };
-  }),
+        attendance: attendance.map((row) => ({
+          id: row.id,
+          date: dateKey(row.date),
+          status: row.status,
+          recordedById: row.recordedById,
+          recordedAt: row.createdAt,
+        })),
+        behaviour: behaviour.map((entry) => ({
+          id: entry.id,
+          type: entry.type,
+          category: entry.category,
+          note: entry.noteEnc
+            ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
+            : null,
+          visibility: entry.visibility,
+          meritDelta: entry.meritDelta,
+          recordedById: entry.recordedById,
+          recordedByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            entry.recordedBy.fullNameEnc,
+            'user PII',
+          ),
+          recordedByRole: entry.recordedBy.role,
+          createdAt: entry.createdAt,
+        })),
+        pace: paceTests.map((record) => ({
+          id: record.id,
+          date: record.completedAt ? dateKey(record.completedAt) : dateKey(record.createdAt),
+          subjectId: record.subjectId,
+          subjectCode: record.subject.code,
+          subjectName: record.subject.name,
+          paceNumber: record.paceNumber,
+          score: record.paceTestScore ?? record.selfTestScore ?? 0,
+          maxScore: 100,
+          testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
+          passed: (record.paceTestScore ?? record.selfTestScore ?? 0) >= passThreshold,
+          recordedById: record.recordedById,
+          recordedByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            record.recordedBy.fullNameEnc,
+            'user PII',
+          ),
+          recordedByRole: record.recordedBy.role,
+          completedAt: record.completedAt,
+          createdAt: record.createdAt,
+        })),
+        notes: notes.map((note) => ({
+          id: note.id,
+          note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
+          sensitive: note.sensitive,
+          createdById: note.createdById,
+          createdByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            note.createdBy.fullNameEnc,
+            'user PII',
+          ),
+          createdByRole: note.createdBy.role,
+          createdAt: note.createdAt,
+        })),
+      };
+    }),
 
   snapshot: authedProcedure.input(snapshotInput).query(async ({ ctx, input }) => {
     await requireSnapshotWorkflow(ctx);
@@ -476,7 +501,11 @@ export const childLogRouter = router({
           userId: ctx.user.id,
           action: 'ReadSensitive',
           entity: 'ChildNote',
-          meta: { studentId: input.studentId, count: sensitiveNoteCount, source: 'childLog.snapshot' },
+          meta: {
+            studentId: input.studentId,
+            count: sensitiveNoteCount,
+            source: 'childLog.snapshot',
+          },
         },
       });
     }
@@ -500,14 +529,17 @@ export const childLogRouter = router({
         id: student.id,
         fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII'),
         yearGroup: student.yearGroup,
-        supervisorName:
-          notes[0]?.createdBy.fullNameEnc
-            ? decryptRequired(ctx.db.$enc.decrypt, notes[0].createdBy.fullNameEnc, 'user PII')
-            : behaviour[0]?.recordedBy.fullNameEnc
-              ? decryptRequired(ctx.db.$enc.decrypt, behaviour[0].recordedBy.fullNameEnc, 'user PII')
-              : paceTests[0]?.recordedBy.fullNameEnc
-                ? decryptRequired(ctx.db.$enc.decrypt, paceTests[0].recordedBy.fullNameEnc, 'user PII')
-                : null,
+        supervisorName: notes[0]?.createdBy.fullNameEnc
+          ? decryptRequired(ctx.db.$enc.decrypt, notes[0].createdBy.fullNameEnc, 'user PII')
+          : behaviour[0]?.recordedBy.fullNameEnc
+            ? decryptRequired(ctx.db.$enc.decrypt, behaviour[0].recordedBy.fullNameEnc, 'user PII')
+            : paceTests[0]?.recordedBy.fullNameEnc
+              ? decryptRequired(
+                  ctx.db.$enc.decrypt,
+                  paceTests[0].recordedBy.fullNameEnc,
+                  'user PII',
+                )
+              : null,
         totalMerits: meritBalance._sum.delta ?? 0,
       },
       range: {
@@ -540,7 +572,11 @@ export const childLogRouter = router({
         maxScore: 100,
         testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
         recordedById: record.recordedById,
-        recordedByName: decryptRequired(ctx.db.$enc.decrypt, record.recordedBy.fullNameEnc, 'user PII'),
+        recordedByName: decryptRequired(
+          ctx.db.$enc.decrypt,
+          record.recordedBy.fullNameEnc,
+          'user PII',
+        ),
         recordedByRole: record.recordedBy.role,
         completedAt: record.completedAt,
         createdAt: record.createdAt,
@@ -549,11 +585,17 @@ export const childLogRouter = router({
         id: entry.id,
         type: entry.type,
         category: entry.category,
-        note: entry.noteEnc ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note') : null,
+        note: entry.noteEnc
+          ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
+          : null,
         visibility: entry.visibility,
         meritDelta: entry.meritDelta,
         recordedById: entry.recordedById,
-        recordedByName: decryptRequired(ctx.db.$enc.decrypt, entry.recordedBy.fullNameEnc, 'user PII'),
+        recordedByName: decryptRequired(
+          ctx.db.$enc.decrypt,
+          entry.recordedBy.fullNameEnc,
+          'user PII',
+        ),
         recordedByRole: entry.recordedBy.role,
         createdAt: entry.createdAt,
       })),

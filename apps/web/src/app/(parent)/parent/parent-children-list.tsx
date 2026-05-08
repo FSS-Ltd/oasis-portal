@@ -45,20 +45,45 @@ const columns: readonly DataTableColumn<ChildRow>[] = [
   },
 ];
 
-export function ParentChildrenList() {
-  const childrenQuery = api.childLog.listAccessibleStudents.useQuery(undefined, { retry: false });
+function linkedChildColumns(
+  detailPathFor: (studentId: string) => string,
+): readonly DataTableColumn<ChildRow>[] {
+  return columns.map((column) => {
+    if (column.id !== 'actions') return column;
+    return {
+      ...column,
+      render: (student: ChildRow) => (
+        <Link
+          className="button button--secondary button--sm"
+          href={{ pathname: detailPathFor(student.id) }}
+        >
+          View
+        </Link>
+      ),
+    };
+  });
+}
+
+interface ParentChildrenListProps {
+  detailPathFor?: ((studentId: string) => string) | undefined;
+  emptyDetail?: string | undefined;
+}
+
+export function ParentChildrenList({
+  detailPathFor = (studentId) => `/parent/children/${studentId}`,
+  emptyDetail = 'Ask the Head of Centre to link your child to this account.',
+}: ParentChildrenListProps) {
+  const childrenQuery = api.childLog.listAccessibleStudents.useQuery(
+    { linkedOnly: true },
+    { retry: false },
+  );
   const children = childrenQuery.data ?? [];
 
   return (
     <div className="panel panel--scroll">
       <DataTable
-        columns={columns}
-        empty={
-          <EmptyState
-            detail="Ask the Head of Centre to link your child to this account."
-            title="No linked children found"
-          />
-        }
+        columns={linkedChildColumns(detailPathFor)}
+        empty={<EmptyState detail={emptyDetail} title="No linked children found" />}
         errorMessage={childrenQuery.error?.message}
         getRowKey={(student) => student.id}
         loading={childrenQuery.isLoading}

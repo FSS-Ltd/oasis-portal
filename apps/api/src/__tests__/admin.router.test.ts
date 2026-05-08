@@ -4,7 +4,11 @@ import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { createAdminRouter } from '../routers/admin.js';
 import { router } from '../trpc.js';
-import type { ClerkInvitationClient, ClerkInvitationResult } from '../lib/clerk.js';
+import type {
+  ClerkInvitationClient,
+  ClerkInvitationResult,
+  ClerkUserEmailClient,
+} from '../lib/clerk.js';
 import type { EmailClient } from '../lib/email.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
@@ -58,6 +62,39 @@ function makeInvitationRow(
     emailStatus: 'NotSent',
     createdAt: new Date('2026-05-02T09:00:00.000Z'),
     updatedAt: new Date('2026-05-02T09:00:00.000Z'),
+    ...overrides,
+  };
+}
+
+function makeAdminUserRow(
+  overrides: Partial<{
+    active: boolean;
+    addressEnc: string | null;
+    createdAt: Date;
+    emailEnc: string;
+    fullNameEnc: string;
+    guardianOf: {
+      student: { id: string; fullNameEnc: string; yearGroup: string; active: boolean };
+    }[];
+    id: string;
+    phoneEnc: string | null;
+    role: SessionUser['role'];
+    tags: string[];
+    updatedAt: Date;
+  }> = {},
+) {
+  return {
+    id: 'u_sup',
+    role: 'Supervisor',
+    tags: ['attendance-exporter'],
+    fullNameEnc: 'enc:Sam Supervisor',
+    emailEnc: 'enc:sam@example.com',
+    phoneEnc: null,
+    addressEnc: null,
+    active: true,
+    createdAt: new Date('2026-04-29T09:00:00.000Z'),
+    updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+    guardianOf: [],
     ...overrides,
   };
 }
@@ -261,6 +298,14 @@ function makeFakeEmailClient(result = { id: 'email_123' }) {
   return { client, send };
 }
 
+function makeFakeUserEmailClient() {
+  const updatePrimaryEmail = vi.fn<ClerkUserEmailClient['updatePrimaryEmail']>((input) =>
+    Promise.resolve({ emailAddress: input.email, emailAddressId: 'email_new' }),
+  );
+  const client: ClerkUserEmailClient = { updatePrimaryEmail };
+  return { client, updatePrimaryEmail };
+}
+
 function makeCaller(
   user: SessionUser | null,
   deps: {
@@ -268,16 +313,19 @@ function makeCaller(
     clerk?: ReturnType<typeof makeFakeClerk>;
     db?: FakeDb;
     email?: ReturnType<typeof makeFakeEmailClient>;
+    userEmail?: ReturnType<typeof makeFakeUserEmailClient>;
   } = {},
 ) {
   const db = deps.db ?? makeFakeDb();
   const clerk = deps.clerk ?? makeFakeClerk();
   const email = deps.email ?? makeFakeEmailClient();
+  const userEmail = deps.userEmail ?? makeFakeUserEmailClient();
   const appRouter = router({
     admin: createAdminRouter({
       appUrl: deps.appUrl ?? TEST_APP_URL,
       clerk: clerk.client,
       emailClient: email.client,
+      userEmailClient: userEmail.client,
     }),
   });
   const ctx = makeCtx(user, db);
@@ -288,6 +336,7 @@ function makeCaller(
     findInvitation: clerk.findInvitation,
     revokeInvitation: clerk.revokeInvitation,
     sendEmail: email.send,
+    updatePrimaryEmail: userEmail.updatePrimaryEmail,
   };
 }
 
@@ -758,6 +807,123 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     });
   });
 
+  it('lets Head update a user email in Clerk and the local encrypted profile', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique
+      .mockResolvedValueOnce({
+        id: 'u_parent',
+        clerkId: 'clerk_parent',
+        emailEnc: 'enc:jane@example.com',
+      })
+      .mockResolvedValueOnce(null);
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({
+        id: 'u_parent',
+        role: 'Parent',
+        tags: [],
+        fullNameEnc: 'enc:Jane Parent',
+        emailEnc: 'enc:jane.new@example.com',
+      }),
+    );
+    const { caller, updatePrimaryEmail } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserProfile({
+        userId: 'u_parent',
+        email: ' Jane.New@Example.com ',
+      }),
+    ).resolves.toMatchObject({
+      id: 'u_parent',
+      email: 'jane.new@example.com',
+    });
+    expect(updatePrimaryEmail).toHaveBeenCalledWith({
+      clerkUserId: 'clerk_parent',
+      email: 'jane.new@example.com',
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_parent' },
+      data: {
+        emailEnc: 'enc:jane.new@example.com',
+        emailBidx: 'bidx:jane.new@example.com',
+      },
+      select: {
+        id: true,
+        role: true,
+        tags: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+        guardianOf: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            student: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                yearGroup: true,
+                active: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_parent',
+        meta: {
+          fields: ['emailBidx', 'emailEnc'],
+          source: 'admin.updateUserProfile',
+        },
+      },
+    });
+  });
+
+  it('blocks non-Head full admins from changing user email addresses', async () => {
+    const { caller, db, updatePrimaryEmail } = makeCaller(principalUser);
+
+    await expect(
+      caller.admin.updateUserProfile({ userId: 'u_parent', email: 'new@example.com' }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'only Head can change account email addresses',
+    });
+    expect(updatePrimaryEmail).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects Head email updates when another user already has the address', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique
+      .mockResolvedValueOnce({
+        id: 'u_parent',
+        clerkId: 'clerk_parent',
+        emailEnc: 'enc:jane@example.com',
+      })
+      .mockResolvedValueOnce({
+        id: 'u_other',
+        clerkId: 'clerk_other',
+        emailEnc: 'enc:other@example.com',
+      });
+    const { caller, updatePrimaryEmail } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserProfile({ userId: 'u_parent', email: 'other@example.com' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'email address is already in use',
+    });
+    expect(updatePrimaryEmail).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
   it('updates permission tags and writes an audit row', async () => {
     const db = makeFakeDb();
     db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: [] });
@@ -790,6 +956,167 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         meta: { tags: ['attendance-exporter', 'audit-viewer'], source: 'admin.updateUserTags' },
       },
     });
+  });
+
+  it('lets Head change another adult user role and preserves staff tags', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: ['attendance-exporter'],
+    });
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({
+        role: 'ClubsAdmin',
+        tags: ['attendance-exporter'],
+      }),
+    );
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'ClubsAdmin' }),
+    ).resolves.toMatchObject({
+      id: 'u_sup',
+      role: 'ClubsAdmin',
+      tags: ['attendance-exporter'],
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_sup' },
+      data: { role: 'ClubsAdmin', tags: ['attendance-exporter'] },
+      select: {
+        id: true,
+        role: true,
+        tags: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+        guardianOf: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            student: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                yearGroup: true,
+                active: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_sup',
+        meta: {
+          previousRole: 'Supervisor',
+          nextRole: 'ClubsAdmin',
+          clearedTags: [],
+          source: 'admin.updateUserRole',
+        },
+      },
+    });
+  });
+
+  it('clears permission tags when Head changes a user to Parent', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: ['attendance-exporter', 'audit-viewer'],
+    });
+    db.user.update.mockResolvedValue(makeAdminUserRow({ role: 'Parent', tags: [] }));
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'Parent' }),
+    ).resolves.toMatchObject({ id: 'u_sup', role: 'Parent', tags: [] });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { role: 'Parent', tags: [] },
+      }),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_sup',
+        meta: {
+          previousRole: 'Supervisor',
+          nextRole: 'Parent',
+          clearedTags: ['attendance-exporter', 'audit-viewer'],
+          source: 'admin.updateUserRole',
+        },
+      },
+    });
+  });
+
+  it('blocks self role changes before account lookup', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: headUser.id, role: 'Principal' }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'cannot change your own role',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects role changes from non-Head full-admin users', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(principalUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'Parent' }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'only Head can change user roles',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects Student as a role change target', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, { db });
+    // Network callers can still send invalid roles even though typed callers cannot.
+    const updateUserRoleFromNetwork = caller.admin.updateUserRole as unknown as (input: {
+      userId: string;
+      role: string;
+    }) => Promise<unknown>;
+
+    await expect(
+      updateUserRoleFromNetwork({ userId: 'u_sup', role: 'Student' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('returns NOT_FOUND when changing a missing user role', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue(null);
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_missing', role: 'Parent' }),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'user not found',
+    });
+    expect(db.user.update).not.toHaveBeenCalled();
   });
 
   it('limits student drill-through tag changes to Head', async () => {

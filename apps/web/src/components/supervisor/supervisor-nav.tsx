@@ -14,7 +14,7 @@ import {
 
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
-  { href: '/parent', label: 'My Children', icon: UsersRound, enabled: true },
+  { href: '/supervisor/children', label: 'My Children', icon: UsersRound, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },

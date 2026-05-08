@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { GraduationCap, UserPlus, UsersRound } from 'lucide-react';
-import { displaySchoolYearLabel } from '@oasis/domain';
+import { displaySchoolYearLabel, type Role } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { roleLabel } from '@/lib/profile-display';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -19,9 +19,13 @@ import {
 
 interface PeopleProfilesClientProps {
   currentUserId: string;
+  currentUserRole: Role;
 }
 
-export function PeopleProfilesClient({ currentUserId }: PeopleProfilesClientProps) {
+export function PeopleProfilesClient({
+  currentUserId,
+  currentUserRole,
+}: PeopleProfilesClientProps) {
   const [filter, setFilter] = useState<DirectoryFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState('');
@@ -157,6 +161,7 @@ export function PeopleProfilesClient({ currentUserId }: PeopleProfilesClientProp
           {selectedItem?.kind === 'parent' || selectedItem?.kind === 'supervisor' ? (
             <UserProfilePanel
               currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
               kind={selectedItem.kind}
               user={selectedItem.user}
             />

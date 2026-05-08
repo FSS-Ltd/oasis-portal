@@ -282,7 +282,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, guardians, notes };
+  return { db, guardians, notes, students };
 }
 
 function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>['db']): AppContext {
@@ -395,6 +395,35 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(unlinkedParentUser, db).childLog.listAccessibleStudents(),
     ).resolves.toEqual([]);
+  });
+
+  it('can limit full-admin child lists to linked children', async () => {
+    const { db, guardians, students } = makeFakeDb();
+    const linkedStudent = students[0];
+    if (!linkedStudent) throw new Error('test fixture missing linked student');
+    students.push({
+      id: 'student_2',
+      active: true,
+      fullNameEnc: 'enc:Unlinked Learner',
+      yearGroup: 'Year 7',
+      enrolmentDate: day('2024-09-01'),
+      createdAt: day('2024-09-01'),
+      subjects: [],
+    });
+    guardians.push({
+      id: 'guardian_head',
+      userId: headUser.id,
+      studentId: 'student_1',
+      student: linkedStudent,
+      createdAt: day('2024-09-01'),
+    });
+
+    await expect(makeCaller(headUser, db).childLog.listAccessibleStudents()).resolves.toHaveLength(
+      2,
+    );
+    await expect(
+      makeCaller(headUser, db).childLog.listAccessibleStudents({ linkedOnly: true }),
+    ).resolves.toMatchObject([{ id: 'student_1', fullName: 'Jane Learner' }]);
   });
 
   it('returns drill-through data and sensitive behaviour only to Head', async () => {

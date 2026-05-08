@@ -29,12 +29,18 @@ import {
   type PermissionTag,
   type Role,
   type SessionUser,
+  updateUserRoleInput,
   updatePacePolicyInput,
   updateSubjectInput,
   updateYearGroupBandInput,
 } from '@oasis/domain';
 import { fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
-import { createDefaultClerkInvitationClient, type ClerkInvitationClient } from '../lib/clerk.js';
+import {
+  createDefaultClerkInvitationClient,
+  createDefaultClerkUserEmailClient,
+  type ClerkInvitationClient,
+  type ClerkUserEmailClient,
+} from '../lib/clerk.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import type { AppContext } from '../context.js';
 
@@ -42,6 +48,7 @@ export interface AdminRouterDeps {
   appUrl?: string;
   clerk?: ClerkInvitationClient;
   emailClient?: EmailClient;
+  userEmailClient?: ClerkUserEmailClient;
 }
 
 const POST_SIGN_IN_PATH = '/post-sign-in';
@@ -72,10 +79,13 @@ const updateUserTagsInput = z.object({
 const updateUserProfileInput = z.object({
   userId: z.string().min(1),
   fullName: z.string().trim().min(1, 'Enter the user name').optional(),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address').optional(),
   phone: z.string().trim().max(50, 'Phone number is too long').nullable().optional(),
   address: z.string().trim().max(500, 'Address is too long').nullable().optional(),
 });
 type UpdateUserProfileInput = z.infer<typeof updateUserProfileInput>;
+
+const updateUserAccountProfileInput = updateUserProfileInput.omit({ email: true });
 
 const updateUserAccountStatusInput = z.object({
   userId: z.string().min(1),
@@ -310,6 +320,63 @@ function userProfileUpdateData(
   return { data, fields: Object.keys(data).sort() };
 }
 
+async function userEmailUpdateData(
+  ctx: {
+    db: {
+      $enc: {
+        blindIndex(value: string): string;
+        decrypt(value: string | null | undefined): string | null;
+        encrypt(value: string): string;
+      };
+      user: {
+        findUnique: (args: Prisma.UserFindUniqueArgs) => Promise<{
+          id: string;
+          clerkId: string;
+          emailEnc: string;
+        } | null>;
+      };
+    };
+  },
+  input: { targetUserId: string; email: string | undefined },
+  userEmailClient: ClerkUserEmailClient,
+): Promise<Pick<Prisma.UserUpdateInput, 'emailEnc' | 'emailBidx'>> {
+  if (input.email === undefined) return {};
+
+  const targetUser = await ctx.db.user.findUnique({
+    where: { id: input.targetUserId },
+    select: { id: true, clerkId: true, emailEnc: true },
+  });
+  if (!targetUser) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+  }
+
+  const currentEmail = decryptRequired(
+    (value) => ctx.db.$enc.decrypt(value),
+    targetUser.emailEnc,
+    'user PII',
+  );
+  if (currentEmail.trim().toLowerCase() === input.email) return {};
+
+  const emailBidx = ctx.db.$enc.blindIndex(input.email);
+  const existingEmailUser = await ctx.db.user.findUnique({
+    where: { emailBidx },
+    select: { id: true },
+  });
+  if (existingEmailUser && existingEmailUser.id !== input.targetUserId) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'email address is already in use' });
+  }
+
+  await userEmailClient.updatePrimaryEmail({
+    clerkUserId: targetUser.clerkId,
+    email: input.email,
+  });
+
+  return {
+    emailEnc: ctx.db.$enc.encrypt(input.email),
+    emailBidx,
+  };
+}
+
 function mapAdminUserProfile(
   ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
   user: AdminUserProfileRow,
@@ -395,6 +462,7 @@ async function assertUniqueBandName(
 export function createAdminRouter(deps: AdminRouterDeps = {}) {
   let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
   let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
+  let cachedUserEmailClient: ClerkUserEmailClient | null = deps.userEmailClient ?? null;
   const getClerk = (): ClerkInvitationClient => {
     if (cachedClerk) return cachedClerk;
     cachedClerk = createDefaultClerkInvitationClient();
@@ -404,6 +472,11 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     if (cachedEmailClient) return cachedEmailClient;
     cachedEmailClient = createResendEmailClient();
     return cachedEmailClient;
+  };
+  const getUserEmailClient = (): ClerkUserEmailClient => {
+    if (cachedUserEmailClient) return cachedUserEmailClient;
+    cachedUserEmailClient = createDefaultClerkUserEmailClient();
+    return cachedUserEmailClient;
   };
   const getInvitationRedirectUrl = (): string =>
     buildPostSignInRedirectUrl(deps.appUrl ?? process.env.APP_URL);
@@ -940,7 +1013,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     }),
 
     updateUserAccountProfile: userAccountAdminProcedure
-      .input(updateUserProfileInput)
+      .input(updateUserAccountProfileInput)
       .mutation(async ({ ctx, input }) => {
         const existingUser = await ctx.db.user.findUnique({
           where: { id: input.userId },
@@ -1052,7 +1125,25 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     updateUserProfile: fullAdminProcedure
       .input(updateUserProfileInput)
       .mutation(async ({ ctx, input }) => {
-        const { data, fields } = userProfileUpdateData(ctx, input);
+        const { data } = userProfileUpdateData(ctx, input);
+        if (input.email !== undefined) {
+          if (ctx.user.role !== 'Head') {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: 'only Head can change account email addresses',
+            });
+          }
+          Object.assign(
+            data,
+            await userEmailUpdateData(
+              ctx,
+              { targetUserId: input.userId, email: input.email },
+              getUserEmailClient(),
+            ),
+          );
+        }
+
+        const fields = Object.keys(data).sort();
         if (fields.length === 0) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'no user profile fields provided' });
         }
@@ -1071,6 +1162,64 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
               entity: 'User',
               entityId: user.id,
               meta: { fields, source: 'admin.updateUserProfile' },
+            },
+          });
+
+          return mapAdminUserProfile(ctx, user);
+        } catch (err) {
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+          }
+          throw err;
+        }
+      }),
+
+    updateUserRole: fullAdminProcedure
+      .input(updateUserRoleInput)
+      .mutation(async ({ ctx, input }) => {
+        if (ctx.user.role !== 'Head') {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'only Head can change user roles',
+          });
+        }
+        if (input.userId === ctx.user.id) {
+          throw new TRPCError({
+            code: 'FORBIDDEN',
+            message: 'cannot change your own role',
+          });
+        }
+
+        const existingUser = await ctx.db.user.findUnique({
+          where: { id: input.userId },
+          select: { id: true, role: true, tags: true },
+        });
+        if (!existingUser) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
+        }
+
+        const nextTags = input.role === 'Parent' ? [] : existingUser.tags;
+        const clearedTags = input.role === 'Parent' ? existingUser.tags : [];
+
+        try {
+          const user = await ctx.db.user.update({
+            where: { id: input.userId },
+            data: { role: input.role, tags: nextTags },
+            select: adminUserProfileSelect,
+          });
+
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'User',
+              entityId: user.id,
+              meta: {
+                previousRole: existingUser.role,
+                nextRole: user.role,
+                clearedTags,
+                source: 'admin.updateUserRole',
+              },
             },
           });
 

@@ -46,6 +46,7 @@ export const userTabs = {
     { id: 'personal', label: 'Personal' },
     { id: 'role', label: 'Role & Access' },
     { id: 'contact', label: 'Contact' },
+    { id: 'children', label: 'Children' },
     { id: 'attendance', label: 'Attendance' },
   ],
   parent: [
@@ -91,6 +92,7 @@ export function toggleTag(tags: readonly string[], tag: PermissionTag): Permissi
 export function userForm(user: UserRow) {
   return {
     fullName: user.fullName,
+    email: user.email,
     phone: user.phone ?? '',
     address: user.address ?? '',
   };

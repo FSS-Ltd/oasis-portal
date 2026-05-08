@@ -27,6 +27,7 @@ const tabs: readonly { id: ProfileTab; label: string }[] = [
 function profileForm(profile: Profile) {
   return {
     fullName: profile.fullName,
+    email: profile.email,
     phone: profile.phone ?? '',
     address: profile.address ?? '',
   };
@@ -44,7 +45,7 @@ export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
   const [activeTab, setActiveTab] = useState<ProfileTab>('account');
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [form, setForm] = useState({ fullName: '', phone: '', address: '' });
+  const [form, setForm] = useState({ fullName: '', email: '', phone: '', address: '' });
   const utils = api.useUtils();
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const updateProfile = api.profile.updateMe.useMutation({
@@ -77,13 +78,14 @@ export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
   }
 
   const profile = profileQuery.data;
-  const canSubmit = editing && form.fullName.trim().length > 0;
+  const canSubmit = editing && form.fullName.trim().length > 0 && form.email.trim().length > 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit) return;
     updateProfile.mutate({
       fullName: form.fullName,
+      email: form.email,
       phone: form.phone,
       address: form.address,
     });
@@ -170,7 +172,14 @@ export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
                 />
               </Field>
               <Field label="Account email">
-                <TextInput disabled type="email" value={profile.email} />
+                <TextInput
+                  disabled={!editing}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, email: event.target.value }));
+                  }}
+                  type="email"
+                  value={form.email}
+                />
               </Field>
               <Field label="Phone">
                 <TextInput
