@@ -109,6 +109,48 @@ describe('parentInitialRegistrationInput', () => {
     }
   });
 
+  it('normalises optional student fields from blank form values', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-08T10:30:00.000Z'));
+    try {
+      const payload = validPayload();
+      payload.students[0] = {
+        ...validStudent(),
+        gender: '',
+        yearGroup: '',
+        startDate: '' as unknown as Date,
+        allergies: '',
+      };
+
+      const parsed = parentInitialRegistrationInput.parse(payload);
+
+      expect(parsed.students[0]?.gender).toBeUndefined();
+      expect(parsed.students[0]?.yearGroup).toBe('Year 5');
+      expect(parsed.students[0]?.startDate).toEqual(new Date('2026-05-08T10:30:00.000Z'));
+      expect(parsed.students[0]?.allergies).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('asks for a year group when date of birth cannot map to one', () => {
+    const payload = validPayload();
+    payload.students[0] = {
+      ...validStudent(),
+      dob: new Date('2024-03-04T00:00:00.000Z'),
+      yearGroup: '',
+    };
+
+    const result = parentInitialRegistrationInput.safeParse(payload);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['students', 0, 'yearGroup']);
+      expect(result.error.issues[0]?.message).toBe(
+        'choose a year group or check the date of birth',
+      );
+    }
+  });
+
   it('restricts gender to Male or Female', () => {
     const payload = validPayload();
     payload.students[0] = {

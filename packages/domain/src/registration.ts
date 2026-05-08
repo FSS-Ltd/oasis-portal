@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { standardSchoolYearSchema } from './schoolYears.js';
+import { deriveEnglandWalesSchoolYear, standardSchoolYearSchema } from './schoolYears.js';
 
 export const REGISTRATION_CONSENT_TYPES = [
   'Contact',
@@ -31,9 +31,20 @@ const optionalText = (max = 2000) =>
     .transform((value) => (value && value.length > 0 ? value : undefined));
 
 const dateInput = z.coerce.date();
+const optionalDateInputWithTodayDefault = z
+  .preprocess((value) => (value === '' ? undefined : value), dateInput.optional())
+  .transform((value) => value ?? new Date());
 const notFutureDateInput = dateInput.refine((date) => date.getTime() <= Date.now(), {
   message: 'date cannot be in the future',
 });
+const optionalGenderInput = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.enum(REGISTRATION_GENDER_OPTIONS).optional(),
+);
+const optionalSchoolYearInput = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  standardSchoolYearSchema.optional(),
+);
 
 export const registrationGuardianContactInput = z
   .object({
@@ -105,9 +116,9 @@ export const registrationStudentInput = z
     fullName: requiredText(120),
     preferredName: optionalText(120),
     dob: notFutureDateInput,
-    gender: z.enum(REGISTRATION_GENDER_OPTIONS),
-    yearGroup: standardSchoolYearSchema,
-    startDate: dateInput,
+    gender: optionalGenderInput,
+    yearGroup: optionalSchoolYearInput,
+    startDate: optionalDateInputWithTodayDefault,
     homeLanguage: optionalText(120),
     studentNotes: optionalText(1000),
     allergies: optionalText(2000),
@@ -120,7 +131,23 @@ export const registrationStudentInput = z
     additionalInfo: optionalText(2000),
     consents: registrationConsentsInput,
   })
-  .strict();
+  .strict()
+  .superRefine((student, ctx) => {
+    if (student.yearGroup !== undefined) return;
+    try {
+      deriveEnglandWalesSchoolYear(student.dob);
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'choose a year group or check the date of birth',
+        path: ['yearGroup'],
+      });
+    }
+  })
+  .transform((student) => ({
+    ...student,
+    yearGroup: student.yearGroup ?? deriveEnglandWalesSchoolYear(student.dob),
+  }));
 export type RegistrationStudentInput = z.infer<typeof registrationStudentInput>;
 
 export const parentInitialRegistrationInput = z

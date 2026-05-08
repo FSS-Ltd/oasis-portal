@@ -4,6 +4,7 @@ import { Plus, Send, Trash2, UserRoundPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import { useFieldArray, useForm, type FieldPath } from 'react-hook-form';
+import type { ZodIssue } from 'zod';
 import {
   REGISTRATION_CONSENT_COPY,
   REGISTRATION_CONSENT_TYPES,
@@ -11,7 +12,6 @@ import {
   STANDARD_SCHOOL_YEARS,
   displaySchoolYearLabel,
   parentInitialRegistrationInput,
-  type ParentInitialRegistrationInput,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -26,15 +26,20 @@ import {
 function TextArea({
   label,
   error,
+  required = false,
   children,
 }: {
   label: string;
   error?: string | undefined;
+  required?: boolean | undefined;
   children: ReactNode;
 }) {
   return (
     <label className="field">
-      <span className="field__label">{label}</span>
+      <span className="field__label">
+        {label}
+        {required ? <span className="field__required">Required</span> : null}
+      </span>
       {children}
       {error ? <span className="field__error">{error}</span> : null}
     </label>
@@ -45,8 +50,8 @@ function formPath(value: string): FieldPath<RegistrationFormValues> {
   return value as FieldPath<RegistrationFormValues>;
 }
 
-function toPayload(values: RegistrationFormValues): ParentInitialRegistrationInput {
-  return parentInitialRegistrationInput.parse({
+function toPayloadInput(values: RegistrationFormValues): unknown {
+  return {
     ...values,
     guardianContacts: values.guardianContacts.map((contact) => ({
       ...contact,
@@ -55,20 +60,85 @@ function toPayload(values: RegistrationFormValues): ParentInitialRegistrationInp
     })),
     students: values.students.map((student) => ({
       ...student,
-      dob: new Date(student.dob),
-      startDate: new Date(student.startDate),
     })),
     agreement: {
       ...values.agreement,
-      agreementDate: new Date(values.agreement.agreementDate),
     },
-  });
+  };
+}
+
+function issuePath(issue: ZodIssue): string {
+  return issue.path.map(String).join('.');
+}
+
+function labelForIssue(issue: ZodIssue): string {
+  const path = issuePath(issue);
+  const last = String(issue.path.at(-1) ?? '');
+
+  if (path === 'homeAddress') return 'Enter the home address.';
+  if (path === 'agreement.guardianName') return 'Enter the parent or guardian name.';
+  if (path === 'agreement.agreementDate') return 'Choose a valid agreement date.';
+  if (last === 'fullName') return 'Enter the full name.';
+  if (last === 'relationship') return 'Enter the relationship.';
+  if (last === 'primaryPhone' || last === 'phone') return 'Enter a phone number.';
+  if (last === 'email') return 'Enter a valid email address.';
+  if (last === 'dob') return 'Choose a valid date of birth.';
+  if (last === 'yearGroup') return 'Choose a year group or check the date of birth.';
+  if (last === 'startDate') return 'Choose a valid start date.';
+  if (last === 'gender') return 'Choose Male or Female, or leave gender blank.';
+  if (last === 'initials') return 'Enter initials for this consent.';
+
+  return issue.message || 'Check this field.';
+}
+
+function sectionForIssue(issue: ZodIssue): string {
+  const [root, index] = issue.path;
+  if (root === 'homeAddress') return 'Household';
+  if (root === 'guardianContacts') return `Guardian ${String(Number(index) + 1)}`;
+  if (root === 'emergencyContacts') return `Emergency contact ${String(Number(index) + 1)}`;
+  if (root === 'pickupContacts') return `Pickup contact ${String(Number(index) + 1)}`;
+  if (root === 'students') return `Student ${String(Number(index) + 1)}`;
+  if (root === 'agreement') return 'Agreement';
+  return 'Registration form';
+}
+
+function uniqueSections(issues: ZodIssue[]): string[] {
+  return [...new Set(issues.map(sectionForIssue))];
+}
+
+function cleanSubmitErrorMessage(message: string): string {
+  if (message.includes('invalid_enum_value') || message.includes('String must contain')) {
+    return 'Registration could not be saved. Please finish the required fields and try again.';
+  }
+  return message;
+}
+
+function RequirementBadge({ optional = false }: { optional?: boolean | undefined }) {
+  return (
+    <span
+      className={
+        optional ? 'registration-badge registration-badge--optional' : 'registration-badge'
+      }
+    >
+      {optional ? 'Optional' : 'Required'}
+    </span>
+  );
+}
+
+function SectionLabel({ children, optional = false }: { children: ReactNode; optional?: boolean }) {
+  return (
+    <div className="registration-section-label">
+      <h2>{children}</h2>
+      <RequirementBadge optional={optional} />
+    </div>
+  );
 }
 
 export function RegistrationForm() {
   const router = useRouter();
   const utils = api.useUtils();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [incompleteSections, setIncompleteSections] = useState<string[]>([]);
   const statusQuery = api.registration.status.useQuery(undefined, { retry: false });
   const submitRegistration = api.registration.submitInitial.useMutation({
     async onSuccess() {
@@ -82,9 +152,11 @@ export function RegistrationForm() {
 
   const {
     control,
+    clearErrors,
     formState: { errors },
     handleSubmit,
     register,
+    setError,
   } = useForm<RegistrationFormValues>({
     defaultValues: blankRegistrationValues(),
   });
@@ -93,6 +165,9 @@ export function RegistrationForm() {
   const emergencyContacts = useFieldArray({ control, name: 'emergencyContacts' });
   const pickupContacts = useFieldArray({ control, name: 'pickupContacts' });
   const students = useFieldArray({ control, name: 'students' });
+  const submissionErrorMessage =
+    submitError ??
+    (submitRegistration.error ? cleanSubmitErrorMessage(submitRegistration.error.message) : null);
 
   useEffect(() => {
     if (statusQuery.data && !statusQuery.data.requiresRegistration) {
@@ -114,20 +189,35 @@ export function RegistrationForm() {
       onSubmit={(event) => {
         void handleSubmit((values) => {
           setSubmitError(null);
-          try {
-            submitRegistration.mutate(toPayload(values));
-          } catch (err) {
-            setSubmitError(err instanceof Error ? err.message : 'Registration could not be saved.');
+          setIncompleteSections([]);
+          clearErrors();
+          submitRegistration.reset();
+
+          const result = parentInitialRegistrationInput.safeParse(toPayloadInput(values));
+          if (!result.success) {
+            setIncompleteSections(uniqueSections(result.error.issues));
+            result.error.issues.forEach((issue, index) => {
+              const path = issuePath(issue);
+              if (path.length === 0) return;
+              setError(
+                formPath(path),
+                { message: labelForIssue(issue), type: 'validate' },
+                { shouldFocus: index === 0 },
+              );
+            });
+            return;
           }
+
+          submitRegistration.mutate(result.data);
         })(event);
       }}
     >
       <section className="panel">
         <div className="panel__body form-grid">
           <div className="section-title">
-            <h2>Household</h2>
+            <SectionLabel>Household</SectionLabel>
           </div>
-          <Field error={errors.homeAddress?.message} label="Home address">
+          <Field error={errors.homeAddress?.message} label="Home address" required>
             <TextInput autoComplete="street-address" {...register('homeAddress')} />
           </Field>
         </div>
@@ -136,7 +226,7 @@ export function RegistrationForm() {
       <section className="panel">
         <div className="panel__body form-grid">
           <div className="section-title registration-section-title">
-            <h2>Parent / guardian contacts</h2>
+            <SectionLabel>Parent / guardian contacts</SectionLabel>
             <Button
               disabled={guardianContacts.fields.length >= 2}
               onClick={() => {
@@ -179,6 +269,7 @@ export function RegistrationForm() {
                 <Field
                   error={errors.guardianContacts?.[index]?.fullName?.message}
                   label="Full name"
+                  required
                 >
                   <TextInput
                     autoComplete="name"
@@ -188,6 +279,7 @@ export function RegistrationForm() {
                 <Field
                   error={errors.guardianContacts?.[index]?.relationship?.message}
                   label="Relationship"
+                  required
                 >
                   <TextInput
                     {...register(formPath(`guardianContacts.${String(index)}.relationship`))}
@@ -196,6 +288,7 @@ export function RegistrationForm() {
                 <Field
                   error={errors.guardianContacts?.[index]?.primaryPhone?.message}
                   label="Primary phone"
+                  required
                 >
                   <TextInput
                     type="tel"
@@ -232,7 +325,7 @@ export function RegistrationForm() {
       <section className="panel">
         <div className="panel__body form-grid">
           <div className="section-title registration-section-title">
-            <h2>Emergency contacts</h2>
+            <SectionLabel>Emergency contacts</SectionLabel>
             <Button
               disabled={emergencyContacts.fields.length >= 2}
               onClick={() => {
@@ -274,6 +367,7 @@ export function RegistrationForm() {
                 <Field
                   error={errors.emergencyContacts?.[index]?.fullName?.message}
                   label="Full name"
+                  required
                 >
                   <TextInput
                     {...register(formPath(`emergencyContacts.${String(index)}.fullName`))}
@@ -282,6 +376,7 @@ export function RegistrationForm() {
                 <Field
                   error={errors.emergencyContacts?.[index]?.relationship?.message}
                   label="Relationship"
+                  required
                 >
                   <TextInput
                     {...register(formPath(`emergencyContacts.${String(index)}.relationship`))}
@@ -290,6 +385,7 @@ export function RegistrationForm() {
                 <Field
                   error={errors.emergencyContacts?.[index]?.primaryPhone?.message}
                   label="Primary phone"
+                  required
                 >
                   <TextInput
                     type="tel"
@@ -327,7 +423,7 @@ export function RegistrationForm() {
       <section className="panel">
         <div className="panel__body form-grid">
           <div className="section-title registration-section-title">
-            <h2>Authorised pickup</h2>
+            <SectionLabel optional>Authorised pickup</SectionLabel>
             <Button
               disabled={pickupContacts.fields.length >= 10}
               onClick={() => {
@@ -365,18 +461,27 @@ export function RegistrationForm() {
                 </Button>
               </div>
               <div className="form-grid form-grid--two">
-                <Field error={errors.pickupContacts?.[index]?.fullName?.message} label="Full name">
+                <Field
+                  error={errors.pickupContacts?.[index]?.fullName?.message}
+                  label="Full name"
+                  required
+                >
                   <TextInput {...register(formPath(`pickupContacts.${String(index)}.fullName`))} />
                 </Field>
                 <Field
                   error={errors.pickupContacts?.[index]?.relationship?.message}
                   label="Relationship"
+                  required
                 >
                   <TextInput
                     {...register(formPath(`pickupContacts.${String(index)}.relationship`))}
                   />
                 </Field>
-                <Field error={errors.pickupContacts?.[index]?.phone?.message} label="Phone">
+                <Field
+                  error={errors.pickupContacts?.[index]?.phone?.message}
+                  label="Phone"
+                  required
+                >
                   <TextInput
                     type="tel"
                     {...register(formPath(`pickupContacts.${String(index)}.phone`))}
@@ -396,7 +501,7 @@ export function RegistrationForm() {
       <section className="panel">
         <div className="panel__body form-grid">
           <div className="section-title registration-section-title">
-            <h2>Students</h2>
+            <SectionLabel>Students</SectionLabel>
             <Button
               disabled={students.fields.length >= 6}
               onClick={() => {
@@ -432,20 +537,32 @@ export function RegistrationForm() {
               </div>
 
               <div className="form-grid form-grid--two">
-                <Field error={errors.students?.[index]?.fullName?.message} label="Full name">
+                <Field
+                  error={errors.students?.[index]?.fullName?.message}
+                  label="Full name"
+                  required
+                >
                   <TextInput {...register(formPath(`students.${String(index)}.fullName`))} />
                 </Field>
                 <Field label="Preferred name">
                   <TextInput {...register(formPath(`students.${String(index)}.preferredName`))} />
                 </Field>
-                <Field error={errors.students?.[index]?.dob?.message} label="Date of birth">
+                <Field
+                  error={errors.students?.[index]?.dob?.message}
+                  label="Date of birth"
+                  required
+                >
                   <TextInput
                     max={todayDateInput()}
                     type="date"
                     {...register(formPath(`students.${String(index)}.dob`))}
                   />
                 </Field>
-                <Field error={errors.students?.[index]?.yearGroup?.message} label="Year group">
+                <Field
+                  error={errors.students?.[index]?.yearGroup?.message}
+                  hint="Leave blank to derive from date of birth."
+                  label="Year group"
+                >
                   <SelectInput {...register(formPath(`students.${String(index)}.yearGroup`))}>
                     <option value="">Choose year group</option>
                     {STANDARD_SCHOOL_YEARS.map((year) => (
@@ -455,18 +572,18 @@ export function RegistrationForm() {
                     ))}
                   </SelectInput>
                 </Field>
-                <Field error={errors.students?.[index]?.startDate?.message} label="Start date">
+                <Field
+                  error={errors.students?.[index]?.startDate?.message}
+                  hint="Leave blank to use today."
+                  label="Start date"
+                >
                   <TextInput
                     type="date"
                     {...register(formPath(`students.${String(index)}.startDate`))}
                   />
                 </Field>
                 <Field error={errors.students?.[index]?.gender?.message} label="Gender">
-                  <SelectInput
-                    {...register(formPath(`students.${String(index)}.gender`), {
-                      required: 'Choose Male or Female',
-                    })}
-                  >
+                  <SelectInput {...register(formPath(`students.${String(index)}.gender`))}>
                     <option value="">Choose gender</option>
                     {REGISTRATION_GENDER_OPTIONS.map((gender) => (
                       <option key={gender} value={gender}>
@@ -539,30 +656,44 @@ export function RegistrationForm() {
               </TextArea>
 
               <div className="registration-consents">
-                {REGISTRATION_CONSENT_TYPES.map((consentType) => (
-                  <div className="registration-consent-row" key={consentType}>
-                    <span>{REGISTRATION_CONSENT_COPY[consentType]}</span>
-                    <SelectInput
-                      aria-label={`${REGISTRATION_CONSENT_COPY[consentType]} answer`}
-                      {...register(
-                        formPath(`students.${String(index)}.consents.${consentType}.granted`),
-                        {
-                          setValueAs: (value) => value === 'true',
-                        },
-                      )}
-                    >
-                      <option value="false">No</option>
-                      <option value="true">Yes</option>
-                    </SelectInput>
-                    <TextInput
-                      aria-label={`${REGISTRATION_CONSENT_COPY[consentType]} initials`}
-                      placeholder="Initials"
-                      {...register(
-                        formPath(`students.${String(index)}.consents.${consentType}.initials`),
-                      )}
-                    />
-                  </div>
-                ))}
+                {REGISTRATION_CONSENT_TYPES.map((consentType) => {
+                  const initialsError =
+                    errors.students?.[index]?.consents?.[consentType]?.initials?.message;
+
+                  return (
+                    <div className="registration-consent-row" key={consentType}>
+                      <span>
+                        {REGISTRATION_CONSENT_COPY[consentType]}
+                        <span className="field__required">Required</span>
+                      </span>
+                      <SelectInput
+                        aria-label={`${REGISTRATION_CONSENT_COPY[consentType]} answer`}
+                        {...register(
+                          formPath(`students.${String(index)}.consents.${consentType}.granted`),
+                          {
+                            setValueAs: (value) => value === 'true',
+                          },
+                        )}
+                      >
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                      </SelectInput>
+                      <div className="registration-consent-initials">
+                        <TextInput
+                          aria-label={`${REGISTRATION_CONSENT_COPY[consentType]} initials`}
+                          aria-required="true"
+                          placeholder="Required initials"
+                          {...register(
+                            formPath(`students.${String(index)}.consents.${consentType}.initials`),
+                          )}
+                        />
+                        {initialsError ? (
+                          <span className="field__error">{initialsError}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -572,13 +703,17 @@ export function RegistrationForm() {
       <section className="panel">
         <div className="panel__body form-grid">
           <div className="section-title">
-            <h2>Agreement</h2>
+            <SectionLabel>Agreement</SectionLabel>
           </div>
           <div className="form-grid form-grid--two">
-            <Field error={errors.agreement?.guardianName?.message} label="Parent / guardian name">
+            <Field
+              error={errors.agreement?.guardianName?.message}
+              label="Parent / guardian name"
+              required
+            >
               <TextInput {...register('agreement.guardianName')} />
             </Field>
-            <Field error={errors.agreement?.agreementDate?.message} label="Date">
+            <Field error={errors.agreement?.agreementDate?.message} label="Date" required>
               <TextInput
                 max={todayDateInput()}
                 type="date"
@@ -586,9 +721,15 @@ export function RegistrationForm() {
               />
             </Field>
           </div>
-          {submitError || submitRegistration.error ? (
+          {incompleteSections.length > 0 ? (
+            <div className="registration-error-summary" role="alert">
+              <strong>Registration is incomplete.</strong>
+              <span>Please finish the required details in {incompleteSections.join(', ')}.</span>
+            </div>
+          ) : null}
+          {submissionErrorMessage ? (
             <p className="status--error" role="alert">
-              {submitError ?? submitRegistration.error?.message}
+              {submissionErrorMessage}
             </p>
           ) : null}
           <div>
