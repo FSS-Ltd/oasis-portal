@@ -97,10 +97,11 @@ export function UserProfilePanel({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!form.fullName.trim()) return;
+    if (!form.fullName.trim() || !form.email.trim()) return;
     updateUser.mutate({
       userId: user.id,
       fullName: form.fullName,
+      email: currentUserRole === 'Head' ? form.email : undefined,
       phone: form.phone,
       address: form.address,
     });
@@ -193,7 +194,14 @@ export function UserProfilePanel({
                   />
                 </Field>
                 <Field label="Account email">
-                  <TextInput disabled type="email" value={user.email} />
+                  <TextInput
+                    disabled={!editing || currentUserRole !== 'Head'}
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, email: event.target.value }));
+                    }}
+                    type="email"
+                    value={form.email}
+                  />
                 </Field>
               </div>
               <div className="profile-field-list">
