@@ -17,6 +17,7 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "test:e2e": "turbo run test:e2e",
+    "docs:component-map": "node scripts/generate-component-map.mjs",
     "hooks:install": "sh scripts/install-git-hooks.sh",
     "with-env": "node scripts/with-env.mjs",
     "db:generate": "node scripts/with-env.mjs pnpm --filter @oasis/db generate",
