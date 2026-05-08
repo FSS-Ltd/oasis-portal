@@ -2,7 +2,9 @@
 
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Save, ShieldCheck } from 'lucide-react';
+import { ADULT_USER_ACCOUNT_ROLES, displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { roleLabel, permissionTagLabel } from '@/lib/profile-display';
 import { Avatar } from '@/components/ui/avatar';
@@ -12,10 +14,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
 
 type Profile = RouterOutputs['profile']['me'];
-type ProfileTab = 'account' | 'access' | 'security';
+type ProfileTab = 'account' | 'access' | 'security' | 'children';
+type ChildDetailContext = 'admin' | 'parent' | 'supervisor';
 
 interface SelfProfileClientProps {
   accent?: 'crimson' | 'navy';
+  childDetailContext?: ChildDetailContext;
 }
 
 const tabs: readonly { id: ProfileTab; label: string }[] = [
@@ -23,6 +27,8 @@ const tabs: readonly { id: ProfileTab; label: string }[] = [
   { id: 'access', label: 'Role & Access' },
   { id: 'security', label: 'Security' },
 ];
+
+const childrenTab = { id: 'children', label: 'Children' } as const;
 
 function profileForm(profile: Profile) {
   return {
@@ -41,7 +47,20 @@ function formatDate(value: Date | string): string {
   }).format(new Date(value));
 }
 
-export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
+function isAdultProfile(profile: Profile): boolean {
+  return ADULT_USER_ACCOUNT_ROLES.some((role) => role === profile.role);
+}
+
+function childDetailPath(profile: Profile, context: ChildDetailContext, studentId: string): string {
+  if (context === 'supervisor') return `/supervisor/children/${studentId}`;
+  if (context === 'admin') return `/admin/children/${studentId}`;
+  return `/parent/children/${studentId}`;
+}
+
+export function SelfProfileClient({
+  accent = 'navy',
+  childDetailContext = 'admin',
+}: SelfProfileClientProps) {
   const [activeTab, setActiveTab] = useState<ProfileTab>('account');
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -79,6 +98,8 @@ export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
 
   const profile = profileQuery.data;
   const canSubmit = editing && form.fullName.trim().length > 0 && form.email.trim().length > 0;
+  const canShowChildrenTab = isAdultProfile(profile) && profile.children.length > 0;
+  const visibleTabs = canShowChildrenTab ? [...tabs, childrenTab] : tabs;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -142,7 +163,7 @@ export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
       </section>
 
       <div className="profile-tabs" role="tablist">
-        {tabs.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             aria-selected={activeTab === tab.id}
             className={activeTab === tab.id ? 'is-selected' : undefined}
@@ -231,6 +252,29 @@ export function SelfProfileClient({ accent = 'navy' }: SelfProfileClientProps) {
                 )}
               </div>
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'children' && canShowChildrenTab ? (
+        <section className="panel">
+          <div className="panel__body people-linked-list">
+            {profile.children.map((child) => (
+              <Link
+                className="people-linked-row"
+                href={{ pathname: childDetailPath(profile, childDetailContext, child.id) }}
+                key={child.id}
+              >
+                <Avatar name={child.fullName} />
+                <span>
+                  <strong>{child.fullName}</strong>
+                  <small>{displaySchoolYearLabel(child.yearGroup)}</small>
+                </span>
+                <Badge tone={child.active ? 'green' : 'amber'}>
+                  {child.active ? 'Active' : 'Archived'}
+                </Badge>
+              </Link>
+            ))}
           </div>
         </section>
       ) : null}

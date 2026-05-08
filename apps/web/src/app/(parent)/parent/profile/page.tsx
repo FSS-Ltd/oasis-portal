@@ -7,7 +7,7 @@ export default async function ParentProfilePage() {
 
   return (
     <MotionPage>
-      <SelfProfileClient accent="crimson" />
+      <SelfProfileClient accent="crimson" childDetailContext="parent" />
     </MotionPage>
   );
 }

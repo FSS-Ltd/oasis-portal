@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
+import type { AppContext } from '../context.js';
 import { createDefaultClerkUserEmailClient, type ClerkUserEmailClient } from '../lib/clerk.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -19,6 +20,19 @@ const profileUserSelect = Prisma.validator<Prisma.UserSelect>()({
   active: true,
   createdAt: true,
   updatedAt: true,
+  guardianOf: {
+    orderBy: { createdAt: 'desc' },
+    select: {
+      student: {
+        select: {
+          id: true,
+          fullNameEnc: true,
+          yearGroup: true,
+          active: true,
+        },
+      },
+    },
+  },
 });
 
 type ProfileUserRow = Prisma.UserGetPayload<{ select: typeof profileUserSelect }>;
@@ -145,21 +159,17 @@ function mapProfile(
     requires2fa: false,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
+    children: user.guardianOf.map((guardian) => ({
+      id: guardian.student.id,
+      fullName: decryptRequired(ctx.db.$enc.decrypt, guardian.student.fullNameEnc, 'student PII'),
+      yearGroup: guardian.student.yearGroup,
+      active: guardian.student.active,
+    })),
   };
 }
 
 async function loadProfile(
-  ctx: Parameters<typeof mapProfile>[0] & {
-    db: Parameters<typeof mapProfile>[0]['db'] & {
-      user: {
-        findUnique: (args: Prisma.UserFindUniqueArgs) => Promise<ProfileUserRow | null>;
-      };
-      auditLog: {
-        create: (args: Prisma.AuditLogCreateArgs) => Promise<unknown>;
-      };
-    };
-    user: { id: string };
-  },
+  ctx: AppContext & { user: { id: string } },
 ) {
   const user = await ctx.db.user.findUnique({
     where: { id: ctx.user.id },
@@ -176,7 +186,11 @@ async function loadProfile(
       action: 'DecryptPii',
       entity: 'User',
       entityId: user.id,
-      meta: { source: 'profile.me', fields: ['fullName', 'email', 'phone', 'address'] },
+      meta: {
+        source: 'profile.me',
+        fields: ['fullName', 'email', 'phone', 'address'],
+        linkedChildCount: profile.children.length,
+      },
     },
   });
   return profile;

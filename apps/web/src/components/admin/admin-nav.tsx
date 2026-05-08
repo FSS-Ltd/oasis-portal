@@ -21,7 +21,7 @@ import {
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home, badge: undefined },
-  { href: '/parent', label: 'My Children', icon: UsersRound, badge: undefined },
+  { href: '/admin/children', label: 'My Children', icon: UsersRound, badge: undefined },
   { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
