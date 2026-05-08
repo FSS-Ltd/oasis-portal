@@ -14,10 +14,7 @@ export default async function AdminChildrenPage() {
           <p>Open linked child records for attendance, behaviour, PACE, and merit progress.</p>
         </div>
       </div>
-      <ParentChildrenList
-        detailPathFor={(studentId) => `/admin/children/${studentId}`}
-        emptyDetail="Ask the Head of Centre to link children to this account."
-      />
+      <ParentChildrenList variant="admin" />
     </MotionPage>
   );
 }
