@@ -327,6 +327,38 @@ describe('student router CRUD', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('keeps archived students visible to full-admin includeInactive and byId reads', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await createStudent(caller);
+
+    await expect(caller.student.update({ id: studentId, active: false })).resolves.toEqual({
+      id: studentId,
+    });
+    await expect(caller.student.list()).resolves.toEqual([]);
+    await expect(caller.student.list({ includeInactive: true })).resolves.toEqual([
+      expect.objectContaining({
+        id: studentId,
+        fullName: 'Jane Learner',
+        active: false,
+      }),
+    ]);
+    await expect(caller.student.byId({ id: studentId })).resolves.toMatchObject({
+      id: studentId,
+      fullName: 'Jane Learner',
+      active: false,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'Student',
+        entityId: studentId,
+        meta: { fields: ['active'] },
+      },
+    });
+  });
+
   it('defaults the year group from date of birth when Head does not override it', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));

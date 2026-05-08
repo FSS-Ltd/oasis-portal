@@ -26,6 +26,12 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const parentUser: SessionUser = {
+  id: 'u_parent_session',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
 const TEST_APP_URL = 'https://portal.example.com';
 const INVITATION_REDIRECT_URL = `${TEST_APP_URL}/post-sign-in`;
 
@@ -832,6 +838,10 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(support.db.user.findMany).not.toHaveBeenCalled();
     expect(support.db.user.update).not.toHaveBeenCalled();
+
+    const parent = makeCaller(parentUser);
+    await expect(parent.caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(parent.db.user.findMany).not.toHaveBeenCalled();
   });
 });
 
@@ -999,6 +1009,17 @@ describe('admin.listUserAccounts and account support updates', () => {
         active: false,
         createdAt: new Date('2026-04-29T09:00:00.000Z'),
         updatedAt: new Date('2026-04-29T12:00:00.000Z'),
+      })
+      .mockResolvedValueOnce({
+        id: 'u_parent',
+        role: 'Parent',
+        fullNameEnc: 'enc:Jane Parent',
+        emailEnc: 'enc:jane@example.com',
+        phoneEnc: 'enc:07700 900456',
+        addressEnc: null,
+        active: true,
+        createdAt: new Date('2026-04-29T09:00:00.000Z'),
+        updatedAt: new Date('2026-04-29T13:00:00.000Z'),
       });
     const { caller } = makeCaller(technicalSupportUser, { db });
 
@@ -1038,9 +1059,27 @@ describe('admin.listUserAccounts and account support updates', () => {
     await expect(
       caller.admin.updateUserAccountStatus({ userId: 'u_parent', active: false }),
     ).resolves.toMatchObject({ id: 'u_parent', active: false });
+    await expect(
+      caller.admin.updateUserAccountStatus({ userId: 'u_parent', active: true }),
+    ).resolves.toMatchObject({ id: 'u_parent', active: true });
     expect(db.user.update).toHaveBeenCalledWith({
       where: { id: 'u_parent' },
       data: { active: false },
+      select: {
+        id: true,
+        role: true,
+        fullNameEnc: true,
+        emailEnc: true,
+        phoneEnc: true,
+        addressEnc: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: 'u_parent' },
+      data: { active: true },
       select: {
         id: true,
         role: true,
@@ -1065,6 +1104,24 @@ describe('admin.listUserAccounts and account support updates', () => {
         },
       },
     });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_parent',
+        meta: { active: false, source: 'admin.updateUserAccountStatus' },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_parent',
+        meta: { active: true, source: 'admin.updateUserAccountStatus' },
+      },
+    });
   });
 
   it('blocks Technical Support from unsafe account targets and self-deactivation', async () => {
@@ -1079,6 +1136,21 @@ describe('admin.listUserAccounts and account support updates', () => {
       caller.admin.updateUserAccountStatus({ userId: technicalSupportUser.id, active: false }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks full-admin self-deactivation before account lookup', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserAccountStatus({ userId: headUser.id, active: false }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'cannot deactivate your own account',
+    });
+    expect(db.user.findUnique).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+    expect(db.auditLog.create).not.toHaveBeenCalled();
   });
 });
 
