@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** Production client component serialization hotfix.
+**Phase:** Component relationship map and agent PR workflow.
 
 ---
 
@@ -18,7 +18,46 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Production client component serialization hotfix
+## Current status - Component relationship map and agent PR workflow
+
+Working branch: `docs/component-relationship-map`.
+
+**PR scope:** Add a graphify-backed product module relationship map and update
+agent workflow rules so every PR checks module context before work starts and
+refreshes the map when product ownership changes.
+
+Changed scope:
+
+- Added `docs/architecture/component-relationships.md` as the human-readable
+  product module map with anti-duplication rules.
+- Added `scripts/generate-component-map.mjs` and `pnpm docs:component-map` to
+  regenerate module evidence from `graphify-out/graph.json`.
+- Updated local ignored agent rule files `AGENTS.md` and `CLAUDE.md` so agents
+  read the component map and run a graphify query at PR start, then check
+  whether `PRODUCT_MODULES` and the generated map need refreshing before PR
+  completion.
+
+Verification:
+
+- `pnpm docs:component-map` - pass.
+- `graphify update .` - pass.
+- `graphify check-update .` - pass.
+- `node --check scripts/generate-component-map.mjs` - pass.
+- `pnpm exec prettier --check AGENTS.md CLAUDE.md docs/architecture/component-relationships.md scripts/generate-component-map.mjs package.json` -
+  pass.
+- `pnpm lint` - pass.
+- `graphify query "component relationship map PR start PR finish update PRODUCT_MODULES docs component map" --budget 1500` -
+  pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- `AGENTS.md` and `CLAUDE.md` are intentionally ignored by `.gitignore`, so the
+  local agent rules are updated but will not appear in a normal PR unless the
+  ignore policy changes or they are force-added intentionally.
+- Existing untracked `docs/decks/` files remain untouched.
+
+## Previous status - Production client component serialization hotfix
 
 Working branch: `fix/remove-client-function-prop`.
 
