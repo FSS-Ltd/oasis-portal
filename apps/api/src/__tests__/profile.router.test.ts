@@ -50,6 +50,16 @@ function makeFakeDb(): FakeDb {
         active: true,
         createdAt: new Date('2026-04-29T09:00:00.000Z'),
         updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+        guardianOf: [
+          {
+            student: {
+              id: 's_child',
+              fullNameEnc: 'enc:Child One',
+              yearGroup: 'Year 6',
+              active: true,
+            },
+          },
+        ],
       }),
       update: vi.fn().mockResolvedValue({ id: parentUser.id }),
     },
@@ -105,6 +115,14 @@ describe('profile.me', () => {
       requires2fa: false,
       createdAt: new Date('2026-04-29T09:00:00.000Z'),
       updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+      children: [
+        {
+          id: 's_child',
+          fullName: 'Child One',
+          yearGroup: 'Year 6',
+          active: true,
+        },
+      ],
     });
     expect(db.user.findUnique).toHaveBeenCalledWith({
       where: { id: parentUser.id },
@@ -119,6 +137,19 @@ describe('profile.me', () => {
         active: true,
         createdAt: true,
         updatedAt: true,
+        guardianOf: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            student: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                yearGroup: true,
+                active: true,
+              },
+            },
+          },
+        },
       },
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -127,7 +158,11 @@ describe('profile.me', () => {
         action: 'DecryptPii',
         entity: 'User',
         entityId: parentUser.id,
-        meta: { source: 'profile.me', fields: ['fullName', 'email', 'phone', 'address'] },
+        meta: {
+          source: 'profile.me',
+          fields: ['fullName', 'email', 'phone', 'address'],
+          linkedChildCount: 1,
+        },
       },
     });
   });
@@ -198,6 +233,7 @@ describe('profile.updateMe', () => {
         active: true,
         createdAt: new Date('2026-04-29T09:00:00.000Z'),
         updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+        guardianOf: [],
       });
     const { caller, updatePrimaryEmail } = makeCaller(parentUser, { db });
 

@@ -7,7 +7,7 @@ export default async function SupervisorProfilePage() {
 
   return (
     <MotionPage>
-      <SelfProfileClient accent="navy" />
+      <SelfProfileClient accent="navy" childDetailContext="supervisor" />
     </MotionPage>
   );
 }
