@@ -16,6 +16,7 @@ import { authedProcedure, router } from '../trpc.js';
 type AuthedContext = AppContext & { user: SessionUser };
 
 const DRILLTHROUGH_MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment'] as const;
+const PARENT_DASHBOARD_RECENT_LIMIT = 3;
 
 const studentListInclude = {
   subjects: {
@@ -150,6 +151,14 @@ function mapStudentSummary(
   };
 }
 
+function takeRecentByStudent<T extends { studentId: string }>(
+  rows: readonly T[],
+  studentId: string,
+  limit = PARENT_DASHBOARD_RECENT_LIMIT,
+): T[] {
+  return rows.filter((row) => row.studentId === studentId).slice(0, limit);
+}
+
 export const childLogRouter = router({
   listAccessibleStudents: authedProcedure
     .input(listAccessibleStudentsInput)
@@ -193,6 +202,158 @@ export const childLogRouter = router({
       });
       return guardians.map((guardian) => mapStudentSummary(ctx, guardian.student));
     }),
+
+  parentDashboard: authedProcedure.query(async ({ ctx }) => {
+    if (!canViewStudentDrillThrough(ctx.user)) {
+      await denyDrillThrough(ctx, {
+        role: ctx.user.role,
+        source: 'childLog.parentDashboard',
+      });
+    }
+
+    const guardians = await ctx.db.guardian.findMany({
+      where: { userId: ctx.user.id, student: { active: true } },
+      include: { student: { include: studentListInclude } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const students = guardians.map((guardian) => guardian.student);
+    const studentIds = students.map((student) => student.id);
+    const from = academicYearStart();
+    const to = dayEnd(new Date());
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: students.length, source: 'childLog.parentDashboard' },
+      },
+    });
+
+    if (studentIds.length === 0) {
+      return { children: [], range: { from: dateKey(from), to: dateKey(new Date()) } };
+    }
+
+    const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
+      ctx.db.attendance.findMany({
+        where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
+        select: { id: true, studentId: true, date: true, status: true, createdAt: true },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      }),
+      ctx.db.paceRecord.findMany({
+        where: {
+          studentId: { in: studentIds },
+          completedAt: { gte: from, lt: to },
+          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+        },
+        include: { subject: { select: { id: true, code: true, name: true } } },
+        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+      ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: {
+            studentId: { in: studentIds },
+            createdAt: { gte: from, lt: to },
+            visibility: 'General',
+          },
+          select: {
+            id: true,
+            studentId: true,
+            type: true,
+            category: true,
+            noteEnc: true,
+            meritDelta: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
+      ctx.db.childNote.findMany({
+        where: {
+          studentId: { in: studentIds },
+          createdAt: { gte: from, lt: to },
+          sensitive: false,
+        },
+        select: { id: true, studentId: true, noteEnc: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      ctx.db.meritLedger.groupBy({
+        by: ['studentId', 'account'],
+        where: {
+          studentId: { in: studentIds },
+          account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+        },
+        _sum: { delta: true },
+      }),
+      ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+    ]);
+
+    const passThreshold = policy?.passThreshold ?? 80;
+
+    return {
+      children: students.map((student) => {
+        const balances = { Spend: 0, Saving: 0, Investment: 0 };
+        for (const row of meritBalances) {
+          if (row.studentId !== student.id) continue;
+          if (row.account === 'Spend' || row.account === 'Saving' || row.account === 'Investment') {
+            balances[row.account] = row._sum.delta ?? 0;
+          }
+        }
+
+        const studentAttendance = attendance.filter((row) => row.studentId === student.id);
+        const presentDays = studentAttendance.filter((row) => row.status === 'Present').length;
+        const studentPace = paceTests.filter((record) => record.studentId === student.id);
+        const pacesCompletedThisAcademicYear = studentPace.filter(
+          (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
+        ).length;
+
+        return {
+          student: mapStudentSummary(ctx, student),
+          metrics: {
+            meritBalances: balances,
+            totalMerits: balances.Spend + balances.Saving + balances.Investment,
+            pacesCompletedThisAcademicYear,
+            attendanceRate: percentage(presentDays, studentAttendance.length),
+            presentDays,
+            recordedAttendanceDays: studentAttendance.length,
+          },
+          attendance: takeRecentByStudent(attendance, student.id).map((row) => ({
+            id: row.id,
+            date: dateKey(row.date),
+            status: row.status,
+            recordedAt: row.createdAt,
+          })),
+          behaviour: takeRecentByStudent(behaviour, student.id).map((entry) => ({
+            id: entry.id,
+            type: entry.type,
+            category: entry.category,
+            note: entry.noteEnc
+              ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
+              : null,
+            meritDelta: entry.meritDelta,
+            createdAt: entry.createdAt,
+          })),
+          pace: takeRecentByStudent(studentPace, student.id).map((record) => ({
+            id: record.id,
+            date: record.completedAt ? dateKey(record.completedAt) : dateKey(record.createdAt),
+            subjectId: record.subjectId,
+            subjectCode: record.subject.code,
+            subjectName: record.subject.name,
+            paceNumber: record.paceNumber,
+            score: record.paceTestScore ?? record.selfTestScore ?? 0,
+            testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
+            passed: (record.paceTestScore ?? record.selfTestScore ?? 0) >= passThreshold,
+          })),
+          notes: takeRecentByStudent(notes, student.id).map((note) => ({
+            id: note.id,
+            note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
+            createdAt: note.createdAt,
+          })),
+        };
+      }),
+      range: { from: dateKey(from), to: dateKey(new Date()) },
+    };
+  }),
 
   drillThrough: authedProcedure
     .input(z.object({ studentId: z.string().min(1) }))

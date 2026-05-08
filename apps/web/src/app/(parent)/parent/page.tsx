@@ -1,20 +1,13 @@
 import { MotionPage } from '@/components/admin/motion';
 import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
-import { ParentChildrenList } from './parent-children-list';
+import { ParentDashboardClient } from './parent-dashboard-client';
 
 export default async function ParentPage() {
   await getLinkedChildPortalUser();
 
   return (
     <MotionPage>
-      <div className="page-header">
-        <div>
-          <p>Linked child view</p>
-          <h1>My Children</h1>
-          <p>Open linked child records for attendance, behaviour, PACE, and merit progress.</p>
-        </div>
-      </div>
-      <ParentChildrenList />
+      <ParentDashboardClient />
     </MotionPage>
   );
 }

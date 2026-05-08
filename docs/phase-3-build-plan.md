@@ -1,7 +1,7 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** Partially pre-built - parent access and registration foundations merged
-**Last updated:** 2026-05-06
+**Status:** Parent dashboard polish ready for review
+**Last updated:** 2026-05-08
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -143,13 +143,18 @@ Tests:
 Goal: make the parent portal an intentional product surface rather than only a
 child-detail route.
 
-### PR-3.4 - `feat(web): parent dashboard polish` PLANNED
+### PR-3.4 - `feat(web): parent dashboard polish` READY FOR REVIEW
+
+Working branch: `feat/phase-3-pr3.4-parent-dashboard-polish`.
 
 Scope:
 
 - Replace the basic parent landing page with a dashboard listing linked
   children, recent attendance, recent General behaviour, PACE progress summary,
   and visible notes.
+- Added `childLog.parentDashboard` as a focused parent dashboard read model for
+  linked active children, General behaviour, visible notes, PACE summaries, and
+  merit balances.
 - Add clear empty states for no linked children, pending registration, and
   completed registration awaiting centre review.
 - Add parent profile access using the existing `profile.me` and
@@ -166,10 +171,12 @@ Tests:
 
 Verification:
 
-- `pnpm --filter @oasis/api test -- profile.router.test.ts registration.router.test.ts`
+- `pnpm --filter @oasis/api test -- childNotes.router.test.ts profile.router.test.ts registration.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
+- Browser verification on `/parent` with the local Next.js dev server.
 
 ---
 

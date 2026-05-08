@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-08
 **Agent:** Technical Agent (Codex)
-**Phase:** Component relationship map and agent PR workflow.
+**Phase:** Phase 3.4 parent dashboard polish.
 
 ---
 
@@ -18,7 +18,45 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Component relationship map and agent PR workflow
+## Current status - Phase 3.4 parent dashboard polish
+
+Working branch: `feat/phase-3-pr3.4-parent-dashboard-polish`.
+
+**PR scope:** Replace the basic parent landing page with an intentional parent
+dashboard and add a focused linked-child dashboard read model without starting
+notices, messaging, mobile smoke, clubs, shop, or Phase 4 merit-wallet work.
+
+Changed scope:
+
+- Added `childLog.parentDashboard` for linked active child summaries, recent
+  attendance, recent General behaviour, visible notes, PACE progress, and
+  merit balances.
+- Added API coverage for linked parent dashboard data, unlinked parent empty
+  state, unsupported user denial, and exclusion of Sensitive behaviour/notes.
+- Replaced `/parent` with a dashboard based on the Oasis design reference,
+  reusing existing parent shell, profile, registration status, child drill-through
+  links, and shared UI primitives.
+- Updated the Phase 3 build plan to mark PR-3.4 ready for review.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- childNotes.router.test.ts profile.router.test.ts registration.router.test.ts` -
+  pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- Browser verification on `http://localhost:3002/parent` - pass for desktop
+  rendering with the local authenticated linked-child account.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- Mobile viewport switching was attempted in the in-app browser, but the active
+  browser API did not expose `setViewportSize`; responsive CSS was added and
+  verified through typecheck/build.
+
+## Previous status - Component relationship map and agent PR workflow
 
 Working branch: `docs/component-relationship-map`.
 
