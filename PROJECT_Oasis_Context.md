@@ -49,6 +49,11 @@ Changed scope:
   non-staff denial.
 - Added a Supervisor Noticeboard navigation badge that counts active unread
   notices for the current supervisor.
+- Changed authored notices so the author does not mark their own notice as
+  read; authored notices now show a recipient read summary with read/unread
+  recipient detail for the selected audience.
+- Updated `pnpm dev:watch` so nodemon runs the web dev server directly instead
+  of wrapping Turbo, preventing orphaned Next listeners during restarts.
 - Regenerated the component relationship map for the expanded noticeboard
   surface.
 
@@ -63,6 +68,10 @@ Verification:
 - `pnpm lint` - pass.
 - `pnpm --filter @oasis/web build` - pass after stopping stale local Next dev
   servers that were writing `.next`.
+- Local API debug as the notice author - pass; authored notice returns `read:
+  true`, `readAt: null`, and recipient read summary.
+- `pnpm dev:watch` smoke - pass; starts a single Next server on
+  `http://localhost:3000` and remains running after idle check.
 - `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass
   after sandbox escalation for the local Next.js server; 2 passed, 7
   credential-gated tests skipped.

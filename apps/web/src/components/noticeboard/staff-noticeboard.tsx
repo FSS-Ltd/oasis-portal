@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Send } from 'lucide-react';
+import { Check, CheckCircle2, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -72,6 +72,39 @@ function formatDateTime(value: Date | string): string {
   }).format(new Date(value));
 }
 
+function ReadSummaryBadge({ summary }: { summary: NonNullable<Notice['readSummary']> }) {
+  return (
+    <span className="noticeboard-read-summary">
+      <button
+        aria-label={`${String(summary.read)} of ${String(summary.total)} recipients have read this notice`}
+        className="noticeboard-read-summary__trigger"
+        type="button"
+      >
+        {String(summary.read)}/{String(summary.total)} read
+      </button>
+      <span className="noticeboard-read-summary__tooltip" role="tooltip">
+        {summary.recipients.map((recipient) => (
+          <span className="noticeboard-read-summary__row" key={recipient.userId}>
+            <Check
+              aria-hidden="true"
+              className={
+                recipient.read
+                  ? 'noticeboard-read-summary__icon is-read'
+                  : 'noticeboard-read-summary__icon'
+              }
+              size={14}
+            />
+            <span>
+              <strong>{recipient.fullName}</strong>
+              <small>{recipient.read ? 'Read' : 'Unread'}</small>
+            </span>
+          </span>
+        ))}
+      </span>
+    </span>
+  );
+}
+
 function NoticeCard({
   notice,
   onMarkRead,
@@ -81,19 +114,24 @@ function NoticeCard({
   onMarkRead: (noticeId: string) => void;
   pending: boolean;
 }) {
+  const readSummary = notice.readSummary;
+
   return (
     <article className={notice.read ? 'noticeboard-card' : 'noticeboard-card is-unread'}>
       <div className="noticeboard-card__head">
         <div>
           <span className="badge-list">
-            <span className={notice.read ? 'badge badge--green' : 'badge badge--blue'}>
-              {notice.read ? 'Read' : 'Unread'}
-            </span>
+            {readSummary ? null : (
+              <span className={notice.read ? 'badge badge--green' : 'badge badge--blue'}>
+                {notice.read ? 'Read' : 'Unread'}
+              </span>
+            )}
             <span className="badge">{audienceLabels[notice.audience]}</span>
           </span>
           <h2>{notice.title}</h2>
         </div>
-        {!notice.read ? (
+        {readSummary ? <ReadSummaryBadge summary={readSummary} /> : null}
+        {!notice.read && !readSummary ? (
           <Button
             aria-label={`Mark ${notice.title} as read`}
             onClick={() => {

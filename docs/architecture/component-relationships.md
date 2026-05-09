@@ -45,7 +45,7 @@ Before PR completion:
 
 ## Generated Module Relationship Map
 
-Generated from `graphify-out/graph.json` with 964 graph nodes and 1381 graph links.
+Generated from `graphify-out/graph.json` with 966 graph nodes and 1385 graph links.
 
 Graph confidence labels are preserved so agents can distinguish extracted code relationships from inferred relationships.
 
@@ -73,7 +73,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/api/src/context.ts`
   - `apps/api/src/lib/`
   - `apps/web/src/components/providers/`
-- Graphify evidence: 91 nodes, 256 links, communities 1, 2, 3, 4, 6, 7, 8, 11.
+- Graphify evidence: 91 nodes, 256 links, communities 0, 2, 4, 5, 7, 8, 9, 12.
 - Relationship types: calls: 141, contains: 67, imports_from: 47, method: 1.
 - Confidence mix: EXTRACTED: 162, INFERRED: 94.
 - Connected modules:
@@ -99,7 +99,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/context.ts`
   - `docs/adr/0003-sensitive-visibility-rbac-plus-rls.md`
-- Graphify evidence: 82 nodes, 306 links, communities 1, 2, 3, 4, 6, 7, 8, 9.
+- Graphify evidence: 82 nodes, 306 links, communities 0, 2, 3, 4, 5, 7, 9, 10.
 - Relationship types: calls: 187, contains: 72, imports_from: 42, conceptually_related_to: 1, implements: 1, method: 1, rationale_for: 1, references: 1.
 - Confidence mix: EXTRACTED: 170, INFERRED: 136.
 - Connected modules:
@@ -128,7 +128,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - _None configured_
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 259 nodes, 435 links, communities 1, 2, 3, 4, 7, 8, 11, 19.
+- Graphify evidence: 259 nodes, 435 links, communities 0, 2, 3, 4, 7, 9, 12, 18.
 - Relationship types: calls: 219, contains: 189, imports_from: 26, method: 1.
 - Confidence mix: EXTRACTED: 283, INFERRED: 152.
 - Connected modules:
@@ -153,7 +153,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 120 nodes, 243 links, communities 0, 1, 2, 3, 4, 8, 17, 18.
+- Graphify evidence: 120 nodes, 243 links, communities 0, 1, 2, 3, 4, 7, 9, 14.
 - Relationship types: calls: 126, contains: 100, imports_from: 16, method: 1.
 - Confidence mix: EXTRACTED: 165, INFERRED: 78.
 - Connected modules:
@@ -184,7 +184,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 146 nodes, 292 links, communities 1, 2, 3, 4, 8, 12, 14, 15.
+- Graphify evidence: 146 nodes, 292 links, communities 0, 2, 3, 4, 7, 9, 13, 15.
 - Relationship types: calls: 142, contains: 118, imports_from: 31, method: 1.
 - Confidence mix: EXTRACTED: 203, INFERRED: 89.
 - Connected modules:
@@ -208,15 +208,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 87 nodes, 150 links, communities 0, 4, 12, 16, 18, 23, 44, 45.
-- Relationship types: calls: 75, contains: 67, imports_from: 8.
-- Confidence mix: EXTRACTED: 102, INFERRED: 48.
+- Graphify evidence: 87 nodes, 151 links, communities 1, 2, 3, 13, 17, 22, 42, 43.
+- Relationship types: calls: 76, contains: 67, imports_from: 8.
+- Confidence mix: EXTRACTED: 102, INFERRED: 49.
 - Connected modules:
   - Registration, parent, student, supervisor, and admin shells (65)
   - Behaviour, merits, demerits, leaderboard, and child notes (55)
   - Attendance and rota workflows (52)
   - Shared UI primitives and cross-app tRPC clients (50)
-  - Shop, clubs, tithe, investment, reports, notices, messages, and email (19)
+  - Shop, clubs, tithe, investment, reports, notices, messages, and email (20)
 
 ### Registration, parent, student, supervisor, and admin shells
 
@@ -240,7 +240,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 355 nodes, 524 links, communities 0, 1, 2, 3, 4, 5, 8, 11.
+- Graphify evidence: 355 nodes, 524 links, communities 0, 1, 2, 3, 4, 6, 7, 9.
 - Relationship types: contains: 259, calls: 242, imports_from: 22, method: 1.
 - Confidence mix: EXTRACTED: 371, INFERRED: 153.
 - Connected modules:
@@ -277,9 +277,9 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - _None configured_
 - Shared or infrastructure surfaces:
   - `apps/api/src/emails/`
-- Graphify evidence: 239 nodes, 283 links, communities 0, 1, 2, 3, 8, 13, 14, 19.
-- Relationship types: contains: 157, calls: 88, imports_from: 38.
-- Confidence mix: EXTRACTED: 219, INFERRED: 64.
+- Graphify evidence: 241 nodes, 287 links, communities 0, 1, 2, 7, 8, 9, 18, 19.
+- Relationship types: contains: 159, calls: 90, imports_from: 38.
+- Confidence mix: EXTRACTED: 222, INFERRED: 65.
 - Connected modules:
   - Registration, parent, student, supervisor, and admin shells (188)
   - Admin access, users, invitations, audit, and profiles (173)
@@ -305,7 +305,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/router.ts`
   - `apps/api/src/trpc.ts`
-- Graphify evidence: 93 nodes, 152 links, communities 0, 1, 2, 4, 18, 21, 22, 23.
+- Graphify evidence: 93 nodes, 152 links, communities 0, 1, 2, 3, 17, 20, 21, 22.
 - Relationship types: contains: 61, imports_from: 59, calls: 32.
 - Confidence mix: EXTRACTED: 135, INFERRED: 17.
 - Connected modules:
@@ -331,7 +331,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `packages/db/prisma/`
   - `packages/db/scripts/`
   - `packages/db/src/`
-- Graphify evidence: 53 nodes, 83 links, communities 0, 6, 9, 24, 33, 116.
+- Graphify evidence: 53 nodes, 83 links, communities 1, 5, 10, 23, 32, 114.
 - Relationship types: calls: 36, contains: 33, imports_from: 8, rationale_for: 2, references: 2, conceptually_related_to: 1, implements: 1.
 - Confidence mix: EXTRACTED: 66, INFERRED: 17.
 - Connected modules:

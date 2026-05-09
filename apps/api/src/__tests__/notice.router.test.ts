@@ -50,8 +50,15 @@ interface StoredRead {
   readAt: Date;
 }
 
+interface StoredUser {
+  id: string;
+  role: 'Head' | 'Supervisor' | 'Parent';
+  fullNameEnc: string;
+  active: boolean;
+}
+
 interface FakeNoticeInclude {
-  reads: { where: { userId: string } };
+  reads: { where?: { userId: string } };
 }
 
 interface FakeNoticeCreateArgs {
@@ -108,21 +115,56 @@ function makeNotice(
   };
 }
 
-function makeFakeDb(initialNotices: StoredNotice[] = [], initialReads: StoredRead[] = []) {
+const defaultUsers: StoredUser[] = [
+  { id: headUser.id, role: 'Head', fullNameEnc: encrypt('Head User'), active: true },
+  {
+    id: supervisorUser.id,
+    role: 'Supervisor',
+    fullNameEnc: encrypt('Supervisor User'),
+    active: true,
+  },
+  {
+    id: 'u_supervisor_unread',
+    role: 'Supervisor',
+    fullNameEnc: encrypt('Unread Supervisor'),
+    active: true,
+  },
+  { id: parentUser.id, role: 'Parent', fullNameEnc: encrypt('Parent User'), active: true },
+];
+
+function makeFakeDb(
+  initialNotices: StoredNotice[] = [],
+  initialReads: StoredRead[] = [],
+  initialUsers: StoredUser[] = defaultUsers,
+) {
   const notices = [...initialNotices];
   const reads = [...initialReads];
+  const users = [...initialUsers];
 
-  const withCallerReads = (notice: StoredNotice, userId: string) => ({
+  const withIncludedReads = (notice: StoredNotice, include: FakeNoticeInclude) => ({
     ...notice,
     reads: reads
-      .filter((read) => read.noticeId === notice.id && read.userId === userId)
-      .map((read) => ({ readAt: read.readAt }))
-      .slice(0, 1),
+      .filter(
+        (read) =>
+          read.noticeId === notice.id &&
+          (!include.reads.where || read.userId === include.reads.where.userId),
+      )
+      .map((read) => ({ userId: read.userId, readAt: read.readAt }))
+      .slice(0, include.reads.where ? 1 : undefined),
   });
 
   return {
     $enc: { encrypt, decrypt },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    user: {
+      findMany: vi.fn((args: { where: { role: { in: string[] }; active: boolean } }) =>
+        Promise.resolve(
+          users.filter(
+            (user) => user.active === args.where.active && args.where.role.in.includes(user.role),
+          ),
+        ),
+      ),
+    },
     staffNotice: {
       create: vi.fn((args: FakeNoticeCreateArgs) => {
         const { data, include } = args;
@@ -137,7 +179,7 @@ function makeFakeDb(initialNotices: StoredNotice[] = [], initialReads: StoredRea
           createdAt: new Date(),
         };
         notices.push(notice);
-        return Promise.resolve(withCallerReads(notice, include.reads.where.userId));
+        return Promise.resolve(withIncludedReads(notice, include));
       }),
       findMany: vi.fn((args: FakeNoticeFindManyArgs) =>
         Promise.resolve(
@@ -149,7 +191,7 @@ function makeFakeDb(initialNotices: StoredNotice[] = [], initialReads: StoredRea
                 (!args.where.audience || args.where.audience.in.includes(notice.audience)),
             )
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .map((notice) => withCallerReads(notice, args.include.reads.where.userId)),
+            .map((notice) => withIncludedReads(notice, args.include)),
         ),
       ),
       findUnique: vi.fn((args: FakeNoticeFindUniqueArgs) =>
@@ -214,8 +256,9 @@ describe('notice.post', () => {
       active: true,
       audience: 'Supervisors',
       expiresAt,
-      read: false,
+      read: true,
       readAt: null,
+      readSummary: null,
     });
 
     expect(db.staffNotice.create.mock.calls[0]?.[0]?.data).toMatchObject({
@@ -301,6 +344,69 @@ describe('notice.listForAdmin', () => {
       });
     },
   );
+
+  it('returns author read summaries and does not require authors to mark their notices read', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const authoredNotice = makeNotice({
+      id: 'cmnotice00000000000000018',
+      title: 'Authored',
+      postedById: headUser.id,
+      audience: 'Supervisors',
+    });
+    const otherNotice = makeNotice({
+      id: 'cmnotice00000000000000019',
+      title: 'Other author',
+      postedById: 'u_other_head',
+      audience: 'Supervisors',
+      createdAt: new Date('2026-05-08T09:00:00.000Z'),
+    });
+    const readAt = new Date('2026-05-08T11:00:00.000Z');
+
+    await expect(
+      makeCaller(
+        headUser,
+        makeFakeDb(
+          [authoredNotice, otherNotice],
+          [
+            { noticeId: authoredNotice.id, userId: supervisorUser.id, readAt },
+            { noticeId: otherNotice.id, userId: headUser.id, readAt },
+          ],
+        ),
+      ).caller.notice.listForAdmin(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: authoredNotice.id,
+        read: true,
+        readAt: null,
+        readSummary: {
+          read: 1,
+          total: 2,
+          recipients: [
+            expect.objectContaining({
+              userId: supervisorUser.id,
+              fullName: 'Supervisor User',
+              role: 'Supervisor',
+              read: true,
+              readAt,
+            }),
+            expect.objectContaining({
+              userId: 'u_supervisor_unread',
+              fullName: 'Unread Supervisor',
+              role: 'Supervisor',
+              read: false,
+              readAt: null,
+            }),
+          ],
+        },
+      }),
+      expect.objectContaining({
+        id: otherNotice.id,
+        read: true,
+        readAt,
+        readSummary: null,
+      }),
+    ]);
+  });
 });
 
 describe('notice.listForStaff', () => {
@@ -465,7 +571,11 @@ describe('notice.markRead', () => {
 
   it('scopes read receipts to the caller and rejects unavailable notices', async () => {
     vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
-    const notice = makeNotice({ id: 'cmnotice00000000000000007', title: 'Scoped' });
+    const notice = makeNotice({
+      id: 'cmnotice00000000000000007',
+      title: 'Scoped',
+      postedById: 'u_other_head',
+    });
     const expiredNotice = makeNotice({
       id: 'cmnotice00000000000000008',
       title: 'Expired',
@@ -491,6 +601,19 @@ describe('notice.markRead', () => {
     await expect(
       makeCaller(supervisorUser, db).caller.notice.markRead({ noticeId: expiredNotice.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('rejects author read receipts', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const notice = makeNotice({
+      id: 'cmnotice00000000000000020',
+      title: 'Own notice',
+      postedById: headUser.id,
+    });
+
+    await expect(
+      makeCaller(headUser, makeFakeDb([notice])).caller.notice.markRead({ noticeId: notice.id }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('allows parent notice reads and rejects cross-audience reads', async () => {

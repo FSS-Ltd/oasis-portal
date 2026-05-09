@@ -21,11 +21,18 @@ interface StaffNoticeRow {
   active: boolean;
   expiresAt: Date | null;
   createdAt: Date;
-  reads: { readAt: Date }[];
+  reads: { userId?: string; readAt: Date }[];
 }
 
 const noticeAudienceSchema = z.enum(['Supervisors', 'Parents', 'Both']);
 type NoticeAudience = z.infer<typeof noticeAudienceSchema>;
+type NoticeRecipientRole = 'Supervisor' | 'Parent';
+
+interface NoticeRecipient {
+  id: string;
+  role: NoticeRecipientRole;
+  fullNameEnc: string;
+}
 
 const postNoticeInput = z.object({
   title: z.string().trim().min(1),
@@ -95,6 +102,12 @@ function canReadNoticeAudience(user: SessionUser, audience: NoticeAudience): boo
   return user.role === 'Parent';
 }
 
+function recipientRolesForAudience(audience: NoticeAudience): NoticeRecipientRole[] {
+  if (audience === 'Both') return ['Supervisor', 'Parent'];
+  if (audience === 'Parents') return ['Parent'];
+  return ['Supervisor'];
+}
+
 function audienceWhere(audiences: readonly NoticeAudience[]) {
   return {
     active: true,
@@ -103,8 +116,52 @@ function audienceWhere(audiences: readonly NoticeAudience[]) {
   };
 }
 
-function mapNotice(ctx: AuthedContext, notice: StaffNoticeRow) {
-  const readAt = notice.reads[0]?.readAt ?? null;
+async function loadNoticeRecipients(ctx: AuthedContext): Promise<NoticeRecipient[]> {
+  const users = await ctx.db.user.findMany({
+    where: {
+      active: true,
+      role: { in: ['Supervisor', 'Parent'] },
+    },
+    select: {
+      id: true,
+      role: true,
+      fullNameEnc: true,
+    },
+  });
+
+  return users.flatMap((user) =>
+    user.role === 'Supervisor' || user.role === 'Parent'
+      ? [{ id: user.id, role: user.role, fullNameEnc: user.fullNameEnc }]
+      : [],
+  );
+}
+
+function mapNotice(
+  ctx: AuthedContext,
+  notice: StaffNoticeRow,
+  recipients: readonly NoticeRecipient[] = [],
+) {
+  const ownNotice = notice.postedById === ctx.user.id;
+  const readAt =
+    notice.reads.find((read) => read.userId === ctx.user.id)?.readAt ??
+    notice.reads[0]?.readAt ??
+    null;
+  const recipientRoles = new Set(recipientRolesForAudience(notice.audience));
+  const noticeRecipients = recipients
+    .filter((recipient) => recipientRoles.has(recipient.role))
+    .map((recipient) => {
+      const recipientReadAt =
+        notice.reads.find((read) => read.userId === recipient.id)?.readAt ?? null;
+      return {
+        userId: recipient.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, recipient.fullNameEnc),
+        role: recipient.role,
+        read: Boolean(recipientReadAt),
+        readAt: recipientReadAt,
+      };
+    })
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
   return {
     id: notice.id,
     title: notice.title,
@@ -114,8 +171,16 @@ function mapNotice(ctx: AuthedContext, notice: StaffNoticeRow) {
     createdAt: notice.createdAt,
     expiresAt: notice.expiresAt,
     active: notice.active,
-    read: Boolean(readAt),
-    readAt,
+    read: ownNotice || Boolean(readAt),
+    readAt: ownNotice ? null : readAt,
+    readSummary:
+      ownNotice && noticeRecipients.length > 0
+        ? {
+            read: noticeRecipients.filter((recipient) => recipient.read).length,
+            total: noticeRecipients.length,
+            recipients: noticeRecipients,
+          }
+        : null,
   };
 }
 
@@ -123,19 +188,20 @@ export const noticeRouter = router({
   listForAdmin: authedProcedure.query(async ({ ctx }) => {
     requireNoticePoster(ctx.user);
 
-    const notices = await ctx.db.staffNotice.findMany({
-      where: audienceWhere(['Supervisors', 'Parents', 'Both']),
-      include: {
-        reads: {
-          where: { userId: ctx.user.id },
-          select: { readAt: true },
-          take: 1,
+    const [notices, recipients] = await Promise.all([
+      ctx.db.staffNotice.findMany({
+        where: audienceWhere(['Supervisors', 'Parents', 'Both']),
+        include: {
+          reads: {
+            select: { userId: true, readAt: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      loadNoticeRecipients(ctx),
+    ]);
 
-    return notices.map((notice) => mapNotice(ctx, notice));
+    return notices.map((notice) => mapNotice(ctx, notice, recipients));
   }),
   listForStaff: authedProcedure.query(async ({ ctx }) => {
     requireStaffNoticeReader(ctx.user);
@@ -218,7 +284,7 @@ export const noticeRouter = router({
 
       const notice = await ctx.db.staffNotice.findUnique({
         where: { id: input.noticeId },
-        select: { id: true, active: true, audience: true, expiresAt: true },
+        select: { id: true, active: true, audience: true, expiresAt: true, postedById: true },
       });
       if (
         !notice ||
@@ -226,6 +292,12 @@ export const noticeRouter = router({
         !canReadNoticeAudience(ctx.user, notice.audience)
       ) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'notice not found' });
+      }
+      if (notice.postedById === ctx.user.id) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'notice authors do not need to mark read',
+        });
       }
 
       const existingRead = await ctx.db.staffNoticeRead.findUnique({

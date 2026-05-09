@@ -982,6 +982,94 @@
   font-weight: 650;
 }
 
+.noticeboard-read-summary {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-start;
+}
+
+.noticeboard-read-summary__trigger {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--oasis-navy);
+  cursor: default;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.noticeboard-read-summary__tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: min(260px, 80vw);
+  max-height: 280px;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(23, 37, 84, 0.16);
+  opacity: 0;
+  overflow-y: auto;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.noticeboard-read-summary:hover .noticeboard-read-summary__tooltip,
+.noticeboard-read-summary:focus-within .noticeboard-read-summary__tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.noticeboard-read-summary__row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--oasis-text-secondary);
+}
+
+.noticeboard-read-summary__row strong,
+.noticeboard-read-summary__row small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noticeboard-read-summary__row strong {
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+}
+
+.noticeboard-read-summary__row small {
+  color: var(--oasis-text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.noticeboard-read-summary__icon {
+  color: var(--oasis-text-muted);
+}
+
+.noticeboard-read-summary__icon.is-read {
+  color: var(--oasis-success);
+}
+
 .dashboard-empty-state {
   color: var(--oasis-text-muted);
   font-size: 0.78rem;

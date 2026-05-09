@@ -239,6 +239,8 @@ Scope:
 - Show unread/read state and a mark-read action.
 - Add Head/admin notice composer with title/body validation, audience selection
   for supervisors, parents, or both, and pending state.
+- For notices authored by the current Head/admin user, replace the mark-read
+  action with a read-count summary and recipient read/unread tooltip.
 - Surface a notice summary on the Supervisor dashboard where useful.
 - Keep parent messaging, read-count analytics, attachments, and notice
   deletion/editing out of scope.
@@ -248,6 +250,8 @@ Tests:
 - Admin can compose and publish supervisor and parent notices.
 - Supervisor sees supervisor/both notices and can mark them read.
 - Parent sees parent/both notices and can mark them read.
+- Notice authors do not mark their own notices read and can see recipient
+  read/unread status.
 - Read state persists after refresh.
 - Unsupported roles cannot access staff/admin notice pages.
 
