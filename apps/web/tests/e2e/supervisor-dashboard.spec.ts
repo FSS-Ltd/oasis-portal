@@ -29,6 +29,22 @@ test.describe('Supervisor dashboard shell', () => {
     await expect(page.getByText(/students marked today/i)).toHaveCount(0);
   });
 
+  headTest('full-admin can compose and publish a staff notice', async ({ page }) => {
+    await signIn(page, headEmail!, headPassword!);
+    await expect(page).toHaveURL(/admin/);
+    await page.goto('/admin/noticeboard');
+    await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /post a notice/i })).toBeVisible();
+
+    const noticeTitle = `E2E staff notice ${Date.now()}`;
+    await page.getByLabel('Notice title').fill(noticeTitle);
+    await page.getByLabel('Notice body').fill('Staff noticeboard E2E verification.');
+    await page.getByRole('button', { name: /post to noticeboard/i }).click();
+
+    await expect(page.getByText(/notice posted/i)).toBeVisible();
+    await expect(page.getByText(noticeTitle)).toBeVisible();
+  });
+
   supervisorTest(
     'Supervisor can use focused attendance, behaviour, PACE, and rota pages',
     async ({ page }) => {
@@ -41,6 +57,17 @@ test.describe('Supervisor dashboard shell', () => {
       await expect(page.getByText(/No shift scheduled/i).first()).toBeVisible();
       await expect(page.getByRole('heading', { name: /pending/i })).toBeVisible();
       await expect(page.getByRole('heading', { name: /notices/i })).toBeVisible();
+
+      await page.goto('/supervisor/noticeboard');
+      await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /staff notices/i })).toBeVisible();
+      const markReadButton = page.getByRole('button', { name: /mark .* as read/i }).first();
+      if ((await markReadButton.count()) > 0) {
+        await markReadButton.click();
+        await expect(page.getByText(/^read$/i).first()).toBeVisible();
+        await page.reload();
+        await expect(page.getByText(/^read$/i).first()).toBeVisible();
+      }
 
       await page.goto('/supervisor/attendance');
       await expect(page.getByRole('heading', { name: /attendance/i })).toBeVisible();
@@ -141,6 +168,10 @@ test.describe('Supervisor dashboard shell', () => {
     await expect(page).toHaveURL(/parent/);
     await page.goto('/supervisor');
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toHaveCount(0);
+    await page.goto('/supervisor/noticeboard');
+    await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toHaveCount(0);
+    await page.goto('/admin/noticeboard');
+    await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toHaveCount(0);
   });
 
   test('unauthenticated supervisor access requires sign-in', async ({ page }) => {

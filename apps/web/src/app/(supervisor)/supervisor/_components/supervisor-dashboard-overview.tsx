@@ -61,6 +61,8 @@ interface SupervisorDashboardOverviewProps {
   dashboardActivityLoading: boolean;
   dashboardMessages: readonly DashboardMessageSummary[];
   dashboardNotices: readonly DashboardNoticeSummary[];
+  dashboardNoticesError?: string | undefined;
+  dashboardNoticesLoading: boolean;
   date: Date;
   lateCount: number;
   mySwapRequests: readonly SwapRequestSummary[];
@@ -115,6 +117,8 @@ export function SupervisorDashboardOverview({
   dashboardActivityLoading,
   dashboardMessages,
   dashboardNotices,
+  dashboardNoticesError,
+  dashboardNoticesLoading,
   date,
   lateCount,
   mySwapRequests,
@@ -139,7 +143,10 @@ export function SupervisorDashboardOverview({
         <span>Oasis Learning Centre</span>
       </div>
 
-      <section className="dashboard-grid dashboard-grid--hero" aria-label="Supervisor dashboard summary">
+      <section
+        className="dashboard-grid dashboard-grid--hero"
+        aria-label="Supervisor dashboard summary"
+      >
         <StatCard
           accent="#166534"
           className="head-stat-card"
@@ -238,7 +245,9 @@ export function SupervisorDashboardOverview({
             <div className="section-title">
               <h2>Today&apos;s Activity</h2>
             </div>
-            {dashboardActivityError ? <p className="status--error">{dashboardActivityError}</p> : null}
+            {dashboardActivityError ? (
+              <p className="status--error">{dashboardActivityError}</p>
+            ) : null}
             <div className="head-activity-list">
               {dashboardActivityLoading ? (
                 <div className="empty-state">Loading today&apos;s activity...</div>
@@ -263,7 +272,10 @@ export function SupervisorDashboardOverview({
                           : 'head-merit-pill head-merit-pill--minus'
                       }
                     >
-                      {entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits
+                      {entry.meritDelta >= 0
+                        ? `+${String(entry.meritDelta)}`
+                        : String(entry.meritDelta)}{' '}
+                      merits
                     </span>
                     <p>
                       {entry.category}
@@ -283,10 +295,26 @@ export function SupervisorDashboardOverview({
               <h2>Quick Actions</h2>
             </div>
             <div className="head-action-list">
-              <DashboardAction href="/supervisor/attendance" icon={<ClipboardCheck size={16} />} label="Mark Attendance" />
-              <DashboardAction href="/supervisor/behaviour" icon={<Star size={16} />} label="Log Behaviour" />
-              <DashboardAction href="/supervisor/pace" icon={<BookOpenCheck size={16} />} label="Record PACE Score" />
-              <DashboardAction href="/supervisor/snapshot" icon={<FileText size={16} />} label="Child Snapshot" />
+              <DashboardAction
+                href="/supervisor/attendance"
+                icon={<ClipboardCheck size={16} />}
+                label="Mark Attendance"
+              />
+              <DashboardAction
+                href="/supervisor/behaviour"
+                icon={<Star size={16} />}
+                label="Log Behaviour"
+              />
+              <DashboardAction
+                href="/supervisor/pace"
+                icon={<BookOpenCheck size={16} />}
+                label="Record PACE Score"
+              />
+              <DashboardAction
+                href="/supervisor/snapshot"
+                icon={<FileText size={16} />}
+                label="Child Snapshot"
+              />
             </div>
           </section>
 
@@ -296,7 +324,9 @@ export function SupervisorDashboardOverview({
                 <h2>Pending</h2>
                 <p className="muted">Messages and shift swap requests needing attention.</p>
               </div>
-              <span className="badge badge--blue">{dashboardMessages.length + mySwapRequests.length} open</span>
+              <span className="badge badge--blue">
+                {dashboardMessages.length + mySwapRequests.length} open
+              </span>
             </div>
 
             <div className="supervisor-dashboard-list">
@@ -313,7 +343,9 @@ export function SupervisorDashboardOverview({
                   <article className="dashboard-list-row" key={message.id}>
                     <strong>{message.subject}</strong>
                     <span>{message.latestPreview}</span>
-                    {message.updatedAt ? <small>{formatShortDateTime(message.updatedAt)}</small> : null}
+                    {message.updatedAt ? (
+                      <small>{formatShortDateTime(message.updatedAt)}</small>
+                    ) : null}
                   </article>
                 ))
               )}
@@ -336,11 +368,14 @@ export function SupervisorDashboardOverview({
                 return (
                   <article className="dashboard-list-row" key={request.id}>
                     <strong>
-                      {request.direction === 'Requested' ? 'Awaiting Head review' : 'Incoming request'} with {otherPerson}
+                      {request.direction === 'Requested'
+                        ? 'Awaiting Head review'
+                        : 'Incoming request'}{' '}
+                      with {otherPerson}
                     </strong>
                     <span>
-                      {request.fromShift.date} {formatTime(request.fromShift.startsAt)} → {request.toShift.date}{' '}
-                      {formatTime(request.toShift.startsAt)}
+                      {request.fromShift.date} {formatTime(request.fromShift.startsAt)} →{' '}
+                      {request.toShift.date} {formatTime(request.toShift.startsAt)}
                     </span>
                     <small>{formatShortDateTime(request.createdAt)}</small>
                   </article>
@@ -355,23 +390,34 @@ export function SupervisorDashboardOverview({
                 <h2>Notices</h2>
                 <p className="muted">Admin notices for supervisors.</p>
               </div>
-              <span className="badge badge--blue">{dashboardNotices.filter((notice) => !notice.read).length} unread</span>
+              <Link
+                className="button button--secondary button--sm"
+                href={{ pathname: '/supervisor/noticeboard' }}
+              >
+                Open
+              </Link>
             </div>
-            {dashboardNotices.length === 0 ? (
-              <div className="dashboard-empty-state">
-                Admin notices will appear here when notice publishing is connected.
-              </div>
-            ) : (
-              <div className="supervisor-dashboard-list">
-                {dashboardNotices.map((notice) => (
-                  <article className={notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'} key={notice.id}>
-                    <strong>{notice.title}</strong>
-                    <span>{notice.bodyPreview}</span>
-                    {notice.postedAt ? <small>{formatShortDateTime(notice.postedAt)}</small> : null}
-                  </article>
-                ))}
-              </div>
-            )}
+            {dashboardNoticesError ? (
+              <p className="status--error">{dashboardNoticesError}</p>
+            ) : null}
+            {dashboardNoticesLoading ? (
+              <div className="dashboard-empty-state">Loading notices...</div>
+            ) : null}
+            {!dashboardNoticesLoading && dashboardNotices.length === 0 ? (
+              <div className="dashboard-empty-state">No active staff notices.</div>
+            ) : null}
+            <div className="supervisor-dashboard-list">
+              {dashboardNotices.map((notice) => (
+                <article
+                  className={notice.read ? 'dashboard-list-row' : 'dashboard-list-row is-unread'}
+                  key={notice.id}
+                >
+                  <strong>{notice.title}</strong>
+                  <span>{notice.bodyPreview}</span>
+                  {notice.postedAt ? <small>{formatShortDateTime(notice.postedAt)}</small> : null}
+                </article>
+              ))}
+            </div>
           </section>
 
           <section className="panel panel__body">

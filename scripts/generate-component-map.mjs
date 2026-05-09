@@ -130,6 +130,7 @@ const PRODUCT_MODULES = [
     webSurfaces: [
       'apps/web/src/app/(admin)/',
       'apps/web/src/app/(parent)/',
+      'apps/web/src/components/noticeboard/',
       'apps/web/src/components/ui/',
     ],
     mobileSurfaces: [],

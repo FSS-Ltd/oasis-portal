@@ -143,9 +143,11 @@ Tests:
 Goal: make the parent portal an intentional product surface rather than only a
 child-detail route.
 
-### PR-3.4 - `feat(web): parent dashboard polish` READY FOR REVIEW
+### PR-3.4 - `feat(web): parent dashboard polish` MERGED
 
 Working branch: `feat/phase-3-pr3.4-parent-dashboard-polish`.
+
+Merged via PR #81 on 2026-05-08.
 
 Scope:
 
@@ -185,9 +187,11 @@ Verification:
 Goal: create a staff announcement channel with read receipts before parent
 messaging expands the communication model.
 
-### PR-3.5 - `feat(api): staff notices and read receipts` READY FOR REVIEW
+### PR-3.5 - `feat(api): staff notices and read receipts` MERGED
 
 Working branch: `feat/phase-3-pr3.5-staff-notices`.
+
+Merged via PR #82 on 2026-05-08.
 
 Scope:
 
@@ -222,7 +226,9 @@ Verification:
 - `pnpm docs:component-map`
 - `git diff --check`
 
-### PR-3.6 - `feat(web): staff noticeboard UI` PLANNED
+### PR-3.6 - `feat(web): staff noticeboard UI` READY FOR REVIEW
+
+Working branch: `feat/phase-3-pr3.6-staff-noticeboard-ui`.
 
 Scope:
 
@@ -246,6 +252,10 @@ Verification:
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
+- `pnpm --filter @oasis/web test:e2e`
+- `graphify update .`
+- `pnpm docs:component-map`
+- `git diff --check`
 
 ---
 
