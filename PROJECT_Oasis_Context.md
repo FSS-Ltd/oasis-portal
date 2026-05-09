@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-09
 **Agent:** Technical Agent (Codex)
-**Phase:** Technical Support-only User Access.
+**Phase:** PR-3.7 parent messaging threads API.
 
 ---
 
@@ -18,7 +18,47 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Technical Support-only User Access
+## Current status - PR-3.7 parent messaging threads API
+
+Working branch: `feat/phase-3-pr3.7-parent-messaging-api`.
+
+**PR scope:** Replace the parent messaging placeholder router with audited,
+encrypted thread APIs while keeping UI, email notifications, attachments, read
+receipts, and group announcements deferred.
+
+Changed scope:
+
+- Implemented `message.listThreads`, `message.openThread`, `message.send`, and
+  `message.listInThread` against the existing `MessageThread` and `Message`
+  Prisma models.
+- Enforced parent-only thread creation, parent-only own-thread access, Head
+  global access, and assigned-thread-only access for other full-admin roles.
+- Denied Supervisor, ClubsAdmin, TechnicalSupport, and Student access to parent
+  messaging unless future policy changes.
+- Encrypted message bodies at rest, returned decrypted bodies only from
+  `listInThread`, and kept thread summaries free of body decryption.
+- Audited thread creation and message sends.
+- Marked PR-3.6 merged via PR #83 and the noticeboard follow-up merged via PR
+  #84 in the Phase 3 plan, with PR #85 recorded as the merged notice read-race
+  fix.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- message.router.test.ts` - pass, ran all API
+  tests because of Vitest argument handling: 17 files / 287 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm lint` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass, updated
+  `docs/architecture/component-relationships.md`.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- No schema migration was required; this uses the existing messaging tables.
+
+## Previous status - Technical Support-only User Access
 
 Working branch: `fix/technical-support-user-access`.
 
