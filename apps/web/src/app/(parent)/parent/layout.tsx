@@ -13,16 +13,27 @@ export const dynamic = 'force-dynamic';
 export default async function ParentLayout({ children }: { children: ReactNode }) {
   const user = await getLinkedChildPortalUser();
   const now = new Date();
-  const unreadNoticeCount = await prisma.staffNotice.count({
-    where: {
-      active: true,
-      audience: { in: ['Parents', 'Both'] },
-      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      reads: {
-        none: { userId: user.id },
+  const [unreadNoticeCount, unreadMessageCount] = await Promise.all([
+    prisma.staffNotice.count({
+      where: {
+        active: true,
+        audience: { in: ['Parents', 'Both'] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        reads: {
+          none: { userId: user.id },
+        },
       },
-    },
-  });
+    }),
+    prisma.message.count({
+      where: {
+        senderId: { not: user.id },
+        thread: { parentId: user.id },
+        reads: {
+          none: { userId: user.id },
+        },
+      },
+    }),
+  ]);
 
   return (
     <div className="admin-shell parent-shell">
@@ -43,7 +54,10 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <span>Linked children only</span>
           <ProfileBadgeLink href="/parent/profile" />
         </div>
-        <ParentSidebarNav unreadNoticeCount={unreadNoticeCount} />
+        <ParentSidebarNav
+          unreadMessageCount={unreadMessageCount}
+          unreadNoticeCount={unreadNoticeCount}
+        />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -65,7 +79,10 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
-        <ParentBottomNav unreadNoticeCount={unreadNoticeCount} />
+        <ParentBottomNav
+          unreadMessageCount={unreadMessageCount}
+          unreadNoticeCount={unreadNoticeCount}
+        />
       </div>
     </div>
   );

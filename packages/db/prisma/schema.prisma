@@ -84,6 +84,7 @@ model User {
   noticeReads             StaffNoticeRead[]
   calendarEventsCreated   CalendarEvent[]           @relation("CalendarEventsCreated")
   messagesSent            Message[]                 @relation("MessagesSent")
+  messageReads            MessageRead[]
   threadsAsParent         MessageThread[]           @relation("ThreadParent")
   threadsAsAdmin          MessageThread[]           @relation("ThreadAdmin")
   shopPurchases           ShopPurchase[]            @relation("Shopkeeper")
@@ -795,8 +796,21 @@ model Message {
 
   thread MessageThread @relation(fields: [threadId], references: [id])
   sender User          @relation("MessagesSent", fields: [senderId], references: [id])
+  reads  MessageRead[]
 
   @@index([threadId, createdAt])
+}
+
+model MessageRead {
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@id([messageId, userId])
+  @@index([userId, readAt])
 }
 
 // ---------------------------------------------------------------------------

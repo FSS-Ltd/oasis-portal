@@ -20,23 +20,23 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: Home, badge: undefined },
-  { href: '/admin/children', label: 'My Children', icon: UsersRound, badge: undefined },
-  { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
-  { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
-  { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
-  { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays, badge: undefined },
-  { href: '/admin/access', label: 'User Access', icon: UserCog, badge: undefined },
-  { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound, badge: undefined },
-  { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
-  { href: '/admin/behaviour', label: 'Behaviour', icon: Star, badge: undefined },
-  { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck, badge: undefined },
-  { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList, badge: undefined },
-  { href: '/admin/academic', label: 'Academics', icon: BookOpen, badge: undefined },
-  { href: '/admin', label: 'Merit Shop', icon: ShoppingBag, badge: undefined },
-  { href: '/admin', label: 'Reports', icon: BarChart3, badge: undefined },
-  { href: '/admin', label: 'Messages', icon: MessageSquare, badge: '2' },
-  { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell, badge: undefined },
+  { href: '/admin', label: 'Dashboard', icon: Home },
+  { href: '/admin/children', label: 'My Children', icon: UsersRound },
+  { href: '/admin/students', label: 'Students', icon: GraduationCap },
+  { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck },
+  { href: '/admin/rota', label: 'Rota', icon: CalendarDays },
+  { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/admin/access', label: 'User Access', icon: UserCog },
+  { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound },
+  { href: '/admin/audit', label: 'Audit', icon: ClipboardList },
+  { href: '/admin/behaviour', label: 'Behaviour', icon: Star },
+  { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
+  { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
+  { href: '/admin/academic', label: 'Academics', icon: BookOpen },
+  { href: '/admin', label: 'Merit Shop', icon: ShoppingBag },
+  { href: '/admin', label: 'Reports', icon: BarChart3 },
+  { href: '/admin/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell },
 ] as const;
 
 type AdminNavProps = {
@@ -49,6 +49,8 @@ type AdminNavProps = {
   canExportAttendance: boolean;
   fullAdmin: boolean;
   hasLinkedChildren: boolean;
+  canUseMessages: boolean;
+  unreadMessageCount: number;
 };
 
 function isActiveRoute(pathname: string, href: string, label: string) {
@@ -57,6 +59,11 @@ function isActiveRoute(pathname: string, href: string, label: string) {
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function countBadge(count: number): string | null {
+  if (count <= 0) return null;
+  return count > 99 ? '99+' : String(count);
 }
 
 function visibleForUser(
@@ -72,9 +79,11 @@ function visibleForUser(
     | 'canViewStudents'
     | 'fullAdmin'
     | 'hasLinkedChildren'
+    | 'canUseMessages'
   >,
 ) {
   if (item.label === 'My Children') return access.hasLinkedChildren;
+  if (item.label === 'Messages') return access.canUseMessages;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
@@ -98,6 +107,8 @@ export function AdminSidebarNav({
   canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
+  canUseMessages,
+  unreadMessageCount,
 }: AdminNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter((item) =>
@@ -111,6 +122,7 @@ export function AdminSidebarNav({
       canViewStudents,
       fullAdmin,
       hasLinkedChildren,
+      canUseMessages,
     }),
   );
 
@@ -120,6 +132,7 @@ export function AdminSidebarNav({
         const Icon = item.icon;
         const enabled = item.href !== '/admin' || item.label === 'Dashboard';
         const active = enabled && isActiveRoute(pathname, item.href, item.label);
+        const badge = item.label === 'Messages' ? countBadge(unreadMessageCount) : null;
         const className = [
           'admin-shell__nav-item',
           enabled ? undefined : 'is-disabled',
@@ -138,7 +151,7 @@ export function AdminSidebarNav({
           >
             <Icon aria-hidden="true" size={18} />
             <span>{item.label}</span>
-            {item.badge ? <b>{item.badge}</b> : null}
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}
@@ -156,6 +169,8 @@ export function AdminBottomNav({
   canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
+  canUseMessages,
+  unreadMessageCount,
 }: AdminNavProps) {
   const pathname = usePathname();
   const mobileNavItems = navItems
@@ -170,6 +185,7 @@ export function AdminBottomNav({
         canViewStudents,
         fullAdmin,
         hasLinkedChildren,
+        canUseMessages,
       }),
     )
     .slice(0, 5);
@@ -179,6 +195,7 @@ export function AdminBottomNav({
       {mobileNavItems.map((item, index) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
+        const badge = item.label === 'Messages' ? countBadge(unreadMessageCount) : null;
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -192,6 +209,7 @@ export function AdminBottomNav({
           >
             <Icon aria-hidden="true" size={18} />
             <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}

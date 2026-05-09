@@ -1,0 +1,435 @@
+'use client';
+
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { MessageSquarePlus, Send } from 'lucide-react';
+import { api, type RouterOutputs } from '@/lib/trpc';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
+
+type MessageMode = 'admin' | 'parent';
+type ThreadSummary = RouterOutputs['message']['listThreads'][number];
+type ThreadDetail = RouterOutputs['message']['listInThread'];
+type Recipient = RouterOutputs['message']['listRecipients'][number];
+
+interface MessageCentreProps {
+  mode: MessageMode;
+}
+
+const copy = {
+  admin: {
+    eyebrow: 'Family communications',
+    heading: 'Messages',
+    sub: 'Parent conversations assigned to you.',
+    emptyTitle: 'No parent messages',
+    emptyDetail: 'New parent conversations will appear here.',
+    replyPlaceholder: 'Type your reply...',
+    threadListLabel: 'Parent message threads',
+  },
+  parent: {
+    eyebrow: 'Centre communications',
+    heading: 'Messages',
+    sub: 'Message the centre team from your parent portal.',
+    emptyTitle: 'No messages yet',
+    emptyDetail: 'Start a message thread with the centre team.',
+    replyPlaceholder: 'Type your message...',
+    threadListLabel: 'Your message threads',
+  },
+} as const;
+
+function formatDateTime(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(new Date(value));
+}
+
+function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
+  return mode === 'parent' ? thread.admin.fullName : thread.parent.fullName;
+}
+
+function counterpartRole(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
+  return mode === 'parent' ? thread.admin.role : 'Parent';
+}
+
+function ThreadRow({
+  active,
+  mode,
+  onSelect,
+  thread,
+}: {
+  active: boolean;
+  mode: MessageMode;
+  onSelect: (threadId: string) => void;
+  thread: ThreadSummary;
+}) {
+  const latest = thread.latestMessage;
+
+  return (
+    <button
+      aria-pressed={active}
+      className={active ? 'message-thread-row is-active' : 'message-thread-row'}
+      onClick={() => {
+        onSelect(thread.id);
+      }}
+      type="button"
+    >
+      <span>
+        <strong>{counterpartLabel(mode, thread)}</strong>
+        <small>{counterpartRole(mode, thread)}</small>
+      </span>
+      <span className="message-thread-row__meta">
+        {latest ? formatDateTime(latest.createdAt) : formatDateTime(thread.createdAt)}
+      </span>
+      <em>{thread.subject}</em>
+      <span className="message-thread-row__footer">
+        <small>
+          {thread.messageCount === 1 ? '1 message' : `${String(thread.messageCount)} messages`}
+        </small>
+        {thread.unreadCount > 0 ? (
+          <b aria-label={`${String(thread.unreadCount)} unread messages`}>
+            {thread.unreadCount > 99 ? '99+' : String(thread.unreadCount)}
+          </b>
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
+function MessageBubble({
+  currentUserId,
+  message,
+}: {
+  currentUserId: string | null;
+  message: ThreadDetail['messages'][number];
+}) {
+  const mine = currentUserId === message.senderId;
+
+  return (
+    <article className={mine ? 'message-bubble is-mine' : 'message-bubble'}>
+      <header>
+        <strong>{mine ? 'You' : message.sender.fullName}</strong>
+        <time>{formatDateTime(message.createdAt)}</time>
+      </header>
+      <p>{message.body}</p>
+      {mine ? (
+        <footer>{message.readByOtherParticipant ? 'Read' : 'Sent'}</footer>
+      ) : null}
+    </article>
+  );
+}
+
+function NewThreadComposer({
+  onCreated,
+  recipients,
+  recipientsLoading,
+}: {
+  onCreated: (threadId: string) => void;
+  recipients: Recipient[];
+  recipientsLoading: boolean;
+}) {
+  const utils = api.useUtils();
+  const [adminId, setAdminId] = useState('');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const openThread = api.message.openThread.useMutation();
+  const sendMessage = api.message.send.useMutation();
+
+  useEffect(() => {
+    if (!adminId && recipients[0]) setAdminId(recipients[0].id);
+  }, [adminId, recipients]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedSubject = subject.trim();
+    const trimmedBody = body.trim();
+    if (!adminId || !trimmedSubject || !trimmedBody) {
+      setError('Recipient, subject, and message are required.');
+      return;
+    }
+
+    setError(null);
+    try {
+      const thread = await openThread.mutateAsync({ adminId, subject: trimmedSubject });
+      await sendMessage.mutateAsync({ threadId: thread.id, body: trimmedBody });
+      setSubject('');
+      setBody('');
+      await utils.message.listThreads.invalidate();
+      onCreated(thread.id);
+    } catch {
+      // The mutation error is rendered below the form.
+    }
+  }
+
+  const pending = openThread.isPending || sendMessage.isPending;
+
+  return (
+    <section className="panel panel__body message-new-thread" aria-labelledby="new-message-title">
+      <div className="section-title">
+        <div>
+          <h2 id="new-message-title">New Message</h2>
+          <p className="muted">Start a private thread with the centre team.</p>
+        </div>
+      </div>
+      <form
+        className="message-form"
+        onSubmit={(event) => {
+          void submit(event);
+        }}
+      >
+        <Field label="Recipient" required>
+          <SelectInput
+            aria-label="Message recipient"
+            disabled={pending || recipientsLoading || recipients.length === 0}
+            onChange={(event) => {
+              setAdminId(event.target.value);
+            }}
+            required
+            value={adminId}
+          >
+            {recipients.map((recipient) => (
+              <option key={recipient.id} value={recipient.id}>
+                {recipient.fullName}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <Field label="Subject" required>
+          <TextInput
+            maxLength={160}
+            onChange={(event) => {
+              setSubject(event.target.value);
+            }}
+            placeholder="What is this about?"
+            required
+            value={subject}
+          />
+        </Field>
+        <Field label="Message" required>
+          <textarea
+            className="input textarea"
+            maxLength={4000}
+            onChange={(event) => {
+              setBody(event.target.value);
+            }}
+            placeholder="Write your message..."
+            required
+            rows={5}
+            value={body}
+          />
+        </Field>
+        <Button disabled={recipients.length === 0} pending={pending} type="submit">
+          <MessageSquarePlus aria-hidden="true" size={16} />
+          Start Thread
+        </Button>
+        {recipients.length === 0 && !recipientsLoading ? (
+          <p className="status--error">No message recipients are currently available.</p>
+        ) : null}
+        {error ? <p className="status--error">{error}</p> : null}
+        {openThread.error ? <p className="status--error">{openThread.error.message}</p> : null}
+        {sendMessage.error ? <p className="status--error">{sendMessage.error.message}</p> : null}
+      </form>
+    </section>
+  );
+}
+
+function ReplyComposer({
+  disabled,
+  onSent,
+  placeholder,
+  threadId,
+}: {
+  disabled: boolean;
+  onSent: () => void;
+  placeholder: string;
+  threadId: string;
+}) {
+  const [body, setBody] = useState('');
+  const sendMessage = api.message.send.useMutation();
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmedBody = body.trim();
+    if (!trimmedBody) return;
+
+    try {
+      await sendMessage.mutateAsync({ threadId, body: trimmedBody });
+      setBody('');
+      onSent();
+    } catch {
+      // The mutation error is rendered below the form.
+    }
+  }
+
+  return (
+    <form
+      className="message-reply-form"
+      onSubmit={(event) => {
+        void submit(event);
+      }}
+    >
+      <textarea
+        aria-label="Message reply"
+        className="input textarea"
+        disabled={disabled || sendMessage.isPending}
+        maxLength={4000}
+        onChange={(event) => {
+          setBody(event.target.value);
+        }}
+        placeholder={placeholder}
+        rows={3}
+        value={body}
+      />
+      <Button disabled={disabled || body.trim().length === 0} pending={sendMessage.isPending} type="submit">
+        <Send aria-hidden="true" size={16} />
+        Send
+      </Button>
+      {sendMessage.error ? <p className="status--error">{sendMessage.error.message}</p> : null}
+    </form>
+  );
+}
+
+export function MessageCentre({ mode }: MessageCentreProps) {
+  const searchParams = useSearchParams();
+  const utils = api.useUtils();
+  const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
+  const threadsQuery = api.message.listThreads.useQuery(undefined, { retry: false });
+  const recipientsQuery = api.message.listRecipients.useQuery(undefined, {
+    enabled: mode === 'parent',
+    retry: false,
+  });
+  const threads = threadsQuery.data ?? [];
+  const queryThreadId = searchParams.get('threadId');
+  const selectedThreadId = useMemo(() => {
+    if (selectedOverrideId && threads.some((thread) => thread.id === selectedOverrideId)) {
+      return selectedOverrideId;
+    }
+    if (queryThreadId && threads.some((thread) => thread.id === queryThreadId)) {
+      return queryThreadId;
+    }
+    return threads[0]?.id ?? null;
+  }, [queryThreadId, selectedOverrideId, threads]);
+  const selectedSummary = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const threadQuery = api.message.listInThread.useQuery(
+    { threadId: selectedThreadId ?? '' },
+    { enabled: Boolean(selectedThreadId), retry: false },
+  );
+  const selectedThread = threadQuery.data ?? null;
+  const currentUserId = selectedThread?.currentUserId ?? null;
+  const pageCopy = copy[mode];
+  const unreadTotal = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+
+  useEffect(() => {
+    if (!selectedThread) return;
+    void utils.message.listThreads.invalidate();
+  }, [selectedThread, utils.message.listThreads]);
+
+  function selectThread(threadId: string) {
+    setSelectedOverrideId(threadId);
+    const encodedThreadId = encodeURIComponent(threadId);
+    const href =
+      mode === 'parent'
+        ? `/parent/messages?threadId=${encodedThreadId}`
+        : `/admin/messages?threadId=${encodedThreadId}`;
+    window.history.replaceState(null, '', href);
+  }
+
+  async function refreshSelectedThread() {
+    await utils.message.listThreads.invalidate();
+    if (selectedThreadId) {
+      await utils.message.listInThread.invalidate({ threadId: selectedThreadId });
+    }
+  }
+
+  return (
+    <div className="messages-page">
+      <div className="dashboard-hero">
+        <p>{pageCopy.eyebrow}</p>
+        <h1>{pageCopy.heading}</h1>
+        <span>{pageCopy.sub}</span>
+      </div>
+
+      {mode === 'parent' ? (
+        <NewThreadComposer
+          onCreated={selectThread}
+          recipients={recipientsQuery.data ?? []}
+          recipientsLoading={recipientsQuery.isLoading}
+        />
+      ) : null}
+      {recipientsQuery.error ? (
+        <p className="status--error">{recipientsQuery.error.message}</p>
+      ) : null}
+
+      <div className="messages-layout">
+        <section className="panel message-thread-list-panel" aria-labelledby="message-list-title">
+          <div className="message-panel-header">
+            <h2 id="message-list-title">{pageCopy.threadListLabel}</h2>
+            <span>{unreadTotal > 0 ? `${String(unreadTotal)} unread` : String(threads.length)}</span>
+          </div>
+          {threadsQuery.isLoading ? <EmptyState>Loading messages...</EmptyState> : null}
+          {threadsQuery.error ? <p className="status--error">{threadsQuery.error.message}</p> : null}
+          {!threadsQuery.isLoading && threads.length === 0 ? (
+            <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
+          ) : null}
+          <div className="message-thread-list" aria-label={pageCopy.threadListLabel}>
+            {threads.map((thread) => (
+              <ThreadRow
+                active={thread.id === selectedThreadId}
+                key={thread.id}
+                mode={mode}
+                onSelect={selectThread}
+                thread={thread}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="panel panel__body message-detail-panel">
+          {selectedSummary ? (
+            <div className="message-detail-header">
+              <div>
+                <p>{counterpartRole(mode, selectedSummary)}</p>
+                <h2>{counterpartLabel(mode, selectedSummary)}</h2>
+                <span>{selectedSummary.subject}</span>
+              </div>
+            </div>
+          ) : null}
+
+          {threadQuery.isLoading ? <EmptyState>Loading thread...</EmptyState> : null}
+          {threadQuery.error ? <p className="status--error">{threadQuery.error.message}</p> : null}
+          {!selectedThreadId && !threadsQuery.isLoading ? (
+            <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
+          ) : null}
+          {selectedThread && selectedThread.messages.length === 0 ? (
+            <EmptyState detail="Messages in this thread will appear here." title="No replies yet" />
+          ) : null}
+          {selectedThread ? (
+            <>
+              <div className="message-bubble-list" aria-label="Message thread">
+                {selectedThread.messages.map((message) => (
+                  <MessageBubble
+                    currentUserId={currentUserId}
+                    key={message.id}
+                    message={message}
+                  />
+                ))}
+              </div>
+              <ReplyComposer
+                disabled={threadQuery.isLoading}
+                onSent={() => {
+                  void refreshSelectedThread();
+                }}
+                placeholder={pageCopy.replyPlaceholder}
+                threadId={selectedThread.id}
+              />
+            </>
+          ) : null}
+        </section>
+      </div>
+    </div>
+  );
+}

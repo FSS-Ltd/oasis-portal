@@ -6,12 +6,14 @@ import {
   DEFAULT_RESEND_FROM,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
   SMOKE_TEST_EMAIL_SUBJECT,
   SMOKE_TEST_EMAIL_TEXT,
   SMOKE_TEST_EMAIL_TO,
   USER_INVITE_EMAIL_SUBJECT,
   buildHelloWorldEmail,
+  buildMessageNotificationEmail,
   buildSmokeTestEmail,
   buildUserInviteEmail,
   readEmailConfig,
@@ -173,6 +175,30 @@ describe('email builders', () => {
     expect(html).toContain('Parent Portal');
     expect(html).toContain('x=1&amp;y=2');
     expect(html).not.toContain('create your Clerk account');
+  });
+
+  it('builds a message notification email without leaking the message body', async () => {
+    const email = buildMessageNotificationEmail({
+      to: 'parent@example.com',
+      recipientName: 'Jane Parent',
+      senderName: 'Mrs Thompson',
+      threadSubject: 'Attendance question',
+      messagePath: '/parent/messages?threadId=cthread1',
+    });
+
+    expect(email.to).toBe('parent@example.com');
+    expect(email.subject).toBe(MESSAGE_NOTIFICATION_EMAIL_SUBJECT);
+    expect(email.text).toContain('Mrs Thompson');
+    expect(email.text).toContain('Attendance question');
+    expect(email.text).not.toContain('Please call me back');
+    expect('react' in email).toBe(true);
+    expect('html' in email).toBe(false);
+
+    if (!('react' in email)) throw new Error('expected react email payload');
+    const html = await render(email.react);
+    expect(html).toContain('New portal message');
+    expect(html).toContain('Attendance question');
+    expect(html).not.toContain('Please call me back');
   });
 });
 

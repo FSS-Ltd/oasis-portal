@@ -57,6 +57,10 @@ const GUARDIAN_ACCOUNT_ROLES = [
   'Parent',
   ...CHILD_REGISTRATION_PROMPT_ROLES,
 ] as const satisfies readonly Role[];
+const HEAD_ONLY_PERMISSION_TAGS = [
+  'student-drillthrough-viewer',
+  'parent-message-responder',
+] as const satisfies readonly PermissionTag[];
 
 const searchParentsInput = z
   .object({
@@ -125,8 +129,6 @@ const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
 
 type AdminUserProfileRow = Prisma.UserGetPayload<{ select: typeof adminUserProfileSelect }>;
 
-const STUDENT_DRILLTHROUGH_TAG = 'student-drillthrough-viewer';
-
 const userAccountSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
   role: true,
@@ -167,24 +169,25 @@ function invitationScopeWhereFor(actor: SessionUser): Prisma.UserInvitationWhere
   return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
 }
 
-function assertCanAssignStudentDrillThroughTag(
+function assertCanChangeHeadOnlyTags(
   actorRole: string,
   currentTags: readonly string[],
   nextTags: readonly string[],
 ) {
-  const currentHasTag = currentTags.includes(STUDENT_DRILLTHROUGH_TAG);
-  const nextHasTag = nextTags.includes(STUDENT_DRILLTHROUGH_TAG);
-  if (currentHasTag === nextHasTag || actorRole === 'Head') return;
+  const changedTag = HEAD_ONLY_PERMISSION_TAGS.find(
+    (tag) => currentTags.includes(tag) !== nextTags.includes(tag),
+  );
+  if (!changedTag || actorRole === 'Head') return;
 
   throw new TRPCError({
     code: 'FORBIDDEN',
-    message: 'student drill-through tag can only be changed by Head',
+    message: `${changedTag} tag can only be changed by Head`,
   });
 }
 
 function assertCanInviteUser(actor: SessionUser, role: Role, tags: readonly string[]) {
   if (isFullAdmin(actor)) {
-    assertCanAssignStudentDrillThroughTag(actor.role, [], tags);
+    assertCanChangeHeadOnlyTags(actor.role, [], tags);
     return;
   }
 
@@ -1253,7 +1256,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         if (!existingUser) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
         }
-        assertCanAssignStudentDrillThroughTag(ctx.user.role, existingUser.tags, tags);
+        assertCanChangeHeadOnlyTags(ctx.user.role, existingUser.tags, tags);
 
         try {
           const user = await ctx.db.user.update({

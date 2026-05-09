@@ -11,7 +11,7 @@
  * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`,
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
  * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`,
- * `pace-full-access`, `calendar-manager`.
+ * `pace-full-access`, `calendar-manager`, `parent-message-responder`.
  */
 
 export const ROLES = [
@@ -71,6 +71,7 @@ export const PERMISSION_TAGS = [
   'student-drillthrough-viewer',
   'pace-full-access',
   'calendar-manager',
+  'parent-message-responder',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
@@ -218,6 +219,10 @@ export function canUseFullPaceAccess(user: SessionUser): boolean {
 
 export function canManageCalendar(user: SessionUser): boolean {
   return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'calendar-manager'));
+}
+
+export function canRespondToParentMessages(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
+  return user.role === 'Head' || (isFullAdmin(user) && hasTag(user, 'parent-message-responder'));
 }
 
 export function canViewStudentDrillThrough(user: SessionUser): boolean {
