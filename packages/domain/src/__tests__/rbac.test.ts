@@ -78,13 +78,18 @@ describe('requireFullAdmin', () => {
 });
 
 describe('TechnicalSupport account administration', () => {
-  it('is account-admin only, not staff or full-admin', () => {
+  it('is the only User Access account-admin role', () => {
     expect(canManageUserAccounts(technicalSupport)).toBe(true);
+    expect(canManageUserAccounts(head)).toBe(false);
+    expect(canManageUserAccounts(principal)).toBe(false);
     expect(isStaff(technicalSupport)).toBe(false);
     expect(isFullAdmin(technicalSupport)).toBe(false);
     expect(() => {
       requireUserAccountAdmin(technicalSupport);
     }).not.toThrow();
+    expect(() => {
+      requireUserAccountAdmin(head);
+    }).toThrow(AccessDeniedError);
   });
 
   it('can manage Parent and TechnicalSupport account shells only', () => {

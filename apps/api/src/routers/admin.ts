@@ -19,6 +19,7 @@ import {
   TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
   canAnswerChildRegistrationPrompt,
   canManageUserAccountRole,
+  canManageUserAccounts,
   createSubjectInput,
   createYearGroupBandInput,
   deactivateSubjectInput,
@@ -34,7 +35,7 @@ import {
   updateSubjectInput,
   updateYearGroupBandInput,
 } from '@oasis/domain';
-import { fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
+import { authedProcedure, fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
 import {
   createDefaultClerkInvitationClient,
   createDefaultClerkUserEmailClient,
@@ -207,6 +208,14 @@ function assertCanManageTargetRole(actor: SessionUser, role: Role) {
   throw new TRPCError({
     code: 'FORBIDDEN',
     message: `Technical Support cannot manage ${role} accounts`,
+  });
+}
+
+function assertCanUseInvitationWorkflow(actor: SessionUser) {
+  if (isFullAdmin(actor) || canManageUserAccounts(actor)) return;
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: 'requires full admin or Technical Support',
   });
 }
 
@@ -990,7 +999,8 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return rows;
     }),
 
-    listUserInvitations: userAccountAdminProcedure.query(async ({ ctx }) => {
+    listUserInvitations: authedProcedure.query(async ({ ctx }) => {
+      assertCanUseInvitationWorkflow(ctx.user);
       const invitations = await ctx.db.userInvitation.findMany({
         where: { ...invitationScopeWhereFor(ctx.user), status: 'Pending' },
         orderBy: [{ createdAt: 'desc' }],
@@ -1346,9 +1356,10 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         return rows;
       }),
 
-    inviteUser: userAccountAdminProcedure
+    inviteUser: authedProcedure
       .input(inviteUserInput)
       .mutation(async ({ ctx, input }) => {
+        assertCanUseInvitationWorkflow(ctx.user);
         assertCanInviteUser(ctx.user, input.role, input.tags);
         const emailBidx = ctx.db.$enc.blindIndex(input.email);
 
@@ -1431,9 +1442,10 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         });
       }),
 
-    resendUserInvitation: userAccountAdminProcedure
+    resendUserInvitation: authedProcedure
       .input(resendUserInvitationInput)
       .mutation(async ({ ctx, input }) => {
+        assertCanUseInvitationWorkflow(ctx.user);
         const storedInvitation = await ctx.db.userInvitation.findFirst({
           where: { ...invitationScopeWhereFor(ctx.user), id: input.id, status: 'Pending' },
           select: userInvitationSelect,

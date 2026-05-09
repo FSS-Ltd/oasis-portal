@@ -1465,7 +1465,7 @@ describe('admin.listUserAccounts and account support updates', () => {
     expect(db.user.update).not.toHaveBeenCalled();
   });
 
-  it('blocks full-admin self-deactivation before account lookup', async () => {
+  it('blocks full-admin callers from Technical Support account status endpoints', async () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, { db });
 
@@ -1473,7 +1473,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       caller.admin.updateUserAccountStatus({ userId: headUser.id, active: false }),
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
-      message: 'cannot deactivate your own account',
+      message: 'Access denied: role Head cannot manage user accounts',
     });
     expect(db.user.findUnique).not.toHaveBeenCalled();
     expect(db.user.update).not.toHaveBeenCalled();
