@@ -228,7 +228,10 @@ Verification:
 
 ### PR-3.6 - `feat(web): noticeboard UI` READY FOR REVIEW
 
-Working branch: `feat/phase-3-pr3.6-staff-noticeboard-ui`.
+Working branch: `feat/phase-3-pr3.6-noticeboard-follow-up`.
+
+Base staff noticeboard UI merged via PR #83. This follow-up branch carries the
+unread badge, badge refresh, parent noticeboard, and audience-targeting scope.
 
 Scope:
 

@@ -20,7 +20,7 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status - PR-3.6 noticeboard UI
 
-Working branch: `feat/phase-3-pr3.6-staff-noticeboard-ui`.
+Working branch: `feat/phase-3-pr3.6-noticeboard-follow-up`.
 
 **PR scope:** Implement the noticeboard web UI for full-admin, Supervisor, and
 Parent users. Full-admin users can post notices to supervisors, parents, or both.
@@ -75,7 +75,8 @@ Notes:
 - Existing untracked `docs/decks/` files remain untouched.
 - PR-3.4 is merged via PR #81 on 2026-05-08.
 - PR-3.5 is merged via PR #82 on 2026-05-08.
-- PR #83 remains the PR for this branch.
+- PR #83 merged the base staff noticeboard UI; this follow-up branch carries the
+  unread badge, badge refresh, parent noticeboard, and audience-targeting work.
 
 ## Previous status - PR-3.5 staff notices API
 
