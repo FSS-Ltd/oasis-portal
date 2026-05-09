@@ -85,15 +85,15 @@ function ReadSummaryBadge({ summary }: { summary: NonNullable<Notice['readSummar
       <span className="noticeboard-read-summary__tooltip" role="tooltip">
         {summary.recipients.map((recipient) => (
           <span className="noticeboard-read-summary__row" key={recipient.userId}>
-            <Check
-              aria-hidden="true"
+            <span
               className={
                 recipient.read
                   ? 'noticeboard-read-summary__icon is-read'
                   : 'noticeboard-read-summary__icon'
               }
-              size={14}
-            />
+            >
+              <Check aria-hidden="true" size={14} strokeWidth={3.2} />
+            </span>
             <span>
               <strong>{recipient.fullName}</strong>
               <small>{recipient.read ? 'Read' : 'Unread'}</small>

@@ -1037,7 +1037,7 @@
 
 .noticeboard-read-summary__row {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   color: var(--oasis-text-secondary);
@@ -1063,11 +1063,19 @@
 }
 
 .noticeboard-read-summary__icon {
-  color: var(--oasis-text-muted);
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #64748b;
 }
 
 .noticeboard-read-summary__icon.is-read {
-  color: var(--oasis-success);
+  background: var(--oasis-success);
+  color: #ffffff;
 }
 
 .dashboard-empty-state {
