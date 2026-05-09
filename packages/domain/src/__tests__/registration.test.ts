@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parentInitialRegistrationInput } from '../registration.js';
+import {
+  parentInitialRegistrationInput,
+  parentRegistrationSiblingInput,
+  parentRegistrationSiblingsInput,
+  parentRegistrationUpdateInput,
+} from '../registration.js';
 
 function validConsent(initials = 'JF') {
   return { granted: true, initials };
@@ -63,6 +68,17 @@ function validPayload() {
       guardianName: 'Parent One',
       agreementDate: new Date('2026-04-27T00:00:00.000Z'),
     },
+  };
+}
+
+function validSharedPayload() {
+  const payload = validPayload();
+  return {
+    homeAddress: payload.homeAddress,
+    guardianContacts: payload.guardianContacts,
+    emergencyContacts: payload.emergencyContacts,
+    pickupContacts: payload.pickupContacts,
+    agreement: payload.agreement,
   };
 }
 
@@ -188,6 +204,69 @@ describe('parentInitialRegistrationInput', () => {
       }
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('parentRegistrationUpdateInput', () => {
+  it('requires existing student ids while preserving registration validation', () => {
+    const payload = {
+      ...validPayload(),
+      students: [{ ...validStudent(), studentId: 'student_1' }],
+    };
+
+    const parsed = parentRegistrationUpdateInput.parse(payload);
+
+    expect(parsed.students[0]?.studentId).toBe('student_1');
+    expect(parsed.students[0]?.yearGroup).toBe('Year 5');
+  });
+
+  it('rejects edited students without a student id', () => {
+    const payload = validPayload();
+
+    const result = parentRegistrationUpdateInput.safeParse(payload);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['students', 0, 'studentId']);
+    }
+  });
+});
+
+describe('parentRegistrationSiblingInput', () => {
+  it('accepts one new sibling with shared household details', () => {
+    const payload = {
+      ...validSharedPayload(),
+      student: validStudent('New Learner'),
+    };
+
+    const parsed = parentRegistrationSiblingInput.parse(payload);
+
+    expect(parsed.student.fullName).toBe('New Learner');
+    expect(parsed.guardianContacts[0]?.email).toBe('parent@one.com');
+  });
+});
+
+describe('parentRegistrationSiblingsInput', () => {
+  it('accepts multiple new sibling records without household details', () => {
+    const parsed = parentRegistrationSiblingsInput.parse({
+      students: [validStudent('New Learner'), validStudent('Second Learner')],
+    });
+
+    expect(parsed.students).toHaveLength(2);
+    expect(parsed.students[1]?.fullName).toBe('Second Learner');
+  });
+
+  it('keeps the six-child limit for batch sibling add', () => {
+    const result = parentRegistrationSiblingsInput.safeParse({
+      students: Array.from({ length: 7 }, (_, index) =>
+        validStudent(`Student ${String(index + 1)}`),
+      ),
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['students']);
     }
   });
 });

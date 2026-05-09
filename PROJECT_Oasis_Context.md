@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-09
 **Agent:** Technical Agent (Codex)
-**Phase:** Shared portal calendar.
+**Phase:** Parent registration edit and sibling add.
 
 ---
 
@@ -18,7 +18,56 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Shared portal calendar
+## Current status - Parent registration edit and sibling add
+
+Working branch: `feat/parent-registration-edit-siblings`.
+
+**PR scope:** Let parents maintain their submitted registration directly and
+quick-add a sibling from an existing registration without adding an admin review
+queue, database migration, or unrelated parent portal work.
+
+Changed scope:
+
+- Added parent registration update and sibling-add domain schemas that reuse the
+  existing registration field limits, consent rules, date coercion, and six-child
+  maximum.
+- Added `registration.mine`, `registration.updateMine`, `registration.addSibling`,
+  and `registration.addSiblings` with server-side ownership checks against
+  `parentRegistration.parentUserId`, encrypted writes, linked-student validation,
+  guardian link creation, consent upserts, and audit rows.
+- Reused the existing registration form for initial submission, parent edit, and
+  parent edit, with parent edit saving official records directly.
+- Replaced the separate add-sibling route with a focused modal that captures only
+  new child details, supports adding multiple siblings before saving, and saves
+  the batch in one mutation.
+- Added `/parent/registration`, wired active parent sidebar and mobile bottom
+  navigation, and added dashboard shortcuts for editing registration details and
+  adding siblings.
+- Regenerated graphify and the component relationship map for the expanded
+  registration API/UI surface.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- registration.test.ts` - pass, ran all
+  domain tests because of Vitest argument handling: 12 files / 137 tests.
+- `pnpm --filter @oasis/api test -- registration.router.test.ts` - pass, ran all
+  API tests because of Vitest argument handling: 16 files / 276 tests.
+- `pnpm --filter @oasis/domain typecheck` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- No schema migration was required; this extends the existing parent
+  registration tables and relationships.
+
+## Previous status - Shared portal calendar
 
 Working branch: `feat/shared-calendar`.
 

@@ -30,6 +30,7 @@ interface PickupContactFormValues {
 }
 
 export interface RegistrationStudentFormValues {
+  studentId?: string;
   fullName: string;
   preferredName: string;
   dob: string;
@@ -195,7 +196,9 @@ function mergeConsents(value: unknown): RegistrationStudentFormValues['consents'
 
 function mergeStudent(value: unknown): RegistrationStudentFormValues {
   const record = isRecord(value) ? value : {};
+  const studentId = stringValue(record.studentId);
   return {
+    ...(studentId ? { studentId } : {}),
     fullName: stringValue(record.fullName),
     preferredName: stringValue(record.preferredName),
     dob: stringValue(record.dob),
@@ -213,6 +216,153 @@ function mergeStudent(value: unknown): RegistrationStudentFormValues {
     settlingComfortNotes: stringValue(record.settlingComfortNotes),
     additionalInfo: stringValue(record.additionalInfo),
     consents: mergeConsents(record.consents),
+  };
+}
+
+interface RegistrationServerContact {
+  fullName: string;
+  relationship: string;
+  primaryPhone: string;
+  secondaryPhone?: string | null;
+  email?: string | null;
+  workPhone?: string | null;
+  address?: string | null;
+}
+
+interface RegistrationServerEmergencyContact {
+  fullName: string;
+  relationship: string;
+  primaryPhone: string;
+  secondaryPhone?: string | null;
+  email?: string | null;
+  canPickUp: boolean;
+}
+
+interface RegistrationServerPickupContact {
+  fullName: string;
+  relationship: string;
+  phone: string;
+  idPasswordNote?: string | null;
+}
+
+interface RegistrationServerStudent {
+  studentId: string;
+  fullName: string;
+  preferredName?: string | null;
+  dob: string;
+  gender?: string | null;
+  yearGroup: string;
+  startDate: string;
+  homeLanguage?: string | null;
+  studentNotes?: string | null;
+  allergies?: string | null;
+  medicalConditions?: string | null;
+  medicationAtCentre?: string | null;
+  dietaryRestrictions?: string | null;
+  learningSupport?: string | null;
+  interestsStrengths?: string | null;
+  settlingComfortNotes?: string | null;
+  additionalInfo?: string | null;
+  consents: RegistrationStudentFormValues['consents'];
+}
+
+interface RegistrationServerValues {
+  homeAddress: string;
+  guardianContacts: RegistrationServerContact[];
+  emergencyContacts: RegistrationServerEmergencyContact[];
+  pickupContacts: RegistrationServerPickupContact[];
+  students: RegistrationServerStudent[];
+  agreement: {
+    guardianName: string;
+    agreementDate: string;
+  };
+}
+
+function nullableString(value: string | null | undefined): string {
+  return value ?? '';
+}
+
+function contactFromServer(contact: RegistrationServerContact): ContactFormValues {
+  return {
+    fullName: contact.fullName,
+    relationship: contact.relationship,
+    primaryPhone: contact.primaryPhone,
+    secondaryPhone: nullableString(contact.secondaryPhone),
+    email: nullableString(contact.email),
+    workPhone: nullableString(contact.workPhone),
+    address: nullableString(contact.address),
+  };
+}
+
+function emergencyContactFromServer(
+  contact: RegistrationServerEmergencyContact,
+): EmergencyContactFormValues {
+  return {
+    fullName: contact.fullName,
+    relationship: contact.relationship,
+    primaryPhone: contact.primaryPhone,
+    secondaryPhone: nullableString(contact.secondaryPhone),
+    email: nullableString(contact.email),
+    canPickUp: contact.canPickUp,
+  };
+}
+
+function pickupContactFromServer(
+  contact: RegistrationServerPickupContact,
+): PickupContactFormValues {
+  return {
+    fullName: contact.fullName,
+    relationship: contact.relationship,
+    phone: contact.phone,
+    idPasswordNote: nullableString(contact.idPasswordNote),
+  };
+}
+
+function studentFromServer(student: RegistrationServerStudent): RegistrationStudentFormValues {
+  return {
+    studentId: student.studentId,
+    fullName: student.fullName,
+    preferredName: nullableString(student.preferredName),
+    dob: student.dob,
+    gender: nullableString(student.gender),
+    yearGroup: student.yearGroup,
+    startDate: student.startDate,
+    homeLanguage: nullableString(student.homeLanguage),
+    studentNotes: nullableString(student.studentNotes),
+    allergies: nullableString(student.allergies),
+    medicalConditions: nullableString(student.medicalConditions),
+    medicationAtCentre: nullableString(student.medicationAtCentre),
+    dietaryRestrictions: nullableString(student.dietaryRestrictions),
+    learningSupport: nullableString(student.learningSupport),
+    interestsStrengths: nullableString(student.interestsStrengths),
+    settlingComfortNotes: nullableString(student.settlingComfortNotes),
+    additionalInfo: nullableString(student.additionalInfo),
+    consents: student.consents,
+  };
+}
+
+export function registrationValuesFromServer(
+  registration: RegistrationServerValues,
+): RegistrationFormValues {
+  return {
+    homeAddress: registration.homeAddress,
+    guardianContacts: registration.guardianContacts.map(contactFromServer),
+    emergencyContacts: registration.emergencyContacts.map(emergencyContactFromServer),
+    pickupContacts: registration.pickupContacts.map(pickupContactFromServer),
+    students: registration.students.map(studentFromServer),
+    agreement: {
+      guardianName: registration.agreement.guardianName,
+      agreementDate: registration.agreement.agreementDate,
+    },
+  };
+}
+
+export function siblingValuesFromServer(
+  registration: RegistrationServerValues,
+): RegistrationFormValues {
+  return {
+    ...registrationValuesFromServer(registration),
+    students: [blankStudent()],
   };
 }
 
