@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { prisma } from '@oasis/db';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
 import { getStaffUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -13,7 +14,21 @@ export const dynamic = 'force-dynamic';
 export default async function SupervisorLayout({ children }: { children: ReactNode }) {
   const user = await getStaffUser();
   const userRoleLabel = user.role === 'Supervisor' ? 'Supervisor' : roleLabel(user.role);
-  const hasLinkedChildren = (await linkedChildCount(user.id)) > 0;
+  const now = new Date();
+  const [linkedChildren, unreadNoticeCount] = await Promise.all([
+    linkedChildCount(user.id),
+    prisma.staffNotice.count({
+      where: {
+        active: true,
+        audience: { in: ['Supervisors', 'Both'] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        reads: {
+          none: { userId: user.id },
+        },
+      },
+    }),
+  ]);
+  const hasLinkedChildren = linkedChildren > 0;
 
   return (
     <div className="admin-shell supervisor-shell">
@@ -34,7 +49,10 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <span>Daily operations</span>
           <ProfileBadgeLink href="/supervisor/profile" />
         </div>
-        <SupervisorSidebarNav hasLinkedChildren={hasLinkedChildren} />
+        <SupervisorSidebarNav
+          hasLinkedChildren={hasLinkedChildren}
+          unreadNoticeCount={unreadNoticeCount}
+        />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -56,7 +74,10 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
-        <SupervisorBottomNav hasLinkedChildren={hasLinkedChildren} />
+        <SupervisorBottomNav
+          hasLinkedChildren={hasLinkedChildren}
+          unreadNoticeCount={unreadNoticeCount}
+        />
       </div>
     </div>
   );

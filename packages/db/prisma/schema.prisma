@@ -711,19 +711,27 @@ model ClubNotification {
 // Comms
 // ---------------------------------------------------------------------------
 
+enum StaffNoticeAudience {
+  Supervisors
+  Parents
+  Both
+}
+
 model StaffNotice {
-  id         String    @id @default(cuid())
+  id         String              @id @default(cuid())
   title      String
   bodyEnc    String
+  audience   StaffNoticeAudience @default(Supervisors)
   postedById String
-  active     Boolean   @default(true)
+  active     Boolean             @default(true)
   expiresAt  DateTime?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime            @default(now())
 
   postedBy User              @relation("NoticesPosted", fields: [postedById], references: [id])
   reads    StaffNoticeRead[]
 
   @@index([active, expiresAt, createdAt])
+  @@index([audience, active, expiresAt, createdAt])
 }
 
 model StaffNoticeRead {

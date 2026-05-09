@@ -33,16 +33,33 @@ test.describe('Supervisor dashboard shell', () => {
     await signIn(page, headEmail!, headPassword!);
     await expect(page).toHaveURL(/admin/);
     await page.goto('/admin/noticeboard');
-    await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^noticeboard$/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /post a notice/i })).toBeVisible();
 
     const noticeTitle = `E2E staff notice ${Date.now()}`;
     await page.getByLabel('Notice title').fill(noticeTitle);
     await page.getByLabel('Notice body').fill('Staff noticeboard E2E verification.');
+    await page.getByLabel('Notice audience').selectOption('Supervisors');
     await page.getByRole('button', { name: /post to noticeboard/i }).click();
 
     await expect(page.getByText(/notice posted/i)).toBeVisible();
     await expect(page.getByText(noticeTitle)).toBeVisible();
+  });
+
+  headTest('full-admin can publish a parent notice from the noticeboard', async ({ page }) => {
+    await signIn(page, headEmail!, headPassword!);
+    await expect(page).toHaveURL(/admin/);
+    await page.goto('/admin/noticeboard');
+
+    const noticeTitle = `E2E parent notice ${Date.now()}`;
+    await page.getByLabel('Notice title').fill(noticeTitle);
+    await page.getByLabel('Notice body').fill('Parent noticeboard E2E verification.');
+    await page.getByLabel('Notice audience').selectOption('Parents');
+    await page.getByRole('button', { name: /post to noticeboard/i }).click();
+
+    await expect(page.getByText(/notice posted/i)).toBeVisible();
+    await expect(page.getByText(noticeTitle)).toBeVisible();
+    await expect(page.getByText('Parents').first()).toBeVisible();
   });
 
   supervisorTest(
@@ -166,12 +183,23 @@ test.describe('Supervisor dashboard shell', () => {
   parentTest('non-staff users cannot access the supervisor shell', async ({ page }) => {
     await signIn(page, parentEmail!, parentPassword!);
     await expect(page).toHaveURL(/parent/);
+    await page.goto('/parent/noticeboard');
+    await expect(page.getByRole('heading', { name: /^noticeboard$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /parent notices/i })).toBeVisible();
+    const markReadButton = page.getByRole('button', { name: /mark .* as read/i }).first();
+    if ((await markReadButton.count()) > 0) {
+      await markReadButton.click();
+      await expect(page.getByText(/^read$/i).first()).toBeVisible();
+      await page.reload();
+      await expect(page.getByText(/^read$/i).first()).toBeVisible();
+    }
+
     await page.goto('/supervisor');
     await expect(page.getByRole('heading', { name: /daily dashboard/i })).toHaveCount(0);
     await page.goto('/supervisor/noticeboard');
     await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toHaveCount(0);
     await page.goto('/admin/noticeboard');
-    await expect(page.getByRole('heading', { name: /staff noticeboard/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /post a notice/i })).toHaveCount(0);
   });
 
   test('unauthenticated supervisor access requires sign-in', async ({ page }) => {

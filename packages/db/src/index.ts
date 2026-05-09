@@ -6,6 +6,7 @@ export {
   AuditAction,
   ChildRegistrationPromptStatus,
   Prisma,
+  StaffNoticeAudience,
   StudentRegistrationConsentType,
   UserInvitationEmailStatus,
   UserInvitationStatus,

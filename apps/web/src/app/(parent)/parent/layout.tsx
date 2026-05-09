@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { prisma } from '@oasis/db';
 import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
@@ -9,7 +10,18 @@ import '../../(admin)/admin/admin.css';
 export const dynamic = 'force-dynamic';
 
 export default async function ParentLayout({ children }: { children: ReactNode }) {
-  await getLinkedChildPortalUser();
+  const user = await getLinkedChildPortalUser();
+  const now = new Date();
+  const unreadNoticeCount = await prisma.staffNotice.count({
+    where: {
+      active: true,
+      audience: { in: ['Parents', 'Both'] },
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      reads: {
+        none: { userId: user.id },
+      },
+    },
+  });
 
   return (
     <div className="admin-shell parent-shell">
@@ -36,6 +48,12 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </Link>
           <Link className="admin-shell__nav-item" href="/parent/profile">
             <span>My Profile</span>
+          </Link>
+          <Link className="admin-shell__nav-item" href="/parent/noticeboard">
+            <span>Noticeboard</span>
+            {unreadNoticeCount > 0 ? (
+              <b>{unreadNoticeCount > 99 ? '99+' : String(unreadNoticeCount)}</b>
+            ) : null}
           </Link>
         </nav>
         <div className="admin-shell__foot">

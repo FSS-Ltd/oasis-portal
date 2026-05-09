@@ -1,6 +1,6 @@
 {
   "delay": "750",
-  "exec": "pnpm dev",
+  "exec": "pnpm --filter @oasis/web dev",
   "ext": "ts,tsx,js,jsx,mjs,cjs,json,prisma",
   "ignore": [
     "**/.next/**",

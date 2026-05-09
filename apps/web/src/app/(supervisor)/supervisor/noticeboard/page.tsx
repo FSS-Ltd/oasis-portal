@@ -7,7 +7,7 @@ export default async function SupervisorNoticeboardPage() {
 
   return (
     <MotionPage>
-      <StaffNoticeboard canPost={false} />
+      <StaffNoticeboard mode="supervisor" />
     </MotionPage>
   );
 }

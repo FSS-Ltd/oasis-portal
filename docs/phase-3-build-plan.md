@@ -1,7 +1,7 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** Parent dashboard polish ready for review
-**Last updated:** 2026-05-08
+**Status:** PR-3.6 noticeboard UI ready for review
+**Last updated:** 2026-05-09
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -36,8 +36,8 @@ Phase 3 is complete when:
    accounts that confirm they have children at Oasis.
 5. Duplicate first registration and duplicate linked-child registration are
    blocked.
-6. Staff notices can be posted by full-admin users and read by staff users with
-   read receipts.
+6. Notices can be posted by full-admin users to supervisors, parents, or both,
+   with role-scoped read receipts.
 7. Parent-Head messaging supports thread list, open/create, send, and read
    views without leaking messages across parents or children.
 8. Email hooks exist for registration confirmation, new messages, and relevant
@@ -184,7 +184,7 @@ Verification:
 
 ## Sprint 3 - Staff noticeboard
 
-Goal: create a staff announcement channel with read receipts before parent
+Goal: create a notice announcement channel with read receipts before parent
 messaging expands the communication model.
 
 ### PR-3.5 - `feat(api): staff notices and read receipts` MERGED
@@ -226,33 +226,44 @@ Verification:
 - `pnpm docs:component-map`
 - `git diff --check`
 
-### PR-3.6 - `feat(web): staff noticeboard UI` READY FOR REVIEW
+### PR-3.6 - `feat(web): noticeboard UI` READY FOR REVIEW
 
-Working branch: `feat/phase-3-pr3.6-staff-noticeboard-ui`.
+Working branch: `feat/phase-3-pr3.6-noticeboard-follow-up`.
+
+Base staff noticeboard UI merged via PR #83. This follow-up branch carries the
+unread badge, badge refresh, parent noticeboard, and audience-targeting scope.
 
 Scope:
 
-- Add noticeboard views to admin and supervisor shells.
+- Add noticeboard views to admin, supervisor, and parent shells.
 - Show unread/read state and a mark-read action.
-- Add Head/admin notice composer with title/body validation and pending state.
+- Add Head/admin notice composer with title/body validation, audience selection
+  for supervisors, parents, or both, and pending state.
+- For notices authored by the current Head/admin user, replace the mark-read
+  action with a read-count summary and recipient read/unread tooltip.
 - Surface a notice summary on the Supervisor dashboard where useful.
-- Keep parent notices out of scope until parent communication policy is
-  explicitly expanded.
+- Keep parent messaging, read-count analytics, attachments, and notice
+  deletion/editing out of scope.
 
 Tests:
 
-- Admin can compose and publish a notice.
-- Supervisor sees notices and can mark them read.
+- Admin can compose and publish supervisor and parent notices.
+- Supervisor sees supervisor/both notices and can mark them read.
+- Parent sees parent/both notices and can mark them read.
+- Notice authors do not mark their own notices read and can see recipient
+  read/unread status.
 - Read state persists after refresh.
-- Unsupported roles cannot access staff notice pages.
+- Unsupported roles cannot access staff/admin notice pages.
 
 Verification:
 
+- `pnpm db:generate`
+- `pnpm db:migrate`
 - `pnpm --filter @oasis/api test -- notice.router.test.ts`
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
-- `pnpm --filter @oasis/web test:e2e`
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts`
 - `graphify update .`
 - `pnpm docs:component-map`
 - `git diff --check`
