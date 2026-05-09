@@ -1,8 +1,7 @@
 'use client';
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import type { Route } from 'next';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { MessageSquarePlus, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -295,10 +294,9 @@ function ReplyComposer({
 }
 
 export function MessageCentre({ mode }: MessageCentreProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const utils = api.useUtils();
+  const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
   const threadsQuery = api.message.listThreads.useQuery(undefined, { retry: false });
   const recipientsQuery = api.message.listRecipients.useQuery(undefined, {
     enabled: mode === 'parent',
@@ -307,11 +305,14 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const threads = threadsQuery.data ?? [];
   const queryThreadId = searchParams.get('threadId');
   const selectedThreadId = useMemo(() => {
+    if (selectedOverrideId && threads.some((thread) => thread.id === selectedOverrideId)) {
+      return selectedOverrideId;
+    }
     if (queryThreadId && threads.some((thread) => thread.id === queryThreadId)) {
       return queryThreadId;
     }
     return threads[0]?.id ?? null;
-  }, [queryThreadId, threads]);
+  }, [queryThreadId, selectedOverrideId, threads]);
   const selectedSummary = threads.find((thread) => thread.id === selectedThreadId) ?? null;
   const threadQuery = api.message.listInThread.useQuery(
     { threadId: selectedThreadId ?? '' },
@@ -328,9 +329,13 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   }, [selectedThread, utils.message.listThreads]);
 
   function selectThread(threadId: string) {
-    router.replace(`${pathname}?threadId=${encodeURIComponent(threadId)}` as Route, {
-      scroll: false,
-    });
+    setSelectedOverrideId(threadId);
+    const encodedThreadId = encodeURIComponent(threadId);
+    const href =
+      mode === 'parent'
+        ? `/parent/messages?threadId=${encodedThreadId}`
+        : `/admin/messages?threadId=${encodedThreadId}`;
+    window.history.replaceState(null, '', href);
   }
 
   async function refreshSelectedThread() {
