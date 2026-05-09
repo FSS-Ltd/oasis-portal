@@ -31,10 +31,13 @@ const technicalSupportUser: SessionUser = {
   requires2fa: false,
 };
 
+type NoticeAudience = 'Supervisors' | 'Parents' | 'Both';
+
 interface StoredNotice {
   id: string;
   title: string;
   bodyEnc: string;
+  audience: NoticeAudience;
   postedById: string;
   active: boolean;
   expiresAt: Date | null;
@@ -55,6 +58,7 @@ interface FakeNoticeCreateArgs {
   data: {
     title: string;
     bodyEnc: string;
+    audience: NoticeAudience;
     postedById: string;
     active: boolean;
     expiresAt: Date | null;
@@ -63,6 +67,9 @@ interface FakeNoticeCreateArgs {
 }
 
 interface FakeNoticeFindManyArgs {
+  where: {
+    audience?: { in: NoticeAudience[] };
+  };
   include: FakeNoticeInclude;
 }
 
@@ -92,6 +99,7 @@ function makeNotice(
 ): StoredNotice {
   return {
     bodyEnc: encrypt(`${input.title} body`),
+    audience: 'Supervisors',
     postedById: headUser.id,
     active: true,
     expiresAt: null,
@@ -122,6 +130,7 @@ function makeFakeDb(initialNotices: StoredNotice[] = [], initialReads: StoredRea
           id: 'cmnotice00000000000000001',
           title: data.title,
           bodyEnc: data.bodyEnc,
+          audience: data.audience,
           postedById: data.postedById,
           active: data.active,
           expiresAt: data.expiresAt,
@@ -134,7 +143,10 @@ function makeFakeDb(initialNotices: StoredNotice[] = [], initialReads: StoredRea
         Promise.resolve(
           notices
             .filter(
-              (notice) => notice.active && (!notice.expiresAt || notice.expiresAt > new Date()),
+              (notice) =>
+                notice.active &&
+                (!notice.expiresAt || notice.expiresAt > new Date()) &&
+                (!args.where.audience || args.where.audience.in.includes(notice.audience)),
             )
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
             .map((notice) => withCallerReads(notice, args.include.reads.where.userId)),
@@ -200,6 +212,7 @@ describe('notice.post', () => {
       body: 'Bring registers.',
       postedById: headUser.id,
       active: true,
+      audience: 'Supervisors',
       expiresAt,
       read: false,
       readAt: null,
@@ -210,6 +223,7 @@ describe('notice.post', () => {
       bodyEnc: 'enc:Bring registers.',
       postedById: headUser.id,
       active: true,
+      audience: 'Supervisors',
       expiresAt,
     });
     expect(db.notices[0]?.bodyEnc).toBe('enc:Bring registers.');
@@ -219,7 +233,11 @@ describe('notice.post', () => {
         action: 'Create',
         entity: 'StaffNotice',
         entityId: 'cmnotice00000000000000001',
-        meta: { source: 'notice.post', expiresAt: expiresAt.toISOString() },
+        meta: {
+          source: 'notice.post',
+          audience: 'Supervisors',
+          expiresAt: expiresAt.toISOString(),
+        },
       },
     });
   });
@@ -241,8 +259,52 @@ describe('notice.post', () => {
   });
 });
 
+describe('notice.listForAdmin', () => {
+  it('lists all active notice audiences for full-admin users', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const supervisorNotice = makeNotice({
+      id: 'cmnotice00000000000000012',
+      title: 'Supervisor only',
+      audience: 'Supervisors',
+      createdAt: new Date('2026-05-08T10:00:00.000Z'),
+    });
+    const parentNotice = makeNotice({
+      id: 'cmnotice00000000000000013',
+      title: 'Parent only',
+      audience: 'Parents',
+      createdAt: new Date('2026-05-08T11:00:00.000Z'),
+    });
+    const bothNotice = makeNotice({
+      id: 'cmnotice00000000000000014',
+      title: 'Everyone',
+      audience: 'Both',
+      createdAt: new Date('2026-05-08T12:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(
+        headUser,
+        makeFakeDb([supervisorNotice, parentNotice, bothNotice]),
+      ).caller.notice.listForAdmin(),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: bothNotice.id, audience: 'Both' }),
+      expect.objectContaining({ id: parentNotice.id, audience: 'Parents' }),
+      expect.objectContaining({ id: supervisorNotice.id, audience: 'Supervisors' }),
+    ]);
+  });
+
+  it.each([supervisorUser, parentUser, studentUser, clubsAdminUser, technicalSupportUser])(
+    'denies %s callers',
+    async (user) => {
+      await expect(makeCaller(user).caller.notice.listForAdmin()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    },
+  );
+});
+
 describe('notice.listForStaff', () => {
-  it('lists active non-expired notices for staff with caller read state', async () => {
+  it('lists active non-expired supervisor notices for staff with caller read state', async () => {
     vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
     const activeNotice = makeNotice({
       id: 'cmnotice00000000000000002',
@@ -253,9 +315,16 @@ describe('notice.listForStaff', () => {
     const unreadNotice = makeNotice({
       id: 'cmnotice00000000000000003',
       title: 'Tomorrow',
+      audience: 'Both',
       bodyEnc: encrypt('Future body'),
       expiresAt: new Date('2026-05-09T12:00:00.000Z'),
       createdAt: new Date('2026-05-08T12:00:00.000Z'),
+    });
+    const parentNotice = makeNotice({
+      id: 'cmnotice00000000000000011',
+      title: 'Parents',
+      audience: 'Parents',
+      createdAt: new Date('2026-05-08T12:30:00.000Z'),
     });
     const inactiveNotice = makeNotice({
       id: 'cmnotice00000000000000004',
@@ -271,7 +340,7 @@ describe('notice.listForStaff', () => {
     const { caller } = makeCaller(
       supervisorUser,
       makeFakeDb(
-        [activeNotice, unreadNotice, inactiveNotice, expiredNotice],
+        [activeNotice, unreadNotice, parentNotice, inactiveNotice, expiredNotice],
         [{ noticeId: activeNotice.id, userId: supervisorUser.id, readAt }],
       ),
     );
@@ -298,6 +367,66 @@ describe('notice.listForStaff', () => {
     'denies %s callers',
     async (user) => {
       await expect(makeCaller(user).caller.notice.listForStaff()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      });
+    },
+  );
+});
+
+describe('notice.listForParents', () => {
+  it('lists active non-expired parent notices with caller read state', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const parentNotice = makeNotice({
+      id: 'cmnotice00000000000000015',
+      title: 'Parent update',
+      audience: 'Parents',
+      bodyEnc: encrypt('Parent body'),
+      createdAt: new Date('2026-05-08T11:00:00.000Z'),
+    });
+    const bothNotice = makeNotice({
+      id: 'cmnotice00000000000000016',
+      title: 'Shared update',
+      audience: 'Both',
+      bodyEnc: encrypt('Shared body'),
+      createdAt: new Date('2026-05-08T12:00:00.000Z'),
+    });
+    const supervisorNotice = makeNotice({
+      id: 'cmnotice00000000000000017',
+      title: 'Supervisor update',
+      audience: 'Supervisors',
+      createdAt: new Date('2026-05-08T12:30:00.000Z'),
+    });
+    const readAt = new Date('2026-05-08T11:30:00.000Z');
+
+    await expect(
+      makeCaller(
+        parentUser,
+        makeFakeDb(
+          [parentNotice, bothNotice, supervisorNotice],
+          [{ noticeId: parentNotice.id, userId: parentUser.id, readAt }],
+        ),
+      ).caller.notice.listForParents(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: bothNotice.id,
+        audience: 'Both',
+        body: 'Shared body',
+        read: false,
+      }),
+      expect.objectContaining({
+        id: parentNotice.id,
+        audience: 'Parents',
+        body: 'Parent body',
+        read: true,
+        readAt,
+      }),
+    ]);
+  });
+
+  it.each([supervisorUser, studentUser, clubsAdminUser, technicalSupportUser])(
+    'denies %s callers',
+    async (user) => {
+      await expect(makeCaller(user).caller.notice.listForParents()).rejects.toMatchObject({
         code: 'FORBIDDEN',
       });
     },
@@ -361,6 +490,31 @@ describe('notice.markRead', () => {
 
     await expect(
       makeCaller(supervisorUser, db).caller.notice.markRead({ noticeId: expiredNotice.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('allows parent notice reads and rejects cross-audience reads', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const parentNotice = makeNotice({
+      id: 'cmnotice00000000000000009',
+      title: 'Parents read',
+      audience: 'Parents',
+    });
+    const supervisorNotice = makeNotice({
+      id: 'cmnotice00000000000000010',
+      title: 'Supervisors read',
+      audience: 'Supervisors',
+    });
+    const db = makeFakeDb([parentNotice, supervisorNotice]);
+
+    await expect(
+      makeCaller(parentUser, db).caller.notice.markRead({ noticeId: parentNotice.id }),
+    ).resolves.toMatchObject({ noticeId: parentNotice.id });
+    await expect(
+      makeCaller(parentUser, db).caller.notice.markRead({ noticeId: supervisorNotice.id }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      makeCaller(supervisorUser, db).caller.notice.markRead({ noticeId: parentNotice.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 });

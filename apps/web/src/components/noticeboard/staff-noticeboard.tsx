@@ -5,13 +5,62 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
-import { Field, TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
-type StaffNotice = RouterOutputs['notice']['listForStaff'][number];
+type Notice = RouterOutputs['notice']['listForAdmin'][number];
+type NoticeAudience = Notice['audience'];
+type NoticeboardMode = 'admin' | 'supervisor' | 'parent';
 
 interface StaffNoticeboardProps {
-  canPost: boolean;
+  mode: NoticeboardMode;
 }
+
+const audienceLabels: Record<NoticeAudience, string> = {
+  Both: 'Parents and supervisors',
+  Parents: 'Parents',
+  Supervisors: 'Supervisors',
+};
+
+const pageCopy: Record<
+  NoticeboardMode,
+  {
+    eyebrow: string;
+    heading: string;
+    listTitle: string;
+    listDescription: string;
+    loading: string;
+    empty: string;
+    ariaLabel: string;
+  }
+> = {
+  admin: {
+    eyebrow: 'Centre communications',
+    heading: 'Noticeboard',
+    listTitle: 'Published Notices',
+    listDescription: 'Active notices, newest first.',
+    loading: 'Loading notices...',
+    empty: 'No active notices.',
+    ariaLabel: 'Published notices',
+  },
+  supervisor: {
+    eyebrow: 'Staff communications',
+    heading: 'Staff Noticeboard',
+    listTitle: 'Staff Notices',
+    listDescription: 'Active notices for supervisors, newest first.',
+    loading: 'Loading staff notices...',
+    empty: 'No active staff notices.',
+    ariaLabel: 'Staff notices',
+  },
+  parent: {
+    eyebrow: 'Family communications',
+    heading: 'Noticeboard',
+    listTitle: 'Parent Notices',
+    listDescription: 'Active notices for parents, newest first.',
+    loading: 'Loading parent notices...',
+    empty: 'No active parent notices.',
+    ariaLabel: 'Parent notices',
+  },
+};
 
 function formatDateTime(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -28,7 +77,7 @@ function NoticeCard({
   onMarkRead,
   pending,
 }: {
-  notice: StaffNotice;
+  notice: Notice;
   onMarkRead: (noticeId: string) => void;
   pending: boolean;
 }) {
@@ -36,8 +85,11 @@ function NoticeCard({
     <article className={notice.read ? 'noticeboard-card' : 'noticeboard-card is-unread'}>
       <div className="noticeboard-card__head">
         <div>
-          <span className={notice.read ? 'badge badge--green' : 'badge badge--blue'}>
-            {notice.read ? 'Read' : 'Unread'}
+          <span className="badge-list">
+            <span className={notice.read ? 'badge badge--green' : 'badge badge--blue'}>
+              {notice.read ? 'Read' : 'Unread'}
+            </span>
+            <span className="badge">{audienceLabels[notice.audience]}</span>
           </span>
           <h2>{notice.title}</h2>
         </div>
@@ -66,25 +118,49 @@ function NoticeCard({
   );
 }
 
-export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
+export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
   const router = useRouter();
   const utils = api.useUtils();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [audience, setAudience] = useState<NoticeAudience>('Supervisors');
   const [expiresAt, setExpiresAt] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
   const [pendingReadId, setPendingReadId] = useState<string | null>(null);
 
-  const noticesQuery = api.notice.listForStaff.useQuery(undefined, { retry: false });
+  const copy = pageCopy[mode];
+  const canPost = mode === 'admin';
+  const adminNoticesQuery = api.notice.listForAdmin.useQuery(undefined, {
+    enabled: mode === 'admin',
+    retry: false,
+  });
+  const staffNoticesQuery = api.notice.listForStaff.useQuery(undefined, {
+    enabled: mode === 'supervisor',
+    retry: false,
+  });
+  const parentNoticesQuery = api.notice.listForParents.useQuery(undefined, {
+    enabled: mode === 'parent',
+    retry: false,
+  });
+  const noticesQuery =
+    mode === 'admin'
+      ? adminNoticesQuery
+      : mode === 'parent'
+        ? parentNoticesQuery
+        : staffNoticesQuery;
   const postNotice = api.notice.post.useMutation({
     onSuccess: async () => {
       setTitle('');
       setBody('');
+      setAudience('Supervisors');
       setExpiresAt('');
       setFormError(null);
       setFormStatus('Notice posted.');
+      await utils.notice.listForAdmin.invalidate();
       await utils.notice.listForStaff.invalidate();
+      await utils.notice.listForParents.invalidate();
+      router.refresh();
     },
   });
   const markRead = api.notice.markRead.useMutation({
@@ -92,12 +168,14 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
       setPendingReadId(null);
     },
     onSuccess: async () => {
+      await utils.notice.listForAdmin.invalidate();
       await utils.notice.listForStaff.invalidate();
+      await utils.notice.listForParents.invalidate();
       router.refresh();
     },
   });
 
-  const notices = noticesQuery.data ?? [];
+  const notices: Notice[] = noticesQuery.data ?? [];
   const unreadCount = notices.filter((notice) => !notice.read).length;
 
   async function submitNotice(event: FormEvent<HTMLFormElement>) {
@@ -122,6 +200,7 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
       await postNotice.mutateAsync({
         title: trimmedTitle,
         body: trimmedBody,
+        audience,
         ...(expiry ? { expiresAt: expiry } : {}),
       });
     } catch {
@@ -137,8 +216,8 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
   return (
     <div className="noticeboard-page">
       <div className="dashboard-hero">
-        <p>Staff communications</p>
-        <h1>Staff Noticeboard</h1>
+        <p>{copy.eyebrow}</p>
+        <h1>{copy.heading}</h1>
         <span>
           {unreadCount === 1 ? '1 unread notice' : `${String(unreadCount)} unread notices`}
         </span>
@@ -155,7 +234,7 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
             <div className="section-title">
               <div>
                 <h2 id="notice-composer-title">Post a Notice</h2>
-                <p className="muted">Publish an active notice for staff readers.</p>
+                <p className="muted">Publish an active notice for supervisors, parents, or both.</p>
               </div>
             </div>
             <form
@@ -190,6 +269,20 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
                   value={body}
                 />
               </Field>
+              <Field label="Audience" required>
+                <SelectInput
+                  aria-label="Notice audience"
+                  onChange={(event) => {
+                    setAudience(event.target.value as NoticeAudience);
+                  }}
+                  required
+                  value={audience}
+                >
+                  <option value="Supervisors">Supervisors</option>
+                  <option value="Parents">Parents</option>
+                  <option value="Both">Parents and supervisors</option>
+                </SelectInput>
+              </Field>
               <Field label="Expiry" hint="Optional">
                 <TextInput
                   aria-label="Notice expiry"
@@ -215,27 +308,25 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
 
         <section
           className="panel panel__body noticeboard-list-panel"
-          aria-labelledby="staff-notices-title"
+          aria-labelledby="noticeboard-list-title"
         >
           <div className="section-title">
             <div>
-              <h2 id="staff-notices-title">Staff Notices</h2>
-              <p className="muted">Active notices, newest first.</p>
+              <h2 id="noticeboard-list-title">{copy.listTitle}</h2>
+              <p className="muted">{copy.listDescription}</p>
             </div>
             <span className="badge badge--blue">{String(unreadCount)} unread</span>
           </div>
 
-          {noticesQuery.isLoading ? (
-            <div className="empty-state">Loading staff notices...</div>
-          ) : null}
+          {noticesQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
           {noticesQuery.error ? (
             <p className="status--error">{noticesQuery.error.message}</p>
           ) : null}
           {markRead.error ? <p className="status--error">{markRead.error.message}</p> : null}
           {!noticesQuery.isLoading && notices.length === 0 ? (
-            <div className="empty-state">No active staff notices.</div>
+            <div className="empty-state">{copy.empty}</div>
           ) : null}
-          <div className="noticeboard-list" aria-label="Staff notices">
+          <div className="noticeboard-list" aria-label={copy.ariaLabel}>
             {notices.map((notice) => (
               <NoticeCard
                 key={notice.id}

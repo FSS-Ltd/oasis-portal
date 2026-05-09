@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-08
+**Last updated:** 2026-05-09
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 3.6 staff noticeboard UI.
 
@@ -18,14 +18,14 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.6 staff noticeboard UI
+## Current status - PR-3.6 noticeboard UI
 
 Working branch: `feat/phase-3-pr3.6-staff-noticeboard-ui`.
 
-**PR scope:** Implement the staff noticeboard web UI for full-admin and
-Supervisor users on top of the merged PR-3.5 notice API, without changing the
-backend contract, adding parent notices, parent messaging, read-count analytics,
-attachments, editing, or deletion.
+**PR scope:** Implement the noticeboard web UI for full-admin, Supervisor, and
+Parent users. Full-admin users can post notices to supervisors, parents, or both.
+Parent messaging, read-count analytics, attachments, editing, and deletion remain
+out of scope.
 
 Changed scope:
 
@@ -36,25 +36,36 @@ Changed scope:
   feedback, and active notice list.
 - Added `/supervisor/noticeboard` for staff readers with active notice list,
   read/unread state, mark-read action, loading, empty, and error states.
-- Wired admin and supervisor navigation to the new noticeboard routes.
+- Added `/parent/noticeboard` for parent readers with active parent/both notices,
+  read/unread state, mark-read action, and parent navigation unread badge.
+- Added notice audience targeting to the notice API and Prisma model:
+  `Supervisors`, `Parents`, or `Both`, with existing notices defaulting to
+  `Supervisors`.
+- Wired admin, supervisor, and parent navigation to the noticeboard routes.
 - Replaced the Supervisor dashboard placeholder notice adapter with live
   `notice.listForStaff` summaries and a link to the full noticeboard.
 - Added credential-gated Playwright coverage for full-admin publishing,
-  Supervisor noticeboard/read persistence, and non-staff denial.
+  parent notice publishing, Supervisor/Parent noticeboard read persistence, and
+  non-staff denial.
 - Added a Supervisor Noticeboard navigation badge that counts active unread
   notices for the current supervisor.
-- Updated the component relationship map generator and regenerated the map for
-  the new shared noticeboard component surface.
+- Regenerated the component relationship map for the expanded noticeboard
+  surface.
 
 Verification:
 
+- `pnpm db:generate` - pass.
+- `pnpm db:migrate` - pass after starting the local Docker Postgres container
+  and rerunning with local DB access; 11 migrations found and RLS reapplied.
 - `pnpm --filter @oasis/api test -- notice.router.test.ts` - pass, ran 15 API
-  test files / 242 tests because of the repo's Vitest argument handling.
+  test files / 254 tests because of the repo's Vitest argument handling.
 - `pnpm --filter @oasis/web typecheck` - pass.
 - `pnpm lint` - pass.
-- `pnpm --filter @oasis/web build` - pass.
-- `pnpm --filter @oasis/web test:e2e` - pass after sandbox escalation for the
-  local Next.js server; 2 passed, 14 credential-gated tests skipped.
+- `pnpm --filter @oasis/web build` - pass after stopping stale local Next dev
+  servers that were writing `.next`.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass
+  after sandbox escalation for the local Next.js server; 2 passed, 7
+  credential-gated tests skipped.
 - `graphify update .` - pass.
 - `pnpm docs:component-map` - pass.
 - `git diff --check` - pass.
@@ -64,6 +75,7 @@ Notes:
 - Existing untracked `docs/decks/` files remain untouched.
 - PR-3.4 is merged via PR #81 on 2026-05-08.
 - PR-3.5 is merged via PR #82 on 2026-05-08.
+- PR #83 remains the PR for this branch.
 
 ## Previous status - PR-3.5 staff notices API
 

@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { AccessDeniedError, isStaff, requireFullAdmin, type SessionUser } from '@oasis/domain';
+import {
+  AccessDeniedError,
+  isFullAdmin,
+  isStaff,
+  requireFullAdmin,
+  type SessionUser,
+} from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -10,6 +16,7 @@ interface StaffNoticeRow {
   id: string;
   title: string;
   bodyEnc: string;
+  audience: NoticeAudience;
   postedById: string;
   active: boolean;
   expiresAt: Date | null;
@@ -17,9 +24,13 @@ interface StaffNoticeRow {
   reads: { readAt: Date }[];
 }
 
+const noticeAudienceSchema = z.enum(['Supervisors', 'Parents', 'Both']);
+type NoticeAudience = z.infer<typeof noticeAudienceSchema>;
+
 const postNoticeInput = z.object({
   title: z.string().trim().min(1),
   body: z.string().trim().min(1),
+  audience: noticeAudienceSchema.default('Supervisors'),
   expiresAt: z.coerce.date().optional(),
 });
 
@@ -27,9 +38,19 @@ function toForbidden(error: AccessDeniedError): TRPCError {
   return new TRPCError({ code: 'FORBIDDEN', message: error.message, cause: error });
 }
 
-function requireNoticeReader(user: SessionUser): void {
+function requireStaffNoticeReader(user: SessionUser): void {
   if (isStaff(user)) return;
   throw toForbidden(new AccessDeniedError('staff notices require full-admin or Supervisor'));
+}
+
+function requireParentNoticeReader(user: SessionUser): void {
+  if (user.role === 'Parent' || isFullAdmin(user)) return;
+  throw toForbidden(new AccessDeniedError('parent notices require Parent or full-admin'));
+}
+
+function requireAnyNoticeReader(user: SessionUser): void {
+  if (isStaff(user) || user.role === 'Parent') return;
+  throw toForbidden(new AccessDeniedError('notices require staff or Parent'));
 }
 
 function requireNoticePoster(user: SessionUser): void {
@@ -67,12 +88,28 @@ function isAvailableNotice(
   return notice.active && (!notice.expiresAt || notice.expiresAt > now);
 }
 
+function canReadNoticeAudience(user: SessionUser, audience: NoticeAudience): boolean {
+  if (isFullAdmin(user)) return true;
+  if (audience === 'Both') return user.role === 'Supervisor' || user.role === 'Parent';
+  if (audience === 'Supervisors') return user.role === 'Supervisor';
+  return user.role === 'Parent';
+}
+
+function audienceWhere(audiences: readonly NoticeAudience[]) {
+  return {
+    active: true,
+    audience: { in: [...audiences] },
+    OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+  };
+}
+
 function mapNotice(ctx: AuthedContext, notice: StaffNoticeRow) {
   const readAt = notice.reads[0]?.readAt ?? null;
   return {
     id: notice.id,
     title: notice.title,
     body: decryptRequired(ctx.db.$enc.decrypt, notice.bodyEnc),
+    audience: notice.audience,
     postedById: notice.postedById,
     createdAt: notice.createdAt,
     expiresAt: notice.expiresAt,
@@ -83,15 +120,45 @@ function mapNotice(ctx: AuthedContext, notice: StaffNoticeRow) {
 }
 
 export const noticeRouter = router({
-  listForStaff: authedProcedure.query(async ({ ctx }) => {
-    requireNoticeReader(ctx.user);
+  listForAdmin: authedProcedure.query(async ({ ctx }) => {
+    requireNoticePoster(ctx.user);
 
-    const now = new Date();
     const notices = await ctx.db.staffNotice.findMany({
-      where: {
-        active: true,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      where: audienceWhere(['Supervisors', 'Parents', 'Both']),
+      include: {
+        reads: {
+          where: { userId: ctx.user.id },
+          select: { readAt: true },
+          take: 1,
+        },
       },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return notices.map((notice) => mapNotice(ctx, notice));
+  }),
+  listForStaff: authedProcedure.query(async ({ ctx }) => {
+    requireStaffNoticeReader(ctx.user);
+
+    const notices = await ctx.db.staffNotice.findMany({
+      where: audienceWhere(['Supervisors', 'Both']),
+      include: {
+        reads: {
+          where: { userId: ctx.user.id },
+          select: { readAt: true },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return notices.map((notice) => mapNotice(ctx, notice));
+  }),
+  listForParents: authedProcedure.query(async ({ ctx }) => {
+    requireParentNoticeReader(ctx.user);
+
+    const notices = await ctx.db.staffNotice.findMany({
+      where: audienceWhere(['Parents', 'Both']),
       include: {
         reads: {
           where: { userId: ctx.user.id },
@@ -114,6 +181,7 @@ export const noticeRouter = router({
       data: {
         title: input.title,
         bodyEnc: ctx.db.$enc.encrypt(input.body),
+        audience: input.audience,
         postedById: ctx.user.id,
         active: true,
         expiresAt: input.expiresAt ?? null,
@@ -133,7 +201,11 @@ export const noticeRouter = router({
         action: 'Create',
         entity: 'StaffNotice',
         entityId: notice.id,
-        meta: { source: 'notice.post', expiresAt: input.expiresAt?.toISOString() ?? null },
+        meta: {
+          source: 'notice.post',
+          audience: input.audience,
+          expiresAt: input.expiresAt?.toISOString() ?? null,
+        },
       },
     });
 
@@ -142,13 +214,17 @@ export const noticeRouter = router({
   markRead: authedProcedure
     .input(z.object({ noticeId: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {
-      requireNoticeReader(ctx.user);
+      requireAnyNoticeReader(ctx.user);
 
       const notice = await ctx.db.staffNotice.findUnique({
         where: { id: input.noticeId },
-        select: { id: true, active: true, expiresAt: true },
+        select: { id: true, active: true, audience: true, expiresAt: true },
       });
-      if (!notice || !isAvailableNotice(notice, new Date())) {
+      if (
+        !notice ||
+        !isAvailableNotice(notice, new Date()) ||
+        !canReadNoticeAudience(ctx.user, notice.audience)
+      ) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'notice not found' });
       }
 

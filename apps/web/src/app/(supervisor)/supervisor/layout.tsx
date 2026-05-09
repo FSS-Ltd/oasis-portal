@@ -20,6 +20,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
     prisma.staffNotice.count({
       where: {
         active: true,
+        audience: { in: ['Supervisors', 'Both'] },
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
         reads: {
           none: { userId: user.id },

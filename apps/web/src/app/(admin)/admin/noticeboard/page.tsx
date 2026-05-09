@@ -7,7 +7,7 @@ export default async function AdminNoticeboardPage() {
 
   return (
     <MotionPage>
-      <StaffNoticeboard canPost />
+      <StaffNoticeboard mode="admin" />
     </MotionPage>
   );
 }

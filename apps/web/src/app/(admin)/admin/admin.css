@@ -2390,9 +2390,26 @@
 }
 
 .field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: var(--oasis-text-secondary);
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.field__required {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(153, 27, 27, 0.08);
+  color: var(--oasis-danger);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .field__hint {
