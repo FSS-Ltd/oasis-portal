@@ -6,11 +6,13 @@ import {
   canViewBehaviourReports,
   canExportAttendance,
   canManageCalendar,
+  canRespondToParentMessages,
   canUseFullPaceAccess,
   canManageUserAccounts,
   hasTag,
   isFullAdmin,
 } from '@oasis/domain';
+import { prisma } from '@oasis/db';
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getAdminShellUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -30,7 +32,22 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManageAccounts = canManageUserAccounts(user);
   const canExportAttendanceCsv = canExportAttendance(user);
   const canManageCalendarDates = canManageCalendar(user);
-  const hasLinkedChildren = (await linkedChildCount(user.id)) > 0;
+  const canUseMessages = canRespondToParentMessages(user);
+  const [linkedChildren, unreadMessageCount] = await Promise.all([
+    linkedChildCount(user.id),
+    canUseMessages
+      ? prisma.message.count({
+          where: {
+            senderId: { not: user.id },
+            ...(user.role === 'Head' ? {} : { thread: { adminId: user.id } }),
+            reads: {
+              none: { userId: user.id },
+            },
+          },
+        })
+      : Promise.resolve(0),
+  ]);
+  const hasLinkedChildren = linkedChildren > 0;
   const userRoleLabel = roleLabel(user.role);
   const homeHref = fullAdmin
     ? '/admin'
@@ -75,6 +92,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canManageCalendar={canManageCalendarDates}
           fullAdmin={fullAdmin}
           hasLinkedChildren={hasLinkedChildren}
+          canUseMessages={canUseMessages}
+          unreadMessageCount={unreadMessageCount}
         />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
@@ -107,6 +126,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canManageCalendar={canManageCalendarDates}
           fullAdmin={fullAdmin}
           hasLinkedChildren={hasLinkedChildren}
+          canUseMessages={canUseMessages}
+          unreadMessageCount={unreadMessageCount}
         />
       </div>
     </div>

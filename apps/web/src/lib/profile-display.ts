@@ -43,6 +43,7 @@ export function permissionTagLabel(tag: string): string {
     'student-drillthrough-viewer': 'Student Profile Viewer',
     'pace-full-access': 'Full PACE Access',
     'calendar-manager': 'Calendar Manager',
+    'parent-message-responder': 'Parent Message Responder',
   };
   return labels[tag as PermissionTag] ?? tag;
 }

@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-09
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.7 parent messaging threads API.
+**Phase:** PR-3.8 parent/admin messaging UI.
 
 ---
 
@@ -18,7 +18,63 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.7 parent messaging threads API
+## Current status - PR-3.8 parent/admin messaging UI
+
+Working branch: `feat/phase-3-pr3.8-messaging-ui`.
+
+**PR scope:** Add parent and admin messaging UI on top of the merged PR-3.7
+message thread API, with tagged responder assignment and best-effort Resend
+notifications. Attachments, push notifications, and group announcements remain
+deferred.
+
+Changed scope:
+
+- Mark PR-3.7 merged via PR #89 in the Phase 3 plan.
+- Added the `parent-message-responder` permission tag and kept it Head-managed
+  alongside other protected tags.
+- Gated parent-message recipients so Head is always eligible and other
+  full-admin users require the tag.
+- Added `message.listRecipients`, participant display metadata on thread
+  outputs, and sender display metadata on thread messages.
+- Added best-effort Resend notifications for new portal messages without
+  including message body content in email.
+- Added `/parent/messages` and `/admin/messages` with shared inbox/thread UI,
+  parent new-thread composer, reply composer, and loading/empty/error/pending
+  states.
+- Guarded `/admin/messages` with the same responder permission used by the API
+  and navigation.
+- Added parent/admin navigation entries for Messages, unread badges in the nav
+  and thread list, and removed the hard-coded admin message badge.
+- Added `MessageRead` read receipts with an idempotent migration-backed table;
+  opening a thread automatically marks messages from other users as read and
+  exposes read state in thread responses.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts users.test.ts` - pass, ran
+  all domain tests because of Vitest argument handling: 12 files / 138 tests.
+- `pnpm --filter @oasis/api test -- message.router.test.ts email.router.test.ts`
+  - pass, ran all API tests because of Vitest argument handling: 17 files / 294
+  tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass, updated
+  `docs/architecture/component-relationships.md`.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- Adds migration `20260509020000_message_read_receipts`.
+
+## Previous status - PR-3.7 parent messaging threads API
+
+Merged via PR #89 on 2026-05-09.
 
 Working branch: `feat/phase-3-pr3.7-parent-messaging-api`.
 

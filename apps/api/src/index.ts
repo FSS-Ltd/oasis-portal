@@ -24,6 +24,7 @@ export {
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
   EMAIL_LOGO_PATH,
+  MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
   SMOKE_TEST_EMAIL_SUBJECT,
   SMOKE_TEST_EMAIL_TEXT,
@@ -31,6 +32,7 @@ export {
   USER_INVITE_EMAIL_SUBJECT,
   buildEmailLogoUrl,
   buildHelloWorldEmail,
+  buildMessageNotificationEmail,
   buildSmokeTestEmail,
   buildUserInviteEmail,
   createResendEmailClient,
@@ -38,11 +40,13 @@ export {
   type EmailClient,
   type EmailConfig,
   type EmailEnv,
+  type MessageNotificationEmailInput,
   type SendEmailInput,
   type SendEmailResult,
   type UserInviteEmailInput,
 } from './lib/email.js';
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
+export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {
   handleClerkWebhookRequest,
   mapClerkUserToUpsertInput,

@@ -1119,7 +1119,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     expect(db.user.update).not.toHaveBeenCalled();
   });
 
-  it('limits student drill-through tag changes to Head', async () => {
+  it('limits Head-only permission tag changes to Head', async () => {
     const db = makeFakeDb();
     db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: [] });
     const blocked = makeCaller(principalUser, { db });
@@ -1128,6 +1128,14 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       blocked.caller.admin.updateUserTags({
         userId: 'u_sup',
         tags: ['student-drillthrough-viewer'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
+
+    await expect(
+      blocked.caller.admin.updateUserTags({
+        userId: 'u_sup',
+        tags: ['parent-message-responder'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();

@@ -7,6 +7,7 @@ import {
   canManageUserAccountRole,
   canManageUserAccounts,
   canRecordStudentAttendance,
+  canRespondToParentMessages,
   canUseFullPaceAccess,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -258,6 +259,20 @@ describe('workflow tags', () => {
     expect(canManageCalendar({ ...parent, tags: ['calendar-manager'] })).toBe(false);
     expect(canManageCalendar({ ...student, tags: ['calendar-manager'] })).toBe(false);
     expect(canManageCalendar({ ...technicalSupport, tags: ['calendar-manager'] })).toBe(false);
+  });
+
+  it('limits parent message response to Head or tagged full-admin users', () => {
+    expect(canRespondToParentMessages(head)).toBe(true);
+    expect(canRespondToParentMessages(principal)).toBe(false);
+    expect(canRespondToParentMessages({ ...principal, tags: ['parent-message-responder'] })).toBe(
+      true,
+    );
+    expect(canRespondToParentMessages({ ...supervisor, tags: ['parent-message-responder'] })).toBe(
+      false,
+    );
+    expect(canRespondToParentMessages({ ...parent, tags: ['parent-message-responder'] })).toBe(
+      false,
+    );
   });
 });
 

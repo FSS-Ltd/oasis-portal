@@ -7,6 +7,7 @@ import {
   canAnswerChildRegistrationPrompt,
   canExportAttendance,
   canManageCalendar,
+  canRespondToParentMessages,
   canSubmitInitialRegistration,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -67,7 +68,8 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canUseFullPaceAccess(user) &&
     !canManageUserAccounts(user) &&
     !canExportAttendance(user) &&
-    !canManageCalendar(user)
+    !canManageCalendar(user) &&
+    !canRespondToParentMessages(user)
   ) {
     notFound();
   }
@@ -82,6 +84,15 @@ export async function assertFullAdmin() {
 export async function getUserAccountAdminUser(): Promise<SessionUser> {
   const user = await getAdminShellUser();
   if (!canManageUserAccounts(user)) {
+    notFound();
+  }
+
+  return user;
+}
+
+export async function getParentMessageResponderUser(): Promise<SessionUser> {
+  const user = await getAdminShellUser();
+  if (!canRespondToParentMessages(user)) {
     notFound();
   }
 

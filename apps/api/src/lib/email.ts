@@ -1,6 +1,10 @@
 import { createElement, type ReactNode } from 'react';
 import { Resend, type CreateEmailOptions } from 'resend';
 import type { Role } from '@oasis/domain';
+import {
+  buildMessageNotificationEmailText,
+  MessageNotificationEmail,
+} from '../emails/message-notification-email.js';
 import { buildSmokeTestEmailText, SmokeTestEmail } from '../emails/smoke-test-email.js';
 import { buildUserInviteEmailText, UserInviteEmail } from '../emails/user-invite-email.js';
 
@@ -13,6 +17,7 @@ export const SMOKE_TEST_EMAIL_TEXT = buildSmokeTestEmailText();
 export const HELLO_WORLD_EMAIL_TO = SMOKE_TEST_EMAIL_TO;
 export const HELLO_WORLD_EMAIL_SUBJECT = SMOKE_TEST_EMAIL_SUBJECT;
 export const USER_INVITE_EMAIL_SUBJECT = 'Your Oasis Portal invitation';
+export const MESSAGE_NOTIFICATION_EMAIL_SUBJECT = 'New Oasis Portal message';
 
 export interface EmailEnv {
   [key: string]: string | undefined;
@@ -182,5 +187,45 @@ export function buildUserInviteEmail(input: UserInviteEmailInput): SendEmailInpu
       ...logoProps(logoUrl),
     }),
     text: buildUserInviteEmailText({ inviteUrl: input.inviteUrl, role: input.role }),
+  };
+}
+
+export interface MessageNotificationEmailInput {
+  logoUrl?: string;
+  messagePath?: string;
+  recipientName?: string;
+  senderName: string;
+  threadSubject: string;
+  to: string;
+}
+
+function buildMessageUrl(messagePath: string | undefined, appUrl = process.env.APP_URL) {
+  const normalisedAppUrl = normaliseAppUrl(appUrl);
+  if (!normalisedAppUrl || !messagePath) return undefined;
+  return new URL(messagePath, normalisedAppUrl).toString();
+}
+
+export function buildMessageNotificationEmail(
+  input: MessageNotificationEmailInput,
+): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const messageUrl = buildMessageUrl(input.messagePath);
+  const messageUrlProps = messageUrl ? { messageUrl } : {};
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    senderName: input.senderName,
+    threadSubject: input.threadSubject,
+    ...messageUrlProps,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(MessageNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildMessageNotificationEmailText(commonProps),
   };
 }

@@ -1,6 +1,6 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** PR-3.7 parent messaging API ready for review
+**Status:** PR-3.8 parent/admin messaging UI ready for review
 **Last updated:** 2026-05-09
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -274,9 +274,9 @@ Verification:
 
 Goal: move parent communication out of WhatsApp and into audited portal threads.
 
-### PR-3.7 - `feat(api): parent messaging threads` READY FOR REVIEW
+### PR-3.7 - `feat(api): parent messaging threads` MERGED
 
-Working branch: `feat/phase-3-pr3.7-parent-messaging-api`.
+Merged via PR #89 on 2026-05-09.
 
 Scope:
 
@@ -310,13 +310,19 @@ Verification:
 - `pnpm docs:component-map` if component map output changes
 - `git diff --check`
 
-### PR-3.8 - `feat(web): parent and admin messaging UI` PLANNED
+### PR-3.8 - `feat(web): parent and admin messaging UI` READY FOR REVIEW
+
+Working branch: `feat/phase-3-pr3.8-messaging-ui`.
 
 Scope:
 
 - Add parent inbox/thread UI under `/parent`.
 - Add admin inbox/thread UI under `/admin`.
+- Add the `parent-message-responder` permission tag so Head can assign
+  responder access to selected full-admin users.
 - Show empty, loading, error, and pending-send states.
+- Add unread message badges to parent/admin navigation and message thread rows.
+- Add automatic read receipts when an authorized user opens a thread.
 - Add email notification hook for new parent/admin replies using the Resend
   infrastructure.
 - Keep push notifications deferred until Phase 5 or a dedicated notifications
@@ -328,6 +334,7 @@ Tests:
 - Admin sees the thread and replies.
 - Parent sees the reply.
 - Cross-parent thread URLs are denied.
+- Opening a thread records read receipts idempotently and clears unread badges.
 - Email notification path is covered by focused API/template tests.
 
 Verification:
