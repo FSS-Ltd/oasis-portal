@@ -117,9 +117,19 @@ const PRODUCT_MODULES = [
     sharedSurfaces: ['apps/web/src/components/ui/'],
   },
   {
-    name: 'Shop, clubs, tithe, investment, reports, notices, messages, and email',
-    owns: 'Commercial and communication workflows that hang off student, parent, staff, and admin experiences.',
-    apiRouters: ['shop', 'club', 'tithe', 'investment', 'report', 'notice', 'message', 'email'],
+    name: 'Shop, clubs, calendar, tithe, investment, reports, notices, messages, and email',
+    owns: 'Commercial, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
+    apiRouters: [
+      'shop',
+      'club',
+      'calendar',
+      'tithe',
+      'investment',
+      'report',
+      'notice',
+      'message',
+      'email',
+    ],
     domainFiles: [
       'packages/domain/src/clubs.ts',
       'packages/domain/src/investmentSim.ts',
@@ -130,6 +140,7 @@ const PRODUCT_MODULES = [
     webSurfaces: [
       'apps/web/src/app/(admin)/',
       'apps/web/src/app/(parent)/',
+      'apps/web/src/components/calendar/',
       'apps/web/src/components/noticeboard/',
       'apps/web/src/components/ui/',
     ],

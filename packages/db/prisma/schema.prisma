@@ -82,6 +82,7 @@ model User {
   recordedStaffAttendance StaffAttendance[]         @relation("RecordedStaffAttendance")
   noticesPosted           StaffNotice[]             @relation("NoticesPosted")
   noticeReads             StaffNoticeRead[]
+  calendarEventsCreated   CalendarEvent[]           @relation("CalendarEventsCreated")
   messagesSent            Message[]                 @relation("MessagesSent")
   threadsAsParent         MessageThread[]           @relation("ThreadParent")
   threadsAsAdmin          MessageThread[]           @relation("ThreadAdmin")
@@ -717,6 +718,12 @@ enum StaffNoticeAudience {
   Both
 }
 
+enum CalendarEventAudience {
+  All
+  Parents
+  Supervisors
+}
+
 model StaffNotice {
   id         String              @id @default(cuid())
   title      String
@@ -743,6 +750,24 @@ model StaffNoticeRead {
   user   User        @relation(fields: [userId], references: [id])
 
   @@id([noticeId, userId])
+}
+
+model CalendarEvent {
+  id             String                @id @default(cuid())
+  title          String
+  descriptionEnc String?
+  audience       CalendarEventAudience @default(All)
+  startDate      DateTime              @db.Date
+  endDate        DateTime              @db.Date
+  active         Boolean               @default(true)
+  createdById    String
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  createdBy User @relation("CalendarEventsCreated", fields: [createdById], references: [id])
+
+  @@index([active, audience, startDate, endDate])
+  @@index([createdById, createdAt])
 }
 
 model MessageThread {

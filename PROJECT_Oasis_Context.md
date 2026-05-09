@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-09
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 3.6 staff noticeboard UI.
+**Phase:** Shared portal calendar.
 
 ---
 
@@ -18,7 +18,55 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.6 noticeboard UI
+## Current status - Shared portal calendar
+
+Working branch: `feat/shared-calendar`.
+
+**PR scope:** Add a shared key-dates calendar across current web portals.
+Full-admin users and Supervisor staff with the `calendar-manager` tag can manage
+dates. Parents and supervisors can read dates scoped to their audience. Mobile
+and a dedicated student portal remain out of scope.
+
+Changed scope:
+
+- Added `calendar-manager` as a permission tag and `canManageCalendar` as the
+  domain helper for calendar write access.
+- Added `CalendarEvent` and `CalendarEventAudience` to Prisma with encrypted
+  optional descriptions, date-only start/end fields, active archive state, and
+  creator/audit ownership.
+- Added `calendar` tRPC procedures for admin management, parent reads,
+  supervisor reads, create, update, and archive.
+- Added `/admin/calendar`, `/supervisor/calendar`, and `/parent/calendar` using
+  a shared calendar UI split into small model/card/controller modules.
+- Wired calendar navigation into admin, supervisor, and parent shells.
+- Updated the component relationship map ownership for the new router and
+  calendar component surface.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts` - pass, ran all domain
+  tests because of Vitest argument handling: 12 files / 132 tests.
+- `pnpm --filter @oasis/api test -- calendar.router.test.ts` - pass, ran all API
+  tests because of Vitest argument handling: 16 files / 266 tests.
+- `pnpm --filter @oasis/domain typecheck` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm with-env pnpm --filter @oasis/db exec prisma validate` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass after graph refresh.
+- `git diff --check` - pass.
+
+Notes:
+
+- The Prisma migration file was created but not applied to any configured
+  database in this session to avoid mutating an unknown target database.
+- Existing untracked `docs/decks/` files remain untouched.
+
+## Previous status - PR-3.6 noticeboard UI
 
 Working branch: `feat/phase-3-pr3.6-noticeboard-follow-up`.
 
@@ -69,7 +117,7 @@ Verification:
 - `pnpm --filter @oasis/web build` - pass after stopping stale local Next dev
   servers that were writing `.next`.
 - Local API debug as the notice author - pass; authored notice returns `read:
-  true`, `readAt: null`, and recipient read summary.
+true`, `readAt: null`, and recipient read summary.
 - `pnpm dev:watch` smoke - pass; starts a single Next server on
   `http://localhost:3000` and remains running after idle check.
 - `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass

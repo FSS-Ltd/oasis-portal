@@ -25,6 +25,7 @@ const navItems = [
   { href: '/admin/students', label: 'Students', icon: GraduationCap, badge: undefined },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, badge: undefined },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays, badge: undefined },
+  { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays, badge: undefined },
   { href: '/admin/access', label: 'User Access', icon: UserCog, badge: undefined },
   { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound, badge: undefined },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList, badge: undefined },
@@ -44,6 +45,7 @@ type AdminNavProps = {
   canViewPace: boolean;
   canViewStudents: boolean;
   canManageUserAccounts: boolean;
+  canManageCalendar: boolean;
   canExportAttendance: boolean;
   fullAdmin: boolean;
   hasLinkedChildren: boolean;
@@ -62,6 +64,7 @@ function visibleForUser(
   access: Pick<
     AdminNavProps,
     | 'canManageUserAccounts'
+    | 'canManageCalendar'
     | 'canViewAudit'
     | 'canViewBehaviour'
     | 'canExportAttendance'
@@ -73,6 +76,7 @@ function visibleForUser(
 ) {
   if (item.label === 'My Children') return access.hasLinkedChildren;
   if (access.fullAdmin) return item.label !== 'Audit' || access.canViewAudit;
+  if (item.label === 'Calendar') return access.canManageCalendar;
   if (item.label === 'Attendance') return access.canExportAttendance;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
@@ -87,6 +91,7 @@ export function AdminSidebarNav({
   canViewPace,
   canViewStudents,
   canManageUserAccounts,
+  canManageCalendar,
   canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
@@ -95,6 +100,7 @@ export function AdminSidebarNav({
   const visibleNavItems = navItems.filter((item) =>
     visibleForUser(item, {
       canManageUserAccounts,
+      canManageCalendar,
       canViewAudit,
       canViewBehaviour,
       canExportAttendance,
@@ -143,6 +149,7 @@ export function AdminBottomNav({
   canViewPace,
   canViewStudents,
   canManageUserAccounts,
+  canManageCalendar,
   canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
@@ -152,6 +159,7 @@ export function AdminBottomNav({
     .filter((item) =>
       visibleForUser(item, {
         canManageUserAccounts,
+        canManageCalendar,
         canViewAudit,
         canViewBehaviour,
         canExportAttendance,

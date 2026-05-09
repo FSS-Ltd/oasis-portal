@@ -42,6 +42,7 @@ export function permissionTagLabel(tag: string): string {
     'behaviour-viewer': 'Behaviour Viewer',
     'student-drillthrough-viewer': 'Student Profile Viewer',
     'pace-full-access': 'Full PACE Access',
+    'calendar-manager': 'Calendar Manager',
   };
   return labels[tag as PermissionTag] ?? tag;
 }
