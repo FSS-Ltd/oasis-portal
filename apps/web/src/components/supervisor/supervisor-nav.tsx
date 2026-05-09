@@ -24,13 +24,23 @@ const navItems = [
   { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList, enabled: true },
 ] as const;
 
+type SupervisorNavProps = {
+  hasLinkedChildren: boolean;
+  unreadNoticeCount: number;
+};
+
 function isActiveRoute(pathname: string, href: string, label: string) {
   return label === 'Dashboard'
     ? pathname === href
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SupervisorSidebarNav({ hasLinkedChildren }: { hasLinkedChildren: boolean }) {
+function badgeForItem(item: (typeof navItems)[number], unreadNoticeCount: number): string | null {
+  if (item.label !== 'Noticeboard' || unreadNoticeCount <= 0) return null;
+  return unreadNoticeCount > 99 ? '99+' : String(unreadNoticeCount);
+}
+
+export function SupervisorSidebarNav({ hasLinkedChildren, unreadNoticeCount }: SupervisorNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter(
     (item) => item.label !== 'My Children' || hasLinkedChildren,
@@ -41,6 +51,7 @@ export function SupervisorSidebarNav({ hasLinkedChildren }: { hasLinkedChildren:
       {visibleNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
+        const badge = badgeForItem(item, unreadNoticeCount);
         const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -54,6 +65,7 @@ export function SupervisorSidebarNav({ hasLinkedChildren }: { hasLinkedChildren:
           >
             <Icon aria-hidden="true" size={18} />
             <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}
@@ -61,7 +73,7 @@ export function SupervisorSidebarNav({ hasLinkedChildren }: { hasLinkedChildren:
   );
 }
 
-export function SupervisorBottomNav({ hasLinkedChildren }: { hasLinkedChildren: boolean }) {
+export function SupervisorBottomNav({ hasLinkedChildren, unreadNoticeCount }: SupervisorNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter(
     (item) => item.label !== 'My Children' || hasLinkedChildren,
@@ -72,6 +84,7 @@ export function SupervisorBottomNav({ hasLinkedChildren }: { hasLinkedChildren: 
       {visibleNavItems.slice(0, 5).map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
+        const badge = badgeForItem(item, unreadNoticeCount);
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -86,6 +99,7 @@ export function SupervisorBottomNav({ hasLinkedChildren }: { hasLinkedChildren: 
           >
             <Icon aria-hidden="true" size={18} />
             <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}

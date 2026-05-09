@@ -41,6 +41,8 @@ Changed scope:
   `notice.listForStaff` summaries and a link to the full noticeboard.
 - Added credential-gated Playwright coverage for full-admin publishing,
   Supervisor noticeboard/read persistence, and non-staff denial.
+- Added a Supervisor Noticeboard navigation badge that counts active unread
+  notices for the current supervisor.
 - Updated the component relationship map generator and regenerated the map for
   the new shared noticeboard component surface.
 
