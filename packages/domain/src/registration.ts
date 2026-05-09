@@ -111,52 +111,69 @@ export const registrationConsentsInput = z
   .strict();
 export type RegistrationConsentsInput = z.infer<typeof registrationConsentsInput>;
 
-export const registrationStudentInput = z
-  .object({
-    fullName: requiredText(120),
-    preferredName: optionalText(120),
-    dob: notFutureDateInput,
-    gender: optionalGenderInput,
-    yearGroup: optionalSchoolYearInput,
-    startDate: optionalDateInputWithTodayDefault,
-    homeLanguage: optionalText(120),
-    studentNotes: optionalText(1000),
-    allergies: optionalText(2000),
-    medicalConditions: optionalText(2000),
-    medicationAtCentre: optionalText(2000),
-    dietaryRestrictions: optionalText(2000),
-    learningSupport: optionalText(2000),
-    interestsStrengths: optionalText(2000),
-    settlingComfortNotes: optionalText(2000),
-    additionalInfo: optionalText(2000),
-    consents: registrationConsentsInput,
-  })
-  .strict()
-  .superRefine((student, ctx) => {
-    if (student.yearGroup !== undefined) return;
-    try {
-      deriveEnglandWalesSchoolYear(student.dob);
-    } catch {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'choose a year group or check the date of birth',
-        path: ['yearGroup'],
-      });
-    }
-  })
-  .transform((student) => ({
-    ...student,
-    yearGroup: student.yearGroup ?? deriveEnglandWalesSchoolYear(student.dob),
-  }));
+const registrationStudentShape = {
+  fullName: requiredText(120),
+  preferredName: optionalText(120),
+  dob: notFutureDateInput,
+  gender: optionalGenderInput,
+  yearGroup: optionalSchoolYearInput,
+  startDate: optionalDateInputWithTodayDefault,
+  homeLanguage: optionalText(120),
+  studentNotes: optionalText(1000),
+  allergies: optionalText(2000),
+  medicalConditions: optionalText(2000),
+  medicationAtCentre: optionalText(2000),
+  dietaryRestrictions: optionalText(2000),
+  learningSupport: optionalText(2000),
+  interestsStrengths: optionalText(2000),
+  settlingComfortNotes: optionalText(2000),
+  additionalInfo: optionalText(2000),
+  consents: registrationConsentsInput,
+} satisfies z.ZodRawShape;
+
+function registrationStudentInputWith<TShape extends z.ZodRawShape>(shape: TShape) {
+  return z
+    .object({
+      ...registrationStudentShape,
+      ...shape,
+    })
+    .strict()
+    .superRefine((student, ctx) => {
+      const dob = student.dob as unknown;
+      if (student.yearGroup !== undefined || !(dob instanceof Date)) return;
+      try {
+        deriveEnglandWalesSchoolYear(dob);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'choose a year group or check the date of birth',
+          path: ['yearGroup'],
+        });
+      }
+    })
+    .transform((student) => {
+      const dob = student.dob as unknown as Date;
+      return {
+        ...student,
+        yearGroup: student.yearGroup ?? deriveEnglandWalesSchoolYear(dob),
+      };
+    });
+}
+
+export const registrationStudentInput = registrationStudentInputWith({});
 export type RegistrationStudentInput = z.infer<typeof registrationStudentInput>;
 
-export const parentInitialRegistrationInput = z
+export const registrationExistingStudentInput = registrationStudentInputWith({
+  studentId: z.string().trim().min(1),
+});
+export type RegistrationExistingStudentInput = z.infer<typeof registrationExistingStudentInput>;
+
+const parentRegistrationSharedInput = z
   .object({
     homeAddress: requiredText(500),
     guardianContacts: z.array(registrationGuardianContactInput).min(1).max(2),
     emergencyContacts: z.array(registrationEmergencyContactInput).min(1).max(2),
     pickupContacts: z.array(registrationPickupContactInput).max(10).default([]),
-    students: z.array(registrationStudentInput).min(1).max(6),
     agreement: z
       .object({
         guardianName: requiredText(120),
@@ -165,4 +182,31 @@ export const parentInitialRegistrationInput = z
       .strict(),
   })
   .strict();
+
+export const parentInitialRegistrationInput = parentRegistrationSharedInput
+  .extend({
+    students: z.array(registrationStudentInput).min(1).max(6),
+  })
+  .strict();
 export type ParentInitialRegistrationInput = z.infer<typeof parentInitialRegistrationInput>;
+
+export const parentRegistrationUpdateInput = parentRegistrationSharedInput
+  .extend({
+    students: z.array(registrationExistingStudentInput).min(1).max(6),
+  })
+  .strict();
+export type ParentRegistrationUpdateInput = z.infer<typeof parentRegistrationUpdateInput>;
+
+export const parentRegistrationSiblingInput = parentRegistrationSharedInput
+  .extend({
+    student: registrationStudentInput,
+  })
+  .strict();
+export type ParentRegistrationSiblingInput = z.infer<typeof parentRegistrationSiblingInput>;
+
+export const parentRegistrationSiblingsInput = z
+  .object({
+    students: z.array(registrationStudentInput).min(1).max(6),
+  })
+  .strict();
+export type ParentRegistrationSiblingsInput = z.infer<typeof parentRegistrationSiblingsInput>;

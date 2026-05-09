@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { prisma } from '@oasis/db';
 import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { ParentBottomNav, ParentSidebarNav } from '@/components/parent/parent-nav';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import '../../(admin)/admin/admin.css';
 
@@ -42,23 +43,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <span>Linked children only</span>
           <ProfileBadgeLink href="/parent/profile" />
         </div>
-        <nav className="admin-shell__nav">
-          <Link className="admin-shell__nav-item" href="/parent">
-            <span>Children</span>
-          </Link>
-          <Link className="admin-shell__nav-item" href="/parent/calendar">
-            <span>Calendar</span>
-          </Link>
-          <Link className="admin-shell__nav-item" href="/parent/profile">
-            <span>My Profile</span>
-          </Link>
-          <Link className="admin-shell__nav-item" href="/parent/noticeboard">
-            <span>Noticeboard</span>
-            {unreadNoticeCount > 0 ? (
-              <b>{unreadNoticeCount > 99 ? '99+' : String(unreadNoticeCount)}</b>
-            ) : null}
-          </Link>
-        </nav>
+        <ParentSidebarNav unreadNoticeCount={unreadNoticeCount} />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -80,6 +65,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
+        <ParentBottomNav unreadNoticeCount={unreadNoticeCount} />
       </div>
     </div>
   );

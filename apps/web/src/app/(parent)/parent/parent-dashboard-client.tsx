@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useMemo, useState } from 'react';
 import {
   ArrowRight,
   BookOpenCheck,
@@ -16,6 +16,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatCard } from '@/components/ui/stat-card';
+import { avatarColour, firstName, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
+import { SiblingAddModalButton } from './registration/sibling-add-modal';
 
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type AttendanceStatus = DashboardChild['attendance'][number]['status'];
@@ -231,6 +233,45 @@ function ChildDashboard({ child }: { child: DashboardChild }) {
   );
 }
 
+function ChildDashboardPicker({
+  children,
+  onSelect,
+  selectedChildId,
+}: {
+  children: readonly DashboardChild[];
+  onSelect: (studentId: string) => void;
+  selectedChildId: string;
+}) {
+  return (
+    <section className="panel panel__body snapshot-picker-panel">
+      <h2>Select child</h2>
+      <div className="snapshot-student-picker" aria-label="Select child">
+        {children.map((child, index) => {
+          const colour = avatarColour(index, SNAPSHOT_AVATAR_COLOURS);
+          const selected = child.student.id === selectedChildId;
+
+          return (
+            <button
+              aria-pressed={selected}
+              className={selected ? 'snapshot-student-card is-selected' : 'snapshot-student-card'}
+              key={child.student.id}
+              onClick={() => {
+                onSelect(child.student.id);
+              }}
+              style={{ '--student-colour': colour } as CSSProperties}
+              type="button"
+            >
+              <span>{getInitials(child.student.fullName)}</span>
+              <strong>{firstName(child.student.fullName)}</strong>
+              <small>{displaySchoolYearLabel(child.student.yearGroup)}</small>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function EmptyDashboard() {
   const registration = api.registration.status.useQuery(undefined, { retry: false });
   const status = registration.data;
@@ -276,8 +317,9 @@ function EmptyDashboard() {
 export function ParentDashboardClient() {
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const dashboardQuery = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
-  const children = dashboardQuery.data?.children ?? [];
-  const primaryChild = children[0];
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const children = useMemo(() => dashboardQuery.data?.children ?? [], [dashboardQuery.data?.children]);
+  const selectedChild = children.find((child) => child.student.id === selectedChildId) ?? children[0];
 
   if (profileQuery.isLoading || dashboardQuery.isLoading) {
     return <div className="empty-state">Loading parent dashboard...</div>;
@@ -308,35 +350,16 @@ export function ParentDashboardClient() {
         </span>
       </div>
 
-      {primaryChild ? (
+      {selectedChild ? (
         <div className="parent-dashboard-stack">
-          <ChildDashboard child={primaryChild} />
           {children.length > 1 ? (
-            <section className="panel panel__body parent-linked-panel">
-              <div className="section-title">
-                <div>
-                  <h2>Linked Children</h2>
-                  <p className="muted">Open each child record for the full read-only view.</p>
-                </div>
-              </div>
-              <div className="parent-linked-grid">
-                {children.map((child) => (
-                  <Link
-                    className="parent-linked-card"
-                    href={`/parent/children/${child.student.id}`}
-                    key={child.student.id}
-                  >
-                    <Avatar name={child.student.fullName} />
-                    <span>
-                      <strong>{child.student.fullName}</strong>
-                      <small>{displaySchoolYearLabel(child.student.yearGroup)}</small>
-                    </span>
-                    <ArrowRight aria-hidden="true" size={16} />
-                  </Link>
-                ))}
-              </div>
-            </section>
+            <ChildDashboardPicker
+              children={children}
+              onSelect={setSelectedChildId}
+              selectedChildId={selectedChild.student.id}
+            />
           ) : null}
+          <ChildDashboard child={selectedChild} />
         </div>
       ) : (
         <EmptyDashboard />
@@ -345,12 +368,15 @@ export function ParentDashboardClient() {
       <section className="panel panel__body parent-profile-shortcut">
         <ClipboardList aria-hidden="true" size={18} />
         <div>
-          <strong>Profile details</strong>
-          <span>Keep contact details current for centre communication.</span>
+          <strong>Registration details</strong>
+          <span>Keep household details current or add another linked child.</span>
         </div>
-        <Link className="button button--secondary button--sm" href="/parent/profile">
-          My Profile
-        </Link>
+        <div className="parent-profile-shortcut__actions">
+          <Link className="button button--secondary button--sm" href="/parent/registration">
+            Registration
+          </Link>
+          <SiblingAddModalButton size="sm" />
+        </div>
       </section>
     </div>
   );

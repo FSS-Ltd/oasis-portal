@@ -12,17 +12,23 @@ import {
   STANDARD_SCHOOL_YEARS,
   displaySchoolYearLabel,
   parentInitialRegistrationInput,
+  parentRegistrationSiblingInput,
+  parentRegistrationUpdateInput,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { api } from '@/lib/trpc';
 import {
+  blankRegistrationValues,
   blankStudent,
   clearRegistrationDraftValues,
   loadRegistrationDraftValues,
+  registrationValuesFromServer,
   saveRegistrationDraftValues,
+  siblingValuesFromServer,
   todayDateInput,
   type RegistrationFormValues,
+  type RegistrationStudentFormValues,
 } from './registration-form-model';
 
 function TextArea({
@@ -52,30 +58,74 @@ function formPath(value: string): FieldPath<RegistrationFormValues> {
   return value as FieldPath<RegistrationFormValues>;
 }
 
-function toPayloadInput(values: RegistrationFormValues): unknown {
+type RegistrationFormMode = 'edit' | 'initial' | 'sibling';
+
+const submitLabel = {
+  edit: 'Save registration',
+  initial: 'Submit registration',
+  sibling: 'Add sibling',
+} as const satisfies Record<RegistrationFormMode, string>;
+
+function stripStudentId(student: RegistrationStudentFormValues) {
+  const studentInput = { ...student };
+  delete studentInput.studentId;
+  return studentInput;
+}
+
+function sharedPayloadInput(values: RegistrationFormValues) {
   return {
-    ...values,
+    homeAddress: values.homeAddress,
     guardianContacts: values.guardianContacts.map((contact) => ({
       ...contact,
       workPhone: contact.workPhone ?? '',
       address: contact.address ?? '',
     })),
-    students: values.students.map((student) => ({
-      ...student,
-    })),
+    emergencyContacts: values.emergencyContacts,
+    pickupContacts: values.pickupContacts,
     agreement: {
       ...values.agreement,
     },
   };
 }
 
-function issuePath(issue: ZodIssue): string {
-  return issue.path.map(String).join('.');
+function toInitialPayloadInput(values: RegistrationFormValues): unknown {
+  return {
+    ...sharedPayloadInput(values),
+    students: values.students.map(stripStudentId),
+  };
 }
 
-function labelForIssue(issue: ZodIssue): string {
-  const path = issuePath(issue);
-  const last = String(issue.path.at(-1) ?? '');
+function toUpdatePayloadInput(values: RegistrationFormValues): unknown {
+  return {
+    ...sharedPayloadInput(values),
+    students: values.students.map((student) => ({
+      ...stripStudentId(student),
+      studentId: student.studentId ?? '',
+    })),
+  };
+}
+
+function toSiblingPayloadInput(values: RegistrationFormValues): unknown {
+  return {
+    ...sharedPayloadInput(values),
+    student: stripStudentId(values.students[0] ?? blankStudent()),
+  };
+}
+
+function issuePathParts(issue: ZodIssue, mode: RegistrationFormMode): Array<number | string> {
+  if (mode === 'sibling' && issue.path[0] === 'student') {
+    return ['students', 0, ...issue.path.slice(1)];
+  }
+  return issue.path;
+}
+
+function issuePath(issue: ZodIssue, mode: RegistrationFormMode): string {
+  return issuePathParts(issue, mode).map(String).join('.');
+}
+
+function labelForIssue(issue: ZodIssue, mode: RegistrationFormMode): string {
+  const path = issuePath(issue, mode);
+  const last = String(issuePathParts(issue, mode).at(-1) ?? '');
 
   if (path === 'homeAddress') return 'Enter the home address.';
   if (path === 'agreement.guardianName') return 'Enter the parent or guardian name.';
@@ -93,8 +143,8 @@ function labelForIssue(issue: ZodIssue): string {
   return issue.message || 'Check this field.';
 }
 
-function sectionForIssue(issue: ZodIssue): string {
-  const [root, index] = issue.path;
+function sectionForIssue(issue: ZodIssue, mode: RegistrationFormMode): string {
+  const [root, index] = issuePathParts(issue, mode);
   if (root === 'homeAddress') return 'Household';
   if (root === 'guardianContacts') return `Guardian ${String(Number(index) + 1)}`;
   if (root === 'emergencyContacts') return `Emergency contact ${String(Number(index) + 1)}`;
@@ -104,8 +154,8 @@ function sectionForIssue(issue: ZodIssue): string {
   return 'Registration form';
 }
 
-function uniqueSections(issues: ZodIssue[]): string[] {
-  return [...new Set(issues.map(sectionForIssue))];
+function uniqueSections(issues: ZodIssue[], mode: RegistrationFormMode): string[] {
+  return [...new Set(issues.map((issue) => sectionForIssue(issue, mode)))];
 }
 
 function cleanSubmitErrorMessage(message: string): string {
@@ -113,6 +163,29 @@ function cleanSubmitErrorMessage(message: string): string {
     return 'Registration could not be saved. Please finish the required fields and try again.';
   }
   return message;
+}
+
+function setValidationIssues({
+  issues,
+  mode,
+  setError,
+  setIncompleteSections,
+}: {
+  issues: ZodIssue[];
+  mode: RegistrationFormMode;
+  setError: ReturnType<typeof useForm<RegistrationFormValues>>['setError'];
+  setIncompleteSections: (sections: string[]) => void;
+}) {
+  setIncompleteSections(uniqueSections(issues, mode));
+  issues.forEach((issue, index) => {
+    const path = issuePath(issue, mode);
+    if (path.length === 0) return;
+    setError(
+      formPath(path),
+      { message: labelForIssue(issue, mode), type: 'validate' },
+      { shouldFocus: index === 0 },
+    );
+  });
 }
 
 function RequirementBadge({ optional = false }: { optional?: boolean | undefined }) {
@@ -136,17 +209,45 @@ function SectionLabel({ children, optional = false }: { children: ReactNode; opt
   );
 }
 
-export function RegistrationForm() {
+export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationFormMode }) {
   const router = useRouter();
   const utils = api.useUtils();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [incompleteSections, setIncompleteSections] = useState<string[]>([]);
-  const statusQuery = api.registration.status.useQuery(undefined, { retry: false });
+  const statusQuery = api.registration.status.useQuery(undefined, {
+    enabled: mode === 'initial',
+    retry: false,
+  });
+  const mineQuery = api.registration.mine.useQuery(undefined, {
+    enabled: mode !== 'initial',
+    retry: false,
+  });
   const submitRegistration = api.registration.submitInitial.useMutation({
     async onSuccess() {
       clearRegistrationDraftValues();
       await Promise.all([
         utils.registration.status.invalidate(),
+        utils.childLog.listAccessibleStudents.invalidate(),
+      ]);
+      router.replace('/parent');
+    },
+  });
+  const updateRegistration = api.registration.updateMine.useMutation({
+    async onSuccess() {
+      setSuccessMessage('Registration saved.');
+      await Promise.all([
+        utils.registration.mine.invalidate(),
+        utils.childLog.parentDashboard.invalidate(),
+        utils.childLog.listAccessibleStudents.invalidate(),
+      ]);
+    },
+  });
+  const addSibling = api.registration.addSibling.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.registration.mine.invalidate(),
+        utils.childLog.parentDashboard.invalidate(),
         utils.childLog.listAccessibleStudents.invalidate(),
       ]);
       router.replace('/parent');
@@ -159,41 +260,66 @@ export function RegistrationForm() {
     formState: { errors },
     handleSubmit,
     register,
+    reset,
     setError,
     watch,
   } = useForm<RegistrationFormValues>({
-    defaultValues: loadRegistrationDraftValues(),
+    defaultValues: mode === 'initial' ? loadRegistrationDraftValues() : blankRegistrationValues(),
   });
 
   const guardianContacts = useFieldArray({ control, name: 'guardianContacts' });
   const emergencyContacts = useFieldArray({ control, name: 'emergencyContacts' });
   const pickupContacts = useFieldArray({ control, name: 'pickupContacts' });
   const students = useFieldArray({ control, name: 'students' });
+  const activeMutation =
+    mode === 'edit' ? updateRegistration : mode === 'sibling' ? addSibling : submitRegistration;
   const submissionErrorMessage =
     submitError ??
-    (submitRegistration.error ? cleanSubmitErrorMessage(submitRegistration.error.message) : null);
+    (activeMutation.error ? cleanSubmitErrorMessage(activeMutation.error.message) : null);
 
   useEffect(() => {
-    if (statusQuery.data && !statusQuery.data.requiresRegistration) {
+    if (mode === 'initial' && statusQuery.data && !statusQuery.data.requiresRegistration) {
       router.replace('/parent');
     }
-  }, [router, statusQuery.data]);
+  }, [mode, router, statusQuery.data]);
 
   useEffect(() => {
+    if (mode !== 'initial') return undefined;
     const subscription = watch((values) => {
       saveRegistrationDraftValues(values);
     });
     return () => {
       subscription.unsubscribe();
     };
-  }, [watch]);
+  }, [mode, watch]);
 
-  if (statusQuery.isLoading) {
+  useEffect(() => {
+    if (mode === 'initial' || !mineQuery.data) return;
+    reset(
+      mode === 'sibling'
+        ? siblingValuesFromServer(mineQuery.data)
+        : registrationValuesFromServer(mineQuery.data),
+    );
+  }, [mineQuery.data, mode, reset]);
+
+  if (mode === 'initial' && statusQuery.isLoading) {
     return <div className="empty-state">Loading registration...</div>;
   }
 
-  if (statusQuery.error) {
+  if (mode === 'initial' && statusQuery.error) {
     return <div className="empty-state status--error">{statusQuery.error.message}</div>;
+  }
+
+  if (mode !== 'initial' && mineQuery.isLoading) {
+    return <div className="empty-state">Loading registration...</div>;
+  }
+
+  if (mode !== 'initial' && mineQuery.error) {
+    return <div className="empty-state status--error">{mineQuery.error.message}</div>;
+  }
+
+  if (mode !== 'initial' && mineQuery.data === null) {
+    return <div className="empty-state">No submitted registration was found.</div>;
   }
 
   return (
@@ -202,25 +328,51 @@ export function RegistrationForm() {
       onSubmit={(event) => {
         void handleSubmit((values) => {
           setSubmitError(null);
+          setSuccessMessage(null);
           setIncompleteSections([]);
           clearErrors();
-          submitRegistration.reset();
+          activeMutation.reset();
 
-          const result = parentInitialRegistrationInput.safeParse(toPayloadInput(values));
-          if (!result.success) {
-            setIncompleteSections(uniqueSections(result.error.issues));
-            result.error.issues.forEach((issue, index) => {
-              const path = issuePath(issue);
-              if (path.length === 0) return;
-              setError(
-                formPath(path),
-                { message: labelForIssue(issue), type: 'validate' },
-                { shouldFocus: index === 0 },
-              );
-            });
+          if (mode === 'edit') {
+            const result = parentRegistrationUpdateInput.safeParse(toUpdatePayloadInput(values));
+            if (!result.success) {
+              setValidationIssues({
+                issues: result.error.issues,
+                mode,
+                setError,
+                setIncompleteSections,
+              });
+              return;
+            }
+            updateRegistration.mutate(result.data);
             return;
           }
 
+          if (mode === 'sibling') {
+            const result = parentRegistrationSiblingInput.safeParse(toSiblingPayloadInput(values));
+            if (!result.success) {
+              setValidationIssues({
+                issues: result.error.issues,
+                mode,
+                setError,
+                setIncompleteSections,
+              });
+              return;
+            }
+            addSibling.mutate(result.data);
+            return;
+          }
+
+          const result = parentInitialRegistrationInput.safeParse(toInitialPayloadInput(values));
+          if (!result.success) {
+            setValidationIssues({
+              issues: result.error.issues,
+              mode,
+              setError,
+              setIncompleteSections,
+            });
+            return;
+          }
           submitRegistration.mutate(result.data);
         })(event);
       }}
@@ -516,17 +668,19 @@ export function RegistrationForm() {
         <div className="panel__body form-grid">
           <div className="section-title registration-section-title">
             <SectionLabel>Students</SectionLabel>
-            <Button
-              disabled={students.fields.length >= 6}
-              onClick={() => {
-                students.append(blankStudent());
-              }}
-              type="button"
-              variant="secondary"
-            >
-              <UserRoundPlus aria-hidden="true" size={16} />
-              Add sibling
-            </Button>
+            {mode === 'initial' ? (
+              <Button
+                disabled={students.fields.length >= 6}
+                onClick={() => {
+                  students.append(blankStudent());
+                }}
+                type="button"
+                variant="secondary"
+              >
+                <UserRoundPlus aria-hidden="true" size={16} />
+                Add sibling
+              </Button>
+            ) : null}
           </div>
           {students.fields.map((student, index) => (
             <div className="registration-student" key={student.id}>
@@ -535,7 +689,7 @@ export function RegistrationForm() {
                   <span>Student {index + 1}</span>
                   <strong>{students.fields.length > 1 ? 'Sibling record' : 'Child record'}</strong>
                 </div>
-                {students.fields.length > 1 ? (
+                {mode === 'initial' && students.fields.length > 1 ? (
                   <Button
                     onClick={() => {
                       students.remove(index);
@@ -746,10 +900,15 @@ export function RegistrationForm() {
               {submissionErrorMessage}
             </p>
           ) : null}
+          {successMessage ? (
+            <p className="status--success" role="status">
+              {successMessage}
+            </p>
+          ) : null}
           <div>
-            <Button pending={submitRegistration.isPending} type="submit">
+            <Button pending={activeMutation.isPending} type="submit">
               <Send aria-hidden="true" size={16} />
-              Submit registration
+              {submitLabel[mode]}
             </Button>
           </div>
         </div>
