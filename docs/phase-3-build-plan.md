@@ -1,6 +1,6 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** PR-3.6 noticeboard UI ready for review
+**Status:** PR-3.7 parent messaging API ready for review
 **Last updated:** 2026-05-09
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -19,8 +19,8 @@ to make the centre usable:
 - PR #63 added the parent initial registration flow.
 - PR #64 added the child-registration prompt for adult non-parent accounts.
 
-The remaining work is parent dashboard polish, notices, parent-Head messaging,
-notification hooks, mobile smoke, and phase verification.
+The remaining work is parent-Head messaging UI, notification hooks, mobile
+smoke, and phase verification.
 
 ---
 
@@ -226,12 +226,12 @@ Verification:
 - `pnpm docs:component-map`
 - `git diff --check`
 
-### PR-3.6 - `feat(web): noticeboard UI` READY FOR REVIEW
+### PR-3.6 - `feat(web): noticeboard UI` MERGED
 
-Working branch: `feat/phase-3-pr3.6-noticeboard-follow-up`.
-
-Base staff noticeboard UI merged via PR #83. This follow-up branch carries the
-unread badge, badge refresh, parent noticeboard, and audience-targeting scope.
+Base staff noticeboard UI merged via PR #83 on 2026-05-09. The follow-up branch
+merged via PR #84 on 2026-05-09 with unread badge, badge refresh, parent
+noticeboard, and audience-targeting scope. PR #85 merged the notice read receipt
+race fix on 2026-05-09.
 
 Scope:
 
@@ -274,26 +274,41 @@ Verification:
 
 Goal: move parent communication out of WhatsApp and into audited portal threads.
 
-### PR-3.7 - `feat(api): parent messaging threads` PLANNED
+### PR-3.7 - `feat(api): parent messaging threads` READY FOR REVIEW
+
+Working branch: `feat/phase-3-pr3.7-parent-messaging-api`.
 
 Scope:
 
 - Implement `message.listThreads`, `message.openThread`, `message.send`, and
   `message.listInThread`.
 - Allow parents to open/send/list only their own threads.
-- Allow full-admin users to view and respond to parent threads.
+- Allow Head to view and respond to all parent threads.
+- Allow other full-admin users to view and respond only to assigned threads.
 - Encrypt message body.
 - Audit thread creation and message sends.
-- Keep group announcements and file attachments out of scope.
+- Keep group announcements, file attachments, read receipts, email
+  notifications, and UI work out of scope.
 
 Tests:
 
 - Parent opens a thread and sends a message.
-- Full-admin can respond.
+- Head can respond to all parent threads.
+- Other full-admin users can respond only to assigned parent threads.
 - Parent cannot read or send into another parent's thread.
-- Supervisor/ClubsAdmin/Student are denied unless future policy changes.
+- Supervisor/ClubsAdmin/TechnicalSupport/Student are denied unless future
+  policy changes.
 - Message body is encrypted at rest.
 - Audit rows are written.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- message.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm lint`
+- `graphify update .`
+- `pnpm docs:component-map` if component map output changes
+- `git diff --check`
 
 ### PR-3.8 - `feat(web): parent and admin messaging UI` PLANNED
 
