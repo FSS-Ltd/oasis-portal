@@ -1096,10 +1096,117 @@
 
 .calendar-composer,
 .calendar-list-panel,
+.calendar-month-panel,
 .calendar-form,
+.calendar-view-stack,
 .calendar-list {
   display: grid;
   gap: 14px;
+}
+
+.calendar-month-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-month-toolbar p {
+  margin: 0 0 2px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.calendar-month-toolbar h2 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1.08rem;
+}
+
+.calendar-month-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendar-month-weekday {
+  padding: 4px 2px;
+  color: var(--oasis-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.calendar-month-day {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  min-height: 96px;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.calendar-month-day.is-outside {
+  background: #f8fafc;
+  color: var(--oasis-text-muted);
+}
+
+.calendar-month-day.is-today {
+  border-color: rgba(91, 144, 197, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(91, 144, 197, 0.18);
+}
+
+.calendar-month-day__number {
+  color: var(--oasis-navy);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.calendar-month-day.is-outside .calendar-month-day__number {
+  color: var(--oasis-text-muted);
+}
+
+.calendar-month-day__events {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.calendar-month-event,
+.calendar-month-more {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-month-event {
+  padding: 4px 6px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.calendar-month-more {
+  color: var(--oasis-text-secondary);
 }
 
 .calendar-form__actions,
@@ -4740,6 +4847,25 @@
   .calendar-card__head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .calendar-month-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .calendar-month-toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .calendar-month-day {
+    min-height: 74px;
+    padding: 6px;
+  }
+
+  .calendar-month-event,
+  .calendar-month-more {
+    font-size: 0.61rem;
   }
 
   .table {

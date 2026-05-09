@@ -38,6 +38,8 @@ Changed scope:
   supervisor reads, create, update, and archive.
 - Added `/admin/calendar`, `/supervisor/calendar`, and `/parent/calendar` using
   a shared calendar UI split into small model/card/controller modules.
+- Added a default month-grid calendar view above the supporting list so the
+  calendar surface renders even when there are no dates yet.
 - Wired calendar navigation into admin, supervisor, and parent shells.
 - Updated the component relationship map ownership for the new router and
   calendar component surface.
@@ -57,6 +59,9 @@ Verification:
 - `pnpm lint` - pass.
 - `pnpm --filter @oasis/web build` - pass.
 - `graphify update .` - pass.
+- Follow-up month-grid verification: `pnpm --filter @oasis/web typecheck` -
+  pass; `pnpm lint` - pass; `pnpm --filter @oasis/web build` - pass;
+  `graphify update .` - pass.
 - `pnpm docs:component-map` - pass after graph refresh.
 - `git diff --check` - pass.
 

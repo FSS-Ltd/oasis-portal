@@ -6,7 +6,10 @@ import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { CalendarEventCard } from './calendar-event-card';
+import { CalendarMonthView } from './calendar-month-view';
 import {
+  addMonths,
+  currentMonthKey,
   emptyCalendarForm,
   pageCopy,
   type CalendarAudience,
@@ -26,6 +29,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
+  const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
 
   const copy = pageCopy[mode];
@@ -83,6 +87,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
 
   const events: CalendarEvent[] = eventsQuery.data ?? [];
   const activeCount = events.filter((event) => event.active).length;
+  const activeEvents = events.filter((event) => event.active);
   const mutationError = createEvent.error ?? updateEvent.error ?? archiveEvent.error;
 
   async function submitEvent(event: FormEvent<HTMLFormElement>) {
@@ -257,36 +262,54 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
           </section>
         ) : null}
 
-        <section
-          className="panel panel__body calendar-list-panel"
-          aria-labelledby="calendar-list-title"
-        >
-          <div className="section-title">
-            <div>
-              <h2 id="calendar-list-title">{copy.listTitle}</h2>
-              <p className="muted">{copy.listDescription}</p>
-            </div>
-            <span className="badge badge--blue">{String(activeCount)} active</span>
-          </div>
+        <div className="calendar-view-stack">
+          <CalendarMonthView
+            events={activeEvents}
+            monthKey={monthKey}
+            onNextMonth={() => {
+              setMonthKey((current) => addMonths(current, 1));
+            }}
+            onPreviousMonth={() => {
+              setMonthKey((current) => addMonths(current, -1));
+            }}
+            onToday={() => {
+              setMonthKey(currentMonthKey());
+            }}
+          />
 
-          {eventsQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
-          {eventsQuery.error ? <p className="status--error">{eventsQuery.error.message}</p> : null}
-          {!eventsQuery.isLoading && events.length === 0 ? (
-            <div className="empty-state">{copy.empty}</div>
-          ) : null}
-          <div className="calendar-list" aria-label={copy.listTitle}>
-            {events.map((event) => (
-              <CalendarEventCard
-                canManage={canManage}
-                event={event}
-                key={event.id}
-                onArchive={archiveCalendarEvent}
-                onEdit={editEvent}
-                pendingArchive={pendingArchiveId === event.id}
-              />
-            ))}
-          </div>
-        </section>
+          <section
+            className="panel panel__body calendar-list-panel"
+            aria-labelledby="calendar-list-title"
+          >
+            <div className="section-title">
+              <div>
+                <h2 id="calendar-list-title">{copy.listTitle}</h2>
+                <p className="muted">{copy.listDescription}</p>
+              </div>
+              <span className="badge badge--blue">{String(activeCount)} active</span>
+            </div>
+
+            {eventsQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
+            {eventsQuery.error ? (
+              <p className="status--error">{eventsQuery.error.message}</p>
+            ) : null}
+            {!eventsQuery.isLoading && events.length === 0 ? (
+              <div className="empty-state">{copy.empty}</div>
+            ) : null}
+            <div className="calendar-list" aria-label={copy.listTitle}>
+              {events.map((event) => (
+                <CalendarEventCard
+                  canManage={canManage}
+                  event={event}
+                  key={event.id}
+                  onArchive={archiveCalendarEvent}
+                  onEdit={editEvent}
+                  pendingArchive={pendingArchiveId === event.id}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
