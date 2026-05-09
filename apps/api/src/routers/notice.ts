@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
+import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   isFullAdmin,
@@ -311,10 +312,27 @@ export const noticeRouter = router({
         };
       }
 
-      const read = await ctx.db.staffNoticeRead.create({
-        data: { noticeId: input.noticeId, userId: ctx.user.id },
-        select: { noticeId: true, userId: true, readAt: true },
-      });
+      let read: { noticeId: string; readAt: Date };
+      try {
+        read = await ctx.db.staffNoticeRead.create({
+          data: { noticeId: input.noticeId, userId: ctx.user.id },
+          select: { noticeId: true, userId: true, readAt: true },
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          const concurrentRead = await ctx.db.staffNoticeRead.findUnique({
+            where: { noticeId_userId: { noticeId: input.noticeId, userId: ctx.user.id } },
+            select: { noticeId: true, userId: true, readAt: true },
+          });
+          if (concurrentRead) {
+            return {
+              noticeId: concurrentRead.noticeId,
+              readAt: concurrentRead.readAt,
+            };
+          }
+        }
+        throw error;
+      }
 
       await ctx.db.auditLog.create({
         data: {

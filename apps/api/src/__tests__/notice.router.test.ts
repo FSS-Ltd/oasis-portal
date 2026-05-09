@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Prisma } from '@oasis/db';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { noticeRouter } from '../routers/notice.js';
@@ -567,6 +568,33 @@ describe('notice.markRead', () => {
         meta: { source: 'notice.markRead', noticeId: notice.id },
       },
     });
+  });
+
+  it('returns a concurrently-created read receipt when duplicate creation races', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const notice = makeNotice({ id: 'cmnotice00000000000000009', title: 'Concurrent' });
+    const db = makeFakeDb([notice]);
+    const concurrentRead = {
+      noticeId: notice.id,
+      userId: supervisorUser.id,
+      readAt: new Date('2026-05-08T12:00:01.000Z'),
+    };
+    db.staffNoticeRead.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(concurrentRead);
+    db.staffNoticeRead.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+    const { caller } = makeCaller(supervisorUser, db);
+
+    await expect(caller.notice.markRead({ noticeId: notice.id })).resolves.toEqual({
+      noticeId: notice.id,
+      readAt: concurrentRead.readAt,
+    });
+    expect(db.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('scopes read receipts to the caller and rejects unavailable notices', async () => {
