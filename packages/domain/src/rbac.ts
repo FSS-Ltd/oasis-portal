@@ -2,7 +2,7 @@
  * Role-based access control (ADR-002, ADR-003).
  *
  * - Head, Principal, Pastor, HeadOfDiscipline all have full-admin parity.
- * - TechnicalSupport: account administration for Parent / TechnicalSupport shells.
+ * - TechnicalSupport: User Access account-shell support for Parent / TechnicalSupport shells.
  * - ClubsAdmin: clubs module only.
  * - Supervisor: daily operations, general-visibility behaviour only.
  * - Parent: own children only.
@@ -136,7 +136,7 @@ export function requireFullAdmin(user: SessionUser): void {
 }
 
 export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean {
-  return isFullAdmin(user) || user.role === 'TechnicalSupport';
+  return user.role === 'TechnicalSupport';
 }
 
 export function resolvePostSignInPortal(

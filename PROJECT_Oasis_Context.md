@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-09
 **Agent:** Technical Agent (Codex)
-**Phase:** Parent registration edit and sibling add.
+**Phase:** Technical Support-only User Access.
 
 ---
 
@@ -18,7 +18,44 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Parent registration edit and sibling add
+## Current status - Technical Support-only User Access
+
+Working branch: `fix/technical-support-user-access`.
+
+**PR scope:** Make `/admin/access` a Technical Support-only account-shell
+workflow while preserving Head role changes in People & Profiles.
+
+Changed scope:
+
+- Narrowed `canManageUserAccounts` / `requireUserAccountAdmin` so only the
+  `TechnicalSupport` role can enter User Access or use Technical Support
+  account-shell profile/status endpoints.
+- Hid `User Access` from full-admin navigation while keeping Technical Support
+  post-sign-in routing pointed at `/admin/access`.
+- Kept Head role changes in People & Profiles unchanged.
+- Kept shared invitation listing, invite, and resend workflows available to full
+  admins through a separate guard because People & Profiles uses them outside
+  `/admin/access`.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts` - pass, ran all domain
+  tests because of Vitest argument handling: 12 files / 137 tests.
+- `pnpm --filter @oasis/api test -- trpc.middleware.test.ts admin.router.test.ts`
+  - pass, ran all API tests because of Vitest argument handling: 16 files / 276
+  tests.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update /Users/JeanFidele/Projects/oasis-portal` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- No product ownership mapping changed, so `pnpm docs:component-map` was not
+  rerun.
+
+## Previous status - Parent registration edit and sibling add
 
 Working branch: `feat/parent-registration-edit-siblings`.
 

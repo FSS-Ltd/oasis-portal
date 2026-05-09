@@ -81,17 +81,19 @@ describe('fullAdminProcedure', () => {
 });
 
 describe('userAccountAdminProcedure', () => {
-  it('allows full admins and Technical Support', async () => {
+  it('allows Technical Support only', async () => {
     const appRouter = router({
       accountAdminOnly: userAccountAdminProcedure.query(() => 'ok'),
     });
 
-    await expect(appRouter.createCaller(makeCtx(headUser).ctx).accountAdminOnly()).resolves.toBe(
-      'ok',
-    );
     await expect(
       appRouter.createCaller(makeCtx(technicalSupportUser).ctx).accountAdminOnly(),
     ).resolves.toBe('ok');
+    await expect(
+      appRouter.createCaller(makeCtx(headUser).ctx).accountAdminOnly(),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 
   it('rejects non-account-admin roles as FORBIDDEN', async () => {
