@@ -6,6 +6,7 @@ import {
   AccessDeniedError,
   canAnswerChildRegistrationPrompt,
   canExportAttendance,
+  canManageCalendar,
   canSubmitInitialRegistration,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -65,7 +66,8 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canViewAnyStudentDrillThrough(user) &&
     !canUseFullPaceAccess(user) &&
     !canManageUserAccounts(user) &&
-    !canExportAttendance(user)
+    !canExportAttendance(user) &&
+    !canManageCalendar(user)
   ) {
     notFound();
   }

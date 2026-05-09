@@ -5,6 +5,7 @@ import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canExportAttendance,
+  canManageCalendar,
   canUseFullPaceAccess,
   canManageUserAccounts,
   hasTag,
@@ -28,6 +29,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canViewPace = canUseFullPaceAccess(user);
   const canManageAccounts = canManageUserAccounts(user);
   const canExportAttendanceCsv = canExportAttendance(user);
+  const canManageCalendarDates = canManageCalendar(user);
   const hasLinkedChildren = (await linkedChildCount(user.id)) > 0;
   const userRoleLabel = roleLabel(user.role);
   const homeHref = fullAdmin
@@ -40,7 +42,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           ? '/admin/behaviour'
           : canViewPace
             ? '/admin/pace'
-            : '/admin/profile';
+            : canManageCalendarDates
+              ? '/admin/calendar'
+              : '/admin/profile';
 
   return (
     <div className="admin-shell">
@@ -68,6 +72,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewPace={canViewPace}
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
+          canManageCalendar={canManageCalendarDates}
           fullAdmin={fullAdmin}
           hasLinkedChildren={hasLinkedChildren}
         />
@@ -99,6 +104,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewPace={canViewPace}
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
+          canManageCalendar={canManageCalendarDates}
           fullAdmin={fullAdmin}
           hasLinkedChildren={hasLinkedChildren}
         />

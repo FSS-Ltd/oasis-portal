@@ -1,0 +1,77 @@
+import { Archive, CalendarDays, Pencil } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  audienceLabels,
+  eventDayLabel,
+  formatDateRange,
+  type CalendarEvent,
+} from './calendar-model';
+
+interface CalendarEventCardProps {
+  canManage: boolean;
+  event: CalendarEvent;
+  onArchive: (eventId: string) => void;
+  onEdit: (event: CalendarEvent) => void;
+  pendingArchive: boolean;
+}
+
+export function CalendarEventCard({
+  canManage,
+  event,
+  onArchive,
+  onEdit,
+  pendingArchive,
+}: CalendarEventCardProps) {
+  return (
+    <article className={event.active ? 'calendar-card' : 'calendar-card is-archived'}>
+      <div className="calendar-card__date" aria-hidden="true">
+        <CalendarDays size={18} />
+        <strong>{eventDayLabel(event)}</strong>
+      </div>
+      <div className="calendar-card__body">
+        <div className="calendar-card__head">
+          <div>
+            <span className="badge-list">
+              <span className="badge badge--blue">{audienceLabels[event.audience]}</span>
+              {!event.active ? <span className="badge">Archived</span> : null}
+            </span>
+            <h2>{event.title}</h2>
+          </div>
+          {canManage ? (
+            <div className="calendar-card__actions">
+              <Button
+                aria-label={`Edit ${event.title}`}
+                onClick={() => {
+                  onEdit(event);
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <Pencil aria-hidden="true" size={14} />
+                Edit
+              </Button>
+              {event.active ? (
+                <Button
+                  aria-label={`Archive ${event.title}`}
+                  onClick={() => {
+                    onArchive(event.id);
+                  }}
+                  pending={pendingArchive}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Archive aria-hidden="true" size={14} />
+                  Archive
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        <p className="calendar-card__date-line">{formatDateRange(event)}</p>
+        {event.description ? <p>{event.description}</p> : null}
+      </div>
+    </article>
+  );
+}

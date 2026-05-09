@@ -20,6 +20,7 @@ const navItems = [
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
   { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays, enabled: true },
+  { href: '/supervisor/calendar', label: 'Calendar', icon: CalendarDays, enabled: true },
   { href: '/supervisor/noticeboard', label: 'Noticeboard', icon: Bell, enabled: true },
   { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList, enabled: true },
 ] as const;

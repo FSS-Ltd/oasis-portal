@@ -3,6 +3,7 @@ import {
   AccessDeniedError,
   canAnswerChildRegistrationPrompt,
   canExportAttendance,
+  canManageCalendar,
   canManageUserAccountRole,
   canManageUserAccounts,
   canRecordStudentAttendance,
@@ -242,6 +243,16 @@ describe('workflow tags', () => {
     expect(canUseFullPaceAccess(parent)).toBe(false);
     expect(canUseFullPaceAccess({ ...parent, tags: ['pace-full-access'] })).toBe(true);
     expect(canUseFullPaceAccess(technicalSupport)).toBe(false);
+  });
+
+  it('limits calendar management to full-admin roles or tagged staff', () => {
+    expect(canManageCalendar(head)).toBe(true);
+    expect(canManageCalendar(principal)).toBe(true);
+    expect(canManageCalendar(supervisor)).toBe(false);
+    expect(canManageCalendar({ ...supervisor, tags: ['calendar-manager'] })).toBe(true);
+    expect(canManageCalendar({ ...parent, tags: ['calendar-manager'] })).toBe(false);
+    expect(canManageCalendar({ ...student, tags: ['calendar-manager'] })).toBe(false);
+    expect(canManageCalendar({ ...technicalSupport, tags: ['calendar-manager'] })).toBe(false);
   });
 });
 

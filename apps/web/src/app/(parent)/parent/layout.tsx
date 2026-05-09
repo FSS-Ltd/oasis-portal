@@ -46,6 +46,9 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <Link className="admin-shell__nav-item" href="/parent">
             <span>Children</span>
           </Link>
+          <Link className="admin-shell__nav-item" href="/parent/calendar">
+            <span>Calendar</span>
+          </Link>
           <Link className="admin-shell__nav-item" href="/parent/profile">
             <span>My Profile</span>
           </Link>
