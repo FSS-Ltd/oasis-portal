@@ -1,6 +1,7 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle2, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,7 @@ function NoticeCard({
 }
 
 export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
+  const router = useRouter();
   const utils = api.useUtils();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -91,6 +93,7 @@ export function StaffNoticeboard({ canPost }: StaffNoticeboardProps) {
     },
     onSuccess: async () => {
       await utils.notice.listForStaff.invalidate();
+      router.refresh();
     },
   });
 
