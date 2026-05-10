@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MessageSquarePlus, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -294,6 +294,7 @@ function ReplyComposer({
 }
 
 export function MessageCentre({ mode }: MessageCentreProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const utils = api.useUtils();
   const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
@@ -325,8 +326,27 @@ export function MessageCentre({ mode }: MessageCentreProps) {
 
   useEffect(() => {
     if (!selectedThread) return;
+    const selectedThreadUnreadCount = selectedThread.messages.filter(
+      (message) => message.senderId !== selectedThread.currentUserId && !message.readByCurrentUser,
+    ).length;
+    if (selectedSummary?.unreadCount && selectedThreadUnreadCount === 0) {
+      utils.message.listThreads.setData(undefined, (currentThreads) =>
+        currentThreads?.map((thread) =>
+          thread.id === selectedThread.id
+            ? {
+                ...thread,
+                latestMessage: thread.latestMessage
+                  ? { ...thread.latestMessage, readByCurrentUser: true }
+                  : null,
+                unreadCount: 0,
+              }
+            : thread,
+        ),
+      );
+      router.refresh();
+    }
     void utils.message.listThreads.invalidate();
-  }, [selectedThread, utils.message.listThreads]);
+  }, [router, selectedSummary?.unreadCount, selectedThread, utils.message.listThreads]);
 
   function selectThread(threadId: string) {
     setSelectedOverrideId(threadId);
