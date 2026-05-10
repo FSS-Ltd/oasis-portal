@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MessageSquarePlus, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
@@ -53,6 +53,13 @@ function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetai
 
 function counterpartRole(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
   return mode === 'parent' ? thread.admin.role : 'Parent';
+}
+
+function submitFormOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+
+  event.preventDefault();
+  event.currentTarget.form?.requestSubmit();
 }
 
 function ThreadRow({
@@ -213,6 +220,7 @@ function NewThreadComposer({
           <textarea
             className="input textarea"
             maxLength={4000}
+            onKeyDown={submitFormOnEnter}
             onChange={(event) => {
               setBody(event.target.value);
             }}
@@ -277,6 +285,7 @@ function ReplyComposer({
         className="input textarea"
         disabled={disabled || sendMessage.isPending}
         maxLength={4000}
+        onKeyDown={submitFormOnEnter}
         onChange={(event) => {
           setBody(event.target.value);
         }}
