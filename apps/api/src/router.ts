@@ -1,6 +1,7 @@
 /**
  * Root tRPC router — composes all module routers.
  */
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import { router } from './trpc.js';
 import { adminRouter } from './routers/admin.js';
 import { auditRouter } from './routers/audit.js';
@@ -53,3 +54,5 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
+export type RouterInputs = inferRouterInputs<AppRouter>;
+export type RouterOutputs = inferRouterOutputs<AppRouter>;

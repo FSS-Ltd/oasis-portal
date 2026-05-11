@@ -1,7 +1,7 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** PR-3.8 parent/admin messaging UI ready for review
-**Last updated:** 2026-05-09
+**Status:** PR-3.9 parent portal mobile smoke ready for review
+**Last updated:** 2026-05-11
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -310,7 +310,10 @@ Verification:
 - `pnpm docs:component-map` if component map output changes
 - `git diff --check`
 
-### PR-3.8 - `feat(web): parent and admin messaging UI` READY FOR REVIEW
+### PR-3.8 - `feat(web): parent and admin messaging UI` MERGED
+
+Merged via PR #90 on 2026-05-09. Follow-up PR #91 merged on 2026-05-10
+with message badge clearing and send-on-enter fixes.
 
 Working branch: `feat/phase-3-pr3.8-messaging-ui`.
 
@@ -348,19 +351,42 @@ Verification:
 
 ## Sprint 5 - Mobile smoke and phase verification
 
-### PR-3.9 - `feat(mobile): parent portal smoke` PLANNED
+### PR-3.9 - `feat(mobile): parent portal smoke` READY FOR REVIEW
+
+Working branch: `feat/phase-3-pr3.9-parent-portal-smoke`.
 
 Scope:
 
 - Add minimal mobile parent surface using the typed tRPC client.
 - Cover child list, child overview, notices, and messages.
 - Keep styling thin and workflow-focused; production mobile polish remains Phase 5.
+- Route signed-in Parent users to the parent smoke surface after `health.me`;
+  keep non-parent users on the existing Supervisor smoke.
+- Reuse existing parent-safe `childLog`, `notice`, and `message` tRPC
+  endpoints. No server API, database, or schema changes.
+- Keep the Expo runtime free of direct `@oasis/domain` imports so Metro bundles
+  the mobile app without resolving NodeNext package source re-exports.
+- Map the new parent mobile communication surface into the generated component
+  relationship map.
 
 Tests:
 
-- Mobile typecheck.
+- Mobile typecheck and lint.
 - Manual or automated smoke for parent sign-in, child list, child detail,
   notices, and messages.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-export`
+  - pass.
+- `git diff --check` - pass.
 
 ### PR-3.10 - `test: Phase 3 verification suite` PLANNED
 

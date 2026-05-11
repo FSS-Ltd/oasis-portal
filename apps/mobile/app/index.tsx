@@ -1,7 +1,7 @@
 import { ClerkLoaded, ClerkLoading, SignedIn, SignedOut } from '@clerk/clerk-expo';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SignInPanel } from '../src/components/smoke/sign-in-panel';
-import { SupervisorSmokeScreen } from '../src/components/smoke/supervisor-smoke-screen';
+import { SignedInSmokeRouter } from '../src/components/smoke/signed-in-smoke-router';
 import { C } from '../src/components/smoke/mobile-theme';
 
 export default function Index() {
@@ -18,7 +18,7 @@ export default function Index() {
           <SignInPanel />
         </SignedOut>
         <SignedIn>
-          <SupervisorSmokeScreen />
+          <SignedInSmokeRouter />
         </SignedIn>
       </ClerkLoaded>
     </>
