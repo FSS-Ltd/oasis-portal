@@ -144,7 +144,11 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/noticeboard/',
       'apps/web/src/components/ui/',
     ],
-    mobileSurfaces: [],
+    mobileSurfaces: [
+      'apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx',
+      'apps/mobile/src/components/smoke/parent-smoke-messages.tsx',
+      'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
+    ],
     sharedSurfaces: ['apps/api/src/emails/'],
   },
   {

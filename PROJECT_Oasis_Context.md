@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-09
+**Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.8 parent/admin messaging UI.
+**Phase:** PR-3.9 parent portal mobile smoke.
 
 ---
 
@@ -18,7 +18,54 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.8 parent/admin messaging UI
+## Current status - PR-3.9 parent portal mobile smoke
+
+Working branch: `feat/phase-3-pr3.9-parent-portal-smoke`.
+
+**PR scope:** Add a minimal Expo parent portal smoke path using existing typed
+tRPC APIs. Backend APIs, database/schema changes, push notifications, and
+production mobile polish remain out of scope.
+
+Changed scope:
+
+- Marked PR-3.8 merged via PR #90 and the follow-up message badge/send fix
+  merged via PR #91 in the Phase 3 plan.
+- Added a signed-in mobile smoke router that calls `health.me`; Parent users
+  see the parent portal smoke screen and non-parent users keep the existing
+  Supervisor daily workflow smoke.
+- Added a parent smoke screen covering linked child list, selected child
+  overview/detail, parent notices with mark-read, and parent message
+  thread/read/send/create flows.
+- Kept the mobile smoke UI free of domain package runtime imports so Expo Metro
+  does not bundle NodeNext `.js` source re-exports from `@oasis/domain`.
+- Exported inferred router input/output types from the API router and mobile
+  tRPC helper so the new mobile screen can use precise endpoint output types
+  without adding mobile dependencies.
+- Mapped the new parent mobile communication surface into the component
+  relationship map and regenerated graphify output.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-export`
+  - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- Manual parent credential smoke was not run in this session.
+
+## Previous status - PR-3.8 parent/admin messaging UI
+
+Merged via PR #90 on 2026-05-09. Follow-up PR #91 merged on 2026-05-10 with
+message badge clearing and send-on-enter fixes.
 
 Working branch: `feat/phase-3-pr3.8-messaging-ui`.
 

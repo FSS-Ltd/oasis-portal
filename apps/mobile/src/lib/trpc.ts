@@ -5,6 +5,8 @@
  */
 import { createTRPCReact } from '@trpc/react-query';
 import type { CreateTRPCReact } from '@trpc/react-query';
-import type { AppRouter } from '@oasis/api/router';
+import type { AppRouter, RouterInputs, RouterOutputs } from '@oasis/api/router';
 
 export const api: CreateTRPCReact<AppRouter, unknown> = createTRPCReact<AppRouter>();
+
+export type { RouterInputs, RouterOutputs };
