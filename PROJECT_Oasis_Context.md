@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** Rota and calendar visibility implementation ready for review.
+**Phase:** Snapshot supervisor year-band access ready for review.
 
 ---
 
@@ -18,7 +18,44 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - rota and calendar visibility
+## Current status - Snapshot supervisor year-band access
+
+Working branch: `fix/snapshot-supervisor-year-band`.
+
+**PR scope:** Limit Snapshot student access so full-admin users retain all
+active-student access while Supervisors only see and open students in today's
+assigned rota year-group band.
+
+Changed scope:
+
+- Added `childLog.listSnapshotStudents` for the Snapshot picker.
+- Reused the mainline `daily-year-band-scope` helper so Snapshot, behaviour,
+  attendance, and student list scoping share the same today's-rota band rules.
+- Scoped `childLog.snapshot`, `childNotes.create`, and
+  `childNotes.listForStudent` so direct API calls cannot bypass the Supervisor
+  band boundary.
+- Updated the web Snapshot client to use the Snapshot-specific student list.
+- Reapplied the stashed Snapshot changes after pulling current `main`; no
+  conflict markers or unmerged paths remained, and the implementation was
+  adapted to the new mainline scope helper instead of adding a duplicate helper.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- childNotes.router.test.ts` - pass; package
+  argument handling ran all API tests: 18 files / 330 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- No schema migration or new dependency was needed.
+
+## Previous status - rota and calendar visibility
 
 Working branch: `feat/rota-calendar-visibility`.
 

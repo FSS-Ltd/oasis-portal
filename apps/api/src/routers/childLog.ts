@@ -11,6 +11,11 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import {
+  loadDailyYearBandScope,
+  studentMatchesDailyScope,
+  studentWhereForDailyScope,
+} from '../lib/daily-year-band-scope.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -91,6 +96,23 @@ async function requireSnapshotWorkflow(ctx: AuthedContext): Promise<void> {
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
+async function denyOutOfSnapshotScope(
+  ctx: AuthedContext,
+  entity: string,
+  meta: Record<string, unknown>,
+): Promise<never> {
+  const denied = new AccessDeniedError('student is outside supervisor assigned year band');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity,
+      meta: { ...meta, role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
 async function denyDrillThrough(ctx: AuthedContext, meta: Record<string, unknown>): Promise<never> {
   const denied = new AccessDeniedError(
     'student drill-through requires full-admin, tagged supervisor, or linked parent',
@@ -160,6 +182,27 @@ function takeRecentByStudent<T extends { studentId: string }>(
 }
 
 export const childLogRouter = router({
+  listSnapshotStudents: authedProcedure.query(async ({ ctx }) => {
+    await requireSnapshotWorkflow(ctx);
+    const scope = await loadDailyYearBandScope(ctx, new Date());
+    const students = await ctx.db.student.findMany({
+      where: { active: true, ...studentWhereForDailyScope(scope) },
+      include: studentListInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: students.length, source: 'childLog.listSnapshotStudents' },
+      },
+    });
+
+    return students.map((student) => mapStudentSummary(ctx, student));
+  }),
+
   listAccessibleStudents: authedProcedure
     .input(listAccessibleStudentsInput)
     .query(async ({ ctx, input }) => {
@@ -581,6 +624,7 @@ export const childLogRouter = router({
 
   snapshot: authedProcedure.input(snapshotInput).query(async ({ ctx, input }) => {
     await requireSnapshotWorkflow(ctx);
+    const scope = await loadDailyYearBandScope(ctx, new Date());
 
     const from = normalizeDate(input.from);
     const to = dayEnd(input.to);
@@ -593,6 +637,14 @@ export const childLogRouter = router({
     }
     if (!student.active) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+    }
+    if (!studentMatchesDailyScope(scope, student)) {
+      await denyOutOfSnapshotScope(ctx, 'childLog.snapshot', {
+        studentId: input.studentId,
+        studentYearGroup: student.yearGroup,
+        date: scope.dayKey,
+        assignedBands: scope.assignedBands.map((band) => band.id),
+      });
     }
 
     const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
