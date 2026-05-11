@@ -1140,6 +1140,23 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();
 
+    await expect(
+      blocked.caller.admin.updateUserTags({
+        userId: 'u_sup',
+        tags: ['calendar-manager'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
+
+    db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: ['calendar-manager'] });
+    await expect(
+      blocked.caller.admin.updateUserTags({
+        userId: 'u_sup',
+        tags: [],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
+
     db.user.update.mockResolvedValue({ id: 'u_sup', tags: ['student-drillthrough-viewer'] });
     const allowed = makeCaller(headUser, { db });
     await expect(

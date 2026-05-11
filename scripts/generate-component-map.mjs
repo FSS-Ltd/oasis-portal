@@ -66,6 +66,7 @@ const PRODUCT_MODULES = [
     domainFiles: ['packages/domain/src/rbac.ts'],
     webSurfaces: [
       'apps/web/src/components/attendance/',
+      'apps/web/src/components/rota/',
       'apps/web/src/components/student-drillthrough/attendance-calendar.tsx',
     ],
     mobileSurfaces: ['apps/mobile/src/components/smoke/'],

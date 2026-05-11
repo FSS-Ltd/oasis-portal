@@ -37,25 +37,18 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
     enabled: canManage,
     retry: false,
   });
-  const staffEventsQuery = api.calendar.listForStaff.useQuery(undefined, {
-    enabled: !canManage && mode === 'supervisor',
+  const visibleEventsQuery = api.calendar.listVisible.useQuery(undefined, {
+    enabled: !canManage,
     retry: false,
   });
-  const parentEventsQuery = api.calendar.listForParents.useQuery(undefined, {
-    enabled: !canManage && mode === 'parent',
-    retry: false,
-  });
-  const eventsQuery = canManage
-    ? adminEventsQuery
-    : mode === 'parent'
-      ? parentEventsQuery
-      : staffEventsQuery;
+  const eventsQuery = canManage ? adminEventsQuery : visibleEventsQuery;
 
   const invalidateCalendar = async () => {
     await Promise.all([
       utils.calendar.listForAdmin.invalidate(),
       utils.calendar.listForStaff.invalidate(),
       utils.calendar.listForParents.invalidate(),
+      utils.calendar.listVisible.invalidate(),
     ]);
   };
 
@@ -89,6 +82,9 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
   const activeCount = events.filter((event) => event.active).length;
   const activeEvents = events.filter((event) => event.active);
   const mutationError = createEvent.error ?? updateEvent.error ?? archiveEvent.error;
+  const listDescription = canManage
+    ? copy.listDescription
+    : 'Published dates visible to your portal.';
 
   async function submitEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -284,7 +280,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
             <div className="section-title">
               <div>
                 <h2 id="calendar-list-title">{copy.listTitle}</h2>
-                <p className="muted">{copy.listDescription}</p>
+                <p className="muted">{listDescription}</p>
               </div>
               <span className="badge badge--blue">{String(activeCount)} active</span>
             </div>

@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.5.0 club management and signups ready for review.
+**Phase:** Rota and calendar visibility implementation ready for review.
 
 ---
 
@@ -18,7 +18,53 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.5.0 club management and signups
+## Current status - rota and calendar visibility
+
+Working branch: `feat/rota-calendar-visibility`.
+
+**PR scope:** Allow staff to see the team rota for swap context, make the
+calendar readable through existing portal shells, restrict calendar editing to
+Head or staff with `calendar-manager`, and let full-admin users maintain their
+own rota availability.
+
+Changed scope:
+
+- Added `rota.teamSchedule` for staff-visible active team shifts with decrypted
+  staff display metadata and audit logging.
+- Moved the signed-in user's weekly availability editor into a shared rota
+  component and reused it from Supervisor rota and Admin rota.
+- Updated Supervisor rota to show the team week schedule while keeping swap
+  requests scoped to the user's own shift and selected candidate shift.
+- Changed calendar management policy to Head or staff with
+  `calendar-manager`, and made that tag Head-managed.
+- Added `calendar.listVisible` for authenticated read-only calendar access with
+  existing Parent/Supervisor/All audience targeting preserved.
+- Regenerated graphify output and the component relationship map after adding
+  the shared rota component surface.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts` - pass, ran all domain
+  tests because of package-script argument handling: 12 files / 139 tests.
+- `pnpm --filter @oasis/api test -- calendar.router.test.ts rota.router.test.ts admin.router.test.ts`
+  - pass, ran all API tests because of package-script argument handling: 18
+  files / 322 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/domain typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass on rerun after the parallel web build finished
+  generating `.next/types`.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- No schema migration or new dependency was needed.
+
+## Previous status - PR-3.5.0 club management and signups
 
 Working branch: `feat/phase-3.5-pr3.5.0-club-management-signups`.
 

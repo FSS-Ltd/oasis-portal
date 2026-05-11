@@ -1,10 +1,11 @@
 'use client';
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Save, Send, Trash2 } from 'lucide-react';
+import { Save, Send } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
+import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { SupervisorDashboardOverview } from './_components/supervisor-dashboard-overview';
@@ -12,17 +13,12 @@ import {
   addDays,
   asDate,
   dateKey,
-  emptyAvailabilityRow,
   formatDateTime,
   formatShift,
   formatShortDateTime,
-  fromTimeValue,
   messageDashboardAdapter,
   mondayFor,
   todayKey,
-  toTimeValue,
-  weekdays,
-  type AvailabilityDraft,
   type BehaviourType,
   type BehaviourVisibility,
 } from './_components/supervisor-utils';
@@ -40,7 +36,6 @@ export function SupervisorDashboardClient({
 }: SupervisorDashboardClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
   const [swapForm, setSwapForm] = useState({ fromShiftId: '', toShiftId: '' });
   const [behaviourForm, setBehaviourForm] = useState({
     type: 'Merit' as BehaviourType,
@@ -49,7 +44,6 @@ export function SupervisorDashboardClient({
     note: '',
     amount: '1',
   });
-  const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const [swapStatus, setSwapStatus] = useState<string | null>(null);
   const [behaviourStatus, setBehaviourStatus] = useState<string | null>(null);
 
@@ -73,10 +67,10 @@ export function SupervisorDashboardClient({
     { from: weekStart, to: weekEnd },
     { enabled: usesRota, retry: false },
   );
-  const availabilityQuery = api.rota.myAvailability.useQuery(undefined, {
-    enabled: view === 'rota',
-    retry: false,
-  });
+  const teamScheduleQuery = api.rota.teamSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { enabled: view === 'rota', retry: false },
+  );
   const swapCandidatesQuery = api.rota.swapCandidates.useQuery(
     { from: weekStart, to: weekEnd },
     { enabled: view === 'rota', retry: false },
@@ -101,12 +95,6 @@ export function SupervisorDashboardClient({
   const selectedStudent =
     attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentId) ?? null;
 
-  const saveAvailability = api.rota.setMyAvailability.useMutation({
-    onSuccess: async () => {
-      setAvailabilityStatus('Availability saved.');
-      await utils.rota.myAvailability.invalidate();
-    },
-  });
   const requestSwap = api.rota.requestSwap.useMutation({
     onSuccess: async () => {
       setSwapStatus('Shift swap request sent for Head review.');
@@ -136,17 +124,6 @@ export function SupervisorDashboardClient({
       });
     },
   });
-  useEffect(() => {
-    if (!availabilityQuery.data) return;
-    setAvailabilityDraft(
-      availabilityQuery.data.map((window) => ({
-        id: window.id,
-        dayOfWeek: window.dayOfWeek,
-        startMinute: window.startMinute,
-        endMinute: window.endMinute,
-      })),
-    );
-  }, [availabilityQuery.data]);
 
   useEffect(() => {
     const rows = attendanceRosterQuery.data ?? [];
@@ -156,6 +133,7 @@ export function SupervisorDashboardClient({
 
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
+  const teamShifts = teamScheduleQuery.data ?? [];
   const swapCandidates = swapCandidatesQuery.data ?? [];
   const mySwapRequests = mySwapRequestsQuery.data ?? [];
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
@@ -478,25 +456,28 @@ export function SupervisorDashboardClient({
               </div>
 
               <div>
-                <h3>This week</h3>
-                {weekRotaQuery.isLoading ? (
-                  <div className="empty-state">Loading weekly rota...</div>
+                <h3>Team this week</h3>
+                {teamScheduleQuery.isLoading ? (
+                  <div className="empty-state">Loading team rota...</div>
                 ) : null}
-                {weekRotaQuery.error ? (
-                  <p className="status--error">{weekRotaQuery.error.message}</p>
+                {teamScheduleQuery.error ? (
+                  <p className="status--error">{teamScheduleQuery.error.message}</p>
                 ) : null}
-                {!weekRotaQuery.isLoading && weekShifts.length === 0 ? (
-                  <div className="empty-state">No shifts scheduled this week.</div>
+                {!teamScheduleQuery.isLoading && teamShifts.length === 0 ? (
+                  <div className="empty-state">No team shifts scheduled this week.</div>
                 ) : (
                   <div className="rota-shift-list">
-                    {weekShifts.map((shift) => (
+                    {teamShifts.map((shift) => (
                       <article
                         className="rota-shift"
                         key={shift.id}
                         style={{ borderLeftColor: shift.bandColour ?? undefined }}
                       >
-                        <strong>{shift.bandName ?? 'Unassigned band'}</strong>
+                        <strong>
+                          {shift.staff?.fullName ?? 'Staff'} · {shift.bandName ?? 'Unassigned band'}
+                        </strong>
                         <span>{formatShift(shift)}</span>
+                        {shift.notes ? <em>{shift.notes}</em> : null}
                       </article>
                     ))}
                   </div>
@@ -509,126 +490,7 @@ export function SupervisorDashboardClient({
 
       {view === 'rota' ? (
         <aside className="supervisor-layout__side">
-          <section className="panel panel__body">
-            <div className="section-title">
-              <h2>Weekly availability</h2>
-              <Button
-                onClick={() => {
-                  setAvailabilityDraft((rows) => [...rows, emptyAvailabilityRow()]);
-                }}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                <Plus aria-hidden="true" size={14} />
-                Add
-              </Button>
-            </div>
-
-            {availabilityQuery.isLoading ? (
-              <div className="empty-state">Loading availability...</div>
-            ) : null}
-            {availabilityQuery.error ? (
-              <p className="status--error">{availabilityQuery.error.message}</p>
-            ) : null}
-
-            <div className="availability-editor">
-              {availabilityDraft.length === 0 ? (
-                <div className="empty-state">No availability set.</div>
-              ) : (
-                availabilityDraft.map((window) => (
-                  <div className="availability-editor__row" key={window.id}>
-                    <Field label="Day">
-                      <SelectInput
-                        aria-label="Availability day"
-                        onChange={(event) => {
-                          setAvailabilityDraft((rows) =>
-                            rows.map((row) =>
-                              row.id === window.id
-                                ? { ...row, dayOfWeek: Number(event.target.value) }
-                                : row,
-                            ),
-                          );
-                        }}
-                        value={window.dayOfWeek}
-                      >
-                        {weekdays.map((day) => (
-                          <option key={day.value} value={day.value}>
-                            {day.label}
-                          </option>
-                        ))}
-                      </SelectInput>
-                    </Field>
-                    <Field label="Start">
-                      <TextInput
-                        aria-label="Availability start time"
-                        onChange={(event) => {
-                          setAvailabilityDraft((rows) =>
-                            rows.map((row) =>
-                              row.id === window.id
-                                ? { ...row, startMinute: fromTimeValue(event.target.value) }
-                                : row,
-                            ),
-                          );
-                        }}
-                        type="time"
-                        value={toTimeValue(window.startMinute)}
-                      />
-                    </Field>
-                    <Field label="End">
-                      <TextInput
-                        aria-label="Availability end time"
-                        onChange={(event) => {
-                          setAvailabilityDraft((rows) =>
-                            rows.map((row) =>
-                              row.id === window.id
-                                ? { ...row, endMinute: fromTimeValue(event.target.value) }
-                                : row,
-                            ),
-                          );
-                        }}
-                        type="time"
-                        value={toTimeValue(window.endMinute)}
-                      />
-                    </Field>
-                    <Button
-                      aria-label="Remove availability window"
-                      onClick={() => {
-                        setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id));
-                      }}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      <Trash2 aria-hidden="true" size={14} />
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <Button
-              className="supervisor-submit"
-              onClick={() => {
-                setAvailabilityStatus(null);
-                saveAvailability.mutate({
-                  windows: availabilityDraft.map(({ dayOfWeek, startMinute, endMinute }) => ({
-                    dayOfWeek,
-                    startMinute,
-                    endMinute,
-                  })),
-                });
-              }}
-              pending={saveAvailability.isPending}
-              type="button"
-            >
-              Save availability
-            </Button>
-            {availabilityStatus ? <p className="status--success">{availabilityStatus}</p> : null}
-            {saveAvailability.error ? (
-              <p className="status--error">{saveAvailability.error.message}</p>
-            ) : null}
-          </section>
+          <MyAvailabilityEditor />
 
           <section className="panel panel__body">
             <div className="section-title">

@@ -5,6 +5,12 @@ import { calendarRouter } from '../routers/calendar.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const principalUser: SessionUser = {
+  id: 'u_principal',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'u_supervisor',
   role: 'Supervisor',
@@ -243,7 +249,14 @@ describe('calendar.create', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
-  it('denies untagged and unsupported roles', async () => {
+  it('denies untagged staff and unsupported roles', async () => {
+    await expect(
+      makeCaller(principalUser).caller.calendar.create({
+        title: 'Principal date',
+        audience: 'Supervisors',
+        startDate: '2026-05-25',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
       makeCaller(supervisorUser).caller.calendar.create({
         title: 'Staff date',
@@ -303,6 +316,42 @@ describe('calendar reader lists', () => {
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_archived' })]),
     );
+  });
+
+  it('returns visible events by role while preserving audience targeting', async () => {
+    const parentResult = await makeCaller(
+      parentUser,
+      makeFakeDb(events),
+    ).caller.calendar.listVisible();
+    expect(parentResult).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'event_all' }),
+        expect.objectContaining({ id: 'event_parent' }),
+      ]),
+    );
+    expect(parentResult).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_staff' })]),
+    );
+
+    const staffResult = await makeCaller(
+      principalUser,
+      makeFakeDb(events),
+    ).caller.calendar.listVisible();
+    expect(staffResult).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'event_all' }),
+        expect.objectContaining({ id: 'event_staff' }),
+      ]),
+    );
+    expect(staffResult).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_parent' })]),
+    );
+
+    const studentResult = await makeCaller(
+      studentUser,
+      makeFakeDb(events),
+    ).caller.calendar.listVisible();
+    expect(studentResult).toEqual([expect.objectContaining({ id: 'event_all' })]);
   });
 
   it('denies unsupported reader roles', async () => {

@@ -38,19 +38,21 @@ const dateRangeInput = z
   });
 
 const shiftBaseInput = z.object({
-    staffUserId: z.string().min(1),
-    yearGroupBandId: z.string().min(1),
-    date: z.coerce.date(),
-    startsAt: z.coerce.date(),
-    endsAt: z.coerce.date(),
-    notes: z.string().trim().max(500).optional(),
-  });
+  staffUserId: z.string().min(1),
+  yearGroupBandId: z.string().min(1),
+  date: z.coerce.date(),
+  startsAt: z.coerce.date(),
+  endsAt: z.coerce.date(),
+  notes: z.string().trim().max(500).optional(),
+});
 
-const shiftInput = shiftBaseInput
-  .refine((input) => input.startsAt.getTime() < input.endsAt.getTime(), {
+const shiftInput = shiftBaseInput.refine(
+  (input) => input.startsAt.getTime() < input.endsAt.getTime(),
+  {
     message: 'startsAt must be before endsAt',
     path: ['endsAt'],
-  });
+  },
+);
 
 const updateShiftInput = shiftBaseInput
   .partial()
@@ -144,10 +146,7 @@ function assertNoAvailabilityOverlap(windows: z.infer<typeof availabilityWindowI
   }
 }
 
-async function assertActiveStaffUser(
-  ctx: RouterCtx,
-  staffUserId: string,
-): Promise<void> {
+async function assertActiveStaffUser(ctx: RouterCtx, staffUserId: string): Promise<void> {
   const user = await ctx.db.user.findUnique({
     where: { id: staffUserId },
     select: { id: true, role: true, active: true },
@@ -160,10 +159,7 @@ async function assertActiveStaffUser(
   }
 }
 
-async function assertActiveBand(
-  ctx: RouterCtx,
-  yearGroupBandId: string,
-): Promise<void> {
+async function assertActiveBand(ctx: RouterCtx, yearGroupBandId: string): Promise<void> {
   const band = await ctx.db.yearGroupBand.findUnique({
     where: { id: yearGroupBandId },
     select: { id: true, active: true },
@@ -231,7 +227,12 @@ function mapShiftWithStaff(
     startsAt: Date;
     endsAt: Date;
     notes: string | null;
-    staffUser?: { id: string; role: SessionUser['role']; fullNameEnc: string; emailEnc: string } | null;
+    staffUser?: {
+      id: string;
+      role: SessionUser['role'];
+      fullNameEnc: string;
+      emailEnc: string;
+    } | null;
     yearGroupBand?: { name: string; colour: string } | null;
   },
 ) {
@@ -239,6 +240,40 @@ function mapShiftWithStaff(
     ...mapShift(shift),
     staff: shift.staffUser ? mapStaffUser(decrypt, shift.staffUser) : null,
   };
+}
+
+async function listScheduleWithStaff(
+  ctx: RouterCtx,
+  input: z.infer<typeof dateRangeInput>,
+  source: string,
+  activeStaffOnly = false,
+) {
+  const from = normalizeDate(input.from);
+  const to = normalizeDate(input.to);
+  const rows = await ctx.db.staffShift.findMany({
+    where: {
+      date: { gte: from, lte: to },
+      ...(activeStaffOnly ? { staffUser: { active: true, role: { in: [...STAFF_ROLES] } } } : {}),
+    },
+    orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
+    include: {
+      staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
+      yearGroupBand: { select: { name: true, colour: true } },
+    },
+  });
+
+  const shifts = rows.map((row) => mapShiftWithStaff(ctx.db.$enc.decrypt, row));
+
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'DecryptPii',
+      entity: 'StaffShift',
+      meta: { count: shifts.length, source },
+    },
+  });
+
+  return shifts;
 }
 
 export const rotaRouter = router({
@@ -258,50 +293,52 @@ export const rotaRouter = router({
     });
   }),
 
-  setMyAvailability: authedProcedure.input(setAvailabilityInput).mutation(async ({ ctx, input }) => {
-    assertStaffWorkflow(ctx.user);
-    assertNoAvailabilityOverlap(input.windows);
+  setMyAvailability: authedProcedure
+    .input(setAvailabilityInput)
+    .mutation(async ({ ctx, input }) => {
+      assertStaffWorkflow(ctx.user);
+      assertNoAvailabilityOverlap(input.windows);
 
-    const windows = input.windows
-      .map((window) => ({
-        staffUserId: ctx.user.id,
-        dayOfWeek: window.dayOfWeek,
-        startMinute: window.startMinute,
-        endMinute: window.endMinute,
-      }))
-      .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startMinute - b.startMinute);
+      const windows = input.windows
+        .map((window) => ({
+          staffUserId: ctx.user.id,
+          dayOfWeek: window.dayOfWeek,
+          startMinute: window.startMinute,
+          endMinute: window.endMinute,
+        }))
+        .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startMinute - b.startMinute);
 
-    const rows = await ctx.db.$transaction(async (tx) => {
-      await tx.staffAvailabilityWindow.deleteMany({ where: { staffUserId: ctx.user.id } });
-      if (windows.length > 0) {
-        await tx.staffAvailabilityWindow.createMany({ data: windows });
-      }
-      return tx.staffAvailabilityWindow.findMany({
-        where: { staffUserId: ctx.user.id },
-        orderBy: [{ dayOfWeek: 'asc' }, { startMinute: 'asc' }],
-        select: {
-          id: true,
-          dayOfWeek: true,
-          startMinute: true,
-          endMinute: true,
-          createdAt: true,
-          updatedAt: true,
+      const rows = await ctx.db.$transaction(async (tx) => {
+        await tx.staffAvailabilityWindow.deleteMany({ where: { staffUserId: ctx.user.id } });
+        if (windows.length > 0) {
+          await tx.staffAvailabilityWindow.createMany({ data: windows });
+        }
+        return tx.staffAvailabilityWindow.findMany({
+          where: { staffUserId: ctx.user.id },
+          orderBy: [{ dayOfWeek: 'asc' }, { startMinute: 'asc' }],
+          select: {
+            id: true,
+            dayOfWeek: true,
+            startMinute: true,
+            endMinute: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StaffAvailability',
+          entityId: ctx.user.id,
+          meta: { windowCount: rows.length, source: 'rota.setMyAvailability' },
         },
       });
-    });
 
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'Update',
-        entity: 'StaffAvailability',
-        entityId: ctx.user.id,
-        meta: { windowCount: rows.length, source: 'rota.setMyAvailability' },
-      },
-    });
-
-    return rows;
-  }),
+      return rows;
+    }),
 
   myRota: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     assertStaffWorkflow(ctx.user);
@@ -358,32 +395,13 @@ export const rotaRouter = router({
     return shifts;
   }),
 
+  teamSchedule: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    assertStaffWorkflow(ctx.user);
+    return listScheduleWithStaff(ctx, input, 'rota.teamSchedule', true);
+  }),
+
   weekSchedule: fullAdminProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
-    const from = normalizeDate(input.from);
-    const to = normalizeDate(input.to);
-    const rows = await ctx.db.staffShift.findMany({
-      where: {
-        date: { gte: from, lte: to },
-      },
-      orderBy: [{ date: 'asc' }, { startsAt: 'asc' }],
-      include: {
-        staffUser: { select: { id: true, role: true, fullNameEnc: true, emailEnc: true } },
-        yearGroupBand: { select: { name: true, colour: true } },
-      },
-    });
-
-    const shifts = rows.map((row) => mapShiftWithStaff(ctx.db.$enc.decrypt, row));
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'DecryptPii',
-        entity: 'StaffShift',
-        meta: { count: shifts.length, source: 'rota.weekSchedule' },
-      },
-    });
-
-    return shifts;
+    return listScheduleWithStaff(ctx, input, 'rota.weekSchedule');
   }),
 
   listStaff: fullAdminProcedure.query(async ({ ctx }) => {
@@ -412,57 +430,59 @@ export const rotaRouter = router({
     return staff;
   }),
 
-  staffAvailability: fullAdminProcedure.input(staffAvailabilityInput).query(async ({ ctx, input }) => {
-    const staffRows = await ctx.db.user.findMany({
-      where: {
-        active: true,
-        role: { in: [...STAFF_ROLES] },
-        ...(input?.staffUserIds ? { id: { in: input.staffUserIds } } : {}),
-      },
-      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
-      select: {
-        id: true,
-        role: true,
-        fullNameEnc: true,
-        emailEnc: true,
-      },
-    });
-    const staffIds = staffRows.map((row) => row.id);
-    const windows = await ctx.db.staffAvailabilityWindow.findMany({
-      where: { staffUserId: { in: staffIds } },
-      orderBy: [{ staffUserId: 'asc' }, { dayOfWeek: 'asc' }, { startMinute: 'asc' }],
-      select: {
-        id: true,
-        staffUserId: true,
-        dayOfWeek: true,
-        startMinute: true,
-        endMinute: true,
-      },
-    });
+  staffAvailability: fullAdminProcedure
+    .input(staffAvailabilityInput)
+    .query(async ({ ctx, input }) => {
+      const staffRows = await ctx.db.user.findMany({
+        where: {
+          active: true,
+          role: { in: [...STAFF_ROLES] },
+          ...(input?.staffUserIds ? { id: { in: input.staffUserIds } } : {}),
+        },
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          role: true,
+          fullNameEnc: true,
+          emailEnc: true,
+        },
+      });
+      const staffIds = staffRows.map((row) => row.id);
+      const windows = await ctx.db.staffAvailabilityWindow.findMany({
+        where: { staffUserId: { in: staffIds } },
+        orderBy: [{ staffUserId: 'asc' }, { dayOfWeek: 'asc' }, { startMinute: 'asc' }],
+        select: {
+          id: true,
+          staffUserId: true,
+          dayOfWeek: true,
+          startMinute: true,
+          endMinute: true,
+        },
+      });
 
-    const staff = staffRows.map((row) => ({
-      ...mapStaffUser(ctx.db.$enc.decrypt, row),
-      availability: windows
-        .filter((window) => window.staffUserId === row.id)
-        .map((window) => ({
-          id: window.id,
-          dayOfWeek: window.dayOfWeek,
-          startMinute: window.startMinute,
-          endMinute: window.endMinute,
-        })),
-    }));
+      const staff = staffRows.map((row) => ({
+        ...mapStaffUser(ctx.db.$enc.decrypt, row),
+        availability: windows
+          .filter((window) => window.staffUserId === row.id)
+          .map((window) => ({
+            id: window.id,
+            dayOfWeek: window.dayOfWeek,
+            startMinute: window.startMinute,
+            endMinute: window.endMinute,
+          })),
+      }));
 
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'DecryptPii',
-        entity: 'StaffAvailability',
-        meta: { count: staff.length, source: 'rota.staffAvailability' },
-      },
-    });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'StaffAvailability',
+          meta: { count: staff.length, source: 'rota.staffAvailability' },
+        },
+      });
 
-    return staff;
-  }),
+      return staff;
+    }),
 
   createShift: fullAdminProcedure.input(shiftInput).mutation(async ({ ctx, input }) => {
     const date = normalizeDate(input.date);
@@ -639,7 +659,8 @@ export const rotaRouter = router({
       id: row.id,
       status: row.status,
       createdAt: row.createdAt,
-      direction: row.requesterUserId === ctx.user.id ? ('Requested' as const) : ('Incoming' as const),
+      direction:
+        row.requesterUserId === ctx.user.id ? ('Requested' as const) : ('Incoming' as const),
       requester: mapStaffUser(ctx.db.$enc.decrypt, row.requester),
       targetUser: mapStaffUser(ctx.db.$enc.decrypt, row.targetUser),
       fromShift: mapShiftWithStaff(ctx.db.$enc.decrypt, row.fromShift),
@@ -739,13 +760,19 @@ export const rotaRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: 'shift swap request not found' });
     }
     if (existing.status !== 'Pending') {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'shift swap request is already reviewed' });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'shift swap request is already reviewed',
+      });
     }
     if (
       existing.fromShift.staffUserId !== existing.requesterUserId ||
       existing.toShift.staffUserId !== existing.targetUserId
     ) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'shift assignments changed since request' });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'shift assignments changed since request',
+      });
     }
 
     const reviewedAt = new Date();
@@ -791,7 +818,10 @@ export const rotaRouter = router({
       throw new TRPCError({ code: 'NOT_FOUND', message: 'shift swap request not found' });
     }
     if (existing.status !== 'Pending') {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'shift swap request is already reviewed' });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'shift swap request is already reviewed',
+      });
     }
 
     const request = await ctx.db.shiftSwapRequest.update({

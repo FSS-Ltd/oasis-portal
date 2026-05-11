@@ -59,6 +59,7 @@ const GUARDIAN_ACCOUNT_ROLES = [
 ] as const satisfies readonly Role[];
 const HEAD_ONLY_PERMISSION_TAGS = [
   'student-drillthrough-viewer',
+  'calendar-manager',
   'parent-message-responder',
 ] as const satisfies readonly PermissionTag[];
 
