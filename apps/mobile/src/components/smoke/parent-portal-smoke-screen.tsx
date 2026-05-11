@@ -30,6 +30,67 @@ function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
 }
 
+function ParentPortalHeader({
+  onSignOut,
+  userId,
+}: {
+  onSignOut: () => void;
+  userId: string;
+}) {
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerText}>
+        <Text style={styles.eyebrow}>Parent Portal</Text>
+        <Text style={styles.title}>Mobile smoke</Text>
+        <Text style={styles.subtitle}>{userId}</Text>
+      </View>
+      <SmokeButton compact label="Sign out" onPress={onSignOut} variant="secondary" />
+    </View>
+  );
+}
+
+function ParentPortalStats({
+  childCount,
+  unreadMessageCount,
+  unreadNoticeCount,
+}: {
+  childCount: number;
+  unreadMessageCount: number;
+  unreadNoticeCount: number;
+}) {
+  return (
+    <View style={styles.statsGrid}>
+      <StatCard accent={C.blue} label="Children" value={String(childCount)} />
+      <StatCard accent={C.crimson} label="Notices" value={String(unreadNoticeCount)} />
+      <StatCard accent={C.navy} label="Messages" value={String(unreadMessageCount)} />
+    </View>
+  );
+}
+
+function ParentPortalTabs({
+  activeTab,
+  onSelect,
+}: {
+  activeTab: ParentSmokeTab;
+  onSelect: (tab: ParentSmokeTab) => void;
+}) {
+  return (
+    <View style={styles.tabRow}>
+      {tabs.map((tab) => (
+        <SmokeButton
+          compact
+          key={tab.id}
+          label={tab.label}
+          onPress={() => {
+            onSelect(tab.id);
+          }}
+          variant={activeTab === tab.id ? 'primary' : 'secondary'}
+        />
+      ))}
+    </View>
+  );
+}
+
 export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
   const [activeTab, setActiveTab] = useState<ParentSmokeTab>('overview');
@@ -78,6 +139,40 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
     if (selectedChildId) await childDetail.refetch();
   }
 
+  const chrome = (
+    <>
+      <ParentPortalHeader
+        onSignOut={() => {
+          void signOut();
+        }}
+        userId={user.id}
+      />
+      <ParentPortalStats
+        childCount={children.length}
+        unreadMessageCount={unreadMessageCount}
+        unreadNoticeCount={unreadNoticeCount}
+      />
+      <ParentPortalTabs activeTab={activeTab} onSelect={setActiveTab} />
+      {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+    </>
+  );
+
+  if (activeTab === 'messages') {
+    return (
+      <SafeAreaView style={styles.shell}>
+        <View style={styles.messagesContent}>
+          {chrome}
+          <ParentMessagesPanel
+            onRefresh={refresh}
+            recipients={recipients.data ?? []}
+            refreshing={loading}
+            threads={threads.data ?? []}
+          />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.shell}>
       <ScrollView
@@ -92,43 +187,7 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
         }
         style={styles.scroller}
       >
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.eyebrow}>Parent Portal</Text>
-            <Text style={styles.title}>Mobile smoke</Text>
-            <Text style={styles.subtitle}>{user.id}</Text>
-          </View>
-          <SmokeButton
-            compact
-            label="Sign out"
-            onPress={() => {
-              void signOut();
-            }}
-            variant="secondary"
-          />
-        </View>
-
-        <View style={styles.statsGrid}>
-          <StatCard accent={C.blue} label="Children" value={String(children.length)} />
-          <StatCard accent={C.crimson} label="Notices" value={String(unreadNoticeCount)} />
-          <StatCard accent={C.navy} label="Messages" value={String(unreadMessageCount)} />
-        </View>
-
-        <View style={styles.tabRow}>
-          {tabs.map((tab) => (
-            <SmokeButton
-              compact
-              key={tab.id}
-              label={tab.label}
-              onPress={() => {
-                setActiveTab(tab.id);
-              }}
-              variant={activeTab === tab.id ? 'primary' : 'secondary'}
-            />
-          ))}
-        </View>
-
-        {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+        {chrome}
 
         {activeTab === 'overview' ? (
           <>
@@ -150,10 +209,6 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
         ) : null}
 
         {activeTab === 'notices' ? <ParentNoticesPanel notices={notices.data ?? []} /> : null}
-
-        {activeTab === 'messages' ? (
-          <ParentMessagesPanel recipients={recipients.data ?? []} threads={threads.data ?? []} />
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -180,6 +235,13 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
     gap: 3,
+  },
+  messagesContent: {
+    backgroundColor: C.bg,
+    flex: 1,
+    gap: 16,
+    padding: 18,
+    paddingBottom: 28,
   },
   scroller: {
     backgroundColor: C.bg,
