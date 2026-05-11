@@ -211,18 +211,19 @@ Every MVP item is in scope. Nice-to-haves from brief §6 are out of scope for v1
 - Export access remains limited to full-admin users and users with the
   `attendance-exporter` tag.
 
-**Phase 3 — Parent portal + comms (week 7–8)** 🧭 PARTIALLY PRE-BUILT
+**Phase 3 — Parent portal + comms (week 7–8)** ✅ COMPLETE
 
 - Sprint & PR plan: [`docs/phase-3-build-plan.md`](docs/phase-3-build-plan.md)
-- Already merged: parent shell/linked-child drill-through, Resend invite/email foundation, parent initial registration, and child-registration prompt for non-parent adult accounts.
+- Merged through PR #95 on 2026-05-11: parent shell/linked-child drill-through, Resend invite/email foundation, parent initial registration, child-registration prompt for non-parent adult accounts, parent dashboard polish, staff/parent notices, parent-Head messaging, parent mobile smoke, and Phase 3 verification.
 - Parent read-only child view (attendance, PACEs, behaviour summary, merit balance)
 - In-platform messaging (parent ↔ Head)
 - Staff noticeboard with read receipts
 
-**Phase 3.5 — Clubs module (week 8, parallel with Phase 3)** 🧭 PLANNED
+**Phase 3.5 — Clubs module (week 8, parallel with Phase 3)** 🔄 IN PROGRESS
 
 - Sprint & PR plan: [`docs/phase-3.5-build-plan.md`](docs/phase-3.5-build-plan.md)
-- `ClubsAdmin` role, Club CRUD, parent-initiated signup for their own children, view signup roster, send club notifications (email + push to guardians of signed-up students)
+- PR-3.5.0 is ready for review: Club CRUD, parent-initiated signup for their own children, and roster reads.
+- Later Phase 3.5 PRs add web/mobile surfaces and club notifications.
 - Deliberately minimal per Director — will iterate as the centre grows
 
 **Phase 4 — Merit economy + Shop + reports (week 9–11)** 🧭 PLANNED

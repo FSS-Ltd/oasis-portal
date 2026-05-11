@@ -1,6 +1,6 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** PR-3.10 Phase 3 verification suite ready for review
+**Status:** Phase 3 complete - PR-3.10 merged
 **Last updated:** 2026-05-11
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -19,8 +19,9 @@ to make the centre usable:
 - PR #63 added the parent initial registration flow.
 - PR #64 added the child-registration prompt for adult non-parent accounts.
 
-The remaining work is parent-Head messaging UI, notification hooks, mobile
-smoke, and phase verification.
+Phase 3 is complete through PR #95. The only carry-forward item is a
+credentialed Playwright run in an environment with parent and Head test
+credentials configured.
 
 ---
 
@@ -391,7 +392,9 @@ Verification:
   - pass.
 - `git diff --check` - pass.
 
-### PR-3.10 - `test: Phase 3 verification suite` READY FOR REVIEW
+### PR-3.10 - `test: Phase 3 verification suite` MERGED
+
+Merged via PR #95 on 2026-05-11.
 
 Working branch: `test-phase-3-pr3.10-verification-suite`.
 

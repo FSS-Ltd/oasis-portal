@@ -1,7 +1,7 @@
 # Phase 3.5 - Clubs module: sprint & PR plan
 
-**Status:** Planned
-**Last updated:** 2026-05-06
+**Status:** PR-3.5.0 club management and signups ready for review
+**Last updated:** 2026-05-11
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -23,10 +23,10 @@ attendance, shop integration, automated waiting lists, or advanced scheduling.
 
 Phase 3.5 is complete when:
 
-1. Full-admin and ClubsAdmin users can create, update, deactivate, and list
-   clubs.
+1. Full-admin users, including Head, and ClubsAdmin users can create, update,
+   deactivate, and list clubs.
 2. Parents can sign up and withdraw only their own linked children.
-3. Full-admin and ClubsAdmin users can view signup rosters.
+3. Full-admin users, including Head, and ClubsAdmin users can view signup rosters.
 4. Club capacity is enforced when configured.
 5. Duplicate active signups are prevented.
 6. Club notifications can be sent to guardians of signed-up students.
@@ -45,7 +45,7 @@ Phase 3.5 is complete when:
 
 Goal: implement the backend contract first with strict RBAC and tests.
 
-### PR-3.5.0 - `feat(api): club management and signups` PLANNED
+### PR-3.5.0 - `feat(api): club management and signups` READY FOR REVIEW
 
 Scope:
 
@@ -61,7 +61,8 @@ Scope:
 
 Tests:
 
-- Full-admin and ClubsAdmin can create/update/deactivate clubs.
+- Full-admin users, including Head, and ClubsAdmin can create/update/deactivate
+  clubs.
 - Supervisor/Parent/Student cannot manage clubs.
 - Parent can sign up own linked child and cannot sign up another child.
 - Full-admin can sign up any active student.
@@ -71,10 +72,25 @@ Tests:
 
 Verification:
 
-- `pnpm --filter @oasis/api test -- club.router.test.ts`
-- `pnpm --filter @oasis/api typecheck`
-- `pnpm lint`
-- `pnpm typecheck`
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm with-env pnpm --filter @oasis/db exec prisma validate` - pass.
+- `pnpm --filter @oasis/api test club.router.test.ts` - pass: 1 file / 25
+  tests.
+- `pnpm --filter @oasis/domain test -- clubs.test.ts rbac.test.ts` - pass, ran
+  all domain tests because of Vitest argument handling: 12 files / 138 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- `pnpm --filter @oasis/api test -- club.router.test.ts` ran the full API suite
+  because of the package script's argument handling; all 18 API files and 317
+  tests passed, then Vitest reported an unrelated Prisma native-engine load
+  error from `audit.router.test.ts`.
 
 ---
 
@@ -87,8 +103,8 @@ crossing data boundaries.
 
 Scope:
 
-- Add ClubsAdmin-accessible route group or admin-shell route for club
-  management.
+- Add Head/full-admin and ClubsAdmin-accessible route group or admin-shell route
+  for club management.
 - List active/inactive clubs with schedule, capacity, and signup count.
 - Add create/update/deactivate controls with validation and pending/error
   states.
@@ -98,8 +114,8 @@ Scope:
 
 Tests:
 
-- ClubsAdmin can create/update/deactivate a club.
-- Full-admin can use the same workflow.
+- Head/full-admin and ClubsAdmin can access the club management route.
+- Head/full-admin and ClubsAdmin can create/update/deactivate a club.
 - Supervisor/Parent cannot access club management routes.
 - Roster displays signup count and minimal student identity.
 

@@ -217,8 +217,8 @@ model PaceRecord {
   studentId     String
   subjectId     String
   paceNumber    Int
-  selfTestScore Int?
-  paceTestScore Int?
+  selfTestScore Float?
+  paceTestScore Float?
   completedAt   DateTime?
   recordedById  String
   createdAt     DateTime  @default(now())
@@ -687,12 +687,14 @@ model ClubSignup {
   signedUpByUserId String
   status           ClubSignupStatus @default(Active)
   createdAt        DateTime         @default(now())
+  withdrawnAt      DateTime?
 
   club       Club    @relation(fields: [clubId], references: [id])
   student    Student @relation(fields: [studentId], references: [id])
   signedUpBy User    @relation("SignupsCreated", fields: [signedUpByUserId], references: [id])
 
-  @@unique([clubId, studentId])
+  @@index([clubId, status])
+  @@index([studentId, status])
 }
 
 model ClubNotification {
