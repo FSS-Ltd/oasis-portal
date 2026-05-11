@@ -3,6 +3,7 @@ import { resolvePostSignInPortal, type SessionUser } from '@oasis/domain';
 export type PostSignInDestination =
   | '/admin'
   | '/admin/access'
+  | '/admin/clubs'
   | '/children-check'
   | '/supervisor'
   | '/parent'
@@ -14,6 +15,7 @@ type PostSignInPortal = ReturnType<typeof resolvePostSignInPortal>;
 const DESTINATION_BY_PORTAL = {
   'full-admin': '/admin',
   'account-admin': '/admin/access',
+  'clubs-admin': '/admin/clubs',
   supervisor: '/supervisor',
   parent: '/parent',
   'not-ready': '/not-ready',

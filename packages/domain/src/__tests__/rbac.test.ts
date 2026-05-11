@@ -4,6 +4,7 @@ import {
   canAnswerChildRegistrationPrompt,
   canExportAttendance,
   canManageCalendar,
+  canManageClubs,
   canManageUserAccountRole,
   canManageUserAccounts,
   canRecordStudentAttendance,
@@ -107,13 +108,13 @@ describe('TechnicalSupport account administration', () => {
 });
 
 describe('child registration prompt roles', () => {
-  it('includes adult non-parent roles and excludes Parent/Student', () => {
+  it('includes adult non-parent roles and excludes clubs-only, Parent, and Student', () => {
     expect(canAnswerChildRegistrationPrompt(head)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(principal)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(pastor)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(hod)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(technicalSupport)).toBe(true);
-    expect(canAnswerChildRegistrationPrompt(clubsAdmin)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(clubsAdmin)).toBe(false);
     expect(canAnswerChildRegistrationPrompt(supervisor)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(parent)).toBe(false);
     expect(canAnswerChildRegistrationPrompt(student)).toBe(false);
@@ -123,6 +124,7 @@ describe('child registration prompt roles', () => {
     expect(canSubmitInitialRegistration(parent, 'Unanswered')).toBe(true);
     expect(canSubmitInitialRegistration(supervisor, 'HasChildren')).toBe(true);
     expect(canSubmitInitialRegistration(technicalSupport, 'HasChildren')).toBe(true);
+    expect(canSubmitInitialRegistration(clubsAdmin, 'HasChildren')).toBe(false);
     expect(canSubmitInitialRegistration(supervisor, 'Unanswered')).toBe(false);
     expect(canSubmitInitialRegistration(supervisor, 'NoChildren')).toBe(false);
     expect(canSubmitInitialRegistration(student, 'HasChildren')).toBe(false);
@@ -144,9 +146,12 @@ describe('resolvePostSignInPortal', () => {
     expect(resolvePostSignInPortal(parent)).toBe('parent');
   });
 
+  it('sends clubs admins to the clubs portal', () => {
+    expect(resolvePostSignInPortal(clubsAdmin)).toBe('clubs-admin');
+  });
+
   it('sends signed-in users without a ready local portal to not-ready', () => {
     expect(resolvePostSignInPortal(student)).toBe('not-ready');
-    expect(resolvePostSignInPortal(clubsAdmin)).toBe('not-ready');
   });
 
   it('sends missing local users to not-ready', () => {
@@ -279,7 +284,7 @@ describe('workflow tags', () => {
     expect(canViewStudentDrillThrough(parent)).toBe(true);
     expect(canViewStudentDrillThrough(student)).toBe(false);
     expect(canViewStudentDrillThrough(technicalSupport)).toBe(true);
-    expect(canViewStudentDrillThrough(clubsAdmin)).toBe(true);
+    expect(canViewStudentDrillThrough(clubsAdmin)).toBe(false);
   });
 
   it('limits sensitive student drill-through data to Head', () => {
@@ -330,6 +335,13 @@ describe('workflow tags', () => {
 });
 
 describe('requireClubsAdminOrFullAdmin', () => {
+  it('identifies club managers', () => {
+    expect(canManageClubs(clubsAdmin)).toBe(true);
+    expect(canManageClubs(head)).toBe(true);
+    expect(canManageClubs(supervisor)).toBe(false);
+    expect(canManageClubs(parent)).toBe(false);
+  });
+
   it('accepts clubs admin and full admins', () => {
     expect(() => {
       requireClubsAdminOrFullAdmin(clubsAdmin);

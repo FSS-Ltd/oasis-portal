@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** Snapshot supervisor year-band access ready for review.
+**Phase:** PR-3.5.1 ClubsAdmin club management implemented.
 
 ---
 
@@ -18,7 +18,56 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Snapshot supervisor year-band access
+## Current status - PR-3.5.1 ClubsAdmin club management
+
+Working branch: `feat/phase-3.5-pr3.5.1-clubsadmin-management`.
+
+**PR scope:** Add the web club management surface for Head/full-admin and
+ClubsAdmin users on top of the merged PR-3.5.0 club API. Parent club signup UI,
+club notifications, mobile clubs smoke, payments, attendance, waitlists, and
+calendar sync remain out of scope.
+
+Changed scope:
+
+- Marked PR-3.5.0 merged via PR #96 on 2026-05-11 and set PR-3.5.1 as the
+  current Phase 3.5 web work.
+- Added `canManageClubs` to the domain RBAC helpers, routed ClubsAdmin users to
+  `/admin/clubs` after sign-in, and removed ClubsAdmin from child-registration
+  prompt/drill-through eligibility so the role stays clubs-only.
+- Added `/admin/clubs` with create, edit, activate/deactivate, club list, and
+  roster panels using the existing typed `club` API.
+- Updated the admin shell and navigation so ClubsAdmin sees only the clubs
+  route and self-profile access, with `/admin/calendar` guarded against
+  ClubsAdmin direct access.
+- Added focused Playwright coverage for Head management, ClubsAdmin routing,
+  and Supervisor/Parent denial, gated by local E2E credentials.
+- Added the clubs web component owner to the component relationship map config
+  and regenerated the architecture map.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts clubs.test.ts` - pass, ran
+  all domain tests because of package-script argument handling: 12 files / 143
+  tests.
+- `pnpm --filter @oasis/api test -- club.router.test.ts` - pass, ran all API
+  tests because of package-script argument handling: 18 files / 336 tests.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with 4
+  credential-gated tests skipped because local E2E credentials are not
+  configured.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- The implementation was completed in a clean worktree to avoid mixing with the
+  existing dirty `fix/web-responsive-menu` branch in the main checkout.
+- No schema migration or new dependency was added.
+
+## Previous status - Snapshot supervisor year-band access
 
 Working branch: `fix/snapshot-supervisor-year-band`.
 

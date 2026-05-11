@@ -10,6 +10,7 @@ import {
   CalendarDays,
   CalendarCheck,
   ClipboardList,
+  Club,
   GraduationCap,
   Home,
   MessageSquare,
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays },
   { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/admin/clubs', label: 'Clubs', icon: Club },
   { href: '/admin/access', label: 'User Access', icon: UserCog },
   { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList },
@@ -46,6 +48,8 @@ type AdminNavProps = {
   canViewStudents: boolean;
   canManageUserAccounts: boolean;
   canManageCalendar: boolean;
+  canManageClubs: boolean;
+  clubsOnly: boolean;
   canExportAttendance: boolean;
   fullAdmin: boolean;
   hasLinkedChildren: boolean;
@@ -72,6 +76,8 @@ function visibleForUser(
     AdminNavProps,
     | 'canManageUserAccounts'
     | 'canManageCalendar'
+    | 'canManageClubs'
+    | 'clubsOnly'
     | 'canViewAudit'
     | 'canViewBehaviour'
     | 'canExportAttendance'
@@ -82,9 +88,10 @@ function visibleForUser(
     | 'canUseMessages'
   >,
 ) {
-  if (item.label === 'My Children') return access.hasLinkedChildren;
+  if (item.label === 'My Children') return !access.clubsOnly && access.hasLinkedChildren;
   if (item.label === 'Messages') return access.canUseMessages;
-  if (item.label === 'Calendar') return true;
+  if (item.label === 'Clubs') return access.canManageClubs;
+  if (item.label === 'Calendar') return !access.clubsOnly;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
@@ -104,6 +111,8 @@ export function AdminSidebarNav({
   canViewStudents,
   canManageUserAccounts,
   canManageCalendar,
+  canManageClubs,
+  clubsOnly,
   canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
@@ -115,6 +124,8 @@ export function AdminSidebarNav({
     visibleForUser(item, {
       canManageUserAccounts,
       canManageCalendar,
+      canManageClubs,
+      clubsOnly,
       canViewAudit,
       canViewBehaviour,
       canExportAttendance,
@@ -166,6 +177,8 @@ export function AdminBottomNav({
   canViewStudents,
   canManageUserAccounts,
   canManageCalendar,
+  canManageClubs,
+  clubsOnly,
   canExportAttendance,
   fullAdmin,
   hasLinkedChildren,
@@ -178,6 +191,8 @@ export function AdminBottomNav({
       visibleForUser(item, {
         canManageUserAccounts,
         canManageCalendar,
+        canManageClubs,
+        clubsOnly,
         canViewAudit,
         canViewBehaviour,
         canExportAttendance,

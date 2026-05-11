@@ -34,7 +34,6 @@ export const CHILD_REGISTRATION_PROMPT_ROLES = [
   'Pastor',
   'HeadOfDiscipline',
   'TechnicalSupport',
-  'ClubsAdmin',
   'Supervisor',
 ] as const satisfies readonly Role[];
 const CHILD_REGISTRATION_PROMPT_ROLE_SET: ReadonlySet<Role> = new Set(
@@ -105,6 +104,10 @@ export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user) || user.role === 'Supervisor';
 }
 
+export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'ClubsAdmin' || isFullAdmin(user);
+}
+
 export function canAnswerChildRegistrationPrompt(user: Pick<SessionUser, 'role'>): boolean {
   return CHILD_REGISTRATION_PROMPT_ROLE_SET.has(user.role);
 }
@@ -142,11 +145,12 @@ export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean 
 
 export function resolvePostSignInPortal(
   user: SessionUser | null,
-): 'full-admin' | 'account-admin' | 'supervisor' | 'parent' | 'not-ready' {
+): 'full-admin' | 'account-admin' | 'clubs-admin' | 'supervisor' | 'parent' | 'not-ready' {
   if (!user) return 'not-ready';
 
   if (isFullAdmin(user)) return 'full-admin';
   if (canManageUserAccounts(user)) return 'account-admin';
+  if (canManageClubs(user)) return 'clubs-admin';
   if (user.role === 'Supervisor') return 'supervisor';
   if (user.role === 'Parent') return 'parent';
 
@@ -264,7 +268,7 @@ export function canViewSensitiveStudentDrillThrough(user: SessionUser): boolean 
 }
 
 export function requireClubsAdminOrFullAdmin(user: SessionUser): void {
-  if (user.role === 'ClubsAdmin' || isFullAdmin(user)) return;
+  if (canManageClubs(user)) return;
   throw new AccessDeniedError('requires ClubsAdmin or full admin');
 }
 
