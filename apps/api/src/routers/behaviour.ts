@@ -3,6 +3,8 @@ import { TRPCError } from '@trpc/server';
 import {
   AccessDeniedError,
   DEMERIT_COST,
+  canCreateSensitiveBehaviour,
+  canViewSensitiveBehaviour,
   canViewBehaviourReports,
   isFullAdmin,
   rowsForDemerit,
@@ -10,6 +12,12 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import {
+  loadDailyYearBandScope,
+  studentMatchesDailyScope,
+  studentWhereForDailyScope,
+  type DailyYearBandScope,
+} from '../lib/daily-year-band-scope.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -43,8 +51,8 @@ async function requireBehaviourWorkflow(ctx: AuthedContext, entity: string): Pro
 }
 
 async function requireCanRequestSensitive(ctx: AuthedContext, studentId: string): Promise<void> {
-  if (isFullAdmin(ctx.user)) return;
-  const denied = new AccessDeniedError('sensitive entries are full-admin only');
+  if (canViewSensitiveBehaviour(ctx.user)) return;
+  const denied = new AccessDeniedError('sensitive entries require Head or HeadOfDiscipline');
   await ctx.db.auditLog.create({
     data: {
       userId: ctx.user.id,
@@ -56,6 +64,48 @@ async function requireCanRequestSensitive(ctx: AuthedContext, studentId: string)
         role: ctx.user.role,
         reason: denied.message,
       },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
+async function requireCanCreateSensitive(
+  ctx: AuthedContext,
+  input: { studentId: string; type: 'Merit' | 'Demerit' },
+): Promise<void> {
+  if (canCreateSensitiveBehaviour(ctx.user, input)) return;
+  const denied = new AccessDeniedError(
+    'sensitive behaviour requires Head, HeadOfDiscipline, or Supervisor demerit author',
+  );
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'BehaviourEntry',
+      meta: {
+        studentId: input.studentId,
+        requested: 'Sensitive',
+        type: input.type,
+        role: ctx.user.role,
+        reason: denied.message,
+      },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
+async function denyOutOfDailyScope(
+  ctx: AuthedContext,
+  entity: string,
+  meta: Record<string, unknown>,
+): Promise<never> {
+  const denied = new AccessDeniedError('student is outside supervisor assigned year band');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity,
+      meta: { ...meta, role: ctx.user.role, reason: denied.message },
     },
   });
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
@@ -98,7 +148,8 @@ function dateKey(date: Date): string {
 function trendKey(date: Date, bucket: TrendBucket): string {
   const normalized = normalizeDate(date);
   if (bucket === 'daily') return dateKey(normalized);
-  if (bucket === 'monthly') return `${String(normalized.getUTCFullYear())}-${String(normalized.getUTCMonth() + 1).padStart(2, '0')}`;
+  if (bucket === 'monthly')
+    return `${String(normalized.getUTCFullYear())}-${String(normalized.getUTCMonth() + 1).padStart(2, '0')}`;
 
   const day = normalized.getUTCDay();
   const daysFromMonday = day === 0 ? 6 : day - 1;
@@ -108,7 +159,9 @@ function trendKey(date: Date, bucket: TrendBucket): string {
 
 async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string): Promise<void> {
   if (canViewBehaviourReports(ctx.user)) return;
-  const denied = new AccessDeniedError('behaviour reports require Head or behaviour-viewer');
+  const denied = new AccessDeniedError(
+    'behaviour reports require Head, HeadOfDiscipline, or behaviour-viewer',
+  );
   await ctx.db.auditLog.create({
     data: {
       userId: ctx.user.id,
@@ -120,6 +173,28 @@ async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string):
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
+function visibleBehaviourWhere(user: SessionUser) {
+  if (canViewSensitiveBehaviour(user)) return {};
+  if (user.role === 'Supervisor') {
+    return {
+      OR: [
+        { visibility: 'General' as const },
+        {
+          visibility: 'Sensitive' as const,
+          type: 'Demerit' as const,
+          recordedById: user.id,
+        },
+      ],
+    };
+  }
+  return { visibility: 'General' as const };
+}
+
+function scopedStudentRelationWhere(scope: DailyYearBandScope) {
+  if (scope.scopedYears === null) return {};
+  return { student: studentWhereForDailyScope(scope) };
+}
+
 export const behaviourRouter = router({
   dailyMerits: authedProcedure
     .input(z.object({ date: z.coerce.date() }))
@@ -127,11 +202,13 @@ export const behaviourRouter = router({
       await requireBehaviourReportAccess(ctx, 'behaviour.dailyMerits');
       const from = normalizeDate(input.date);
       const to = dayEnd(input.date);
+      const canReadSensitive = canViewSensitiveBehaviour(ctx.user);
 
       const rows = await ctx.db.behaviourEntry.findMany({
         where: {
           type: 'Merit',
           createdAt: { gte: from, lt: to },
+          ...(canReadSensitive ? {} : { visibility: 'General' as const }),
         },
         include: {
           student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -160,7 +237,11 @@ export const behaviourRouter = router({
           meritDelta: row.meritDelta,
           visibility: row.visibility,
           recordedById: row.recordedById,
-          recordedByName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          recordedByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            row.recordedBy.fullNameEnc,
+            'user PII',
+          ),
           recordedByRole: row.recordedBy.role,
           createdAt: row.createdAt,
         })),
@@ -175,19 +256,24 @@ export const behaviourRouter = router({
           from: z.coerce.date(),
           to: z.coerce.date(),
         })
-        .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
-          message: 'from must be on or before to',
-          path: ['to'],
-        }),
+        .refine(
+          (input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(),
+          {
+            message: 'from must be on or before to',
+            path: ['to'],
+          },
+        ),
     )
     .query(async ({ ctx, input }) => {
       await requireBehaviourReportAccess(ctx, 'behaviour.trends');
       const from = normalizeDate(input.from);
       const to = dayEnd(input.to);
+      const canReadSensitive = canViewSensitiveBehaviour(ctx.user);
 
       const rows = await ctx.db.behaviourEntry.findMany({
         where: {
           createdAt: { gte: from, lt: to },
+          ...(canReadSensitive ? {} : { visibility: 'General' as const }),
         },
         select: {
           id: true,
@@ -213,16 +299,14 @@ export const behaviourRouter = router({
 
       for (const row of rows) {
         const key = trendKey(row.createdAt, input.bucket);
-        const current =
-          buckets.get(key) ??
-          {
-            bucket: key,
-            meritCount: 0,
-            meritTotal: 0,
-            demeritCount: 0,
-            demeritTotal: 0,
-            sensitiveCount: 0,
-          };
+        const current = buckets.get(key) ?? {
+          bucket: key,
+          meritCount: 0,
+          meritTotal: 0,
+          demeritCount: 0,
+          demeritTotal: 0,
+          sensitiveCount: 0,
+        };
         if (row.type === 'Merit') {
           current.meritCount += 1;
           current.meritTotal += row.meritDelta;
@@ -248,12 +332,14 @@ export const behaviourRouter = router({
       await requireBehaviourWorkflow(ctx, 'behaviour.dashboardActivity');
       const from = normalizeDate(input.date);
       const to = dayEnd(input.date);
+      const scope = await loadDailyYearBandScope(ctx, from);
 
       const rows = await ctx.withRls((tx) =>
         tx.behaviourEntry.findMany({
           where: {
             createdAt: { gte: from, lt: to },
-            visibility: 'General',
+            ...visibleBehaviourWhere(ctx.user),
+            ...scopedStudentRelationWhere(scope),
           },
           include: {
             student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -283,9 +369,14 @@ export const behaviourRouter = router({
           type: row.type,
           category: row.category,
           note: decryptOptional(ctx.db.$enc.decrypt, row.noteEnc),
+          visibility: row.visibility,
           meritDelta: row.meritDelta,
           recordedById: row.recordedById,
-          recordedByName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          recordedByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            row.recordedBy.fullNameEnc,
+            'user PII',
+          ),
           recordedByRole: row.recordedBy.role,
           createdAt: row.createdAt,
         })),
@@ -298,13 +389,14 @@ export const behaviourRouter = router({
       await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries');
       const from = normalizeDate(input.date);
       const to = dayEnd(input.date);
-      const canReadSensitive = isFullAdmin(ctx.user);
+      const scope = await loadDailyYearBandScope(ctx, from);
 
       const rows = await ctx.withRls((tx) =>
         tx.behaviourEntry.findMany({
           where: {
             createdAt: { gte: from, lt: to },
-            ...(canReadSensitive ? {} : { visibility: 'General' as const }),
+            ...visibleBehaviourWhere(ctx.user),
+            ...scopedStudentRelationWhere(scope),
           },
           include: {
             student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -348,7 +440,11 @@ export const behaviourRouter = router({
           visibility: row.visibility,
           meritDelta: row.meritDelta,
           recordedById: row.recordedById,
-          recordedByName: decryptRequired(ctx.db.$enc.decrypt, row.recordedBy.fullNameEnc, 'user PII'),
+          recordedByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            row.recordedBy.fullNameEnc,
+            'user PII',
+          ),
           recordedByRole: row.recordedBy.role,
           createdAt: row.createdAt,
         })),
@@ -360,6 +456,7 @@ export const behaviourRouter = router({
       z.object({
         studentId: z.string().min(1),
         includeSensitive: z.boolean().optional().default(false),
+        date: z.coerce.date().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -370,7 +467,7 @@ export const behaviourRouter = router({
 
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
-        select: { id: true, active: true, fullNameEnc: true },
+        select: { id: true, active: true, fullNameEnc: true, yearGroup: true },
       });
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -378,13 +475,21 @@ export const behaviourRouter = router({
       if (!student.active) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
       }
+      const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
+      if (!studentMatchesDailyScope(scope, student)) {
+        await denyOutOfDailyScope(ctx, 'behaviour.listForStudent', {
+          studentId: input.studentId,
+          studentYearGroup: student.yearGroup,
+          date: scope.dayKey,
+          assignedBands: scope.assignedBands.map((band) => band.id),
+        });
+      }
 
-      const canReadSensitive = isFullAdmin(ctx.user);
       const entries = await ctx.withRls((tx) =>
         tx.behaviourEntry.findMany({
           where: {
             studentId: input.studentId,
-            ...(canReadSensitive ? {} : { visibility: 'General' as const }),
+            ...visibleBehaviourWhere(ctx.user),
           },
           select: {
             id: true,
@@ -421,7 +526,11 @@ export const behaviourRouter = router({
           action: 'DecryptPii',
           entity: 'Student',
           entityId: input.studentId,
-          meta: { source: 'behaviour.listForStudent', fields: ['fullName'], noteCount: rows.length },
+          meta: {
+            source: 'behaviour.listForStudent',
+            fields: ['fullName'],
+            noteCount: rows.length,
+          },
         },
       });
       if (sensitiveRows.length > 0) {
@@ -478,12 +587,12 @@ export const behaviourRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'merit amount is required' });
       }
       if (input.visibility === 'Sensitive') {
-        await requireCanRequestSensitive(ctx, input.studentId);
+        await requireCanCreateSensitive(ctx, input);
       }
 
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
-        select: { id: true, active: true },
+        select: { id: true, active: true, yearGroup: true },
       });
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -491,9 +600,18 @@ export const behaviourRouter = router({
       if (!student.active) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
       }
+      const scope = await loadDailyYearBandScope(ctx, new Date());
+      if (!studentMatchesDailyScope(scope, student)) {
+        await denyOutOfDailyScope(ctx, 'behaviour.log', {
+          studentId: input.studentId,
+          studentYearGroup: student.yearGroup,
+          date: scope.dayKey,
+          assignedBands: scope.assignedBands.map((band) => band.id),
+        });
+      }
 
       const noteEnc = input.note ? ctx.db.$enc.encrypt(input.note) : null;
-      const meritDelta = input.type === 'Merit' ? input.amount ?? 0 : -DEMERIT_COST;
+      const meritDelta = input.type === 'Merit' ? (input.amount ?? 0) : -DEMERIT_COST;
 
       const result = await ctx.withRls(async (tx) => {
         const behaviour = await tx.behaviourEntry.create({

@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import { deriveEnglandWalesSchoolYear, standardSchoolYearSchema } from '@oasis/domain';
+import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
 import { fullAdminProcedure, roleProcedure, router } from '../trpc.js';
 
 const STUDENT_READ_ROLES = [
@@ -49,6 +50,7 @@ const listInput = z
   .object({
     search: z.string().trim().min(1).optional(),
     includeInactive: z.boolean().optional(),
+    date: z.coerce.date().optional(),
   })
   .optional();
 
@@ -129,9 +131,11 @@ export const studentRouter = router({
   list: roleProcedure(...STUDENT_READ_ROLES)
     .input(listInput)
     .query(async ({ ctx, input }) => {
+      const scope = await loadDailyYearBandScope(ctx, input?.date ?? new Date());
       const where: Prisma.StudentWhereInput = {};
-      if (!input?.includeInactive) where.active = true;
+      if (ctx.user.role === 'Supervisor' || !input?.includeInactive) where.active = true;
       if (input?.search) where.nameBidx = ctx.db.$enc.blindIndex(input.search);
+      Object.assign(where, studentWhereForDailyScope(scope));
 
       const students = await ctx.db.student.findMany({
         where,

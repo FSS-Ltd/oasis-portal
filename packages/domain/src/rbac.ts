@@ -4,7 +4,7 @@
  * - Head, Principal, Pastor, HeadOfDiscipline all have full-admin parity.
  * - TechnicalSupport: User Access account-shell support for Parent / TechnicalSupport shells.
  * - ClubsAdmin: clubs module only.
- * - Supervisor: daily operations, general-visibility behaviour only.
+ * - Supervisor: daily operations; Sensitive behaviour is limited to their own demerits.
  * - Parent: own children only.
  * - Student: self only.
  *
@@ -209,6 +209,32 @@ export function canViewBehaviourReports(user: SessionUser): boolean {
   );
 }
 
+export function canViewSensitiveBehaviour(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Head' || user.role === 'HeadOfDiscipline';
+}
+
+export function canViewSensitiveBehaviourEntry(
+  user: Pick<SessionUser, 'id' | 'role'>,
+  entry: {
+    recordedById: string;
+    type: 'Merit' | 'Demerit';
+    visibility: 'General' | 'Sensitive';
+  },
+): boolean {
+  if (entry.visibility === 'General') return true;
+  if (canViewSensitiveBehaviour(user)) return true;
+  return user.role === 'Supervisor' && entry.type === 'Demerit' && entry.recordedById === user.id;
+}
+
+export function canCreateSensitiveBehaviour(
+  user: Pick<SessionUser, 'role'>,
+  input: { type: 'Merit' | 'Demerit' },
+): boolean {
+  return (
+    canViewSensitiveBehaviour(user) || (user.role === 'Supervisor' && input.type === 'Demerit')
+  );
+}
+
 export function canViewAnyStudentDrillThrough(user: SessionUser): boolean {
   return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'));
 }
@@ -243,12 +269,13 @@ export function requireClubsAdminOrFullAdmin(user: SessionUser): void {
 }
 
 /**
- * Sensitive behaviour entries are visible to full-admin roles only.
+ * Sensitive behaviour entries are visible to Head, HeadOfDiscipline, or the
+ * supervisor who recorded the Sensitive demerit.
  * Checked at the tRPC layer; Postgres RLS is the second wall (rls.sql).
  */
 export function requireCanViewSensitive(user: SessionUser): void {
-  if (!isFullAdmin(user)) {
-    throw new AccessDeniedError('sensitive entries are full-admin only');
+  if (!canViewSensitiveBehaviour(user)) {
+    throw new AccessDeniedError('sensitive entries require Head or HeadOfDiscipline');
   }
 }
 

@@ -8,17 +8,16 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import {
+  loadDailyYearBandScope,
+  studentMatchesDailyScope,
+  studentWhereForDailyScope,
+} from '../lib/daily-year-band-scope.js';
 import { authedProcedure, fullAdminProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
-const ATTENDANCE_ROLES = [
-  'Head',
-  'Principal',
-  'Pastor',
-  'HeadOfDiscipline',
-  'Supervisor',
-] as const;
+const ATTENDANCE_ROLES = ['Head', 'Principal', 'Pastor', 'HeadOfDiscipline', 'Supervisor'] as const;
 
 const attendanceStatusSchema = z.enum(['Present', 'Absent', 'Late']);
 
@@ -108,7 +107,9 @@ async function requireCanExportAttendance(
 ): Promise<void> {
   if (canExportAttendance(ctx.user)) return;
 
-  const denied = new AccessDeniedError('attendance export requires full-admin or attendance-exporter');
+  const denied = new AccessDeniedError(
+    'attendance export requires full-admin or attendance-exporter',
+  );
   await ctx.db.auditLog.create({
     data: {
       userId: ctx.user.id,
@@ -129,6 +130,23 @@ async function requireCanRecordAttendance(ctx: AuthedContext): Promise<void> {
       action: 'PermissionDenied',
       entity: 'attendance.mark',
       meta: { role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
+async function denyOutOfDailyScope(
+  ctx: AuthedContext,
+  entity: string,
+  meta: Record<string, unknown>,
+): Promise<never> {
+  const denied = new AccessDeniedError('student is outside supervisor assigned year band');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity,
+      meta: { ...meta, role: ctx.user.role, reason: denied.message },
     },
   });
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
@@ -178,8 +196,9 @@ export const attendanceRouter = router({
     .input(z.object({ date: z.coerce.date() }))
     .query(async ({ ctx, input }) => {
       const date = normalizeDate(input.date);
+      const scope = await loadDailyYearBandScope(ctx, date);
       const students = await ctx.db.student.findMany({
-        where: { active: true },
+        where: { active: true, ...studentWhereForDailyScope(scope) },
         select: {
           id: true,
           fullNameEnc: true,
@@ -235,15 +254,24 @@ export const attendanceRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      const scope = await loadDailyYearBandScope(ctx, date);
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
-        select: { id: true, active: true },
+        select: { id: true, active: true, yearGroup: true },
       });
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
       }
       if (!student.active) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+      }
+      if (!studentMatchesDailyScope(scope, student)) {
+        await denyOutOfDailyScope(ctx, 'attendance.mark', {
+          studentId: input.studentId,
+          studentYearGroup: student.yearGroup,
+          date: dateKey(date),
+          assignedBands: scope.assignedBands.map((band) => band.id),
+        });
       }
 
       const existing = await ctx.db.attendance.findUnique({
@@ -363,84 +391,82 @@ export const attendanceRouter = router({
     };
   }),
 
-  exportStudentsCsv: authedProcedure
-    .input(studentExportInput)
-    .query(async ({ ctx, input }) => {
-      const from = normalizeDate(input.from);
-      const to = normalizeDate(input.to);
-      const selectedStudentId = input.studentId ?? null;
-      await requireCanExportAttendance(ctx, {
-        kind: 'student',
-        from: dateKey(from),
-        to: dateKey(to),
-        studentId: selectedStudentId,
-      });
+  exportStudentsCsv: authedProcedure.input(studentExportInput).query(async ({ ctx, input }) => {
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    const selectedStudentId = input.studentId ?? null;
+    await requireCanExportAttendance(ctx, {
+      kind: 'student',
+      from: dateKey(from),
+      to: dateKey(to),
+      studentId: selectedStudentId,
+    });
 
-      const rows = await ctx.db.attendance.findMany({
-        where: {
-          date: {
-            gte: from,
-            lte: to,
-          },
-          ...(selectedStudentId ? { studentId: selectedStudentId } : {}),
+    const rows = await ctx.db.attendance.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
         },
-        select: {
-          date: true,
-          status: true,
-          createdAt: true,
-          student: {
-            select: {
-              id: true,
-              fullNameEnc: true,
-              yearGroup: true,
-            },
+        ...(selectedStudentId ? { studentId: selectedStudentId } : {}),
+      },
+      select: {
+        date: true,
+        status: true,
+        createdAt: true,
+        student: {
+          select: {
+            id: true,
+            fullNameEnc: true,
+            yearGroup: true,
           },
         },
-        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-      });
+      },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    });
 
-      const csv = buildCsv(
-        ['Date', 'Student ID', 'Student Name', 'Year Group', 'Status', 'Recorded At'],
-        rows.map((row) => [
-          dateKey(row.date),
-          row.student.id,
-          decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student'),
-          row.student.yearGroup,
-          row.status,
-          row.createdAt.toISOString(),
-        ]),
-      );
+    const csv = buildCsv(
+      ['Date', 'Student ID', 'Student Name', 'Year Group', 'Status', 'Recorded At'],
+      rows.map((row) => [
+        dateKey(row.date),
+        row.student.id,
+        decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student'),
+        row.student.yearGroup,
+        row.status,
+        row.createdAt.toISOString(),
+      ]),
+    );
 
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'Student',
-          meta: { count: rows.length, source: 'attendance.exportStudentsCsv' },
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: rows.length, source: 'attendance.exportStudentsCsv' },
+      },
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'AttendanceExport',
+        meta: {
+          kind: 'student',
+          from: dateKey(from),
+          to: dateKey(to),
+          studentId: selectedStudentId,
+          rowCount: rows.length,
+          scope: selectedStudentId ? 'individual' : 'all',
         },
-      });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'AttendanceExport',
-          meta: {
-            kind: 'student',
-            from: dateKey(from),
-            to: dateKey(to),
-            studentId: selectedStudentId,
-            rowCount: rows.length,
-            scope: selectedStudentId ? 'individual' : 'all',
-          },
-        },
-      });
+      },
+    });
 
-      return {
-        filename: `student-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
-        contentType: 'text/csv; charset=utf-8',
-        csv,
-      };
-    }),
+    return {
+      filename: `student-attendance-${dateKey(from)}-to-${dateKey(to)}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      csv,
+    };
+  }),
 
   studentHistory: authedProcedure.input(studentHistoryInput).query(async ({ ctx, input }) => {
     const from = normalizeDate(input.from);

@@ -53,6 +53,14 @@ interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
 
+interface StoredYearGroupBand {
+  id: string;
+  name: string;
+  standardYears: string[];
+  colour: string;
+  active: boolean;
+}
+
 interface FakeDb {
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
@@ -72,6 +80,7 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
+  staffShift: { findMany: ReturnType<typeof vi.fn> };
 }
 
 function encrypt(value: string | null | undefined): string | null {
@@ -108,6 +117,15 @@ function makeFakeDb() {
   const students: StoredStudent[] = [];
   const subjects: StoredSubject[] = [
     { id: subjectId, code: 'MATH', name: 'Mathematics', active: true },
+  ];
+  const bands: StoredYearGroupBand[] = [
+    {
+      id: 'band_upper',
+      name: 'Upper Primary',
+      standardYears: ['Year 5', 'Year 6'],
+      colour: '#5B90C5',
+      active: true,
+    },
   ];
   const assignments: StoredAssignment[] = [];
 
@@ -151,15 +169,31 @@ function makeFakeDb() {
         Object.assign(student, data, { updatedAt: new Date('2026-04-27T11:00:00.000Z') });
         return Promise.resolve(student);
       }),
-      findMany: vi.fn(({ where }: { where?: { active?: boolean; nameBidx?: string } }) =>
-        Promise.resolve(
-          students
-            .filter((student) => where?.active === undefined || student.active === where.active)
-            .filter(
-              (student) => where?.nameBidx === undefined || student.nameBidx === where.nameBidx,
-            )
-            .map((student) => makeRow(student, assignments, subjects)),
-        ),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            active?: boolean;
+            id?: { in: string[] };
+            nameBidx?: string;
+            yearGroup?: { in: string[] };
+          };
+        }) =>
+          Promise.resolve(
+            students
+              .filter((student) => where?.active === undefined || student.active === where.active)
+              .filter((student) => where?.id?.in === undefined || where.id.in.includes(student.id))
+              .filter(
+                (student) => where?.nameBidx === undefined || student.nameBidx === where.nameBidx,
+              )
+              .filter(
+                (student) =>
+                  where?.yearGroup?.in === undefined ||
+                  where.yearGroup.in.includes(student.yearGroup),
+              )
+              .map((student) => makeRow(student, assignments, subjects)),
+          ),
       ),
       findUnique: vi.fn(
         ({ where, select }: { where: { id: string }; select?: { id?: boolean } }) => {
@@ -227,6 +261,15 @@ function makeFakeDb() {
                 assignment.subjectId === where.studentId_subjectId.subjectId,
             ) ?? null,
           ),
+      ),
+    },
+    staffShift: {
+      findMany: vi.fn(() =>
+        Promise.resolve([
+          {
+            yearGroupBand: bands[0],
+          },
+        ]),
       ),
     },
   };
