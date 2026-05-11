@@ -65,38 +65,13 @@ describe('canSignUpForClub', () => {
 
 describe('canUseLinkedChildClubSignup', () => {
   it('allows parents, supervisors, and full-admin child-registration roles', () => {
-    expect(
-      canUseLinkedChildClubSignup({ id: 'u_parent', role: 'Parent', tags: [], requires2fa: false }),
-    ).toBe(true);
-    expect(
-      canUseLinkedChildClubSignup({
-        id: 'u_supervisor',
-        role: 'Supervisor',
-        tags: [],
-        requires2fa: false,
-      }),
-    ).toBe(true);
-    expect(
-      canUseLinkedChildClubSignup({ id: 'u_head', role: 'Head', tags: [], requires2fa: false }),
-    ).toBe(true);
+    expect(canUseLinkedChildClubSignup({ role: 'Parent' })).toBe(true);
+    expect(canUseLinkedChildClubSignup({ role: 'Supervisor' })).toBe(true);
+    expect(canUseLinkedChildClubSignup({ role: 'Head' })).toBe(true);
   });
 
   it('blocks ClubsAdmin and Student accounts', () => {
-    expect(
-      canUseLinkedChildClubSignup({
-        id: 'u_clubs',
-        role: 'ClubsAdmin',
-        tags: [],
-        requires2fa: false,
-      }),
-    ).toBe(false);
-    expect(
-      canUseLinkedChildClubSignup({
-        id: 'u_student',
-        role: 'Student',
-        tags: [],
-        requires2fa: false,
-      }),
-    ).toBe(false);
+    expect(canUseLinkedChildClubSignup({ role: 'ClubsAdmin' })).toBe(false);
+    expect(canUseLinkedChildClubSignup({ role: 'Student' })).toBe(false);
   });
 });
