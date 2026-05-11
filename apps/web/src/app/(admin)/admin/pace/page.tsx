@@ -10,7 +10,7 @@ export default async function AdminPacePage() {
 
   return (
     <MotionPage>
-      <PaceWorkflowClient />
+      <PaceWorkflowClient canManageProgress={user.role === 'Head'} />
     </MotionPage>
   );
 }

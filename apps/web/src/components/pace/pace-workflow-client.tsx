@@ -19,7 +19,11 @@ import {
 
 const EMPTY_ROSTER_STUDENTS: readonly PaceRosterStudent[] = [];
 
-export function PaceWorkflowClient() {
+interface PaceWorkflowClientProps {
+  canManageProgress: boolean;
+}
+
+export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedSubject, setSelectedSubject] = useState<PaceSubject | null>(null);
@@ -111,16 +115,18 @@ export function PaceWorkflowClient() {
               ))}
             </SelectInput>
           </span>
-          <Button
-            disabled={!selectedStudent || subjects.length === 0}
-            onClick={() => {
-              setSelectedSubject(subjects.find((subject) => subject.active) ?? subjects[0] ?? null);
-            }}
-            type="button"
-          >
-            <Plus aria-hidden="true" size={16} />
-            Record New Score
-          </Button>
+          {canManageProgress ? (
+            <Button
+              disabled={!selectedStudent || subjects.length === 0}
+              onClick={() => {
+                setSelectedSubject(subjects.find((subject) => subject.active) ?? subjects[0] ?? null);
+              }}
+              type="button"
+            >
+              <Plus aria-hidden="true" size={16} />
+              Record New Score
+            </Button>
+          ) : null}
         </div>
         <div className="pace-workflow-header__secondary">
           {canEditDate ? (
@@ -197,6 +203,7 @@ export function PaceWorkflowClient() {
           ) : null}
 
           <PaceProgressTable
+            canManageProgress={canManageProgress}
             errorMessage={paceQuery.error?.message}
             loading={paceQuery.isLoading}
             onUpdateScore={setSelectedSubject}
@@ -207,7 +214,7 @@ export function PaceWorkflowClient() {
 
       {status ? <p className="status--success">{status}</p> : null}
 
-      {selectedSubject && selectedStudent ? (
+      {canManageProgress && selectedSubject && selectedStudent ? (
         <PaceScoreModal
           canEditDate={canEditDate}
           completedDate={roster?.date ?? selectedDate}
