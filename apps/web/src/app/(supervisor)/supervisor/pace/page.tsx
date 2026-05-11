@@ -3,11 +3,11 @@ import { getStaffUser } from '@/components/admin/require-full-admin';
 import { PaceWorkflowClient } from '@/components/pace/pace-workflow-client';
 
 export default async function SupervisorPacePage() {
-  await getStaffUser();
+  const user = await getStaffUser();
 
   return (
     <MotionPage>
-      <PaceWorkflowClient />
+      <PaceWorkflowClient canManageProgress={user.role === 'Head'} />
     </MotionPage>
   );
 }

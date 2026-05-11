@@ -15,6 +15,7 @@ import {
 
 interface PaceProgressTableProps {
   loading: boolean;
+  canManageProgress: boolean;
   errorMessage?: string | undefined;
   onUpdateScore: (subject: PaceSubject) => void;
   subjects: readonly PaceSubject[];
@@ -29,6 +30,7 @@ function ScoreValue({ score }: { score: number | null | undefined }) {
 }
 
 export function PaceProgressTable({
+  canManageProgress,
   errorMessage,
   loading,
   onUpdateScore,
@@ -68,38 +70,43 @@ export function PaceProgressTable({
         <span className="muted">{formatShortDate(subject.latestCompletedAt)}</span>
       ),
     },
-    {
-      id: 'status',
-      header: 'Status',
-      render: (subject) => (
-        <span className="pace-status-cell">
-          <Badge tone={statusTone(subject.status.tone)}>{subject.status.status}</Badge>
-          <span>{subject.status.detail}</span>
-        </span>
-      ),
-    },
-    {
-      id: 'actions',
-      className: 'pace-action-cell',
-      header: <span className="sr-only">Update score</span>,
-      headerClassName: 'pace-action-heading',
-      render: (subject) => (
-        <Button
-          className="pace-update-button"
-          disabled={!subject.active}
-          onClick={() => {
-            onUpdateScore(subject);
-          }}
-          size="sm"
-          type="button"
-          variant="secondary"
-        >
-          <Edit3 aria-hidden="true" size={14} />
-          Update Score
-        </Button>
-      ),
-    },
   ];
+
+  if (canManageProgress) {
+    columns.push(
+      {
+        id: 'status',
+        header: 'Status',
+        render: (subject) => (
+          <span className="pace-status-cell">
+            <Badge tone={statusTone(subject.status.tone)}>{subject.status.status}</Badge>
+            <span>{subject.status.detail}</span>
+          </span>
+        ),
+      },
+      {
+        id: 'actions',
+        className: 'pace-action-cell',
+        header: <span className="sr-only">Update score</span>,
+        headerClassName: 'pace-action-heading',
+        render: (subject) => (
+          <Button
+            className="pace-update-button"
+            disabled={!subject.active}
+            onClick={() => {
+              onUpdateScore(subject);
+            }}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Edit3 aria-hidden="true" size={14} />
+            Update Score
+          </Button>
+        ),
+      },
+    );
+  }
 
   return (
     <div className="panel panel--scroll pace-table-panel">
