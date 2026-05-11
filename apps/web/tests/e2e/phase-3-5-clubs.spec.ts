@@ -1,0 +1,89 @@
+import { expect, type Page, test } from '@playwright/test';
+import { signIn } from './helpers/auth';
+
+const headEmail = process.env.E2E_HEAD_EMAIL;
+const headPassword = process.env.E2E_HEAD_PASSWORD;
+const clubsAdminEmail = process.env.E2E_CLUBS_ADMIN_EMAIL;
+const clubsAdminPassword = process.env.E2E_CLUBS_ADMIN_PASSWORD;
+const supervisorEmail = process.env.E2E_SUPERVISOR_EMAIL;
+const supervisorPassword = process.env.E2E_SUPERVISOR_PASSWORD;
+const parentEmail = process.env.E2E_PARENT_EMAIL;
+const parentPassword = process.env.E2E_PARENT_PASSWORD;
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function expectNoClubManagement(page: Page) {
+  await expect(page.getByRole('heading', { name: /^clubs$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /add club/i })).toHaveCount(0);
+}
+
+test.describe('Phase 3.5 ClubsAdmin club management', () => {
+  const headTest = headEmail && headPassword ? test : test.skip;
+  const clubsAdminTest = clubsAdminEmail && clubsAdminPassword ? test : test.skip;
+  const supervisorTest = supervisorEmail && supervisorPassword ? test : test.skip;
+  const parentTest = parentEmail && parentPassword ? test : test.skip;
+
+  headTest('Head can create, update, deactivate, and view a club roster', async ({ page }) => {
+    const unique = Date.now();
+    const clubName = `E2E Club ${unique}`;
+    const updatedClubName = `${clubName} Updated`;
+
+    await signIn(page, headEmail!, headPassword!);
+    await page.goto('/admin/clubs');
+    await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /add club/i })).toBeVisible();
+
+    await page.getByLabel('Club name').fill(clubName);
+    await page.getByLabel('Description').fill('E2E club management verification.');
+    await page.getByLabel('Schedule').fill('Fridays, 15:30');
+    await page.getByLabel('Capacity').fill('12');
+    await page.getByRole('button', { name: /add club/i }).click();
+
+    await expect(page.getByText('Club created.')).toBeVisible();
+    const clubCard = page.locator('.club-card').filter({ hasText: clubName }).first();
+    await expect(clubCard).toBeVisible();
+    await expect(page.getByRole('heading', { name: clubName })).toBeVisible();
+    await expect(page.getByText(/0\/12 places/i)).toBeVisible();
+
+    await clubCard
+      .getByRole('button', { name: new RegExp(`Edit ${escapeRegExp(clubName)}`, 'i') })
+      .click();
+    await page.getByLabel('Club name').fill(updatedClubName);
+    await page.getByRole('button', { name: /save club/i }).click();
+    await expect(page.getByText('Club updated.')).toBeVisible();
+
+    const updatedClubCard = page.locator('.club-card').filter({ hasText: updatedClubName }).first();
+    await expect(updatedClubCard).toBeVisible();
+    await updatedClubCard
+      .getByRole('button', { name: new RegExp(`Deactivate ${escapeRegExp(updatedClubName)}`, 'i') })
+      .click();
+    await expect(page.getByText('Club deactivated.')).toBeVisible();
+    await expect(updatedClubCard.getByText('Inactive')).toBeVisible();
+  });
+
+  clubsAdminTest('ClubsAdmin lands on clubs and sees no non-club admin navigation', async ({ page }) => {
+    await signIn(page, clubsAdminEmail!, clubsAdminPassword!);
+    await expect(page).toHaveURL(/\/admin\/clubs/);
+    await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^clubs$/i })).toBeVisible();
+    await expect(
+      page.getByRole('link', {
+        name: /Attendance|Behaviour|PACE|Calendar|Messages|Noticeboard|User Access|People & Profiles/i,
+      }),
+    ).toHaveCount(0);
+  });
+
+  supervisorTest('Supervisor cannot load club management', async ({ page }) => {
+    await signIn(page, supervisorEmail!, supervisorPassword!);
+    await page.goto('/admin/clubs');
+    await expectNoClubManagement(page);
+  });
+
+  parentTest('Parent cannot load club management', async ({ page }) => {
+    await signIn(page, parentEmail!, parentPassword!);
+    await page.goto('/admin/clubs');
+    await expectNoClubManagement(page);
+  });
+});

@@ -608,7 +608,6 @@ describe('admin.searchGuardianAccounts', () => {
             'Pastor',
             'HeadOfDiscipline',
             'TechnicalSupport',
-            'ClubsAdmin',
             'Supervisor',
           ],
         },

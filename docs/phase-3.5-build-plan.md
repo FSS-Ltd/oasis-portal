@@ -1,6 +1,6 @@
 # Phase 3.5 - Clubs module: sprint & PR plan
 
-**Status:** PR-3.5.0 club management and signups ready for review
+**Status:** PR-3.5.1 ClubsAdmin club management ready for review
 **Last updated:** 2026-05-11
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -45,7 +45,9 @@ Phase 3.5 is complete when:
 
 Goal: implement the backend contract first with strict RBAC and tests.
 
-### PR-3.5.0 - `feat(api): club management and signups` READY FOR REVIEW
+### PR-3.5.0 - `feat(api): club management and signups` MERGED
+
+Merged via PR #96 on 2026-05-11.
 
 Scope:
 
@@ -99,12 +101,13 @@ Notes:
 Goal: expose the module to ClubsAdmin/full-admin users and parents without
 crossing data boundaries.
 
-### PR-3.5.1 - `feat(web): ClubsAdmin club management` PLANNED
+### PR-3.5.1 - `feat(web): ClubsAdmin club management` READY FOR REVIEW
 
 Scope:
 
 - Add Head/full-admin and ClubsAdmin-accessible route group or admin-shell route
   for club management.
+- Route ClubsAdmin users to `/admin/clubs` after sign-in.
 - List active/inactive clubs with schedule, capacity, and signup count.
 - Add create/update/deactivate controls with validation and pending/error
   states.
@@ -118,6 +121,23 @@ Tests:
 - Head/full-admin and ClubsAdmin can create/update/deactivate a club.
 - Supervisor/Parent cannot access club management routes.
 - Roster displays signup count and minimal student identity.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts clubs.test.ts` - pass, ran
+  all domain tests because of package-script argument handling: 12 files / 143
+  tests.
+- `pnpm --filter @oasis/api test -- club.router.test.ts` - pass, ran all API
+  tests because of package-script argument handling: 18 files / 336 tests.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with 4
+  credential-gated tests skipped because local E2E credentials are not
+  configured.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
 
 ### PR-3.5.2 - `feat(web): parent club signup` PLANNED
 
@@ -205,6 +225,7 @@ Scope:
 - Add minimal mobile surfaces for parent club list/signup and ClubsAdmin/staff
   roster read smoke.
 - Keep styling minimal and use the typed API client.
+- Stick to design guidelines set in Oasis Learning Center.zip
 
 Tests:
 

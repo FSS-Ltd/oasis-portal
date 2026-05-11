@@ -6,6 +6,7 @@ import {
   canViewBehaviourReports,
   canExportAttendance,
   canManageCalendar,
+  canManageClubs,
   canRespondToParentMessages,
   canUseFullPaceAccess,
   canManageUserAccounts,
@@ -32,6 +33,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManageAccounts = canManageUserAccounts(user);
   const canExportAttendanceCsv = canExportAttendance(user);
   const canManageCalendarDates = canManageCalendar(user);
+  const canManageClubModule = canManageClubs(user);
   const canUseMessages = canRespondToParentMessages(user);
   const [linkedChildren, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
@@ -61,7 +63,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             ? '/admin/pace'
             : canManageCalendarDates
               ? '/admin/calendar'
-              : '/admin/profile';
+              : canManageClubModule
+                ? '/admin/clubs'
+                : '/admin/profile';
 
   return (
     <div className="admin-shell">
@@ -90,6 +94,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
           canManageCalendar={canManageCalendarDates}
+          canManageClubs={canManageClubModule}
+          clubsOnly={user.role === 'ClubsAdmin'}
           fullAdmin={fullAdmin}
           hasLinkedChildren={hasLinkedChildren}
           canUseMessages={canUseMessages}
@@ -124,6 +130,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           canViewStudents={canViewStudents}
           canManageUserAccounts={canManageAccounts}
           canManageCalendar={canManageCalendarDates}
+          canManageClubs={canManageClubModule}
+          clubsOnly={user.role === 'ClubsAdmin'}
           fullAdmin={fullAdmin}
           hasLinkedChildren={hasLinkedChildren}
           canUseMessages={canUseMessages}

@@ -7,6 +7,7 @@ import {
   canAnswerChildRegistrationPrompt,
   canExportAttendance,
   canManageCalendar,
+  canManageClubs,
   canRespondToParentMessages,
   canSubmitInitialRegistration,
   canViewAnyStudentDrillThrough,
@@ -14,6 +15,7 @@ import {
   canUseFullPaceAccess,
   canManageUserAccounts,
   isFullAdmin,
+  requireClubsAdminOrFullAdmin,
   requireFullAdmin,
   requireStaff,
   requireTag,
@@ -69,7 +71,8 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canManageUserAccounts(user) &&
     !canExportAttendance(user) &&
     !canManageCalendar(user) &&
-    !canRespondToParentMessages(user)
+    !canRespondToParentMessages(user) &&
+    !canManageClubs(user)
   ) {
     notFound();
   }
@@ -94,6 +97,18 @@ export async function getParentMessageResponderUser(): Promise<SessionUser> {
   const user = await getAdminShellUser();
   if (!canRespondToParentMessages(user)) {
     notFound();
+  }
+
+  return user;
+}
+
+export async function getClubManagerUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+
+  try {
+    requireClubsAdminOrFullAdmin(user);
+  } catch (error) {
+    notFoundOnAccessDenied(error);
   }
 
   return user;

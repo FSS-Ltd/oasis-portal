@@ -4,6 +4,7 @@ import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   assertCanManageClub,
+  canManageClubs,
   canSignUpForClub,
   isFullAdmin,
   type SessionUser,
@@ -79,10 +80,6 @@ function requireClubManager(user: SessionUser): void {
     if (error instanceof AccessDeniedError) throw toForbidden(error);
     throw error;
   }
-}
-
-function canManageClubs(user: SessionUser): boolean {
-  return isFullAdmin(user) || user.role === 'ClubsAdmin';
 }
 
 function requireClubListAccess(user: SessionUser): void {
