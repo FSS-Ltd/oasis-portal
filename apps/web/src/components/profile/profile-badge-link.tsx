@@ -15,11 +15,7 @@ interface ProfileBadgeLinkProps {
   variant?: 'mobile' | 'sidebar';
 }
 
-export function ProfileBadgeLink({
-  className,
-  href,
-  variant = 'sidebar',
-}: ProfileBadgeLinkProps) {
+export function ProfileBadgeLink({ className, href, variant = 'sidebar' }: ProfileBadgeLinkProps) {
   const pathname = usePathname();
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const profile = profileQuery.data;
@@ -29,6 +25,7 @@ export function ProfileBadgeLink({
 
   return (
     <Link
+      aria-label={variant === 'mobile' ? `${name} profile` : undefined}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'profile-badge',

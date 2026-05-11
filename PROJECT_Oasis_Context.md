@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.5.1 ClubsAdmin club management implemented.
+**Phase:** Web responsive side menu ready for review.
 
 ---
 
@@ -18,7 +18,60 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.5.1 ClubsAdmin club management
+## Current status - Web responsive side menu
+
+Working branch: `fix/web-responsive-menu`.
+
+**PR scope:** Add a web-only small-screen side menu to the Admin, Parent, and
+Supervisor portal shells so phone-width browser users can reach every visible
+page while leaving the native mobile app untouched.
+
+Changed scope:
+
+- Added a shared `MobileSideMenu` client component with a hamburger trigger,
+  dialog semantics, focus management, Escape/backdrop close handling, link-close
+  behaviour, and body scroll lock while open.
+- Reused `AdminSidebarNav`, `ParentSidebarNav`, and `SupervisorSidebarNav` in
+  the drawer so permissions, active states, unread badges, and disabled states
+  stay in one source of truth.
+- Tightened the mobile web header at small widths and added accessible labels
+  for icon-only profile/logout controls.
+- Collapsed the Behaviour Log layout on small screens, stacked section headers
+  and filters, converted shared `DataTable` rows into labelled mobile cards
+  below phone widths, and removed mobile-only button minimum widths that caused
+  horizontal overflow.
+- Adjusted the Snapshot overview mobile layout so tabs render as a stable
+  segmented control, stat cards drop from four columns to two at the mobile
+  shell breakpoint, and the attendance card gets enough width before stacking
+  on very narrow phones.
+- Added a slide/fade animation to the mobile side drawer while preserving the
+  existing reduced-motion override.
+- Added credential-gated Playwright coverage for Admin, Parent, and Supervisor
+  drawer navigation.
+- Added `apps/web/src/components/navigation/` to the generated component map
+  ownership source and regenerated the architecture map.
+
+Verification:
+
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm exec prettier --check ...` for changed web files - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `pnpm --filter @oasis/web test:e2e -- supervisor-dashboard.spec.ts` - pass:
+  2 unauthenticated tests passed, 10 credential-gated tests skipped because
+  local E2E account variables are not configured.
+
+Notes:
+
+- Reapplied the responsive-menu stash after pulling current `main`; resolved
+  conflicts in the admin shell, generated component map, and project context.
+  The admin shell resolution preserves the new ClubsAdmin navigation props.
+- No unrelated `docs/phase-3.5-build-plan.md` change is included in this PR.
+- No API, database, RBAC, or `apps/mobile` changes were made.
+
+## Previous status - PR-3.5.1 ClubsAdmin club management
 
 Working branch: `feat/phase-3.5-pr3.5.1-clubsadmin-management`.
 
@@ -134,7 +187,7 @@ Verification:
   tests because of package-script argument handling: 12 files / 139 tests.
 - `pnpm --filter @oasis/api test -- calendar.router.test.ts rota.router.test.ts admin.router.test.ts`
   - pass, ran all API tests because of package-script argument handling: 18
-  files / 322 tests.
+    files / 322 tests.
 - `pnpm --filter @oasis/api typecheck` - pass.
 - `pnpm --filter @oasis/domain typecheck` - pass.
 - `pnpm --filter @oasis/web typecheck` - pass.

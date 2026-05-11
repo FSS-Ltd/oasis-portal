@@ -299,7 +299,6 @@ export function BehaviourLogClient({
               onChange={(event) => {
                 setDate(event.target.value);
               }}
-              style={{ width: 'auto' }}
               type="date"
               value={date}
             />

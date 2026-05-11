@@ -12,6 +12,7 @@ export function LogoutButton({ className }: LogoutButtonProps) {
 
   return (
     <button
+      aria-label="Log out"
       className={className ?? 'logout-button'}
       onClick={() => {
         void signOut({ redirectUrl: '/sign-in' });
