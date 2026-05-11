@@ -1768,14 +1768,76 @@
   align-items: start;
 }
 
+.linked-clubs-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .clubs-composer,
 .clubs-form,
 .clubs-view-stack,
 .clubs-list-panel,
 .clubs-list,
-.club-roster-panel {
+.club-roster-panel,
+.linked-clubs-child-panel,
+.linked-clubs-child-list,
+.linked-clubs-list-panel,
+.linked-clubs-list {
   display: grid;
   gap: 14px;
+}
+
+.linked-clubs-child {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.linked-clubs-child:hover,
+.linked-clubs-child:focus-visible,
+.linked-clubs-child.is-selected {
+  border-color: rgba(91, 144, 197, 0.55);
+  background: #f7faff;
+  outline: 0;
+}
+
+.linked-clubs-child > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.linked-clubs-child strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.linked-clubs-child small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.linked-club-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.linked-club-card .club-card__actions {
+  justify-content: flex-end;
 }
 
 .clubs-form__actions,
@@ -2915,6 +2977,45 @@
 
 .profile-field-list {
   display: grid;
+}
+
+.spouse-invite-form,
+.spouse-invite-status {
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.spouse-invite-row,
+.spouse-invite-status {
+  align-items: end;
+}
+
+.spouse-invite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.spouse-invite-status {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.spouse-invite-status > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.spouse-invite-status strong {
+  color: var(--oasis-navy);
+  overflow-wrap: anywhere;
+}
+
+.spouse-invite-status span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
 }
 
 .profile-field-row {
@@ -5329,6 +5430,12 @@
     gap: 5px;
   }
 
+  .spouse-invite-row,
+  .spouse-invite-status {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
   .student-profile-layout,
   .registration-summary-grid,
   .registration-field-list--two,
@@ -5367,6 +5474,7 @@
   .settings-grid,
   .calendar-layout,
   .clubs-layout,
+  .linked-clubs-layout,
   .head-dashboard-layout,
   .messages-layout,
   .noticeboard-layout,
@@ -5402,6 +5510,14 @@
 
   .parent-child-hero {
     align-items: stretch;
+  }
+
+  .linked-club-card {
+    grid-template-columns: 1fr;
+  }
+
+  .linked-club-card .club-card__actions {
+    justify-content: flex-start;
   }
 
   .parent-child-hero__identity,

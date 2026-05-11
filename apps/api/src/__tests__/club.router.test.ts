@@ -150,6 +150,11 @@ interface FakeStudentFindUniqueArgs {
 
 interface FakeGuardianFindManyArgs {
   where: { userId: string; student?: { active?: boolean } };
+  orderBy?: { createdAt: 'desc' };
+  select?: {
+    studentId?: true;
+    student?: { select: { id: true; fullNameEnc: true; yearGroup: true } };
+  };
 }
 
 interface FakeGuardianFindUniqueArgs {
@@ -226,7 +231,9 @@ function makeStudent(
   };
 }
 
-function makeSignup(input: Partial<StoredSignup> & Pick<StoredSignup, 'id' | 'clubId' | 'studentId'>) {
+function makeSignup(
+  input: Partial<StoredSignup> & Pick<StoredSignup, 'id' | 'clubId' | 'studentId'>,
+) {
   return {
     signedUpByUserId: parentUser.id,
     status: 'Active',
@@ -241,12 +248,14 @@ const inactiveClubId = 'cclub000000000000000002';
 const linkedStudentId = 'cstudent000000000000001';
 const otherStudentId = 'cstudent000000000000002';
 
-function makeFakeDb(input: {
-  clubs?: StoredClub[];
-  students?: StoredStudent[];
-  guardians?: StoredGuardian[];
-  signups?: StoredSignup[];
-} = {}): FakeDb {
+function makeFakeDb(
+  input: {
+    clubs?: StoredClub[];
+    students?: StoredStudent[];
+    guardians?: StoredGuardian[];
+    signups?: StoredSignup[];
+  } = {},
+): FakeDb {
   const clubs = input.clubs ?? [
     makeClub({ id: defaultClubId, name: 'Choir', capacity: 2 }),
     makeClub({ id: inactiveClubId, name: 'Chess', active: false }),
@@ -356,9 +365,25 @@ function makeFakeDb(input: {
             .filter((guardian) => guardian.userId === args.where.userId)
             .filter((guardian) => {
               const student = students.find((candidate) => candidate.id === guardian.studentId);
-              return args.where.student?.active === undefined || student?.active === args.where.student.active;
+              return (
+                args.where.student?.active === undefined ||
+                student?.active === args.where.student.active
+              );
             })
-            .map((guardian) => ({ studentId: guardian.studentId })),
+            .map((guardian) => {
+              if (args.select?.student) {
+                const student = students.find((candidate) => candidate.id === guardian.studentId);
+                if (!student) throw new Error('student not found');
+                return {
+                  student: {
+                    id: student.id,
+                    fullNameEnc: student.fullNameEnc,
+                    yearGroup: student.yearGroup,
+                  },
+                };
+              }
+              return { studentId: guardian.studentId };
+            }),
         ),
       ),
       findUnique: vi.fn((args: FakeGuardianFindUniqueArgs) => {
@@ -417,7 +442,9 @@ function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
   return { caller: appRouter.createCaller(makeCtx(user, db)), db };
 }
 
-function auditEntities(db: FakeDb): Array<{ action: string; entity: string; entityId: string | null }> {
+function auditEntities(
+  db: FakeDb,
+): Array<{ action: string; entity: string; entityId: string | null }> {
   return db.auditLog.create.mock.calls.map(([args]) => {
     const audit = args as FakeAuditCreateArgs;
     return {
@@ -489,8 +516,16 @@ describe('club management', () => {
   it('prevents lowering capacity below the active signup count', async () => {
     const db = makeFakeDb({
       signups: [
-        makeSignup({ id: 'csignup000000000000001', clubId: defaultClubId, studentId: linkedStudentId }),
-        makeSignup({ id: 'csignup000000000000002', clubId: defaultClubId, studentId: otherStudentId }),
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
       ],
     });
     const { caller } = makeCaller(headUser, db);
@@ -506,8 +541,16 @@ describe('club.list', () => {
   it('returns all clubs for club managers and active clubs with own signup state for parents', async () => {
     const db = makeFakeDb({
       signups: [
-        makeSignup({ id: 'csignup000000000000001', clubId: defaultClubId, studentId: linkedStudentId }),
-        makeSignup({ id: 'csignup000000000000002', clubId: defaultClubId, studentId: otherStudentId }),
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
         makeSignup({
           id: 'csignup000000000000003',
           clubId: inactiveClubId,
@@ -536,6 +579,57 @@ describe('club.list', () => {
       });
     },
   );
+});
+
+describe('club.linkedChildSignupContext', () => {
+  it('returns active clubs and linked children for parent and supervisor guardians', async () => {
+    const db = makeFakeDb({
+      guardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: supervisorUser.id, studentId: linkedStudentId },
+      ],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: inactiveClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(parentUser, db).caller.club.linkedChildSignupContext(),
+    ).resolves.toEqual({
+      children: [{ id: linkedStudentId, fullName: 'Linked Learner', yearGroup: 'Year 7' }],
+      clubs: [
+        expect.objectContaining({
+          id: defaultClubId,
+          active: true,
+          activeSignupCount: 1,
+          signedUpStudentIds: [linkedStudentId],
+        }),
+      ],
+    });
+    await expect(
+      makeCaller(supervisorUser, db).caller.club.linkedChildSignupContext(),
+    ).resolves.toMatchObject({
+      children: [{ id: linkedStudentId }],
+      clubs: [expect.objectContaining({ id: defaultClubId })],
+    });
+  });
+
+  it('blocks roles that cannot use linked-child club signup', async () => {
+    await expect(
+      makeCaller(clubsAdminUser).caller.club.linkedChildSignupContext(),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 });
 
 describe('club.signUp', () => {
@@ -573,6 +667,36 @@ describe('club.signUp', () => {
       signedUpByUserId: headUser.id,
       status: 'Active',
     });
+  });
+
+  it('allows a supervisor to sign up a linked active child', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }],
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).caller.club.signUp({
+        clubId: defaultClubId,
+        studentId: linkedStudentId,
+      }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      signedUpByUserId: supervisorUser.id,
+      status: 'Active',
+    });
+  });
+
+  it('blocks supervisor signup for an unrelated child', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }],
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).caller.club.signUp({
+        clubId: defaultClubId,
+        studentId: otherStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('allows re-sign after a withdrawn historical signup', async () => {
@@ -613,7 +737,11 @@ describe('club.signUp', () => {
   it('rejects duplicate active signups and full clubs', async () => {
     const duplicateDb = makeFakeDb({
       signups: [
-        makeSignup({ id: 'csignup000000000000001', clubId: defaultClubId, studentId: linkedStudentId }),
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
       ],
     });
     await expect(
@@ -629,7 +757,11 @@ describe('club.signUp', () => {
     const fullDb = makeFakeDb({
       clubs: [makeClub({ id: defaultClubId, name: 'Choir', capacity: 1 })],
       signups: [
-        makeSignup({ id: 'csignup000000000000002', clubId: defaultClubId, studentId: otherStudentId }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
       ],
     });
     await expect(
@@ -648,12 +780,19 @@ describe('club.withdraw', () => {
   it('withdraws an active linked-child signup without deleting history', async () => {
     const db = makeFakeDb({
       signups: [
-        makeSignup({ id: 'csignup000000000000001', clubId: defaultClubId, studentId: linkedStudentId }),
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
       ],
     });
     const { caller } = makeCaller(parentUser, db);
 
-    const result = await caller.club.withdraw({ clubId: defaultClubId, studentId: linkedStudentId });
+    const result = await caller.club.withdraw({
+      clubId: defaultClubId,
+      studentId: linkedStudentId,
+    });
 
     expect(result).toMatchObject({
       id: 'csignup000000000000001',
@@ -695,13 +834,42 @@ describe('club.withdraw', () => {
       caller.club.withdraw({ clubId: defaultClubId, studentId: linkedStudentId }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
+
+  it('allows a supervisor to withdraw a linked-child signup', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          signedUpByUserId: supervisorUser.id,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).caller.club.withdraw({
+        clubId: defaultClubId,
+        studentId: linkedStudentId,
+      }),
+    ).resolves.toMatchObject({
+      id: 'csignup000000000000001',
+      status: 'Withdrawn',
+      withdrawn: true,
+    });
+  });
 });
 
 describe('club.roster', () => {
   it('returns minimal active signup student identity and audits PII decrypt', async () => {
     const db = makeFakeDb({
       signups: [
-        makeSignup({ id: 'csignup000000000000001', clubId: defaultClubId, studentId: linkedStudentId }),
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
         makeSignup({
           id: 'csignup000000000000002',
           clubId: defaultClubId,
@@ -737,11 +905,17 @@ describe('club.roster', () => {
   it('allows Head users to read club rosters', async () => {
     const db = makeFakeDb({
       signups: [
-        makeSignup({ id: 'csignup000000000000001', clubId: defaultClubId, studentId: linkedStudentId }),
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
       ],
     });
 
-    await expect(makeCaller(headUser, db).caller.club.roster({ clubId: defaultClubId })).resolves.toEqual({
+    await expect(
+      makeCaller(headUser, db).caller.club.roster({ clubId: defaultClubId }),
+    ).resolves.toEqual({
       clubId: defaultClubId,
       signups: [
         expect.objectContaining({
@@ -756,7 +930,9 @@ describe('club.roster', () => {
   it.each([parentUser, supervisorUser, studentUser, technicalSupportUser])(
     'blocks %s from roster reads',
     async (user) => {
-      await expect(makeCaller(user).caller.club.roster({ clubId: defaultClubId })).rejects.toMatchObject({
+      await expect(
+        makeCaller(user).caller.club.roster({ clubId: defaultClubId }),
+      ).rejects.toMatchObject({
         code: 'FORBIDDEN',
       });
     },

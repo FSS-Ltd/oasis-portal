@@ -2,11 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, CalendarDays, ClipboardList, Home, MessageSquare, UserRound } from 'lucide-react';
+import {
+  Bell,
+  CalendarDays,
+  ClipboardList,
+  Club,
+  Home,
+  MessageSquare,
+  UserRound,
+} from 'lucide-react';
 
 const navItems = [
   { href: '/parent', label: 'Children', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/parent/clubs', label: 'Clubs', icon: Club },
   { href: '/parent/profile', label: 'My Profile', icon: UserRound },
   { href: '/parent/registration', label: 'Registration', icon: ClipboardList },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },

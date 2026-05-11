@@ -1,6 +1,6 @@
 # Phase 3.5 - Clubs module: sprint & PR plan
 
-**Status:** PR-3.5.1 ClubsAdmin club management ready for review
+**Status:** PR-3.5.2 parent club signup ready for review
 **Last updated:** 2026-05-11
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -139,29 +139,69 @@ Verification:
 - `pnpm docs:component-map` - pass.
 - `git diff --check` - pass.
 
-### PR-3.5.2 - `feat(web): parent club signup` PLANNED
+### PR-3.5.2 - `feat(web): parent club signup` READY FOR REVIEW
 
 Scope:
 
 - Add parent clubs page listing active clubs.
-- Allow parents to sign up and withdraw linked children.
+- Add linked-child club signup pages for Parent, Supervisor, and full-admin
+  users with linked children.
+- Allow Parents and linked-child staff/admin guardians to sign up and withdraw
+  only their own linked children.
+- Preserve full-admin correction access for direct API signup of any active
+  student.
 - Show capacity/full states, already-signed-up states, and empty linked-child
   states.
+- Add one per-family spouse invite from the self-profile surface. The spouse is
+  invited as a Parent account and is automatically linked to the inviting
+  user's active linked children when the Clerk invite is accepted, bypassing the
+  initial registration flow.
 - Keep signup flow simple: no payments, attendance, or document uploads.
 
 Tests:
 
 - Parent signs up a linked child.
+- Supervisor with linked children signs up a linked child.
 - Parent withdraws a linked child from a club.
-- Parent cannot sign up another parent's child by direct route/API call.
+- Supervisor with linked children withdraws a linked child from a club.
+- Parent/Supervisor cannot sign up another parent's child by direct route/API
+  call.
 - Full club disables signup and direct API call is rejected.
+- Spouse invite rejects an existing linked second Parent for the family.
+- Spouse invite rejects an already-pending family invite or existing user email.
+- Clerk webhook acceptance creates spouse guardian links.
 
-Verification for Sprint 2:
+Verification:
 
-- `pnpm --filter @oasis/api test -- club.router.test.ts`
-- `pnpm --filter @oasis/web typecheck`
-- `pnpm lint`
-- `pnpm --filter @oasis/web build`
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm with-env pnpm --filter @oasis/db exec prisma validate` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts clubs.test.ts` - pass,
+  ran all domain tests because of package-script argument handling: 12 files /
+  145 tests.
+- `pnpm --filter @oasis/api test -- club.router.test.ts profile.router.test.ts clerkWebhook.test.ts admin.router.test.ts` -
+  pass, ran all API tests because of package-script argument handling: 18 files
+  / 347 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with 5
+  credential-gated tests skipped because local E2E account variables are not
+  configured.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Paddle is treated as a normal active club record surfaced through
+  `club.linkedChildSignupContext`; no club is hard-coded in the web UI.
+- The spouse invite limit is enforced across the inviting adult's active linked
+  child IDs. Existing linked Parent guardians and pending spouse invitations
+  block another invite for the same family.
+- Clerk invite acceptance now creates missing guardian links for the accepted
+  Parent user so post-sign-in can use the existing linked-child bypass.
 
 ---
 

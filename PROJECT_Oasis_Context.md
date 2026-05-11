@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** Web responsive side menu ready for review.
+**Phase:** PR-3.5.2 parent club signup ready for review.
 
 ---
 
@@ -18,7 +18,71 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Web responsive side menu
+## Current status - PR-3.5.2 Parent club signup + spouse invite
+
+Working branch: `feat/parent-club-signup`.
+
+**PR scope:** Add linked-child club signup surfaces for Parents, Supervisors,
+and full-admin users with linked children, plus one per-family spouse invite
+that links the accepted Parent account to the same active children. Club
+management remains on `/admin/clubs`.
+
+Changed scope:
+
+- Added `club.linkedChildSignupContext` to return active clubs, the current
+  user's active linked children, and per-child signup state.
+- Expanded signup and withdraw authorization so Parents and
+  child-registration-prompt roles can act only for linked children, while
+  preserving full-admin correction access for any active student through the
+  existing direct API.
+- Added `/parent/clubs`, `/supervisor/clubs`, and `/admin/my-clubs` using a
+  reusable `LinkedChildClubSignupClient`; Paddle is surfaced as a normal active
+  club record, not hard-coded.
+- Added parent, supervisor, and admin-shell navigation entries for the signup
+  pages while keeping `/admin/clubs` as the club management surface.
+- Added spouse invite status and invite APIs on `profile`, with a Prisma
+  migration for invite-origin guardian metadata.
+- Enforced one spouse invite per family across the inviting adult's active
+  linked child IDs, blocking existing linked Parent guardians, pending spouse
+  invitations, and existing user emails.
+- Updated Clerk invitation acceptance to create the accepted Parent user's
+  guardian links for the invited child IDs so they bypass initial registration
+  after sign-in.
+- Added the spouse invite panel to the self-profile account surface when the
+  user has linked children.
+- Regenerated the component relationship map and graphify knowledge graph.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm with-env pnpm --filter @oasis/db exec prisma validate` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts clubs.test.ts` - pass, ran
+  all domain tests because of package-script argument handling: 12 files / 145
+  tests.
+- `pnpm --filter @oasis/api test -- club.router.test.ts profile.router.test.ts clerkWebhook.test.ts admin.router.test.ts` -
+  pass, ran all API tests because of package-script argument handling: 18 files
+  / 347 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with 5
+  credential-gated tests skipped because local E2E account variables are not
+  configured.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- The Playwright command initially failed in the sandbox because the web server
+  could not bind to `0.0.0.0:3000`; it passed after being rerun with approved
+  escalation.
+- No payments, attendance, waitlists, document uploads, or notification
+  composer work was included in this PR scope.
+
+## Previous status - Web responsive side menu
 
 Working branch: `fix/web-responsive-menu`.
 

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { assertCanManageClub, canSignUpForClub, validateClubDraft } from '../clubs.js';
+import {
+  assertCanManageClub,
+  canSignUpForClub,
+  canUseLinkedChildClubSignup,
+  validateClubDraft,
+} from '../clubs.js';
 import { AccessDeniedError, type SessionUser } from '../rbac.js';
 
 describe('validateClubDraft', () => {
@@ -27,19 +32,23 @@ describe('assertCanManageClub', () => {
   const supervisor: SessionUser = { id: 'u3', role: 'Supervisor', tags: [], requires2fa: false };
 
   it('allows full admin and ClubsAdmin', () => {
-    expect(() => { assertCanManageClub(head); }).not.toThrow();
-    expect(() => { assertCanManageClub(clubsAdmin); }).not.toThrow();
+    expect(() => {
+      assertCanManageClub(head);
+    }).not.toThrow();
+    expect(() => {
+      assertCanManageClub(clubsAdmin);
+    }).not.toThrow();
   });
   it('blocks supervisors', () => {
-    expect(() => { assertCanManageClub(supervisor); }).toThrow(AccessDeniedError);
+    expect(() => {
+      assertCanManageClub(supervisor);
+    }).toThrow(AccessDeniedError);
   });
 });
 
 describe('canSignUpForClub', () => {
   it('blocks duplicate signups', () => {
-    expect(canSignUpForClub({ currentActiveSignups: 0, alreadySignedUp: true })).toMatch(
-      /already/,
-    );
+    expect(canSignUpForClub({ currentActiveSignups: 0, alreadySignedUp: true })).toMatch(/already/);
   });
   it('blocks when capacity is full', () => {
     expect(
@@ -51,5 +60,43 @@ describe('canSignUpForClub', () => {
     expect(
       canSignUpForClub({ capacity: 10, currentActiveSignups: 3, alreadySignedUp: false }),
     ).toBe(true);
+  });
+});
+
+describe('canUseLinkedChildClubSignup', () => {
+  it('allows parents, supervisors, and full-admin child-registration roles', () => {
+    expect(
+      canUseLinkedChildClubSignup({ id: 'u_parent', role: 'Parent', tags: [], requires2fa: false }),
+    ).toBe(true);
+    expect(
+      canUseLinkedChildClubSignup({
+        id: 'u_supervisor',
+        role: 'Supervisor',
+        tags: [],
+        requires2fa: false,
+      }),
+    ).toBe(true);
+    expect(
+      canUseLinkedChildClubSignup({ id: 'u_head', role: 'Head', tags: [], requires2fa: false }),
+    ).toBe(true);
+  });
+
+  it('blocks ClubsAdmin and Student accounts', () => {
+    expect(
+      canUseLinkedChildClubSignup({
+        id: 'u_clubs',
+        role: 'ClubsAdmin',
+        tags: [],
+        requires2fa: false,
+      }),
+    ).toBe(false);
+    expect(
+      canUseLinkedChildClubSignup({
+        id: 'u_student',
+        role: 'Student',
+        tags: [],
+        requires2fa: false,
+      }),
+    ).toBe(false);
   });
 });
