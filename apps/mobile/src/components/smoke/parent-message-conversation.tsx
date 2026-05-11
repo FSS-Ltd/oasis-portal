@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
   },
   backChevronFrame: {
     alignItems: 'center',
-    backgroundColor: C.blue,
+    backgroundColor: C.crimson,
     borderRadius: 18,
     height: 36,
     justifyContent: 'center',
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     gap: 10,
     marginTop: 16,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   messageBubbleMine: {
-    backgroundColor: C.blue,
+    backgroundColor: C.crimson,
     borderBottomRightRadius: 6,
   },
   messageBubbleTheirs: {
@@ -353,7 +353,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 8,
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     alignItems: 'center',
-    backgroundColor: C.blue,
+    backgroundColor: C.crimson,
     borderRadius: 15,
     justifyContent: 'center',
     minHeight: 30,

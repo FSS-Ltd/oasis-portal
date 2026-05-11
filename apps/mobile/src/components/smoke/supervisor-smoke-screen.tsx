@@ -13,16 +13,27 @@ import {
   MutedText,
   SectionTitle,
   SmokeButton,
-  StatCard,
 } from './smoke-ui';
+import {
+  PortalMobileBottomNav,
+  PortalMobileHeader,
+  type PortalMobileNavItem,
+} from './portal-mobile-shell';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit';
 type PaceTestType = 'SelfTest' | 'FinalTest';
+type SupervisorMobileTab = 'dashboard' | 'attendance' | 'behaviour' | 'pace';
 
 const attendanceStatuses: AttendanceStatus[] = ['Present', 'Absent', 'Late'];
 const behaviourTypes: BehaviourType[] = ['Merit', 'Demerit'];
 const paceTestTypes: PaceTestType[] = ['SelfTest', 'FinalTest'];
+const supervisorTabs: Array<PortalMobileNavItem<SupervisorMobileTab>> = [
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { id: 'attendance', label: 'Attendance', icon: 'attendance' },
+  { id: 'behaviour', label: 'Behaviour', icon: 'behaviour' },
+  { id: 'pace', label: 'PACE', icon: 'pace' },
+];
 
 const attendancePalette: Record<
   AttendanceStatus,
@@ -73,12 +84,13 @@ export function SupervisorSmokeScreen() {
   const today = useMemo(() => dateFromKey(dateKey(new Date())), []);
   const weekStart = useMemo(() => startOfWeek(today), [today]);
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const [activeTab, setActiveTab] = useState<SupervisorMobileTab>('dashboard');
   const [attendanceDateKey, setAttendanceDateKey] = useState(dateKey(today));
   const attendanceDate = useMemo(() => dateFromKey(attendanceDateKey), [attendanceDateKey]);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [behaviourType, setBehaviourType] = useState<BehaviourType>('Merit');
   const [behaviourAmount, setBehaviourAmount] = useState('5');
-  const [behaviourCategory, setBehaviourCategory] = useState('Daily workflow smoke');
+  const [behaviourCategory, setBehaviourCategory] = useState('Daily workflow');
   const [behaviourNote, setBehaviourNote] = useState('');
   const [paceStudentId, setPaceStudentId] = useState('');
   const [paceSubjectId, setPaceSubjectId] = useState('');
@@ -159,6 +171,10 @@ export function SupervisorSmokeScreen() {
     paceRoster.error?.message,
     paceDetail.error?.message,
   );
+  const attendanceRows = attendance.data ?? [];
+  const rotaRows = rota.data ?? [];
+  const paceCount = paceWarnings ? `${String(paceWarnings.count)}/${String(paceWarnings.limit)}` : '...';
+  const staffRole = health.data?.user?.role ?? 'Staff';
 
   async function refresh() {
     await Promise.all([
@@ -172,6 +188,18 @@ export function SupervisorSmokeScreen() {
 
   return (
     <SafeAreaView style={styles.shell}>
+      <PortalMobileHeader
+        actionAccessibilityLabel="Sign out of staff account"
+        actionLabel="Out"
+        avatarLabel="S"
+        eyebrow="Staff Portal"
+        onActionPress={() => {
+          void signOut();
+        }}
+        subtitle={`${staffRole} · Daily workflow`}
+        title="Oasis Learning Centre"
+        variant="dark"
+      />
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -184,280 +212,330 @@ export function SupervisorSmokeScreen() {
         }
         style={styles.scroller}
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.eyebrow}>
-              {new Intl.DateTimeFormat('en-GB', {
-                dateStyle: 'full',
-              }).format(today)}
-            </Text>
-            <Text style={styles.title}>Supervisor daily workflow</Text>
-            <Text style={styles.subtitle}>Phase 2 mobile smoke</Text>
-          </View>
-          <SmokeButton
-            compact
-            label="Sign out"
-            onPress={() => {
-              void signOut();
-            }}
-            variant="secondary"
-          />
-        </View>
-
-        <View style={styles.statsGrid}>
-          <StatCard
-            accent={C.blue}
-            label="Rota"
-            value={rota.data ? String(rota.data.length) : '...'}
-          />
-          <StatCard
-            accent={C.success}
-            label="Marked"
-            value={
-              attendance.data
-                ? `${String(markedAttendance)}/${String(attendance.data.length)}`
-                : '...'
-            }
-          />
-          <StatCard
-            accent={paceWarnings?.atLimit ? C.crimson : C.blue}
-            label="PACE"
-            value={
-              paceWarnings ? `${String(paceWarnings.count)}/${String(paceWarnings.limit)}` : '...'
-            }
-          />
-        </View>
-
-        <Card>
-          <SectionTitle>Session</SectionTitle>
-          {health.data?.user?.role ? <Badge variant="blue">{health.data.user.role}</Badge> : null}
-          <MutedText>
-            {health.data?.user
-              ? health.data.user.id
-              : 'Signed in with Clerk; Oasis user not loaded yet.'}
-          </MutedText>
-          <MutedText>
-            tRPC: {process.env.EXPO_PUBLIC_TRPC_URL ?? 'http://localhost:3000/api/trpc'}
-          </MutedText>
-        </Card>
-
         {queryError ? <ErrorText>{queryError}</ErrorText> : null}
-        {lastMessage ? <MutedText>{lastMessage}</MutedText> : null}
+        {lastMessage ? (
+          <View style={styles.statusMessage}>
+            <Text style={styles.statusMessageText}>{lastMessage}</Text>
+          </View>
+        ) : null}
 
-        <StudentPicker
-          rows={attendance.data ?? []}
-          selectedStudentId={activeStudentId}
-          onSelect={(studentId) => {
-            setSelectedStudentId(studentId);
-            setPaceStudentId(studentId);
-          }}
-        />
-
-        <Card>
-          <SectionTitle>Rota this week</SectionTitle>
-          {rota.isLoading ? <InlineSpinner label="Loading rota" /> : null}
-          {(rota.data ?? []).length === 0 ? (
-            <MutedText>No shifts returned for this week.</MutedText>
-          ) : null}
-          {(rota.data ?? []).map((shift) => (
-            <View key={shift.id} style={styles.row}>
-              <View style={[styles.bandDot, { backgroundColor: shift.bandColour ?? C.blue }]} />
-              <View style={styles.rowBody}>
-                <Text style={styles.rowTitle}>{shift.bandName ?? 'Unassigned band'}</Text>
-                <MutedText>
-                  {shift.date} · {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
-                </MutedText>
-              </View>
+        {activeTab === 'dashboard' ? (
+          <>
+            <WorkflowIntro today={today} />
+            <View style={styles.metricGrid}>
+              <WorkflowMetric
+                accent={C.blue}
+                label="Rota"
+                sub="shifts this week"
+                value={rotaRows.length ? String(rotaRows.length) : '...'}
+              />
+              <WorkflowMetric
+                accent={C.success}
+                label="Marked"
+                sub="attendance today"
+                value={
+                  attendanceRows.length
+                    ? `${String(markedAttendance)}/${String(attendanceRows.length)}`
+                    : '...'
+                }
+              />
+              <WorkflowMetric
+                accent={paceWarnings?.atLimit ? C.crimson : C.blue}
+                label="PACE"
+                sub="daily tests"
+                value={paceCount}
+              />
             </View>
-          ))}
-        </Card>
 
-        <Card>
-          <SectionTitle>Attendance</SectionTitle>
-          <Field
-            label="Date"
-            onChangeText={setAttendanceDateKey}
-            placeholder="YYYY-MM-DD"
-            value={attendanceDateKey}
-          />
-          {(attendance.data ?? []).slice(0, 8).map((row) => (
-            <View key={row.studentId} style={styles.stackRow}>
-              <View style={styles.rowBody}>
-                <View style={styles.rowTitleLine}>
-                  <Text style={styles.rowTitle}>{row.studentName}</Text>
-                  <Badge
-                    variant={
-                      row.status === 'Present'
-                        ? 'success'
-                        : row.status === 'Absent'
-                          ? 'danger'
-                          : row.status === 'Late'
-                            ? 'warning'
-                            : 'neutral'
-                    }
-                  >
-                    {row.status ?? 'Unmarked'}
-                  </Badge>
+            <Card style={styles.compactCard}>
+              <SectionTitle>Session</SectionTitle>
+              <View style={styles.selectedRow}>
+                <MutedText>Signed in role</MutedText>
+                <Badge variant="blue">{staffRole}</Badge>
+              </View>
+            </Card>
+
+            <Card style={styles.compactCard}>
+              <SectionTitle>Rota this week</SectionTitle>
+              {rota.isLoading ? <InlineSpinner label="Loading rota" /> : null}
+              {rotaRows.length === 0 ? <MutedText>No shifts returned for this week.</MutedText> : null}
+              {rotaRows.map((shift) => (
+                <View key={shift.id} style={styles.row}>
+                  <View style={[styles.bandDot, { backgroundColor: shift.bandColour ?? C.blue }]} />
+                  <View style={styles.rowBody}>
+                    <Text style={styles.rowTitle}>{shift.bandName ?? 'Unassigned band'}</Text>
+                    <MutedText>
+                      {shift.date} · {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
+                    </MutedText>
+                  </View>
                 </View>
-                <MutedText>{row.yearGroup}</MutedText>
+              ))}
+            </Card>
+          </>
+        ) : null}
+
+        {activeTab === 'attendance' ? (
+          <>
+            <ScreenIntro
+              subtitle={`${String(markedAttendance)} of ${String(attendanceRows.length)} marked`}
+              title="Attendance Register"
+            />
+            <Card style={styles.compactCard}>
+              <Field
+                label="Date"
+                onChangeText={setAttendanceDateKey}
+                placeholder="YYYY-MM-DD"
+                value={attendanceDateKey}
+              />
+              {attendanceRows.slice(0, 8).map((row) => (
+                <View key={row.studentId} style={styles.stackRow}>
+                  <View style={styles.rowBody}>
+                    <View style={styles.rowTitleLine}>
+                      <Text style={styles.rowTitle}>{row.studentName}</Text>
+                      <Badge
+                        variant={
+                          row.status === 'Present'
+                            ? 'success'
+                            : row.status === 'Absent'
+                              ? 'danger'
+                              : row.status === 'Late'
+                                ? 'warning'
+                                : 'neutral'
+                        }
+                      >
+                        {row.status ?? 'Unmarked'}
+                      </Badge>
+                    </View>
+                    <MutedText>{row.yearGroup}</MutedText>
+                  </View>
+                  <View style={styles.buttonRow}>
+                    {attendanceStatuses.map((status) => (
+                      <AttendanceMarkButton
+                        active={row.status === status}
+                        disabled={markAttendance.isPending}
+                        key={status}
+                        onPress={() => {
+                          markAttendance.mutate({
+                            studentId: row.studentId,
+                            date: attendanceDate,
+                            status,
+                          });
+                        }}
+                        status={status}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ))}
+              {attendanceRows.length === 0 ? <MutedText>No attendance rows returned.</MutedText> : null}
+            </Card>
+          </>
+        ) : null}
+
+        {activeTab === 'behaviour' ? (
+          <>
+            <ScreenIntro subtitle="Record merits and demerits" title="Behaviour Log" />
+            <StudentPicker
+              rows={attendanceRows}
+              selectedStudentId={activeStudentId}
+              onSelect={(studentId) => {
+                setSelectedStudentId(studentId);
+                setPaceStudentId(studentId);
+              }}
+            />
+            <Card style={styles.compactCard}>
+              <View style={styles.selectedRow}>
+                <MutedText>Selected student</MutedText>
+                <Badge variant={activeStudentId ? 'blue' : 'neutral'}>{selectedStudentName}</Badge>
               </View>
               <View style={styles.buttonRow}>
-                {attendanceStatuses.map((status) => (
-                  <AttendanceMarkButton
-                    active={row.status === status}
-                    disabled={markAttendance.isPending}
-                    key={status}
+                {behaviourTypes.map((type) => (
+                  <SmokeButton
+                    compact
+                    key={type}
+                    label={type}
                     onPress={() => {
-                      markAttendance.mutate({
-                        studentId: row.studentId,
-                        date: attendanceDate,
-                        status,
-                      });
+                      setBehaviourType(type);
                     }}
-                    status={status}
+                    variant={behaviourType === type ? 'primary' : 'secondary'}
                   />
                 ))}
               </View>
-            </View>
-          ))}
-        </Card>
+              <Field
+                label="Category"
+                onChangeText={setBehaviourCategory}
+                value={behaviourCategory}
+              />
+              {behaviourType === 'Merit' ? (
+                <Field
+                  keyboardType="numeric"
+                  label="Merit amount"
+                  onChangeText={setBehaviourAmount}
+                  value={behaviourAmount}
+                />
+              ) : null}
+              <Field label="Note" multiline onChangeText={setBehaviourNote} value={behaviourNote} />
+              <SmokeButton
+                disabled={!activeStudentId || !behaviourCategory.trim() || logBehaviour.isPending}
+                label={logBehaviour.isPending ? 'Saving behaviour...' : 'Log behaviour'}
+                onPress={() => {
+                  logBehaviour.mutate({
+                    studentId: activeStudentId,
+                    type: behaviourType,
+                    category: behaviourCategory,
+                    note: behaviourNote.trim() || undefined,
+                    visibility: 'General',
+                    amount:
+                      behaviourType === 'Merit' ? numericInput(behaviourAmount, 1) : undefined,
+                  });
+                }}
+              />
+            </Card>
+          </>
+        ) : null}
 
-        <Card>
-          <SectionTitle>Behaviour</SectionTitle>
-          <View style={styles.selectedRow}>
-            <MutedText>Selected student</MutedText>
-            <Badge variant={activeStudentId ? 'blue' : 'neutral'}>{selectedStudentName}</Badge>
-          </View>
-          <View style={styles.buttonRow}>
-            {behaviourTypes.map((type) => (
-              <SmokeButton
-                compact
-                key={type}
-                label={type}
-                onPress={() => {
-                  setBehaviourType(type);
+        {activeTab === 'pace' ? (
+          <>
+            <ScreenIntro subtitle="Record today's PACE scores" title="PACE Progress" />
+            <Card style={styles.compactCard}>
+              <PaceStudentPicker
+                rows={paceRoster.data?.students ?? []}
+                selectedStudentId={activePaceStudentId}
+                onSelect={(studentId) => {
+                  setPaceStudentId(studentId);
+                  setPaceSubjectId('');
+                  setPaceNumber('');
+                  setPaceScore('');
                 }}
-                variant={behaviourType === type ? 'primary' : 'secondary'}
               />
-            ))}
-          </View>
-          <Field label="Category" onChangeText={setBehaviourCategory} value={behaviourCategory} />
-          {behaviourType === 'Merit' ? (
-            <Field
-              keyboardType="numeric"
-              label="Merit amount"
-              onChangeText={setBehaviourAmount}
-              value={behaviourAmount}
-            />
-          ) : null}
-          <Field label="Note" multiline onChangeText={setBehaviourNote} value={behaviourNote} />
-          <SmokeButton
-            disabled={!activeStudentId || !behaviourCategory.trim() || logBehaviour.isPending}
-            label={logBehaviour.isPending ? 'Saving behaviour...' : 'Log behaviour'}
-            onPress={() => {
-              logBehaviour.mutate({
-                studentId: activeStudentId,
-                type: behaviourType,
-                category: behaviourCategory,
-                note: behaviourNote.trim() || undefined,
-                visibility: 'General',
-                amount: behaviourType === 'Merit' ? numericInput(behaviourAmount, 1) : undefined,
-              });
-            }}
-          />
-        </Card>
-
-        <Card>
-          <SectionTitle>PACE</SectionTitle>
-          <PaceStudentPicker
-            rows={paceRoster.data?.students ?? []}
-            selectedStudentId={activePaceStudentId}
-            onSelect={(studentId) => {
-              setPaceStudentId(studentId);
-              setPaceSubjectId('');
-              setPaceNumber('');
-              setPaceScore('');
-            }}
-          />
-          {paceWarnings?.atLimit ? (
-            <View style={styles.warningBox}>
-              <Badge variant="danger">PACE limit</Badge>
-              <Text style={styles.warningText}>
-                Daily PACE test limit reached for this student.
-              </Text>
-            </View>
-          ) : paceWarnings?.dailyLimitEnabled ? (
-            <View style={styles.warningBox}>
-              <Badge variant="warning">PACE warning</Badge>
-              <Text style={styles.warningText}>
-                Daily PACE tests: {paceWarnings.count}/{paceWarnings.limit}
-              </Text>
-            </View>
-          ) : null}
-          <View style={styles.buttonColumn}>
-            {(paceDetail.data?.subjects ?? []).map((subject) => (
+              {paceWarnings?.atLimit ? (
+                <View style={styles.warningBox}>
+                  <Badge variant="danger">PACE limit</Badge>
+                  <Text style={styles.warningText}>
+                    Daily PACE test limit reached for this student.
+                  </Text>
+                </View>
+              ) : paceWarnings?.dailyLimitEnabled ? (
+                <View style={styles.warningBox}>
+                  <Badge variant="warning">PACE warning</Badge>
+                  <Text style={styles.warningText}>
+                    Daily PACE tests: {paceWarnings.count}/{paceWarnings.limit}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={styles.buttonColumn}>
+                {(paceDetail.data?.subjects ?? []).map((subject) => (
+                  <SmokeButton
+                    compact
+                    key={subject.subjectId}
+                    label={`${subject.code} #${String(subject.currentPaceNumber)}`}
+                    onPress={() => {
+                      setPaceSubjectId(subject.subjectId);
+                      setPaceNumber(String(subject.currentPaceNumber));
+                    }}
+                    variant={activePaceSubjectId === subject.subjectId ? 'primary' : 'secondary'}
+                  />
+                ))}
+              </View>
+              <View style={styles.buttonRow}>
+                {paceTestTypes.map((type) => (
+                  <SmokeButton
+                    compact
+                    key={type}
+                    label={type === 'SelfTest' ? 'Self' : 'Final'}
+                    onPress={() => {
+                      setPaceTestType(type);
+                    }}
+                    variant={paceTestType === type ? 'primary' : 'secondary'}
+                  />
+                ))}
+              </View>
+              <Field
+                keyboardType="numeric"
+                label="PACE number"
+                onChangeText={setPaceNumber}
+                placeholder={
+                  selectedPaceSubject ? String(selectedPaceSubject.currentPaceNumber) : undefined
+                }
+                value={paceNumber}
+              />
+              <Field
+                keyboardType="numeric"
+                label="Score"
+                onChangeText={setPaceScore}
+                value={paceScore}
+              />
               <SmokeButton
-                compact
-                key={subject.subjectId}
-                label={`${subject.code} #${String(subject.currentPaceNumber)}`}
+                disabled={
+                  !activePaceStudentId ||
+                  !activePaceSubjectId ||
+                  activePaceScore <= 0 ||
+                  recordPace.isPending
+                }
+                label={recordPace.isPending ? 'Saving PACE...' : 'Record PACE score'}
                 onPress={() => {
-                  setPaceSubjectId(subject.subjectId);
-                  setPaceNumber(String(subject.currentPaceNumber));
+                  recordPace.mutate({
+                    studentId: activePaceStudentId,
+                    subjectId: activePaceSubjectId,
+                    paceNumber: activePaceNumber,
+                    testType: paceTestType,
+                    score: activePaceScore,
+                    completedAt: today,
+                  });
                 }}
-                variant={activePaceSubjectId === subject.subjectId ? 'primary' : 'secondary'}
               />
-            ))}
-          </View>
-          <View style={styles.buttonRow}>
-            {paceTestTypes.map((type) => (
-              <SmokeButton
-                compact
-                key={type}
-                label={type === 'SelfTest' ? 'Self' : 'Final'}
-                onPress={() => {
-                  setPaceTestType(type);
-                }}
-                variant={paceTestType === type ? 'primary' : 'secondary'}
-              />
-            ))}
-          </View>
-          <Field
-            keyboardType="numeric"
-            label="PACE number"
-            onChangeText={setPaceNumber}
-            placeholder={
-              selectedPaceSubject ? String(selectedPaceSubject.currentPaceNumber) : undefined
-            }
-            value={paceNumber}
-          />
-          <Field
-            keyboardType="numeric"
-            label="Score"
-            onChangeText={setPaceScore}
-            value={paceScore}
-          />
-          <SmokeButton
-            disabled={
-              !activePaceStudentId ||
-              !activePaceSubjectId ||
-              activePaceScore <= 0 ||
-              recordPace.isPending
-            }
-            label={recordPace.isPending ? 'Saving PACE...' : 'Record PACE score'}
-            onPress={() => {
-              recordPace.mutate({
-                studentId: activePaceStudentId,
-                subjectId: activePaceSubjectId,
-                paceNumber: activePaceNumber,
-                testType: paceTestType,
-                score: activePaceScore,
-                completedAt: today,
-              });
-            }}
-          />
-        </Card>
+            </Card>
+          </>
+        ) : null}
       </ScrollView>
+      <PortalMobileBottomNav
+        activeId={activeTab}
+        items={supervisorTabs}
+        onSelect={setActiveTab}
+        variant="dark"
+      />
     </SafeAreaView>
+  );
+}
+
+function WorkflowIntro({ today }: { today: Date }) {
+  return (
+    <View style={styles.screenIntro}>
+      <Text style={styles.eyebrow}>
+        {new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(today)}
+      </Text>
+      <Text style={styles.title}>Good morning</Text>
+      <Text style={styles.subtitle}>Supervisor workflow for today's centre operations.</Text>
+    </View>
+  );
+}
+
+function ScreenIntro({ subtitle, title }: { subtitle: string; title: string }) {
+  return (
+    <View style={styles.screenIntro}>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
+    </View>
+  );
+}
+
+function WorkflowMetric({
+  accent,
+  label,
+  sub,
+  value,
+}: {
+  accent: string;
+  label: string;
+  sub: string;
+  value: string;
+}) {
+  return (
+    <View style={[styles.metricCard, { borderTopColor: accent }]}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, { color: accent }]}>{value}</Text>
+      <Text style={styles.metricSub}>{sub}</Text>
+    </View>
   );
 }
 
@@ -581,24 +659,52 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  compactCard: {
+    gap: 10,
+    padding: 16,
+  },
   content: {
     gap: 14,
-    padding: 16,
-    paddingBottom: 32,
+    padding: 14,
+    paddingBottom: 24,
   },
   eyebrow: {
     color: C.textSecondary,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  header: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
+    fontSize: 12,
+    fontWeight: '700',
   },
   disabled: {
     opacity: 0.45,
+  },
+  metricCard: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderRadius: 12,
+    borderTopWidth: 3,
+    borderWidth: 1,
+    flex: 1,
+    gap: 5,
+    minWidth: 96,
+    padding: 12,
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  metricLabel: {
+    color: C.textSecondary,
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  metricSub: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  metricValue: {
+    fontSize: 24,
+    fontWeight: '900',
   },
   row: {
     alignItems: 'flex-start',
@@ -628,12 +734,16 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between',
   },
-  shell: {
-    backgroundColor: C.bg,
-    flex: 1,
+  screenIntro: {
+    gap: 2,
+    paddingTop: 2,
   },
   scroller: {
     backgroundColor: C.bg,
+    flex: 1,
+  },
+  shell: {
+    backgroundColor: C.navy,
     flex: 1,
   },
   stackRow: {
@@ -642,10 +752,18 @@ const styles = StyleSheet.create({
     gap: 9,
     paddingTop: 10,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  statusMessage: {
+    backgroundColor: C.blueLight,
+    borderColor: C.blueMid,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  statusMessageText: {
+    color: C.navy,
+    fontSize: 12,
+    fontWeight: '700',
   },
   subtitle: {
     color: C.textSecondary,

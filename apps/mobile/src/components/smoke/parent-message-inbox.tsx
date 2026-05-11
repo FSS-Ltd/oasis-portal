@@ -126,7 +126,7 @@ function ThreadRow({ onPress, thread }: { onPress: () => void; thread: ThreadSum
 const styles = StyleSheet.create({
   composeButton: {
     alignItems: 'center',
-    backgroundColor: C.blue,
+    backgroundColor: C.crimson,
     borderRadius: 18,
     height: 36,
     justifyContent: 'center',
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     gap: 10,
     marginTop: 16,
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   },
   largeTitle: {
     color: C.navy,
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '800',
   },
   primaryButton: {
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   threadList: {
-    gap: 8,
+    gap: 10,
     paddingBottom: 20,
   },
   threadName: {
@@ -237,14 +237,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
     padding: 12,
   },
   threadRowUnread: {
-    borderColor: C.crimson,
+    borderLeftColor: C.crimson,
+    borderLeftWidth: 3,
   },
   threadSubject: {
     color: C.textPrimary,

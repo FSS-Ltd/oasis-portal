@@ -4,96 +4,47 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from './mobile-theme';
-import {
-  Card,
-  ErrorText,
-  InlineSpinner,
-  MutedText,
-  SectionTitle,
-  SmokeButton,
-  StatCard,
-} from './smoke-ui';
+import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
 import { ParentChildOverview, ParentChildPicker } from './parent-smoke-children';
 import { ParentMessagesPanel } from './parent-smoke-messages';
 import { ParentNoticesPanel } from './parent-smoke-notices';
+import {
+  PortalMobileBottomNav,
+  PortalMobileHeader,
+  type PortalMobileNavItem,
+} from './portal-mobile-shell';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type ParentSmokeTab = 'overview' | 'notices' | 'messages';
+type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
+type ParentMobileTab = 'home' | 'notices' | 'messages';
 
-const tabs: Array<{ id: ParentSmokeTab; label: string }> = [
-  { id: 'overview', label: 'Children' },
-  { id: 'notices', label: 'Notices' },
-  { id: 'messages', label: 'Messages' },
+const tabs: Array<PortalMobileNavItem<ParentMobileTab>> = [
+  { id: 'home', label: 'Home', icon: 'dashboard' },
+  { id: 'notices', label: 'Notices', icon: 'notices' },
+  { id: 'messages', label: 'Messages', icon: 'messages' },
 ];
 
 function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
 }
 
-function ParentPortalHeader({
-  onSignOut,
-  userId,
-}: {
-  onSignOut: () => void;
-  userId: string;
-}) {
+function ParentHomeIntro({ child }: { child: DashboardChild | null }) {
   return (
-    <View style={styles.header}>
-      <View style={styles.headerText}>
-        <Text style={styles.eyebrow}>Parent Portal</Text>
-        <Text style={styles.title}>Mobile smoke</Text>
-        <Text style={styles.subtitle}>{userId}</Text>
-      </View>
-      <SmokeButton compact label="Sign out" onPress={onSignOut} variant="secondary" />
-    </View>
-  );
-}
-
-function ParentPortalStats({
-  childCount,
-  unreadMessageCount,
-  unreadNoticeCount,
-}: {
-  childCount: number;
-  unreadMessageCount: number;
-  unreadNoticeCount: number;
-}) {
-  return (
-    <View style={styles.statsGrid}>
-      <StatCard accent={C.blue} label="Children" value={String(childCount)} />
-      <StatCard accent={C.crimson} label="Notices" value={String(unreadNoticeCount)} />
-      <StatCard accent={C.navy} label="Messages" value={String(unreadMessageCount)} />
-    </View>
-  );
-}
-
-function ParentPortalTabs({
-  activeTab,
-  onSelect,
-}: {
-  activeTab: ParentSmokeTab;
-  onSelect: (tab: ParentSmokeTab) => void;
-}) {
-  return (
-    <View style={styles.tabRow}>
-      {tabs.map((tab) => (
-        <SmokeButton
-          compact
-          key={tab.id}
-          label={tab.label}
-          onPress={() => {
-            onSelect(tab.id);
-          }}
-          variant={activeTab === tab.id ? 'primary' : 'secondary'}
-        />
-      ))}
+    <View style={styles.homeIntro}>
+      <Text style={styles.dateText}>
+        {new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(new Date())}
+      </Text>
+      <Text style={styles.homeTitle}>Welcome</Text>
+      <Text style={styles.homeSubtitle}>
+        {child ? `Parent of ${child.student.fullName}` : 'Your family dashboard'}
+      </Text>
     </View>
   );
 }
 
 export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
-  const [activeTab, setActiveTab] = useState<ParentSmokeTab>('overview');
+  const [activeTab, setActiveTab] = useState<ParentMobileTab>('home');
   const [selectedStudentId, setSelectedStudentId] = useState('');
 
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
@@ -139,29 +90,42 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
     if (selectedChildId) await childDetail.refetch();
   }
 
-  const chrome = (
-    <>
-      <ParentPortalHeader
-        onSignOut={() => {
-          void signOut();
-        }}
-        userId={user.id}
-      />
-      <ParentPortalStats
-        childCount={children.length}
-        unreadMessageCount={unreadMessageCount}
-        unreadNoticeCount={unreadNoticeCount}
-      />
-      <ParentPortalTabs activeTab={activeTab} onSelect={setActiveTab} />
-      {queryError ? <ErrorText>{queryError}</ErrorText> : null}
-    </>
+  const header = (
+    <PortalMobileHeader
+      actionAccessibilityLabel={`Sign out of parent account ${user.id}`}
+      actionLabel="Sign out"
+      avatarLabel="P"
+      eyebrow="Parent Portal"
+      onActionPress={() => {
+        void signOut();
+      }}
+      subtitle={selectedChild ? `Parent of ${selectedChild.student.fullName}` : 'Family account'}
+      title="Oasis Learning Centre"
+    />
+  );
+
+  const bottomNav = (
+    <PortalMobileBottomNav
+      activeId={activeTab}
+      items={tabs.map((tab) => ({
+        ...tab,
+        badge:
+          tab.id === 'notices'
+            ? unreadNoticeCount
+            : tab.id === 'messages'
+              ? unreadMessageCount
+              : undefined,
+      }))}
+      onSelect={setActiveTab}
+    />
   );
 
   if (activeTab === 'messages') {
     return (
       <SafeAreaView style={styles.shell}>
+        {header}
         <View style={styles.messagesContent}>
-          {chrome}
+          {queryError ? <ErrorText>{queryError}</ErrorText> : null}
           <ParentMessagesPanel
             onRefresh={refresh}
             recipients={recipients.data ?? []}
@@ -169,12 +133,14 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
             threads={threads.data ?? []}
           />
         </View>
+        {bottomNav}
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.shell}>
+      {header}
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
@@ -187,10 +153,11 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
         }
         style={styles.scroller}
       >
-        {chrome}
+        {queryError ? <ErrorText>{queryError}</ErrorText> : null}
 
-        {activeTab === 'overview' ? (
+        {activeTab === 'home' ? (
           <>
+            <ParentHomeIntro child={selectedChild} />
             <ParentChildPicker
               rows={children}
               selectedStudentId={selectedChildId}
@@ -210,64 +177,49 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
 
         {activeTab === 'notices' ? <ParentNoticesPanel notices={notices.data ?? []} /> : null}
       </ScrollView>
+      {bottomNav}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    gap: 16,
-    padding: 18,
-    paddingBottom: 28,
+    gap: 14,
+    padding: 14,
+    paddingBottom: 26,
   },
-  eyebrow: {
+  dateText: {
     color: C.textSecondary,
     fontSize: 12,
     fontWeight: '700',
-    textTransform: 'uppercase',
   },
-  header: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
+  homeIntro: {
+    gap: 2,
+    paddingTop: 2,
   },
-  headerText: {
-    flex: 1,
-    gap: 3,
+  homeSubtitle: {
+    color: C.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  homeTitle: {
+    color: C.navy,
+    fontSize: 22,
+    fontWeight: '800',
   },
   messagesContent: {
     backgroundColor: C.bg,
     flex: 1,
-    gap: 16,
-    padding: 18,
-    paddingBottom: 28,
+    gap: 12,
+    padding: 14,
+    paddingBottom: 10,
   },
   scroller: {
     backgroundColor: C.bg,
     flex: 1,
   },
   shell: {
-    backgroundColor: C.bg,
+    backgroundColor: C.surface,
     flex: 1,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  subtitle: {
-    color: C.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tabRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  title: {
-    color: C.navy,
-    fontSize: 24,
-    fontWeight: '800',
   },
 });

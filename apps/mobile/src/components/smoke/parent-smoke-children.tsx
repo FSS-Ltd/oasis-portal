@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
 import { C } from './mobile-theme';
-import { Badge, Card, MutedText, SectionTitle, SmokeButton, StatCard } from './smoke-ui';
+import { Badge, Card, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
 
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type ChildDetail = RouterOutputs['childLog']['drillThrough'];
@@ -30,7 +30,7 @@ function initials(name: string): string {
     .slice(0, 2);
 }
 
-function displaySchoolYearLabel(year: string): string {
+export function displaySchoolYearLabel(year: string): string {
   const trimmed = year.trim();
   if (/^nursery$/iu.test(trimmed)) return 'Nursery';
   if (/^(reception|abc|r)$/iu.test(trimmed)) return 'ABC';
@@ -63,11 +63,11 @@ export function ParentChildPicker({
   rows: DashboardChild[];
   selectedStudentId: string;
 }) {
-  if (rows.length === 0) return null;
+  if (rows.length <= 1) return null;
 
   return (
-    <Card>
-      <SectionTitle>Children</SectionTitle>
+    <Card style={styles.switcherCard}>
+      <SectionTitle>Switch child</SectionTitle>
       <View style={styles.buttonColumn}>
         {rows.map((child) => (
           <SmokeButton
@@ -99,7 +99,7 @@ export function ParentChildOverview({
   return (
     <>
       <Card style={styles.childHero}>
-        <View style={styles.heroIdentity}>
+        <View style={styles.heroMain}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials(child.student.fullName)}</Text>
           </View>
@@ -107,37 +107,17 @@ export function ParentChildOverview({
             <Text style={styles.heroName}>{child.student.fullName}</Text>
             <Text style={styles.heroSub}>{displaySchoolYearLabel(child.student.yearGroup)}</Text>
           </View>
-          <Badge variant={attendanceVariant(latestAttendance?.status)}>
-            {attendanceLabel(latestAttendance?.status)}
-          </Badge>
+          <View style={styles.heroTotal}>
+            <Text style={styles.heroTotalValue}>{String(child.metrics.totalMerits)}</Text>
+            <Text style={styles.heroTotalLabel}>total merits</Text>
+          </View>
         </View>
         <View style={styles.heroStats}>
-          <HeroStat label="Total merits" value={String(child.metrics.totalMerits)} />
+          <HeroStat label="Latest" value={attendanceLabel(latestAttendance?.status)} />
           <HeroStat label="Attendance" value={attendanceRate} />
-          <HeroStat
-            label="PACEs passed"
-            value={String(child.metrics.pacesCompletedThisAcademicYear)}
-          />
+          <HeroStat label="PACEs" value={String(child.metrics.pacesCompletedThisAcademicYear)} />
         </View>
       </Card>
-
-      <View style={styles.statsGrid}>
-        <StatCard
-          accent={C.crimson}
-          label="Spend"
-          value={String(child.metrics.meritBalances.Spend)}
-        />
-        <StatCard
-          accent={C.navy}
-          label="Saving"
-          value={String(child.metrics.meritBalances.Saving)}
-        />
-        <StatCard
-          accent={C.blue}
-          label="Investment"
-          value={String(child.metrics.meritBalances.Investment)}
-        />
-      </View>
 
       <ChildDetailPanel detail={detail} fallback={child} />
     </>
@@ -167,70 +147,133 @@ function ChildDetailPanel({
 
   return (
     <View style={styles.panelStack}>
-      <Card>
-        <SectionTitle>Recent attendance</SectionTitle>
-        {attendance.length === 0 ? <MutedText>No attendance returned.</MutedText> : null}
-        {attendance.slice(0, 5).map((row) => (
-          <View key={row.id} style={styles.row}>
-            <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>{formatDate(row.date)}</Text>
-              <MutedText>{formatDateTime(row.recordedAt)}</MutedText>
-            </View>
-            <Badge variant={attendanceVariant(row.status)}>{row.status}</Badge>
-          </View>
-        ))}
-      </Card>
-
-      <Card>
-        <SectionTitle>PACE progress</SectionTitle>
-        {pace.length === 0 ? <MutedText>No PACE records returned.</MutedText> : null}
-        {pace.slice(0, 5).map((record) => (
-          <View key={record.id} style={styles.stackRow}>
-            <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>
-                {record.subjectCode} PACE {String(record.paceNumber)}
-              </Text>
-              <MutedText>
-                {record.testType} - {String(record.score)}% - {formatDate(record.date)}
-              </MutedText>
-            </View>
-            <Badge variant={record.passed ? 'success' : 'warning'}>
-              {record.passed ? 'Passed' : 'Review'}
-            </Badge>
-          </View>
-        ))}
-      </Card>
-
-      <Card>
-        <SectionTitle>Recent behaviour</SectionTitle>
-        {behaviour.length === 0 ? <MutedText>No behaviour returned.</MutedText> : null}
-        {behaviour.slice(0, 5).map((entry) => (
-          <View key={entry.id} style={styles.stackRow}>
-            <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>
-                {entry.category} - {entry.meritDelta > 0 ? '+' : ''}
-                {String(entry.meritDelta)}
-              </Text>
-              <MutedText>{entry.note ?? entry.type}</MutedText>
-            </View>
-            <Badge variant={entry.meritDelta >= 0 ? 'success' : 'danger'}>{entry.type}</Badge>
-          </View>
-        ))}
-      </Card>
-
-      <Card>
-        <SectionTitle>Visible notes</SectionTitle>
-        {notes.length === 0 ? <MutedText>No notes returned.</MutedText> : null}
-        {notes.slice(0, 5).map((note) => (
-          <View key={note.id} style={styles.stackRow}>
-            <View style={styles.rowBody}>
-              <Text style={styles.rowTitle}>{formatDateTime(note.createdAt)}</Text>
-              <MutedText>{note.note}</MutedText>
-            </View>
-          </View>
-        ))}
-      </Card>
+      <MeritWalletCard child={fallback} />
+      <RecentBehaviourCard behaviour={behaviour} />
+      <RecentAttendanceCard attendance={attendance} />
+      <PaceProgressCard pace={pace} />
+      {notes.length > 0 ? <VisibleNotesCard notes={notes} /> : null}
     </View>
+  );
+}
+
+function MeritWalletCard({ child }: { child: DashboardChild }) {
+  const rows = [
+    { label: 'Spend', value: child.metrics.meritBalances.Spend, color: C.crimson },
+    { label: 'Saving', value: child.metrics.meritBalances.Saving, color: C.navy },
+    { label: 'Investment', value: child.metrics.meritBalances.Investment, color: C.blue },
+  ];
+
+  return (
+    <Card style={styles.compactCard}>
+      <SectionTitle>Merit wallet</SectionTitle>
+      {rows.map((row) => (
+        <View key={row.label} style={styles.walletRow}>
+          <View style={styles.walletLabelGroup}>
+            <View style={[styles.walletSwatch, { backgroundColor: row.color }]} />
+            <Text style={styles.walletLabel}>{row.label} Account</Text>
+          </View>
+          <Text style={[styles.walletValue, { color: row.color }]}>{String(row.value)}</Text>
+        </View>
+      ))}
+      <View style={styles.walletTotalRow}>
+        <Text style={styles.totalLabel}>Total</Text>
+        <Text style={styles.totalValue}>{String(child.metrics.totalMerits)}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function RecentBehaviourCard({ behaviour }: { behaviour: DashboardChild['behaviour'] }) {
+  return (
+    <Card style={styles.compactCard}>
+      <SectionTitle>Recent behaviour</SectionTitle>
+      {behaviour.length === 0 ? <MutedText>No recent behaviour returned.</MutedText> : null}
+      {behaviour.slice(0, 3).map((entry) => (
+        <View key={entry.id} style={styles.activityRow}>
+          <View
+            style={[
+              styles.activityDelta,
+              entry.meritDelta >= 0 ? styles.activityDeltaPositive : styles.activityDeltaNegative,
+            ]}
+          >
+            <Text
+              style={[
+                styles.activityDeltaText,
+                entry.meritDelta >= 0
+                  ? styles.activityDeltaTextPositive
+                  : styles.activityDeltaTextNegative,
+              ]}
+            >
+              {entry.meritDelta > 0 ? '+' : ''}
+              {String(entry.meritDelta)}
+            </Text>
+          </View>
+          <View style={styles.rowBody}>
+            <Text numberOfLines={1} style={styles.rowTitle}>
+              {entry.category}
+            </Text>
+            <MutedText>{entry.note ?? entry.type}</MutedText>
+          </View>
+          <Text style={styles.rowMeta}>{formatDateTime(entry.createdAt)}</Text>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function RecentAttendanceCard({ attendance }: { attendance: DashboardChild['attendance'] }) {
+  return (
+    <Card style={styles.compactCard}>
+      <SectionTitle>Recent attendance</SectionTitle>
+      {attendance.length === 0 ? <MutedText>No attendance returned.</MutedText> : null}
+      {attendance.slice(0, 4).map((row) => (
+        <View key={row.id} style={styles.listRow}>
+          <View style={styles.rowBody}>
+            <Text style={styles.rowTitle}>{formatDate(row.date)}</Text>
+            <MutedText>{formatDateTime(row.recordedAt)}</MutedText>
+          </View>
+          <Badge variant={attendanceVariant(row.status)}>{row.status}</Badge>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function PaceProgressCard({ pace }: { pace: DashboardChild['pace'] }) {
+  return (
+    <Card style={styles.compactCard}>
+      <SectionTitle>PACE progress</SectionTitle>
+      {pace.length === 0 ? <MutedText>No PACE records returned.</MutedText> : null}
+      {pace.slice(0, 4).map((record) => (
+        <View key={record.id} style={styles.listRow}>
+          <View style={styles.rowBody}>
+            <Text style={styles.rowTitle}>
+              {record.subjectCode} PACE {String(record.paceNumber)}
+            </Text>
+            <MutedText>
+              {record.testType} - {String(record.score)}% - {formatDate(record.date)}
+            </MutedText>
+          </View>
+          <Badge variant={record.passed ? 'success' : 'warning'}>
+            {record.passed ? 'Passed' : 'Review'}
+          </Badge>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
+function VisibleNotesCard({ notes }: { notes: DashboardChild['notes'] }) {
+  return (
+    <Card style={styles.compactCard}>
+      <SectionTitle>Visible notes</SectionTitle>
+      {notes.slice(0, 3).map((note) => (
+        <View key={note.id} style={styles.noteRow}>
+          <Text style={styles.rowTitle}>{formatDateTime(note.createdAt)}</Text>
+          <MutedText>{note.note}</MutedText>
+        </View>
+      ))}
+    </Card>
   );
 }
 
@@ -254,15 +297,51 @@ const styles = StyleSheet.create({
   childHero: {
     backgroundColor: C.navy,
     borderColor: C.navy,
+    padding: 16,
   },
-  heroIdentity: {
+  compactCard: {
+    gap: 10,
+    padding: 16,
+  },
+  activityDelta: {
+    alignItems: 'center',
+    borderRadius: 8,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  activityDeltaNegative: {
+    backgroundColor: C.dangerBg,
+  },
+  activityDeltaPositive: {
+    backgroundColor: C.successBg,
+  },
+  activityDeltaText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  activityDeltaTextNegative: {
+    color: C.danger,
+  },
+  activityDeltaTextPositive: {
+    color: C.success,
+  },
+  activityRow: {
+    alignItems: 'center',
+    borderBottomColor: C.borderLight,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingBottom: 10,
+  },
+  heroMain: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
   },
   heroName: {
     color: C.surface,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
   heroStat: {
@@ -294,32 +373,99 @@ const styles = StyleSheet.create({
   },
   heroText: {
     flex: 1,
+    minWidth: 0,
+  },
+  heroTotal: {
+    alignItems: 'flex-end',
+  },
+  heroTotalLabel: {
+    color: 'rgba(255,255,255,0.62)',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  heroTotalValue: {
+    color: C.blue,
+    fontSize: 26,
+    fontWeight: '900',
+  },
+  listRow: {
+    alignItems: 'center',
+    borderBottomColor: C.borderLight,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 10,
+  },
+  noteRow: {
+    borderBottomColor: C.borderLight,
+    borderBottomWidth: 1,
+    gap: 4,
+    paddingBottom: 10,
   },
   panelStack: {
-    gap: 16,
-  },
-  row: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
+    gap: 14,
   },
   rowBody: {
     flex: 1,
     gap: 4,
+    minWidth: 0,
+  },
+  rowMeta: {
+    color: C.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
   },
   rowTitle: {
     color: C.navy,
     fontSize: 13,
     fontWeight: '800',
   },
-  stackRow: {
+  switcherCard: {
+    gap: 10,
+    padding: 16,
+  },
+  totalLabel: {
+    color: C.textSecondary,
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  totalValue: {
+    color: C.navy,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  walletLabel: {
+    color: C.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  walletLabelGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  walletRow: {
+    alignItems: 'center',
     borderBottomColor: C.borderLight,
     borderBottomWidth: 1,
-    gap: 10,
-    paddingBottom: 10,
-  },
-  statsGrid: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  walletSwatch: {
+    borderRadius: 3,
+    height: 10,
+    width: 10,
+  },
+  walletTotalRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 2,
+  },
+  walletValue: {
+    fontSize: 15,
+    fontWeight: '900',
   },
 });

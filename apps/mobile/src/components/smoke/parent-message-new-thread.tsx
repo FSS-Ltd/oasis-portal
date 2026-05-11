@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   bodyInput: {
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     color: C.textPrimary,
     fontSize: 15,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
   },
   headerSendButtonText: {
-    color: C.blue,
+    color: C.crimson,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   },
   recipientAvatar: {
     alignItems: 'center',
-    backgroundColor: C.navy,
+    backgroundColor: C.crimson,
     borderRadius: 18,
     height: 36,
     justifyContent: 'center',
@@ -220,15 +220,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 10,
     padding: 12,
   },
   recipientRowActive: {
-    backgroundColor: C.blueLight,
-    borderColor: C.blueMid,
+    backgroundColor: C.crimsonLight,
+    borderColor: C.crimson,
   },
   recipientText: {
     flex: 1,
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   subjectInput: {
     backgroundColor: C.surface,
     borderColor: C.border,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     color: C.textPrimary,
     fontSize: 15,

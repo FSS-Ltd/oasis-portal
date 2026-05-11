@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.9 parent portal mobile smoke.
+**Phase:** Mobile design cleanup.
 
 ---
 
@@ -18,7 +18,59 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.9 parent portal mobile smoke
+## Current status - Mobile design cleanup
+
+Working branch: `feat/mobile-parent-design-cleanup`.
+
+**PR scope:** Align the existing Expo parent and supervisor mobile surfaces with
+the mobile layouts inside `design/Oasis Learning Center.zip` while keeping scope
+to existing real mobile data surfaces. Backend APIs, fake Shop, Clubs, Profile
+flows, and new dependencies remain out of scope.
+
+Changed scope:
+
+- Replaced the web-like parent mobile top tabs with a crimson Oasis mobile
+  header, fixed content area, and white bottom navigation for Home, Notices,
+  and Messages.
+- Removed user-facing "Mobile smoke" wording from the parent portal shell.
+- Reworked the Home view around the Oasis mobile reference with a date/welcome
+  block, navy child hero card, compact merit wallet, recent behaviour,
+  attendance, PACE, and visible-notes cards using existing parent dashboard
+  data.
+- Restyled parent notices as independent mobile cards with read/unread state
+  and existing mark-read behaviour.
+- Tuned the existing split message inbox, conversation, and new-thread views to
+  fit the new mobile shell and crimson primary treatment.
+- Added a shared mobile portal shell for the established Oasis header and bottom
+  navigation so future parent/staff mobile screens reuse the same pattern.
+- Matched the shared mobile bottom navigation to the Oasis mockup treatment:
+  icon above label, dark navy staff variant, white parent variant, active
+  high-contrast state, muted inactive state, and unread badge support.
+- Reworked the supervisor mobile screen into a navy Staff Portal shell with
+  Dashboard, Attendance, Behaviour, and PACE tabs instead of one web-like long
+  scroll.
+- Removed user-facing supervisor "smoke" wording and kept the workflow backed by
+  the existing rota, attendance, behaviour, and PACE tRPC calls.
+- Updated the mobile sign-in copy so it uses portal language rather than
+  prototype/smoke language.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-design-export`
+  - pass.
+- `graphify update .` - pass.
+- `pnpm docs:component-map` - pass, updated
+  `docs/architecture/component-relationships.md` for the added mobile shell
+  component.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+
+## Previous status - PR-3.9 parent portal mobile smoke
 
 Working branch: `feat/phase-3-pr3.9-parent-portal-smoke`.
 
