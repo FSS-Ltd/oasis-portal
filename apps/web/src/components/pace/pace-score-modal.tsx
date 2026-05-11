@@ -49,7 +49,7 @@ export function PaceScoreModal({
   const [date, setDate] = useState(completedDate);
   const selectedSubject = subjects.find((item) => item.subjectId === subjectId) ?? subject;
   const scoreNumber = score.trim() === '' ? null : Number(score);
-  const validScore = scoreNumber !== null && Number.isInteger(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
+  const validScore = scoreNumber !== null && Number.isFinite(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
   const validPaceNumber = Number.isInteger(Number(paceNumber)) && Number(paceNumber) > 0;
   const tone = scoreTone(scoreNumber);
   const ringStyle = useMemo(
@@ -146,7 +146,7 @@ export function PaceScoreModal({
               <strong>{validScore ? String(scoreNumber) : '-'}</strong>
               <span>/ 100</span>
             </div>
-            <Field label="Score (%)" hint={scoreLabel(scoreNumber)}>
+            <Field label="Score (%)" hint={scoreLabel(validScore ? scoreNumber : null)}>
               <TextInput
                 aria-label="PACE score"
                 max={100}
@@ -156,6 +156,7 @@ export function PaceScoreModal({
                 }}
                 placeholder="0-100"
                 required
+                step="0.1"
                 type="number"
                 value={score}
               />

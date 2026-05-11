@@ -21,6 +21,18 @@ describe('paceRecordInput', () => {
     });
   });
 
+  it('accepts decimal percentage scores', () => {
+    expect(
+      paceRecordInput.parse({
+        studentId: 'student_1',
+        subjectId: 'subject_1',
+        paceNumber: 1001,
+        testType: 'SelfTest',
+        score: 97.5,
+      }).score,
+    ).toBe(97.5);
+  });
+
   it('rejects empty identifiers', () => {
     expect(
       paceRecordInput.safeParse({
