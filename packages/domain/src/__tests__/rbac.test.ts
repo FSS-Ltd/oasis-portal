@@ -251,9 +251,11 @@ describe('workflow tags', () => {
     expect(canUseFullPaceAccess(technicalSupport)).toBe(false);
   });
 
-  it('limits calendar management to full-admin roles or tagged staff', () => {
+  it('limits calendar management to Head or tagged staff', () => {
     expect(canManageCalendar(head)).toBe(true);
-    expect(canManageCalendar(principal)).toBe(true);
+    expect(canManageCalendar(principal)).toBe(false);
+    expect(canManageCalendar(hod)).toBe(false);
+    expect(canManageCalendar({ ...principal, tags: ['calendar-manager'] })).toBe(true);
     expect(canManageCalendar(supervisor)).toBe(false);
     expect(canManageCalendar({ ...supervisor, tags: ['calendar-manager'] })).toBe(true);
     expect(canManageCalendar({ ...parent, tags: ['calendar-manager'] })).toBe(false);

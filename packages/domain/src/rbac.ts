@@ -218,7 +218,7 @@ export function canUseFullPaceAccess(user: SessionUser): boolean {
 }
 
 export function canManageCalendar(user: SessionUser): boolean {
-  return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'calendar-manager'));
+  return user.role === 'Head' || (isStaff(user) && hasTag(user, 'calendar-manager'));
 }
 
 export function canRespondToParentMessages(user: Pick<SessionUser, 'role' | 'tags'>): boolean {

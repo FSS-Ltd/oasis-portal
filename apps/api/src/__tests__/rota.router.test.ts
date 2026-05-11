@@ -206,13 +206,16 @@ function makeFakeDb() {
         }: {
           where?: { active?: boolean; role?: { in?: string[] }; id?: { in?: string[] } };
         }) =>
-        Promise.resolve(
-          users
-            .filter((user) => where?.active === undefined || user.active === where.active)
-            .filter((user) => where?.role?.in === undefined || where.role.in.includes(user.role))
-            .filter((user) => where?.id?.in === undefined || where.id.in.includes(user.id))
-            .sort((a, b) => a.role.localeCompare(b.role) || b.createdAt.getTime() - a.createdAt.getTime()),
-        ),
+          Promise.resolve(
+            users
+              .filter((user) => where?.active === undefined || user.active === where.active)
+              .filter((user) => where?.role?.in === undefined || where.role.in.includes(user.role))
+              .filter((user) => where?.id?.in === undefined || where.id.in.includes(user.id))
+              .sort(
+                (a, b) =>
+                  a.role.localeCompare(b.role) || b.createdAt.getTime() - a.createdAt.getTime(),
+              ),
+          ),
       ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const user = users.find((candidate) => candidate.id === where.id);
@@ -255,7 +258,12 @@ function makeFakeDb() {
         ({
           data,
         }: {
-          data: { staffUserId: string; dayOfWeek: number; startMinute: number; endMinute: number }[];
+          data: {
+            staffUserId: string;
+            dayOfWeek: number;
+            startMinute: number;
+            endMinute: number;
+          }[];
         }) => {
           for (const row of data) {
             availability.push({
@@ -270,19 +278,46 @@ function makeFakeDb() {
       ),
     },
     staffShift: {
-      findMany: vi.fn(({ where }: { where: { staffUserId?: string; date?: { gte: Date; lte: Date } } }) =>
-        Promise.resolve(
-          shifts
-            .filter((shift) => where.staffUserId === undefined || shift.staffUserId === where.staffUserId)
-            .filter(
-              (shift) =>
-                where.date === undefined ||
-                (shift.date.getTime() >= where.date.gte.getTime() &&
-                  shift.date.getTime() <= where.date.lte.getTime()),
-            )
-            .sort((a, b) => a.date.getTime() - b.date.getTime() || a.startsAt.getTime() - b.startsAt.getTime())
-            .map(withStaffAndBand),
-        ),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            staffUserId?: string;
+            date?: { gte: Date; lte: Date };
+            staffUser?: { active?: boolean; role?: { in?: string[] } };
+          };
+        }) =>
+          Promise.resolve(
+            shifts
+              .filter(
+                (shift) =>
+                  where.staffUserId === undefined || shift.staffUserId === where.staffUserId,
+              )
+              .filter((shift) => {
+                const staffUser = users.find((user) => user.id === shift.staffUserId);
+                return (
+                  where.staffUser === undefined ||
+                  (staffUser !== undefined &&
+                    (where.staffUser.active === undefined ||
+                      staffUser.active === where.staffUser.active) &&
+                    (where.staffUser.role?.in === undefined ||
+                      where.staffUser.role.in.includes(staffUser.role)))
+                );
+              })
+              .filter(
+                (shift) =>
+                  where.date === undefined ||
+                  (shift.date.getTime() >= where.date.gte.getTime() &&
+                    shift.date.getTime() <= where.date.lte.getTime()),
+              )
+              .sort(
+                (a, b) =>
+                  a.date.getTime() - b.date.getTime() ||
+                  a.startsAt.getTime() - b.startsAt.getTime(),
+              )
+              .map(withStaffAndBand),
+          ),
       ),
       findFirst: vi.fn(
         ({
@@ -331,14 +366,22 @@ function makeFakeDb() {
     },
     shiftSwapRequest: {
       findFirst: vi.fn(
-        ({ where }: { where: { status: StoredSwap['status']; OR: { fromShiftId?: string; toShiftId?: string }[] } }) =>
+        ({
+          where,
+        }: {
+          where: {
+            status: StoredSwap['status'];
+            OR: { fromShiftId?: string; toShiftId?: string }[];
+          };
+        }) =>
           Promise.resolve(
             swaps.find(
               (swap) =>
                 swap.status === where.status &&
                 where.OR.some(
                   (condition) =>
-                    condition.fromShiftId === swap.fromShiftId || condition.toShiftId === swap.toShiftId,
+                    condition.fromShiftId === swap.fromShiftId ||
+                    condition.toShiftId === swap.toShiftId,
                 ),
             ) ?? null,
           ),
@@ -352,21 +395,21 @@ function makeFakeDb() {
             OR?: { requesterUserId?: string; targetUserId?: string }[];
           };
         }) =>
-        Promise.resolve(
-          swaps
-            .filter((swap) => swap.status === where.status)
-            .filter(
-              (swap) =>
-                where.OR === undefined ||
-                where.OR.some(
-                  (condition) =>
-                    condition.requesterUserId === swap.requesterUserId ||
-                    condition.targetUserId === swap.targetUserId,
-                ),
-            )
-            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-            .map(withSwapRelations),
-        ),
+          Promise.resolve(
+            swaps
+              .filter((swap) => swap.status === where.status)
+              .filter(
+                (swap) =>
+                  where.OR === undefined ||
+                  where.OR.some(
+                    (condition) =>
+                      condition.requesterUserId === swap.requesterUserId ||
+                      condition.targetUserId === swap.targetUserId,
+                  ),
+              )
+              .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+              .map(withSwapRelations),
+          ),
       ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const swap = swaps.find((candidate) => candidate.id === where.id);
@@ -459,7 +502,22 @@ describe('rota availability', () => {
           { dayOfWeek: 2, startMinute: 700, endMinute: 840 },
         ],
       }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'availability windows must not overlap' });
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'availability windows must not overlap',
+    });
+  });
+
+  it('lets full-admin users set their own weekly availability', async () => {
+    const { db, availability } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).rota.setMyAvailability({
+        windows: [{ dayOfWeek: 3, startMinute: 600, endMinute: 900 }],
+      }),
+    ).resolves.toMatchObject([{ dayOfWeek: 3, startMinute: 600, endMinute: 900 }]);
+    expect(availability).toHaveLength(1);
+    expect(availability[0]).toMatchObject({ staffUserId: headUser.id });
   });
 
   it('denies non-staff roles from staff self-service workflows', async () => {
@@ -468,7 +526,9 @@ describe('rota availability', () => {
     await expect(makeCaller(parentUser, db).rota.myAvailability()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
-    await expect(makeCaller(clubsUser, db).rota.myRota({ from: day('2026-04-29'), to: day('2026-04-29') })).rejects.toMatchObject({
+    await expect(
+      makeCaller(clubsUser, db).rota.myRota({ from: day('2026-04-29'), to: day('2026-04-29') }),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });
@@ -480,8 +540,18 @@ describe('rota scheduling', () => {
 
     await expect(makeCaller(headUser, db).rota.listStaff()).resolves.toEqual([
       { id: headUser.id, role: 'Head', fullName: 'Head User', email: 'head@example.test' },
-      { id: secondSupervisorUser.id, role: 'Supervisor', fullName: 'Supervisor Two', email: 'sup2@example.test' },
-      { id: supervisorUser.id, role: 'Supervisor', fullName: 'Supervisor One', email: 'sup@example.test' },
+      {
+        id: secondSupervisorUser.id,
+        role: 'Supervisor',
+        fullName: 'Supervisor Two',
+        email: 'sup2@example.test',
+      },
+      {
+        id: supervisorUser.id,
+        role: 'Supervisor',
+        fullName: 'Supervisor One',
+        email: 'sup@example.test',
+      },
     ]);
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -538,7 +608,87 @@ describe('rota scheduling', () => {
     });
 
     await expect(
-      makeCaller(supervisorUser, db).rota.weekSchedule({ from: day('2026-04-27'), to: day('2026-05-03') }),
+      makeCaller(supervisorUser, db).rota.weekSchedule({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets staff read the active team schedule', async () => {
+    const { db, users, shifts } = makeFakeDb();
+    const head = makeCaller(headUser, db);
+    await head.rota.createShift({
+      staffUserId: supervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T09:00:00.000Z'),
+      endsAt: at('2026-04-29T12:00:00.000Z'),
+      notes: 'Morning group',
+    });
+    await head.rota.createShift({
+      staffUserId: secondSupervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T13:00:00.000Z'),
+      endsAt: at('2026-04-29T16:00:00.000Z'),
+    });
+    users.push({
+      id: 'u_inactive_sup',
+      role: 'Supervisor',
+      active: false,
+      fullNameEnc: 'enc:Inactive Supervisor',
+      emailEnc: 'enc:inactive@example.test',
+      createdAt: at('2026-04-25T09:00:00.000Z'),
+    });
+    shifts.push({
+      id: 'shift_inactive',
+      staffUserId: 'u_inactive_sup',
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T17:00:00.000Z'),
+      endsAt: at('2026-04-29T18:00:00.000Z'),
+      notes: null,
+      createdAt: at('2026-04-29T10:00:00.000Z'),
+      updatedAt: at('2026-04-29T10:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).rota.teamSchedule({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).resolves.toMatchObject([
+      {
+        id: 'shift_1',
+        staff: { fullName: 'Supervisor One' },
+        notes: 'Morning group',
+      },
+      {
+        id: 'shift_2',
+        staff: { fullName: 'Supervisor Two' },
+      },
+    ]);
+    expect(db.auditLog.create).toHaveBeenLastCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'DecryptPii',
+        entity: 'StaffShift',
+        meta: { count: 2, source: 'rota.teamSchedule' },
+      },
+    });
+
+    await expect(
+      makeCaller(parentUser, db).rota.teamSchedule({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(studentUser, db).rota.teamSchedule({
+        from: day('2026-04-27'),
+        to: day('2026-05-03'),
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -583,7 +733,11 @@ describe('rota scheduling', () => {
     );
 
     const rows = await makeCaller(headUser, db).rota.staffAvailability();
-    expect(rows.map((row) => row.id)).toEqual([headUser.id, secondSupervisorUser.id, supervisorUser.id]);
+    expect(rows.map((row) => row.id)).toEqual([
+      headUser.id,
+      secondSupervisorUser.id,
+      supervisorUser.id,
+    ]);
     expect(rows.find((row) => row.id === supervisorUser.id)).toMatchObject({
       fullName: 'Supervisor One',
       availability: [{ dayOfWeek: 1, startMinute: 540, endMinute: 720 }],
@@ -672,7 +826,10 @@ describe('rota scheduling', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
     await expect(
-      makeCaller(supervisorUser, db).rota.myRota({ from: day('2026-04-29'), to: day('2026-04-29') }),
+      makeCaller(supervisorUser, db).rota.myRota({
+        from: day('2026-04-29'),
+        to: day('2026-04-29'),
+      }),
     ).resolves.toHaveLength(1);
   });
 });
@@ -896,16 +1053,24 @@ describe('rota shift swaps', () => {
       requesterUserId: supervisorUser.id,
       targetUserId: secondSupervisorUser.id,
     });
-    expect(shifts.find((shift) => shift.id === 'shift_1')).toMatchObject({ staffUserId: supervisorUser.id });
-    expect(shifts.find((shift) => shift.id === 'shift_2')).toMatchObject({ staffUserId: secondSupervisorUser.id });
+    expect(shifts.find((shift) => shift.id === 'shift_1')).toMatchObject({
+      staffUserId: supervisorUser.id,
+    });
+    expect(shifts.find((shift) => shift.id === 'shift_2')).toMatchObject({
+      staffUserId: secondSupervisorUser.id,
+    });
 
     await expect(head.rota.approveSwap({ id: 'swap_1' })).resolves.toMatchObject({
       id: 'swap_1',
       status: 'Approved',
       approvedById: headUser.id,
     });
-    expect(shifts.find((shift) => shift.id === 'shift_1')).toMatchObject({ staffUserId: secondSupervisorUser.id });
-    expect(shifts.find((shift) => shift.id === 'shift_2')).toMatchObject({ staffUserId: supervisorUser.id });
+    expect(shifts.find((shift) => shift.id === 'shift_1')).toMatchObject({
+      staffUserId: secondSupervisorUser.id,
+    });
+    expect(shifts.find((shift) => shift.id === 'shift_2')).toMatchObject({
+      staffUserId: supervisorUser.id,
+    });
   });
 
   it('rejects swaps without changing shift assignments', async () => {
@@ -935,7 +1100,11 @@ describe('rota shift swaps', () => {
       status: 'Rejected',
       approvedById: headUser.id,
     });
-    expect(shifts.find((shift) => shift.id === 'shift_1')).toMatchObject({ staffUserId: supervisorUser.id });
-    expect(shifts.find((shift) => shift.id === 'shift_2')).toMatchObject({ staffUserId: secondSupervisorUser.id });
+    expect(shifts.find((shift) => shift.id === 'shift_1')).toMatchObject({
+      staffUserId: supervisorUser.id,
+    });
+    expect(shifts.find((shift) => shift.id === 'shift_2')).toMatchObject({
+      staffUserId: secondSupervisorUser.id,
+    });
   });
 });

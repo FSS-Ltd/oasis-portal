@@ -49,7 +49,7 @@ function toForbidden(error: AccessDeniedError): TRPCError {
 function requireCalendarManager(user: SessionUser): void {
   if (canManageCalendar(user)) return;
   throw toForbidden(
-    new AccessDeniedError('calendar management requires full-admin or calendar-manager'),
+    new AccessDeniedError('calendar management requires Head or calendar-manager staff tag'),
   );
 }
 
@@ -120,6 +120,12 @@ function activeAudienceWhere(audiences: readonly CalendarAudience[]) {
   };
 }
 
+function visibleAudiencesFor(user: SessionUser): readonly CalendarAudience[] {
+  if (user.role === 'Parent') return ['All', 'Parents'];
+  if (isStaff(user)) return ['All', 'Supervisors'];
+  return ['All'];
+}
+
 function eventDataFromInput(
   ctx: AuthedContext,
   input: z.infer<typeof calendarEventInput>,
@@ -181,6 +187,15 @@ export const calendarRouter = router({
 
     const events = await ctx.db.calendarEvent.findMany({
       where: activeAudienceWhere(['All', 'Parents']),
+      orderBy: [{ startDate: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    return events.map((event) => mapCalendarEvent(ctx, event));
+  }),
+
+  listVisible: authedProcedure.query(async ({ ctx }) => {
+    const events = await ctx.db.calendarEvent.findMany({
+      where: activeAudienceWhere(visibleAudiencesFor(ctx.user)),
       orderBy: [{ startDate: 'asc' }, { createdAt: 'desc' }],
     });
 

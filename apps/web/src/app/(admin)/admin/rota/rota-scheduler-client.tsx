@@ -4,6 +4,7 @@ import { Check, Pencil, Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
+import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { RotaWeekSchedule } from './_components/rota-week-schedule';
@@ -244,6 +245,8 @@ export function RotaSchedulerClient() {
             </form>
           </div>
         </section>
+
+        <MyAvailabilityEditor title="My availability" />
 
         <section className="panel">
           <div className="panel__body">

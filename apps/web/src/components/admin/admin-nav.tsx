@@ -84,11 +84,11 @@ function visibleForUser(
 ) {
   if (item.label === 'My Children') return access.hasLinkedChildren;
   if (item.label === 'Messages') return access.canUseMessages;
+  if (item.label === 'Calendar') return true;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
   }
-  if (item.label === 'Calendar') return access.canManageCalendar;
   if (item.label === 'Attendance') return access.canExportAttendance;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
