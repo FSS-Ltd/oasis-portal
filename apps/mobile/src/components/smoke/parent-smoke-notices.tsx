@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from './mobile-theme';
-import { Badge, Card, ErrorText, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
+import { Badge, Card, ErrorText, MutedText, SmokeButton } from './smoke-ui';
 
 type Notice = RouterOutputs['notice']['listForParents'][number];
 
@@ -28,18 +28,31 @@ export function ParentNoticesPanel({ notices }: { notices: Notice[] }) {
   });
 
   return (
-    <Card>
-      <SectionTitle>Parent notices</SectionTitle>
-      {notices.length === 0 ? <MutedText>No parent notices returned.</MutedText> : null}
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Notices</Text>
+        <Text style={styles.subtitle}>Updates from the centre team.</Text>
+      </View>
+
+      {notices.length === 0 ? (
+        <Card style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>No notices</Text>
+          <MutedText>Parent notices from Oasis will appear here.</MutedText>
+        </Card>
+      ) : null}
+
       {notices.map((notice) => (
-        <View key={notice.id} style={styles.noticeCard}>
-          <View style={styles.rowTitleLine}>
+        <Card
+          key={notice.id}
+          style={[styles.noticeCard, !notice.read ? styles.noticeCardUnread : null]}
+        >
+          <View style={styles.noticeMetaRow}>
             <Badge variant={notice.read ? 'success' : 'blue'}>
               {notice.read ? 'Read' : 'Unread'}
             </Badge>
-            <MutedText>{formatDateTime(notice.createdAt)}</MutedText>
+            <Text style={styles.noticeDate}>{formatDateTime(notice.createdAt)}</Text>
           </View>
-          <Text style={styles.rowTitle}>{notice.title}</Text>
+          <Text style={styles.noticeTitle}>{notice.title}</Text>
           <MutedText>{notice.body}</MutedText>
           {!notice.read ? (
             <SmokeButton
@@ -55,30 +68,63 @@ export function ParentNoticesPanel({ notices }: { notices: Notice[] }) {
               variant="blue"
             />
           ) : null}
-        </View>
+        </Card>
       ))}
       {markRead.error ? <ErrorText>{markRead.error.message}</ErrorText> : null}
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  noticeCard: {
-    borderBottomColor: C.borderLight,
-    borderBottomWidth: 1,
-    gap: 9,
-    paddingBottom: 12,
+  emptyCard: {
+    alignItems: 'center',
+    gap: 8,
+    padding: 22,
   },
-  rowTitle: {
+  emptyTitle: {
     color: C.navy,
-    fontSize: 13,
+    fontSize: 17,
     fontWeight: '800',
   },
-  rowTitleLine: {
+  header: {
+    gap: 3,
+  },
+  noticeCard: {
+    gap: 10,
+    padding: 16,
+  },
+  noticeCardUnread: {
+    borderLeftColor: C.crimson,
+    borderLeftWidth: 3,
+  },
+  noticeDate: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  noticeMetaRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
     justifyContent: 'space-between',
+  },
+  noticeTitle: {
+    color: C.navy,
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 20,
+  },
+  screen: {
+    gap: 12,
+  },
+  subtitle: {
+    color: C.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  title: {
+    color: C.navy,
+    fontSize: 22,
+    fontWeight: '800',
   },
 });
