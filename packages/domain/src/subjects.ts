@@ -57,7 +57,7 @@ export const paceRecordInput = z.object({
   subjectId: z.string().trim().min(1),
   paceNumber: z.number().int().positive(),
   testType: z.enum(['SelfTest', 'FinalTest']),
-  score: z.number().int().min(0).max(100),
+  score: z.number().min(0).max(100),
   completedAt: z.coerce.date().optional(),
 });
 

@@ -1081,9 +1081,9 @@ describe('pace.record — audit rows', () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, db);
 
-    const result = await caller.pace.record({ ...validInput, testType: 'SelfTest', score: 75 });
+    const result = await caller.pace.record({ ...validInput, testType: 'SelfTest', score: 75.5 });
 
-    expect(result.selfTestScore).toBe(75);
+    expect(result.selfTestScore).toBe(75.5);
     expect(result.paceTestScore).toBeNull();
   });
 
@@ -1091,9 +1091,9 @@ describe('pace.record — audit rows', () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, db);
 
-    const result = await caller.pace.record({ ...validInput, testType: 'FinalTest', score: 88 });
+    const result = await caller.pace.record({ ...validInput, testType: 'FinalTest', score: 88.5 });
 
-    expect(result.paceTestScore).toBe(88);
+    expect(result.paceTestScore).toBe(88.5);
     expect(result.selfTestScore).toBeNull();
   });
 });
