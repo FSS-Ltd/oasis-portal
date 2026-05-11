@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.9 parent portal mobile smoke.
+**Phase:** PR-3.10 Phase 3 verification suite ready for review.
 
 ---
 
@@ -18,7 +18,65 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.9 parent portal mobile smoke
+## Current status - PR-3.10 Phase 3 verification suite
+
+Working branch: `test-phase-3-pr3.10-verification-suite`.
+
+**PR scope:** Add focused end-of-phase verification coverage for Phase 3 parent
+portal, registration, notices, and messaging. No API, database, schema, route
+contract, or production UI changes are in scope.
+
+Note: the originally requested branch name
+`test/phase-3-pr3.10-verification-suite` could not be created in this local
+checkout before implementation; the replacement branch keeps the same single PR
+scope.
+
+Changed scope:
+
+- Mark PR-3.9 merged via PR #92 and record PR #93 as the mobile parent
+  messaging redesign follow-up in the Phase 3 plan.
+- Added Playwright coverage for parent dashboard or registration state, parent
+  registration edit state, parent notice publish/read flow, and parent-Head
+  messaging flow.
+- Re-ran the Phase 3 API/domain, repo, DB/RLS, encryption, and web build
+  verification commands.
+
+Verification:
+
+- `pnpm --filter @oasis/web test:e2e -- phase-3-verification.spec.ts` - pass
+  with 4 credential-gated tests skipped because local E2E credentials are not
+  configured.
+- `pnpm --filter @oasis/api test -- registration.router.test.ts notice.router.test.ts message.router.test.ts childNotes.router.test.ts profile.router.test.ts email.router.test.ts`
+  - pass, ran all API tests because of Vitest argument handling: 17 files / 294
+    tests.
+- `pnpm --filter @oasis/domain test -- registration.test.ts rbac.test.ts users.test.ts`
+  - pass, ran all domain tests because of Vitest argument handling: 12 files /
+    138 tests.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass: 17 API files / 294 tests, 4 DB files / 23 tests, and 12
+  domain files / 138 tests.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm db:integration` - pass with local environment variables sourced for the
+  isolated worktree.
+- `pnpm api:smoke-context-rls` - pass with local environment variables sourced
+  for the isolated worktree.
+- `pnpm verify:encryption` - pass with local environment variables sourced for
+  the isolated worktree.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- Carry forward a credentialed Playwright run in an environment with
+  `E2E_HEAD_EMAIL`, `E2E_HEAD_PASSWORD`, `E2E_PARENT_EMAIL`, and
+  `E2E_PARENT_PASSWORD` configured.
+
+## Previous status - PR-3.9 parent portal mobile smoke
+
+Merged via PR #92 on 2026-05-11. Follow-up PR #93 merged on 2026-05-11 with
+the mobile parent messaging redesign.
 
 Working branch: `feat/phase-3-pr3.9-parent-portal-smoke`.
 
@@ -102,7 +160,7 @@ Verification:
   all domain tests because of Vitest argument handling: 12 files / 138 tests.
 - `pnpm --filter @oasis/api test -- message.router.test.ts email.router.test.ts`
   - pass, ran all API tests because of Vitest argument handling: 17 files / 294
-  tests.
+    tests.
 - `pnpm --filter @oasis/api typecheck` - pass.
 - `pnpm --filter @oasis/db generate` - pass.
 - `pnpm --filter @oasis/db typecheck` - pass.
@@ -186,7 +244,7 @@ Verification:
   tests because of Vitest argument handling: 12 files / 137 tests.
 - `pnpm --filter @oasis/api test -- trpc.middleware.test.ts admin.router.test.ts`
   - pass, ran all API tests because of Vitest argument handling: 16 files / 276
-  tests.
+    tests.
 - `pnpm --filter @oasis/web typecheck` - pass.
 - `pnpm lint` - pass.
 - `pnpm --filter @oasis/web build` - pass.
