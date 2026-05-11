@@ -1,6 +1,6 @@
 # Phase 3 - Parent portal + communications: sprint & PR plan
 
-**Status:** PR-3.9 parent portal mobile smoke ready for review
+**Status:** PR-3.10 Phase 3 verification suite ready for review
 **Last updated:** 2026-05-11
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -351,7 +351,10 @@ Verification:
 
 ## Sprint 5 - Mobile smoke and phase verification
 
-### PR-3.9 - `feat(mobile): parent portal smoke` READY FOR REVIEW
+### PR-3.9 - `feat(mobile): parent portal smoke` MERGED
+
+Merged via PR #92 on 2026-05-11. Follow-up PR #93 merged on 2026-05-11 with
+the mobile parent messaging redesign.
 
 Working branch: `feat/phase-3-pr3.9-parent-portal-smoke`.
 
@@ -388,27 +391,56 @@ Verification:
   - pass.
 - `git diff --check` - pass.
 
-### PR-3.10 - `test: Phase 3 verification suite` PLANNED
+### PR-3.10 - `test: Phase 3 verification suite` READY FOR REVIEW
+
+Working branch: `test-phase-3-pr3.10-verification-suite`.
+
+Note: the originally requested branch name
+`test/phase-3-pr3.10-verification-suite` could not be created in this local
+checkout before implementation; the replacement branch keeps the same single PR
+scope.
 
 Scope:
 
-- Add or update Playwright coverage for parent dashboard, registration,
-  notices, and messaging.
-- Re-run API/domain tests for registration, notices, messages, child log,
+- Added Playwright coverage for parent dashboard or registration state, parent
+  registration edit state, parent notice publish/read flow, and parent-Head
+  messaging flow.
+- Re-ran API/domain tests for registration, notices, messages, child log,
   profile, email, and RBAC.
-- Re-run DB/RLS and encryption verification.
-- Update this plan with merged status and carry-forward items.
+- Re-ran DB/RLS and encryption verification.
+- Updated this plan with merged PR-3.9 status and carry-forward items.
 
 Verification:
 
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm --filter @oasis/web build`
-- `pnpm db:integration`
-- `pnpm api:smoke-context-rls`
-- `pnpm verify:encryption`
-- Credentialed Playwright where local/preview credentials are available.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-verification.spec.ts` - pass
+  with 4 credential-gated tests skipped because local E2E credentials are not
+  configured.
+- `pnpm --filter @oasis/api test -- registration.router.test.ts notice.router.test.ts message.router.test.ts childNotes.router.test.ts profile.router.test.ts email.router.test.ts`
+  - pass, ran all API tests because of Vitest argument handling: 17 files / 294
+    tests.
+- `pnpm --filter @oasis/domain test -- registration.test.ts rbac.test.ts users.test.ts`
+  - pass, ran all domain tests because of Vitest argument handling: 12 files /
+    138 tests.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass: 17 API files / 294 tests, 4 DB files / 23 tests, and 12
+  domain files / 138 tests.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm db:integration` - pass with local environment variables sourced for the
+  isolated worktree; RLS smoke confirmed full admin sees Sensitive and
+  Supervisor sees General only.
+- `pnpm api:smoke-context-rls` - pass with local environment variables sourced
+  for the isolated worktree; Head=2, Supervisor=1 General, anonymous=0.
+- `pnpm verify:encryption` - pass with local environment variables sourced for
+  the isolated worktree; 16 plaintext fixture values absent from pg_dump data.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Carry-forward:
+
+- Run the credential-gated Phase 3 Playwright scenarios in an environment with
+  `E2E_HEAD_EMAIL`, `E2E_HEAD_PASSWORD`, `E2E_PARENT_EMAIL`, and
+  `E2E_PARENT_PASSWORD` configured.
 
 ---
 
