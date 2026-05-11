@@ -97,6 +97,13 @@ interface StoredYearGroupBand {
   colour: string;
 }
 
+interface StoredStaffShift {
+  staffUserId: string;
+  yearGroupBandId: string;
+  date: Date;
+  startsAt: Date;
+}
+
 interface FakeDb {
   $enc: {
     decrypt: ReturnType<typeof vi.fn>;
@@ -123,6 +130,9 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: {
+    findMany: ReturnType<typeof vi.fn>;
+  };
+  staffShift: {
     findMany: ReturnType<typeof vi.fn>;
   };
 }
@@ -229,6 +239,20 @@ function makeFakeDb() {
       colour: '#166534',
     },
   ];
+  const staffShifts: StoredStaffShift[] = [
+    {
+      staffUserId: supervisorUser.id,
+      yearGroupBandId: 'band_upper',
+      date: day('2026-04-29'),
+      startsAt: new Date('2026-04-29T09:00:00.000Z'),
+    },
+    {
+      staffUserId: attendanceRecorderUser.id,
+      yearGroupBandId: 'band_upper',
+      date: day('2026-04-29'),
+      startsAt: new Date('2026-04-29T09:00:00.000Z'),
+    },
+  ];
 
   const db: FakeDb = {
     $enc: { decrypt: vi.fn(decrypt) },
@@ -239,13 +263,19 @@ function makeFakeDb() {
           where,
           select,
         }: {
-          where?: { active?: boolean };
+          where?: { active?: boolean; id?: { in: string[] }; yearGroup?: { in: string[] } };
           select?: { attendance?: { where?: { date?: Date } } };
         }) => {
           const attendanceDate = select?.attendance?.where?.date;
           return Promise.resolve(
             students
               .filter((student) => where?.active === undefined || student.active === where.active)
+              .filter((student) => where?.id?.in === undefined || where.id.in.includes(student.id))
+              .filter(
+                (student) =>
+                  where?.yearGroup?.in === undefined ||
+                  where.yearGroup.in.includes(student.yearGroup),
+              )
               .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
               .map((student) => ({
                 id: student.id,
@@ -272,7 +302,11 @@ function makeFakeDb() {
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const student = students.find((candidate) => candidate.id === where.id);
         if (!student) return Promise.resolve(null);
-        return Promise.resolve({ id: student.id, active: student.active });
+        return Promise.resolve({
+          id: student.id,
+          active: student.active,
+          yearGroup: student.yearGroup,
+        });
       }),
     },
     user: {
@@ -489,6 +523,20 @@ function makeFakeDb() {
         ),
       ),
     },
+    staffShift: {
+      findMany: vi.fn(({ where }: { where: { staffUserId: string; date: Date } }) =>
+        Promise.resolve(
+          staffShifts
+            .filter((shift) => shift.staffUserId === where.staffUserId)
+            .filter((shift) => dateKey(shift.date) === dateKey(where.date))
+            .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime())
+            .map((shift) => ({
+              yearGroupBand:
+                yearGroupBands.find((band) => band.id === shift.yearGroupBandId) ?? null,
+            })),
+        ),
+      ),
+    },
   };
 
   return { db, students, attendance, staffAttendance, yearGroupBands };
@@ -586,6 +634,14 @@ describe('attendance.forDate', () => {
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('returns an empty roster for Supervisor when no shift is assigned that day', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(supervisorUser, db).attendance.forDate({ date: day('2026-04-30') }),
+    ).resolves.toEqual([]);
   });
 });
 

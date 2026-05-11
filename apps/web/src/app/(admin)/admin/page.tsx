@@ -3,6 +3,7 @@ import type { Route } from 'next';
 import type { CSSProperties } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { prisma } from '@oasis/db';
+import { canViewSensitiveBehaviour } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getFullAdminUser } from '@/components/admin/require-full-admin';
 
@@ -50,6 +51,7 @@ function decrypt(value: string | null | undefined): string {
 export default async function AdminIndexPage() {
   const user = await getFullAdminUser();
   const { start, end } = todayBounds();
+  const canReadSensitiveBehaviour = canViewSensitiveBehaviour(user);
   const [
     currentUser,
     activeStudentCount,
@@ -68,7 +70,10 @@ export default async function AdminIndexPage() {
       select: { status: true },
     }),
     prisma.behaviourEntry.findMany({
-      where: { createdAt: { gte: start, lt: end } },
+      where: {
+        createdAt: { gte: start, lt: end },
+        ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
+      },
       include: {
         student: { select: { fullNameEnc: true } },
       },

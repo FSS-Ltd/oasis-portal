@@ -8,10 +8,13 @@ import {
   canManageUserAccounts,
   canRecordStudentAttendance,
   canRespondToParentMessages,
+  canCreateSensitiveBehaviour,
   canUseFullPaceAccess,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
+  canViewSensitiveBehaviour,
   canViewSensitiveChildNotes,
+  canViewSensitiveBehaviourEntry,
   canViewSensitiveStudentDrillThrough,
   canViewStudentDrillThrough,
   canSubmitInitialRegistration,
@@ -152,16 +155,64 @@ describe('resolvePostSignInPortal', () => {
 });
 
 describe('requireCanViewSensitive', () => {
-  it('only full admins can view sensitive entries', () => {
+  it('limits global sensitive behaviour reads to Head and HeadOfDiscipline', () => {
     expect(() => {
       requireCanViewSensitive(head);
     }).not.toThrow();
+    expect(() => {
+      requireCanViewSensitive(hod);
+    }).not.toThrow();
+    expect(() => {
+      requireCanViewSensitive(principal);
+    }).toThrow(AccessDeniedError);
+    expect(() => {
+      requireCanViewSensitive(pastor);
+    }).toThrow(AccessDeniedError);
     expect(() => {
       requireCanViewSensitive(supervisor);
     }).toThrow(AccessDeniedError);
     expect(() => {
       requireCanViewSensitive(parent);
     }).toThrow(AccessDeniedError);
+  });
+
+  it('allows supervisors to read only their own sensitive demerits', () => {
+    expect(canViewSensitiveBehaviour(head)).toBe(true);
+    expect(canViewSensitiveBehaviour(hod)).toBe(true);
+    expect(canViewSensitiveBehaviour(principal)).toBe(false);
+    expect(canViewSensitiveBehaviour(pastor)).toBe(false);
+    expect(canViewSensitiveBehaviour(supervisor)).toBe(false);
+
+    expect(
+      canViewSensitiveBehaviourEntry(supervisor, {
+        recordedById: supervisor.id,
+        type: 'Demerit',
+        visibility: 'Sensitive',
+      }),
+    ).toBe(true);
+    expect(
+      canViewSensitiveBehaviourEntry(supervisor, {
+        recordedById: 'another-supervisor',
+        type: 'Demerit',
+        visibility: 'Sensitive',
+      }),
+    ).toBe(false);
+    expect(
+      canViewSensitiveBehaviourEntry(supervisor, {
+        recordedById: supervisor.id,
+        type: 'Merit',
+        visibility: 'Sensitive',
+      }),
+    ).toBe(false);
+  });
+
+  it('limits sensitive behaviour creation to Head, HeadOfDiscipline, or Supervisor demerits', () => {
+    expect(canCreateSensitiveBehaviour(head, { type: 'Merit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(hod, { type: 'Demerit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(principal, { type: 'Demerit' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(pastor, { type: 'Merit' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(supervisor, { type: 'Demerit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(supervisor, { type: 'Merit' })).toBe(false);
   });
 });
 

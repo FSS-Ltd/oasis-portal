@@ -8,6 +8,7 @@ import { api } from '@/lib/trpc';
 
 type BehaviourType = 'Merit' | 'Demerit';
 type BehaviourVisibility = 'General' | 'Sensitive';
+export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 
 const meritCategories = [
@@ -58,13 +59,17 @@ function avatarColour(index: number): string {
   return ['#7C3F98', '#8B1E2D', '#0E7892', '#5B90C5', '#006B4A', '#B45309'][index % 6] ?? '#5B90C5';
 }
 
+function canUseSensitiveMode(mode: BehaviourSensitiveMode, type: BehaviourType): boolean {
+  return mode === 'all' || (mode === 'demerit-only' && type === 'Demerit');
+}
+
 export function BehaviourLogClient({
-  canCreateSensitive,
   canLogBehaviour,
+  sensitiveMode,
   showTrends = false,
 }: {
-  canCreateSensitive: boolean;
   canLogBehaviour: boolean;
+  sensitiveMode: BehaviourSensitiveMode;
   showTrends?: boolean;
 }) {
   const [type, setType] = useState<BehaviourType>('Merit');
@@ -106,8 +111,14 @@ export function BehaviourLogClient({
     setCategory((current) => (categories.includes(current as never) ? current : categories[0]));
   }, [categories]);
 
+  useEffect(() => {
+    if (visibility === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) {
+      setVisibility('General');
+    }
+  }, [sensitiveMode, type, visibility]);
+
   function chooseVisibility(next: BehaviourVisibility): void {
-    if (next === 'Sensitive' && !canCreateSensitive) return;
+    if (next === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) return;
     setVisibility(next);
   }
 
@@ -216,7 +227,10 @@ export function BehaviourLogClient({
                 {(['General', 'Sensitive'] as const).map((item) => (
                   <button
                     className={item === visibility ? 'is-selected' : undefined}
-                    disabled={!canLogBehaviour || (item === 'Sensitive' && !canCreateSensitive)}
+                    disabled={
+                      !canLogBehaviour ||
+                      (item === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type))
+                    }
                     key={item}
                     onClick={() => {
                       chooseVisibility(item);
@@ -231,11 +245,17 @@ export function BehaviourLogClient({
             {visibility === 'Sensitive' ? (
               <p className="behaviour-sensitive-note">
                 <Lock aria-hidden="true" size={13} />
-                Sensitive entries are only visible to full admin roles.
+                Sensitive entries are visible to Head, Head of Discipline, and the recording
+                supervisor for demerits.
               </p>
             ) : null}
-            {!canCreateSensitive && canLogBehaviour ? (
-              <p className="field__hint">Sensitive behaviour entries are Head/full-admin only.</p>
+            {sensitiveMode === 'none' && canLogBehaviour ? (
+              <p className="field__hint">
+                Sensitive behaviour entries require Head or Head of Discipline access.
+              </p>
+            ) : null}
+            {sensitiveMode === 'demerit-only' && canLogBehaviour ? (
+              <p className="field__hint">Supervisors can mark demerits as Sensitive.</p>
             ) : null}
 
             {type === 'Merit' ? (

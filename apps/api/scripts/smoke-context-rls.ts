@@ -78,9 +78,24 @@ async function seed() {
         ${blindIndex('ctx-head@example.test')}, NOW()
       ),
       (
-        'ctx-sup', 'ctx-sup-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
-        ${encryptField('Context Supervisor')}, ${encryptField('ctx-sup@example.test')},
-        ${blindIndex('ctx-sup@example.test')}, NOW()
+        'ctx-hod', 'ctx-hod-clerk', 'HeadOfDiscipline'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context HOD')}, ${encryptField('ctx-hod@example.test')},
+        ${blindIndex('ctx-hod@example.test')}, NOW()
+      ),
+      (
+        'ctx-principal', 'ctx-principal-clerk', 'Principal'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Principal')}, ${encryptField('ctx-principal@example.test')},
+        ${blindIndex('ctx-principal@example.test')}, NOW()
+      ),
+      (
+        'ctx-sup-author', 'ctx-sup-author-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Supervisor Author')}, ${encryptField('ctx-sup-author@example.test')},
+        ${blindIndex('ctx-sup-author@example.test')}, NOW()
+      ),
+      (
+        'ctx-sup-other', 'ctx-sup-other-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
+        ${encryptField('Context Supervisor Other')}, ${encryptField('ctx-sup-other@example.test')},
+        ${blindIndex('ctx-sup-other@example.test')}, NOW()
       )
   `;
   await owner.$executeRaw`
@@ -98,14 +113,27 @@ async function seed() {
       INSERT INTO "BehaviourEntry" ("id", "studentId", "type", "category", "visibility", "meritDelta", "recordedById")
       VALUES
         ('ctx-b-general',   'ctx-student', 'Merit'::"BehaviourType",   'Kindness',     'General'::"BehaviourVisibility",   5,  'ctx-head'),
-        ('ctx-b-sensitive', 'ctx-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ctx-head')
+        ('ctx-b-sensitive', 'ctx-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ctx-sup-author')
     `;
   });
 }
 
 const head: SessionUser = { id: 'ctx-head', role: 'Head', tags: [], requires2fa: false };
-const supervisor: SessionUser = {
-  id: 'ctx-sup',
+const hod: SessionUser = { id: 'ctx-hod', role: 'HeadOfDiscipline', tags: [], requires2fa: false };
+const principal: SessionUser = {
+  id: 'ctx-principal',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
+const authorSupervisor: SessionUser = {
+  id: 'ctx-sup-author',
+  role: 'Supervisor',
+  tags: [],
+  requires2fa: false,
+};
+const otherSupervisor: SessionUser = {
+  id: 'ctx-sup-other',
   role: 'Supervisor',
   tags: [],
   requires2fa: false,
@@ -121,7 +149,16 @@ async function main() {
     const headRows = await applyRlsTx(runtime, head, (tx) =>
       tx.behaviourEntry.findMany({ select: { id: true, visibility: true } }),
     );
-    const supRows = await applyRlsTx(runtime, supervisor, (tx) =>
+    const hodRows = await applyRlsTx(runtime, hod, (tx) =>
+      tx.behaviourEntry.findMany({ select: { id: true, visibility: true } }),
+    );
+    const principalRows = await applyRlsTx(runtime, principal, (tx) =>
+      tx.behaviourEntry.findMany({ select: { id: true, visibility: true } }),
+    );
+    const authorSupervisorRows = await applyRlsTx(runtime, authorSupervisor, (tx) =>
+      tx.behaviourEntry.findMany({ select: { id: true, visibility: true } }),
+    );
+    const otherSupervisorRows = await applyRlsTx(runtime, otherSupervisor, (tx) =>
       tx.behaviourEntry.findMany({ select: { id: true, visibility: true } }),
     );
     const anonRows = await applyRlsTx(runtime, null, (tx) =>
@@ -131,17 +168,37 @@ async function main() {
     if (headRows.length !== 2) {
       throw new Error(`Expected Head to see 2 entries, saw ${String(headRows.length)}`);
     }
-    if (supRows.length !== 1 || supRows[0]?.visibility !== 'General') {
+    if (hodRows.length !== 2) {
+      throw new Error(`Expected HOD to see 2 entries, saw ${String(hodRows.length)}`);
+    }
+    if (principalRows.length !== 1 || principalRows[0]?.visibility !== 'General') {
       throw new Error(
-        `Expected Supervisor to see 1 General entry, saw ${JSON.stringify(supRows)}`,
+        `Expected Principal to see 1 General entry, saw ${JSON.stringify(principalRows)}`,
+      );
+    }
+    if (
+      authorSupervisorRows.length !== 2 ||
+      !authorSupervisorRows.some((row) => row.visibility === 'Sensitive')
+    ) {
+      throw new Error(
+        `Expected author Supervisor to see General and own Sensitive entry, saw ${JSON.stringify(
+          authorSupervisorRows,
+        )}`,
+      );
+    }
+    if (otherSupervisorRows.length !== 1 || otherSupervisorRows[0]?.visibility !== 'General') {
+      throw new Error(
+        `Expected other Supervisor to see 1 General entry, saw ${JSON.stringify(otherSupervisorRows)}`,
       );
     }
     if (anonRows.length !== 0) {
-      throw new Error(`Expected anonymous context to see 0 entries, saw ${String(anonRows.length)}`);
+      throw new Error(
+        `Expected anonymous context to see 0 entries, saw ${String(anonRows.length)}`,
+      );
     }
 
     console.warn(
-      'Context RLS smoke passed: Head=2, Supervisor=1 (General), anonymous=0.',
+      'Context RLS smoke passed: Head/HOD=2, Principal=1, author Supervisor=2, other Supervisor=1, anonymous=0.',
     );
   } finally {
     await runtime.$disconnect();

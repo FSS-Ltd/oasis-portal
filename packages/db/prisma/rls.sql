@@ -18,17 +18,30 @@ DROP POLICY IF EXISTS behaviour_guardian_own_child ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
 
--- Full admins (Head, Principal, Pastor, HeadOfDiscipline) see everything.
+-- Head and HeadOfDiscipline see everything. Other full admins see General only.
 CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"
   FOR SELECT
-  USING (current_setting('app.full_admin', true) = 'true');
+  USING (
+    current_setting('app.user_role', true) IN ('Head', 'HeadOfDiscipline')
+    OR (
+      current_setting('app.full_admin', true) = 'true'
+      AND "visibility" = 'General'
+    )
+  );
 
--- Supervisors see General entries for any student; never Sensitive.
+-- Supervisors see General entries and Sensitive demerits they recorded.
 CREATE POLICY behaviour_supervisor_general ON "BehaviourEntry"
   FOR SELECT
   USING (
     current_setting('app.user_role', true) = 'Supervisor'
-    AND "visibility" = 'General'
+    AND (
+      "visibility" = 'General'
+      OR (
+        "visibility" = 'Sensitive'
+        AND "type" = 'Demerit'
+        AND "recordedById" = current_setting('app.user_id', true)
+      )
+    )
   );
 
 -- Guardian-linked users see General entries only for their own children.
@@ -66,10 +79,23 @@ CREATE POLICY behaviour_student_self ON "BehaviourEntry"
     )
   );
 
--- Writes require full-admin OR Supervisor.
+-- Writes require full-admin OR Supervisor. Sensitive writes are limited to
+-- Head/HeadOfDiscipline or a Supervisor recording their own Sensitive demerit.
 CREATE POLICY behaviour_write ON "BehaviourEntry"
   FOR INSERT
   WITH CHECK (
-    current_setting('app.full_admin', true) = 'true'
-    OR current_setting('app.user_role', true) = 'Supervisor'
+    (
+      "visibility" = 'General'
+      AND (
+        current_setting('app.full_admin', true) = 'true'
+        OR current_setting('app.user_role', true) = 'Supervisor'
+      )
+    )
+    OR current_setting('app.user_role', true) IN ('Head', 'HeadOfDiscipline')
+    OR (
+      current_setting('app.user_role', true) = 'Supervisor'
+      AND "visibility" = 'Sensitive'
+      AND "type" = 'Demerit'
+      AND "recordedById" = current_setting('app.user_id', true)
+    )
   );

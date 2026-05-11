@@ -61,12 +61,13 @@ async function prepareRuntimeRole() {
 
 async function countVisibleBehaviour(
   client: PrismaClient,
+  userId: string,
   role: string,
   fullAdmin: boolean,
   visibility: string,
 ) {
   const rows = await client.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.user_id', 'ci-user', true)`;
+    await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
     await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
     await tx.$executeRaw`SELECT set_config('app.full_admin', ${String(fullAdmin)}, true)`;
 
@@ -98,10 +99,27 @@ async function main() {
       INSERT INTO "User" (
         "id", "clerkId", "role", "tags", "fullNameEnc", "emailEnc", "emailBidx", "updatedAt"
       )
-      VALUES (
-        'ci-head', 'ci-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[],
-        ${encryptField('CI Head')}, ${encryptField('head@example.test')}, ${blindIndex('head@example.test')}, NOW()
-      )
+      VALUES
+        (
+          'ci-head', 'ci-head-clerk', 'Head'::"Role", ARRAY[]::TEXT[],
+          ${encryptField('CI Head')}, ${encryptField('head@example.test')}, ${blindIndex('head@example.test')}, NOW()
+        ),
+        (
+          'ci-hod', 'ci-hod-clerk', 'HeadOfDiscipline'::"Role", ARRAY[]::TEXT[],
+          ${encryptField('CI HOD')}, ${encryptField('hod@example.test')}, ${blindIndex('hod@example.test')}, NOW()
+        ),
+        (
+          'ci-principal', 'ci-principal-clerk', 'Principal'::"Role", ARRAY[]::TEXT[],
+          ${encryptField('CI Principal')}, ${encryptField('principal@example.test')}, ${blindIndex('principal@example.test')}, NOW()
+        ),
+        (
+          'ci-sup-author', 'ci-sup-author-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
+          ${encryptField('CI Supervisor Author')}, ${encryptField('sup-author@example.test')}, ${blindIndex('sup-author@example.test')}, NOW()
+        ),
+        (
+          'ci-sup-other', 'ci-sup-other-clerk', 'Supervisor'::"Role", ARRAY[]::TEXT[],
+          ${encryptField('CI Supervisor Other')}, ${encryptField('sup-other@example.test')}, ${blindIndex('sup-other@example.test')}, NOW()
+        )
     `;
     await prisma.$executeRaw`
       INSERT INTO "Student" (
@@ -124,24 +142,48 @@ async function main() {
         )
         VALUES
           ('ci-behaviour-general', 'ci-student', 'Merit'::"BehaviourType", 'Kindness', 'General'::"BehaviourVisibility", 5, 'ci-head'),
-          ('ci-behaviour-sensitive', 'ci-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ci-head')
+          ('ci-behaviour-sensitive', 'ci-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ci-sup-author')
       `;
     });
 
     const fullAdminSensitive = await countVisibleBehaviour(
       runtimePrisma,
+      'ci-head',
       'Head',
       true,
       'Sensitive',
     );
-    const supervisorSensitive = await countVisibleBehaviour(
+    const hodSensitive = await countVisibleBehaviour(
       runtimePrisma,
+      'ci-hod',
+      'HeadOfDiscipline',
+      true,
+      'Sensitive',
+    );
+    const principalSensitive = await countVisibleBehaviour(
+      runtimePrisma,
+      'ci-principal',
+      'Principal',
+      true,
+      'Sensitive',
+    );
+    const authorSupervisorSensitive = await countVisibleBehaviour(
+      runtimePrisma,
+      'ci-sup-author',
+      'Supervisor',
+      false,
+      'Sensitive',
+    );
+    const otherSupervisorSensitive = await countVisibleBehaviour(
+      runtimePrisma,
+      'ci-sup-other',
       'Supervisor',
       false,
       'Sensitive',
     );
     const supervisorGeneral = await countVisibleBehaviour(
       runtimePrisma,
+      'ci-sup-other',
       'Supervisor',
       false,
       'General',
@@ -152,16 +194,31 @@ async function main() {
         `Expected full admin to see 1 sensitive row, saw ${String(fullAdminSensitive)}`,
       );
     }
-    if (supervisorSensitive !== 0) {
+    if (hodSensitive !== 1) {
+      throw new Error(`Expected HOD to see 1 sensitive row, saw ${String(hodSensitive)}`);
+    }
+    if (principalSensitive !== 0) {
       throw new Error(
-        `Expected supervisor to see 0 sensitive rows, saw ${String(supervisorSensitive)}`,
+        `Expected Principal to see 0 sensitive rows, saw ${String(principalSensitive)}`,
+      );
+    }
+    if (authorSupervisorSensitive !== 1) {
+      throw new Error(
+        `Expected author supervisor to see 1 sensitive row, saw ${String(authorSupervisorSensitive)}`,
+      );
+    }
+    if (otherSupervisorSensitive !== 0) {
+      throw new Error(
+        `Expected other supervisor to see 0 sensitive rows, saw ${String(otherSupervisorSensitive)}`,
       );
     }
     if (supervisorGeneral !== 1) {
       throw new Error(`Expected supervisor to see 1 general row, saw ${String(supervisorGeneral)}`);
     }
 
-    console.warn('RLS smoke passed: full admin sees Sensitive; supervisor sees General only.');
+    console.warn(
+      'RLS smoke passed: Head/HOD and author supervisor see Sensitive; Principal/other supervisor do not.',
+    );
   } finally {
     await runtimePrisma.$disconnect();
     await prisma.$disconnect();

@@ -88,7 +88,7 @@ export function SupervisorDashboardClient({
     retry: false,
   });
   const behaviourQuery = api.behaviour.listForStudent.useQuery(
-    { studentId: selectedStudentId, includeSensitive: false },
+    { studentId: selectedStudentId, includeSensitive: false, date },
     { enabled: view === 'behaviour' && selectedStudentId.length > 0, retry: false },
   );
 
@@ -109,7 +109,7 @@ export function SupervisorDashboardClient({
     onSuccess: async (_result, input) => {
       setBehaviourStatus(
         input.visibility === 'Sensitive'
-          ? 'Sensitive behaviour saved. Supervisors cannot view Sensitive entries after saving.'
+          ? 'Sensitive demerit saved. Head, Head of Discipline, and you can view it.'
           : 'Behaviour saved.',
       );
       setBehaviourForm((current) => ({
@@ -121,6 +121,7 @@ export function SupervisorDashboardClient({
       await utils.behaviour.listForStudent.invalidate({
         studentId: input.studentId,
         includeSensitive: false,
+        date,
       });
     },
   });
@@ -295,9 +296,14 @@ export function SupervisorDashboardClient({
                     <SelectInput
                       aria-label="Behaviour type"
                       onChange={(event) => {
+                        const nextType = event.target.value as BehaviourType;
                         setBehaviourForm((form) => ({
                           ...form,
-                          type: event.target.value as BehaviourType,
+                          type: nextType,
+                          visibility:
+                            nextType === 'Merit' && form.visibility === 'Sensitive'
+                              ? 'General'
+                              : form.visibility,
                         }));
                       }}
                       value={behaviourForm.type}
@@ -318,7 +324,9 @@ export function SupervisorDashboardClient({
                       value={behaviourForm.visibility}
                     >
                       <option value="General">General</option>
-                      <option value="Sensitive">Sensitive</option>
+                      <option disabled={behaviourForm.type === 'Merit'} value="Sensitive">
+                        Sensitive
+                      </option>
                     </SelectInput>
                   </Field>
                 </div>
@@ -349,7 +357,7 @@ export function SupervisorDashboardClient({
                 ) : null}
                 <Field
                   label="Note"
-                  hint="Sensitive notes save securely but do not appear in the Supervisor activity list."
+                  hint="Sensitive demerits are visible to Head, Head of Discipline, and the supervisor who recorded them."
                 >
                   <textarea
                     aria-label="Behaviour note"

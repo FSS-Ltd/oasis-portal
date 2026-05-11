@@ -8,8 +8,9 @@
 Behaviour entries, reports, and messages contain sensitive notes. The brief
 requires:
 
-- Full admins (Head, Principal, Pastor, Head of Discipline) see everything.
-- Supervisors see general behaviour but **not** sensitive-flagged entries.
+- Head and Head of Discipline see sensitive behaviour entries.
+- Principal and Pastor retain general behaviour visibility only.
+- Supervisors see general behaviour and sensitive demerits they recorded.
 - Parents see only entries attached to their own child.
 - Students see only their own non-sensitive entries.
 - Clubs Admin has no behavioural visibility.
@@ -28,8 +29,9 @@ Enforce visibility at **two independent walls**:
 2. **Database (RLS) wall** — `packages/db/prisma/rls.sql` attaches row-level
    security policies to `BehaviourEntry` (and later `Report`, `Message`)
    keyed off Postgres session variables `app.user_id`, `app.user_role`,
-   `app.full_admin`. The tRPC context sets these per request before running
-   any query.
+   `app.full_admin`. Sensitive behaviour policies also check `recordedById`
+   so a supervisor can read only their own sensitive demerits. The tRPC
+   context sets these per request before running any query.
 
 If a developer forgets the RBAC call, the RLS policy still blocks the row.
 If the session vars aren't set, RLS denies by default.
