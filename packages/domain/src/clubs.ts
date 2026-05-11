@@ -2,10 +2,14 @@
  * Clubs module — v1 is deliberately minimal: tracking only.
  *
  * - Full admins and ClubsAdmin can create/edit clubs and send notifications.
- * - Parents sign their own children up (uses requireOwnChild in the caller).
+ * - Parents and linked-child staff/admin guardians sign their own children up.
  * - No capacity enforcement yet unless the club sets one.
  */
-import { requireClubsAdminOrFullAdmin, type SessionUser } from './rbac.js';
+import {
+  canAnswerChildRegistrationPrompt,
+  requireClubsAdminOrFullAdmin,
+  type SessionUser,
+} from './rbac.js';
 
 export interface ClubDraft {
   name: string;
@@ -16,6 +20,10 @@ export interface ClubDraft {
 
 export function assertCanManageClub(user: SessionUser): void {
   requireClubsAdminOrFullAdmin(user);
+}
+
+export function canUseLinkedChildClubSignup(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
 }
 
 export function validateClubDraft(draft: ClubDraft): Required<Pick<ClubDraft, 'name'>> & ClubDraft {

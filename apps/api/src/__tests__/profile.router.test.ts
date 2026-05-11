@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
-import type { ClerkUserEmailClient } from '../lib/clerk.js';
+import type { ClerkInvitationClient, ClerkUserEmailClient } from '../lib/clerk.js';
+import type { EmailClient } from '../lib/email.js';
 import type { AppContext, RlsTx } from '../context.js';
 import { createProfileRouter } from '../routers/profile.js';
 import { router } from '../trpc.js';
@@ -11,6 +12,8 @@ const parentUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const TEST_APP_URL = 'https://portal.example.com';
+const INVITATION_REDIRECT_URL = `${TEST_APP_URL}/post-sign-in`;
 
 interface FakeDb {
   $enc: {
@@ -19,13 +22,46 @@ interface FakeDb {
     encrypt: ReturnType<typeof vi.fn>;
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
+  guardian: {
+    findFirst: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+  };
   user: {
     findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  userInvitation: {
+    create: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
 }
 
 function makeFakeDb(): FakeDb {
+  const profileRow = {
+    id: parentUser.id,
+    clerkId: 'clerk_parent',
+    role: 'Parent',
+    tags: [],
+    fullNameEnc: 'enc:Jane Parent',
+    emailEnc: 'enc:jane@example.com',
+    phoneEnc: 'enc:07700 900123',
+    addressEnc: null,
+    active: true,
+    createdAt: new Date('2026-04-29T09:00:00.000Z'),
+    updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+    guardianOf: [
+      {
+        student: {
+          id: 's_child',
+          fullNameEnc: 'enc:Child One',
+          yearGroup: 'Year 6',
+          active: true,
+        },
+      },
+    ],
+  };
+
   return {
     $enc: {
       blindIndex: vi.fn((value: string) => `bidx:${value.toLowerCase()}`),
@@ -37,31 +73,29 @@ function makeFakeDb(): FakeDb {
       ),
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    guardian: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([{ studentId: 's_child' }]),
+    },
     user: {
-      findUnique: vi.fn().mockResolvedValue({
-        id: parentUser.id,
-        clerkId: 'clerk_parent',
-        role: 'Parent',
-        tags: [],
-        fullNameEnc: 'enc:Jane Parent',
-        emailEnc: 'enc:jane@example.com',
-        phoneEnc: 'enc:07700 900123',
-        addressEnc: null,
-        active: true,
-        createdAt: new Date('2026-04-29T09:00:00.000Z'),
-        updatedAt: new Date('2026-04-29T10:00:00.000Z'),
-        guardianOf: [
-          {
-            student: {
-              id: 's_child',
-              fullNameEnc: 'enc:Child One',
-              yearGroup: 'Year 6',
-              active: true,
-            },
-          },
-        ],
+      findUnique: vi.fn((args: { where: { emailBidx?: string; id?: string } }) => {
+        if (args.where.emailBidx) return Promise.resolve(null);
+        return Promise.resolve(profileRow);
       }),
       update: vi.fn().mockResolvedValue({ id: parentUser.id }),
+    },
+    userInvitation: {
+      create: vi.fn().mockResolvedValue({
+        id: 'invite_row_1',
+        clerkInvitationId: 'inv_spouse',
+        emailEnc: 'enc:spouse@example.com',
+        emailStatus: 'NotSent',
+        guardianLinkInviterId: parentUser.id,
+        guardianLinkStudentIds: ['s_child'],
+        createdAt: new Date('2026-05-11T09:00:00.000Z'),
+      }),
+      findFirst: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue({ id: 'invite_row_1' }),
     },
   };
 }
@@ -83,18 +117,57 @@ function makeFakeUserEmailClient() {
   return { client, updatePrimaryEmail };
 }
 
+function makeFakeClerkInvitationClient() {
+  const createInvitation = vi.fn<ClerkInvitationClient['createInvitation']>().mockResolvedValue({
+    id: 'inv_spouse',
+    emailAddress: 'spouse@example.com',
+    status: 'pending',
+    url: 'https://clerk.example/invite/spouse',
+  });
+  const client: ClerkInvitationClient = {
+    createInvitation,
+    findInvitation: vi.fn<ClerkInvitationClient['findInvitation']>().mockResolvedValue(null),
+    revokeInvitation: vi.fn<ClerkInvitationClient['revokeInvitation']>().mockResolvedValue({
+      id: 'inv_spouse',
+      emailAddress: 'spouse@example.com',
+      status: 'revoked',
+    }),
+  };
+  return { client, createInvitation };
+}
+
+function makeFakeEmailClient() {
+  const send = vi.fn<EmailClient['send']>().mockResolvedValue({ id: 'email_spouse' });
+  const client: EmailClient = { send };
+  return { client, send };
+}
+
 function makeCaller(
   user: SessionUser | null,
-  deps: { db?: FakeDb; userEmail?: ReturnType<typeof makeFakeUserEmailClient> } = {},
+  deps: {
+    clerk?: ReturnType<typeof makeFakeClerkInvitationClient>;
+    db?: FakeDb;
+    email?: ReturnType<typeof makeFakeEmailClient>;
+    userEmail?: ReturnType<typeof makeFakeUserEmailClient>;
+  } = {},
 ) {
   const db = deps.db ?? makeFakeDb();
+  const clerk = deps.clerk ?? makeFakeClerkInvitationClient();
+  const email = deps.email ?? makeFakeEmailClient();
   const userEmail = deps.userEmail ?? makeFakeUserEmailClient();
   const appRouter = router({
-    profile: createProfileRouter({ userEmailClient: userEmail.client }),
+    profile: createProfileRouter({
+      appUrl: TEST_APP_URL,
+      clerk: clerk.client,
+      emailClient: email.client,
+      userEmailClient: userEmail.client,
+    }),
   });
   return {
     caller: appRouter.createCaller(makeCtx(user, db)),
+    createInvitation: clerk.createInvitation,
     db,
+    sendEmail: email.send,
     updatePrimaryEmail: userEmail.updatePrimaryEmail,
   };
 }
@@ -292,5 +365,115 @@ describe('profile.updateMe', () => {
     });
     expect(updatePrimaryEmail).not.toHaveBeenCalled();
     expect(db.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('profile spouse invites', () => {
+  it('returns spouse invite availability for linked-child guardians', async () => {
+    const { caller } = makeCaller(parentUser);
+
+    await expect(caller.profile.spouseInviteStatus()).resolves.toEqual({
+      canInvite: true,
+      linkedChildCount: 1,
+      pendingInvitation: null,
+      spouseLinked: false,
+    });
+  });
+
+  it('creates a parent spouse invitation linked to the current family children', async () => {
+    const { caller, createInvitation, db, sendEmail } = makeCaller(parentUser);
+
+    await expect(caller.profile.inviteSpouse({ email: ' Spouse@Example.com ' })).resolves.toEqual({
+      invitationId: 'inv_spouse',
+      emailStatus: 'Sent',
+      status: 'pending',
+    });
+
+    expect(createInvitation).toHaveBeenCalledWith({
+      emailAddress: 'spouse@example.com',
+      publicMetadata: { role: 'Parent', tags: [] },
+      redirectUrl: INVITATION_REDIRECT_URL,
+      ignoreExisting: true,
+      notify: false,
+    });
+    expect(db.userInvitation.create).toHaveBeenCalledWith({
+      data: {
+        clerkInvitationId: 'inv_spouse',
+        role: 'Parent',
+        tags: [],
+        emailEnc: 'enc:spouse@example.com',
+        emailBidx: 'bidx:spouse@example.com',
+        status: 'Pending',
+        emailStatus: 'NotSent',
+        invitedById: parentUser.id,
+        guardianLinkInviterId: parentUser.id,
+        guardianLinkStudentIds: ['s_child'],
+      },
+      select: {
+        id: true,
+        clerkInvitationId: true,
+        emailEnc: true,
+        emailStatus: true,
+        guardianLinkInviterId: true,
+        guardianLinkStudentIds: true,
+        createdAt: true,
+      },
+    });
+    expect(sendEmail).toHaveBeenCalledOnce();
+    expect(db.userInvitation.update).toHaveBeenCalledWith({
+      where: { id: 'invite_row_1' },
+      data: { emailStatus: 'Sent', emailMessageId: 'email_spouse' },
+      select: { id: true },
+    });
+  });
+
+  it('rejects spouse invites when a parent is already linked to the family', async () => {
+    const db = makeFakeDb();
+    db.guardian.findFirst.mockResolvedValueOnce({ id: 'guardian_spouse' });
+    const { caller, createInvitation } = makeCaller(parentUser, { db });
+
+    await expect(
+      caller.profile.inviteSpouse({ email: 'spouse@example.com' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'a spouse or second parent is already linked to this family',
+    });
+    expect(createInvitation).not.toHaveBeenCalled();
+  });
+
+  it('rejects spouse invites when a family invite is already pending', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValueOnce({
+      id: 'invite_pending',
+      clerkInvitationId: 'inv_pending',
+      emailEnc: 'enc:spouse@example.com',
+      emailStatus: 'Sent',
+      guardianLinkInviterId: parentUser.id,
+      guardianLinkStudentIds: ['s_child'],
+      createdAt: new Date('2026-05-11T09:00:00.000Z'),
+    });
+    const { caller, createInvitation } = makeCaller(parentUser, { db });
+
+    await expect(caller.profile.inviteSpouse({ email: 'other@example.com' })).rejects.toMatchObject(
+      {
+        code: 'BAD_REQUEST',
+        message: 'a spouse invitation is already pending for this family',
+      },
+    );
+    expect(createInvitation).not.toHaveBeenCalled();
+  });
+
+  it('rejects spouse invites when a user already exists for the email', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValueOnce({ id: 'u_existing' });
+    const { caller, createInvitation } = makeCaller(parentUser, { db });
+
+    await expect(
+      caller.profile.inviteSpouse({ email: 'existing@example.com' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'a user account already exists for this email',
+    });
+    expect(createInvitation).not.toHaveBeenCalled();
   });
 });

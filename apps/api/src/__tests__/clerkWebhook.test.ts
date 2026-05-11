@@ -169,7 +169,9 @@ describe('createPrismaClerkUserStore', () => {
     });
     const create = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
+    const findMany = vi.fn().mockResolvedValue([]);
     const updateMany = vi.fn<FakeInvitationUpdateMany>().mockResolvedValue({ count: 1 });
+    const createMany = vi.fn().mockResolvedValue({ count: 0 });
     const db = {
       $enc: {
         encrypt: fakeEncrypt,
@@ -178,14 +180,17 @@ describe('createPrismaClerkUserStore', () => {
         },
       },
       user: { findUnique, create, update },
-      userInvitation: { updateMany },
+      userInvitation: { findMany, updateMany },
+      guardian: { createMany },
     };
     return {
       db: db as unknown as PrismaClerkUserStoreDb,
       findUnique,
       create,
       update,
+      findMany,
       updateMany,
+      createMany,
     };
   }
 
@@ -228,6 +233,32 @@ describe('createPrismaClerkUserStore', () => {
     expect(updateManyArgs?.data.status).toBe('Accepted');
     expect(updateManyArgs?.data.acceptedUserId).toBe('cuid_new');
     expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
+  });
+
+  it('creates guardian links when accepting a spouse invitation', async () => {
+    const { db, create, findMany, createMany } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_new' });
+    findMany.mockResolvedValue([
+      { guardianLinkStudentIds: ['s_child_1', 's_child_2', 's_child_1'] },
+    ]);
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Jean Ntagengwa',
+      email: 'Jean@Example.com',
+      phone: '+447700900123',
+      role: 'Parent',
+      tags: [],
+    });
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        { userId: 'cuid_new', studentId: 's_child_1' },
+        { userId: 'cuid_new', studentId: 's_child_2' },
+      ],
+      skipDuplicates: true,
+    });
   });
 
   it('links an existing email-matched local user without overwriting role or tags', async () => {

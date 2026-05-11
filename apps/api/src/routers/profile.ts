@@ -1,13 +1,25 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
+import { canAnswerChildRegistrationPrompt, type SessionUser } from '@oasis/domain';
 import type { AppContext } from '../context.js';
-import { createDefaultClerkUserEmailClient, type ClerkUserEmailClient } from '../lib/clerk.js';
+import {
+  createDefaultClerkInvitationClient,
+  createDefaultClerkUserEmailClient,
+  type ClerkInvitationClient,
+  type ClerkUserEmailClient,
+} from '../lib/clerk.js';
+import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import { authedProcedure, router } from '../trpc.js';
 
 export interface ProfileRouterDeps {
+  appUrl?: string;
+  clerk?: ClerkInvitationClient;
+  emailClient?: EmailClient;
   userEmailClient?: ClerkUserEmailClient;
 }
+
+const POST_SIGN_IN_PATH = '/post-sign-in';
 
 const profileUserSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
@@ -45,6 +57,24 @@ const updateMyProfileInput = z.object({
 });
 type UpdateMyProfileInput = z.infer<typeof updateMyProfileInput>;
 
+const inviteSpouseInput = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
+});
+
+const spouseInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()({
+  id: true,
+  clerkInvitationId: true,
+  emailEnc: true,
+  emailStatus: true,
+  guardianLinkInviterId: true,
+  guardianLinkStudentIds: true,
+  createdAt: true,
+});
+
+type SpouseInvitationRow = Prisma.UserInvitationGetPayload<{
+  select: typeof spouseInvitationSelect;
+}>;
+
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
   value: string,
@@ -62,6 +92,40 @@ function normaliseNullableText(value: string | null | undefined): string | null 
   if (value === null) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function canInviteSpouse(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+}
+
+function sanitizeEmailDeliveryError(err: unknown) {
+  if (err instanceof Error) {
+    return { name: err.name, message: err.message };
+  }
+
+  return {
+    name: 'UnknownEmailDeliveryError',
+    message: typeof err === 'string' ? err : 'non-error thrown during email delivery',
+  };
+}
+
+function buildPostSignInRedirectUrl(appUrl: string | undefined): string {
+  const trimmed = appUrl?.trim();
+  if (!trimmed) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'APP_URL is required to create invitation redirect URL',
+    });
+  }
+
+  try {
+    return new URL(POST_SIGN_IN_PATH, trimmed).toString();
+  } catch {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'APP_URL must be a valid absolute URL to create invitation redirect URL',
+    });
+  }
 }
 
 async function userEmailUpdateData(
@@ -168,9 +232,90 @@ function mapProfile(
   };
 }
 
-async function loadProfile(
-  ctx: AppContext & { user: { id: string } },
+function mapSpouseInvitation(
+  ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
+  invitation: SpouseInvitationRow,
 ) {
+  return {
+    id: invitation.id,
+    email: decryptRequired(ctx.db.$enc.decrypt, invitation.emailEnc, 'invitation PII'),
+    emailStatus: invitation.emailStatus,
+    createdAt: invitation.createdAt,
+  };
+}
+
+async function loadLinkedActiveChildIds(
+  ctx: AppContext & { user: SessionUser },
+): Promise<string[]> {
+  const guardians = await ctx.db.guardian.findMany({
+    where: { userId: ctx.user.id, student: { active: true } },
+    orderBy: { createdAt: 'desc' },
+    select: { studentId: true },
+  });
+  return guardians.map((guardian) => guardian.studentId);
+}
+
+async function loadSpouseInviteStatus(ctx: AppContext & { user: SessionUser }) {
+  if (!canInviteSpouse(ctx.user)) {
+    return {
+      canInvite: false,
+      linkedChildCount: 0,
+      pendingInvitation: null,
+      spouseLinked: false,
+    };
+  }
+
+  const linkedChildIds = await loadLinkedActiveChildIds(ctx);
+  if (linkedChildIds.length === 0) {
+    return {
+      canInvite: false,
+      linkedChildCount: 0,
+      pendingInvitation: null,
+      spouseLinked: false,
+    };
+  }
+
+  const [existingLinkedParent, pendingInvitation] = await Promise.all([
+    ctx.db.guardian.findFirst({
+      where: {
+        studentId: { in: linkedChildIds },
+        userId: { not: ctx.user.id },
+        student: { active: true },
+        user: { active: true, role: 'Parent' },
+      },
+      select: { id: true },
+    }),
+    ctx.db.userInvitation.findFirst({
+      where: {
+        status: 'Pending',
+        role: 'Parent',
+        guardianLinkStudentIds: { hasSome: linkedChildIds },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: spouseInvitationSelect,
+    }),
+  ]);
+  if (pendingInvitation) {
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'UserInvitation',
+        entityId: pendingInvitation.id,
+        meta: { source: 'profile.spouseInviteStatus' },
+      },
+    });
+  }
+
+  return {
+    canInvite: !existingLinkedParent && !pendingInvitation,
+    linkedChildCount: linkedChildIds.length,
+    pendingInvitation: pendingInvitation ? mapSpouseInvitation(ctx, pendingInvitation) : null,
+    spouseLinked: Boolean(existingLinkedParent),
+  };
+}
+
+async function loadProfile(ctx: AppContext & { user: { id: string } }) {
   const user = await ctx.db.user.findUnique({
     where: { id: ctx.user.id },
     select: profileUserSelect,
@@ -197,15 +342,194 @@ async function loadProfile(
 }
 
 export function createProfileRouter(deps: ProfileRouterDeps = {}) {
+  let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
+  let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
   let cachedUserEmailClient: ClerkUserEmailClient | null = deps.userEmailClient ?? null;
+  const getClerk = (): ClerkInvitationClient => {
+    if (cachedClerk) return cachedClerk;
+    cachedClerk = createDefaultClerkInvitationClient();
+    return cachedClerk;
+  };
+  const getEmailClient = (): EmailClient => {
+    if (cachedEmailClient) return cachedEmailClient;
+    cachedEmailClient = createResendEmailClient();
+    return cachedEmailClient;
+  };
   const getUserEmailClient = (): ClerkUserEmailClient => {
     if (cachedUserEmailClient) return cachedUserEmailClient;
     cachedUserEmailClient = createDefaultClerkUserEmailClient();
     return cachedUserEmailClient;
   };
+  const getInvitationRedirectUrl = (): string =>
+    buildPostSignInRedirectUrl(deps.appUrl ?? process.env.APP_URL);
+
+  async function createSpouseClerkInvitation(input: { email: string }) {
+    const invitation = await getClerk().createInvitation({
+      emailAddress: input.email,
+      publicMetadata: { role: 'Parent', tags: [] },
+      redirectUrl: getInvitationRedirectUrl(),
+      ignoreExisting: true,
+      notify: false,
+    });
+    if (!invitation.url) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'clerk invitation link missing',
+      });
+    }
+    return { ...invitation, url: invitation.url };
+  }
 
   return router({
     me: authedProcedure.query(async ({ ctx }) => loadProfile(ctx)),
+
+    spouseInviteStatus: authedProcedure.query(async ({ ctx }) => loadSpouseInviteStatus(ctx)),
+
+    inviteSpouse: authedProcedure.input(inviteSpouseInput).mutation(async ({ ctx, input }) => {
+      if (!canInviteSpouse(ctx.user)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'spouse invites require a linked guardian role',
+        });
+      }
+
+      const linkedChildIds = await loadLinkedActiveChildIds(ctx);
+      if (linkedChildIds.length === 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'link at least one child before inviting a spouse',
+        });
+      }
+
+      const status = await loadSpouseInviteStatus(ctx);
+      if (!status.canInvite) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: status.spouseLinked
+            ? 'a spouse or second parent is already linked to this family'
+            : 'a spouse invitation is already pending for this family',
+        });
+      }
+
+      const emailBidx = ctx.db.$enc.blindIndex(input.email);
+      const [existingUser, existingPendingInvite] = await Promise.all([
+        ctx.db.user.findUnique({ where: { emailBidx }, select: { id: true } }),
+        ctx.db.userInvitation.findFirst({
+          where: { emailBidx, status: 'Pending' },
+          select: { id: true },
+        }),
+      ]);
+      if (existingUser) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'a user account already exists for this email',
+        });
+      }
+      if (existingPendingInvite) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'a pending invitation already exists for this email',
+        });
+      }
+
+      const invitation = await createSpouseClerkInvitation({ email: input.email });
+      const storedInvitation = await ctx.db.userInvitation.create({
+        data: {
+          clerkInvitationId: invitation.id,
+          role: 'Parent',
+          tags: [],
+          emailEnc: ctx.db.$enc.encrypt(input.email),
+          emailBidx,
+          status: 'Pending',
+          emailStatus: 'NotSent',
+          invitedById: ctx.user.id,
+          guardianLinkInviterId: ctx.user.id,
+          guardianLinkStudentIds: linkedChildIds,
+        },
+        select: spouseInvitationSelect,
+      });
+
+      const email = buildUserInviteEmail({
+        to: input.email,
+        role: 'Parent',
+        inviteUrl: invitation.url,
+      });
+
+      try {
+        const emailResult = await getEmailClient().send(email);
+        await ctx.db.userInvitation.update({
+          where: { id: storedInvitation.id },
+          data: { emailStatus: 'Sent', emailMessageId: emailResult.id },
+          select: { id: true },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'Invitation',
+            entityId: invitation.id,
+            meta: {
+              role: 'Parent',
+              source: 'profile.inviteSpouse',
+              linkedChildCount: linkedChildIds.length,
+              emailStatus: 'Sent',
+              invitationStatus: invitation.status,
+            },
+          },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'Email',
+            entityId: emailResult.id,
+            meta: {
+              invitationId: invitation.id,
+              subject: email.subject,
+              source: 'profile.inviteSpouse',
+            },
+          },
+        });
+
+        return {
+          invitationId: invitation.id,
+          emailStatus: 'Sent' as const,
+          status: invitation.status,
+        };
+      } catch (err) {
+        await ctx.db.userInvitation.update({
+          where: { id: storedInvitation.id },
+          data: { emailStatus: 'Failed', emailMessageId: null },
+          select: { id: true },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'Invitation',
+            entityId: invitation.id,
+            meta: {
+              role: 'Parent',
+              source: 'profile.inviteSpouse',
+              linkedChildCount: linkedChildIds.length,
+              emailStatus: 'Failed',
+              invitationStatus: invitation.status,
+            },
+          },
+        });
+        console.error('Spouse invitation email delivery failed', {
+          error: sanitizeEmailDeliveryError(err),
+          invitationId: invitation.id,
+          source: 'profile.inviteSpouse',
+          status: invitation.status,
+        });
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'spouse invitation email send failed',
+          cause: err instanceof Error ? err : undefined,
+        });
+      }
+    }),
 
     updateMe: authedProcedure.input(updateMyProfileInput).mutation(async ({ ctx, input }) => {
       const emailData =

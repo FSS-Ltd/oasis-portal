@@ -23,6 +23,7 @@ import {
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
   { href: '/admin/children', label: 'My Children', icon: UsersRound },
+  { href: '/admin/my-clubs', label: 'My Clubs', icon: Club },
   { href: '/admin/students', label: 'Students', icon: GraduationCap },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/admin/rota', label: 'Rota', icon: CalendarDays },
@@ -89,6 +90,7 @@ function visibleForUser(
   >,
 ) {
   if (item.label === 'My Children') return !access.clubsOnly && access.hasLinkedChildren;
+  if (item.label === 'My Clubs') return !access.clubsOnly && access.hasLinkedChildren;
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Clubs') return access.canManageClubs;
   if (item.label === 'Calendar') return !access.clubsOnly;

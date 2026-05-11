@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
+import { SpouseInvitePanel } from './spouse-invite-panel';
 
 type Profile = RouterOutputs['profile']['me'];
 type ProfileTab = 'account' | 'access' | 'security' | 'children';
@@ -227,6 +228,7 @@ export function SelfProfileClient({
                 {updateProfile.error.message}
               </p>
             ) : null}
+            {profile.children.length > 0 ? <SpouseInvitePanel /> : null}
           </div>
         </section>
       ) : null}

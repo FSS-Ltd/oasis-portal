@@ -6,6 +6,7 @@ import {
   assertCanManageClub,
   canManageClubs,
   canSignUpForClub,
+  canUseLinkedChildClubSignup,
   isFullAdmin,
   type SessionUser,
   validateClubDraft,
@@ -31,6 +32,14 @@ interface ClubRow {
   createdAt: Date;
   updatedAt: Date;
   signups: ClubSignupSummary[];
+}
+
+interface LinkedStudentRow {
+  student: {
+    id: string;
+    fullNameEnc: string;
+    yearGroup: string;
+  };
 }
 
 const clubCreateInput = z.object({
@@ -87,10 +96,21 @@ function requireClubListAccess(user: SessionUser): void {
   throw toForbidden(new AccessDeniedError('clubs require Parent, ClubsAdmin, or full-admin'));
 }
 
-function requireSignupActor(user: SessionUser): 'full-admin' | 'parent' {
+function requireLinkedChildSignupAccess(user: SessionUser): void {
+  if (canUseLinkedChildClubSignup(user)) return;
+  throw toForbidden(
+    new AccessDeniedError('linked-child club signups require a linked guardian role'),
+  );
+}
+
+function requireSignupActor(user: SessionUser): 'full-admin' | 'linked-child-guardian' {
   if (isFullAdmin(user)) return 'full-admin';
-  if (user.role === 'Parent') return 'parent';
-  throw toForbidden(new AccessDeniedError('club signups require Parent or full-admin'));
+  if (canUseLinkedChildClubSignup(user)) return 'linked-child-guardian';
+  throw toForbidden(
+    new AccessDeniedError(
+      'club signups require Parent, linked staff/admin guardian, or full-admin',
+    ),
+  );
 }
 
 function normalizeOptionalText(value: string | null | undefined): string | null {
@@ -117,7 +137,7 @@ function mapClub(
   linkedStudentIds: ReadonlySet<string> = new Set(),
 ) {
   const signedUpStudentIds =
-    user.role === 'Parent'
+    linkedStudentIds.size > 0
       ? club.signups
           .filter((signup) => linkedStudentIds.has(signup.studentId))
           .map((signup) => signup.studentId)
@@ -138,6 +158,17 @@ function mapClub(
   };
 }
 
+function mapLinkedStudent(
+  decrypt: (value: string | null | undefined) => string | null,
+  row: LinkedStudentRow,
+) {
+  return {
+    id: row.student.id,
+    fullName: decryptRequired(decrypt, row.student.fullNameEnc, 'student PII'),
+    yearGroup: row.student.yearGroup,
+  };
+}
+
 async function loadLinkedActiveStudentIds(ctx: AuthedContext): Promise<Set<string>> {
   const guardians = await ctx.db.guardian.findMany({
     where: { userId: ctx.user.id, student: { active: true } },
@@ -146,7 +177,30 @@ async function loadLinkedActiveStudentIds(ctx: AuthedContext): Promise<Set<strin
   return new Set(guardians.map((guardian) => guardian.studentId));
 }
 
-async function assertParentLinkedStudent(
+async function loadLinkedActiveStudents(ctx: AuthedContext) {
+  const guardians = await ctx.db.guardian.findMany({
+    where: { userId: ctx.user.id, student: { active: true } },
+    select: {
+      student: {
+        select: { id: true, fullNameEnc: true, yearGroup: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'DecryptPii',
+      entity: 'Student',
+      meta: { source: 'club.linkedChildSignupContext', count: guardians.length },
+    },
+  });
+
+  return guardians.map((guardian) => mapLinkedStudent(ctx.db.$enc.decrypt, guardian));
+}
+
+async function assertLinkedChildStudent(
   db: Pick<AuthedContext['db'], 'guardian'>,
   user: SessionUser,
   studentId: string,
@@ -158,7 +212,7 @@ async function assertParentLinkedStudent(
   });
 
   if (!guardian) {
-    throw toForbidden(new AccessDeniedError('parent is not linked to this student'));
+    throw toForbidden(new AccessDeniedError('user is not linked to this student'));
   }
   if (options.requireActive && !guardian.student.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
@@ -211,6 +265,25 @@ export const clubRouter = router({
           });
 
     return clubs.map((club) => mapClub(ctx.user, club, linkedStudentIds));
+  }),
+
+  linkedChildSignupContext: authedProcedure.query(async ({ ctx }) => {
+    requireLinkedChildSignupAccess(ctx.user);
+
+    const [children, clubs] = await Promise.all([
+      loadLinkedActiveStudents(ctx),
+      ctx.db.club.findMany({
+        where: { active: true },
+        include: clubListInclude,
+        orderBy: clubListOrderBy,
+      }),
+    ]);
+    const linkedStudentIds = new Set(children.map((child) => child.id));
+
+    return {
+      children,
+      clubs: clubs.map((club) => mapClub(ctx.user, club, linkedStudentIds)),
+    };
   }),
 
   create: authedProcedure.input(clubCreateInput).mutation(async ({ ctx, input }) => {
@@ -354,91 +427,93 @@ export const clubRouter = router({
       signups: club.signups.map((signup) => ({
         id: signup.id,
         studentId: signup.studentId,
-        studentName: decryptRequired(ctx.db.$enc.decrypt, signup.student.fullNameEnc, 'student PII'),
+        studentName: decryptRequired(
+          ctx.db.$enc.decrypt,
+          signup.student.fullNameEnc,
+          'student PII',
+        ),
         yearGroup: signup.student.yearGroup,
         signedUpAt: signup.createdAt,
       })),
     };
   }),
 
-  signUp: authedProcedure
-    .input(clubStudentInput)
-    .mutation(async ({ ctx, input }) => {
-      const actor = requireSignupActor(ctx.user);
+  signUp: authedProcedure.input(clubStudentInput).mutation(async ({ ctx, input }) => {
+    const actor = requireSignupActor(ctx.user);
 
-      try {
-        return await ctx.db.$transaction(
-          async (tx) => {
-            const club = await tx.club.findUnique({
-              where: { id: input.clubId },
-              include: {
-                signups: {
-                  where: { status: 'Active' },
-                  select: { studentId: true },
-                },
+    try {
+      return await ctx.db.$transaction(
+        async (tx) => {
+          const club = await tx.club.findUnique({
+            where: { id: input.clubId },
+            include: {
+              signups: {
+                where: { status: 'Active' },
+                select: { studentId: true },
               },
+            },
+          });
+          if (!club) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+          }
+          if (!club.active) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'club is inactive' });
+          }
+
+          if (actor === 'linked-child-guardian') {
+            await assertLinkedChildStudent(tx, ctx.user, input.studentId, {
+              requireActive: true,
             });
-            if (!club) {
-              throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
-            }
-            if (!club.active) {
-              throw new TRPCError({ code: 'BAD_REQUEST', message: 'club is inactive' });
-            }
+          } else {
+            await assertFullAdminActiveStudent(tx, input.studentId);
+          }
 
-            if (actor === 'parent') {
-              await assertParentLinkedStudent(tx, ctx.user, input.studentId, {
-                requireActive: true,
-              });
-            } else {
-              await assertFullAdminActiveStudent(tx, input.studentId);
-            }
+          const signupCheckInput = {
+            currentActiveSignups: club.signups.length,
+            alreadySignedUp: club.signups.some((signup) => signup.studentId === input.studentId),
+            ...(club.capacity !== null ? { capacity: club.capacity } : {}),
+          };
+          const signupCheck = canSignUpForClub(signupCheckInput);
+          if (signupCheck !== true) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: signupCheck });
+          }
 
-            const signupCheckInput = {
-              currentActiveSignups: club.signups.length,
-              alreadySignedUp: club.signups.some((signup) => signup.studentId === input.studentId),
-              ...(club.capacity !== null ? { capacity: club.capacity } : {}),
-            };
-            const signupCheck = canSignUpForClub(signupCheckInput);
-            if (signupCheck !== true) {
-              throw new TRPCError({ code: 'BAD_REQUEST', message: signupCheck });
-            }
+          const signup = await tx.clubSignup.create({
+            data: {
+              clubId: input.clubId,
+              studentId: input.studentId,
+              signedUpByUserId: ctx.user.id,
+              status: 'Active',
+            },
+            select: {
+              id: true,
+              clubId: true,
+              studentId: true,
+              signedUpByUserId: true,
+              status: true,
+              createdAt: true,
+              withdrawnAt: true,
+            },
+          });
 
-            const signup = await tx.clubSignup.create({
-              data: {
-                clubId: input.clubId,
-                studentId: input.studentId,
-                signedUpByUserId: ctx.user.id,
-                status: 'Active',
-              },
-              select: {
-                id: true,
-                clubId: true,
-                studentId: true,
-                signedUpByUserId: true,
-                status: true,
-                createdAt: true,
-                withdrawnAt: true,
-              },
-            });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'ClubSignup',
+              entityId: signup.id,
+              meta: { source: 'club.signUp', clubId: input.clubId, studentId: input.studentId },
+            },
+          });
 
-            await tx.auditLog.create({
-              data: {
-                userId: ctx.user.id,
-                action: 'Create',
-                entity: 'ClubSignup',
-                entityId: signup.id,
-                meta: { source: 'club.signUp', clubId: input.clubId, studentId: input.studentId },
-              },
-            });
-
-            return signup;
-          },
-          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-        );
-      } catch (error) {
-        handleSignupCreateError(error);
-      }
-    }),
+          return signup;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      handleSignupCreateError(error);
+    }
+  }),
 
   withdraw: authedProcedure.input(clubStudentInput).mutation(async ({ ctx, input }) => {
     const actor = requireSignupActor(ctx.user);
@@ -452,8 +527,8 @@ export const clubRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
       }
 
-      if (actor === 'parent') {
-        await assertParentLinkedStudent(tx, ctx.user, input.studentId, { requireActive: false });
+      if (actor === 'linked-child-guardian') {
+        await assertLinkedChildStudent(tx, ctx.user, input.studentId, { requireActive: false });
       }
 
       const activeSignup = await tx.clubSignup.findFirst({

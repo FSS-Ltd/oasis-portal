@@ -7,6 +7,7 @@ import {
   Bell,
   CalendarCheck,
   CalendarDays,
+  Club,
   ClipboardList,
   Home,
   Star,
@@ -16,6 +17,7 @@ import {
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
   { href: '/supervisor/children', label: 'My Children', icon: UsersRound, enabled: true },
+  { href: '/supervisor/clubs', label: 'Clubs', icon: Club, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
@@ -44,7 +46,7 @@ function badgeForItem(item: (typeof navItems)[number], unreadNoticeCount: number
 export function SupervisorSidebarNav({ hasLinkedChildren, unreadNoticeCount }: SupervisorNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter(
-    (item) => item.label !== 'My Children' || hasLinkedChildren,
+    (item) => !['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren,
   );
 
   return (
@@ -77,7 +79,7 @@ export function SupervisorSidebarNav({ hasLinkedChildren, unreadNoticeCount }: S
 export function SupervisorBottomNav({ hasLinkedChildren, unreadNoticeCount }: SupervisorNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter(
-    (item) => item.label !== 'My Children' || hasLinkedChildren,
+    (item) => !['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren,
   );
 
   return (

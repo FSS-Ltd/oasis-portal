@@ -63,17 +63,20 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
     await expect(updatedClubCard.getByText('Inactive')).toBeVisible();
   });
 
-  clubsAdminTest('ClubsAdmin lands on clubs and sees no non-club admin navigation', async ({ page }) => {
-    await signIn(page, clubsAdminEmail!, clubsAdminPassword!);
-    await expect(page).toHaveURL(/\/admin\/clubs/);
-    await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /^clubs$/i })).toBeVisible();
-    await expect(
-      page.getByRole('link', {
-        name: /Attendance|Behaviour|PACE|Calendar|Messages|Noticeboard|User Access|People & Profiles/i,
-      }),
-    ).toHaveCount(0);
-  });
+  clubsAdminTest(
+    'ClubsAdmin lands on clubs and sees no non-club admin navigation',
+    async ({ page }) => {
+      await signIn(page, clubsAdminEmail!, clubsAdminPassword!);
+      await expect(page).toHaveURL(/\/admin\/clubs/);
+      await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+      await expect(page.getByRole('link', { name: /^clubs$/i })).toBeVisible();
+      await expect(
+        page.getByRole('link', {
+          name: /Attendance|Behaviour|PACE|Calendar|Messages|Noticeboard|User Access|People & Profiles/i,
+        }),
+      ).toHaveCount(0);
+    },
+  );
 
   supervisorTest('Supervisor cannot load club management', async ({ page }) => {
     await signIn(page, supervisorEmail!, supervisorPassword!);
@@ -85,5 +88,12 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
     await signIn(page, parentEmail!, parentPassword!);
     await page.goto('/admin/clubs');
     await expectNoClubManagement(page);
+  });
+
+  parentTest('Parent can load club signup without management controls', async ({ page }) => {
+    await signIn(page, parentEmail!, parentPassword!);
+    await page.goto('/parent/clubs');
+    await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /add club/i })).toHaveCount(0);
   });
 });

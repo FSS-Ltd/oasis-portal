@@ -46,7 +46,8 @@ export interface ClerkUserStore {
 }
 
 type PrismaUserDelegate = Pick<typeof prisma.user, 'create' | 'findUnique' | 'update'>;
-type PrismaUserInvitationDelegate = Pick<typeof prisma.userInvitation, 'updateMany'>;
+type PrismaUserInvitationDelegate = Pick<typeof prisma.userInvitation, 'findMany' | 'updateMany'>;
+type PrismaGuardianDelegate = Pick<typeof prisma.guardian, 'createMany'>;
 
 export interface PrismaClerkUserStoreDb {
   $enc: {
@@ -56,6 +57,7 @@ export interface PrismaClerkUserStoreDb {
   };
   user: PrismaUserDelegate;
   userInvitation: PrismaUserInvitationDelegate;
+  guardian: PrismaGuardianDelegate;
 }
 
 export interface ClerkWebhookVerifier {
@@ -128,9 +130,24 @@ export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUser
 
 export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma): ClerkUserStore {
   async function acceptPendingInvitations(emailBidx: string, userId: string): Promise<void> {
-    await db.userInvitation.updateMany({
+    const pendingInvitations = await db.userInvitation.findMany({
+      where: { emailBidx, status: 'Pending' },
+      select: { guardianLinkStudentIds: true },
+    });
+    const guardianLinkStudentIds = [
+      ...new Set(pendingInvitations.flatMap((invitation) => invitation.guardianLinkStudentIds)),
+    ];
+
+    const accepted = await db.userInvitation.updateMany({
       where: { emailBidx, status: 'Pending' },
       data: { status: 'Accepted', acceptedAt: new Date(), acceptedUserId: userId },
+    });
+
+    if (accepted.count === 0 || guardianLinkStudentIds.length === 0) return;
+
+    await db.guardian.createMany({
+      data: guardianLinkStudentIds.map((studentId) => ({ userId, studentId })),
+      skipDuplicates: true,
     });
   }
 
