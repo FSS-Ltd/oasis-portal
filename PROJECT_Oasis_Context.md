@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-11
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.10 Phase 3 verification suite ready for review.
+**Phase:** PR-3.5.0 club management and signups ready for review.
 
 ---
 
@@ -18,7 +18,53 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.10 Phase 3 verification suite
+## Current status - PR-3.5.0 club management and signups
+
+Working branch: `feat/phase-3.5-pr3.5.0-club-management-signups`.
+
+**PR scope:** Implement the backend-only club management and signup API for
+Phase 3.5. Web UI, mobile UI, notifications, payments, attendance, waitlists,
+and calendar sync remain out of scope.
+
+Changed scope:
+
+- Marked Phase 3 PR-3.10 merged via PR #95 on 2026-05-11 and set Phase 3.5 /
+  PR-3.5.0 as the current work.
+- Added a club signup history migration so withdrawn signup rows remain
+  historical while a later active re-sign is allowed.
+- Replaced the `club` placeholder API for list/create/update/roster/signUp and
+  withdraw while leaving `club.notify` deferred to PR-3.5.3.
+- Enforced Head/full-admin/ClubsAdmin club management,
+  parent/full-admin signup rules, active club/student checks, capacity checks,
+  active-signup uniqueness, idempotent authorized withdrawal, and non-PII audit
+  rows.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate` - pass.
+- `pnpm with-env pnpm --filter @oasis/db exec prisma validate` - pass.
+- `pnpm --filter @oasis/api test club.router.test.ts` - pass: 1 file / 25
+  tests.
+- `pnpm --filter @oasis/domain test -- clubs.test.ts rbac.test.ts` - pass, ran
+  all domain tests because of Vitest argument handling: 12 files / 138 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/db typecheck` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- Existing untracked `docs/decks/` files remain untouched.
+- `pnpm --filter @oasis/api test -- club.router.test.ts` ran the full API suite
+  because of package-script argument handling; all API tests passed before
+  Vitest reported an unrelated Prisma native-engine load error from
+  `audit.router.test.ts`.
+
+## Previous status - PR-3.10 Phase 3 verification suite
+
+Merged via PR #95 on 2026-05-11.
 
 Working branch: `test-phase-3-pr3.10-verification-suite`.
 
