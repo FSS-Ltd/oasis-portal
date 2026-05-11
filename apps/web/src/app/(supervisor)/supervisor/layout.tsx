@@ -5,6 +5,7 @@ import { prisma } from '@oasis/db';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
 import { getStaffUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { roleLabel } from '@/lib/profile-display';
 import '../../(admin)/admin/admin.css';
@@ -29,6 +30,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
     }),
   ]);
   const hasLinkedChildren = linkedChildren > 0;
+  const supervisorNavProps = { hasLinkedChildren, unreadNoticeCount };
 
   return (
     <div className="admin-shell supervisor-shell">
@@ -49,10 +51,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <span>Daily operations</span>
           <ProfileBadgeLink href="/supervisor/profile" />
         </div>
-        <SupervisorSidebarNav
-          hasLinkedChildren={hasLinkedChildren}
-          unreadNoticeCount={unreadNoticeCount}
-        />
+        <SupervisorSidebarNav {...supervisorNavProps} />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -61,6 +60,13 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
 
       <div className="admin-shell__content">
         <header className="admin-shell__mobile-header">
+          <MobileSideMenu
+            menuLabel="Open supervisor navigation menu"
+            subtitle={userRoleLabel}
+            title="Supervisor Portal"
+          >
+            <SupervisorSidebarNav {...supervisorNavProps} />
+          </MobileSideMenu>
           <Link className="admin-shell__mobile-brand" href="/supervisor">
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
@@ -74,10 +80,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
-        <SupervisorBottomNav
-          hasLinkedChildren={hasLinkedChildren}
-          unreadNoticeCount={unreadNoticeCount}
-        />
+        <SupervisorBottomNav {...supervisorNavProps} />
       </div>
     </div>
   );

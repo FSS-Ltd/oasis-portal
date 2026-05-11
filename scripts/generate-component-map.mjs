@@ -112,6 +112,7 @@ const PRODUCT_MODULES = [
       'apps/web/src/app/(parent)/',
       'apps/web/src/app/(supervisor)/',
       'apps/web/src/app/registration/',
+      'apps/web/src/components/navigation/',
       'apps/web/src/components/supervisor/',
     ],
     mobileSurfaces: ['apps/mobile/app/', 'apps/mobile/src/components/'],

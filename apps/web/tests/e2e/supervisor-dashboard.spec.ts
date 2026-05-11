@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import { signIn } from './helpers/auth';
 
 const headEmail = process.env.E2E_HEAD_EMAIL;
@@ -9,6 +9,19 @@ const supervisorEmail = process.env.E2E_SUPERVISOR_EMAIL;
 const supervisorPassword = process.env.E2E_SUPERVISOR_PASSWORD;
 const exporterEmail = process.env.E2E_EXPORTER_EMAIL;
 const exporterPassword = process.env.E2E_EXPORTER_PASSWORD;
+
+const phoneViewport = { width: 390, height: 844 } as const;
+
+async function openMobileSideMenu(
+  page: Page,
+  buttonName: RegExp,
+  dialogName: RegExp,
+): Promise<Locator> {
+  await page.getByRole('button', { name: buttonName }).click();
+  const dialog = page.getByRole('dialog', { name: dialogName });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
 
 test.describe('Supervisor dashboard shell', () => {
   const headTest = headEmail && headPassword ? test : test.skip;
@@ -28,6 +41,28 @@ test.describe('Supervisor dashboard shell', () => {
     await expect(page.getByRole('link', { name: /PACE/i })).toBeVisible();
     await expect(page.getByText(/students marked today/i)).toHaveCount(0);
   });
+
+  headTest(
+    'full-admin can use the mobile web side menu for lower-priority pages',
+    async ({ page }) => {
+      await page.setViewportSize(phoneViewport);
+      await signIn(page, headEmail!, headPassword!);
+      await expect(page).toHaveURL(/admin/);
+      await page.goto('/admin');
+
+      const dialog = await openMobileSideMenu(
+        page,
+        /open admin navigation menu/i,
+        /supervisor portal/i,
+      );
+      await expect(dialog.getByRole('link', { name: /messages/i })).toBeVisible();
+      await expect(dialog.getByRole('link', { name: /noticeboard/i })).toBeVisible();
+
+      await dialog.getByRole('link', { name: /messages/i }).click();
+      await expect(page).toHaveURL(/\/admin\/messages/);
+      await expect(page.getByRole('dialog', { name: /supervisor portal/i })).toHaveCount(0);
+    },
+  );
 
   headTest('full-admin can compose and publish a staff notice', async ({ page }) => {
     await signIn(page, headEmail!, headPassword!);
@@ -160,6 +195,30 @@ test.describe('Supervisor dashboard shell', () => {
     },
   );
 
+  supervisorTest(
+    'Supervisor can use the mobile web side menu for all sections',
+    async ({ page }) => {
+      await page.setViewportSize(phoneViewport);
+      await signIn(page, supervisorEmail!, supervisorPassword!);
+      await expect(page).toHaveURL(/supervisor/);
+      await page.goto('/supervisor');
+
+      const dialog = await openMobileSideMenu(
+        page,
+        /open supervisor navigation menu/i,
+        /supervisor portal/i,
+      );
+      await expect(dialog.getByRole('link', { name: /^rota$/i })).toBeVisible();
+      await expect(dialog.getByRole('link', { name: /^calendar$/i })).toBeVisible();
+      await expect(dialog.getByRole('link', { name: /^noticeboard$/i })).toBeVisible();
+      await expect(dialog.getByRole('link', { name: /^snapshot$/i })).toBeVisible();
+
+      await dialog.getByRole('link', { name: /^rota$/i }).click();
+      await expect(page).toHaveURL(/\/supervisor\/rota/);
+      await expect(page.getByRole('dialog', { name: /supervisor portal/i })).toHaveCount(0);
+    },
+  );
+
   headTest('staff shells expose logout and return to sign-in', async ({ page }) => {
     await signIn(page, headEmail!, headPassword!);
     await page.goto('/admin');
@@ -201,6 +260,27 @@ test.describe('Supervisor dashboard shell', () => {
     await page.goto('/admin/noticeboard');
     await expect(page.getByRole('heading', { name: /post a notice/i })).toHaveCount(0);
   });
+
+  parentTest(
+    'Parent can use the mobile web side menu for all parent sections',
+    async ({ page }) => {
+      await page.setViewportSize(phoneViewport);
+      await signIn(page, parentEmail!, parentPassword!);
+      await page.goto('/parent');
+
+      if (!new URL(page.url()).pathname.startsWith('/parent')) {
+        test.skip(true, 'Parent account is not in the linked parent portal state.');
+      }
+
+      const dialog = await openMobileSideMenu(page, /open parent navigation menu/i, /my children/i);
+      await expect(dialog.getByRole('link', { name: /^noticeboard$/i })).toBeVisible();
+      await expect(dialog.getByRole('link', { name: /^registration$/i })).toBeVisible();
+
+      await dialog.getByRole('link', { name: /^noticeboard$/i }).click();
+      await expect(page).toHaveURL(/\/parent\/noticeboard/);
+      await expect(page.getByRole('dialog', { name: /my children/i })).toHaveCount(0);
+    },
+  );
 
   test('unauthenticated supervisor access requires sign-in', async ({ page }) => {
     await page.goto('/supervisor');

@@ -17,6 +17,7 @@ import { prisma } from '@oasis/db';
 import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getAdminShellUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { roleLabel } from '@/lib/profile-display';
 import './admin.css';
@@ -66,6 +67,21 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               : canManageClubModule
                 ? '/admin/clubs'
                 : '/admin/profile';
+  const adminNavProps = {
+    canManageCalendar: canManageCalendarDates,
+    canManageClubs: canManageClubModule,
+    canManageUserAccounts: canManageAccounts,
+    canUseMessages,
+    canViewAudit,
+    canViewBehaviour,
+    canViewPace,
+    canViewStudents,
+    canExportAttendance: canExportAttendanceCsv,
+    clubsOnly: user.role === 'ClubsAdmin',
+    fullAdmin,
+    hasLinkedChildren,
+    unreadMessageCount,
+  };
 
   return (
     <div className="admin-shell">
@@ -86,21 +102,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <span>Centre operations</span>
           <ProfileBadgeLink href="/admin/profile" />
         </div>
-        <AdminSidebarNav
-          canViewAudit={canViewAudit}
-          canViewBehaviour={canViewBehaviour}
-          canExportAttendance={canExportAttendanceCsv}
-          canViewPace={canViewPace}
-          canViewStudents={canViewStudents}
-          canManageUserAccounts={canManageAccounts}
-          canManageCalendar={canManageCalendarDates}
-          canManageClubs={canManageClubModule}
-          clubsOnly={user.role === 'ClubsAdmin'}
-          fullAdmin={fullAdmin}
-          hasLinkedChildren={hasLinkedChildren}
-          canUseMessages={canUseMessages}
-          unreadMessageCount={unreadMessageCount}
-        />
+        <AdminSidebarNav {...adminNavProps} />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -109,6 +111,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
       <div className="admin-shell__content">
         <header className="admin-shell__mobile-header">
+          <MobileSideMenu
+            menuLabel="Open admin navigation menu"
+            subtitle={userRoleLabel}
+            title="Supervisor Portal"
+          >
+            <AdminSidebarNav {...adminNavProps} />
+          </MobileSideMenu>
           <Link className="admin-shell__mobile-brand" href={homeHref}>
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
@@ -122,21 +131,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
-        <AdminBottomNav
-          canViewAudit={canViewAudit}
-          canViewBehaviour={canViewBehaviour}
-          canExportAttendance={canExportAttendanceCsv}
-          canViewPace={canViewPace}
-          canViewStudents={canViewStudents}
-          canManageUserAccounts={canManageAccounts}
-          canManageCalendar={canManageCalendarDates}
-          canManageClubs={canManageClubModule}
-          clubsOnly={user.role === 'ClubsAdmin'}
-          fullAdmin={fullAdmin}
-          hasLinkedChildren={hasLinkedChildren}
-          canUseMessages={canUseMessages}
-          unreadMessageCount={unreadMessageCount}
-        />
+        <AdminBottomNav {...adminNavProps} />
       </div>
     </div>
   );

@@ -26,8 +26,14 @@ export interface DataTableProps<T> {
 }
 
 function stateNode(content: ReactNode, className?: string): ReactNode {
-  if (typeof content === 'string') return <div className={cn('empty-state', className)}>{content}</div>;
+  if (typeof content === 'string')
+    return <div className={cn('empty-state', className)}>{content}</div>;
   return content;
+}
+
+function columnLabel(header: ReactNode): string {
+  if (typeof header === 'string' || typeof header === 'number') return String(header);
+  return '';
 }
 
 export function DataTable<T>({
@@ -52,7 +58,7 @@ export function DataTable<T>({
     content = stateNode(empty ?? 'No rows found');
   } else {
     const table = (
-      <table className={cn('table', tableClassName)}>
+      <table className={cn('table data-table', tableClassName)}>
         <thead>
           <tr>
             {columns.map((column) => (
@@ -65,7 +71,11 @@ export function DataTable<T>({
         <tbody>
           {rows.map((row) => {
             const cells = columns.map((column) => (
-              <td className={column.className} key={column.id}>
+              <td
+                className={column.className}
+                data-label={columnLabel(column.header)}
+                key={column.id}
+              >
                 {column.render(row)}
               </td>
             ));

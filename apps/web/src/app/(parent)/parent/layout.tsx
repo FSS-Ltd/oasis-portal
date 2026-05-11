@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { prisma } from '@oasis/db';
 import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
+import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { ParentBottomNav, ParentSidebarNav } from '@/components/parent/parent-nav';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import '../../(admin)/admin/admin.css';
@@ -34,6 +35,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
       },
     }),
   ]);
+  const parentNavProps = { unreadMessageCount, unreadNoticeCount };
 
   return (
     <div className="admin-shell parent-shell">
@@ -54,10 +56,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <span>Linked children only</span>
           <ProfileBadgeLink href="/parent/profile" />
         </div>
-        <ParentSidebarNav
-          unreadMessageCount={unreadMessageCount}
-          unreadNoticeCount={unreadNoticeCount}
-        />
+        <ParentSidebarNav {...parentNavProps} />
         <div className="admin-shell__foot">
           <span>Oasis Learning Centre</span>
           <LogoutButton />
@@ -66,6 +65,13 @@ export default async function ParentLayout({ children }: { children: ReactNode }
 
       <div className="admin-shell__content">
         <header className="admin-shell__mobile-header">
+          <MobileSideMenu
+            menuLabel="Open parent navigation menu"
+            subtitle="Linked children"
+            title="My Children"
+          >
+            <ParentSidebarNav {...parentNavProps} />
+          </MobileSideMenu>
           <Link className="admin-shell__mobile-brand" href="/parent">
             <Image alt="Oasis Learning Centre" height={32} src="/oasis-logo.svg" width={84} />
             <span>
@@ -79,10 +85,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </div>
         </header>
         <main className="admin-shell__main">{children}</main>
-        <ParentBottomNav
-          unreadMessageCount={unreadMessageCount}
-          unreadNoticeCount={unreadNoticeCount}
-        />
+        <ParentBottomNav {...parentNavProps} />
       </div>
     </div>
   );
