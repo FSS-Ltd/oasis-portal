@@ -158,7 +158,7 @@ export function SignInPanel() {
       }
 
       const status = attempt.status ?? 'additional verification';
-      setError(`Sign-in requires ${status}. Complete it in Clerk before using this smoke.`);
+      setError(`Sign-in requires ${status}. Complete it in Clerk before using the mobile app.`);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -217,7 +217,7 @@ export function SignInPanel() {
             style={styles.logo}
           />
           <Text style={styles.title}>Oasis Learning Centre</Text>
-          <MutedText>Supervisor workflow smoke</MutedText>
+          <MutedText>Staff and family mobile portal</MutedText>
         </View>
         {secondFactor ? (
           <>
