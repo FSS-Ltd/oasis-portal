@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { behaviourRouter } from '../routers/behaviour.js';
+import type { EmailClient } from '../lib/email.js';
+import { createBehaviourRouter } from '../routers/behaviour.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = {
@@ -67,6 +68,21 @@ interface StoredStudent {
   yearGroup: string;
 }
 
+interface StoredUser {
+  id: string;
+  active: boolean;
+  emailEnc: string;
+  fullNameEnc: string;
+  role: SessionUser['role'];
+}
+
+interface StoredGuardian {
+  id: string;
+  createdAt: Date;
+  studentId: string;
+  userId: string;
+}
+
 interface StoredBehaviour {
   id: string;
   studentId: string;
@@ -87,6 +103,16 @@ interface StoredLedgerRow {
   relatedEntryId?: string;
 }
 
+interface AuditCreateArgs {
+  data: {
+    action: string;
+    entity: string;
+    entityId?: string | null;
+    meta: Record<string, unknown>;
+    userId: string;
+  };
+}
+
 interface FakeDb {
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
@@ -94,6 +120,7 @@ interface FakeDb {
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
   student: { findUnique: ReturnType<typeof vi.fn> };
+  guardian: { findMany: ReturnType<typeof vi.fn> };
   behaviourEntry: {
     create: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -111,7 +138,48 @@ function decrypt(value: string | null | undefined): string | null {
   return value.replace(/^enc:/u, '');
 }
 
-function makeFakeDb(options: { supervisorHasShift?: boolean } = {}) {
+function makeStoredUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>): StoredUser {
+  return {
+    active: true,
+    emailEnc: encrypt(`${input.id}@example.com`) ?? '',
+    fullNameEnc: encrypt(`${input.role} User`) ?? '',
+    ...input,
+  };
+}
+
+const defaultUsers: StoredUser[] = [
+  makeStoredUser({ id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role }),
+  makeStoredUser({ id: hodUser.id, fullNameEnc: 'enc:HOD User', role: hodUser.role }),
+  makeStoredUser({
+    id: principalUser.id,
+    fullNameEnc: 'enc:Principal User',
+    role: principalUser.role,
+  }),
+  makeStoredUser({
+    id: supervisorUser.id,
+    fullNameEnc: 'enc:Supervisor User',
+    role: supervisorUser.role,
+  }),
+  makeStoredUser({
+    id: otherSupervisorUser.id,
+    fullNameEnc: 'enc:Other Supervisor User',
+    role: otherSupervisorUser.role,
+  }),
+  makeStoredUser({
+    id: parentUser.id,
+    emailEnc: 'enc:jane.parent@example.com',
+    fullNameEnc: 'enc:Jane Parent',
+    role: parentUser.role,
+  }),
+];
+
+function makeFakeDb(
+  options: {
+    guardians?: StoredGuardian[];
+    supervisorHasShift?: boolean;
+    users?: StoredUser[];
+  } = {},
+) {
   const supervisorHasShift = options.supervisorHasShift ?? true;
   const students: StoredStudent[] = [
     { id: activeStudentId, active: true, fullNameEnc: 'enc:Jane Learner', yearGroup: 'Year 6' },
@@ -137,17 +205,8 @@ function makeFakeDb(options: { supervisorHasShift?: boolean } = {}) {
       active: true,
     },
   ];
-  const users = [
-    { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
-    { id: hodUser.id, fullNameEnc: 'enc:HOD User', role: hodUser.role },
-    { id: principalUser.id, fullNameEnc: 'enc:Principal User', role: principalUser.role },
-    { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: supervisorUser.role },
-    {
-      id: otherSupervisorUser.id,
-      fullNameEnc: 'enc:Other Supervisor User',
-      role: otherSupervisorUser.role,
-    },
-  ];
+  const users = [...defaultUsers, ...(options.users ?? [])];
+  const guardians = [...(options.guardians ?? [])];
   const behaviour: StoredBehaviour[] = [];
   const ledger: StoredLedgerRow[] = [];
 
@@ -163,6 +222,24 @@ function makeFakeDb(options: { supervisorHasShift?: boolean } = {}) {
         if (!student) return Promise.resolve(null);
         return Promise.resolve(student);
       }),
+    },
+    guardian: {
+      findMany: vi.fn(({ where }: { where: { studentId?: string; user?: { active?: boolean } } }) =>
+        Promise.resolve(
+          guardians
+            .filter(
+              (guardian) => where.studentId === undefined || guardian.studentId === where.studentId,
+            )
+            .map((guardian) => ({
+              user: users.find((user) => user.id === guardian.userId) ?? null,
+            }))
+            .filter(
+              (guardian): guardian is { user: StoredUser } =>
+                guardian.user !== null &&
+                (where.user?.active === undefined || guardian.user.active === where.user.active),
+            ),
+        ),
+      ),
     },
     behaviourEntry: {
       create: vi.fn(({ data }: { data: Omit<StoredBehaviour, 'id' | 'createdAt'> }) => {
@@ -258,7 +335,7 @@ function makeFakeDb(options: { supervisorHasShift?: boolean } = {}) {
     },
   };
 
-  return { db, students, behaviour, ledger };
+  return { db, students, behaviour, ledger, guardians, users };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -270,8 +347,33 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db: FakeDb) {
-  const appRouter = router({ behaviour: behaviourRouter });
+function makeFakeEmailClient(result = { id: 'email_123' }) {
+  const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
+  const client: EmailClient = { send };
+  return { client, send };
+}
+
+function makeGuardian(userId: string, input: Partial<StoredGuardian> = {}): StoredGuardian {
+  return {
+    id: `guardian_${userId}`,
+    createdAt: new Date('2026-04-29T08:00:00.000Z'),
+    studentId: activeStudentId,
+    userId,
+    ...input,
+  };
+}
+
+function auditCreateArgs(db: FakeDb): AuditCreateArgs[] {
+  const calls = db.auditLog.create.mock.calls as unknown as Array<[AuditCreateArgs]>;
+  return calls.map(([args]) => args);
+}
+
+function makeCaller(
+  user: SessionUser | null,
+  db: FakeDb,
+  emailClient: EmailClient = makeFakeEmailClient().client,
+) {
+  const appRouter = router({ behaviour: createBehaviourRouter({ emailClient }) });
   return appRouter.createCaller(makeCtx(user, db));
 }
 
@@ -356,6 +458,165 @@ describe('behaviour.log', () => {
         },
       },
     });
+  });
+
+  it('emails General merits to every active linked guardian and skips inactive accounts', async () => {
+    const inactiveGuardian = makeStoredUser({
+      id: 'ckuserinactiveguardian001',
+      active: false,
+      emailEnc: 'enc:inactive.guardian@example.com',
+      fullNameEnc: 'enc:Inactive Guardian',
+      role: 'Parent',
+    });
+    const { db } = makeFakeDb({
+      guardians: [
+        makeGuardian(parentUser.id),
+        makeGuardian(principalUser.id),
+        makeGuardian(inactiveGuardian.id),
+      ],
+      users: [inactiveGuardian],
+    });
+    const email = makeFakeEmailClient();
+
+    await makeCaller(supervisorUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      note: 'Helped a younger student',
+      visibility: 'General',
+      amount: 4,
+    });
+
+    expect(email.send).toHaveBeenCalledTimes(2);
+    expect(email.send.mock.calls.map(([payload]) => payload.to)).toEqual([
+      'jane.parent@example.com',
+      `${principalUser.id}@example.com`,
+    ]);
+    const firstEmail = email.send.mock.calls[0]?.[0];
+    expect(firstEmail?.subject).toBe('Oasis Portal behaviour update');
+    expect(firstEmail?.text).toContain('Jane Learner');
+    expect(firstEmail?.text).toContain('Type: Merit');
+    expect(firstEmail?.text).toContain('Category: Kindness');
+    expect(firstEmail?.text).toContain('Note: Helped a younger student');
+    const emailAudits = auditCreateArgs(db).filter((args) => args.data.entity === 'Email');
+    expect(emailAudits).toHaveLength(2);
+    expect(emailAudits.map((args) => args.data.meta['toUserId'])).toEqual([
+      parentUser.id,
+      principalUser.id,
+    ]);
+    expect(emailAudits[0]?.data.meta).toMatchObject({
+      emailStatus: 'Sent',
+      source: 'behaviour.log.notification',
+      studentId: activeStudentId,
+      type: 'Merit',
+    });
+  });
+
+  it('emails General demerits to linked guardians', async () => {
+    const { db } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+
+    await makeCaller(supervisorUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Disruption',
+      note: 'Interrupted group work',
+      visibility: 'General',
+    });
+
+    expect(email.send).toHaveBeenCalledTimes(1);
+    const sentEmail = email.send.mock.calls[0]?.[0];
+    expect(sentEmail?.text).toContain('Type: Demerit');
+    expect(sentEmail?.text).toContain('Category: Disruption');
+    expect(sentEmail?.text).toContain('Note: Interrupted group work');
+  });
+
+  it('does not email linked guardians for Sensitive merit or demerit entries', async () => {
+    const { db } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+
+    await makeCaller(headUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Pastoral',
+      note: 'Sensitive positive note',
+      visibility: 'Sensitive',
+      amount: 2,
+    });
+    await makeCaller(headUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Safeguarding',
+      note: 'Sensitive staff note',
+      visibility: 'Sensitive',
+    });
+
+    expect(email.send).not.toHaveBeenCalled();
+    expect(auditCreateArgs(db).some((args) => args.data.entity === 'Email')).toBe(false);
+  });
+
+  it('keeps saved General behaviour and audits notification failure when email delivery fails', async () => {
+    const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+    email.send.mockRejectedValueOnce(new Error('resend unavailable'));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(
+        makeCaller(supervisorUser, db, email.client).behaviour.log({
+          studentId: activeStudentId,
+          type: 'Merit',
+          category: 'Kindness',
+          note: 'Shared resources',
+          visibility: 'General',
+          amount: 2,
+        }),
+      ).resolves.toMatchObject({
+        studentId: activeStudentId,
+        type: 'Merit',
+        meritDelta: 2,
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(behaviour).toHaveLength(1);
+    expect(ledger).toHaveLength(1);
+    const failedAudit = auditCreateArgs(db).find(
+      (args) =>
+        args.data.entity === 'BehaviourEntry' &&
+        args.data.action === 'Update' &&
+        args.data.meta['source'] === 'behaviour.log.notification',
+    );
+    expect(failedAudit?.data).toMatchObject({
+      action: 'Update',
+      entity: 'BehaviourEntry',
+      entityId: 'ckbehaviour000000000001',
+      meta: {
+        emailStatus: 'Failed',
+        source: 'behaviour.log.notification',
+        studentId: activeStudentId,
+        toUserId: parentUser.id,
+        type: 'Merit',
+      },
+    });
+  });
+
+  it('saves General behaviour without sending when the student has no linked guardians', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+    const email = makeFakeEmailClient();
+
+    await makeCaller(supervisorUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      visibility: 'General',
+      amount: 1,
+    });
+
+    expect(behaviour).toHaveLength(1);
+    expect(ledger).toHaveLength(1);
+    expect(email.send).not.toHaveBeenCalled();
   });
 
   it('denies unsupported roles and rejects missing inputs or inactive students', async () => {

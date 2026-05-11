@@ -3,6 +3,7 @@ import { render } from 'react-email';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import {
+  BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT,
   DEFAULT_RESEND_FROM,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
@@ -12,6 +13,7 @@ import {
   SMOKE_TEST_EMAIL_TEXT,
   SMOKE_TEST_EMAIL_TO,
   USER_INVITE_EMAIL_SUBJECT,
+  buildBehaviourNotificationEmail,
   buildHelloWorldEmail,
   buildMessageNotificationEmail,
   buildSmokeTestEmail,
@@ -199,6 +201,33 @@ describe('email builders', () => {
     expect(html).toContain('New portal message');
     expect(html).toContain('Attendance question');
     expect(html).not.toContain('Please call me back');
+  });
+
+  it('builds a behaviour notification email with category, type, and optional note', async () => {
+    const email = buildBehaviourNotificationEmail({
+      to: 'parent@example.com',
+      recipientName: 'Jane Parent',
+      childName: 'Jane Learner',
+      type: 'Merit',
+      category: 'Kindness',
+      note: 'Helped a younger student',
+    });
+
+    expect(email.to).toBe('parent@example.com');
+    expect(email.subject).toBe(BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT);
+    expect(email.text).toContain('Jane Learner');
+    expect(email.text).toContain('Type: Merit');
+    expect(email.text).toContain('Category: Kindness');
+    expect(email.text).toContain('Note: Helped a younger student');
+    expect('react' in email).toBe(true);
+    expect('html' in email).toBe(false);
+
+    if (!('react' in email)) throw new Error('expected react email payload');
+    const html = await render(email.react);
+    expect(html).toContain('Merit recorded');
+    expect(html).toContain('Jane Learner');
+    expect(html).toContain('Kindness');
+    expect(html).toContain('Helped a younger student');
   });
 });
 
