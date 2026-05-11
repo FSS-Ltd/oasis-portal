@@ -7,6 +7,10 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import {
+  loadDailyYearBandScope,
+  studentMatchesDailyScope,
+} from '../lib/daily-year-band-scope.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -37,10 +41,13 @@ async function requireChildNoteWorkflow(ctx: AuthedContext, entity: string): Pro
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-async function assertActiveStudent(ctx: AuthedContext, studentId: string): Promise<void> {
+async function assertActiveStudent(
+  ctx: AuthedContext,
+  studentId: string,
+): Promise<{ id: string; yearGroup: string }> {
   const student = await ctx.db.student.findUnique({
     where: { id: studentId },
-    select: { id: true, active: true },
+    select: { id: true, active: true, yearGroup: true },
   });
   if (!student) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -48,6 +55,40 @@ async function assertActiveStudent(ctx: AuthedContext, studentId: string): Promi
   if (!student.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
   }
+  return student;
+}
+
+async function denyOutOfChildNoteScope(
+  ctx: AuthedContext,
+  entity: string,
+  meta: Record<string, unknown>,
+): Promise<never> {
+  const denied = new AccessDeniedError('student is outside supervisor assigned year band');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity,
+      meta: { ...meta, role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
+async function requireStudentInChildNoteScope(
+  ctx: AuthedContext,
+  entity: string,
+  student: { id: string; yearGroup: string },
+): Promise<void> {
+  const scope = await loadDailyYearBandScope(ctx, new Date());
+  if (studentMatchesDailyScope(scope, student)) return;
+
+  await denyOutOfChildNoteScope(ctx, entity, {
+    studentId: student.id,
+    studentYearGroup: student.yearGroup,
+    date: scope.dayKey,
+    assignedBands: scope.assignedBands.map((band) => band.id),
+  });
 }
 
 export const childNotesRouter = router({
@@ -61,7 +102,8 @@ export const childNotesRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       await requireChildNoteWorkflow(ctx, 'childNotes.create');
-      await assertActiveStudent(ctx, input.studentId);
+      const student = await assertActiveStudent(ctx, input.studentId);
+      await requireStudentInChildNoteScope(ctx, 'childNotes.create', student);
 
       const note = await ctx.db.childNote.create({
         data: {
@@ -97,7 +139,8 @@ export const childNotesRouter = router({
     .input(z.object({ studentId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       await requireChildNoteWorkflow(ctx, 'childNotes.listForStudent');
-      await assertActiveStudent(ctx, input.studentId);
+      const student = await assertActiveStudent(ctx, input.studentId);
+      await requireStudentInChildNoteScope(ctx, 'childNotes.listForStudent', student);
 
       const canReadSensitive = canViewSensitiveChildNotes(ctx.user);
       const notes = await ctx.db.childNote.findMany({

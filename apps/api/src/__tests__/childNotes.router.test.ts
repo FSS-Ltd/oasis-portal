@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { childLogRouter } from '../routers/childLog.js';
@@ -73,6 +73,53 @@ interface StoredChildNoteCreateInput {
   createdById: string;
 }
 
+interface StoredStudent {
+  id: string;
+  active: boolean;
+  fullNameEnc: string;
+  yearGroup: string;
+  enrolmentDate: Date;
+  createdAt: Date;
+  subjects: Array<{
+    subjectId: string;
+    currentPaceNumber: number;
+    subject: { id: string; code: string; name: string };
+  }>;
+}
+
+interface StudentFindManyInput {
+  where?: {
+    active?: boolean;
+    id?: { in: string[] };
+    yearGroup?: { in: string[] };
+  };
+}
+
+interface StoredYearGroupBand {
+  id: string;
+  name: string;
+  standardYears: string[];
+  colour: string;
+  active: boolean;
+}
+
+interface StoredStaffShift {
+  id: string;
+  staffUserId: string;
+  date: Date;
+  startsAt: Date;
+  yearGroupBand: StoredYearGroupBand;
+}
+
+interface StaffShiftFindManyInput {
+  where: {
+    staffUserId: string;
+    date: Date;
+  };
+}
+
+const today = day('2026-04-30');
+
 function day(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
@@ -87,9 +134,34 @@ function matchesStudentId(where: string | { in: string[] }, studentId: string): 
   return where.in.includes(studentId);
 }
 
+function sameDay(left: Date, right: Date): boolean {
+  return left.toISOString().slice(0, 10) === right.toISOString().slice(0, 10);
+}
+
+function makeOutOfBandStudent(): StoredStudent {
+  return {
+    id: 'student_2',
+    active: true,
+    fullNameEnc: 'enc:Secondary Learner',
+    yearGroup: 'Year 9',
+    enrolmentDate: day('2024-09-01'),
+    createdAt: day('2024-09-02'),
+    subjects: [],
+  };
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(today);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 function makeFakeDb() {
   const notes: StoredChildNote[] = [];
-  const students = [
+  const students: StoredStudent[] = [
     {
       id: 'student_1',
       active: true,
@@ -104,6 +176,36 @@ function makeFakeDb() {
           subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
         },
       ],
+    },
+  ];
+  const lowerBand: StoredYearGroupBand = {
+    id: 'band_lower',
+    name: 'Lower school',
+    standardYears: ['Year 6'],
+    colour: '#0E7892',
+    active: true,
+  };
+  const staffShifts: StoredStaffShift[] = [
+    {
+      id: 'shift_supervisor',
+      staffUserId: supervisorUser.id,
+      date: today,
+      startsAt: new Date('2026-04-30T09:00:00.000Z'),
+      yearGroupBand: lowerBand,
+    },
+    {
+      id: 'shift_tagged_supervisor',
+      staffUserId: taggedSupervisorUser.id,
+      date: today,
+      startsAt: new Date('2026-04-30T09:00:00.000Z'),
+      yearGroupBand: lowerBand,
+    },
+    {
+      id: 'shift_sensitive_viewer',
+      staffUserId: sensitiveViewerUser.id,
+      date: today,
+      startsAt: new Date('2026-04-30T09:00:00.000Z'),
+      yearGroupBand: lowerBand,
     },
   ];
   const guardians = [
@@ -142,12 +244,30 @@ function makeFakeDb() {
     },
     auditLog: { create: vi.fn(() => Promise.resolve({ id: 'audit' })) },
     student: {
-      findMany: vi.fn(() => Promise.resolve(students)),
+      findMany: vi.fn(({ where }: StudentFindManyInput = {}) =>
+        Promise.resolve(
+          students.filter((student) => {
+            if (where?.active !== undefined && student.active !== where.active) return false;
+            if (where?.id && !where.id.in.includes(student.id)) return false;
+            if (where?.yearGroup && !where.yearGroup.in.includes(student.yearGroup)) return false;
+            return true;
+          }),
+        ),
+      ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const student = students.find((row) => row.id === where.id);
         if (!student) return Promise.resolve(null);
         return Promise.resolve(student);
       }),
+    },
+    staffShift: {
+      findMany: vi.fn(({ where }: StaffShiftFindManyInput) =>
+        Promise.resolve(
+          staffShifts.filter(
+            (shift) => shift.staffUserId === where.staffUserId && sameDay(shift.date, where.date),
+          ),
+        ),
+      ),
     },
     guardian: {
       findUnique: vi.fn(
@@ -236,7 +356,9 @@ function makeFakeDb() {
     },
     pacePolicy: { findUnique: vi.fn(() => Promise.resolve({ passThreshold: 80 })) },
     meritLedger: {
-      aggregate: vi.fn(() => Promise.resolve({ _sum: { delta: 17 } })),
+      aggregate: vi.fn(({ where }: { where: { studentId: string } }) =>
+        Promise.resolve({ _sum: { delta: where.studentId === 'student_1' ? 17 : 0 } }),
+      ),
       groupBy: vi.fn(() =>
         Promise.resolve([
           { studentId: 'student_1', account: 'Spend', _sum: { delta: 10 } },
@@ -345,7 +467,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, guardians, notes, students };
+  return { db, guardians, notes, staffShifts, students };
 }
 
 function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>['db']): AppContext {
@@ -438,6 +560,105 @@ describe('childLog.snapshot', () => {
     ]);
     expect(snapshot.notes).toMatchObject([{ note: 'Visible note', sensitive: false }]);
     expect(snapshot.student).toMatchObject({ supervisorName: 'Supervisor User', totalMerits: 17 });
+  });
+
+  it('lists all active snapshot students for full-admin users', async () => {
+    const { db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+    students.push({
+      ...makeOutOfBandStudent(),
+      id: 'student_archived',
+      active: false,
+      fullNameEnc: 'enc:Archived Learner',
+    });
+
+    await expect(makeCaller(headUser, db).childLog.listSnapshotStudents()).resolves.toMatchObject([
+      { id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' },
+      { id: 'student_2', fullName: 'Secondary Learner', yearGroup: 'Year 9' },
+    ]);
+  });
+
+  it("lists only today's assigned band students for Supervisors", async () => {
+    const { db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+
+    await expect(
+      makeCaller(supervisorUser, db).childLog.listSnapshotStudents(),
+    ).resolves.toMatchObject([{ id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' }]);
+    await expect(
+      makeCaller(taggedSupervisorUser, db).childLog.listSnapshotStudents(),
+    ).resolves.toMatchObject([{ id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' }]);
+  });
+
+  it('returns no snapshot picker students when a Supervisor has no shift today', async () => {
+    const { db, staffShifts } = makeFakeDb();
+    staffShifts.length = 0;
+
+    await expect(makeCaller(supervisorUser, db).childLog.listSnapshotStudents()).resolves.toEqual(
+      [],
+    );
+  });
+
+  it('blocks Supervisor direct snapshot access outside their assigned band', async () => {
+    const { db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+
+    await expect(
+      makeCaller(supervisorUser, db).childLog.snapshot({
+        studentId: 'student_2',
+        from: day('2026-04-29'),
+        to: day('2026-04-30'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PermissionDenied',
+        entity: 'childLog.snapshot',
+        meta: {
+          assignedBands: ['band_lower'],
+          date: '2026-04-30',
+          reason: 'Access denied: student is outside supervisor assigned year band',
+          role: 'Supervisor',
+          studentId: 'student_2',
+          studentYearGroup: 'Year 9',
+        },
+        userId: supervisorUser.id,
+      },
+    });
+  });
+
+  it('allows full-admin direct snapshot access outside Supervisor bands', async () => {
+    const { db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+
+    await expect(
+      makeCaller(headUser, db).childLog.snapshot({
+        studentId: 'student_2',
+        from: day('2026-04-29'),
+        to: day('2026-04-30'),
+      }),
+    ).resolves.toMatchObject({
+      student: { id: 'student_2', fullName: 'Secondary Learner', yearGroup: 'Year 9' },
+    });
+  });
+
+  it('blocks Supervisor child notes outside their assigned band', async () => {
+    const { db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+
+    await makeCaller(headUser, db).childNotes.create({
+      studentId: 'student_2',
+      note: 'Full-admin note',
+    });
+    await expect(
+      makeCaller(supervisorUser, db).childNotes.create({
+        studentId: 'student_2',
+        note: 'Out-of-band note',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(supervisorUser, db).childNotes.listForStudent({ studentId: 'student_2' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('lists only accessible students for linked adult accounts', async () => {

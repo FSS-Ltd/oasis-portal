@@ -46,7 +46,7 @@ export function ChildSnapshotClient() {
   const [sensitive, setSensitive] = useState(false);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
 
-  const studentsQuery = api.student.list.useQuery(undefined, { retry: false });
+  const studentsQuery = api.childLog.listSnapshotStudents.useQuery(undefined, { retry: false });
   const snapshotQuery = api.childLog.snapshot.useQuery(
     {
       studentId: selectedStudentId,
