@@ -2,6 +2,10 @@ import { createElement, type ReactNode } from 'react';
 import { Resend, type CreateEmailOptions } from 'resend';
 import type { Role } from '@oasis/domain';
 import {
+  BehaviourNotificationEmail,
+  buildBehaviourNotificationEmailText,
+} from '../emails/behaviour-notification-email.js';
+import {
   buildMessageNotificationEmailText,
   MessageNotificationEmail,
 } from '../emails/message-notification-email.js';
@@ -18,6 +22,7 @@ export const HELLO_WORLD_EMAIL_TO = SMOKE_TEST_EMAIL_TO;
 export const HELLO_WORLD_EMAIL_SUBJECT = SMOKE_TEST_EMAIL_SUBJECT;
 export const USER_INVITE_EMAIL_SUBJECT = 'Your Oasis Portal invitation';
 export const MESSAGE_NOTIFICATION_EMAIL_SUBJECT = 'New Oasis Portal message';
+export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour update';
 
 export interface EmailEnv {
   [key: string]: string | undefined;
@@ -227,5 +232,40 @@ export function buildMessageNotificationEmail(
       ...logoProps(logoUrl),
     }),
     text: buildMessageNotificationEmailText(commonProps),
+  };
+}
+
+export interface BehaviourNotificationEmailInput {
+  category: string;
+  childName: string;
+  logoUrl?: string;
+  note?: string | null;
+  recipientName?: string;
+  to: string;
+  type: 'Merit' | 'Demerit';
+}
+
+export function buildBehaviourNotificationEmail(
+  input: BehaviourNotificationEmailInput,
+): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const note = input.note ?? null;
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    category: input.category,
+    childName: input.childName,
+    note,
+    type: input.type,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(BehaviourNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildBehaviourNotificationEmailText(commonProps),
   };
 }

@@ -20,6 +20,7 @@ export {
   type ResolveClerkBearerTokenDeps,
 } from './lib/clerk.js';
 export {
+  BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT,
   DEFAULT_RESEND_FROM,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
@@ -30,6 +31,7 @@ export {
   SMOKE_TEST_EMAIL_TEXT,
   SMOKE_TEST_EMAIL_TO,
   USER_INVITE_EMAIL_SUBJECT,
+  buildBehaviourNotificationEmail,
   buildEmailLogoUrl,
   buildHelloWorldEmail,
   buildMessageNotificationEmail,
@@ -40,11 +42,17 @@ export {
   type EmailClient,
   type EmailConfig,
   type EmailEnv,
+  type BehaviourNotificationEmailInput,
   type MessageNotificationEmailInput,
   type SendEmailInput,
   type SendEmailResult,
   type UserInviteEmailInput,
 } from './lib/email.js';
+export {
+  behaviourRouter,
+  createBehaviourRouter,
+  type BehaviourRouterDeps,
+} from './routers/behaviour.js';
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {
