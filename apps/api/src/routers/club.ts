@@ -135,6 +135,22 @@ const clubNotificationSelect = Prisma.validator<Prisma.ClubSelect>()({
 
 type ClubForNotification = Prisma.ClubGetPayload<{ select: typeof clubNotificationSelect }>;
 
+const clubNotificationHistorySelect = Prisma.validator<Prisma.ClubNotificationSelect>()({
+  id: true,
+  clubId: true,
+  title: true,
+  sentAt: true,
+  sentBy: {
+    select: {
+      fullNameEnc: true,
+    },
+  },
+});
+
+type ClubNotificationHistoryRow = Prisma.ClubNotificationGetPayload<{
+  select: typeof clubNotificationHistorySelect;
+}>;
+
 function toForbidden(error: AccessDeniedError): TRPCError {
   return new TRPCError({ code: 'FORBIDDEN', message: error.message, cause: error });
 }
@@ -223,6 +239,19 @@ function mapLinkedStudent(
     id: row.student.id,
     fullName: decryptRequired(decrypt, row.student.fullNameEnc, 'student PII'),
     yearGroup: row.student.yearGroup,
+  };
+}
+
+function mapClubNotificationHistoryRow(
+  decrypt: (value: string | null | undefined) => string | null,
+  row: ClubNotificationHistoryRow,
+) {
+  return {
+    id: row.id,
+    clubId: row.clubId,
+    title: row.title,
+    sentAt: row.sentAt,
+    sentByName: decryptRequired(decrypt, row.sentBy.fullNameEnc, 'user PII'),
   };
 }
 
@@ -644,6 +673,38 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
           signedUpAt: signup.createdAt,
         })),
       };
+    }),
+
+    notifications: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
+      requireClubManager(ctx.user);
+
+      const club = await ctx.db.club.findUnique({
+        where: { id: input.clubId },
+        select: { id: true },
+      });
+      if (!club) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+      }
+
+      const notifications = await ctx.db.clubNotification.findMany({
+        where: { clubId: input.clubId },
+        select: clubNotificationHistorySelect,
+        orderBy: { sentAt: 'desc' },
+        take: 20,
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'User',
+          meta: { source: 'club.notifications', clubId: club.id, count: notifications.length },
+        },
+      });
+
+      return notifications.map((notification) =>
+        mapClubNotificationHistoryRow(ctx.db.$enc.decrypt, notification),
+      );
     }),
 
     signUp: authedProcedure.input(clubStudentInput).mutation(async ({ ctx, input }) => {

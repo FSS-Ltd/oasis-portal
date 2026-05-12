@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 **Agent:** Technical Agent (Codex)
-**Phase:** Supervisor attendance and attendance insight center ready for review.
+**Phase:** PR-3.5.4 club notification UI ready for review.
 
 ---
 
@@ -18,7 +18,55 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Supervisor attendance and attendance insight center
+## Current status - PR-3.5.4 Club notification UI
+
+Working branch: `feat/club-notification-ui`.
+
+**PR scope:** Add the web club notification composer and scoped notification
+history for Head/full-admin and ClubsAdmin users on the existing `/admin/clubs`
+management surface. Previous Phase 3.5 PRs 3.5.1, 3.5.2, and 3.5.3 are marked
+merged.
+
+Changed scope:
+
+- Added `club.notifications`, a club-manager-only history query returning recent
+  notification title, sent time, and sender display name without decrypted body
+  text or recipient PII.
+- Added a notification composer to the selected club roster/detail panel with
+  required title/body fields, estimated recipient count, inactive-club guard,
+  pending, success, and error states.
+- Added notification history to the club detail panel with loading, empty, and
+  error states.
+- Extended the club E2E spec to cover the empty-recipient notification path
+  when ClubsAdmin credentials are configured.
+- Updated the Phase 3.5 plan so PR-3.5.1, PR-3.5.2, and PR-3.5.3 are recorded
+  as merged.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- club.router.test.ts email.router.test.ts` -
+  pass, ran all API tests because of package-script argument handling: 18 files
+  / 376 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with
+  5 credential-gated tests skipped because local E2E account variables are not
+  configured.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- The clean branch was created in a separate worktree at
+  `/private/tmp/oasis-club-notification-ui` so the dirty
+  `feat/behaviour-general-batch-marks` branch was left untouched.
+- The first Playwright run failed in the sandbox because the web server could
+  not bind to `0.0.0.0:3000`; it passed after rerunning with approved
+  escalation.
+
+## Previous status - Supervisor attendance and attendance insight center
 
 Working branch: `feat/supervisor-attendance-insights-visible`.
 

@@ -1982,6 +1982,9 @@
 .clubs-list-panel,
 .clubs-list,
 .club-roster-panel,
+.club-notification-panel,
+.club-notification-history-panel,
+.club-notification-history,
 .linked-clubs-child-panel,
 .linked-clubs-child-list,
 .linked-clubs-list-panel,
@@ -2138,6 +2141,50 @@
 .club-roster-table td:first-child {
   color: var(--oasis-navy);
   font-weight: 750;
+}
+
+.club-notification-panel {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.club-notification-panel h3,
+.club-notification-history-panel h3 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.club-notification-history__item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.club-notification-history__item span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.club-notification-history__item strong {
+  color: var(--oasis-navy);
+  font-size: 0.88rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.club-notification-history__item small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .dashboard-empty-state {

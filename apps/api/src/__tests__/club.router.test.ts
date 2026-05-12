@@ -183,7 +183,7 @@ interface FakeAuditCreateArgs {
   data: {
     userId: string;
     action: 'Create' | 'Update' | 'DecryptPii';
-    entity: 'Club' | 'ClubSignup' | 'Student' | 'ClubNotification' | 'Email';
+    entity: 'Club' | 'ClubSignup' | 'Student' | 'User' | 'ClubNotification' | 'Email';
     entityId?: string | null;
     meta?: Record<string, unknown>;
   };
@@ -196,6 +196,12 @@ interface FakeClubNotificationCreateArgs {
     bodyEnc: string;
     sentById: string;
   };
+}
+
+interface FakeClubNotificationFindManyArgs {
+  where: { clubId: string };
+  orderBy?: { sentAt: 'desc' };
+  take?: number;
 }
 
 interface FakeDb {
@@ -218,6 +224,7 @@ interface FakeDb {
   };
   clubNotification: {
     create: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
   };
   student: { findUnique: ReturnType<typeof vi.fn> };
   guardian: {
@@ -274,6 +281,17 @@ function makeSignup(
     withdrawnAt: null,
     ...input,
   } satisfies StoredSignup;
+}
+
+function makeNotification(
+  input: Partial<StoredClubNotification> & Pick<StoredClubNotification, 'id' | 'clubId' | 'title'>,
+): StoredClubNotification {
+  return {
+    bodyEnc: encrypt('Notification body'),
+    sentById: clubsAdminUser.id,
+    sentAt: new Date('2026-05-11T14:00:00.000Z'),
+    ...input,
+  };
 }
 
 function makeUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>): StoredUser {
@@ -439,6 +457,27 @@ function makeFakeDb(
           title: notification.title,
           sentAt: notification.sentAt,
         });
+      }),
+      findMany: vi.fn((args: FakeClubNotificationFindManyArgs) => {
+        const rows = notifications
+          .filter((notification) => notification.clubId === args.where.clubId)
+          .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())
+          .slice(0, args.take);
+
+        return Promise.resolve(
+          rows.map((notification) => {
+            const sentBy = users.find((user) => user.id === notification.sentById);
+            if (!sentBy) throw new Error('sender not found');
+
+            return {
+              id: notification.id,
+              clubId: notification.clubId,
+              title: notification.title,
+              sentAt: notification.sentAt,
+              sentBy: { fullNameEnc: sentBy.fullNameEnc },
+            };
+          }),
+        );
       }),
     },
     student: {
@@ -1136,6 +1175,90 @@ describe('club.roster', () => {
       });
     },
   );
+});
+
+describe('club.notifications', () => {
+  it('allows club managers to read recent notification history without body or recipient PII', async () => {
+    const db = makeFakeDb({
+      notifications: [
+        makeNotification({
+          id: 'cnotification000000000001',
+          clubId: defaultClubId,
+          title: 'Older update',
+          bodyEnc: encrypt('Older private body'),
+          sentById: headUser.id,
+          sentAt: new Date('2026-05-11T13:00:00.000Z'),
+        }),
+        makeNotification({
+          id: 'cnotification000000000002',
+          clubId: defaultClubId,
+          title: 'Latest update',
+          bodyEnc: encrypt('Latest private body'),
+          sentById: clubsAdminUser.id,
+          sentAt: new Date('2026-05-11T15:00:00.000Z'),
+        }),
+        makeNotification({
+          id: 'cnotification000000000003',
+          clubId: inactiveClubId,
+          title: 'Other club update',
+        }),
+      ],
+    });
+
+    const result = await makeCaller(clubsAdminUser, db).caller.club.notifications({
+      clubId: defaultClubId,
+    });
+
+    expect(result).toEqual([
+      {
+        id: 'cnotification000000000002',
+        clubId: defaultClubId,
+        title: 'Latest update',
+        sentAt: new Date('2026-05-11T15:00:00.000Z'),
+        sentByName: 'Clubs Admin',
+      },
+      {
+        id: 'cnotification000000000001',
+        clubId: defaultClubId,
+        title: 'Older update',
+        sentAt: new Date('2026-05-11T13:00:00.000Z'),
+        sentByName: 'Head User',
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain('private body');
+    expect(JSON.stringify(result)).not.toContain('Jane Parent');
+    expect(db.clubNotification.findMany).toHaveBeenCalledTimes(1);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: clubsAdminUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { source: 'club.notifications', clubId: defaultClubId, count: 2 },
+      },
+    });
+  });
+
+  it('allows Head users to read club notification history', async () => {
+    const db = makeFakeDb({
+      notifications: [
+        makeNotification({
+          id: 'cnotification000000000001',
+          clubId: defaultClubId,
+          title: 'Head visible update',
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(headUser, db).caller.club.notifications({ clubId: defaultClubId }),
+    ).resolves.toMatchObject([{ title: 'Head visible update', sentByName: 'Clubs Admin' }]);
+  });
+
+  it.each([parentUser, supervisorUser])('blocks %s from notification history', async (user) => {
+    await expect(
+      makeCaller(user).caller.club.notifications({ clubId: defaultClubId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
 });
 
 describe('club.notify', () => {
