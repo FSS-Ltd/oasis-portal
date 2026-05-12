@@ -150,15 +150,16 @@ export default async function AdminIndexPage() {
                       <strong>{studentName}</strong>
                       <span
                         className={
-                          entry.meritDelta >= 0
-                            ? 'head-merit-pill head-merit-pill--plus'
-                            : 'head-merit-pill head-merit-pill--minus'
+                          entry.type === 'General'
+                            ? 'head-merit-pill head-merit-pill--sensitive'
+                            : entry.meritDelta >= 0
+                              ? 'head-merit-pill head-merit-pill--plus'
+                              : 'head-merit-pill head-merit-pill--minus'
                         }
                       >
-                        {entry.meritDelta >= 0
-                          ? `+${String(entry.meritDelta)}`
-                          : String(entry.meritDelta)}{' '}
-                        merits
+                        {entry.type === 'General'
+                          ? 'No merit value'
+                          : `${entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits`}
                       </span>
                       {entry.visibility === 'Sensitive' ? (
                         <span className="head-merit-pill head-merit-pill--sensitive">

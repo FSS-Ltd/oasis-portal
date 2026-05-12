@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Save, Send } from 'lucide-react';
+import { Plus, Save, Send, Trash2 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
@@ -19,6 +19,7 @@ import {
   messageDashboardAdapter,
   mondayFor,
   todayKey,
+  type BatchBehaviourType,
   type BehaviourType,
   type BehaviourVisibility,
 } from './_components/supervisor-utils';
@@ -29,6 +30,30 @@ type SupervisorDashboardClientProps = {
   view?: 'dashboard' | 'attendance' | 'behaviour' | 'rota';
 };
 
+type EntryMode = 'single' | 'batch';
+
+interface BatchEntryForm {
+  id: string;
+  category: string;
+  note: string;
+  amount: string;
+  count: string;
+}
+
+function newBatchEntry(): BatchEntryForm {
+  return {
+    id: crypto.randomUUID(),
+    category: '',
+    note: '',
+    amount: '1',
+    count: '1',
+  };
+}
+
+function totalBatchEntries(entries: readonly BatchEntryForm[]): number {
+  return entries.reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
+}
+
 export function SupervisorDashboardClient({
   canExportAttendance,
   canRecordAttendance = false,
@@ -36,6 +61,9 @@ export function SupervisorDashboardClient({
 }: SupervisorDashboardClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [entryMode, setEntryMode] = useState<EntryMode>('single');
+  const [batchType, setBatchType] = useState<BatchBehaviourType>('Merit');
+  const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [newBatchEntry()]);
   const [swapForm, setSwapForm] = useState({ fromShiftId: '', toShiftId: '' });
   const [behaviourForm, setBehaviourForm] = useState({
     type: 'Merit' as BehaviourType,
@@ -108,16 +136,32 @@ export function SupervisorDashboardClient({
   const logBehaviour = api.behaviour.log.useMutation({
     onSuccess: async (_result, input) => {
       setBehaviourStatus(
-        input.visibility === 'Sensitive'
-          ? 'Sensitive demerit saved. Head, Head of Discipline, and you can view it.'
-          : 'Behaviour saved.',
+        input.type === 'General'
+          ? 'General mark saved. Heads and you can view it.'
+          : input.visibility === 'Sensitive'
+            ? 'Sensitive demerit saved. Heads and you can view it.'
+            : 'Behaviour saved.',
       );
       setBehaviourForm((current) => ({
         ...current,
         category: '',
         note: '',
         amount: current.type === 'Merit' ? current.amount : '1',
+        visibility: current.type === 'General' ? 'Sensitive' : current.visibility,
       }));
+      await utils.behaviour.listForStudent.invalidate({
+        studentId: input.studentId,
+        includeSensitive: false,
+        date,
+      });
+    },
+  });
+  const logManyBehaviour = api.behaviour.logMany.useMutation({
+    onSuccess: async (_result, input) => {
+      setBehaviourStatus(
+        `${String(input.entries.length)} ${input.type.toLowerCase()} entries saved.`,
+      );
+      setBatchEntries([newBatchEntry()]);
       await utils.behaviour.listForStudent.invalidate({
         studentId: input.studentId,
         includeSensitive: false,
@@ -181,6 +225,29 @@ export function SupervisorDashboardClient({
       note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
       ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
     });
+  }
+
+  async function submitBatchBehaviour(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedStudentId) return;
+
+    setBehaviourStatus(null);
+    await logManyBehaviour.mutateAsync({
+      studentId: selectedStudentId,
+      type: batchType,
+      entries: batchEntries.map((entry) => ({
+        category: entry.category,
+        note: entry.note.trim() ? entry.note : undefined,
+        count: Number(entry.count),
+        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+      })),
+    });
+  }
+
+  function setBatchEntry(id: string, patch: Partial<Omit<BatchEntryForm, 'id'>>): void {
+    setBatchEntries((current) =>
+      current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+    );
   }
 
   if (view === 'dashboard') {
@@ -285,107 +352,246 @@ export function SupervisorDashboardClient({
             ) : null}
 
             <div className="supervisor-workflow-grid">
-              <form
-                className="form-grid"
-                onSubmit={(event) => {
-                  void submitBehaviour(event);
-                }}
-              >
+              <div className="form-grid">
                 <div className="form-grid form-grid--two">
-                  <Field label="Type">
+                  <Field label="Entry mode">
                     <SelectInput
-                      aria-label="Behaviour type"
+                      aria-label="Behaviour entry mode"
                       onChange={(event) => {
-                        const nextType = event.target.value as BehaviourType;
-                        setBehaviourForm((form) => ({
-                          ...form,
-                          type: nextType,
-                          visibility:
-                            nextType === 'Merit' && form.visibility === 'Sensitive'
-                              ? 'General'
-                              : form.visibility,
-                        }));
+                        setEntryMode(event.target.value as EntryMode);
+                        setBehaviourStatus(null);
                       }}
-                      value={behaviourForm.type}
+                      value={entryMode}
                     >
-                      <option value="Merit">Merit</option>
-                      <option value="Demerit">Demerit</option>
-                    </SelectInput>
-                  </Field>
-                  <Field label="Visibility">
-                    <SelectInput
-                      aria-label="Behaviour visibility"
-                      onChange={(event) => {
-                        setBehaviourForm((form) => ({
-                          ...form,
-                          visibility: event.target.value as BehaviourVisibility,
-                        }));
-                      }}
-                      value={behaviourForm.visibility}
-                    >
-                      <option value="General">General</option>
-                      <option disabled={behaviourForm.type === 'Merit'} value="Sensitive">
-                        Sensitive
-                      </option>
+                      <option value="single">Single</option>
+                      <option value="batch">Batch</option>
                     </SelectInput>
                   </Field>
                 </div>
-                <Field label="Category">
-                  <TextInput
-                    aria-label="Behaviour category"
-                    maxLength={120}
-                    onChange={(event) => {
-                      setBehaviourForm((form) => ({ ...form, category: event.target.value }));
+
+                {entryMode === 'single' ? (
+                  <form
+                    className="form-grid"
+                    onSubmit={(event) => {
+                      void submitBehaviour(event);
                     }}
-                    required
-                    value={behaviourForm.category}
-                  />
-                </Field>
-                {behaviourForm.type === 'Merit' ? (
-                  <Field label="Merit amount">
-                    <TextInput
-                      aria-label="Merit amount"
-                      min={1}
-                      onChange={(event) => {
-                        setBehaviourForm((form) => ({ ...form, amount: event.target.value }));
+                  >
+                    <div className="form-grid form-grid--two">
+                      <Field label="Type">
+                        <SelectInput
+                          aria-label="Behaviour type"
+                          onChange={(event) => {
+                            const nextType = event.target.value as BehaviourType;
+                            setBehaviourForm((form) => ({
+                              ...form,
+                              type: nextType,
+                              category: nextType === 'General' ? 'Misc' : form.category,
+                              visibility:
+                                nextType === 'General'
+                                  ? 'Sensitive'
+                                  : nextType === 'Merit' && form.visibility === 'Sensitive'
+                                    ? 'General'
+                                    : form.visibility,
+                            }));
+                          }}
+                          value={behaviourForm.type}
+                        >
+                          <option value="Merit">Merit</option>
+                          <option value="Demerit">Demerit</option>
+                          <option value="General">General mark</option>
+                        </SelectInput>
+                      </Field>
+                      <Field label="Visibility">
+                        <SelectInput
+                          aria-label="Behaviour visibility"
+                          disabled={behaviourForm.type === 'General'}
+                          onChange={(event) => {
+                            setBehaviourForm((form) => ({
+                              ...form,
+                              visibility: event.target.value as BehaviourVisibility,
+                            }));
+                          }}
+                          value={behaviourForm.visibility}
+                        >
+                          <option value="General">General</option>
+                          <option disabled={behaviourForm.type === 'Merit'} value="Sensitive">
+                            Sensitive
+                          </option>
+                        </SelectInput>
+                      </Field>
+                    </div>
+                    <Field label="Category">
+                      <TextInput
+                        aria-label="Behaviour category"
+                        maxLength={120}
+                        onChange={(event) => {
+                          setBehaviourForm((form) => ({ ...form, category: event.target.value }));
+                        }}
+                        required
+                        value={behaviourForm.category}
+                      />
+                    </Field>
+                    {behaviourForm.type === 'Merit' ? (
+                      <Field label="Merit amount">
+                        <TextInput
+                          aria-label="Merit amount"
+                          min={1}
+                          onChange={(event) => {
+                            setBehaviourForm((form) => ({ ...form, amount: event.target.value }));
+                          }}
+                          required
+                          type="number"
+                          value={behaviourForm.amount}
+                        />
+                      </Field>
+                    ) : null}
+                    {behaviourForm.type === 'General' ? (
+                      <p className="field__hint">General marks have no merit value.</p>
+                    ) : null}
+                    <Field
+                      label="Note"
+                      hint="Sensitive entries are visible to heads and the recording staff author where allowed."
+                    >
+                      <textarea
+                        aria-label="Behaviour note"
+                        className="input textarea"
+                        maxLength={2000}
+                        onChange={(event) => {
+                          setBehaviourForm((form) => ({ ...form, note: event.target.value }));
+                        }}
+                        required={behaviourForm.type === 'General'}
+                        rows={4}
+                        value={behaviourForm.note}
+                      />
+                    </Field>
+                    <Button
+                      disabled={!selectedStudentId}
+                      pending={logBehaviour.isPending}
+                      type="submit"
+                    >
+                      <Save aria-hidden="true" size={16} />
+                      Save behaviour
+                    </Button>
+                    {logBehaviour.error ? (
+                      <p className="status--error">{logBehaviour.error.message}</p>
+                    ) : null}
+                  </form>
+                ) : (
+                  <form
+                    className="form-grid"
+                    onSubmit={(event) => {
+                      void submitBatchBehaviour(event);
+                    }}
+                  >
+                    <Field label="Type">
+                      <SelectInput
+                        aria-label="Batch behaviour type"
+                        onChange={(event) => {
+                          setBatchType(event.target.value as BatchBehaviourType);
+                          setBatchEntries([newBatchEntry()]);
+                        }}
+                        value={batchType}
+                      >
+                        <option value="Merit">Merit</option>
+                        <option value="Demerit">Demerit</option>
+                      </SelectInput>
+                    </Field>
+                    {batchEntries.map((entry, index) => (
+                      <div className="form-grid" key={entry.id}>
+                        <Field label={`Entry ${String(index + 1)} category`}>
+                          <TextInput
+                            aria-label={`Entry ${String(index + 1)} category`}
+                            maxLength={120}
+                            onChange={(event) => {
+                              setBatchEntry(entry.id, { category: event.target.value });
+                            }}
+                            required
+                            value={entry.category}
+                          />
+                        </Field>
+                        {batchType === 'Merit' ? (
+                          <Field label={`Entry ${String(index + 1)} amount`}>
+                            <TextInput
+                              aria-label={`Entry ${String(index + 1)} merit amount`}
+                              min={1}
+                              onChange={(event) => {
+                                setBatchEntry(entry.id, { amount: event.target.value });
+                              }}
+                              required
+                              type="number"
+                              value={entry.amount}
+                            />
+                          </Field>
+                        ) : null}
+                        <Field label={`Entry ${String(index + 1)} quantity`}>
+                          <TextInput
+                            aria-label={`Entry ${String(index + 1)} quantity`}
+                            max={50}
+                            min={1}
+                            onChange={(event) => {
+                              setBatchEntry(entry.id, { count: event.target.value });
+                            }}
+                            required
+                            type="number"
+                            value={entry.count}
+                          />
+                        </Field>
+                        <Field label={`Entry ${String(index + 1)} note`}>
+                          <textarea
+                            aria-label={`Entry ${String(index + 1)} note`}
+                            className="input textarea"
+                            maxLength={2000}
+                            onChange={(event) => {
+                              setBatchEntry(entry.id, { note: event.target.value });
+                            }}
+                            rows={3}
+                            value={entry.note}
+                          />
+                        </Field>
+                        {batchEntries.length > 1 ? (
+                          <Button
+                            onClick={() => {
+                              setBatchEntries((current) =>
+                                current.filter((candidate) => candidate.id !== entry.id),
+                              );
+                            }}
+                            type="button"
+                            variant="ghost"
+                          >
+                            <Trash2 aria-hidden="true" size={16} />
+                            Remove entry
+                          </Button>
+                        ) : null}
+                      </div>
+                    ))}
+                    <Button
+                      onClick={() => {
+                        setBatchEntries((current) => [...current, newBatchEntry()]);
                       }}
-                      required
-                      type="number"
-                      value={behaviourForm.amount}
-                    />
-                  </Field>
-                ) : null}
-                <Field
-                  label="Note"
-                  hint="Sensitive demerits are visible to Head, Head of Discipline, and the supervisor who recorded them."
-                >
-                  <textarea
-                    aria-label="Behaviour note"
-                    className="input textarea"
-                    maxLength={2000}
-                    onChange={(event) => {
-                      setBehaviourForm((form) => ({ ...form, note: event.target.value }));
-                    }}
-                    rows={4}
-                    value={behaviourForm.note}
-                  />
-                </Field>
-                <Button
-                  disabled={!selectedStudentId}
-                  pending={logBehaviour.isPending}
-                  type="submit"
-                >
-                  <Save aria-hidden="true" size={16} />
-                  Save behaviour
-                </Button>
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Plus aria-hidden="true" size={16} />
+                      Add entry
+                    </Button>
+                    <Button
+                      disabled={!selectedStudentId}
+                      pending={logManyBehaviour.isPending}
+                      type="submit"
+                    >
+                      <Save aria-hidden="true" size={16} />
+                      Save {String(totalBatchEntries(batchEntries))} entries
+                    </Button>
+                    {logManyBehaviour.error ? (
+                      <p className="status--error">{logManyBehaviour.error.message}</p>
+                    ) : null}
+                  </form>
+                )}
                 {behaviourStatus ? <p className="status--success">{behaviourStatus}</p> : null}
-                {logBehaviour.error ? (
-                  <p className="status--error">{logBehaviour.error.message}</p>
-                ) : null}
-              </form>
+              </div>
 
               <div className="activity-list" aria-label="Student behaviour activity">
-                <h3>General activity</h3>
+                <h3>Behaviour activity</h3>
                 {behaviourQuery.isLoading ? (
                   <div className="empty-state">Loading behaviour...</div>
                 ) : null}
@@ -399,17 +605,23 @@ export function SupervisorDashboardClient({
                   <article className="activity-row" key={entry.id}>
                     <span
                       className={
-                        entry.type === 'Merit' ? 'badge badge--green' : 'badge badge--amber'
+                        entry.type === 'Merit'
+                          ? 'badge badge--green'
+                          : entry.type === 'General'
+                            ? 'badge badge--blue'
+                            : 'badge badge--amber'
                       }
                     >
-                      {entry.type}
+                      {entry.type === 'General' ? 'General mark' : entry.type}
                     </span>
                     <div>
                       <strong>{entry.category}</strong>
                       <span>
-                        {entry.meritDelta > 0
-                          ? `+${String(entry.meritDelta)}`
-                          : String(entry.meritDelta)}{' '}
+                        {entry.type === 'General'
+                          ? 'No merit value'
+                          : entry.meritDelta > 0
+                            ? `+${String(entry.meritDelta)}`
+                            : String(entry.meritDelta)}{' '}
                         · {formatShortDateTime(entry.createdAt)}
                       </span>
                       {entry.note ? <p>{entry.note}</p> : null}

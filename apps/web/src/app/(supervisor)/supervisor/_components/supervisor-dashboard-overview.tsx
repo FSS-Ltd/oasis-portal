@@ -41,6 +41,7 @@ type DashboardActivityEntry = {
   meritDelta: number;
   note: string | null;
   studentName: string;
+  type: 'Merit' | 'Demerit' | 'General';
 };
 
 type SwapRequestSummary = {
@@ -267,15 +268,16 @@ export function SupervisorDashboardOverview({
                     <strong>{entry.studentName}</strong>
                     <span
                       className={
-                        entry.meritDelta >= 0
-                          ? 'head-merit-pill head-merit-pill--plus'
-                          : 'head-merit-pill head-merit-pill--minus'
+                        entry.type === 'General'
+                          ? 'head-merit-pill head-merit-pill--sensitive'
+                          : entry.meritDelta >= 0
+                            ? 'head-merit-pill head-merit-pill--plus'
+                            : 'head-merit-pill head-merit-pill--minus'
                       }
                     >
-                      {entry.meritDelta >= 0
-                        ? `+${String(entry.meritDelta)}`
-                        : String(entry.meritDelta)}{' '}
-                      merits
+                      {entry.type === 'General'
+                        ? 'No merit value'
+                        : `${entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits`}
                     </span>
                     <p>
                       {entry.category}

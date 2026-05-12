@@ -1,10 +1,10 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
-  canViewSensitiveStudentDrillThrough,
   canViewStudentDrillThrough,
   isFullAdmin,
   isStaff,
@@ -179,6 +179,23 @@ function takeRecentByStudent<T extends { studentId: string }>(
   limit = PARENT_DASHBOARD_RECENT_LIMIT,
 ): T[] {
   return rows.filter((row) => row.studentId === studentId).slice(0, limit);
+}
+
+function visibleBehaviourWhere(user: SessionUser): Prisma.BehaviourEntryWhereInput {
+  if (isFullAdmin(user)) return {};
+  if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
+    return {
+      OR: [
+        { visibility: 'General' as const },
+        {
+          visibility: 'Sensitive' as const,
+          recordedById: user.id,
+          type: { in: ['Demerit', 'General'] },
+        },
+      ],
+    };
+  }
+  return { visibility: 'General' as const };
 }
 
 export const childLogRouter = router({
@@ -405,7 +422,6 @@ export const childLogRouter = router({
 
       const from = academicYearStart();
       const to = dayEnd(new Date());
-      const canReadSensitiveBehaviour = canViewSensitiveStudentDrillThrough(ctx.user);
       const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
 
       const student = await ctx.db.student.findUnique({
@@ -442,7 +458,7 @@ export const childLogRouter = router({
             where: {
               studentId: input.studentId,
               createdAt: { gte: from, lt: to },
-              ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
+              ...visibleBehaviourWhere(ctx.user),
             },
             include: {
               recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
@@ -674,7 +690,7 @@ export const childLogRouter = router({
         where: {
           studentId: input.studentId,
           createdAt: { gte: from, lt: to },
-          ...(isFullAdmin(ctx.user) ? {} : { visibility: 'General' as const }),
+          ...visibleBehaviourWhere(ctx.user),
         },
         select: {
           id: true,

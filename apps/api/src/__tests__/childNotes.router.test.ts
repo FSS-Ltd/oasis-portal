@@ -415,6 +415,11 @@ function makeFakeDb() {
           where,
         }: {
           where?: {
+            OR?: Array<{
+              recordedById?: string;
+              type?: { in: readonly string[] };
+              visibility?: 'General' | 'Sensitive';
+            }>;
             visibility?: 'General';
             createdAt?: { gte: Date; lt: Date };
             studentId?: string | { in: string[] };
@@ -455,6 +460,18 @@ function makeFakeDb() {
               )
               .filter(
                 (row) => where?.visibility === undefined || row.visibility === where.visibility,
+              )
+              .filter(
+                (row) =>
+                  where?.OR === undefined ||
+                  where.OR.some(
+                    (condition) =>
+                      (condition.recordedById === undefined ||
+                        row.recordedById === condition.recordedById) &&
+                      (condition.visibility === undefined ||
+                        row.visibility === condition.visibility) &&
+                      (condition.type === undefined || condition.type.in.includes(row.type)),
+                  ),
               )
               .filter(
                 (row) =>

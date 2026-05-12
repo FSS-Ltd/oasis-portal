@@ -207,6 +207,20 @@ describe('requireCanViewSensitive', () => {
     expect(
       canViewSensitiveBehaviourEntry(supervisor, {
         recordedById: supervisor.id,
+        type: 'General',
+        visibility: 'Sensitive',
+      }),
+    ).toBe(true);
+    expect(
+      canViewSensitiveBehaviourEntry(supervisor, {
+        recordedById: 'another-supervisor',
+        type: 'General',
+        visibility: 'Sensitive',
+      }),
+    ).toBe(false);
+    expect(
+      canViewSensitiveBehaviourEntry(supervisor, {
+        recordedById: supervisor.id,
         type: 'Merit',
         visibility: 'Sensitive',
       }),
@@ -226,8 +240,10 @@ describe('requireCanViewSensitive', () => {
     expect(canCreateSensitiveBehaviour(principal, { type: 'Demerit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(pastor, { type: 'Merit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(supervisor, { type: 'Demerit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(supervisor, { type: 'General' })).toBe(true);
     expect(canCreateSensitiveBehaviour(supervisor, { type: 'Merit' })).toBe(false);
     expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Demerit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'General' })).toBe(true);
     expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Merit' })).toBe(false);
   });
 });

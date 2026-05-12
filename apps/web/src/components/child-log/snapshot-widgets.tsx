@@ -73,6 +73,7 @@ export function MeritSparkline({
 }) {
   const buckets = new Map<string, number>();
   for (const entry of entries) {
+    if (entry.meritDelta === 0) continue;
     const key = formatShortDate(entry.createdAt);
     buckets.set(key, (buckets.get(key) ?? 0) + entry.meritDelta);
   }

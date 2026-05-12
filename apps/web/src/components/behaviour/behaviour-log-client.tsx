@@ -1,15 +1,25 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { BarChart3, Lock } from 'lucide-react';
+import { BarChart3, Lock, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { api } from '@/lib/trpc';
 
-type BehaviourType = 'Merit' | 'Demerit';
+type BehaviourType = 'Merit' | 'Demerit' | 'General';
+type BatchBehaviourType = Exclude<BehaviourType, 'General'>;
 type BehaviourVisibility = 'General' | 'Sensitive';
 export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
+type EntryMode = 'single' | 'batch';
+
+interface BatchEntryForm {
+  id: string;
+  category: string;
+  note: string;
+  amount: string;
+  count: string;
+}
 
 const meritCategories = [
   'Scripture Memory',
@@ -22,12 +32,15 @@ const meritCategories = [
 ] as const;
 
 const demeritCategories = [
+  'Misc',
   'Punctuality',
   'Conduct',
   'Disrespect',
   'Negligence',
   'Dishonesty',
 ] as const;
+
+const generalCategories = ['Misc'] as const;
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -60,7 +73,28 @@ function avatarColour(index: number): string {
 }
 
 function canUseSensitiveMode(mode: BehaviourSensitiveMode, type: BehaviourType): boolean {
-  return mode === 'all' || (mode === 'demerit-only' && type === 'Demerit');
+  return mode === 'all' || (mode === 'demerit-only' && (type === 'Demerit' || type === 'General'));
+}
+
+function categoriesFor(type: BehaviourType): readonly string[] {
+  if (type === 'Merit') return meritCategories;
+  if (type === 'Demerit') return demeritCategories;
+  return generalCategories;
+}
+
+function newBatchEntry(type: BatchBehaviourType): BatchEntryForm {
+  const categories = categoriesFor(type);
+  return {
+    id: crypto.randomUUID(),
+    category: categories[0] ?? 'Misc',
+    note: '',
+    amount: '1',
+    count: '1',
+  };
+}
+
+function totalBatchEntries(entries: readonly BatchEntryForm[]): number {
+  return entries.reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
 }
 
 export function BehaviourLogClient({
@@ -73,6 +107,11 @@ export function BehaviourLogClient({
   showTrends?: boolean;
 }) {
   const [type, setType] = useState<BehaviourType>('Merit');
+  const [entryMode, setEntryMode] = useState<EntryMode>('single');
+  const [batchType, setBatchType] = useState<BatchBehaviourType>('Merit');
+  const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [
+    newBatchEntry('Merit'),
+  ]);
   const [studentId, setStudentId] = useState('');
   const [category, setCategory] = useState<string>(meritCategories[0]);
   const [note, setNote] = useState('');
@@ -89,9 +128,25 @@ export function BehaviourLogClient({
   const utils = api.useUtils();
   const logBehaviour = api.behaviour.log.useMutation({
     onSuccess: async (_result, input) => {
-      setStatus(input.type === 'Merit' ? 'Merit recorded.' : 'Demerit recorded.');
+      setStatus(
+        input.type === 'Merit'
+          ? 'Merit recorded.'
+          : input.type === 'Demerit'
+            ? 'Demerit recorded.'
+            : 'General mark recorded.',
+      );
       setNote('');
-      setVisibility('General');
+      setVisibility(input.type === 'General' ? 'Sensitive' : 'General');
+      await Promise.all([
+        utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
+        utils.behaviour.trends.invalidate(),
+      ]);
+    },
+  });
+  const logManyBehaviour = api.behaviour.logMany.useMutation({
+    onSuccess: async (_result, input) => {
+      setStatus(`${String(input.entries.length)} ${input.type.toLowerCase()} entries recorded.`);
+      setBatchEntries([newBatchEntry(input.type)]);
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
@@ -99,7 +154,8 @@ export function BehaviourLogClient({
     },
   });
 
-  const categories = type === 'Merit' ? meritCategories : demeritCategories;
+  const categories = categoriesFor(type);
+  const batchCategories = categoriesFor(batchType);
   const entries = recentQuery.data?.entries ?? [];
 
   useEffect(() => {
@@ -108,17 +164,21 @@ export function BehaviourLogClient({
   }, [studentId, studentsQuery.data]);
 
   useEffect(() => {
-    setCategory((current) => (categories.includes(current as never) ? current : categories[0]));
+    setCategory((current) => (categories.includes(current) ? current : (categories[0] ?? 'Misc')));
   }, [categories]);
 
   useEffect(() => {
     if (visibility === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) {
       setVisibility('General');
     }
+    if (type === 'General') {
+      setVisibility(canUseSensitiveMode(sensitiveMode, type) ? 'Sensitive' : 'General');
+    }
   }, [sensitiveMode, type, visibility]);
 
   function chooseVisibility(next: BehaviourVisibility): void {
     if (next === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) return;
+    if (type === 'General') return;
     setVisibility(next);
   }
 
@@ -136,6 +196,28 @@ export function BehaviourLogClient({
     });
   }
 
+  async function submitBatch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canLogBehaviour || !studentId) return;
+    setStatus(null);
+    await logManyBehaviour.mutateAsync({
+      studentId,
+      type: batchType,
+      entries: batchEntries.map((entry) => ({
+        category: entry.category,
+        note: entry.note.trim() ? entry.note : undefined,
+        count: Number(entry.count),
+        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+      })),
+    });
+  }
+
+  function setBatchEntry(id: string, patch: Partial<Omit<BatchEntryForm, 'id'>>): void {
+    setBatchEntries((current) =>
+      current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+    );
+  }
+
   return (
     <div className="behaviour-log-page">
       <h1>Behaviour Log</h1>
@@ -149,91 +231,193 @@ export function BehaviourLogClient({
               requires Head/full-admin or Supervisor access.
             </div>
           ) : null}
-          <form
-            className="behaviour-log-form"
-            onSubmit={(event) => {
-              void submit(event);
-            }}
-          >
-            <div aria-label="Behaviour type" className="behaviour-toggle" role="group">
-              {(['Merit', 'Demerit'] as const).map((item) => (
-                <button
-                  className={item === type ? `is-selected is-${item.toLowerCase()}` : undefined}
-                  disabled={!canLogBehaviour}
-                  key={item}
-                  onClick={() => {
-                    setType(item);
-                    setCategory(item === 'Merit' ? meritCategories[0] : demeritCategories[0]);
-                  }}
-                  type="button"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-
-            <Field label="Student">
-              <SelectInput
-                aria-label="Student"
-                disabled={!canLogBehaviour || studentsQuery.isLoading}
-                onChange={(event) => {
-                  setStudentId(event.target.value);
-                }}
-                value={studentId}
-              >
-                <option value="">Select a student</option>
-                {(studentsQuery.data ?? []).map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.fullName}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-
-            <Field label="Category">
-              <SelectInput
-                aria-label="Category"
+          <div aria-label="Entry mode" className="behaviour-toggle" role="group">
+            {(['single', 'batch'] as const).map((mode) => (
+              <button
+                className={mode === entryMode ? 'is-selected' : undefined}
                 disabled={!canLogBehaviour}
-                onChange={(event) => {
-                  setCategory(event.target.value);
+                key={mode}
+                onClick={() => {
+                  setEntryMode(mode);
+                  setStatus(null);
                 }}
-                value={category}
+                type="button"
               >
-                {categories.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </SelectInput>
-            </Field>
-
-            <Field label="Notes">
-              <textarea
-                aria-label="Notes"
-                className="input textarea"
-                disabled={!canLogBehaviour}
-                maxLength={2000}
-                onChange={(event) => {
-                  setNote(event.target.value);
-                }}
-                placeholder="Describe the behaviour..."
-                rows={4}
-                value={note}
-              />
-            </Field>
-
-            <Field label="Visibility">
-              <div aria-label="Visibility" className="behaviour-visibility-toggle" role="group">
-                {(['General', 'Sensitive'] as const).map((item) => (
+                {mode === 'single' ? 'Single' : 'Batch'}
+              </button>
+            ))}
+          </div>
+          {entryMode === 'single' ? (
+            <form
+              className="behaviour-log-form"
+              onSubmit={(event) => {
+                void submit(event);
+              }}
+            >
+              <div aria-label="Behaviour type" className="behaviour-toggle" role="group">
+                {(['Merit', 'Demerit', 'General'] as const).map((item) => (
                   <button
-                    className={item === visibility ? 'is-selected' : undefined}
-                    disabled={
-                      !canLogBehaviour ||
-                      (item === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type))
-                    }
+                    className={item === type ? `is-selected is-${item.toLowerCase()}` : undefined}
+                    disabled={!canLogBehaviour}
                     key={item}
                     onClick={() => {
-                      chooseVisibility(item);
+                      setType(item);
+                      setCategory(categoriesFor(item)[0] ?? 'Misc');
+                      if (item === 'General') setVisibility('Sensitive');
+                    }}
+                    type="button"
+                  >
+                    {item === 'General' ? 'General mark' : item}
+                  </button>
+                ))}
+              </div>
+
+              <Field label="Student">
+                <SelectInput
+                  aria-label="Student"
+                  disabled={!canLogBehaviour || studentsQuery.isLoading}
+                  onChange={(event) => {
+                    setStudentId(event.target.value);
+                  }}
+                  value={studentId}
+                >
+                  <option value="">Select a student</option>
+                  {(studentsQuery.data ?? []).map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.fullName}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+
+              <Field label="Category">
+                <SelectInput
+                  aria-label="Category"
+                  disabled={!canLogBehaviour}
+                  onChange={(event) => {
+                    setCategory(event.target.value);
+                  }}
+                  value={category}
+                >
+                  {categories.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+
+              <Field label="Notes">
+                <textarea
+                  aria-label="Notes"
+                  className="input textarea"
+                  disabled={!canLogBehaviour}
+                  maxLength={2000}
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                  }}
+                  placeholder="Describe the behaviour..."
+                  required={type === 'General'}
+                  rows={4}
+                  value={note}
+                />
+              </Field>
+
+              <Field label="Visibility">
+                <div aria-label="Visibility" className="behaviour-visibility-toggle" role="group">
+                  {(['General', 'Sensitive'] as const).map((item) => (
+                    <button
+                      className={item === visibility ? 'is-selected' : undefined}
+                      disabled={
+                        !canLogBehaviour ||
+                        type === 'General' ||
+                        (item === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type))
+                      }
+                      key={item}
+                      onClick={() => {
+                        chooseVisibility(item);
+                      }}
+                      type="button"
+                    >
+                      {item}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              {visibility === 'Sensitive' ? (
+                <p className="behaviour-sensitive-note">
+                  <Lock aria-hidden="true" size={13} />
+                  Sensitive entries are visible to heads and the recording staff author where
+                  allowed.
+                </p>
+              ) : null}
+              {sensitiveMode === 'none' && canLogBehaviour ? (
+                <p className="field__hint">
+                  Sensitive behaviour entries require Head or Head of Discipline access.
+                </p>
+              ) : null}
+              {sensitiveMode === 'demerit-only' && canLogBehaviour ? (
+                <p className="field__hint">
+                  Supervisors can mark demerits and General marks as Sensitive.
+                </p>
+              ) : null}
+
+              {type === 'Merit' ? (
+                <Field label="Merit amount">
+                  <TextInput
+                    aria-label="Merit amount"
+                    disabled={!canLogBehaviour}
+                    min={1}
+                    onChange={(event) => {
+                      setAmount(event.target.value);
+                    }}
+                    required
+                    type="number"
+                    value={amount}
+                  />
+                </Field>
+              ) : null}
+              {type === 'General' ? (
+                <p className="field__hint">General marks have no merit value.</p>
+              ) : null}
+
+              <Button
+                disabled={!canLogBehaviour || !studentId}
+                pending={logBehaviour.isPending}
+                type="submit"
+              >
+                {type === 'Merit'
+                  ? `Record +${amount || '0'} Merit`
+                  : type === 'Demerit'
+                    ? 'Record -5 Demerit'
+                    : 'Record General mark'}
+              </Button>
+              {status ? <p className="status--success">{status}</p> : null}
+              {studentsQuery.error ? (
+                <p className="status--error">{studentsQuery.error.message}</p>
+              ) : null}
+              {logBehaviour.error ? (
+                <p className="status--error">{logBehaviour.error.message}</p>
+              ) : null}
+            </form>
+          ) : (
+            <form
+              className="behaviour-log-form"
+              onSubmit={(event) => {
+                void submitBatch(event);
+              }}
+            >
+              <div aria-label="Batch behaviour type" className="behaviour-toggle" role="group">
+                {(['Merit', 'Demerit'] as const).map((item) => (
+                  <button
+                    className={
+                      item === batchType ? `is-selected is-${item.toLowerCase()}` : undefined
+                    }
+                    disabled={!canLogBehaviour}
+                    key={item}
+                    onClick={() => {
+                      setBatchType(item);
+                      setBatchEntries([newBatchEntry(item)]);
                     }}
                     type="button"
                   >
@@ -241,54 +425,129 @@ export function BehaviourLogClient({
                   </button>
                 ))}
               </div>
-            </Field>
-            {visibility === 'Sensitive' ? (
-              <p className="behaviour-sensitive-note">
-                <Lock aria-hidden="true" size={13} />
-                Sensitive entries are visible to Head, Head of Discipline, and the recording
-                supervisor for demerits.
-              </p>
-            ) : null}
-            {sensitiveMode === 'none' && canLogBehaviour ? (
-              <p className="field__hint">
-                Sensitive behaviour entries require Head or Head of Discipline access.
-              </p>
-            ) : null}
-            {sensitiveMode === 'demerit-only' && canLogBehaviour ? (
-              <p className="field__hint">Supervisors can mark demerits as Sensitive.</p>
-            ) : null}
 
-            {type === 'Merit' ? (
-              <Field label="Merit amount">
-                <TextInput
-                  aria-label="Merit amount"
-                  disabled={!canLogBehaviour}
-                  min={1}
+              <Field label="Student">
+                <SelectInput
+                  aria-label="Student"
+                  disabled={!canLogBehaviour || studentsQuery.isLoading}
                   onChange={(event) => {
-                    setAmount(event.target.value);
+                    setStudentId(event.target.value);
                   }}
-                  required
-                  type="number"
-                  value={amount}
-                />
+                  value={studentId}
+                >
+                  <option value="">Select a student</option>
+                  {(studentsQuery.data ?? []).map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {student.fullName}
+                    </option>
+                  ))}
+                </SelectInput>
               </Field>
-            ) : null}
 
-            <Button
-              disabled={!canLogBehaviour || !studentId}
-              pending={logBehaviour.isPending}
-              type="submit"
-            >
-              {type === 'Merit' ? `Record +${amount || '0'} Merit` : 'Record -5 Demerit'}
-            </Button>
-            {status ? <p className="status--success">{status}</p> : null}
-            {studentsQuery.error ? (
-              <p className="status--error">{studentsQuery.error.message}</p>
-            ) : null}
-            {logBehaviour.error ? (
-              <p className="status--error">{logBehaviour.error.message}</p>
-            ) : null}
-          </form>
+              {batchEntries.map((entry, index) => (
+                <div className="form-grid" key={entry.id}>
+                  <Field label={`Entry ${String(index + 1)} category`}>
+                    <SelectInput
+                      aria-label={`Entry ${String(index + 1)} category`}
+                      disabled={!canLogBehaviour}
+                      onChange={(event) => {
+                        setBatchEntry(entry.id, { category: event.target.value });
+                      }}
+                      value={entry.category}
+                    >
+                      {batchCategories.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  {batchType === 'Merit' ? (
+                    <Field label={`Entry ${String(index + 1)} amount`}>
+                      <TextInput
+                        aria-label={`Entry ${String(index + 1)} merit amount`}
+                        disabled={!canLogBehaviour}
+                        min={1}
+                        onChange={(event) => {
+                          setBatchEntry(entry.id, { amount: event.target.value });
+                        }}
+                        required
+                        type="number"
+                        value={entry.amount}
+                      />
+                    </Field>
+                  ) : null}
+                  <Field label={`Entry ${String(index + 1)} quantity`}>
+                    <TextInput
+                      aria-label={`Entry ${String(index + 1)} quantity`}
+                      disabled={!canLogBehaviour}
+                      max={50}
+                      min={1}
+                      onChange={(event) => {
+                        setBatchEntry(entry.id, { count: event.target.value });
+                      }}
+                      required
+                      type="number"
+                      value={entry.count}
+                    />
+                  </Field>
+                  <Field label={`Entry ${String(index + 1)} note`}>
+                    <textarea
+                      aria-label={`Entry ${String(index + 1)} note`}
+                      className="input textarea"
+                      disabled={!canLogBehaviour}
+                      maxLength={2000}
+                      onChange={(event) => {
+                        setBatchEntry(entry.id, { note: event.target.value });
+                      }}
+                      rows={3}
+                      value={entry.note}
+                    />
+                  </Field>
+                  {batchEntries.length > 1 ? (
+                    <Button
+                      onClick={() => {
+                        setBatchEntries((current) =>
+                          current.filter((candidate) => candidate.id !== entry.id),
+                        );
+                      }}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" size={16} />
+                      Remove entry
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+
+              <Button
+                onClick={() => {
+                  setBatchEntries((current) => [...current, newBatchEntry(batchType)]);
+                }}
+                type="button"
+                variant="secondary"
+              >
+                <Plus aria-hidden="true" size={16} />
+                Add entry
+              </Button>
+              <Button
+                disabled={!canLogBehaviour || !studentId}
+                pending={logManyBehaviour.isPending}
+                type="submit"
+              >
+                Record {String(totalBatchEntries(batchEntries))} {batchType.toLowerCase()}{' '}
+                {totalBatchEntries(batchEntries) === 1 ? 'entry' : 'entries'}
+              </Button>
+              {status ? <p className="status--success">{status}</p> : null}
+              {studentsQuery.error ? (
+                <p className="status--error">{studentsQuery.error.message}</p>
+              ) : null}
+              {logManyBehaviour.error ? (
+                <p className="status--error">{logManyBehaviour.error.message}</p>
+              ) : null}
+            </form>
+          )}
         </section>
 
         <section className="behaviour-recent-panel">
@@ -321,13 +580,16 @@ export function BehaviourLogClient({
                     <strong>{entry.studentName}</strong>
                     <span
                       className={
-                        entry.meritDelta >= 0
-                          ? 'head-merit-pill head-merit-pill--plus'
-                          : 'head-merit-pill head-merit-pill--minus'
+                        entry.type === 'General'
+                          ? 'head-merit-pill head-merit-pill--sensitive'
+                          : entry.meritDelta >= 0
+                            ? 'head-merit-pill head-merit-pill--plus'
+                            : 'head-merit-pill head-merit-pill--minus'
                       }
                     >
-                      {entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : entry.meritDelta}{' '}
-                      merits
+                      {entry.type === 'General'
+                        ? 'No merit value'
+                        : `${entry.meritDelta >= 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)} merits`}
                     </span>
                     <span className="behaviour-category-pill">{entry.category}</span>
                     {entry.visibility === 'Sensitive' ? (
@@ -424,7 +686,7 @@ function BehaviourTrendsPanel() {
                 />
               </div>
               <strong>
-                +{point.meritTotal} / -{point.demeritTotal}
+                +{point.meritTotal} / -{point.demeritTotal} / {point.generalCount} general
               </strong>
             </div>
           );

@@ -58,7 +58,7 @@ const activeStudentId = 'ckstudent000000000000001';
 const secondaryStudentId = 'ckstudent000000000000003';
 const inactiveStudentId = 'ckstudent000000000000002';
 
-type BehaviourType = 'Merit' | 'Demerit';
+type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BehaviourVisibility = 'General' | 'Sensitive';
 
 interface StoredStudent {
@@ -561,6 +561,193 @@ describe('behaviour.log', () => {
     expect(auditCreateArgs(db).some((args) => args.data.entity === 'Email')).toBe(false);
   });
 
+  it('creates Sensitive General marks with no merit ledger rows or guardian emails', async () => {
+    const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+
+    const result = await makeCaller(supervisorUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'General',
+      note: 'Pastoral context to note',
+    });
+
+    expect(result).toMatchObject({
+      studentId: activeStudentId,
+      type: 'General',
+      category: 'Misc',
+      visibility: 'Sensitive',
+      meritDelta: 0,
+      recordedById: supervisorUser.id,
+    });
+    expect(behaviour).toEqual([
+      expect.objectContaining({
+        type: 'General',
+        category: 'Misc',
+        noteEnc: 'enc:Pastoral context to note',
+        visibility: 'Sensitive',
+        meritDelta: 0,
+      }),
+    ]);
+    expect(ledger).toEqual([]);
+    expect(email.send).not.toHaveBeenCalled();
+    expect(auditCreateArgs(db).some((args) => args.data.entity === 'MeritLedger')).toBe(false);
+  });
+
+  it('requires a note and rejects merit values for General marks', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.log({
+        studentId: activeStudentId,
+        type: 'General',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'general mark note is required' });
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.log({
+        studentId: activeStudentId,
+        type: 'General',
+        note: 'Has a note',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'general marks have no merit value' });
+  });
+
+  it('creates multiple Merit or Demerit entries for one student as one batch', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    const meritResult = await makeCaller(supervisorUser, db).behaviour.logMany({
+      studentId: activeStudentId,
+      type: 'Merit',
+      entries: [
+        { category: 'Kindness', note: 'Helped at lunch', amount: 2 },
+        { category: 'Leadership', amount: 3 },
+      ],
+    });
+    const demeritResult = await makeCaller(supervisorUser, db).behaviour.logMany({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      entries: [{ category: 'Conduct' }, { category: 'Punctuality', note: 'Late to line up' }],
+    });
+
+    expect(meritResult).toMatchObject({
+      entries: [
+        { type: 'Merit', category: 'Kindness', meritDelta: 2 },
+        { type: 'Merit', category: 'Leadership', meritDelta: 3 },
+      ],
+      ledgerRowCount: 2,
+    });
+    expect(demeritResult).toMatchObject({
+      entries: [
+        { type: 'Demerit', category: 'Conduct', meritDelta: -5 },
+        { type: 'Demerit', category: 'Punctuality', meritDelta: -5 },
+      ],
+      ledgerRowCount: 2,
+    });
+    expect(behaviour).toHaveLength(4);
+    expect(ledger).toEqual([
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: 2,
+        reason: 'Kindness',
+        relatedEntryId: 'ckbehaviour000000000001',
+      },
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: 3,
+        reason: 'Leadership',
+        relatedEntryId: 'ckbehaviour000000000002',
+      },
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: -5,
+        reason: 'Conduct',
+        relatedEntryId: 'ckbehaviour000000000003',
+      },
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: -5,
+        reason: 'Punctuality',
+        relatedEntryId: 'ckbehaviour000000000004',
+      },
+    ]);
+  });
+
+  it('can repeat a Merit batch row with the same amount', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    const result = await makeCaller(supervisorUser, db).behaviour.logMany({
+      studentId: activeStudentId,
+      type: 'Merit',
+      entries: [{ category: 'Scripture Memory', note: 'Verse practice', amount: 10, count: 10 }],
+    });
+
+    expect(result.entries).toHaveLength(10);
+    expect(result.ledgerRowCount).toBe(10);
+    expect(behaviour).toHaveLength(10);
+    expect(behaviour).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'Merit',
+          category: 'Scripture Memory',
+          noteEnc: 'enc:Verse practice',
+          meritDelta: 10,
+        }),
+      ]),
+    );
+    expect(ledger).toHaveLength(10);
+    expect(ledger.every((row) => row.delta === 10 && row.reason === 'Scripture Memory')).toBe(true);
+  });
+
+  it('rejects invalid batch entries before creating any rows', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.logMany({
+        studentId: activeStudentId,
+        type: 'Merit',
+        entries: [{ category: 'Kindness', amount: 1 }, { category: 'Leadership' }],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'merit amount is required for entry 2',
+    });
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.logMany({
+        studentId: activeStudentId,
+        type: 'General' as 'Merit',
+        entries: [{ category: 'Misc', note: 'Not allowed', amount: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
+  });
+
+  it('rejects batch requests that would create more than 50 entries', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.logMany({
+        studentId: activeStudentId,
+        type: 'Merit',
+        entries: [
+          { category: 'Kindness', amount: 1, count: 25 },
+          { category: 'Leadership', amount: 1, count: 26 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'batch cannot create more than 50 entries',
+    });
+
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
+  });
+
   it('keeps saved General behaviour and audits notification failure when email delivery fails', async () => {
     const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
     const email = makeFakeEmailClient();
@@ -823,6 +1010,34 @@ describe('behaviour.listForStudent', () => {
         amount: 1,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets staff authors read their own Sensitive General marks but hides them from other staff', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(supervisorUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'General',
+      category: 'Misc',
+      note: 'Sensitive pastoral note',
+    });
+
+    const authorResult = await makeCaller(supervisorUser, db).behaviour.listForStudent({
+      studentId: activeStudentId,
+    });
+    expect(authorResult.entries).toEqual([
+      expect.objectContaining({
+        type: 'General',
+        category: 'Misc',
+        note: 'Sensitive pastoral note',
+        visibility: 'Sensitive',
+        meritDelta: 0,
+      }),
+    ]);
+
+    const otherResult = await makeCaller(otherSupervisorUser, db).behaviour.recentEntries({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    expect(otherResult.entries).toEqual([]);
   });
 
   it('denies Parent and Student reads', async () => {

@@ -482,6 +482,7 @@ model ShiftSwapRequest {
 enum BehaviourType {
   Merit
   Demerit
+  General
 }
 
 enum BehaviourVisibility {
@@ -497,7 +498,7 @@ model BehaviourEntry {
   // note is free text PII — encrypted at rest (ADR-005)
   noteEnc      String?
   visibility   BehaviourVisibility @default(General)
-  // Merit: positive N. Demerit: fixed -5 per Director mandate.
+  // Merit: positive N. Demerit: fixed -5 per Director mandate. General: 0.
   meritDelta   Int
   recordedById String
   createdAt    DateTime            @default(now())
