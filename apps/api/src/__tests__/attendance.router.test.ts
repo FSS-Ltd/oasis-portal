@@ -53,6 +53,7 @@ const inactiveStudentId = 'ckstudent000000000000003';
 const inactiveStaffUserId = 'ckuserinactive000000001';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
+type AbsenceReason = 'Sick' | 'Holiday' | 'NotScheduled' | 'Excused' | 'Unexcused';
 
 interface StoredStudent {
   id: string;
@@ -75,6 +76,7 @@ interface StoredAttendance {
   studentId: string;
   date: Date;
   status: AttendanceStatus;
+  absenceReason: AbsenceReason | null;
   recordedById: string;
   createdAt: Date;
 }
@@ -84,6 +86,7 @@ interface StoredStaffAttendance {
   staffUserId: string;
   date: Date;
   status: AttendanceStatus;
+  absenceReason: AbsenceReason | null;
   recordedById: string;
   createdAt: Date;
 }
@@ -98,10 +101,13 @@ interface StoredYearGroupBand {
 }
 
 interface StoredStaffShift {
+  id: string;
   staffUserId: string;
   yearGroupBandId: string;
   date: Date;
   startsAt: Date;
+  endsAt: Date;
+  notes: string | null;
 }
 
 interface FakeDb {
@@ -197,6 +203,13 @@ function makeFakeDb() {
       active: true,
     },
     {
+      id: attendanceRecorderUser.id,
+      fullNameEnc: 'enc:Recorder User',
+      emailEnc: 'enc:recorder@example.test',
+      role: 'Supervisor',
+      active: true,
+    },
+    {
       id: parentUser.id,
       fullNameEnc: 'enc:Parent User',
       emailEnc: 'enc:parent@example.test',
@@ -241,16 +254,22 @@ function makeFakeDb() {
   ];
   const staffShifts: StoredStaffShift[] = [
     {
+      id: 'shift-supervisor-1',
       staffUserId: supervisorUser.id,
       yearGroupBandId: 'band_upper',
       date: day('2026-04-29'),
       startsAt: new Date('2026-04-29T09:00:00.000Z'),
+      endsAt: new Date('2026-04-29T12:00:00.000Z'),
+      notes: null,
     },
     {
+      id: 'shift-recorder-1',
       staffUserId: attendanceRecorderUser.id,
       yearGroupBandId: 'band_upper',
       date: day('2026-04-29'),
       startsAt: new Date('2026-04-29T09:00:00.000Z'),
+      endsAt: new Date('2026-04-29T12:00:00.000Z'),
+      notes: null,
     },
   ];
 
@@ -291,6 +310,7 @@ function makeFakeDb() {
                   .map((row) => ({
                     id: row.id,
                     status: row.status,
+                    absenceReason: row.absenceReason,
                     recordedById: row.recordedById,
                     createdAt: row.createdAt,
                   }))
@@ -375,15 +395,17 @@ function makeFakeDb() {
           where,
         }: {
           orderBy?: Array<Record<string, 'asc' | 'desc'>>;
-          select?: { id?: true };
-          where: { date: { gte: Date; lte: Date }; studentId?: string };
+          select?: { id?: true; student?: unknown };
+          where: { date: { gte?: Date; lte?: Date } | Date; studentId?: string };
         }) => {
           const sortDirection = orderBy?.[0]?.date === 'desc' ? -1 : 1;
+          const from = where.date instanceof Date ? where.date : where.date.gte;
+          const to = where.date instanceof Date ? where.date : where.date.lte;
           const rows = attendance
             .filter(
               (row) =>
-                row.date.getTime() >= where.date.gte.getTime() &&
-                row.date.getTime() <= where.date.lte.getTime(),
+                (from === undefined || row.date.getTime() >= from.getTime()) &&
+                (to === undefined || row.date.getTime() <= to.getTime()),
             )
             .filter((row) => where.studentId === undefined || row.studentId === where.studentId)
             .sort(
@@ -391,12 +413,13 @@ function makeFakeDb() {
                 (a.date.getTime() - b.date.getTime() ||
                   a.createdAt.getTime() - b.createdAt.getTime()) * sortDirection,
             );
-          if (select?.id) {
+          if (select?.id && select.student === undefined) {
             return Promise.resolve(
               rows.map((row) => ({
                 id: row.id,
                 date: row.date,
                 status: row.status,
+                absenceReason: row.absenceReason,
                 recordedById: row.recordedById,
                 createdAt: row.createdAt,
               })),
@@ -407,13 +430,18 @@ function makeFakeDb() {
               const student = students.find((candidate) => candidate.id === row.studentId);
               if (!student) throw new Error('test student missing');
               return {
+                id: row.id,
                 date: row.date,
                 status: row.status,
+                absenceReason: row.absenceReason,
                 createdAt: row.createdAt,
+                recordedById: row.recordedById,
+                studentId: row.studentId,
                 student: {
                   id: student.id,
                   fullNameEnc: student.fullNameEnc,
                   yearGroup: student.yearGroup,
+                  active: student.active,
                 },
               };
             }),
@@ -458,15 +486,17 @@ function makeFakeDb() {
           where,
         }: {
           orderBy?: Array<Record<string, 'asc' | 'desc'>>;
-          select?: { id?: true };
-          where: { date: { gte: Date; lte: Date }; staffUserId?: string };
+          select?: { id?: true; staffUser?: unknown };
+          where: { date: { gte?: Date; lte?: Date } | Date; staffUserId?: string };
         }) => {
           const sortDirection = orderBy?.[0]?.date === 'desc' ? -1 : 1;
+          const from = where.date instanceof Date ? where.date : where.date.gte;
+          const to = where.date instanceof Date ? where.date : where.date.lte;
           const rows = staffAttendance
             .filter(
               (row) =>
-                row.date.getTime() >= where.date.gte.getTime() &&
-                row.date.getTime() <= where.date.lte.getTime(),
+                (from === undefined || row.date.getTime() >= from.getTime()) &&
+                (to === undefined || row.date.getTime() <= to.getTime()),
             )
             .filter(
               (row) => where.staffUserId === undefined || row.staffUserId === where.staffUserId,
@@ -476,12 +506,13 @@ function makeFakeDb() {
                 (a.date.getTime() - b.date.getTime() ||
                   a.createdAt.getTime() - b.createdAt.getTime()) * sortDirection,
             );
-          if (select?.id) {
+          if (select?.id && select.staffUser === undefined) {
             return Promise.resolve(
               rows.map((row) => ({
                 id: row.id,
                 date: row.date,
                 status: row.status,
+                absenceReason: row.absenceReason,
                 recordedById: row.recordedById,
                 createdAt: row.createdAt,
               })),
@@ -494,12 +525,17 @@ function makeFakeDb() {
               return {
                 date: row.date,
                 status: row.status,
+                absenceReason: row.absenceReason,
                 createdAt: row.createdAt,
+                id: row.id,
+                recordedById: row.recordedById,
+                staffUserId: row.staffUserId,
                 staffUser: {
                   id: staffUser.id,
                   fullNameEnc: staffUser.fullNameEnc,
                   emailEnc: staffUser.emailEnc,
                   role: staffUser.role,
+                  active: staffUser.active,
                 },
               };
             }),
@@ -524,17 +560,56 @@ function makeFakeDb() {
       ),
     },
     staffShift: {
-      findMany: vi.fn(({ where }: { where: { staffUserId: string; date: Date } }) =>
-        Promise.resolve(
-          staffShifts
-            .filter((shift) => shift.staffUserId === where.staffUserId)
-            .filter((shift) => dateKey(shift.date) === dateKey(where.date))
-            .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime())
-            .map((shift) => ({
-              yearGroupBand:
-                yearGroupBands.find((band) => band.id === shift.yearGroupBandId) ?? null,
-            })),
-        ),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            staffUserId?: string;
+            date: Date;
+            staffUser?: { active?: boolean; role?: { in?: readonly SessionUser['role'][] } };
+          };
+        }) =>
+          Promise.resolve(
+            staffShifts
+              .filter(
+                (shift) =>
+                  where.staffUserId === undefined || shift.staffUserId === where.staffUserId,
+              )
+              .filter((shift) => dateKey(shift.date) === dateKey(where.date))
+              .filter((shift) => {
+                const staffUser = users.find((candidate) => candidate.id === shift.staffUserId);
+                if (!staffUser) return false;
+                if (
+                  where.staffUser?.active !== undefined &&
+                  staffUser.active !== where.staffUser.active
+                ) {
+                  return false;
+                }
+                return (
+                  where.staffUser?.role?.in === undefined ||
+                  where.staffUser.role.in.includes(staffUser.role)
+                );
+              })
+              .sort((left, right) => left.startsAt.getTime() - right.startsAt.getTime())
+              .map((shift) => {
+                const staffUser = users.find((candidate) => candidate.id === shift.staffUserId);
+                if (!staffUser) throw new Error('test staff user missing');
+                const yearGroupBand =
+                  yearGroupBands.find((band) => band.id === shift.yearGroupBandId) ?? null;
+                return {
+                  id: shift.id,
+                  staffUserId: shift.staffUserId,
+                  yearGroupBandId: shift.yearGroupBandId,
+                  date: shift.date,
+                  startsAt: shift.startsAt,
+                  endsAt: shift.endsAt,
+                  notes: shift.notes,
+                  staffUser,
+                  yearGroupBand,
+                };
+              }),
+          ),
       ),
     },
   };
@@ -698,6 +773,44 @@ describe('attendance.mark', () => {
     });
   });
 
+  it('requires an absence reason for Absent and clears it when status changes', async () => {
+    const { attendance, db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await expect(
+      caller.attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-29'),
+        status: 'Absent',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      caller.attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-29'),
+        status: 'Absent',
+        absenceReason: 'Sick',
+      }),
+    ).resolves.toMatchObject({
+      status: 'Absent',
+      absenceReason: 'Sick',
+      absenceReasonLabel: 'Sick',
+    });
+    await expect(
+      caller.attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-29'),
+        status: 'Present',
+      }),
+    ).resolves.toMatchObject({
+      status: 'Present',
+      absenceReason: null,
+      absenceReasonLabel: null,
+    });
+    expect(attendance[0]).toMatchObject({ status: 'Present', absenceReason: null });
+  });
+
   it('allows full-admin and attendance-recorder, but denies untagged daily-workflow users', async () => {
     const { db } = makeFakeDb();
 
@@ -722,6 +835,7 @@ describe('attendance.mark', () => {
         studentId: activeStudentId,
         date: day('2026-04-30'),
         status: 'Absent',
+        absenceReason: 'Unexcused',
       }),
     ).resolves.toMatchObject({ status: 'Absent', recordedById: principalUser.id });
     await expect(
@@ -729,6 +843,7 @@ describe('attendance.mark', () => {
         studentId: activeStudentId,
         date: day('2026-04-30'),
         status: 'Absent',
+        absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -741,6 +856,7 @@ describe('attendance.mark', () => {
         studentId: activeStudentId,
         date: day('2026-04-29'),
         status: 'Absent',
+        absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
@@ -748,6 +864,7 @@ describe('attendance.mark', () => {
         studentId: activeStudentId,
         date: day('2026-04-29'),
         status: 'Absent',
+        absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
@@ -757,6 +874,7 @@ describe('attendance.mark', () => {
         studentId: 'ckstudentmissing000000001',
         date: day('2026-04-29'),
         status: 'Absent',
+        absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'student not found' });
     await expect(
@@ -764,6 +882,7 @@ describe('attendance.mark', () => {
         studentId: inactiveStudentId,
         date: day('2026-04-29'),
         status: 'Absent',
+        absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'student is inactive' });
   });
@@ -825,6 +944,14 @@ describe('attendance.listExportOptions', () => {
           active: true,
         },
         {
+          id: attendanceRecorderUser.id,
+          label: 'Recorder User · Supervisor',
+          name: 'Recorder User',
+          email: 'recorder@example.test',
+          role: 'Supervisor',
+          active: true,
+        },
+        {
           id: inactiveStaffUserId,
           label: 'Inactive Supervisor · Supervisor · Inactive',
           name: 'Inactive Supervisor',
@@ -847,7 +974,7 @@ describe('attendance.listExportOptions', () => {
         userId: attendanceExporterUser.id,
         action: 'DecryptPii',
         entity: 'User',
-        meta: { count: 4, source: 'attendance.listExportOptions' },
+        meta: { count: 5, source: 'attendance.listExportOptions' },
       },
     });
   });
@@ -913,6 +1040,7 @@ describe('attendance.exportStudentsCsv', () => {
       studentId: activeStudentId,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
     });
     await headCaller.attendance.mark({
       studentId: secondStudentId,
@@ -929,9 +1057,9 @@ describe('attendance.exportStudentsCsv', () => {
       filename: 'student-attendance-2026-04-28-to-2026-04-29.csv',
       contentType: 'text/csv; charset=utf-8',
       csv: [
-        'Date,Student ID,Student Name,Year Group,Status,Recorded At',
-        '2026-04-28,ctx-student,Jane Learner,Year 6,Absent,2026-04-29T10:00:00.000Z',
-        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,2026-04-29T10:01:00.000Z',
+        'Date,Student ID,Student Name,Year Group,Status,Absence Reason,Recorded At',
+        '2026-04-28,ctx-student,Jane Learner,Year 6,Absent,Unexcused,2026-04-29T10:00:00.000Z',
+        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,,2026-04-29T10:01:00.000Z',
       ].join('\n'),
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1006,6 +1134,7 @@ describe('attendance.exportStudentsCsv', () => {
       studentId: activeStudentId,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
     });
     await headCaller.attendance.mark({
       studentId: secondStudentId,
@@ -1021,8 +1150,8 @@ describe('attendance.exportStudentsCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Student ID,Student Name,Year Group,Status,Recorded At',
-        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,2026-04-29T10:01:00.000Z',
+        'Date,Student ID,Student Name,Year Group,Status,Absence Reason,Recorded At',
+        '2026-04-29,ckstudent000000000000002,Amos Scholar,Year 5,Late,,2026-04-29T10:01:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1088,6 +1217,7 @@ describe('attendance.exportStudentsCsv', () => {
       studentId: inactiveStudentId,
       date: day('2026-04-28'),
       status: 'Present',
+      absenceReason: null,
       recordedById: headUser.id,
       createdAt: new Date('2026-04-28T09:30:00.000Z'),
     });
@@ -1100,8 +1230,8 @@ describe('attendance.exportStudentsCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Student ID,Student Name,Year Group,Status,Recorded At',
-        '2026-04-28,ckstudent000000000000003,Former Student,Year 7,Present,2026-04-28T09:30:00.000Z',
+        'Date,Student ID,Student Name,Year Group,Status,Absence Reason,Recorded At',
+        '2026-04-28,ckstudent000000000000003,Former Student,Year 7,Present,,2026-04-28T09:30:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1130,6 +1260,7 @@ describe('attendance.studentHistory', () => {
       studentId: inactiveStudentId,
       date: day('2026-04-27'),
       status: 'Present',
+      absenceReason: null,
       recordedById: headUser.id,
       createdAt: new Date('2026-04-27T09:00:00.000Z'),
     });
@@ -1138,6 +1269,7 @@ describe('attendance.studentHistory', () => {
       studentId: activeStudentId,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
     });
     await headCaller.attendance.mark({
       studentId: activeStudentId,
@@ -1156,6 +1288,8 @@ describe('attendance.studentHistory', () => {
         id: 'ckattendance000000000003',
         date: '2026-04-29',
         status: 'Late',
+        absenceReason: null,
+        absenceReasonLabel: null,
         recordedById: headUser.id,
         recordedAt: new Date('2026-04-29T10:02:00.000Z'),
       },
@@ -1163,6 +1297,8 @@ describe('attendance.studentHistory', () => {
         id: 'ckattendance000000000002',
         date: '2026-04-28',
         status: 'Absent',
+        absenceReason: 'Unexcused',
+        absenceReasonLabel: 'Unexcused',
         recordedById: headUser.id,
         recordedAt: new Date('2026-04-29T10:01:00.000Z'),
       },
@@ -1179,6 +1315,8 @@ describe('attendance.studentHistory', () => {
         id: 'ckattendanceinactive000001',
         date: '2026-04-27',
         status: 'Present',
+        absenceReason: null,
+        absenceReasonLabel: null,
         recordedById: headUser.id,
         recordedAt: new Date('2026-04-27T09:00:00.000Z'),
       },
@@ -1193,6 +1331,7 @@ describe('attendance.studentHistory', () => {
         studentId: activeStudentId,
         date: day('2026-04-17'),
         status: 'Present',
+        absenceReason: null,
         recordedById: headUser.id,
         createdAt: new Date('2026-05-07T09:00:00.000Z'),
       },
@@ -1201,6 +1340,7 @@ describe('attendance.studentHistory', () => {
         studentId: activeStudentId,
         date: day('2026-05-07'),
         status: 'Late',
+        absenceReason: null,
         recordedById: headUser.id,
         createdAt: new Date('2026-04-17T09:00:00.000Z'),
       },
@@ -1217,6 +1357,8 @@ describe('attendance.studentHistory', () => {
         id: 'ckattendanceattended001',
         date: '2026-04-17',
         status: 'Present',
+        absenceReason: null,
+        absenceReasonLabel: null,
         recordedById: headUser.id,
         recordedAt: new Date('2026-05-07T09:00:00.000Z'),
       },
@@ -1354,6 +1496,80 @@ describe('attendance.markStaff', () => {
       message: 'user is not an active supervisor',
     });
   });
+
+  it('requires an absence reason for staff Absent and clears it when status changes', async () => {
+    const { db, staffAttendance } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await expect(
+      caller.attendance.markStaff({
+        staffUserId: supervisorUser.id,
+        date: day('2026-04-29'),
+        status: 'Absent',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      caller.attendance.markStaff({
+        staffUserId: supervisorUser.id,
+        date: day('2026-04-29'),
+        status: 'Absent',
+        absenceReason: 'Holiday',
+      }),
+    ).resolves.toMatchObject({
+      status: 'Absent',
+      absenceReason: 'Holiday',
+      absenceReasonLabel: 'Holiday',
+    });
+    await expect(
+      caller.attendance.markStaff({
+        staffUserId: supervisorUser.id,
+        date: day('2026-04-29'),
+        status: 'Present',
+      }),
+    ).resolves.toMatchObject({
+      status: 'Present',
+      absenceReason: null,
+      absenceReasonLabel: null,
+    });
+    expect(staffAttendance[0]).toMatchObject({ status: 'Present', absenceReason: null });
+  });
+});
+
+describe('attendance.staffForDate', () => {
+  it('returns scheduled supervisors, unscheduled saved attendance, and addable unscheduled options', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(headUser, db).attendance.markStaff({
+      staffUserId: attendanceExporterUser.id,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+
+    const result = await makeCaller(headUser, db).attendance.staffForDate({
+      date: day('2026-04-29'),
+    });
+
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows.find((row) => row.staffUserId === supervisorUser.id)).toMatchObject({
+      staffName: 'Supervisor User',
+      scheduled: true,
+      status: null,
+    });
+    expect(result.rows.find((row) => row.staffUserId === attendanceExporterUser.id)).toMatchObject({
+      staffName: 'Exporter User',
+      scheduled: false,
+      status: 'Present',
+    });
+    expect(result.unscheduledOptions.map((option) => option.id)).toEqual([headUser.id]);
+  });
+
+  it('denies non-full-admin users', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(supervisorUser, db).attendance.staffForDate({ date: day('2026-04-29') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
 });
 
 describe('attendance.staffHistory', () => {
@@ -1364,6 +1580,7 @@ describe('attendance.staffHistory', () => {
       staffUserId: supervisorUser.id,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
     });
     await headCaller.attendance.markStaff({
       staffUserId: supervisorUser.id,
@@ -1375,6 +1592,7 @@ describe('attendance.staffHistory', () => {
       staffUserId: inactiveStaffUserId,
       date: day('2026-04-27'),
       status: 'Present',
+      absenceReason: null,
       recordedById: headUser.id,
       createdAt: new Date('2026-04-27T09:00:00.000Z'),
     });
@@ -1390,6 +1608,8 @@ describe('attendance.staffHistory', () => {
         id: 'ckstaffattendance00000002',
         date: '2026-04-29',
         status: 'Late',
+        absenceReason: null,
+        absenceReasonLabel: null,
         recordedById: headUser.id,
         recordedAt: new Date('2026-04-29T11:01:00.000Z'),
       },
@@ -1397,6 +1617,8 @@ describe('attendance.staffHistory', () => {
         id: 'ckstaffattendance00000001',
         date: '2026-04-28',
         status: 'Absent',
+        absenceReason: 'Unexcused',
+        absenceReasonLabel: 'Unexcused',
         recordedById: headUser.id,
         recordedAt: new Date('2026-04-29T11:00:00.000Z'),
       },
@@ -1413,6 +1635,8 @@ describe('attendance.staffHistory', () => {
         id: 'ckstaffattendanceinactive01',
         date: '2026-04-27',
         status: 'Present',
+        absenceReason: null,
+        absenceReasonLabel: null,
         recordedById: headUser.id,
         recordedAt: new Date('2026-04-27T09:00:00.000Z'),
       },
@@ -1427,6 +1651,7 @@ describe('attendance.staffHistory', () => {
         staffUserId: supervisorUser.id,
         date: day('2026-04-17'),
         status: 'Present',
+        absenceReason: null,
         recordedById: headUser.id,
         createdAt: new Date('2026-05-07T09:00:00.000Z'),
       },
@@ -1435,6 +1660,7 @@ describe('attendance.staffHistory', () => {
         staffUserId: supervisorUser.id,
         date: day('2026-05-07'),
         status: 'Late',
+        absenceReason: null,
         recordedById: headUser.id,
         createdAt: new Date('2026-04-17T09:00:00.000Z'),
       },
@@ -1451,6 +1677,8 @@ describe('attendance.staffHistory', () => {
         id: 'ckstaffattended001',
         date: '2026-04-17',
         status: 'Present',
+        absenceReason: null,
+        absenceReasonLabel: null,
         recordedById: headUser.id,
         recordedAt: new Date('2026-05-07T09:00:00.000Z'),
       },
@@ -1509,6 +1737,7 @@ describe('attendance.exportStaffCsv', () => {
       staffUserId: supervisorUser.id,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
     });
     await headCaller.attendance.markStaff({
       staffUserId: attendanceExporterUser.id,
@@ -1525,9 +1754,9 @@ describe('attendance.exportStaffCsv', () => {
       filename: 'supervisor-attendance-2026-04-28-to-2026-04-29.csv',
       contentType: 'text/csv; charset=utf-8',
       csv: [
-        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Recorded At',
-        '2026-04-28,ckusersup000000000000001,Supervisor User,supervisor@example.test,Supervisor,Absent,2026-04-29T11:00:00.000Z',
-        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,2026-04-29T11:01:00.000Z',
+        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Absence Reason,Recorded At',
+        '2026-04-28,ckusersup000000000000001,Supervisor User,supervisor@example.test,Supervisor,Absent,Unexcused,2026-04-29T11:00:00.000Z',
+        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,,2026-04-29T11:01:00.000Z',
       ].join('\n'),
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1604,6 +1833,7 @@ describe('attendance.exportStaffCsv', () => {
       staffUserId: supervisorUser.id,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
     });
     await headCaller.attendance.markStaff({
       staffUserId: attendanceExporterUser.id,
@@ -1619,8 +1849,8 @@ describe('attendance.exportStaffCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Recorded At',
-        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,2026-04-29T11:01:00.000Z',
+        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Absence Reason,Recorded At',
+        '2026-04-29,ckuserexport000000000001,Exporter User,exporter@example.test,Supervisor,Late,,2026-04-29T11:01:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1686,6 +1916,7 @@ describe('attendance.exportStaffCsv', () => {
       staffUserId: inactiveStaffUserId,
       date: day('2026-04-28'),
       status: 'Absent',
+      absenceReason: 'Unexcused',
       recordedById: headUser.id,
       createdAt: new Date('2026-04-28T09:45:00.000Z'),
     });
@@ -1698,8 +1929,8 @@ describe('attendance.exportStaffCsv', () => {
 
     expect(exported.csv).toBe(
       [
-        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Recorded At',
-        '2026-04-28,ckuserinactive000000001,Inactive Supervisor,inactive@example.test,Supervisor,Absent,2026-04-28T09:45:00.000Z',
+        'Date,Supervisor User ID,Supervisor Name,Email,Role,Status,Absence Reason,Recorded At',
+        '2026-04-28,ckuserinactive000000001,Inactive Supervisor,inactive@example.test,Supervisor,Absent,Unexcused,2026-04-28T09:45:00.000Z',
       ].join('\n'),
     );
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -1716,6 +1947,126 @@ describe('attendance.exportStaffCsv', () => {
           scope: 'individual',
         },
       },
+    });
+  });
+});
+
+describe('attendance.insights', () => {
+  it('returns aggregate and selected student attendance summaries with absence reason buckets', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await caller.attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-28'),
+      status: 'Absent',
+      absenceReason: 'Sick',
+    });
+    await caller.attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+    await caller.attendance.mark({
+      studentId: secondStudentId,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+
+    const aggregate = await caller.attendance.insights({
+      kind: 'students',
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+    });
+    expect(aggregate.summary).toEqual({
+      total: 3,
+      present: 1,
+      absent: 1,
+      late: 1,
+      attendanceRate: 33,
+    });
+    expect(aggregate.trend).toHaveLength(2);
+    expect(aggregate.absenceReasons.find((reason) => reason.reason === 'Sick')).toMatchObject({
+      label: 'Sick',
+      count: 1,
+    });
+    expect(aggregate.people).toHaveLength(3);
+
+    const selected = await caller.attendance.insights({
+      kind: 'students',
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+      subjectId: activeStudentId,
+    });
+    expect(selected.selectedId).toBe(activeStudentId);
+    expect(selected.summary).toMatchObject({ total: 2, present: 1, absent: 1, late: 0 });
+    expect(selected.records.map((record) => record.subjectId)).toEqual([
+      activeStudentId,
+      activeStudentId,
+    ]);
+  });
+
+  it('returns staff attendance insights and denies unauthorised users', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    await caller.attendance.markStaff({
+      staffUserId: supervisorUser.id,
+      date: day('2026-04-28'),
+      status: 'Absent',
+      absenceReason: 'Holiday',
+    });
+    await caller.attendance.markStaff({
+      staffUserId: attendanceExporterUser.id,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+
+    const result = await caller.attendance.insights({
+      kind: 'staff',
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+    });
+    expect(result.summary).toMatchObject({ total: 2, present: 1, absent: 1, late: 0 });
+    expect(result.absenceReasons.find((reason) => reason.reason === 'Holiday')).toMatchObject({
+      label: 'Holiday',
+      count: 1,
+    });
+    expect(result.people.map((person) => person.id)).toContain(supervisorUser.id);
+
+    await expect(
+      makeCaller(supervisorUser, db).attendance.insights({
+        kind: 'staff',
+        from: day('2026-04-28'),
+        to: day('2026-04-29'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('keeps legacy Absent rows without a reason in the Unknown bucket', async () => {
+    const { attendance, db } = makeFakeDb();
+    attendance.push({
+      id: 'ckattendancelegacy001',
+      studentId: activeStudentId,
+      date: day('2026-04-28'),
+      status: 'Absent',
+      absenceReason: null,
+      recordedById: headUser.id,
+      createdAt: new Date('2026-04-28T09:00:00.000Z'),
+    });
+
+    const result = await makeCaller(headUser, db).attendance.insights({
+      kind: 'students',
+      from: day('2026-04-28'),
+      to: day('2026-04-28'),
+    });
+
+    expect(result.absenceReasons.find((reason) => reason.reason === 'Unknown')).toMatchObject({
+      label: 'Unknown',
+      count: 1,
+    });
+    expect(result.records[0]).toMatchObject({
+      status: 'Absent',
+      absenceReason: null,
+      absenceReasonLabel: null,
     });
   });
 });

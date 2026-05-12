@@ -375,13 +375,22 @@ enum AttendanceStatus {
   Late
 }
 
+enum AbsenceReason {
+  Sick
+  Holiday
+  NotScheduled
+  Excused
+  Unexcused
+}
+
 model Attendance {
-  id           String           @id @default(cuid())
-  studentId    String
-  date         DateTime         @db.Date
-  status       AttendanceStatus
-  recordedById String
-  createdAt    DateTime         @default(now())
+  id            String           @id @default(cuid())
+  studentId     String
+  date          DateTime         @db.Date
+  status        AttendanceStatus
+  absenceReason AbsenceReason?
+  recordedById  String
+  createdAt     DateTime         @default(now())
 
   student    Student @relation(fields: [studentId], references: [id])
   recordedBy User    @relation("RecordedAttendance", fields: [recordedById], references: [id])
@@ -391,12 +400,13 @@ model Attendance {
 }
 
 model StaffAttendance {
-  id           String           @id @default(cuid())
-  staffUserId  String
-  date         DateTime         @db.Date
-  status       AttendanceStatus
-  recordedById String
-  createdAt    DateTime         @default(now())
+  id            String           @id @default(cuid())
+  staffUserId   String
+  date          DateTime         @db.Date
+  status        AttendanceStatus
+  absenceReason AbsenceReason?
+  recordedById  String
+  createdAt     DateTime         @default(now())
 
   staffUser  User @relation("StaffAttendanceUser", fields: [staffUserId], references: [id])
   recordedBy User @relation("RecordedStaffAttendance", fields: [recordedById], references: [id])

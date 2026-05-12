@@ -17,9 +17,36 @@ import { authedProcedure, fullAdminProcedure, roleProcedure, router } from '../t
 
 type AuthedContext = AppContext & { user: SessionUser };
 
-const ATTENDANCE_ROLES = ['Head', 'Principal', 'Pastor', 'HeadOfDiscipline', 'Supervisor'] as const;
+const ATTENDANCE_ROLES = [
+  'Head',
+  'Principal',
+  'Pastor',
+  'HeadOfDiscipline',
+  'ClubsAdmin',
+  'Supervisor',
+] as const;
 
 const attendanceStatusSchema = z.enum(['Present', 'Absent', 'Late']);
+const absenceReasonSchema = z.enum(['Sick', 'Holiday', 'NotScheduled', 'Excused', 'Unexcused']);
+const insightKindSchema = z.enum(['students', 'staff']);
+
+const attendanceMarkInput = z
+  .object({
+    studentId: z.string().min(1),
+    date: z.coerce.date(),
+    status: attendanceStatusSchema,
+    absenceReason: absenceReasonSchema.nullish(),
+  })
+  .superRefine(requireAbsenceReason);
+
+const staffAttendanceMarkInput = z
+  .object({
+    staffUserId: z.string().min(1),
+    date: z.coerce.date(),
+    status: attendanceStatusSchema,
+    absenceReason: absenceReasonSchema.nullish(),
+  })
+  .superRefine(requireAbsenceReason);
 
 const dateRangeShape = {
   from: z.coerce.date(),
@@ -66,6 +93,47 @@ const staffHistoryInput = z
     path: ['to'],
   });
 
+const insightsInput = z
+  .object({
+    ...dateRangeShape,
+    kind: insightKindSchema,
+    subjectId: z.string().min(1).optional(),
+  })
+  .refine(validateDateRange, {
+    message: 'from must be on or before to',
+    path: ['to'],
+  });
+
+type AttendanceStatus = z.infer<typeof attendanceStatusSchema>;
+type AbsenceReason = z.infer<typeof absenceReasonSchema>;
+type InsightKind = z.infer<typeof insightKindSchema>;
+type AbsenceReasonBucket = AbsenceReason | 'Unknown';
+type AttendanceSummary = Record<AttendanceStatus, number> & { total: number };
+
+const ATTENDANCE_STATUSES = attendanceStatusSchema.options;
+const ABSENCE_REASON_BUCKETS = [...absenceReasonSchema.options, 'Unknown'] as const;
+const ABSENCE_REASON_LABELS = {
+  Sick: 'Sick',
+  Holiday: 'Holiday',
+  NotScheduled: 'Not scheduled',
+  Excused: 'Excused',
+  Unexcused: 'Unexcused',
+  Unknown: 'Unknown',
+} as const satisfies Record<AbsenceReasonBucket, string>;
+
+function requireAbsenceReason(
+  input: { status: AttendanceStatus; absenceReason?: AbsenceReason | null | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (input.status === 'Absent' && !input.absenceReason) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'absenceReason is required when status is Absent',
+      path: ['absenceReason'],
+    });
+  }
+}
+
 function validateDateRange(input: { from: Date; to: Date }): boolean {
   return normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime();
 }
@@ -76,6 +144,103 @@ function normalizeDate(date: Date): Date {
 
 function dateKey(date: Date): string {
   return normalizeDate(date).toISOString().slice(0, 10);
+}
+
+function absenceReasonForStatus(
+  status: AttendanceStatus,
+  absenceReason: AbsenceReason | null | undefined,
+): AbsenceReason | null {
+  return status === 'Absent' ? (absenceReason ?? null) : null;
+}
+
+function emptySummary(): AttendanceSummary {
+  return { total: 0, Present: 0, Absent: 0, Late: 0 };
+}
+
+function attendanceRate(summary: Pick<AttendanceSummary, 'Present' | 'total'>): number | null {
+  if (summary.total === 0) return null;
+  return Math.round((summary.Present / summary.total) * 100);
+}
+
+function incrementSummary(summary: AttendanceSummary, status: AttendanceStatus): void {
+  summary.total += 1;
+  summary[status] += 1;
+}
+
+function absenceBucket(
+  status: AttendanceStatus,
+  reason: AbsenceReason | null,
+): AbsenceReasonBucket | null {
+  if (status !== 'Absent') return null;
+  return reason ?? 'Unknown';
+}
+
+function reasonLabel(reason: AbsenceReason | null): string | null {
+  if (!reason) return null;
+  return ABSENCE_REASON_LABELS[reason];
+}
+
+function buildInsightsResult(
+  kind: InsightKind,
+  from: Date,
+  to: Date,
+  selectedId: string | null,
+  summary: AttendanceSummary,
+  trendByDate: Map<string, AttendanceSummary>,
+  reasons: Map<AbsenceReasonBucket, number>,
+  people: {
+    id: string;
+    label: string;
+    name: string;
+    detail: string;
+    active: boolean;
+  }[],
+  records: {
+    id: string;
+    date: string;
+    subjectId: string;
+    subjectName: string;
+    detail: string;
+    status: AttendanceStatus;
+    absenceReason: AbsenceReason | null;
+    absenceReasonLabel: string | null;
+    recordedAt: Date;
+  }[],
+) {
+  return {
+    kind,
+    from: dateKey(from),
+    to: dateKey(to),
+    selectedId,
+    people,
+    summary: {
+      total: summary.total,
+      present: summary.Present,
+      absent: summary.Absent,
+      late: summary.Late,
+      attendanceRate: attendanceRate(summary),
+    },
+    trend: [...trendByDate.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, daySummary]) => ({
+        date,
+        total: daySummary.total,
+        present: daySummary.Present,
+        absent: daySummary.Absent,
+        late: daySummary.Late,
+        attendanceRate: attendanceRate(daySummary),
+      })),
+    statusBreakdown: ATTENDANCE_STATUSES.map((status) => ({
+      status,
+      count: summary[status],
+    })),
+    absenceReasons: ABSENCE_REASON_BUCKETS.map((reason) => ({
+      reason,
+      label: ABSENCE_REASON_LABELS[reason],
+      count: reasons.get(reason) ?? 0,
+    })),
+    records,
+  };
 }
 
 function decryptRequired(
@@ -208,6 +373,7 @@ export const attendanceRouter = router({
             select: {
               id: true,
               status: true,
+              absenceReason: true,
               recordedById: true,
               createdAt: true,
             },
@@ -225,6 +391,8 @@ export const attendanceRouter = router({
           yearGroup: student.yearGroup,
           date: dateKey(date),
           status: attendance?.status ?? null,
+          absenceReason: attendance?.absenceReason ?? null,
+          absenceReasonLabel: reasonLabel(attendance?.absenceReason ?? null),
           attendanceId: attendance?.id ?? null,
           recordedById: attendance?.recordedById ?? null,
           recordedAt: attendance?.createdAt ?? null,
@@ -244,16 +412,11 @@ export const attendanceRouter = router({
     }),
 
   mark: roleProcedure(...ATTENDANCE_ROLES)
-    .input(
-      z.object({
-        studentId: z.string().min(1),
-        date: z.coerce.date(),
-        status: attendanceStatusSchema,
-      }),
-    )
+    .input(attendanceMarkInput)
     .mutation(async ({ ctx, input }) => {
       await requireCanRecordAttendance(ctx);
       const date = normalizeDate(input.date);
+      const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
       const scope = await loadDailyYearBandScope(ctx, date);
       const student = await ctx.db.student.findUnique({
         where: { id: input.studentId },
@@ -282,13 +445,14 @@ export const attendanceRouter = router({
       const attendance = existing
         ? await ctx.db.attendance.update({
             where: { id: existing.id },
-            data: { status: input.status, recordedById: ctx.user.id },
+            data: { status: input.status, absenceReason, recordedById: ctx.user.id },
           })
         : await ctx.db.attendance.create({
             data: {
               studentId: input.studentId,
               date,
               status: input.status,
+              absenceReason,
               recordedById: ctx.user.id,
             },
           });
@@ -303,6 +467,7 @@ export const attendanceRouter = router({
             studentId: input.studentId,
             date: dateKey(date),
             status: input.status,
+            ...(absenceReason ? { absenceReason } : {}),
           },
         },
       });
@@ -312,6 +477,8 @@ export const attendanceRouter = router({
         studentId: attendance.studentId,
         date: dateKey(attendance.date),
         status: attendance.status,
+        absenceReason: attendance.absenceReason,
+        absenceReasonLabel: reasonLabel(attendance.absenceReason),
         recordedById: attendance.recordedById,
         recordedAt: attendance.createdAt,
       };
@@ -413,6 +580,7 @@ export const attendanceRouter = router({
       select: {
         date: true,
         status: true,
+        absenceReason: true,
         createdAt: true,
         student: {
           select: {
@@ -426,13 +594,22 @@ export const attendanceRouter = router({
     });
 
     const csv = buildCsv(
-      ['Date', 'Student ID', 'Student Name', 'Year Group', 'Status', 'Recorded At'],
+      [
+        'Date',
+        'Student ID',
+        'Student Name',
+        'Year Group',
+        'Status',
+        'Absence Reason',
+        'Recorded At',
+      ],
       rows.map((row) => [
         dateKey(row.date),
         row.student.id,
         decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student'),
         row.student.yearGroup,
         row.status,
+        row.status === 'Absent' ? (reasonLabel(row.absenceReason) ?? 'Unknown') : '',
         row.createdAt.toISOString(),
       ]),
     );
@@ -490,6 +667,7 @@ export const attendanceRouter = router({
         id: true,
         date: true,
         status: true,
+        absenceReason: true,
         recordedById: true,
         createdAt: true,
       },
@@ -500,65 +678,211 @@ export const attendanceRouter = router({
       id: row.id,
       date: dateKey(row.date),
       status: row.status,
+      absenceReason: row.absenceReason,
+      absenceReasonLabel: reasonLabel(row.absenceReason),
       recordedById: row.recordedById,
       recordedAt: row.createdAt,
     }));
   }),
 
-  markStaff: fullAdminProcedure
-    .input(
-      z.object({
-        staffUserId: z.string().min(1),
-        date: z.coerce.date(),
-        status: attendanceStatusSchema,
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
+  staffForDate: fullAdminProcedure
+    .input(z.object({ date: z.coerce.date() }))
+    .query(async ({ ctx, input }) => {
       const date = normalizeDate(input.date);
-      await assertActiveStaffUser(ctx, input.staffUserId);
+      const [shifts, attendanceRows, activeStaff] = await Promise.all([
+        ctx.db.staffShift.findMany({
+          where: {
+            date,
+            staffUser: { active: true, role: { in: [...ATTENDANCE_ROLES] } },
+          },
+          orderBy: [{ startsAt: 'asc' }],
+          include: {
+            staffUser: {
+              select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
+            },
+            yearGroupBand: { select: { name: true, colour: true } },
+          },
+        }),
+        ctx.db.staffAttendance.findMany({
+          where: { date },
+          orderBy: [{ createdAt: 'asc' }],
+          include: {
+            staffUser: {
+              select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
+            },
+          },
+        }),
+        ctx.db.user.findMany({
+          where: { active: true, role: { in: [...ATTENDANCE_ROLES] } },
+          orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+          select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
+        }),
+      ]);
 
-      const existing = await ctx.db.staffAttendance.findUnique({
-        where: { staffUserId_date: { staffUserId: input.staffUserId, date } },
-        select: { id: true },
+      const attendanceByStaffId = new Map(attendanceRows.map((row) => [row.staffUserId, row]));
+      const scheduledByStaffId = new Map<
+        string,
+        {
+          staffUser: (typeof shifts)[number]['staffUser'];
+          shifts: {
+            id: string;
+            startsAt: Date;
+            endsAt: Date;
+            bandName: string | null;
+            bandColour: string | null;
+          }[];
+        }
+      >();
+
+      for (const shift of shifts) {
+        const existing = scheduledByStaffId.get(shift.staffUserId);
+        const mappedShift = {
+          id: shift.id,
+          startsAt: shift.startsAt,
+          endsAt: shift.endsAt,
+          bandName: shift.yearGroupBand.name,
+          bandColour: shift.yearGroupBand.colour,
+        };
+        if (existing) {
+          existing.shifts.push(mappedShift);
+        } else {
+          scheduledByStaffId.set(shift.staffUserId, {
+            staffUser: shift.staffUser,
+            shifts: [mappedShift],
+          });
+        }
+      }
+
+      const rows = [...scheduledByStaffId.entries()].map(([staffUserId, scheduled]) => {
+        const attendance = attendanceByStaffId.get(staffUserId) ?? null;
+        const staffName = decryptRequired(
+          ctx.db.$enc.decrypt,
+          scheduled.staffUser.fullNameEnc,
+          'user',
+        );
+        return {
+          staffUserId,
+          staffName,
+          email: decryptRequired(ctx.db.$enc.decrypt, scheduled.staffUser.emailEnc, 'user'),
+          role: scheduled.staffUser.role,
+          active: scheduled.staffUser.active,
+          date: dateKey(date),
+          scheduled: true,
+          shifts: scheduled.shifts,
+          attendanceId: attendance?.id ?? null,
+          status: attendance?.status ?? null,
+          absenceReason: attendance?.absenceReason ?? null,
+          absenceReasonLabel: reasonLabel(attendance?.absenceReason ?? null),
+          recordedById: attendance?.recordedById ?? null,
+          recordedAt: attendance?.createdAt ?? null,
+        };
       });
 
-      const attendance = existing
-        ? await ctx.db.staffAttendance.update({
-            where: { id: existing.id },
-            data: { status: input.status, recordedById: ctx.user.id },
-          })
-        : await ctx.db.staffAttendance.create({
-            data: {
-              staffUserId: input.staffUserId,
-              date,
-              status: input.status,
-              recordedById: ctx.user.id,
-            },
-          });
+      for (const attendance of attendanceRows) {
+        if (scheduledByStaffId.has(attendance.staffUserId)) continue;
+        rows.push({
+          staffUserId: attendance.staffUserId,
+          staffName: decryptRequired(ctx.db.$enc.decrypt, attendance.staffUser.fullNameEnc, 'user'),
+          email: decryptRequired(ctx.db.$enc.decrypt, attendance.staffUser.emailEnc, 'user'),
+          role: attendance.staffUser.role,
+          active: attendance.staffUser.active,
+          date: dateKey(date),
+          scheduled: false,
+          shifts: [],
+          attendanceId: attendance.id,
+          status: attendance.status,
+          absenceReason: attendance.absenceReason,
+          absenceReasonLabel: reasonLabel(attendance.absenceReason),
+          recordedById: attendance.recordedById,
+          recordedAt: attendance.createdAt,
+        });
+      }
+
+      const visibleStaffIds = new Set(rows.map((row) => row.staffUserId));
+      const unscheduledOptions = activeStaff
+        .filter((staff) => !visibleStaffIds.has(staff.id))
+        .map((staff) => {
+          const staffName = decryptRequired(ctx.db.$enc.decrypt, staff.fullNameEnc, 'user');
+          return {
+            id: staff.id,
+            label: `${staffName} · ${staff.role}`,
+            name: staffName,
+            email: decryptRequired(ctx.db.$enc.decrypt, staff.emailEnc, 'user'),
+            role: staff.role,
+          };
+        });
 
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
-          action: existing ? 'Update' : 'Create',
+          action: 'DecryptPii',
           entity: 'StaffAttendance',
-          entityId: attendance.id,
           meta: {
-            staffUserId: input.staffUserId,
-            date: dateKey(date),
-            status: input.status,
+            count: rows.length,
+            optionCount: unscheduledOptions.length,
+            source: 'attendance.staffForDate',
           },
         },
       });
 
       return {
-        id: attendance.id,
-        staffUserId: attendance.staffUserId,
-        date: dateKey(attendance.date),
-        status: attendance.status,
-        recordedById: attendance.recordedById,
-        recordedAt: attendance.createdAt,
+        date: dateKey(date),
+        rows,
+        unscheduledOptions,
       };
     }),
+
+  markStaff: fullAdminProcedure.input(staffAttendanceMarkInput).mutation(async ({ ctx, input }) => {
+    const date = normalizeDate(input.date);
+    const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
+    await assertActiveStaffUser(ctx, input.staffUserId);
+
+    const existing = await ctx.db.staffAttendance.findUnique({
+      where: { staffUserId_date: { staffUserId: input.staffUserId, date } },
+      select: { id: true },
+    });
+
+    const attendance = existing
+      ? await ctx.db.staffAttendance.update({
+          where: { id: existing.id },
+          data: { status: input.status, absenceReason, recordedById: ctx.user.id },
+        })
+      : await ctx.db.staffAttendance.create({
+          data: {
+            staffUserId: input.staffUserId,
+            date,
+            status: input.status,
+            absenceReason,
+            recordedById: ctx.user.id,
+          },
+        });
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: existing ? 'Update' : 'Create',
+        entity: 'StaffAttendance',
+        entityId: attendance.id,
+        meta: {
+          staffUserId: input.staffUserId,
+          date: dateKey(date),
+          status: input.status,
+          ...(absenceReason ? { absenceReason } : {}),
+        },
+      },
+    });
+
+    return {
+      id: attendance.id,
+      staffUserId: attendance.staffUserId,
+      date: dateKey(attendance.date),
+      status: attendance.status,
+      absenceReason: attendance.absenceReason,
+      absenceReasonLabel: reasonLabel(attendance.absenceReason),
+      recordedById: attendance.recordedById,
+      recordedAt: attendance.createdAt,
+    };
+  }),
 
   exportStaffCsv: authedProcedure.input(staffExportInput).query(async ({ ctx, input }) => {
     const from = normalizeDate(input.from);
@@ -582,6 +906,7 @@ export const attendanceRouter = router({
       select: {
         date: true,
         status: true,
+        absenceReason: true,
         createdAt: true,
         staffUser: {
           select: {
@@ -596,7 +921,16 @@ export const attendanceRouter = router({
     });
 
     const csv = buildCsv(
-      ['Date', 'Supervisor User ID', 'Supervisor Name', 'Email', 'Role', 'Status', 'Recorded At'],
+      [
+        'Date',
+        'Supervisor User ID',
+        'Supervisor Name',
+        'Email',
+        'Role',
+        'Status',
+        'Absence Reason',
+        'Recorded At',
+      ],
       rows.map((row) => [
         dateKey(row.date),
         row.staffUser.id,
@@ -604,6 +938,7 @@ export const attendanceRouter = router({
         decryptRequired(ctx.db.$enc.decrypt, row.staffUser.emailEnc, 'user'),
         row.staffUser.role,
         row.status,
+        row.status === 'Absent' ? (reasonLabel(row.absenceReason) ?? 'Unknown') : '',
         row.createdAt.toISOString(),
       ]),
     );
@@ -661,6 +996,7 @@ export const attendanceRouter = router({
         id: true,
         date: true,
         status: true,
+        absenceReason: true,
         recordedById: true,
         createdAt: true,
       },
@@ -671,8 +1007,191 @@ export const attendanceRouter = router({
       id: row.id,
       date: dateKey(row.date),
       status: row.status,
+      absenceReason: row.absenceReason,
+      absenceReasonLabel: reasonLabel(row.absenceReason),
       recordedById: row.recordedById,
       recordedAt: row.createdAt,
     }));
+  }),
+
+  insights: authedProcedure.input(insightsInput).query(async ({ ctx, input }) => {
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    const selectedId = input.subjectId ?? null;
+    await requireCanExportAttendance(ctx, {
+      kind: `${input.kind}-insights`,
+      from: dateKey(from),
+      to: dateKey(to),
+      subjectId: selectedId,
+    });
+
+    const summary = emptySummary();
+    const trendByDate = new Map<string, AttendanceSummary>();
+    const reasons = new Map<AbsenceReasonBucket, number>(
+      ABSENCE_REASON_BUCKETS.map((reason) => [reason, 0]),
+    );
+
+    if (input.kind === 'students') {
+      const [peopleRows, attendanceRows] = await Promise.all([
+        ctx.db.student.findMany({
+          orderBy: [{ createdAt: 'desc' }],
+          select: { id: true, fullNameEnc: true, yearGroup: true, active: true },
+        }),
+        ctx.db.attendance.findMany({
+          where: {
+            date: { gte: from, lte: to },
+            ...(selectedId ? { studentId: selectedId } : {}),
+          },
+          select: {
+            id: true,
+            date: true,
+            status: true,
+            absenceReason: true,
+            createdAt: true,
+            student: { select: { id: true, fullNameEnc: true, yearGroup: true, active: true } },
+          },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        }),
+      ]);
+
+      for (const row of attendanceRows) {
+        incrementSummary(summary, row.status);
+        const key = dateKey(row.date);
+        const daySummary = trendByDate.get(key) ?? emptySummary();
+        incrementSummary(daySummary, row.status);
+        trendByDate.set(key, daySummary);
+        const bucket = absenceBucket(row.status, row.absenceReason);
+        if (bucket) reasons.set(bucket, (reasons.get(bucket) ?? 0) + 1);
+      }
+
+      const people = peopleRows.map((student) => {
+        const name = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+        return {
+          id: student.id,
+          label: `${name} · ${student.yearGroup}${student.active ? '' : ' · Inactive'}`,
+          name,
+          detail: student.yearGroup,
+          active: student.active,
+        };
+      });
+      const records = attendanceRows.slice(0, 60).map((row) => ({
+        id: row.id,
+        date: dateKey(row.date),
+        subjectId: row.student.id,
+        subjectName: decryptRequired(ctx.db.$enc.decrypt, row.student.fullNameEnc, 'student'),
+        detail: row.student.yearGroup,
+        status: row.status,
+        absenceReason: row.absenceReason,
+        absenceReasonLabel: reasonLabel(row.absenceReason),
+        recordedAt: row.createdAt,
+      }));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'Student',
+          meta: {
+            count: people.length + records.length,
+            source: 'attendance.insights',
+            kind: input.kind,
+          },
+        },
+      });
+
+      return buildInsightsResult(
+        input.kind,
+        from,
+        to,
+        selectedId,
+        summary,
+        trendByDate,
+        reasons,
+        people,
+        records,
+      );
+    }
+
+    const [peopleRows, attendanceRows] = await Promise.all([
+      ctx.db.user.findMany({
+        where: { role: { in: [...ATTENDANCE_ROLES] } },
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
+      }),
+      ctx.db.staffAttendance.findMany({
+        where: {
+          date: { gte: from, lte: to },
+          ...(selectedId ? { staffUserId: selectedId } : {}),
+        },
+        select: {
+          id: true,
+          date: true,
+          status: true,
+          absenceReason: true,
+          createdAt: true,
+          staffUser: {
+            select: { id: true, fullNameEnc: true, emailEnc: true, role: true, active: true },
+          },
+        },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      }),
+    ]);
+
+    for (const row of attendanceRows) {
+      incrementSummary(summary, row.status);
+      const key = dateKey(row.date);
+      const daySummary = trendByDate.get(key) ?? emptySummary();
+      incrementSummary(daySummary, row.status);
+      trendByDate.set(key, daySummary);
+      const bucket = absenceBucket(row.status, row.absenceReason);
+      if (bucket) reasons.set(bucket, (reasons.get(bucket) ?? 0) + 1);
+    }
+
+    const people = peopleRows.map((staff) => {
+      const name = decryptRequired(ctx.db.$enc.decrypt, staff.fullNameEnc, 'user');
+      return {
+        id: staff.id,
+        label: `${name} · ${staff.role}${staff.active ? '' : ' · Inactive'}`,
+        name,
+        detail: staff.role,
+        active: staff.active,
+      };
+    });
+    const records = attendanceRows.slice(0, 60).map((row) => ({
+      id: row.id,
+      date: dateKey(row.date),
+      subjectId: row.staffUser.id,
+      subjectName: decryptRequired(ctx.db.$enc.decrypt, row.staffUser.fullNameEnc, 'user'),
+      detail: row.staffUser.role,
+      status: row.status,
+      absenceReason: row.absenceReason,
+      absenceReasonLabel: reasonLabel(row.absenceReason),
+      recordedAt: row.createdAt,
+    }));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: {
+          count: people.length + records.length,
+          source: 'attendance.insights',
+          kind: input.kind,
+        },
+      },
+    });
+
+    return buildInsightsResult(
+      input.kind,
+      from,
+      to,
+      selectedId,
+      summary,
+      trendByDate,
+      reasons,
+      people,
+      records,
+    );
   }),
 });

@@ -1,145 +1,174 @@
 'use client';
 
+import { BarChart3, RefreshCw, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Download, RefreshCw, UsersRound } from 'lucide-react';
-import { api } from '@/lib/trpc';
+import { api, type RouterOutputs } from '@/lib/trpc';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
-import { downloadCsv } from '@/components/attendance/download-csv';
 
 const ALL_RECORDS = '__all';
+const insightTabs = [
+  { id: 'students', label: 'Students' },
+  { id: 'staff', label: 'Supervisors' },
+] as const;
+
+type InsightKind = (typeof insightTabs)[number]['id'];
+type AttendanceInsights = RouterOutputs['attendance']['insights'];
+type TrendPoint = AttendanceInsights['trend'][number];
+type BreakdownPoint = { label: string; count: number };
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function monthStartKey(): string {
+  const today = new Date();
+  return new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1))
+    .toISOString()
+    .slice(0, 10);
 }
 
 function asDate(date: string): Date {
   return new Date(`${date || todayKey()}T00:00:00.000Z`);
 }
 
-type ExportPanelProps = {
-  title: string;
-  detail: string;
-  selectLabel: string;
-  allLabel: string;
-  options: readonly { id: string; label: string }[];
-  selectedId: string;
-  pending: boolean;
-  disabled: boolean;
-  error?: string | undefined;
-  onSelectedIdChange: (value: string) => void;
-  onExport: () => void;
-};
+function percentLabel(value: number | null): string {
+  return value === null ? '-' : `${String(value)}%`;
+}
 
-function ExportPanel({
-  title,
-  detail,
-  selectLabel,
-  allLabel,
-  options,
-  selectedId,
-  pending,
-  disabled,
-  error,
-  onSelectedIdChange,
-  onExport,
-}: ExportPanelProps) {
+function maxCount(points: readonly { count: number }[]): number {
+  return Math.max(1, ...points.map((point) => point.count));
+}
+
+function TrendChart({ points }: { points: readonly TrendPoint[] }) {
+  const maxTotal = Math.max(1, ...points.map((point) => point.total));
+  if (points.length === 0) {
+    return <EmptyState detail="No attendance records in this range." title="No trend data" />;
+  }
+
   return (
-    <section className="panel panel__body attendance-export-panel">
-      <div className="section-title">
-        <div>
-          <h2>{title}</h2>
-          <p className="muted">{detail}</p>
+    <div className="attendance-trend-chart" aria-label="Attendance rate trend">
+      {points.map((point) => (
+        <div className="attendance-trend-chart__column" key={point.date}>
+          <span>{percentLabel(point.attendanceRate)}</span>
+          <i style={{ height: `${String(Math.max(8, (point.present / maxTotal) * 100))}%` }} />
+          <small>{point.date.slice(5)}</small>
         </div>
-        <span className="badge badge--blue">
-          <UsersRound aria-hidden="true" size={14} />
-          {options.length}
-        </span>
-      </div>
-      <div className="attendance-export-panel__controls">
-        <SelectInput
-          aria-label={selectLabel}
-          onChange={(event) => {
-            onSelectedIdChange(event.target.value);
-          }}
-          value={selectedId}
-        >
-          <option value={ALL_RECORDS}>{allLabel}</option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </SelectInput>
-        <Button disabled={disabled} onClick={onExport} pending={pending} type="button">
-          <Download aria-hidden="true" size={16} />
-          Export CSV
-        </Button>
-      </div>
-      {error ? <p className="status--error attendance-export-panel__error">{error}</p> : null}
-    </section>
+      ))}
+    </div>
+  );
+}
+
+function HorizontalBars({ points }: { points: readonly BreakdownPoint[] }) {
+  const max = maxCount(points);
+  return (
+    <div className="attendance-breakdown-chart">
+      {points.map((point) => (
+        <div className="attendance-breakdown-chart__row" key={point.label}>
+          <span>{point.label}</span>
+          <div className="attendance-breakdown-chart__track">
+            <i style={{ width: `${String((point.count / max) * 100)}%` }} />
+          </div>
+          <strong>{point.count}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecentRecords({ data }: { data: AttendanceInsights }) {
+  if (data.records.length === 0) {
+    return <EmptyState detail="No individual records match this range." title="No records" />;
+  }
+
+  return (
+    <div className="attendance-insights-records">
+      {data.records.slice(0, 12).map((record) => (
+        <article className="attendance-insights-record" key={record.id}>
+          <div>
+            <strong>{record.subjectName}</strong>
+            <span>
+              {record.date} · {record.detail}
+            </span>
+          </div>
+          <Badge
+            tone={record.status === 'Absent' ? 'red' : record.status === 'Late' ? 'amber' : 'green'}
+          >
+            {record.status === 'Absent'
+              ? `Absent · ${record.absenceReasonLabel ?? 'Unknown'}`
+              : record.status}
+          </Badge>
+        </article>
+      ))}
+    </div>
   );
 }
 
 export function AttendanceExportCentre() {
-  const [from, setFrom] = useState(todayKey);
+  const [kind, setKind] = useState<InsightKind>('students');
+  const [from, setFrom] = useState(monthStartKey);
   const [to, setTo] = useState(todayKey);
-  const [studentId, setStudentId] = useState(ALL_RECORDS);
-  const [staffUserId, setStaffUserId] = useState(ALL_RECORDS);
-  const optionsQuery = api.attendance.listExportOptions.useQuery(undefined, { retry: false });
-
+  const [selectedId, setSelectedId] = useState(ALL_RECORDS);
   const fromDate = useMemo(() => asDate(from), [from]);
   const toDate = useMemo(() => asDate(to), [to]);
-  const selectedStudentId = studentId === ALL_RECORDS ? undefined : studentId;
-  const selectedStaffUserId = staffUserId === ALL_RECORDS ? undefined : staffUserId;
+  const selectedSubjectId = selectedId === ALL_RECORDS ? undefined : selectedId;
 
-  const studentExportQuery = api.attendance.exportStudentsCsv.useQuery(
-    { from: fromDate, to: toDate, studentId: selectedStudentId },
-    { enabled: false, retry: false },
-  );
-  const staffExportQuery = api.attendance.exportStaffCsv.useQuery(
-    { from: fromDate, to: toDate, staffUserId: selectedStaffUserId },
-    { enabled: false, retry: false },
+  const insightsQuery = api.attendance.insights.useQuery(
+    { kind, from: fromDate, to: toDate, subjectId: selectedSubjectId },
+    { retry: false },
   );
 
-  function exportStudents() {
-    void studentExportQuery.refetch().then((result) => {
-      if (result.data) {
-        downloadCsv(result.data.filename, result.data.csv, result.data.contentType);
-      }
-    });
-  }
-
-  function exportStaff() {
-    void staffExportQuery.refetch().then((result) => {
-      if (result.data) {
-        downloadCsv(result.data.filename, result.data.csv, result.data.contentType);
-      }
-    });
-  }
-
-  const students = optionsQuery.data?.students ?? [];
-  const staff = optionsQuery.data?.staff ?? [];
-  const exportDisabled = from.length === 0 || to.length === 0;
+  const data = insightsQuery.data;
+  const statusPoints = data
+    ? [
+        { label: 'Present', count: data.summary.present },
+        { label: 'Late', count: data.summary.late },
+        { label: 'Absent', count: data.summary.absent },
+      ]
+    : [];
+  const reasonPoints =
+    data?.absenceReasons
+      .filter((reason) => reason.count > 0 || reason.reason !== 'Unknown')
+      .map((reason) => ({ label: reason.label, count: reason.count })) ?? [];
 
   return (
     <section className="attendance-export-centre">
       <div className="section-title">
         <div>
-          <h2>Export centre</h2>
-          <p className="muted">Download date-range student or staff attendance records.</p>
+          <h2>Visual attendance center</h2>
+          <p className="muted">View trends, overviews, and individual records.</p>
         </div>
         <Button
           onClick={() => {
-            void optionsQuery.refetch();
+            void insightsQuery.refetch();
           }}
-          pending={optionsQuery.isFetching}
+          pending={insightsQuery.isFetching}
           type="button"
           variant="secondary"
         >
           <RefreshCw aria-hidden="true" size={16} />
-          Refresh lists
+          Refresh
         </Button>
+      </div>
+
+      <div className="attendance-insights-tabs" role="tablist" aria-label="Attendance view">
+        {insightTabs.map((tab) => (
+          <button
+            aria-selected={kind === tab.id}
+            className={kind === tab.id ? 'is-active' : undefined}
+            key={tab.id}
+            onClick={() => {
+              setKind(tab.id);
+              setSelectedId(ALL_RECORDS);
+            }}
+            role="tab"
+            type="button"
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="panel panel__body attendance-export-range">
@@ -163,40 +192,93 @@ export function AttendanceExportCentre() {
             value={to}
           />
         </label>
+        <label className="field">
+          <span className="field__label">{kind === 'students' ? 'Student' : 'Supervisor'}</span>
+          <SelectInput
+            onChange={(event) => {
+              setSelectedId(event.target.value);
+            }}
+            value={selectedId}
+          >
+            <option value={ALL_RECORDS}>
+              {kind === 'students' ? 'All students' : 'All supervisors'}
+            </option>
+            {(data?.people ?? []).map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.label}
+              </option>
+            ))}
+          </SelectInput>
+        </label>
       </div>
 
-      {optionsQuery.error ? (
-        <p className="status--error attendance-export-centre__error">{optionsQuery.error.message}</p>
+      {insightsQuery.error ? (
+        <p className="status--error attendance-export-centre__error">
+          {insightsQuery.error.message}
+        </p>
+      ) : null}
+      {insightsQuery.isLoading ? (
+        <div className="empty-state">Loading attendance center...</div>
       ) : null}
 
-      <div className="attendance-export-grid">
-        <ExportPanel
-          allLabel="All students"
-          detail="Use this for register extracts across active and historical attendance rows."
-          disabled={exportDisabled}
-          error={studentExportQuery.error?.message}
-          onExport={exportStudents}
-          onSelectedIdChange={setStudentId}
-          options={students}
-          pending={studentExportQuery.isFetching}
-          selectedId={studentId}
-          selectLabel="Student export scope"
-          title="Student attendance"
-        />
-        <ExportPanel
-          allLabel="All staff"
-          detail="Use this for supervisor and full-admin staff attendance extracts."
-          disabled={exportDisabled}
-          error={staffExportQuery.error?.message}
-          onExport={exportStaff}
-          onSelectedIdChange={setStaffUserId}
-          options={staff}
-          pending={staffExportQuery.isFetching}
-          selectedId={staffUserId}
-          selectLabel="Staff export scope"
-          title="Staff attendance"
-        />
-      </div>
+      {data ? (
+        <>
+          <div className="attendance-summary-grid attendance-insights-summary">
+            <div className="attendance-summary attendance-summary--green">
+              <strong>{percentLabel(data.summary.attendanceRate)}</strong>
+              <span>Attendance rate</span>
+            </div>
+            <div className="attendance-summary attendance-summary--green">
+              <strong>{data.summary.present}</strong>
+              <span>Present</span>
+            </div>
+            <div className="attendance-summary attendance-summary--amber">
+              <strong>{data.summary.late}</strong>
+              <span>Late</span>
+            </div>
+            <div className="attendance-summary attendance-summary--red">
+              <strong>{data.summary.absent}</strong>
+              <span>Absent</span>
+            </div>
+          </div>
+
+          <div className="attendance-insights-grid">
+            <section className="panel panel__body">
+              <div className="section-title">
+                <h3>
+                  <TrendingUp aria-hidden="true" size={18} />
+                  Trend
+                </h3>
+              </div>
+              <TrendChart points={data.trend} />
+            </section>
+
+            <section className="panel panel__body">
+              <div className="section-title">
+                <h3>
+                  <BarChart3 aria-hidden="true" size={18} />
+                  Status overview
+                </h3>
+              </div>
+              <HorizontalBars points={statusPoints} />
+            </section>
+
+            <section className="panel panel__body">
+              <div className="section-title">
+                <h3>Absence reasons</h3>
+              </div>
+              <HorizontalBars points={reasonPoints} />
+            </section>
+
+            <section className="panel panel__body">
+              <div className="section-title">
+                <h3>{selectedSubjectId ? 'Individual records' : 'Recent records'}</h3>
+              </div>
+              <RecentRecords data={data} />
+            </section>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
