@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 **Agent:** Technical Agent (Codex)
-**Phase:** ClubsAdmin supervisor workflow extension ready for review.
+**Phase:** Calendar categories and birthday visibility implementation ready for review.
 
 ---
 
@@ -18,7 +18,53 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - ClubsAdmin supervisor workflow extension
+## Current status - Calendar categories and birthday visibility
+
+Working branch: `feat/calendar-categories-birthdays`.
+
+**PR scope:** Extend the shared portal calendar with category colours,
+head-only visibility, optional single-day time ranges, virtual birthday events,
+and read-only event details for parent/supervisor views.
+
+Changed scope:
+
+- Added calendar categories with fixed colour mapping and a legend across the
+  shared calendar UI.
+- Added `Heads` calendar audience visibility for Head, Principal, Pastor, and
+  HeadOfDiscipline only.
+- Added optional start/end time ranges for single-date manual events.
+- Added encrypted optional user DOB storage for admin-managed adult profiles so
+  supervisor birthdays can be generated.
+- Generated student and supervisor birthday events virtually for full-admin
+  head roles only; birthday events are not persisted, editable, or archivable.
+- Added admin date-click form syncing and read-only event detail modals for
+  non-managing parent/supervisor calendar views.
+- Follow-up: added a single-date/date-range selector to the admin calendar form.
+  In range mode, the first calendar click sets the start date and the second
+  click sets the end date, with the selected range highlighted in the month
+  grid.
+
+Verification:
+
+- `pnpm db:generate` - pass with existing Prisma deprecation warnings.
+- `pnpm --filter @oasis/api test admin.router.test.ts calendar.router.test.ts profile.router.test.ts` -
+  pass, 3 files / 98 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `graphify update .` - pass.
+- Follow-up checks for range selection: `pnpm db:generate`, `pnpm --filter
+@oasis/web typecheck`, `pnpm --filter @oasis/web lint`, `pnpm exec prettier
+--check ...`, `graphify update .`, and `pnpm --filter @oasis/web build` -
+  pass.
+
+Notes:
+
+- Existing `.gitignore` changes were already present before this branch and were
+  left untouched.
+- Full build and full monorepo lint were not run in this session.
+
+## Previous status - ClubsAdmin supervisor workflow extension
 
 Working branch: `feat/clubs-admin-linked-children`.
 

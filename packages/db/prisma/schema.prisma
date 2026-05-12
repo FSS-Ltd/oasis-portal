@@ -60,6 +60,7 @@ model User {
   fullNameEnc                       String
   emailEnc                          String
   emailBidx                         String                        @unique
+  dobEnc                            String?
   phoneEnc                          String?
   addressEnc                        String?
   // --- operational ---
@@ -730,6 +731,16 @@ enum CalendarEventAudience {
   All
   Parents
   Supervisors
+  Heads
+}
+
+enum CalendarEventCategory {
+  HalfTerm
+  Trips
+  OasisDays
+  Birthdays
+  Meetings
+  Trainings
 }
 
 model StaffNotice {
@@ -761,16 +772,19 @@ model StaffNoticeRead {
 }
 
 model CalendarEvent {
-  id             String                @id @default(cuid())
-  title          String
-  descriptionEnc String?
-  audience       CalendarEventAudience @default(All)
-  startDate      DateTime              @db.Date
-  endDate        DateTime              @db.Date
-  active         Boolean               @default(true)
-  createdById    String
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  id               String                @id @default(cuid())
+  title            String
+  descriptionEnc   String?
+  audience         CalendarEventAudience @default(All)
+  category         CalendarEventCategory @default(OasisDays)
+  startDate        DateTime              @db.Date
+  endDate          DateTime              @db.Date
+  startTimeMinutes Int?
+  endTimeMinutes   Int?
+  active           Boolean               @default(true)
+  createdById      String
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   createdBy User @relation("CalendarEventsCreated", fields: [createdById], references: [id])
 
