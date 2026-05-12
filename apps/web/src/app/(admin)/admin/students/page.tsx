@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
+import { isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getStudentDrillThroughAdminUser } from '@/components/admin/require-full-admin';
 import { StudentsList } from './students-list';
 
 export default async function StudentsPage() {
   const user = await getStudentDrillThroughAdminUser();
-  const canManageStudents = user.role === 'Head';
+  const canManageStudents = isFullAdmin(user);
 
   return (
     <MotionPage>

@@ -4,6 +4,7 @@ import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canRespondToParentMessages,
+  isFullAdmin,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -108,7 +109,7 @@ function requireMessageReader(user: SessionUser): void {
 
 function canAccessThread(user: SessionUser, thread: ThreadAccessRow): boolean {
   if (user.role === 'Parent') return thread.parentId === user.id;
-  if (user.role === 'Head') return true;
+  if (isFullAdmin(user)) return true;
   if (canRespondToParentMessages(user)) return thread.adminId === user.id;
   return false;
 }
@@ -117,7 +118,7 @@ function scopedThreadWhere(user: SessionUser): Prisma.MessageThreadWhereInput | 
   requireMessageReader(user);
 
   if (user.role === 'Parent') return { parentId: user.id };
-  if (user.role === 'Head') return null;
+  if (isFullAdmin(user)) return null;
   return { adminId: user.id };
 }
 

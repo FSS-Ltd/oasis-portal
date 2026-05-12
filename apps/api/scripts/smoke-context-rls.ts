@@ -171,9 +171,12 @@ async function main() {
     if (hodRows.length !== 2) {
       throw new Error(`Expected HOD to see 2 entries, saw ${String(hodRows.length)}`);
     }
-    if (principalRows.length !== 1 || principalRows[0]?.visibility !== 'General') {
+    if (
+      principalRows.length !== 2 ||
+      !principalRows.some((row) => row.visibility === 'Sensitive')
+    ) {
       throw new Error(
-        `Expected Principal to see 1 General entry, saw ${JSON.stringify(principalRows)}`,
+        `Expected Principal to see General and Sensitive entries, saw ${JSON.stringify(principalRows)}`,
       );
     }
     if (
@@ -198,7 +201,7 @@ async function main() {
     }
 
     console.warn(
-      'Context RLS smoke passed: Head/HOD=2, Principal=1, author Supervisor=2, other Supervisor=1, anonymous=0.',
+      'Context RLS smoke passed: full admins=2, author Supervisor=2, other Supervisor=1, anonymous=0.',
     );
   } finally {
     await runtime.$disconnect();

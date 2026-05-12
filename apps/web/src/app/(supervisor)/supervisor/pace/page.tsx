@@ -1,3 +1,4 @@
+import { isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getStaffUser } from '@/components/admin/require-full-admin';
 import { PaceWorkflowClient } from '@/components/pace/pace-workflow-client';
@@ -7,7 +8,7 @@ export default async function SupervisorPacePage() {
 
   return (
     <MotionPage>
-      <PaceWorkflowClient canManageProgress={user.role === 'Head'} />
+      <PaceWorkflowClient canManageProgress={isFullAdmin(user)} />
     </MotionPage>
   );
 }

@@ -197,9 +197,9 @@ async function main() {
     if (hodSensitive !== 1) {
       throw new Error(`Expected HOD to see 1 sensitive row, saw ${String(hodSensitive)}`);
     }
-    if (principalSensitive !== 0) {
+    if (principalSensitive !== 1) {
       throw new Error(
-        `Expected Principal to see 0 sensitive rows, saw ${String(principalSensitive)}`,
+        `Expected Principal to see 1 sensitive row, saw ${String(principalSensitive)}`,
       );
     }
     if (authorSupervisorSensitive !== 1) {
@@ -217,7 +217,7 @@ async function main() {
     }
 
     console.warn(
-      'RLS smoke passed: Head/HOD and author supervisor see Sensitive; Principal/other supervisor do not.',
+      'RLS smoke passed: full admins and author supervisor see Sensitive; other supervisor does not.',
     );
   } finally {
     await runtimePrisma.$disconnect();

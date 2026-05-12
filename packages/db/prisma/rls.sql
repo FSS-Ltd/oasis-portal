@@ -18,15 +18,11 @@ DROP POLICY IF EXISTS behaviour_guardian_own_child ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
 
--- Head and HeadOfDiscipline see everything. Other full admins see General only.
+-- Full admins see everything.
 CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) IN ('Head', 'HeadOfDiscipline')
-    OR (
-      current_setting('app.full_admin', true) = 'true'
-      AND "visibility" = 'General'
-    )
+    current_setting('app.full_admin', true) = 'true'
   );
 
 -- Supervisors see General entries and Sensitive demerits they recorded.
@@ -79,8 +75,8 @@ CREATE POLICY behaviour_student_self ON "BehaviourEntry"
     )
   );
 
--- Writes require full-admin OR Supervisor. Sensitive writes are limited to
--- Head/HeadOfDiscipline or a Supervisor recording their own Sensitive demerit.
+-- Writes require full-admin OR Supervisor. Sensitive supervisor writes are
+-- limited to a Supervisor recording their own Sensitive demerit.
 CREATE POLICY behaviour_write ON "BehaviourEntry"
   FOR INSERT
   WITH CHECK (
@@ -91,7 +87,7 @@ CREATE POLICY behaviour_write ON "BehaviourEntry"
         OR current_setting('app.user_role', true) = 'Supervisor'
       )
     )
-    OR current_setting('app.user_role', true) IN ('Head', 'HeadOfDiscipline')
+    OR current_setting('app.full_admin', true) = 'true'
     OR (
       current_setting('app.user_role', true) = 'Supervisor'
       AND "visibility" = 'Sensitive'

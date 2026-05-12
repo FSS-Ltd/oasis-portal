@@ -249,14 +249,14 @@ describe('calendar.create', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
-  it('denies untagged staff and unsupported roles', async () => {
+  it('allows full admins and denies untagged staff and unsupported roles', async () => {
     await expect(
       makeCaller(principalUser).caller.calendar.create({
         title: 'Principal date',
         audience: 'Supervisors',
         startDate: '2026-05-25',
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toMatchObject({ title: 'Principal date', createdById: principalUser.id });
     await expect(
       makeCaller(supervisorUser).caller.calendar.create({
         title: 'Staff date',

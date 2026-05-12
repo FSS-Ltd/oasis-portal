@@ -196,7 +196,7 @@ export function requireTag(user: SessionUser, tag: PermissionTag): void {
 }
 
 export function canRecordStudentAttendance(user: SessionUser): boolean {
-  return user.role === 'Head' || hasTag(user, 'attendance-recorder');
+  return isFullAdmin(user) || hasTag(user, 'attendance-recorder');
 }
 
 export function canExportAttendance(user: SessionUser): boolean {
@@ -204,17 +204,15 @@ export function canExportAttendance(user: SessionUser): boolean {
 }
 
 export function canViewSensitiveChildNotes(user: SessionUser): boolean {
-  return user.role === 'Head' || hasTag(user, 'sensitive-note-viewer');
+  return isFullAdmin(user) || hasTag(user, 'sensitive-note-viewer');
 }
 
 export function canViewBehaviourReports(user: SessionUser): boolean {
-  return (
-    user.role === 'Head' || user.role === 'HeadOfDiscipline' || hasTag(user, 'behaviour-viewer')
-  );
+  return isFullAdmin(user) || hasTag(user, 'behaviour-viewer');
 }
 
 export function canViewSensitiveBehaviour(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Head' || user.role === 'HeadOfDiscipline';
+  return isFullAdmin(user);
 }
 
 export function canViewSensitiveBehaviourEntry(
@@ -253,11 +251,11 @@ export function canUseFullPaceAccess(user: SessionUser): boolean {
 }
 
 export function canManageCalendar(user: SessionUser): boolean {
-  return user.role === 'Head' || (isStaff(user) && hasTag(user, 'calendar-manager'));
+  return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'calendar-manager'));
 }
 
 export function canRespondToParentMessages(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
-  return user.role === 'Head' || (isFullAdmin(user) && hasTag(user, 'parent-message-responder'));
+  return isFullAdmin(user);
 }
 
 export function canViewStudentDrillThrough(user: SessionUser): boolean {
@@ -270,7 +268,7 @@ export function canViewStudentDrillThrough(user: SessionUser): boolean {
 }
 
 export function canViewSensitiveStudentDrillThrough(user: SessionUser): boolean {
-  return user.role === 'Head';
+  return isFullAdmin(user);
 }
 
 export function requireClubsAdminOrFullAdmin(user: SessionUser): void {
@@ -279,13 +277,13 @@ export function requireClubsAdminOrFullAdmin(user: SessionUser): void {
 }
 
 /**
- * Sensitive behaviour entries are visible to Head, HeadOfDiscipline, or the
+ * Sensitive behaviour entries are visible to full admins, or the
  * supervisor who recorded the Sensitive demerit.
  * Checked at the tRPC layer; Postgres RLS is the second wall (rls.sql).
  */
 export function requireCanViewSensitive(user: SessionUser): void {
   if (!canViewSensitiveBehaviour(user)) {
-    throw new AccessDeniedError('sensitive entries require Head or HeadOfDiscipline');
+    throw new AccessDeniedError('sensitive entries require full-admin access');
   }
 }
 

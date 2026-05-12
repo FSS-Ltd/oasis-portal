@@ -698,7 +698,7 @@ describe('attendance.mark', () => {
     });
   });
 
-  it('allows Head and attendance-recorder, but denies untagged daily-workflow users', async () => {
+  it('allows full-admin and attendance-recorder, but denies untagged daily-workflow users', async () => {
     const { db } = makeFakeDb();
 
     await expect(
@@ -718,14 +718,14 @@ describe('attendance.mark', () => {
     ).resolves.toMatchObject({ status: 'Late', recordedById: attendanceRecorderUser.id });
 
     await expect(
-      makeCaller(supervisorUser, db).attendance.mark({
+      makeCaller(principalUser, db).attendance.mark({
         studentId: activeStudentId,
         date: day('2026-04-30'),
         status: 'Absent',
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toMatchObject({ status: 'Absent', recordedById: principalUser.id });
     await expect(
-      makeCaller(principalUser, db).attendance.mark({
+      makeCaller(supervisorUser, db).attendance.mark({
         studentId: activeStudentId,
         date: day('2026-04-30'),
         status: 'Absent',

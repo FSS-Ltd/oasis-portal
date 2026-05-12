@@ -1141,10 +1141,10 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .mutation(async ({ ctx, input }) => {
         const { data } = userProfileUpdateData(ctx, input);
         if (input.email !== undefined) {
-          if (ctx.user.role !== 'Head') {
+          if (!isFullAdmin(ctx.user)) {
             throw new TRPCError({
               code: 'FORBIDDEN',
-              message: 'only Head can change account email addresses',
+              message: 'only full admins can change account email addresses',
             });
           }
           Object.assign(
@@ -1191,10 +1191,10 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     updateUserRole: fullAdminProcedure
       .input(updateUserRoleInput)
       .mutation(async ({ ctx, input }) => {
-        if (ctx.user.role !== 'Head') {
+        if (!isFullAdmin(ctx.user)) {
           throw new TRPCError({
             code: 'FORBIDDEN',
-            message: 'only Head can change user roles',
+            message: 'only full admins can change user roles',
           });
         }
         if (input.userId === ctx.user.id) {
