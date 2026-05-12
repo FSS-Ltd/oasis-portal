@@ -29,6 +29,8 @@ import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
+type BehaviourType = 'Merit' | 'Demerit' | 'General';
+type BehaviourVisibility = 'General' | 'Sensitive';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 
 export interface BehaviourRouterDeps {
@@ -48,11 +50,31 @@ interface BehaviourNotificationEntry {
   id: string;
   studentId: string;
   studentNameEnc: string;
-  type: 'Merit' | 'Demerit';
+  type: BehaviourType;
   category: string;
   note: string | null;
-  visibility: 'General' | 'Sensitive';
+  visibility: BehaviourVisibility;
 }
+
+interface ActiveStudent {
+  id: string;
+  active: boolean;
+  fullNameEnc: string;
+  yearGroup: string;
+}
+
+const behaviourTypeSchema = z.enum(['Merit', 'Demerit', 'General']);
+const behaviourVisibilitySchema = z.enum(['General', 'Sensitive']);
+const behaviourCategorySchema = z.string().trim().min(1).max(120);
+const behaviourNoteSchema = z.string().trim().min(1).max(2000);
+const behaviourAmountSchema = z.number().int().positive();
+
+const logEntrySchema = z.object({
+  category: behaviourCategorySchema,
+  note: behaviourNoteSchema.optional(),
+  amount: behaviourAmountSchema.optional(),
+  count: z.number().int().positive().max(50).default(1),
+});
 
 function canUseBehaviourWorkflow(user: SessionUser): boolean {
   return isFullAdmin(user) || isStaff(user);
@@ -103,11 +125,11 @@ async function requireCanRequestSensitive(ctx: AuthedContext, studentId: string)
 
 async function requireCanCreateSensitive(
   ctx: AuthedContext,
-  input: { studentId: string; type: 'Merit' | 'Demerit' },
+  input: { studentId: string; type: BehaviourType },
 ): Promise<void> {
   if (canCreateSensitiveBehaviour(ctx.user, input)) return;
   const denied = new AccessDeniedError(
-    'sensitive behaviour requires Head, HeadOfDiscipline, or Supervisor demerit author',
+    'sensitive behaviour requires Head, HeadOfDiscipline, or the recording staff author',
   );
   await ctx.db.auditLog.create({
     data: {
@@ -216,10 +238,41 @@ function visibleBehaviourWhere(user: SessionUser) {
           type: 'Demerit' as const,
           recordedById: user.id,
         },
+        {
+          visibility: 'Sensitive' as const,
+          type: 'General' as const,
+          recordedById: user.id,
+        },
       ],
     };
   }
   return { visibility: 'General' as const };
+}
+
+async function loadActiveScopedStudent(
+  ctx: AuthedContext,
+  input: { studentId: string; entity: string; date?: Date },
+): Promise<ActiveStudent> {
+  const student = await ctx.db.student.findUnique({
+    where: { id: input.studentId },
+    select: { id: true, active: true, fullNameEnc: true, yearGroup: true },
+  });
+  if (!student) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+  }
+  if (!student.active) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+  }
+  const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
+  if (!studentMatchesDailyScope(scope, student)) {
+    await denyOutOfDailyScope(ctx, input.entity, {
+      studentId: input.studentId,
+      studentYearGroup: student.yearGroup,
+      date: scope.dayKey,
+      assignedBands: scope.assignedBands.map((band) => band.id),
+    });
+  }
+  return student;
 }
 
 function scopedStudentRelationWhere(scope: DailyYearBandScope) {
@@ -266,6 +319,7 @@ async function notifyBehaviourGuardians({
   getEmailClient: () => EmailClient;
 }): Promise<void> {
   if (entry.visibility !== 'General') return;
+  if (entry.type === 'General') return;
 
   let guardians: BehaviourNotificationGuardian[];
   let childName: string;
@@ -459,6 +513,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             meritTotal: number;
             demeritCount: number;
             demeritTotal: number;
+            generalCount: number;
             sensitiveCount: number;
           }
         >();
@@ -471,14 +526,17 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             meritTotal: 0,
             demeritCount: 0,
             demeritTotal: 0,
+            generalCount: 0,
             sensitiveCount: 0,
           };
           if (row.type === 'Merit') {
             current.meritCount += 1;
             current.meritTotal += row.meritDelta;
-          } else {
+          } else if (row.type === 'Demerit') {
             current.demeritCount += 1;
             current.demeritTotal += Math.abs(row.meritDelta);
+          } else {
+            current.generalCount += 1;
           }
           if (row.visibility === 'Sensitive') current.sensitiveCount += 1;
           buckets.set(key, current);
@@ -747,12 +805,12 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       .input(
         z.object({
           studentId: z.string().min(1),
-          type: z.enum(['Merit', 'Demerit']),
-          category: z.string().trim().min(1).max(120),
-          note: z.string().trim().min(1).max(2000).optional(),
-          visibility: z.enum(['General', 'Sensitive']).default('General'),
+          type: behaviourTypeSchema,
+          category: behaviourCategorySchema.optional(),
+          note: behaviourNoteSchema.optional(),
+          visibility: behaviourVisibilitySchema.default('General'),
           // Merit: positive integer; Demerit: server overrides to DEMERIT_COST.
-          amount: z.number().int().positive().optional(),
+          amount: behaviourAmountSchema.optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -760,41 +818,46 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         if (input.type === 'Merit' && input.amount === undefined) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'merit amount is required' });
         }
-        if (input.visibility === 'Sensitive') {
-          await requireCanCreateSensitive(ctx, input);
+        if (input.type !== 'General' && input.category === undefined) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'category is required' });
         }
-
-        const student = await ctx.db.student.findUnique({
-          where: { id: input.studentId },
-          select: { id: true, active: true, fullNameEnc: true, yearGroup: true },
-        });
-        if (!student) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+        if (input.type === 'General' && input.note === undefined) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'general mark note is required' });
         }
-        if (!student.active) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
-        }
-        const scope = await loadDailyYearBandScope(ctx, new Date());
-        if (!studentMatchesDailyScope(scope, student)) {
-          await denyOutOfDailyScope(ctx, 'behaviour.log', {
-            studentId: input.studentId,
-            studentYearGroup: student.yearGroup,
-            date: scope.dayKey,
-            assignedBands: scope.assignedBands.map((band) => band.id),
+        if (input.type === 'General' && input.amount !== undefined) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'general marks have no merit value',
           });
         }
 
+        const visibility = input.type === 'General' ? 'Sensitive' : input.visibility;
+        if (visibility === 'Sensitive') {
+          await requireCanCreateSensitive(ctx, { studentId: input.studentId, type: input.type });
+        }
+
+        const student = await loadActiveScopedStudent(ctx, {
+          studentId: input.studentId,
+          entity: 'behaviour.log',
+        });
+        const category =
+          input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
         const noteEnc = input.note ? ctx.db.$enc.encrypt(input.note) : null;
-        const meritDelta = input.type === 'Merit' ? (input.amount ?? 0) : -DEMERIT_COST;
+        const meritDelta =
+          input.type === 'Merit'
+            ? (input.amount ?? 0)
+            : input.type === 'Demerit'
+              ? -DEMERIT_COST
+              : 0;
 
         const result = await ctx.withRls(async (tx) => {
           const behaviour = await tx.behaviourEntry.create({
             data: {
               studentId: input.studentId,
               type: input.type,
-              category: input.category,
+              category,
               noteEnc,
-              visibility: input.visibility,
+              visibility,
               meritDelta,
               recordedById: ctx.user.id,
             },
@@ -804,16 +867,20 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               ? rowsForMerit({
                   studentId: input.studentId,
                   amount: meritDelta,
-                  reason: input.category,
+                  reason: category,
                   behaviourEntryId: behaviour.id,
                 })
-              : rowsForDemerit({
-                  studentId: input.studentId,
-                  reason: input.category,
-                  behaviourEntryId: behaviour.id,
-                });
+              : input.type === 'Demerit'
+                ? rowsForDemerit({
+                    studentId: input.studentId,
+                    reason: category,
+                    behaviourEntryId: behaviour.id,
+                  })
+                : [];
 
-          await tx.meritLedger.createMany({ data: ledgerRows });
+          if (ledgerRows.length > 0) {
+            await tx.meritLedger.createMany({ data: ledgerRows });
+          }
           return { behaviour, ledgerRowCount: ledgerRows.length };
         });
 
@@ -826,23 +893,25 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             meta: {
               studentId: input.studentId,
               type: input.type,
-              visibility: input.visibility,
+              visibility,
               meritDelta,
             },
           },
         });
-        await ctx.db.auditLog.create({
-          data: {
-            userId: ctx.user.id,
-            action: 'Create',
-            entity: 'MeritLedger',
-            meta: {
-              studentId: input.studentId,
-              behaviourEntryId: result.behaviour.id,
-              rowCount: result.ledgerRowCount,
+        if (result.ledgerRowCount > 0) {
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'MeritLedger',
+              meta: {
+                studentId: input.studentId,
+                behaviourEntryId: result.behaviour.id,
+                rowCount: result.ledgerRowCount,
+              },
             },
-          },
-        });
+          });
+        }
 
         await notifyBehaviourGuardians({
           ctx,
@@ -867,6 +936,158 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           meritDelta: result.behaviour.meritDelta,
           recordedById: result.behaviour.recordedById,
           createdAt: result.behaviour.createdAt,
+        };
+      }),
+
+    logMany: authedProcedure
+      .input(
+        z.object({
+          studentId: z.string().min(1),
+          type: z.enum(['Merit', 'Demerit']),
+          entries: z.array(logEntrySchema).min(1).max(50),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        await requireBehaviourWorkflow(ctx, 'behaviour.logMany');
+
+        for (const [index, entry] of input.entries.entries()) {
+          if (input.type === 'Merit' && entry.amount === undefined) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `merit amount is required for entry ${String(index + 1)}`,
+            });
+          }
+          if (input.type === 'Demerit' && entry.amount !== undefined) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `demerit amount is fixed for entry ${String(index + 1)}`,
+            });
+          }
+        }
+        const totalEntries = input.entries.reduce((sum, entry) => sum + entry.count, 0);
+        if (totalEntries > 50) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'batch cannot create more than 50 entries',
+          });
+        }
+
+        const student = await loadActiveScopedStudent(ctx, {
+          studentId: input.studentId,
+          entity: 'behaviour.logMany',
+        });
+        const preparedEntries = input.entries.flatMap((entry) =>
+          Array.from({ length: entry.count }, () => ({
+            category: entry.category,
+            note: entry.note,
+            noteEnc: entry.note ? ctx.db.$enc.encrypt(entry.note) : null,
+            meritDelta: input.type === 'Merit' ? (entry.amount ?? 0) : -DEMERIT_COST,
+          })),
+        );
+
+        const result = await ctx.withRls(async (tx) => {
+          const behaviourEntries: Array<{
+            id: string;
+            studentId: string;
+            type: BehaviourType;
+            category: string;
+            noteEnc: string | null;
+            visibility: BehaviourVisibility;
+            meritDelta: number;
+            recordedById: string;
+            createdAt: Date;
+          }> = [];
+          let ledgerRowCount = 0;
+
+          for (const entry of preparedEntries) {
+            const behaviour = await tx.behaviourEntry.create({
+              data: {
+                studentId: input.studentId,
+                type: input.type,
+                category: entry.category,
+                noteEnc: entry.noteEnc,
+                visibility: 'General',
+                meritDelta: entry.meritDelta,
+                recordedById: ctx.user.id,
+              },
+            });
+            const ledgerRows =
+              input.type === 'Merit'
+                ? rowsForMerit({
+                    studentId: input.studentId,
+                    amount: entry.meritDelta,
+                    reason: entry.category,
+                    behaviourEntryId: behaviour.id,
+                  })
+                : rowsForDemerit({
+                    studentId: input.studentId,
+                    reason: entry.category,
+                    behaviourEntryId: behaviour.id,
+                  });
+            await tx.meritLedger.createMany({ data: ledgerRows });
+            ledgerRowCount += ledgerRows.length;
+            behaviourEntries.push(behaviour);
+          }
+
+          return { behaviourEntries, ledgerRowCount };
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'BehaviourEntry',
+            meta: {
+              studentId: input.studentId,
+              type: input.type,
+              visibility: 'General',
+              count: result.behaviourEntries.length,
+            },
+          },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'MeritLedger',
+            meta: {
+              studentId: input.studentId,
+              behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
+              rowCount: result.ledgerRowCount,
+            },
+          },
+        });
+
+        await Promise.all(
+          result.behaviourEntries.map((entry, index) =>
+            notifyBehaviourGuardians({
+              ctx,
+              getEmailClient,
+              entry: {
+                id: entry.id,
+                studentId: entry.studentId,
+                studentNameEnc: student.fullNameEnc,
+                type: entry.type,
+                category: entry.category,
+                note: preparedEntries[index]?.note ?? null,
+                visibility: entry.visibility,
+              },
+            }),
+          ),
+        );
+
+        return {
+          entries: result.behaviourEntries.map((entry) => ({
+            id: entry.id,
+            studentId: entry.studentId,
+            type: entry.type,
+            category: entry.category,
+            visibility: entry.visibility,
+            meritDelta: entry.meritDelta,
+            recordedById: entry.recordedById,
+            createdAt: entry.createdAt,
+          })),
+          ledgerRowCount: result.ledgerRowCount,
         };
       }),
   });

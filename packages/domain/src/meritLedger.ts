@@ -139,7 +139,7 @@ export interface MeritActivity {
  * view ignores transfers and titheing.
  */
 export function getMeritActivity(
-  entries: readonly { type: 'Merit' | 'Demerit'; meritDelta: number }[],
+  entries: readonly { type: 'Merit' | 'Demerit' | 'General'; meritDelta: number }[],
 ): MeritActivity {
   let meritsEarned = 0;
   let demeritsCount = 0;

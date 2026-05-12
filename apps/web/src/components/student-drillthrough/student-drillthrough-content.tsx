@@ -46,6 +46,15 @@ function signed(value: number): string {
   return value > 0 ? `+${String(value)}` : String(value);
 }
 
+function behaviourValue(entry: { type: string; meritDelta: number }): string {
+  return entry.type === 'General' ? 'No merit value' : signed(entry.meritDelta);
+}
+
+function behaviourTone(entry: { type: string; meritDelta: number }): 'blue' | 'green' | 'red' {
+  if (entry.type === 'General') return 'blue';
+  return entry.meritDelta > 0 ? 'green' : 'red';
+}
+
 function formatLongDate(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
@@ -164,7 +173,9 @@ function OverviewTab({ data }: { data: DrillThrough }) {
           sub={`${String(data.metrics.presentDays)}/${String(
             data.metrics.recordedAttendanceDays,
           )} days this year`}
-          value={data.metrics.attendanceRate === null ? '—' : `${String(data.metrics.attendanceRate)}%`}
+          value={
+            data.metrics.attendanceRate === null ? '—' : `${String(data.metrics.attendanceRate)}%`
+          }
         />
       </div>
 
@@ -224,7 +235,9 @@ function OverviewTab({ data }: { data: DrillThrough }) {
         </section>
         <section className="panel panel__body snapshot-pace-compact">
           <h3>Assigned subjects</h3>
-          {data.student.subjects.length === 0 ? <p className="muted">No subjects assigned.</p> : null}
+          {data.student.subjects.length === 0 ? (
+            <p className="muted">No subjects assigned.</p>
+          ) : null}
           {data.student.subjects.map((subject) => (
             <div key={subject.subjectId}>
               <SnapshotBadge tone="blue">{subject.code}</SnapshotBadge>
@@ -255,22 +268,30 @@ function AttendanceTab({ data }: { data: DrillThrough }) {
 function BehaviourTab({ data }: { data: DrillThrough }) {
   return (
     <div className="snapshot-tab-panel snapshot-list-panel">
-      {data.behaviour.length === 0 ? <EmptyCard>No behaviour entries this academic year.</EmptyCard> : null}
+      {data.behaviour.length === 0 ? (
+        <EmptyCard>No behaviour entries this academic year.</EmptyCard>
+      ) : null}
       {data.behaviour.map((entry) => (
         <article
           className={
-            entry.meritDelta > 0
-              ? 'panel panel__body snapshot-behaviour-row is-merit'
-              : 'panel panel__body snapshot-behaviour-row is-demerit'
+            entry.type === 'General'
+              ? 'panel panel__body snapshot-behaviour-row'
+              : entry.meritDelta > 0
+                ? 'panel panel__body snapshot-behaviour-row is-merit'
+                : 'panel panel__body snapshot-behaviour-row is-demerit'
           }
           key={entry.id}
         >
-          <span>{signed(entry.meritDelta)}</span>
+          <span>{behaviourValue(entry)}</span>
           <div>
             <div>
-              <SnapshotBadge tone={entry.meritDelta > 0 ? 'green' : 'red'}>{entry.type}</SnapshotBadge>
+              <SnapshotBadge tone={behaviourTone(entry)}>
+                {entry.type === 'General' ? 'General mark' : entry.type}
+              </SnapshotBadge>
               <SnapshotBadge tone="blue">{entry.category}</SnapshotBadge>
-              {entry.visibility === 'Sensitive' ? <SnapshotBadge tone="amber">Sensitive</SnapshotBadge> : null}
+              {entry.visibility === 'Sensitive' ? (
+                <SnapshotBadge tone="amber">Sensitive</SnapshotBadge>
+              ) : null}
             </div>
             {entry.note ? <p>{entry.note}</p> : null}
             <small>
@@ -287,7 +308,9 @@ function BehaviourTab({ data }: { data: DrillThrough }) {
 function PaceTab({ data }: { data: DrillThrough }) {
   return (
     <div className="snapshot-tab-panel snapshot-list-panel">
-      {data.pace.length === 0 ? <EmptyCard>No PACE scores recorded this academic year.</EmptyCard> : null}
+      {data.pace.length === 0 ? (
+        <EmptyCard>No PACE scores recorded this academic year.</EmptyCard>
+      ) : null}
       {data.pace.map((item) => (
         <article className="panel panel__body snapshot-pace-row" key={item.id}>
           <ScoreDonut score={item.score} />

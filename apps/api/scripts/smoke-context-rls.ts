@@ -113,7 +113,8 @@ async function seed() {
       INSERT INTO "BehaviourEntry" ("id", "studentId", "type", "category", "visibility", "meritDelta", "recordedById")
       VALUES
         ('ctx-b-general',   'ctx-student', 'Merit'::"BehaviourType",   'Kindness',     'General'::"BehaviourVisibility",   5,  'ctx-head'),
-        ('ctx-b-sensitive', 'ctx-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ctx-sup-author')
+        ('ctx-b-sensitive', 'ctx-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ctx-sup-author'),
+        ('ctx-b-sensitive-general', 'ctx-student', 'General'::"BehaviourType", 'Misc', 'Sensitive'::"BehaviourVisibility", 0, 'ctx-sup-author')
     `;
   });
 }
@@ -165,14 +166,14 @@ async function main() {
       tx.behaviourEntry.findMany({ select: { id: true } }),
     );
 
-    if (headRows.length !== 2) {
-      throw new Error(`Expected Head to see 2 entries, saw ${String(headRows.length)}`);
+    if (headRows.length !== 3) {
+      throw new Error(`Expected Head to see 3 entries, saw ${String(headRows.length)}`);
     }
-    if (hodRows.length !== 2) {
-      throw new Error(`Expected HOD to see 2 entries, saw ${String(hodRows.length)}`);
+    if (hodRows.length !== 3) {
+      throw new Error(`Expected HOD to see 3 entries, saw ${String(hodRows.length)}`);
     }
     if (
-      principalRows.length !== 2 ||
+      principalRows.length !== 3 ||
       !principalRows.some((row) => row.visibility === 'Sensitive')
     ) {
       throw new Error(
@@ -180,7 +181,7 @@ async function main() {
       );
     }
     if (
-      authorSupervisorRows.length !== 2 ||
+      authorSupervisorRows.length !== 3 ||
       !authorSupervisorRows.some((row) => row.visibility === 'Sensitive')
     ) {
       throw new Error(
@@ -201,7 +202,7 @@ async function main() {
     }
 
     console.warn(
-      'Context RLS smoke passed: full admins=2, author Supervisor=2, other Supervisor=1, anonymous=0.',
+      'Context RLS smoke passed: full admins=3, author Supervisor=3, other Supervisor=1, anonymous=0.',
     );
   } finally {
     await runtime.$disconnect();

@@ -4,7 +4,7 @@
  * - Head, Principal, Pastor, HeadOfDiscipline all have full-admin parity.
  * - TechnicalSupport: User Access account-shell support for Parent / TechnicalSupport shells.
  * - ClubsAdmin: clubs module plus daily supervisor operations.
- * - Supervisor: daily operations; Sensitive behaviour is limited to their own demerits.
+ * - Supervisor: daily operations; Sensitive behaviour is limited to their own demerits and General marks.
  * - Parent: own children only.
  * - Student: self only.
  *
@@ -219,7 +219,7 @@ export function canViewSensitiveBehaviourEntry(
   user: Pick<SessionUser, 'id' | 'role'>,
   entry: {
     recordedById: string;
-    type: 'Merit' | 'Demerit';
+    type: 'Merit' | 'Demerit' | 'General';
     visibility: 'General' | 'Sensitive';
   },
 ): boolean {
@@ -227,18 +227,19 @@ export function canViewSensitiveBehaviourEntry(
   if (canViewSensitiveBehaviour(user)) return true;
   return (
     (user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
-    entry.type === 'Demerit' &&
+    (entry.type === 'Demerit' || entry.type === 'General') &&
     entry.recordedById === user.id
   );
 }
 
 export function canCreateSensitiveBehaviour(
   user: Pick<SessionUser, 'role'>,
-  input: { type: 'Merit' | 'Demerit' },
+  input: { type: 'Merit' | 'Demerit' | 'General' },
 ): boolean {
   return (
     canViewSensitiveBehaviour(user) ||
-    ((user.role === 'Supervisor' || user.role === 'ClubsAdmin') && input.type === 'Demerit')
+    ((user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
+      (input.type === 'Demerit' || input.type === 'General'))
   );
 }
 

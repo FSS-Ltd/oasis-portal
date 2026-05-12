@@ -25,7 +25,7 @@ export interface TitheInput {
   periodStart: Date;
   periodEnd: Date;
   /** Behaviour entries falling inside [periodStart, periodEnd). */
-  entries: readonly { type: 'Merit' | 'Demerit'; meritDelta: number }[];
+  entries: readonly { type: 'Merit' | 'Demerit' | 'General'; meritDelta: number }[];
 }
 
 export interface TitheResult {
@@ -81,7 +81,9 @@ export function computeWeeklyTithe(input: TitheInput): TitheResult {
  * Centre runs Tue–Fri, but Monday-start makes "this week" consistent in the UI.
  */
 export function startOfTitheWeek(instant: Date): Date {
-  const d = new Date(Date.UTC(instant.getUTCFullYear(), instant.getUTCMonth(), instant.getUTCDate()));
+  const d = new Date(
+    Date.UTC(instant.getUTCFullYear(), instant.getUTCMonth(), instant.getUTCDate()),
+  );
   const day = d.getUTCDay(); // 0 Sun, 1 Mon, ...
   const offset = day === 0 ? -6 : 1 - day;
   d.setUTCDate(d.getUTCDate() + offset);

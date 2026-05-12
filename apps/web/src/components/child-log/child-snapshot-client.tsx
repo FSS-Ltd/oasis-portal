@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { api } from '@/lib/trpc';
@@ -279,19 +274,29 @@ export function ChildSnapshotClient() {
           {behaviour.map((entry) => (
             <article
               className={
-                entry.meritDelta > 0
-                  ? 'panel panel__body snapshot-behaviour-row is-merit'
-                  : 'panel panel__body snapshot-behaviour-row is-demerit'
+                entry.type === 'General'
+                  ? 'panel panel__body snapshot-behaviour-row'
+                  : entry.meritDelta > 0
+                    ? 'panel panel__body snapshot-behaviour-row is-merit'
+                    : 'panel panel__body snapshot-behaviour-row is-demerit'
               }
               key={entry.id}
             >
               <span>
-                {entry.meritDelta > 0 ? `+${String(entry.meritDelta)}` : entry.meritDelta}
+                {entry.type === 'General'
+                  ? 'No merit value'
+                  : entry.meritDelta > 0
+                    ? `+${String(entry.meritDelta)}`
+                    : entry.meritDelta}
               </span>
               <div>
                 <div>
-                  <SnapshotBadge tone={entry.meritDelta > 0 ? 'green' : 'red'}>
-                    {entry.type}
+                  <SnapshotBadge
+                    tone={
+                      entry.type === 'General' ? 'blue' : entry.meritDelta > 0 ? 'green' : 'red'
+                    }
+                  >
+                    {entry.type === 'General' ? 'General mark' : entry.type}
                   </SnapshotBadge>
                   <SnapshotBadge tone="blue">{entry.category}</SnapshotBadge>
                   {entry.visibility === 'Sensitive' ? (

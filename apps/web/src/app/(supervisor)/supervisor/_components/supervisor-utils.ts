@@ -9,9 +9,23 @@ export const weekdays = [
 ] as const;
 
 const shortWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+const shortMonths = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
 
-export type BehaviourType = 'Merit' | 'Demerit';
+export type BehaviourType = 'Merit' | 'Demerit' | 'General';
+export type BatchBehaviourType = Exclude<BehaviourType, 'General'>;
 export type BehaviourVisibility = 'General' | 'Sensitive';
 export type PaceTestType = 'SelfTest' | 'FinalTest';
 

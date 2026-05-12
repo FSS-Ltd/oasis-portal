@@ -25,16 +25,16 @@ CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"
     current_setting('app.full_admin', true) = 'true'
   );
 
--- Supervisors see General entries and Sensitive demerits they recorded.
+-- Supervisors/ClubsAdmin see General entries and Sensitive demerits or General marks they recorded.
 CREATE POLICY behaviour_supervisor_general ON "BehaviourEntry"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Supervisor'
+    current_setting('app.user_role', true) IN ('Supervisor', 'ClubsAdmin')
     AND (
       "visibility" = 'General'
       OR (
         "visibility" = 'Sensitive'
-        AND "type" = 'Demerit'
+        AND "type" IN ('Demerit', 'General')
         AND "recordedById" = current_setting('app.user_id', true)
       )
     )
@@ -75,8 +75,8 @@ CREATE POLICY behaviour_student_self ON "BehaviourEntry"
     )
   );
 
--- Writes require full-admin OR Supervisor. Sensitive supervisor writes are
--- limited to a Supervisor recording their own Sensitive demerit.
+-- Writes require full-admin OR Supervisor/ClubsAdmin. Sensitive operational writes are
+-- limited to authors recording their own Sensitive demerit or General mark.
 CREATE POLICY behaviour_write ON "BehaviourEntry"
   FOR INSERT
   WITH CHECK (
@@ -84,14 +84,14 @@ CREATE POLICY behaviour_write ON "BehaviourEntry"
       "visibility" = 'General'
       AND (
         current_setting('app.full_admin', true) = 'true'
-        OR current_setting('app.user_role', true) = 'Supervisor'
+        OR current_setting('app.user_role', true) IN ('Supervisor', 'ClubsAdmin')
       )
     )
     OR current_setting('app.full_admin', true) = 'true'
     OR (
-      current_setting('app.user_role', true) = 'Supervisor'
+      current_setting('app.user_role', true) IN ('Supervisor', 'ClubsAdmin')
       AND "visibility" = 'Sensitive'
-      AND "type" = 'Demerit'
+      AND "type" IN ('Demerit', 'General')
       AND "recordedById" = current_setting('app.user_id', true)
     )
   );

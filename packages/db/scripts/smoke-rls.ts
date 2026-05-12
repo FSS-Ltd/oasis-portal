@@ -142,7 +142,8 @@ async function main() {
         )
         VALUES
           ('ci-behaviour-general', 'ci-student', 'Merit'::"BehaviourType", 'Kindness', 'General'::"BehaviourVisibility", 5, 'ci-head'),
-          ('ci-behaviour-sensitive', 'ci-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ci-sup-author')
+          ('ci-behaviour-sensitive', 'ci-student', 'Demerit'::"BehaviourType", 'Safeguarding', 'Sensitive'::"BehaviourVisibility", -5, 'ci-sup-author'),
+          ('ci-behaviour-sensitive-general', 'ci-student', 'General'::"BehaviourType", 'Misc', 'Sensitive'::"BehaviourVisibility", 0, 'ci-sup-author')
       `;
     });
 
@@ -189,22 +190,22 @@ async function main() {
       'General',
     );
 
-    if (fullAdminSensitive !== 1) {
+    if (fullAdminSensitive !== 2) {
       throw new Error(
-        `Expected full admin to see 1 sensitive row, saw ${String(fullAdminSensitive)}`,
+        `Expected full admin to see 2 sensitive rows, saw ${String(fullAdminSensitive)}`,
       );
     }
-    if (hodSensitive !== 1) {
-      throw new Error(`Expected HOD to see 1 sensitive row, saw ${String(hodSensitive)}`);
+    if (hodSensitive !== 2) {
+      throw new Error(`Expected HOD to see 2 sensitive rows, saw ${String(hodSensitive)}`);
     }
-    if (principalSensitive !== 1) {
+    if (principalSensitive !== 2) {
       throw new Error(
-        `Expected Principal to see 1 sensitive row, saw ${String(principalSensitive)}`,
+        `Expected Principal to see 2 sensitive rows, saw ${String(principalSensitive)}`,
       );
     }
-    if (authorSupervisorSensitive !== 1) {
+    if (authorSupervisorSensitive !== 2) {
       throw new Error(
-        `Expected author supervisor to see 1 sensitive row, saw ${String(authorSupervisorSensitive)}`,
+        `Expected author supervisor to see 2 sensitive rows, saw ${String(authorSupervisorSensitive)}`,
       );
     }
     if (otherSupervisorSensitive !== 0) {
@@ -217,7 +218,7 @@ async function main() {
     }
 
     console.warn(
-      'RLS smoke passed: full admins and author supervisor see Sensitive; other supervisor does not.',
+      'RLS smoke passed: full admins and author supervisor see Sensitive demerits and General marks; other supervisor does not.',
     );
   } finally {
     await runtimePrisma.$disconnect();
