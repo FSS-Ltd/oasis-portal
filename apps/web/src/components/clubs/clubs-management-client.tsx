@@ -2,13 +2,25 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
-import { ClipboardList, Pencil, Plus, Power, PowerOff, Save, UsersRound, X } from 'lucide-react';
+import {
+  Bell,
+  ClipboardList,
+  Pencil,
+  Plus,
+  Power,
+  PowerOff,
+  Save,
+  Send,
+  UsersRound,
+  X,
+} from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
 
 type Club = RouterOutputs['club']['list'][number];
+type ClubNotification = RouterOutputs['club']['notifications'][number];
 type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
 
 interface ClubFormState {
@@ -25,11 +37,21 @@ interface ClubFormPayload {
   capacity: number | null;
 }
 
+interface NotificationFormState {
+  title: string;
+  body: string;
+}
+
 const emptyClubForm = (): ClubFormState => ({
   name: '',
   description: '',
   schedule: '',
   capacity: '',
+});
+
+const emptyNotificationForm = (): NotificationFormState => ({
+  title: '',
+  body: '',
 });
 
 function formatDateTime(value: Date | string): string {
@@ -71,6 +93,38 @@ function buildClubPayload(form: ClubFormState): ClubFormPayload | string {
     schedule: normaliseOptionalText(form.schedule),
     capacity,
   };
+}
+
+function buildNotificationPayload(
+  club: Club | null,
+  form: NotificationFormState,
+): { body: string; clubId: string; title: string } | string {
+  if (!club) return 'Select a club before sending a notification.';
+  if (!club.active) return 'Reactivate this club before sending notifications.';
+
+  const title = form.title.trim();
+  if (!title) return 'Notification title is required.';
+
+  const body = form.body.trim();
+  if (!body) return 'Notification message is required.';
+
+  return { clubId: club.id, title, body };
+}
+
+function notificationStatusText({
+  failedCount,
+  recipientCount,
+  sentCount,
+}: {
+  failedCount: number;
+  recipientCount: number;
+  sentCount: number;
+}): string {
+  if (recipientCount === 0) return 'Notification saved. No active signup guardians were found.';
+  if (failedCount > 0) {
+    return `Notification saved. ${String(sentCount)} sent, ${String(failedCount)} failed.`;
+  }
+  return `Notification sent to ${String(sentCount)} guardian${sentCount === 1 ? '' : 's'}.`;
 }
 
 function ClubCard({
@@ -170,19 +224,58 @@ function RosterTable({ signups }: { signups: readonly RosterSignup[] }) {
   );
 }
 
+function NotificationHistory({
+  error,
+  loading,
+  notifications,
+}: {
+  error: string | null;
+  loading: boolean;
+  notifications: readonly ClubNotification[];
+}) {
+  if (loading) return <div className="empty-state">Loading notification history...</div>;
+  if (error) return <p className="status--error">{error}</p>;
+  if (notifications.length === 0) {
+    return <div className="empty-state">No notifications have been sent for this club.</div>;
+  }
+
+  return (
+    <div className="club-notification-history" aria-label="Club notification history">
+      {notifications.map((notification) => (
+        <article className="club-notification-history__item" key={notification.id}>
+          <span>
+            <strong>{notification.title}</strong>
+            <small>
+              {formatDateTime(notification.sentAt)} by {notification.sentByName}
+            </small>
+          </span>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function ClubsManagementClient() {
   const utils = api.useUtils();
   const [form, setForm] = useState<ClubFormState>(emptyClubForm);
+  const [notificationForm, setNotificationForm] =
+    useState<NotificationFormState>(emptyNotificationForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [pendingActiveId, setPendingActiveId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [formStatus, setFormStatus] = useState<string | null>(null);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
 
   const clubsQuery = api.club.list.useQuery(undefined, { retry: false });
   const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? null;
   const rosterQuery = api.club.roster.useQuery(
+    { clubId: selectedClubId ?? '' },
+    { enabled: selectedClubId !== null, retry: false },
+  );
+  const notificationHistoryQuery = api.club.notifications.useQuery(
     { clubId: selectedClubId ?? '' },
     { enabled: selectedClubId !== null, retry: false },
   );
@@ -208,6 +301,13 @@ export function ClubsManagementClient() {
       await Promise.all([utils.club.list.invalidate(), utils.club.roster.invalidate()]);
     },
   });
+  const sendNotification = api.club.notify.useMutation({
+    onSuccess: async (result) => {
+      setNotificationForm(emptyNotificationForm());
+      setNotificationStatus(notificationStatusText(result));
+      await utils.club.notifications.invalidate();
+    },
+  });
 
   useEffect(() => {
     if (clubs.length === 0) {
@@ -223,6 +323,13 @@ export function ClubsManagementClient() {
   const formMutationPending =
     createClub.isPending || (updateClub.isPending && pendingActiveId === null);
   const mutationError = createClub.error ?? updateClub.error;
+  const notificationFieldsFilled =
+    notificationForm.title.trim().length > 0 && notificationForm.body.trim().length > 0;
+  const canSubmitNotification =
+    selectedClub !== null &&
+    selectedClub.active &&
+    notificationFieldsFilled &&
+    !sendNotification.isPending;
 
   function editClub(club: Club): void {
     setForm({
@@ -272,6 +379,24 @@ export function ClubsManagementClient() {
     setFormError(null);
     setPendingActiveId(club.id);
     updateClub.mutate({ id: club.id, active: !club.active });
+  }
+
+  async function submitNotification(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotificationStatus(null);
+
+    const payload = buildNotificationPayload(selectedClub, notificationForm);
+    if (typeof payload === 'string') {
+      setNotificationError(payload);
+      return;
+    }
+
+    setNotificationError(null);
+    try {
+      await sendNotification.mutateAsync(payload);
+    } catch {
+      // React Query exposes the mutation error below the notification form.
+    }
   }
 
   return (
@@ -376,9 +501,7 @@ export function ClubsManagementClient() {
             </div>
 
             {clubsQuery.isLoading ? <div className="empty-state">Loading clubs...</div> : null}
-            {clubsQuery.error ? (
-              <p className="status--error">{clubsQuery.error.message}</p>
-            ) : null}
+            {clubsQuery.error ? <p className="status--error">{clubsQuery.error.message}</p> : null}
             {!clubsQuery.isLoading && clubs.length === 0 ? (
               <div className="empty-state">No clubs have been created yet.</div>
             ) : null}
@@ -431,6 +554,100 @@ export function ClubsManagementClient() {
                   </span>
                 </div>
                 <RosterTable signups={rosterQuery.data.signups} />
+                <div className="club-notification-panel" aria-labelledby="club-notification-title">
+                  <div className="section-title">
+                    <div>
+                      <p className="muted">Notifications</p>
+                      <h3 id="club-notification-title">Send Club Notification</h3>
+                    </div>
+                    <span className="badge badge--blue">
+                      <Bell aria-hidden="true" size={14} />
+                      {String(selectedClub.activeSignupCount)} estimated recipients
+                    </span>
+                  </div>
+                  {selectedClub.activeSignupCount === 0 ? (
+                    <div className="empty-state">
+                      No active signups yet. The notification will be saved without email
+                      recipients.
+                    </div>
+                  ) : null}
+                  {!selectedClub.active ? (
+                    <p className="status--error">
+                      Reactivate this club before sending notifications.
+                    </p>
+                  ) : null}
+                  <form
+                    className="clubs-form"
+                    onSubmit={(event) => {
+                      void submitNotification(event);
+                    }}
+                  >
+                    <Field label="Notification title" required>
+                      <TextInput
+                        disabled={!selectedClub.active || sendNotification.isPending}
+                        maxLength={160}
+                        onChange={(event) => {
+                          setNotificationForm((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }));
+                        }}
+                        placeholder="Practice update"
+                        required
+                        value={notificationForm.title}
+                      />
+                    </Field>
+                    <Field label="Message" required>
+                      <textarea
+                        className="input textarea"
+                        disabled={!selectedClub.active || sendNotification.isPending}
+                        maxLength={2000}
+                        onChange={(event) => {
+                          setNotificationForm((current) => ({
+                            ...current,
+                            body: event.target.value,
+                          }));
+                        }}
+                        placeholder="Write the club update for guardians."
+                        required
+                        rows={4}
+                        value={notificationForm.body}
+                      />
+                    </Field>
+                    <div className="clubs-form__actions">
+                      <Button
+                        disabled={!canSubmitNotification}
+                        pending={sendNotification.isPending}
+                        type="submit"
+                      >
+                        <Send aria-hidden="true" size={16} />
+                        Send Notification
+                      </Button>
+                    </div>
+                    {notificationStatus ? (
+                      <p className="status--success">{notificationStatus}</p>
+                    ) : null}
+                    {notificationError ? (
+                      <p className="status--error">{notificationError}</p>
+                    ) : null}
+                    {sendNotification.error ? (
+                      <p className="status--error">{sendNotification.error.message}</p>
+                    ) : null}
+                  </form>
+
+                  <div className="club-notification-history-panel">
+                    <div className="section-title">
+                      <div>
+                        <h3>Notification History</h3>
+                      </div>
+                    </div>
+                    <NotificationHistory
+                      error={notificationHistoryQuery.error?.message ?? null}
+                      loading={notificationHistoryQuery.isLoading}
+                      notifications={notificationHistoryQuery.data ?? []}
+                    />
+                  </div>
+                </div>
               </>
             ) : null}
           </section>

@@ -1,7 +1,7 @@
 # Phase 3.5 - Clubs module: sprint & PR plan
 
-**Status:** PR-3.5.2 parent club signup ready for review
-**Last updated:** 2026-05-11
+**Status:** PR-3.5.4 club notification UI ready for review
+**Last updated:** 2026-05-12
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -101,7 +101,9 @@ Notes:
 Goal: expose the module to ClubsAdmin/full-admin users and parents without
 crossing data boundaries.
 
-### PR-3.5.1 - `feat(web): ClubsAdmin club management` READY FOR REVIEW
+### PR-3.5.1 - `feat(web): ClubsAdmin club management` MERGED
+
+Merged via PR #103 on 2026-05-11.
 
 Scope:
 
@@ -139,7 +141,9 @@ Verification:
 - `pnpm docs:component-map` - pass.
 - `git diff --check` - pass.
 
-### PR-3.5.2 - `feat(web): parent club signup` READY FOR REVIEW
+### PR-3.5.2 - `feat(web): parent club signup` MERGED
+
+Merged via PR #105 on 2026-05-11.
 
 Scope:
 
@@ -210,7 +214,9 @@ Notes:
 Goal: let club admins send simple notifications to guardians of signed-up
 students.
 
-### PR-3.5.3 - `feat(api): club notifications` PLANNED
+### PR-3.5.3 - `feat(api): club notifications` MERGED
+
+Merged via PR #110 on 2026-05-12.
 
 Scope:
 
@@ -232,10 +238,12 @@ Tests:
 - Parent/Supervisor cannot send club notifications.
 - Email failure is surfaced and audited without leaking PII.
 
-### PR-3.5.4 - `feat(web): club notification UI` PLANNED
+### PR-3.5.4 - `feat(web): club notification UI` READY FOR REVIEW
 
 Scope:
 
+- Add `club.notifications` history query for club managers, returning title,
+  sent time, and sender display only.
 - Add notification composer to club management detail/roster view.
 - Show recipient count, pending state, success state, and error state.
 - Show sent notification history without exposing recipient PII beyond allowed
@@ -249,10 +257,18 @@ Tests:
 
 Verification:
 
-- `pnpm --filter @oasis/api test -- club.router.test.ts email.router.test.ts`
-- `pnpm --filter @oasis/web typecheck`
-- `pnpm lint`
-- `pnpm --filter @oasis/web build`
+- `pnpm --filter @oasis/api test -- club.router.test.ts email.router.test.ts` -
+  pass, ran all API tests because of package-script argument handling: 18 files
+  / 376 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with
+  5 credential-gated tests skipped because local E2E account variables are not
+  configured.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
 
 ---
 

@@ -64,8 +64,12 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
   });
 
   clubsAdminTest(
-    'ClubsAdmin lands on clubs and can reach supervisor workflow without unrelated admin navigation',
+    'ClubsAdmin lands on clubs, sends an empty-recipient notification, and keeps unrelated admin navigation hidden',
     async ({ page }) => {
+      const unique = Date.now();
+      const clubName = `Notification Club ${unique}`;
+      const notificationTitle = `No recipient update ${unique}`;
+
       await signIn(page, clubsAdminEmail!, clubsAdminPassword!);
       await expect(page).toHaveURL(/\/admin\/clubs/);
       await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
@@ -79,6 +83,24 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
           name: /Attendance|Behaviour|PACE|Calendar|Messages|Noticeboard|User Access|People & Profiles/i,
         }),
       ).toHaveCount(0);
+
+      await page.getByLabel('Club name').fill(clubName);
+      await page.getByLabel('Description').fill('E2E club notification verification.');
+      await page.getByRole('button', { name: /add club/i }).click();
+      await expect(page.getByText('Club created.')).toBeVisible();
+      await expect(page.getByRole('heading', { name: clubName })).toBeVisible();
+      await expect(page.getByText(/0 estimated recipients/i)).toBeVisible();
+      await expect(page.getByText(/No active signups yet/i)).toBeVisible();
+      await expect(page.getByText(/No notifications have been sent for this club/i)).toBeVisible();
+
+      await page.getByLabel('Notification title').fill(notificationTitle);
+      await page.getByLabel('Message').fill('This notification should save without recipients.');
+      await page.getByRole('button', { name: /send notification/i }).click();
+
+      await expect(
+        page.getByText('Notification saved. No active signup guardians were found.'),
+      ).toBeVisible();
+      await expect(page.getByText(notificationTitle)).toBeVisible();
     },
   );
 
