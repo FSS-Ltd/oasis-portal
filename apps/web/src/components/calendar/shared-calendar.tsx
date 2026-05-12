@@ -6,16 +6,23 @@ import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { CalendarEventCard } from './calendar-event-card';
+import { CalendarEventDetailModal } from './calendar-event-detail-modal';
 import { CalendarMonthView } from './calendar-month-view';
 import {
   addMonths,
+  categoryClassNames,
+  categoryLabels,
   currentMonthKey,
+  editableCategories,
   emptyCalendarForm,
+  legendCategories,
   pageCopy,
   type CalendarAudience,
+  type CalendarCategory,
   type CalendarEvent,
   type CalendarFormState,
   type CalendarMode,
+  type CalendarSelectionMode,
 } from './calendar-model';
 
 interface SharedCalendarProps {
@@ -31,6 +38,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
   const [formStatus, setFormStatus] = useState<string | null>(null);
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const copy = pageCopy[mode];
   const adminEventsQuery = api.calendar.listForAdmin.useQuery(undefined, {
@@ -85,6 +93,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
   const listDescription = canManage
     ? copy.listDescription
     : 'Published dates visible to your portal.';
+  const isSingleDate = form.selectionMode === 'single';
 
   async function submitEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -101,13 +110,33 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
       setFormError('End date must be on or after the start date.');
       return;
     }
+    if (form.selectionMode === 'range' && !form.endDate) {
+      setFormError('Choose an end date for this range.');
+      return;
+    }
+    if ((form.startTime || form.endTime) && !isSingleDate) {
+      setFormError('Time range is only available for single-date events.');
+      return;
+    }
+    if ((form.startTime && !form.endTime) || (!form.startTime && form.endTime)) {
+      setFormError('Start and end time are both required when adding a time range.');
+      return;
+    }
+    if (form.startTime && form.endTime && form.endTime <= form.startTime) {
+      setFormError('End time must be after start time.');
+      return;
+    }
 
     setFormError(null);
     const payload = {
       title,
       audience: form.audience,
+      category: form.category,
       startDate: form.startDate,
       endDate,
+      ...(form.startTime && form.endTime
+        ? { startTime: form.startTime, endTime: form.endTime }
+        : {}),
       ...(description ? { description } : {}),
     };
 
@@ -128,8 +157,12 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
       title: event.title,
       description: event.description ?? '',
       audience: event.audience,
+      category: event.category === 'Birthdays' ? 'OasisDays' : event.category,
+      selectionMode: event.startDate === event.endDate ? 'single' : 'range',
       startDate: event.startDate,
       endDate: event.endDate === event.startDate ? '' : event.endDate,
+      startTime: event.startTime ?? '',
+      endTime: event.endTime ?? '',
     });
     setEditingId(event.id);
     setFormError(null);
@@ -145,6 +178,37 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
   function archiveCalendarEvent(eventId: string): void {
     setPendingArchiveId(eventId);
     archiveEvent.mutate({ id: eventId });
+  }
+
+  function selectFormDate(date: string): void {
+    if (!canManage) return;
+    setForm((current) => ({
+      ...current,
+      ...selectedDateFormPatch(current, date),
+    }));
+    setFormError(null);
+    setFormStatus(null);
+  }
+
+  function updateEndDate(endDate: string): void {
+    setForm((current) => ({
+      ...current,
+      endDate,
+      startTime: endDate && endDate !== current.startDate ? '' : current.startTime,
+      endTime: endDate && endDate !== current.startDate ? '' : current.endTime,
+    }));
+  }
+
+  function updateSelectionMode(selectionMode: CalendarSelectionMode): void {
+    setForm((current) => ({
+      ...current,
+      selectionMode,
+      endDate: selectionMode === 'single' ? '' : current.endDate,
+      startTime: selectionMode === 'range' ? '' : current.startTime,
+      endTime: selectionMode === 'range' ? '' : current.endTime,
+    }));
+    setFormError(null);
+    setFormStatus(null);
   }
 
   return (
@@ -212,29 +276,98 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
                   <option value="All">All portals</option>
                   <option value="Parents">Parents</option>
                   <option value="Supervisors">Supervisors</option>
+                  <option value="Heads">Heads only</option>
+                </SelectInput>
+              </Field>
+              <Field label="Category" required>
+                <SelectInput
+                  onChange={(event) => {
+                    setForm((current) => ({
+                      ...current,
+                      category: event.target.value as Exclude<CalendarCategory, 'Birthdays'>,
+                    }));
+                  }}
+                  required
+                  value={form.category}
+                >
+                  {editableCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {categoryLabels[category]}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="Date selection" required>
+                <SelectInput
+                  onChange={(event) => {
+                    updateSelectionMode(event.target.value as CalendarSelectionMode);
+                  }}
+                  required
+                  value={form.selectionMode}
+                >
+                  <option value="single">Single date</option>
+                  <option value="range">Date range</option>
                 </SelectInput>
               </Field>
               <div className="form-grid form-grid--two">
-                <Field label="Start date" required>
+                <Field label={form.selectionMode === 'range' ? 'Start date' : 'Date'} required>
                   <TextInput
                     onChange={(event) => {
-                      setForm((current) => ({ ...current, startDate: event.target.value }));
+                      const startDate = event.target.value;
+                      setForm((current) => ({
+                        ...current,
+                        startDate,
+                        endDate:
+                          current.selectionMode === 'range' &&
+                          current.endDate &&
+                          current.endDate >= startDate
+                            ? current.endDate
+                            : '',
+                        startTime: current.selectionMode === 'range' ? '' : current.startTime,
+                        endTime: current.selectionMode === 'range' ? '' : current.endTime,
+                      }));
                     }}
                     required
                     type="date"
                     value={form.startDate}
                   />
                 </Field>
-                <Field label="End date" hint="Optional">
-                  <TextInput
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, endDate: event.target.value }));
-                    }}
-                    type="date"
-                    value={form.endDate}
-                  />
-                </Field>
+                {form.selectionMode === 'range' ? (
+                  <Field label="End date" required>
+                    <TextInput
+                      min={form.startDate}
+                      onChange={(event) => {
+                        updateEndDate(event.target.value);
+                      }}
+                      required
+                      type="date"
+                      value={form.endDate}
+                    />
+                  </Field>
+                ) : null}
               </div>
+              {isSingleDate ? (
+                <div className="form-grid form-grid--two">
+                  <Field label="Start time" hint="Optional">
+                    <TextInput
+                      onChange={(event) => {
+                        setForm((current) => ({ ...current, startTime: event.target.value }));
+                      }}
+                      type="time"
+                      value={form.startTime}
+                    />
+                  </Field>
+                  <Field label="End time" hint="Optional">
+                    <TextInput
+                      onChange={(event) => {
+                        setForm((current) => ({ ...current, endTime: event.target.value }));
+                      }}
+                      type="time"
+                      value={form.endTime}
+                    />
+                  </Field>
+                </div>
+              ) : null}
               <div className="calendar-form__actions">
                 <Button pending={createEvent.isPending || updateEvent.isPending} type="submit">
                   {editingId ? (
@@ -262,6 +395,23 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
           <CalendarMonthView
             events={activeEvents}
             monthKey={monthKey}
+            {...(canManage ? { onDateSelect: selectFormDate } : {})}
+            {...(canManage
+              ? {
+                  selection: {
+                    mode: form.selectionMode,
+                    startDate: form.startDate,
+                    endDate: form.selectionMode === 'range' ? form.endDate : '',
+                  },
+                }
+              : {})}
+            {...(!canManage
+              ? {
+                  onEventSelect: (event: CalendarEvent) => {
+                    setSelectedEvent(event);
+                  },
+                }
+              : {})}
             onNextMonth={() => {
               setMonthKey((current) => addMonths(current, 1));
             }}
@@ -272,6 +422,17 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
               setMonthKey(currentMonthKey());
             }}
           />
+
+          <section className="panel panel__body calendar-legend-panel" aria-label="Calendar legend">
+            <div className="calendar-legend">
+              {legendCategories.map((category) => (
+                <span className="calendar-legend__item" key={category}>
+                  <i className={categoryClassNames[category]} aria-hidden="true" />
+                  {categoryLabels[category]}
+                </span>
+              ))}
+            </div>
+          </section>
 
           <section
             className="panel panel__body calendar-list-panel"
@@ -300,6 +461,9 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
                   key={event.id}
                   onArchive={archiveCalendarEvent}
                   onEdit={editEvent}
+                  onView={(calendarEvent) => {
+                    setSelectedEvent(calendarEvent);
+                  }}
                   pendingArchive={pendingArchiveId === event.id}
                 />
               ))}
@@ -307,6 +471,38 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
           </section>
         </div>
       </div>
+      {selectedEvent ? (
+        <CalendarEventDetailModal
+          event={selectedEvent}
+          onClose={() => {
+            setSelectedEvent(null);
+          }}
+        />
+      ) : null}
     </div>
   );
+}
+
+function selectedDateFormPatch(
+  current: CalendarFormState,
+  date: string,
+): Pick<CalendarFormState, 'endDate' | 'endTime' | 'startDate' | 'startTime'> {
+  if (current.selectionMode === 'single') {
+    return {
+      startDate: date,
+      endDate: '',
+      startTime: current.startTime,
+      endTime: current.endTime,
+    };
+  }
+
+  if (!current.startDate || current.endDate) {
+    return { startDate: date, endDate: '', startTime: '', endTime: '' };
+  }
+
+  if (date < current.startDate) {
+    return { startDate: date, endDate: current.startDate, startTime: '', endTime: '' };
+  }
+
+  return { startDate: current.startDate, endDate: date, startTime: '', endTime: '' };
 }

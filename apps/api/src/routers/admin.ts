@@ -86,12 +86,17 @@ const updateUserProfileInput = z.object({
   userId: z.string().min(1),
   fullName: z.string().trim().min(1, 'Enter the user name').optional(),
   email: z.string().trim().toLowerCase().email('Enter a valid email address').optional(),
+  dob: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date')
+    .nullable()
+    .optional(),
   phone: z.string().trim().max(50, 'Phone number is too long').nullable().optional(),
   address: z.string().trim().max(500, 'Address is too long').nullable().optional(),
 });
 type UpdateUserProfileInput = z.infer<typeof updateUserProfileInput>;
 
-const updateUserAccountProfileInput = updateUserProfileInput.omit({ email: true });
+const updateUserAccountProfileInput = updateUserProfileInput.omit({ dob: true, email: true });
 
 const updateUserAccountStatusInput = z.object({
   userId: z.string().min(1),
@@ -108,6 +113,7 @@ const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
   tags: true,
   fullNameEnc: true,
   emailEnc: true,
+  dobEnc: true,
   phoneEnc: true,
   addressEnc: true,
   active: true,
@@ -256,6 +262,19 @@ function normaliseNullableText(value: string | null | undefined): string | null 
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function normaliseNullableDate(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value.trim() === '') return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter a valid date' });
+  }
+  if (date > new Date()) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'date of birth cannot be in the future' });
+  }
+  return value;
+}
+
 function normaliseTags(tags: readonly string[]): string[] {
   return [...new Set(tags)].sort();
 }
@@ -323,6 +342,7 @@ function userProfileUpdateData(
 ): { data: Prisma.UserUpdateInput; fields: string[] } {
   const data: Prisma.UserUpdateInput = {};
   if (input.fullName !== undefined) data.fullNameEnc = ctx.db.$enc.encrypt(input.fullName);
+  if (input.dob !== undefined) data.dobEnc = ctx.db.$enc.encrypt(normaliseNullableDate(input.dob));
   if (input.phone !== undefined) {
     data.phoneEnc = ctx.db.$enc.encrypt(normaliseNullableText(input.phone));
   }
@@ -400,6 +420,7 @@ function mapAdminUserProfile(
     tags: user.tags,
     fullName: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'user PII'),
     email: decryptRequired(ctx.db.$enc.decrypt, user.emailEnc, 'user PII'),
+    dob: ctx.db.$enc.decrypt(user.dobEnc),
     phone: ctx.db.$enc.decrypt(user.phoneEnc),
     address: ctx.db.$enc.decrypt(user.addressEnc),
     active: user.active,
@@ -1360,91 +1381,89 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         return rows;
       }),
 
-    inviteUser: authedProcedure
-      .input(inviteUserInput)
-      .mutation(async ({ ctx, input }) => {
-        assertCanUseInvitationWorkflow(ctx.user);
-        assertCanInviteUser(ctx.user, input.role, input.tags);
-        const emailBidx = ctx.db.$enc.blindIndex(input.email);
+    inviteUser: authedProcedure.input(inviteUserInput).mutation(async ({ ctx, input }) => {
+      assertCanUseInvitationWorkflow(ctx.user);
+      assertCanInviteUser(ctx.user, input.role, input.tags);
+      const emailBidx = ctx.db.$enc.blindIndex(input.email);
 
-        const [existingUser, existingPendingInvite] = await Promise.all([
-          ctx.db.user.findUnique({
-            where: { emailBidx },
-            select: { id: true },
-          }),
-          ctx.db.userInvitation.findFirst({
-            where: { emailBidx, status: 'Pending' },
-            select: userInvitationSelect,
-          }),
-        ]);
+      const [existingUser, existingPendingInvite] = await Promise.all([
+        ctx.db.user.findUnique({
+          where: { emailBidx },
+          select: { id: true },
+        }),
+        ctx.db.userInvitation.findFirst({
+          where: { emailBidx, status: 'Pending' },
+          select: userInvitationSelect,
+        }),
+      ]);
 
-        if (existingUser) {
+      if (existingUser) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'a user account already exists for this email',
+        });
+      }
+
+      if (existingPendingInvite) {
+        assertPendingInvitationMatchesInput(existingPendingInvite, input);
+        if (existingPendingInvite.emailStatus === 'Sent') {
           throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: 'a user account already exists for this email',
+            message:
+              'a pending invitation already exists for this email; use resend on the pending invite if needed',
           });
-        }
-
-        if (existingPendingInvite) {
-          assertPendingInvitationMatchesInput(existingPendingInvite, input);
-          if (existingPendingInvite.emailStatus === 'Sent') {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message:
-                'a pending invitation already exists for this email; use resend on the pending invite if needed',
-            });
-          }
-
-          return deliverInvitationEmail({
-            auditAction: 'Update',
-            ctx,
-            email: input.email,
-            source: 'admin.inviteUser',
-            storedInvitation: existingPendingInvite,
-          });
-        }
-
-        const invitation = await createClerkInvitation({
-          email: input.email,
-          role: input.role,
-          tags: input.tags,
-        });
-
-        let storedInvitation: UserInvitationRow;
-        try {
-          storedInvitation = await ctx.db.userInvitation.create({
-            data: {
-              clerkInvitationId: invitation.id,
-              role: input.role,
-              tags: [...input.tags],
-              emailEnc: ctx.db.$enc.encrypt(input.email),
-              emailBidx,
-              status: 'Pending',
-              emailStatus: 'NotSent',
-              invitedById: ctx.user.id,
-            },
-            select: userInvitationSelect,
-          });
-        } catch (err) {
-          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message:
-                'a pending invitation already exists for this email; refresh pending invites and resend if needed',
-            });
-          }
-          throw err;
         }
 
         return deliverInvitationEmail({
-          auditAction: 'Create',
+          auditAction: 'Update',
           ctx,
           email: input.email,
-          existingInvitation: invitation,
           source: 'admin.inviteUser',
-          storedInvitation,
+          storedInvitation: existingPendingInvite,
         });
-      }),
+      }
+
+      const invitation = await createClerkInvitation({
+        email: input.email,
+        role: input.role,
+        tags: input.tags,
+      });
+
+      let storedInvitation: UserInvitationRow;
+      try {
+        storedInvitation = await ctx.db.userInvitation.create({
+          data: {
+            clerkInvitationId: invitation.id,
+            role: input.role,
+            tags: [...input.tags],
+            emailEnc: ctx.db.$enc.encrypt(input.email),
+            emailBidx,
+            status: 'Pending',
+            emailStatus: 'NotSent',
+            invitedById: ctx.user.id,
+          },
+          select: userInvitationSelect,
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              'a pending invitation already exists for this email; refresh pending invites and resend if needed',
+          });
+        }
+        throw err;
+      }
+
+      return deliverInvitationEmail({
+        auditAction: 'Create',
+        ctx,
+        email: input.email,
+        existingInvitation: invitation,
+        source: 'admin.inviteUser',
+        storedInvitation,
+      });
+    }),
 
     resendUserInvitation: authedProcedure
       .input(resendUserInvitationInput)

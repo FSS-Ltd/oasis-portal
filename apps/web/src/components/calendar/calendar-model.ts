@@ -2,14 +2,20 @@ import type { RouterOutputs } from '@/lib/trpc';
 
 export type CalendarEvent = RouterOutputs['calendar']['listForAdmin'][number];
 export type CalendarAudience = CalendarEvent['audience'];
+export type CalendarCategory = CalendarEvent['category'];
 export type CalendarMode = 'admin' | 'supervisor' | 'parent';
+export type CalendarSelectionMode = 'single' | 'range';
 
 export interface CalendarFormState {
   title: string;
   description: string;
   audience: CalendarAudience;
+  category: Exclude<CalendarCategory, 'Birthdays'>;
+  selectionMode: CalendarSelectionMode;
   startDate: string;
   endDate: string;
+  startTime: string;
+  endTime: string;
 }
 
 export interface CalendarMonthDay {
@@ -24,7 +30,43 @@ export const audienceLabels: Record<CalendarAudience, string> = {
   All: 'All portals',
   Parents: 'Parents',
   Supervisors: 'Supervisors',
+  Heads: 'Heads only',
 };
+
+export const categoryLabels: Record<CalendarCategory, string> = {
+  HalfTerm: 'Half term',
+  Trips: 'Trips',
+  OasisDays: 'Oasis days',
+  Birthdays: 'Birthdays',
+  Meetings: 'Meetings',
+  Trainings: 'Trainings',
+};
+
+export const categoryClassNames: Record<CalendarCategory, string> = {
+  HalfTerm: 'calendar-category--half-term',
+  Trips: 'calendar-category--trips',
+  OasisDays: 'calendar-category--oasis-days',
+  Birthdays: 'calendar-category--birthdays',
+  Meetings: 'calendar-category--meetings',
+  Trainings: 'calendar-category--trainings',
+};
+
+export const editableCategories: readonly Exclude<CalendarCategory, 'Birthdays'>[] = [
+  'HalfTerm',
+  'Trips',
+  'OasisDays',
+  'Meetings',
+  'Trainings',
+];
+
+export const legendCategories: readonly CalendarCategory[] = [
+  'HalfTerm',
+  'Trips',
+  'OasisDays',
+  'Birthdays',
+  'Meetings',
+  'Trainings',
+];
 
 export const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
@@ -90,8 +132,12 @@ export function emptyCalendarForm(): CalendarFormState {
     title: '',
     description: '',
     audience: 'All',
+    category: 'OasisDays',
+    selectionMode: 'single',
     startDate: todayKey(),
     endDate: '',
+    startTime: '',
+    endTime: '',
   };
 }
 
@@ -117,6 +163,14 @@ export function formatMonthLabel(monthKey: string): string {
 export function formatDateRange(event: Pick<CalendarEvent, 'endDate' | 'startDate'>): string {
   if (event.startDate === event.endDate) return formatDate(event.startDate);
   return `${formatDate(event.startDate)} to ${formatDate(event.endDate)}`;
+}
+
+export function formatEventSchedule(
+  event: Pick<CalendarEvent, 'endDate' | 'endTime' | 'startDate' | 'startTime'>,
+): string {
+  const dateRange = formatDateRange(event);
+  if (!event.startTime || !event.endTime) return dateRange;
+  return `${dateRange}, ${event.startTime} to ${event.endTime}`;
 }
 
 export function eventDayLabel(event: Pick<CalendarEvent, 'endDate' | 'startDate'>): string {

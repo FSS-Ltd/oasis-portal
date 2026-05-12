@@ -2,8 +2,10 @@ import { Archive, CalendarDays, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   audienceLabels,
+  categoryClassNames,
+  categoryLabels,
   eventDayLabel,
-  formatDateRange,
+  formatEventSchedule,
   type CalendarEvent,
 } from './calendar-model';
 
@@ -12,6 +14,7 @@ interface CalendarEventCardProps {
   event: CalendarEvent;
   onArchive: (eventId: string) => void;
   onEdit: (event: CalendarEvent) => void;
+  onView?: (event: CalendarEvent) => void;
   pendingArchive: boolean;
 }
 
@@ -20,11 +23,17 @@ export function CalendarEventCard({
   event,
   onArchive,
   onEdit,
+  onView,
   pendingArchive,
 }: CalendarEventCardProps) {
+  const canEdit = canManage && event.source === 'Manual';
+
   return (
     <article className={event.active ? 'calendar-card' : 'calendar-card is-archived'}>
-      <div className="calendar-card__date" aria-hidden="true">
+      <div
+        className={`calendar-card__date ${categoryClassNames[event.category]}`}
+        aria-hidden="true"
+      >
         <CalendarDays size={18} />
         <strong>{eventDayLabel(event)}</strong>
       </div>
@@ -33,11 +42,14 @@ export function CalendarEventCard({
           <div>
             <span className="badge-list">
               <span className="badge badge--blue">{audienceLabels[event.audience]}</span>
+              <span className={`calendar-category-badge ${categoryClassNames[event.category]}`}>
+                {categoryLabels[event.category]}
+              </span>
               {!event.active ? <span className="badge">Archived</span> : null}
             </span>
             <h2>{event.title}</h2>
           </div>
-          {canManage ? (
+          {canEdit ? (
             <div className="calendar-card__actions">
               <Button
                 aria-label={`Edit ${event.title}`}
@@ -68,8 +80,21 @@ export function CalendarEventCard({
               ) : null}
             </div>
           ) : null}
+          {!canManage && onView ? (
+            <Button
+              aria-label={`View ${event.title}`}
+              onClick={() => {
+                onView(event);
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              View
+            </Button>
+          ) : null}
         </div>
-        <p className="calendar-card__date-line">{formatDateRange(event)}</p>
+        <p className="calendar-card__date-line">{formatEventSchedule(event)}</p>
         {event.description ? <p>{event.description}</p> : null}
       </div>
     </article>

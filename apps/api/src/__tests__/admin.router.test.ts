@@ -71,6 +71,7 @@ function makeAdminUserRow(
     active: boolean;
     addressEnc: string | null;
     createdAt: Date;
+    dobEnc: string | null;
     emailEnc: string;
     fullNameEnc: string;
     guardianOf: {
@@ -89,6 +90,7 @@ function makeAdminUserRow(
     tags: ['attendance-exporter'],
     fullNameEnc: 'enc:Sam Supervisor',
     emailEnc: 'enc:sam@example.com',
+    dobEnc: null,
     phoneEnc: null,
     addressEnc: null,
     active: true,
@@ -647,6 +649,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: ['audit-viewer'],
         fullNameEnc: 'enc:Jean Head',
         emailEnc: 'enc:head@example.com',
+        dobEnc: null,
         phoneEnc: 'enc:07700 900123',
         addressEnc: null,
         active: true,
@@ -673,6 +676,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: ['audit-viewer'],
         fullName: 'Jean Head',
         email: 'head@example.com',
+        dob: null,
         phone: '07700 900123',
         address: null,
         active: true,
@@ -697,6 +701,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: true,
         fullNameEnc: true,
         emailEnc: true,
+        dobEnc: true,
         phoneEnc: true,
         addressEnc: true,
         active: true,
@@ -735,6 +740,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       tags: [],
       fullNameEnc: 'enc:Jane Parent',
       emailEnc: 'enc:jane@example.com',
+      dobEnc: null,
       phoneEnc: 'enc:07700 900456',
       addressEnc: null,
       active: true,
@@ -772,6 +778,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: true,
         fullNameEnc: true,
         emailEnc: true,
+        dobEnc: true,
         phoneEnc: true,
         addressEnc: true,
         active: true,
@@ -802,6 +809,39 @@ describe('admin.listUsers and admin.updateUserTags', () => {
           fields: ['addressEnc', 'fullNameEnc', 'phoneEnc'],
           source: 'admin.updateUserProfile',
         },
+      },
+    });
+  });
+
+  it('updates encrypted staff date of birth for full-admin callers', async () => {
+    const db = makeFakeDb();
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({ dobEnc: 'enc:1984-06-01', role: 'Supervisor' }),
+    );
+    const { caller } = makeCaller(headUser, { db });
+
+    await expect(
+      caller.admin.updateUserProfile({
+        userId: 'u_sup',
+        dob: '1984-06-01',
+      }),
+    ).resolves.toMatchObject({
+      id: 'u_sup',
+      dob: '1984-06-01',
+    });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'u_sup' },
+        data: { dobEnc: 'enc:1984-06-01' },
+      }),
+    );
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: 'u_sup',
+        meta: { fields: ['dobEnc'], source: 'admin.updateUserProfile' },
       },
     });
   });
@@ -851,6 +891,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: true,
         fullNameEnc: true,
         emailEnc: true,
+        dobEnc: true,
         phoneEnc: true,
         addressEnc: true,
         active: true,
@@ -1015,6 +1056,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
         tags: true,
         fullNameEnc: true,
         emailEnc: true,
+        dobEnc: true,
         phoneEnc: true,
         addressEnc: true,
         active: true,

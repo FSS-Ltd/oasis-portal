@@ -4,6 +4,7 @@ import { withEncryption } from './encryption.js';
 
 export {
   AuditAction,
+  CalendarEventCategory,
   CalendarEventAudience,
   ChildRegistrationPromptStatus,
   Prisma,

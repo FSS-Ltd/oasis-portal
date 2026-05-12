@@ -102,6 +102,7 @@ export function UserProfilePanel({
       userId: user.id,
       fullName: form.fullName,
       email: currentUserRole === 'Head' ? form.email : undefined,
+      dob: kind === 'supervisor' ? form.dob || null : undefined,
       phone: form.phone,
       address: form.address,
     });
@@ -205,6 +206,18 @@ export function UserProfilePanel({
                 </Field>
               </div>
               <div className="profile-field-list">
+                {kind === 'supervisor' ? (
+                  <Field label="Date of birth">
+                    <TextInput
+                      disabled={!editing}
+                      onChange={(event) => {
+                        setForm((current) => ({ ...current, dob: event.target.value }));
+                      }}
+                      type="date"
+                      value={form.dob}
+                    />
+                  </Field>
+                ) : null}
                 <Field label="Role">
                   {canChangeRole ? (
                     <SelectInput

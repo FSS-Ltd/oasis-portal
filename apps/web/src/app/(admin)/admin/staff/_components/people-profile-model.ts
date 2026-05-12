@@ -93,6 +93,7 @@ export function userForm(user: UserRow) {
   return {
     fullName: user.fullName,
     email: user.email,
+    dob: user.dob ?? '',
     phone: user.phone ?? '',
     address: user.address ?? '',
   };

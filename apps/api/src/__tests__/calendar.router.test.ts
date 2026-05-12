@@ -37,19 +37,35 @@ const technicalSupportUser: SessionUser = {
   requires2fa: false,
 };
 
-type CalendarAudience = 'All' | 'Parents' | 'Supervisors';
+type CalendarAudience = 'All' | 'Parents' | 'Supervisors' | 'Heads';
+type CalendarCategory = 'HalfTerm' | 'Trips' | 'OasisDays' | 'Birthdays' | 'Meetings' | 'Trainings';
 
 interface StoredCalendarEvent {
   id: string;
   title: string;
   descriptionEnc: string | null;
   audience: CalendarAudience;
+  category: CalendarCategory;
   startDate: Date;
   endDate: Date;
+  startTimeMinutes: number | null;
+  endTimeMinutes: number | null;
   active: boolean;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface StoredBirthdayStudent {
+  id: string;
+  fullNameEnc: string;
+  dobEnc: string;
+}
+
+interface StoredBirthdaySupervisor {
+  id: string;
+  fullNameEnc: string;
+  dobEnc: string | null;
 }
 
 interface FakeCalendarCreateArgs {
@@ -59,7 +75,7 @@ interface FakeCalendarCreateArgs {
 interface FakeCalendarFindManyArgs {
   where?: {
     active?: boolean;
-    audience?: { in: CalendarAudience[] };
+    audience?: { in?: CalendarAudience[]; not?: CalendarAudience };
   };
 }
 
@@ -101,8 +117,11 @@ function makeEvent(
   return {
     descriptionEnc: null,
     audience: 'All',
+    category: 'OasisDays',
     startDate: date('2026-05-20'),
     endDate: date('2026-05-20'),
+    startTimeMinutes: null,
+    endTimeMinutes: null,
     active: true,
     createdById: headUser.id,
     createdAt: new Date('2026-05-08T10:00:00.000Z'),
@@ -111,8 +130,16 @@ function makeEvent(
   } satisfies StoredCalendarEvent;
 }
 
-function makeFakeDb(initialEvents: StoredCalendarEvent[] = []) {
+function makeFakeDb(
+  initialEvents: StoredCalendarEvent[] = [],
+  birthdayRows: {
+    students?: StoredBirthdayStudent[];
+    supervisors?: StoredBirthdaySupervisor[];
+  } = {},
+) {
   const events = [...initialEvents];
+  const students = [...(birthdayRows.students ?? [])];
+  const supervisors = [...(birthdayRows.supervisors ?? [])];
   const auditCreate = vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args));
 
   return {
@@ -135,7 +162,8 @@ function makeFakeDb(initialEvents: StoredCalendarEvent[] = []) {
             .filter(
               (event) =>
                 (args.where?.active === undefined || event.active === args.where.active) &&
-                (!args.where?.audience || args.where.audience.in.includes(event.audience)),
+                (!args.where?.audience?.in || args.where.audience.in.includes(event.audience)) &&
+                (!args.where?.audience?.not || event.audience !== args.where.audience.not),
             )
             .sort(
               (a, b) =>
@@ -161,6 +189,12 @@ function makeFakeDb(initialEvents: StoredCalendarEvent[] = []) {
         events[index] = updated;
         return Promise.resolve(updated);
       }),
+    },
+    student: {
+      findMany: vi.fn(() => Promise.resolve(students)),
+    },
+    user: {
+      findMany: vi.fn(() => Promise.resolve(supervisors)),
     },
     events,
   };
@@ -189,17 +223,24 @@ describe('calendar.create', () => {
         title: '  Half-term reminder  ',
         description: '  Centre closed.  ',
         audience: 'All',
+        category: 'HalfTerm',
         startDate: '2026-05-25',
+        startTime: '09:00',
+        endTime: '10:30',
       }),
     ).resolves.toMatchObject({
       id: 'cmevent00000000000000001',
       title: 'Half-term reminder',
       description: 'Centre closed.',
       audience: 'All',
+      category: 'HalfTerm',
       startDate: '2026-05-25',
       endDate: '2026-05-25',
+      startTime: '09:00',
+      endTime: '10:30',
       active: true,
       createdById: headUser.id,
+      source: 'Manual',
     });
     expect(db.events[0]?.descriptionEnc).toBe('enc:Centre closed.');
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -211,8 +252,11 @@ describe('calendar.create', () => {
         meta: {
           source: 'calendar.create',
           audience: 'All',
+          category: 'HalfTerm',
           startDate: '2026-05-25',
           endDate: '2026-05-25',
+          startTime: '09:00',
+          endTime: '10:30',
         },
       },
     });
@@ -225,12 +269,14 @@ describe('calendar.create', () => {
       caller.calendar.create({
         title: 'Half-term',
         audience: 'Parents',
+        category: 'OasisDays',
         startDate: '2026-05-25',
         endDate: '2026-05-29',
       }),
     ).resolves.toMatchObject({
       title: 'Half-term',
       audience: 'Parents',
+      category: 'OasisDays',
       startDate: '2026-05-25',
       endDate: '2026-05-29',
     });
@@ -243,6 +289,7 @@ describe('calendar.create', () => {
       caller.calendar.create({
         title: 'Bad range',
         audience: 'All',
+        category: 'OasisDays',
         startDate: '2026-05-29',
         endDate: '2026-05-25',
       }),
@@ -254,6 +301,7 @@ describe('calendar.create', () => {
       makeCaller(principalUser).caller.calendar.create({
         title: 'Principal date',
         audience: 'Supervisors',
+        category: 'OasisDays',
         startDate: '2026-05-25',
       }),
     ).resolves.toMatchObject({ title: 'Principal date', createdById: principalUser.id });
@@ -261,6 +309,7 @@ describe('calendar.create', () => {
       makeCaller(supervisorUser).caller.calendar.create({
         title: 'Staff date',
         audience: 'Supervisors',
+        category: 'OasisDays',
         startDate: '2026-05-25',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -268,6 +317,65 @@ describe('calendar.create', () => {
       makeCaller(technicalSupportUser).caller.calendar.create({
         title: 'Support date',
         audience: 'All',
+        category: 'OasisDays',
+        startDate: '2026-05-25',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('rejects birthday as a manual category and invalid time ranges', async () => {
+    const { caller } = makeCaller(headUser);
+    const createWithUnknownInput = caller.calendar.create as unknown as (
+      input: unknown,
+    ) => Promise<unknown>;
+
+    await expect(
+      createWithUnknownInput({
+        title: 'Manual birthday',
+        audience: 'Heads',
+        category: 'Birthdays',
+        startDate: '2026-05-25',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      caller.calendar.create({
+        title: 'Training',
+        audience: 'Supervisors',
+        category: 'Trainings',
+        startDate: '2026-05-25',
+        startTime: '11:00',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      caller.calendar.create({
+        title: 'Training',
+        audience: 'Supervisors',
+        category: 'Trainings',
+        startDate: '2026-05-25',
+        endDate: '2026-05-26',
+        startTime: '09:00',
+        endTime: '10:00',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('limits head-only manual events to full-admin calendar managers', async () => {
+    await expect(
+      makeCaller(headUser).caller.calendar.create({
+        title: 'Heads meeting',
+        audience: 'Heads',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+      }),
+    ).resolves.toMatchObject({ audience: 'Heads', category: 'Meetings' });
+
+    await expect(
+      makeCaller(calendarManagerUser).caller.calendar.create({
+        title: 'Heads meeting',
+        audience: 'Heads',
+        category: 'Meetings',
         startDate: '2026-05-25',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -279,6 +387,7 @@ describe('calendar reader lists', () => {
     makeEvent({ id: 'event_all', title: 'All portals', audience: 'All' }),
     makeEvent({ id: 'event_parent', title: 'Parents only', audience: 'Parents' }),
     makeEvent({ id: 'event_staff', title: 'Staff only', audience: 'Supervisors' }),
+    makeEvent({ id: 'event_heads', title: 'Heads only', audience: 'Heads' }),
     makeEvent({ id: 'event_archived', title: 'Archived', active: false, audience: 'All' }),
   ];
 
@@ -294,6 +403,9 @@ describe('calendar reader lists', () => {
     const result = await caller.calendar.listForParents();
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_staff' })]),
+    );
+    expect(result).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_heads' })]),
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_archived' })]),
@@ -312,6 +424,9 @@ describe('calendar reader lists', () => {
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_parent' })]),
+    );
+    expect(result).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_heads' })]),
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_archived' })]),
@@ -341,6 +456,7 @@ describe('calendar reader lists', () => {
       expect.arrayContaining([
         expect.objectContaining({ id: 'event_all' }),
         expect.objectContaining({ id: 'event_staff' }),
+        expect.objectContaining({ id: 'event_heads' }),
       ]),
     );
     expect(staffResult).not.toEqual(
@@ -362,6 +478,43 @@ describe('calendar reader lists', () => {
       code: 'FORBIDDEN',
     });
   });
+
+  it('adds virtual birthday events only for full-admin head roles', async () => {
+    const db = makeFakeDb([], {
+      students: [{ id: 'student_1', fullNameEnc: 'enc:Grace Williams', dobEnc: 'enc:2014-05-20' }],
+      supervisors: [
+        { id: 'supervisor_1', fullNameEnc: 'enc:Mrs Thompson', dobEnc: 'enc:1984-06-01' },
+      ],
+    });
+
+    const headResult = await makeCaller(headUser, db).caller.calendar.listForAdmin();
+    const studentBirthday = headResult.find((event) =>
+      event.id.startsWith('birthday:student:student_1'),
+    );
+    const supervisorBirthday = headResult.find((event) =>
+      event.id.startsWith('birthday:supervisor:supervisor_1'),
+    );
+    expect(studentBirthday).toMatchObject({
+      category: 'Birthdays',
+      source: 'Birthday',
+      personType: 'Student',
+      audience: 'Heads',
+      title: "Grace Williams's birthday",
+    });
+    expect(supervisorBirthday).toMatchObject({
+      category: 'Birthdays',
+      source: 'Birthday',
+      personType: 'Supervisor',
+      audience: 'Heads',
+      title: "Mrs Thompson's birthday",
+    });
+
+    const managerResult = await makeCaller(calendarManagerUser, db).caller.calendar.listForAdmin();
+    expect(managerResult).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ source: 'Birthday' })]),
+    );
+    await expect(makeCaller(parentUser, db).caller.calendar.listVisible()).resolves.toEqual([]);
+  });
 });
 
 describe('calendar.update and calendar.archive', () => {
@@ -375,6 +528,7 @@ describe('calendar.update and calendar.archive', () => {
         title: 'Updated',
         description: 'New details',
         audience: 'Supervisors',
+        category: 'Meetings',
         startDate: '2026-06-01',
         endDate: '2026-06-02',
       }),
@@ -383,6 +537,7 @@ describe('calendar.update and calendar.archive', () => {
       title: 'Updated',
       description: 'New details',
       audience: 'Supervisors',
+      category: 'Meetings',
       startDate: '2026-06-01',
       endDate: '2026-06-02',
     });
@@ -395,10 +550,33 @@ describe('calendar.update and calendar.archive', () => {
         meta: {
           source: 'calendar.update',
           audience: 'Supervisors',
+          category: 'Meetings',
           startDate: '2026-06-01',
           endDate: '2026-06-02',
+          startTime: null,
+          endTime: null,
         },
       },
+    });
+  });
+
+  it('prevents tagged calendar managers from updating or archiving head-only events', async () => {
+    const db = makeFakeDb([
+      makeEvent({ id: 'event_heads', title: 'Heads only', audience: 'Heads' }),
+    ]);
+    const { caller } = makeCaller(calendarManagerUser, db);
+
+    await expect(
+      caller.calendar.update({
+        id: 'event_heads',
+        title: 'Updated',
+        audience: 'Supervisors',
+        category: 'Meetings',
+        startDate: '2026-06-01',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(caller.calendar.archive({ id: 'event_heads' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
     });
   });
 
