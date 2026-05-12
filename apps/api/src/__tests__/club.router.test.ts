@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@oasis/db';
-import type { SessionUser } from '@oasis/domain';
+import type { Role, SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { clubRouter } from '../routers/club.js';
+import type { EmailClient } from '../lib/email.js';
+import { createClubRouter } from '../routers/club.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = {
@@ -74,6 +75,14 @@ interface StoredGuardian {
   studentId: string;
 }
 
+interface StoredUser {
+  id: string;
+  role: Role;
+  active: boolean;
+  fullNameEnc: string;
+  emailEnc: string;
+}
+
 interface StoredSignup {
   id: string;
   clubId: string;
@@ -84,6 +93,15 @@ interface StoredSignup {
   withdrawnAt: Date | null;
 }
 
+interface StoredClubNotification {
+  id: string;
+  clubId: string;
+  title: string;
+  bodyEnc: string;
+  sentById: string;
+  sentAt: Date;
+}
+
 interface FakeClubFindManyArgs {
   where?: { active?: boolean };
   include?: FakeClubInclude;
@@ -92,7 +110,7 @@ interface FakeClubFindManyArgs {
 interface FakeClubFindUniqueArgs {
   where: { id: string };
   include?: FakeClubInclude;
-  select?: { id?: true };
+  select?: { id?: true; signups?: object };
 }
 
 interface FakeClubInclude {
@@ -165,14 +183,24 @@ interface FakeAuditCreateArgs {
   data: {
     userId: string;
     action: 'Create' | 'Update' | 'DecryptPii';
-    entity: 'Club' | 'ClubSignup' | 'Student';
+    entity: 'Club' | 'ClubSignup' | 'Student' | 'ClubNotification' | 'Email';
     entityId?: string | null;
     meta?: Record<string, unknown>;
   };
 }
 
+interface FakeClubNotificationCreateArgs {
+  data: {
+    clubId: string;
+    title: string;
+    bodyEnc: string;
+    sentById: string;
+  };
+}
+
 interface FakeDb {
   $enc: {
+    encrypt: (value: string) => string;
     decrypt: (value: string | null | undefined) => string | null;
   };
   $transaction: ReturnType<typeof vi.fn>;
@@ -188,6 +216,9 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  clubNotification: {
+    create: ReturnType<typeof vi.fn>;
+  };
   student: { findUnique: ReturnType<typeof vi.fn> };
   guardian: {
     findMany: ReturnType<typeof vi.fn>;
@@ -196,7 +227,9 @@ interface FakeDb {
   clubs: StoredClub[];
   students: StoredStudent[];
   guardians: StoredGuardian[];
+  users: StoredUser[];
   signups: StoredSignup[];
+  notifications: StoredClubNotification[];
 }
 
 function encrypt(value: string): string {
@@ -243,17 +276,49 @@ function makeSignup(
   } satisfies StoredSignup;
 }
 
+function makeUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>): StoredUser {
+  const label = input.role === 'Parent' ? 'Parent Guardian' : `${input.role} User`;
+  return {
+    active: true,
+    fullNameEnc: encrypt(label),
+    emailEnc: encrypt(`${input.id}@example.com`),
+    ...input,
+  };
+}
+
 const defaultClubId = 'cclub000000000000000001';
 const inactiveClubId = 'cclub000000000000000002';
 const linkedStudentId = 'cstudent000000000000001';
 const otherStudentId = 'cstudent000000000000002';
+
+const defaultUsers = [
+  makeUser({ id: headUser.id, role: headUser.role, fullNameEnc: encrypt('Head User') }),
+  makeUser({
+    id: clubsAdminUser.id,
+    role: clubsAdminUser.role,
+    fullNameEnc: encrypt('Clubs Admin'),
+  }),
+  makeUser({ id: parentUser.id, role: parentUser.role, fullNameEnc: encrypt('Jane Parent') }),
+  makeUser({
+    id: otherParentUser.id,
+    role: otherParentUser.role,
+    fullNameEnc: encrypt('Other Parent'),
+  }),
+  makeUser({
+    id: supervisorUser.id,
+    role: supervisorUser.role,
+    fullNameEnc: encrypt('Supervisor User'),
+  }),
+];
 
 function makeFakeDb(
   input: {
     clubs?: StoredClub[];
     students?: StoredStudent[];
     guardians?: StoredGuardian[];
+    users?: StoredUser[];
     signups?: StoredSignup[];
+    notifications?: StoredClubNotification[];
   } = {},
 ): FakeDb {
   const clubs = input.clubs ?? [
@@ -265,10 +330,12 @@ function makeFakeDb(
     makeStudent({ id: otherStudentId, fullNameEnc: encrypt('Other Learner'), yearGroup: 'Year 8' }),
   ];
   const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
+  const users = input.users ?? defaultUsers;
   const signups = input.signups ?? [];
+  const notifications = input.notifications ?? [];
 
   const db = {
-    $enc: { decrypt },
+    $enc: { encrypt, decrypt },
     $transaction: vi.fn(),
     auditLog: {
       create: vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args)),
@@ -285,7 +352,12 @@ function makeFakeDb(
       findUnique: vi.fn((args: FakeClubFindUniqueArgs) => {
         const club = clubs.find((candidate) => candidate.id === args.where.id);
         if (!club) return Promise.resolve(null);
-        if (args.select?.id) return Promise.resolve({ id: club.id });
+        if (args.select?.id && !args.select.signups) return Promise.resolve({ id: club.id });
+        if (args.select?.signups) {
+          return Promise.resolve(
+            withNotificationRecipients(club, signups, students, guardians, users),
+          );
+        }
         return Promise.resolve(withIncludedSignups(club, args.include, signups, students));
       }),
       create: vi.fn((args: FakeClubCreateArgs) => {
@@ -353,6 +425,22 @@ function makeFakeDb(
         return Promise.resolve(signup);
       }),
     },
+    clubNotification: {
+      create: vi.fn((args: FakeClubNotificationCreateArgs) => {
+        const notification: StoredClubNotification = {
+          id: `cnotification000000${String(notifications.length + 1).padStart(6, '0')}`,
+          sentAt: new Date('2026-05-11T14:00:00.000Z'),
+          ...args.data,
+        };
+        notifications.push(notification);
+        return Promise.resolve({
+          id: notification.id,
+          clubId: notification.clubId,
+          title: notification.title,
+          sentAt: notification.sentAt,
+        });
+      }),
+    },
     student: {
       findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
         Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
@@ -401,7 +489,9 @@ function makeFakeDb(
     clubs,
     students,
     guardians,
+    users,
     signups,
+    notifications,
   } satisfies FakeDb;
 
   db.$transaction.mockImplementation(async <T>(fn: (tx: FakeDb) => Promise<T>) => fn(db));
@@ -428,6 +518,51 @@ function withIncludedSignups(
   return { ...club, signups: clubSignups };
 }
 
+function withNotificationRecipients(
+  club: StoredClub,
+  signups: StoredSignup[],
+  students: StoredStudent[],
+  guardians: StoredGuardian[],
+  users: StoredUser[],
+) {
+  return {
+    id: club.id,
+    name: club.name,
+    active: club.active,
+    signups: signups
+      .filter((signup) => signup.clubId === club.id && signup.status === 'Active')
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((signup) => {
+        const student = students.find((candidate) => candidate.id === signup.studentId);
+        if (!student) throw new Error('student not found');
+
+        return {
+          student: {
+            id: student.id,
+            fullNameEnc: student.fullNameEnc,
+            guardians: guardians
+              .filter((guardian) => guardian.studentId === student.id)
+              .map((guardian) => {
+                const user = users.find(
+                  (candidate) => candidate.id === guardian.userId && candidate.active,
+                );
+                if (!user) return null;
+                return {
+                  user: {
+                    id: user.id,
+                    role: user.role,
+                    fullNameEnc: user.fullNameEnc,
+                    emailEnc: user.emailEnc,
+                  },
+                };
+              })
+              .filter((guardian): guardian is NonNullable<typeof guardian> => guardian !== null),
+          },
+        };
+      }),
+  };
+}
+
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   return {
     db: db as unknown as AppContext['db'],
@@ -437,9 +572,15 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
-  const appRouter = router({ club: clubRouter });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db };
+function makeFakeEmailClient(result = { id: 'email_123' }) {
+  const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
+  const client: EmailClient = { send };
+  return { client, send };
+}
+
+function makeCaller(user: SessionUser | null, db = makeFakeDb(), email = makeFakeEmailClient()) {
+  const appRouter = router({ club: createClubRouter({ emailClient: email.client }) });
+  return { caller: appRouter.createCaller(makeCtx(user, db)), db, email };
 }
 
 function auditEntities(
@@ -453,6 +594,10 @@ function auditEntities(
       entityId: audit.data.entityId ?? null,
     };
   });
+}
+
+function auditCreateArgs(db: FakeDb): FakeAuditCreateArgs[] {
+  return db.auditLog.create.mock.calls.map(([args]) => args as FakeAuditCreateArgs);
 }
 
 describe('club management', () => {
@@ -991,4 +1136,276 @@ describe('club.roster', () => {
       });
     },
   );
+});
+
+describe('club.notify', () => {
+  it('allows ClubsAdmin users to notify active signup guardians and stores encrypted body', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: parentUser.id, studentId: linkedStudentId }],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+    const { caller, email } = makeCaller(clubsAdminUser, db);
+
+    await expect(
+      caller.club.notify({
+        clubId: defaultClubId,
+        title: '  Bring water  ',
+        body: '  Please bring a labelled water bottle.  ',
+      }),
+    ).resolves.toEqual({
+      id: 'cnotification000000000001',
+      clubId: defaultClubId,
+      title: 'Bring water',
+      sentAt: new Date('2026-05-11T14:00:00.000Z'),
+      recipientCount: 1,
+      sentCount: 1,
+      failedCount: 0,
+    });
+
+    expect(db.notifications).toEqual([
+      expect.objectContaining({
+        bodyEnc: 'enc:Please bring a labelled water bottle.',
+        sentById: clubsAdminUser.id,
+        title: 'Bring water',
+      }),
+    ]);
+    const sentEmail = email.send.mock.calls[0]?.[0];
+    if (!sentEmail) throw new Error('expected notification email');
+    expect(sentEmail.to).toBe(`${parentUser.id}@example.com`);
+    expect(sentEmail.subject).toBe('Oasis Portal club notification');
+    expect(sentEmail.text).toContain('Please bring a labelled water bottle.');
+
+    const notificationAudit = auditCreateArgs(db).find(
+      (args) => args.data.entity === 'ClubNotification' && args.data.action === 'Create',
+    );
+    expect(notificationAudit?.data).toMatchObject({
+      entityId: 'cnotification000000000001',
+      meta: {
+        clubId: defaultClubId,
+        recipientCount: 1,
+        source: 'club.notify',
+      },
+    });
+    const emailAudit = auditCreateArgs(db).find((args) => args.data.entity === 'Email');
+    expect(emailAudit?.data).toMatchObject({
+      entity: 'Email',
+      meta: {
+        clubId: defaultClubId,
+        emailStatus: 'Sent',
+        notificationId: 'cnotification000000000001',
+        source: 'club.notify.email',
+        toUserId: parentUser.id,
+      },
+    });
+    expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain('Jane Parent');
+    expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain(
+      'Please bring a labelled water bottle.',
+    );
+  });
+
+  it('allows Head users to send club notifications', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(headUser, db).caller.club.notify({
+        clubId: defaultClubId,
+        title: 'Choir update',
+        body: 'Practice starts at 4pm.',
+      }),
+    ).resolves.toMatchObject({
+      recipientCount: 1,
+      sentCount: 1,
+      failedCount: 0,
+    });
+  });
+
+  it('rejects inactive clubs before storing or sending notification email', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: inactiveClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+    const { caller, email } = makeCaller(clubsAdminUser, db);
+
+    await expect(
+      caller.club.notify({
+        clubId: inactiveClubId,
+        title: 'Inactive update',
+        body: 'This should not send.',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'club is inactive',
+    });
+    expect(db.notifications).toHaveLength(0);
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it.each([parentUser, supervisorUser])('blocks %s from sending notifications', async (user) => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+    const { caller, email } = makeCaller(user, db);
+
+    await expect(
+      caller.club.notify({
+        clubId: defaultClubId,
+        title: 'Choir update',
+        body: 'Practice starts at 4pm.',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.notifications).toHaveLength(0);
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('stores and audits notification attempts with no recipients without sending email', async () => {
+    const db = makeFakeDb({ signups: [] });
+    const { caller, email } = makeCaller(clubsAdminUser, db);
+
+    await expect(
+      caller.club.notify({
+        clubId: defaultClubId,
+        title: 'No roster yet',
+        body: 'No one is signed up yet.',
+      }),
+    ).resolves.toMatchObject({
+      recipientCount: 0,
+      sentCount: 0,
+      failedCount: 0,
+    });
+    expect(db.notifications).toHaveLength(1);
+    expect(email.send).not.toHaveBeenCalled();
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: clubsAdminUser.id,
+        action: 'Create',
+        entity: 'ClubNotification',
+        entityId: 'cnotification000000000001',
+        meta: {
+          source: 'club.notify',
+          clubId: defaultClubId,
+          recipientCount: 0,
+        },
+      },
+    });
+  });
+
+  it('dedupes guardians linked to more than one signed-up child', async () => {
+    const db = makeFakeDb({
+      guardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
+      ],
+    });
+    const { caller, email } = makeCaller(clubsAdminUser, db);
+
+    await expect(
+      caller.club.notify({
+        clubId: defaultClubId,
+        title: 'Family update',
+        body: 'Shared club update.',
+      }),
+    ).resolves.toMatchObject({
+      recipientCount: 1,
+      sentCount: 1,
+      failedCount: 0,
+    });
+    expect(email.send).toHaveBeenCalledTimes(1);
+    expect(email.send.mock.calls[0]?.[0].text).toContain('Linked Learner, Other Learner');
+  });
+
+  it('audits email failures and returns partial counts without throwing', async () => {
+    const db = makeFakeDb({
+      guardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: otherParentUser.id, studentId: otherStudentId },
+      ],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
+      ],
+    });
+    const failingEmail = makeFakeEmailClient();
+    failingEmail.send
+      .mockResolvedValueOnce({ id: 'email_sent' })
+      .mockRejectedValueOnce(new Error('resend unavailable'));
+    const { caller } = makeCaller(clubsAdminUser, db, failingEmail);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(
+        caller.club.notify({
+          clubId: defaultClubId,
+          title: 'Partial update',
+          body: 'One email provider call fails.',
+        }),
+      ).resolves.toMatchObject({
+        recipientCount: 2,
+        sentCount: 1,
+        failedCount: 1,
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    const failureAudit = auditCreateArgs(db).find(
+      (args) =>
+        args.data.entity === 'ClubNotification' &&
+        args.data.action === 'Update' &&
+        args.data.meta?.['emailStatus'] === 'Failed',
+    );
+    expect(failureAudit?.data).toMatchObject({
+      entityId: 'cnotification000000000001',
+      meta: {
+        clubId: defaultClubId,
+        emailStatus: 'Failed',
+        source: 'club.notify.email',
+        toUserId: otherParentUser.id,
+      },
+    });
+  });
 });

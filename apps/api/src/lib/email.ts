@@ -6,6 +6,10 @@ import {
   buildBehaviourNotificationEmailText,
 } from '../emails/behaviour-notification-email.js';
 import {
+  buildClubNotificationEmailText,
+  ClubNotificationEmail,
+} from '../emails/club-notification-email.js';
+import {
   buildMessageNotificationEmailText,
   MessageNotificationEmail,
 } from '../emails/message-notification-email.js';
@@ -23,6 +27,7 @@ export const HELLO_WORLD_EMAIL_SUBJECT = SMOKE_TEST_EMAIL_SUBJECT;
 export const USER_INVITE_EMAIL_SUBJECT = 'Your Oasis Portal invitation';
 export const MESSAGE_NOTIFICATION_EMAIL_SUBJECT = 'New Oasis Portal message';
 export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour update';
+export const CLUB_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal club notification';
 
 export interface EmailEnv {
   [key: string]: string | undefined;
@@ -267,5 +272,37 @@ export function buildBehaviourNotificationEmail(
       ...logoProps(logoUrl),
     }),
     text: buildBehaviourNotificationEmailText(commonProps),
+  };
+}
+
+export interface ClubNotificationEmailInput {
+  body: string;
+  childNames: string[];
+  clubName: string;
+  logoUrl?: string;
+  recipientName?: string;
+  title: string;
+  to: string;
+}
+
+export function buildClubNotificationEmail(input: ClubNotificationEmailInput): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    body: input.body,
+    childNames: input.childNames,
+    clubName: input.clubName,
+    title: input.title,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: CLUB_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(ClubNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildClubNotificationEmailText(commonProps),
   };
 }
