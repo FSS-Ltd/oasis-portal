@@ -11,8 +11,14 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
 import { downloadCsv } from './download-csv';
+import {
+  absenceReasonLabels,
+  absenceReasons,
+  attendanceStatusLabel,
+  attendanceStatuses,
+  type AbsenceReason,
+} from './attendance-options';
 
-const attendanceStatuses = ['Present', 'Absent', 'Late'] as const;
 const UNBANDED_FILTER = '__unbanded';
 
 type AttendanceStatus = (typeof attendanceStatuses)[number];
@@ -23,6 +29,8 @@ type AttendanceRow = {
   yearGroup: string;
   date: string;
   status: AttendanceStatus | null;
+  absenceReason: AbsenceReason | null;
+  absenceReasonLabel: string | null;
   recordedAt: Date | null;
 };
 
@@ -80,6 +88,7 @@ export function AttendanceCapture({
   const [internalSelectedDate, setInternalSelectedDate] = useState(todayKey);
   const [selectedBand, setSelectedBand] = useState('all');
   const [selectedStatuses, setSelectedStatuses] = useState<Record<string, AttendanceStatus>>({});
+  const [selectedReasons, setSelectedReasons] = useState<Record<string, AbsenceReason>>({});
   const [pendingRows, setPendingRows] = useState<Record<string, boolean>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const selectedDate = controlledSelectedDate ?? internalSelectedDate;
@@ -106,13 +115,20 @@ export function AttendanceCapture({
     return band?.id === selectedBand;
   });
 
-  async function markAttendance(row: AttendanceRow, status: AttendanceStatus) {
+  async function markAttendance(
+    row: AttendanceRow,
+    status: AttendanceStatus,
+    absenceReason?: AbsenceReason,
+  ) {
     setSelectedStatuses((current) => ({ ...current, [row.studentId]: status }));
+    if (absenceReason) {
+      setSelectedReasons((current) => ({ ...current, [row.studentId]: absenceReason }));
+    }
     setPendingRows((current) => ({ ...current, [row.studentId]: true }));
     setRowErrors((current) => withoutRecordKey(current, row.studentId));
 
     try {
-      await markMutation.mutateAsync({ studentId: row.studentId, date, status });
+      await markMutation.mutateAsync({ studentId: row.studentId, date, status, absenceReason });
       await utils.attendance.forDate.invalidate({ date });
     } catch (err) {
       setRowErrors((current) => ({
@@ -128,7 +144,10 @@ export function AttendanceCapture({
     rows.length === 0 ? (
       <EmptyState detail={emptyMessage} title="No active students found" />
     ) : (
-      <EmptyState detail="Choose another band or return to all bands." title="No students in this band" />
+      <EmptyState
+        detail="Choose another band or return to all bands."
+        title="No students in this band"
+      />
     );
 
   const columns: DataTableColumn<AttendanceRow>[] = [
@@ -173,12 +192,15 @@ export function AttendanceCapture({
       header: 'Status',
       render: (row) => {
         const selectedStatus = selectedStatuses[row.studentId] ?? row.status;
+        const selectedReason = selectedReasons[row.studentId] ?? row.absenceReason;
         const pending = pendingRows[row.studentId] ?? false;
         const rowError = rowErrors[row.studentId];
 
         return (
           <>
-            <Badge tone={selectedStatus ? 'green' : 'amber'}>{selectedStatus ?? 'Unmarked'}</Badge>
+            <Badge tone={selectedStatus === 'Absent' ? 'red' : selectedStatus ? 'green' : 'amber'}>
+              {attendanceStatusLabel(selectedStatus, selectedReason, row.absenceReasonLabel)}
+            </Badge>
             {pending ? <span className="attendance-row-note">Saving...</span> : null}
             {rowError ? <span className="attendance-row-error">{rowError}</span> : null}
           </>
@@ -189,7 +211,11 @@ export function AttendanceCapture({
       id: 'recorded',
       header: 'Recorded',
       render: (row) =>
-        row.recordedAt ? row.recordedAt.toLocaleString() : <span className="muted">Not recorded</span>,
+        row.recordedAt ? (
+          row.recordedAt.toLocaleString()
+        ) : (
+          <span className="muted">Not recorded</span>
+        ),
     },
   );
 
@@ -199,25 +225,56 @@ export function AttendanceCapture({
       header: <span className="sr-only">Mark attendance</span>,
       render: (row) => {
         const selectedStatus = selectedStatuses[row.studentId] ?? row.status;
+        const selectedReason = selectedReasons[row.studentId] ?? row.absenceReason ?? '';
         const pending = pendingRows[row.studentId] ?? false;
 
         return (
-          <div className="segmented-actions">
-            {attendanceStatuses.map((status) => (
-              <Button
-                className={selectedStatus === status ? 'is-selected' : undefined}
+          <div className="attendance-action-stack">
+            <div className="segmented-actions">
+              {attendanceStatuses.map((status) => (
+                <Button
+                  className={selectedStatus === status ? 'is-selected' : undefined}
+                  disabled={pending}
+                  key={status}
+                  onClick={() => {
+                    if (status === 'Absent') {
+                      setSelectedStatuses((current) => ({ ...current, [row.studentId]: status }));
+                      setRowErrors((current) => withoutRecordKey(current, row.studentId));
+                      return;
+                    }
+                    setSelectedReasons((current) => withoutRecordKey(current, row.studentId));
+                    void markAttendance(row, status);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant={selectedStatus === status ? 'primary' : 'secondary'}
+                >
+                  {status}
+                </Button>
+              ))}
+            </div>
+            {selectedStatus === 'Absent' ? (
+              <SelectInput
+                aria-label={`Absence reason for ${row.studentName}`}
                 disabled={pending}
-                key={status}
-                onClick={() => {
-                  void markAttendance(row, status);
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) return;
+                  const reason = value as AbsenceReason;
+                  setSelectedReasons((current) => ({ ...current, [row.studentId]: reason }));
+                  void markAttendance(row, 'Absent', reason);
                 }}
-                size="sm"
-                type="button"
-                variant={selectedStatus === status ? 'primary' : 'secondary'}
+                required
+                value={selectedReason}
               >
-                {status}
-              </Button>
-            ))}
+                <option value="">Choose reason</option>
+                {absenceReasons.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {absenceReasonLabels[reason]}
+                  </option>
+                ))}
+              </SelectInput>
+            ) : null}
           </div>
         );
       },

@@ -1,9 +1,9 @@
-import { CalendarCheck, Download } from 'lucide-react';
+import { BarChart3, CalendarCheck } from 'lucide-react';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { canExportAttendance, canRecordStudentAttendance, isFullAdmin } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminShellUser } from '@/components/admin/require-full-admin';
-import { AttendanceExportCentre } from './attendance-export-centre';
 import { AttendanceRoster } from './attendance-roster';
 
 export default async function AttendancePage() {
@@ -18,8 +18,8 @@ export default async function AttendancePage() {
       <div className="page-header">
         <div>
           <p>Daily register</p>
-          <h1>Attendance</h1>
-          <p>Record today&apos;s student attendance and export attendance records.</p>
+          <h1>Student attendance</h1>
+          <p>Record the daily student register with required absence reasons.</p>
         </div>
         <div className="page-header__actions">
           {canReadRegister ? (
@@ -28,15 +28,22 @@ export default async function AttendancePage() {
               Student register
             </span>
           ) : null}
-          <span className="badge badge--blue">
-            <Download aria-hidden="true" size={14} />
-            CSV
-          </span>
+          {isFullAdmin(user) ? (
+            <Link className="badge badge--blue" href="/admin/attendance/staff">
+              <CalendarCheck aria-hidden="true" size={14} />
+              Staff register
+            </Link>
+          ) : null}
+          {canExport ? (
+            <Link className="badge badge--blue" href="/admin/attendance/center">
+              <BarChart3 aria-hidden="true" size={14} />
+              Attendance center
+            </Link>
+          ) : null}
         </div>
       </div>
       <div className="attendance-page-stack">
-        {canExport ? <AttendanceExportCentre /> : null}
-        {canReadRegister ? <AttendanceRoster canExport={canExport} canRecord={canRecord} /> : null}
+        {canReadRegister ? <AttendanceRoster canExport={false} canRecord={canRecord} /> : null}
       </div>
     </MotionPage>
   );

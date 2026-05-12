@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-12
 **Agent:** Technical Agent (Codex)
-**Phase:** Calendar categories and birthday visibility implementation ready for review.
+**Phase:** Supervisor attendance and attendance insight center ready for review.
 
 ---
 
@@ -18,7 +18,56 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - Calendar categories and birthday visibility
+## Current status - Supervisor attendance and attendance insight center
+
+Working branch: `feat/supervisor-attendance-insights-visible`.
+
+**PR scope:** Expand attendance so Head/full-admin users can mark student and
+staff attendance in separate registers, require absence subcategories for new
+Absent records, and view student/supervisor attendance trends on a separate
+visual-only attendance center page.
+
+Changed scope:
+
+- Added nullable `absenceReason` fields to student and staff attendance with
+  the subcategories Sick, Holiday, Not scheduled, Excused, and Unexcused.
+- Preserved legacy Absent rows without a reason; reports and insights surface
+  them as Unknown until manually updated.
+- Extended attendance APIs to return absence reasons, require them for new
+  Absent saves, clear them for Present/Late, and keep existing CSV endpoints
+  available for backward compatibility.
+- Added a rota-backed staff attendance register at `/admin/attendance/staff`
+  so scheduled supervisors appear by day and unscheduled staff who came in can
+  be added as Present.
+- Kept the student register on `/admin/attendance` and moved the view-only
+  visual center to `/admin/attendance/center`.
+- The visual center contains Students/Supervisors tabs, aggregate summaries,
+  trend charts, status breakdowns, absence reason breakdowns, and individual
+  drilldown.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate` - pass.
+- `DATABASE_URL=postgresql://user:pass@localhost:5432/oasis DIRECT_URL=postgresql://user:pass@localhost:5432/oasis pnpm --filter @oasis/db exec prisma validate` - pass.
+- `pnpm --filter @oasis/api test -- attendance.router.test.ts` - pass, ran all
+  API tests because of package-script argument handling: 18 files / 358 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm exec prettier --check ...` for changed TS/TSX/CSS files - pass.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- Prisma validation used explicit placeholder `DATABASE_URL` and `DIRECT_URL`
+  values because this clean worktree does not include local env files.
+- The browser smoke check could start the dev server, but authenticated
+  attendance pages redirected to the app's unauthenticated 404 path without a
+  Clerk session.
+
+## Previous status - Calendar categories and birthday visibility
 
 Working branch: `feat/calendar-categories-birthdays`.
 
