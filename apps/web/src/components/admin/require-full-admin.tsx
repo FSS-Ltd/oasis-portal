@@ -4,7 +4,6 @@ import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
 import {
   AccessDeniedError,
-  canAnswerChildRegistrationPrompt,
   canExportAttendance,
   canManageCalendar,
   canManageClubs,
@@ -12,6 +11,7 @@ import {
   canSubmitInitialRegistration,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
+  canUseLinkedChildClubSignup,
   canUseFullPaceAccess,
   canManageUserAccounts,
   isFullAdmin,
@@ -190,8 +190,7 @@ export async function linkedChildCount(userId: string): Promise<number> {
 export async function getLinkedChildPortalUser(): Promise<SessionUser> {
   const user = await getSessionUser({ ensureDevHead: false });
   if (!user) notFound();
-  if (user.role === 'Parent') return user;
-  if (!canAnswerChildRegistrationPrompt(user)) notFound();
+  if (!canUseLinkedChildClubSignup(user)) notFound();
 
   const count = await linkedChildCount(user.id);
   if (count === 0) notFound();

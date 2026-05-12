@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { canManageClubs } from '@oasis/domain';
 import { prisma } from '@oasis/db';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
 import { getStaffUser, linkedChildCount } from '@/components/admin/require-full-admin';
@@ -30,7 +31,11 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
     }),
   ]);
   const hasLinkedChildren = linkedChildren > 0;
-  const supervisorNavProps = { hasLinkedChildren, unreadNoticeCount };
+  const supervisorNavProps = {
+    canManageClubs: canManageClubs(user),
+    hasLinkedChildren,
+    unreadNoticeCount,
+  };
 
   return (
     <div className="admin-shell supervisor-shell">

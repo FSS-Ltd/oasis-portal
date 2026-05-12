@@ -520,15 +520,20 @@ describe('rota availability', () => {
     expect(availability[0]).toMatchObject({ staffUserId: headUser.id });
   });
 
+  it('allows ClubsAdmin users to use staff self-service workflows', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(clubsUser, db).rota.setMyAvailability({
+        windows: [{ dayOfWeek: 4, startMinute: 600, endMinute: 780 }],
+      }),
+    ).resolves.toMatchObject([{ dayOfWeek: 4, startMinute: 600, endMinute: 780 }]);
+  });
+
   it('denies non-staff roles from staff self-service workflows', async () => {
     const { db } = makeFakeDb();
 
     await expect(makeCaller(parentUser, db).rota.myAvailability()).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    });
-    await expect(
-      makeCaller(clubsUser, db).rota.myRota({ from: day('2026-04-29'), to: day('2026-04-29') }),
-    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });
@@ -539,6 +544,12 @@ describe('rota scheduling', () => {
     const { db } = makeFakeDb();
 
     await expect(makeCaller(headUser, db).rota.listStaff()).resolves.toEqual([
+      {
+        id: clubsUser.id,
+        role: 'ClubsAdmin',
+        fullName: 'Clubs User',
+        email: 'clubs@example.test',
+      },
       { id: headUser.id, role: 'Head', fullName: 'Head User', email: 'head@example.test' },
       {
         id: secondSupervisorUser.id,
@@ -558,7 +569,7 @@ describe('rota scheduling', () => {
         userId: headUser.id,
         action: 'DecryptPii',
         entity: 'User',
-        meta: { count: 3, source: 'rota.listStaff' },
+        meta: { count: 4, source: 'rota.listStaff' },
       },
     });
 
@@ -734,6 +745,7 @@ describe('rota scheduling', () => {
 
     const rows = await makeCaller(headUser, db).rota.staffAvailability();
     expect(rows.map((row) => row.id)).toEqual([
+      clubsUser.id,
       headUser.id,
       secondSupervisorUser.id,
       supervisorUser.id,
@@ -748,7 +760,7 @@ describe('rota scheduling', () => {
         userId: headUser.id,
         action: 'DecryptPii',
         entity: 'StaffAvailability',
-        meta: { count: 3, source: 'rota.staffAvailability' },
+        meta: { count: 4, source: 'rota.staffAvailability' },
       },
     });
 

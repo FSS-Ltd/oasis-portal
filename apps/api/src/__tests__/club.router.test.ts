@@ -582,11 +582,12 @@ describe('club.list', () => {
 });
 
 describe('club.linkedChildSignupContext', () => {
-  it('returns active clubs and linked children for parent and supervisor guardians', async () => {
+  it('returns active clubs and linked children for parent, supervisor, and ClubsAdmin guardians', async () => {
     const db = makeFakeDb({
       guardians: [
         { userId: parentUser.id, studentId: linkedStudentId },
         { userId: supervisorUser.id, studentId: linkedStudentId },
+        { userId: clubsAdminUser.id, studentId: linkedStudentId },
       ],
       signups: [
         makeSignup({
@@ -621,11 +622,17 @@ describe('club.linkedChildSignupContext', () => {
       children: [{ id: linkedStudentId }],
       clubs: [expect.objectContaining({ id: defaultClubId })],
     });
+    await expect(
+      makeCaller(clubsAdminUser, db).caller.club.linkedChildSignupContext(),
+    ).resolves.toMatchObject({
+      children: [{ id: linkedStudentId }],
+      clubs: [expect.objectContaining({ id: defaultClubId })],
+    });
   });
 
   it('blocks roles that cannot use linked-child club signup', async () => {
     await expect(
-      makeCaller(clubsAdminUser).caller.club.linkedChildSignupContext(),
+      makeCaller(studentUser).caller.club.linkedChildSignupContext(),
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -726,11 +733,33 @@ describe('club.signUp', () => {
     expect(db.signups.map((signup) => signup.status)).toEqual(['Withdrawn', 'Active']);
   });
 
-  it('blocks ClubsAdmin users from signing students up', async () => {
-    const { caller } = makeCaller(clubsAdminUser);
+  it('allows a ClubsAdmin user to sign up a linked active child', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: clubsAdminUser.id, studentId: linkedStudentId }],
+    });
 
     await expect(
-      caller.club.signUp({ clubId: defaultClubId, studentId: linkedStudentId }),
+      makeCaller(clubsAdminUser, db).caller.club.signUp({
+        clubId: defaultClubId,
+        studentId: linkedStudentId,
+      }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      signedUpByUserId: clubsAdminUser.id,
+      status: 'Active',
+    });
+  });
+
+  it('blocks ClubsAdmin signup for an unrelated child', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: clubsAdminUser.id, studentId: linkedStudentId }],
+    });
+
+    await expect(
+      makeCaller(clubsAdminUser, db).caller.club.signUp({
+        clubId: defaultClubId,
+        studentId: otherStudentId,
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
@@ -850,6 +879,31 @@ describe('club.withdraw', () => {
 
     await expect(
       makeCaller(supervisorUser, db).caller.club.withdraw({
+        clubId: defaultClubId,
+        studentId: linkedStudentId,
+      }),
+    ).resolves.toMatchObject({
+      id: 'csignup000000000000001',
+      status: 'Withdrawn',
+      withdrawn: true,
+    });
+  });
+
+  it('allows a ClubsAdmin user to withdraw a linked-child signup', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: clubsAdminUser.id, studentId: linkedStudentId }],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          signedUpByUserId: clubsAdminUser.id,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(clubsAdminUser, db).caller.club.withdraw({
         clubId: defaultClubId,
         studentId: linkedStudentId,
       }),

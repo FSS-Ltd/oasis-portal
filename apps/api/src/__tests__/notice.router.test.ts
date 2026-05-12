@@ -470,14 +470,30 @@ describe('notice.listForStaff', () => {
     ]);
   });
 
-  it.each([parentUser, studentUser, clubsAdminUser, technicalSupportUser])(
-    'denies %s callers',
-    async (user) => {
-      await expect(makeCaller(user).caller.notice.listForStaff()).rejects.toMatchObject({
-        code: 'FORBIDDEN',
-      });
-    },
-  );
+  it('allows ClubsAdmin callers to read staff notices', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const notice = makeNotice({
+      id: 'cmnotice00000000000000020',
+      title: 'Club staff update',
+      audience: 'Supervisors',
+    });
+
+    await expect(
+      makeCaller(clubsAdminUser, makeFakeDb([notice])).caller.notice.listForStaff(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: notice.id,
+        title: 'Club staff update',
+        audience: 'Supervisors',
+      }),
+    ]);
+  });
+
+  it.each([parentUser, studentUser, technicalSupportUser])('denies %s callers', async (user) => {
+    await expect(makeCaller(user).caller.notice.listForStaff()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 });
 
 describe('notice.listForParents', () => {
@@ -579,9 +595,7 @@ describe('notice.markRead', () => {
       userId: supervisorUser.id,
       readAt: new Date('2026-05-08T12:00:01.000Z'),
     };
-    db.staffNoticeRead.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(concurrentRead);
+    db.staffNoticeRead.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(concurrentRead);
     db.staffNoticeRead.create.mockRejectedValueOnce(
       new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
         code: 'P2002',
@@ -667,5 +681,8 @@ describe('notice.markRead', () => {
     await expect(
       makeCaller(supervisorUser, db).caller.notice.markRead({ noticeId: parentNotice.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    await expect(
+      makeCaller(clubsAdminUser, db).caller.notice.markRead({ noticeId: supervisorNotice.id }),
+    ).resolves.toMatchObject({ noticeId: supervisorNotice.id });
   });
 });

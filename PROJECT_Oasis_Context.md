@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-11
+**Last updated:** 2026-05-12
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.5.2 parent club signup ready for review.
+**Phase:** ClubsAdmin supervisor workflow extension ready for review.
 
 ---
 
@@ -18,7 +18,59 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-3.5.2 Parent club signup + spouse invite
+## Current status - ClubsAdmin supervisor workflow extension
+
+Working branch: `feat/clubs-admin-linked-children`.
+
+**PR scope:** Extend ClubsAdmin from club management only to club management plus
+daily Supervisor workflow access, while keeping full-admin-only management
+boundaries intact.
+
+Changed scope:
+
+- Treats ClubsAdmin as operational staff for Supervisor workflows.
+- Allows ClubsAdmin to be scheduled on the supervisor rota and appear in active
+  staff scheduling/availability lists.
+- Allows ClubsAdmin to use assigned-band PACE scoring, behaviour merit/demerit
+  logging, child notes, snapshot/drill-through, staff calendar, and staff
+  notices through existing Supervisor workflow surfaces.
+- Keeps ClubsAdmin routed to `/admin/clubs` after sign-in, with admin-shell
+  links to linked-child `My Children`, linked-child `My Clubs`, and the
+  Supervisor portal when applicable.
+- Adds a `Club Admin` link back from the Supervisor shell for users who can
+  manage clubs.
+- Preserves linked-child signup restrictions so ClubsAdmin can sign up or
+  withdraw only linked children unless they are also a full-admin role.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- clubs.test.ts rbac.test.ts` - pass, ran
+  all domain tests because of package-script argument handling: 12 files / 145
+  tests.
+- `pnpm --filter @oasis/api test -- club.router.test.ts rota.router.test.ts behaviour.router.test.ts pace.router.test.ts notice.router.test.ts childNotes.router.test.ts` -
+  pass, ran all API tests because of package-script argument handling: 18 files
+  / 351 tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm exec prettier --check ...` for changed files - pass after formatting
+  changed API tests.
+- `pnpm lint` - pass.
+- `pnpm --filter @oasis/web build` - pass when rerun by itself.
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass with 5
+  credential-gated tests skipped because local E2E account variables are not
+  configured.
+- `graphify update .` - pass.
+- `git diff --check` - pass.
+
+Notes:
+
+- The first Playwright run failed in the sandbox because the web server could
+  not bind to `0.0.0.0:3000`; it passed after rerunning with approved
+  escalation.
+- One concurrent build failed while Playwright was also using `.next`; the build
+  passed when rerun in isolation.
+
+## Previous status - PR-3.5.2 Parent club signup + spouse invite
 
 Working branch: `feat/parent-club-signup`.
 
