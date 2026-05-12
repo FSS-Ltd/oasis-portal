@@ -27,7 +27,7 @@ interface StaffNoticeRow {
 
 const noticeAudienceSchema = z.enum(['Supervisors', 'Parents', 'Both']);
 type NoticeAudience = z.infer<typeof noticeAudienceSchema>;
-type NoticeRecipientRole = 'Supervisor' | 'Parent';
+type NoticeRecipientRole = 'Supervisor' | 'ClubsAdmin' | 'Parent';
 
 interface NoticeRecipient {
   id: string;
@@ -98,15 +98,15 @@ function isAvailableNotice(
 
 function canReadNoticeAudience(user: SessionUser, audience: NoticeAudience): boolean {
   if (isFullAdmin(user)) return true;
-  if (audience === 'Both') return user.role === 'Supervisor' || user.role === 'Parent';
-  if (audience === 'Supervisors') return user.role === 'Supervisor';
+  if (audience === 'Both') return isStaff(user) || user.role === 'Parent';
+  if (audience === 'Supervisors') return isStaff(user);
   return user.role === 'Parent';
 }
 
 function recipientRolesForAudience(audience: NoticeAudience): NoticeRecipientRole[] {
-  if (audience === 'Both') return ['Supervisor', 'Parent'];
+  if (audience === 'Both') return ['Supervisor', 'ClubsAdmin', 'Parent'];
   if (audience === 'Parents') return ['Parent'];
-  return ['Supervisor'];
+  return ['Supervisor', 'ClubsAdmin'];
 }
 
 function audienceWhere(audiences: readonly NoticeAudience[]) {
@@ -121,7 +121,7 @@ async function loadNoticeRecipients(ctx: AuthedContext): Promise<NoticeRecipient
   const users = await ctx.db.user.findMany({
     where: {
       active: true,
-      role: { in: ['Supervisor', 'Parent'] },
+      role: { in: ['Supervisor', 'ClubsAdmin', 'Parent'] },
     },
     select: {
       id: true,
@@ -131,7 +131,7 @@ async function loadNoticeRecipients(ctx: AuthedContext): Promise<NoticeRecipient
   });
 
   return users.flatMap((user) =>
-    user.role === 'Supervisor' || user.role === 'Parent'
+    user.role === 'Supervisor' || user.role === 'ClubsAdmin' || user.role === 'Parent'
       ? [{ id: user.id, role: user.role, fullNameEnc: user.fullNameEnc }]
       : [],
   );

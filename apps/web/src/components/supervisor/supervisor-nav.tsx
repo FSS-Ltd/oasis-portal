@@ -16,6 +16,7 @@ import {
 
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
+  { href: '/admin/clubs', label: 'Club Admin', icon: Club, enabled: true },
   { href: '/supervisor/children', label: 'My Children', icon: UsersRound, enabled: true },
   { href: '/supervisor/clubs', label: 'Clubs', icon: Club, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
@@ -28,6 +29,7 @@ const navItems = [
 ] as const;
 
 type SupervisorNavProps = {
+  canManageClubs: boolean;
   hasLinkedChildren: boolean;
   unreadNoticeCount: number;
 };
@@ -43,10 +45,16 @@ function badgeForItem(item: (typeof navItems)[number], unreadNoticeCount: number
   return unreadNoticeCount > 99 ? '99+' : String(unreadNoticeCount);
 }
 
-export function SupervisorSidebarNav({ hasLinkedChildren, unreadNoticeCount }: SupervisorNavProps) {
+export function SupervisorSidebarNav({
+  canManageClubs,
+  hasLinkedChildren,
+  unreadNoticeCount,
+}: SupervisorNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter(
-    (item) => !['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren,
+    (item) =>
+      (item.label !== 'Club Admin' || canManageClubs) &&
+      (!['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren),
   );
 
   return (
@@ -76,10 +84,16 @@ export function SupervisorSidebarNav({ hasLinkedChildren, unreadNoticeCount }: S
   );
 }
 
-export function SupervisorBottomNav({ hasLinkedChildren, unreadNoticeCount }: SupervisorNavProps) {
+export function SupervisorBottomNav({
+  canManageClubs,
+  hasLinkedChildren,
+  unreadNoticeCount,
+}: SupervisorNavProps) {
   const pathname = usePathname();
   const visibleNavItems = navItems.filter(
-    (item) => !['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren,
+    (item) =>
+      (item.label !== 'Club Admin' || canManageClubs) &&
+      (!['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren),
   );
 
   return (

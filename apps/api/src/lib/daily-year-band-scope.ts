@@ -71,7 +71,7 @@ export async function loadDailyYearBandScope(
   date: Date,
 ): Promise<DailyYearBandScope> {
   const scopedDate = normalizeDate(date);
-  if (ctx.user.role !== 'Supervisor') {
+  if (ctx.user.role !== 'Supervisor' && ctx.user.role !== 'ClubsAdmin') {
     return {
       assignedBands: [],
       date: scopedDate,

@@ -4,7 +4,14 @@ import { isStaff, requireStaff, type SessionUser } from '@oasis/domain';
 import { fullAdminProcedure, authedProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
 
-const STAFF_ROLES = ['Head', 'Principal', 'Pastor', 'HeadOfDiscipline', 'Supervisor'] as const;
+const STAFF_ROLES = [
+  'Head',
+  'Principal',
+  'Pastor',
+  'HeadOfDiscipline',
+  'ClubsAdmin',
+  'Supervisor',
+] as const;
 
 const availabilityWindowInput = z
   .object({

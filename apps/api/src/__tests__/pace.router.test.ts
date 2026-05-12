@@ -136,8 +136,14 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       studentId: data.studentId as string,
       subjectId: data.subjectId as string,
       paceNumber: data.paceNumber as number,
-      selfTestScore: data.selfTestScore !== null && data.selfTestScore !== undefined ? (data.selfTestScore as number) : null,
-      paceTestScore: data.paceTestScore !== null && data.paceTestScore !== undefined ? (data.paceTestScore as number) : null,
+      selfTestScore:
+        data.selfTestScore !== null && data.selfTestScore !== undefined
+          ? (data.selfTestScore as number)
+          : null,
+      paceTestScore:
+        data.paceTestScore !== null && data.paceTestScore !== undefined
+          ? (data.paceTestScore as number)
+          : null,
       completedAt: data.completedAt instanceof Date ? data.completedAt : new Date(),
       createdAt: new Date(),
     };
@@ -147,13 +153,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
 
   const subjectUpdate = vi.fn().mockResolvedValue({ id: ASSIGNMENT_ID, currentPaceNumber: 1002 });
 
-  const $transaction = vi.fn(
-    async (fn: (tx: FakeDb) => Promise<[StoredPaceRecord]>) =>
-      fn({
-        ...db,
-        paceRecord: { ...db.paceRecord, create },
-        studentSubject: { ...db.studentSubject, update: subjectUpdate },
-      }),
+  const $transaction = vi.fn(async (fn: (tx: FakeDb) => Promise<[StoredPaceRecord]>) =>
+    fn({
+      ...db,
+      paceRecord: { ...db.paceRecord, create },
+      studentSubject: { ...db.studentSubject, update: subjectUpdate },
+    }),
   );
 
   const db: FakeDb = {
@@ -278,10 +283,10 @@ describe('pace.forStudent RBAC', () => {
     });
   });
 
-  it('rejects ClubsAdmin as FORBIDDEN', async () => {
+  it('allows ClubsAdmin users to read assigned-band PACE workflow', async () => {
     const { caller } = makeCaller(clubsAdminUser);
-    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
-      code: 'FORBIDDEN',
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      studentId: STUDENT_ID,
     });
   });
 
@@ -348,7 +353,7 @@ describe('pace.roster access scope', () => {
       studentId: STUDENT_ID,
       studentName: 'Jane Learner',
       yearGroup: 'Year 6',
-        yearGroupLabel: 'Level 6',
+      yearGroupLabel: 'Level 6',
     });
     expect(result.students[0]?.band?.id).toBe('band_lower');
     expect(result.students[1]).toMatchObject({
@@ -762,16 +767,16 @@ describe('pace.record validation', () => {
 
   it('rejects score > 100 at input validation layer', async () => {
     const { caller } = makeCaller(headUser);
-    await expect(
-      caller.pace.record({ ...validInput, score: 101 }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller.pace.record({ ...validInput, score: 101 })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
   });
 
   it('rejects score < 0 at input validation layer', async () => {
     const { caller } = makeCaller(headUser);
-    await expect(
-      caller.pace.record({ ...validInput, score: -1 }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller.pace.record({ ...validInput, score: -1 })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
   });
 });
 
@@ -810,9 +815,9 @@ describe('pace.record policy — daily limit', () => {
     const { caller } = makeCaller(headUser, db);
     const completedAt = new Date('2026-04-20T10:30:00.000Z');
 
-    await expect(
-      caller.pace.record({ ...validInput, completedAt }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller.pace.record({ ...validInput, completedAt })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
     expect(db.paceRecord.count).toHaveBeenCalledWith({
       where: {
         studentId: STUDENT_ID,
@@ -924,9 +929,9 @@ describe('pace.record policy — same-pace same-day block', () => {
     db.paceRecord.findFirst.mockResolvedValue({ id: 'pace_prev' });
     const { caller } = makeCaller(headUser, db);
 
-    await expect(
-      caller.pace.record({ ...validInput, testType: 'SelfTest' }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(caller.pace.record({ ...validInput, testType: 'SelfTest' })).rejects.toMatchObject(
+      { code: 'BAD_REQUEST' },
+    );
   });
 
   it('does not block when same-day block disabled', async () => {
@@ -961,7 +966,11 @@ describe('pace.record — passing final test advancement', () => {
     expect(result.advanced).toBe(true);
     expect(result.newPaceNumber).toBe(1002);
     expect(auditCalls(db)).toContainEqual(
-      expect.objectContaining({ action: 'Update', entity: 'StudentSubject', entityId: ASSIGNMENT_ID }),
+      expect.objectContaining({
+        action: 'Update',
+        entity: 'StudentSubject',
+        entityId: ASSIGNMENT_ID,
+      }),
     );
   });
 
@@ -1073,8 +1082,12 @@ describe('pace.record — audit rows', () => {
     await caller.pace.record({ ...validInput, score: 90 });
 
     const calls = auditCalls(db);
-    expect(calls).toContainEqual(expect.objectContaining({ action: 'Create', entity: 'PaceRecord' }));
-    expect(calls).toContainEqual(expect.objectContaining({ action: 'Update', entity: 'StudentSubject' }));
+    expect(calls).toContainEqual(
+      expect.objectContaining({ action: 'Create', entity: 'PaceRecord' }),
+    );
+    expect(calls).toContainEqual(
+      expect.objectContaining({ action: 'Update', entity: 'StudentSubject' }),
+    );
   });
 
   it('writes SelfTest score to selfTestScore column', async () => {

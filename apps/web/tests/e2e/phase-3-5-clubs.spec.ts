@@ -64,12 +64,16 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
   });
 
   clubsAdminTest(
-    'ClubsAdmin lands on clubs and sees no non-club admin navigation',
+    'ClubsAdmin lands on clubs and can reach supervisor workflow without unrelated admin navigation',
     async ({ page }) => {
       await signIn(page, clubsAdminEmail!, clubsAdminPassword!);
       await expect(page).toHaveURL(/\/admin\/clubs/);
       await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
       await expect(page.getByRole('link', { name: /^clubs$/i })).toBeVisible();
+      await expect(page.getByRole('link', { name: /^supervisor$/i })).toBeVisible();
+      if ((await page.getByRole('link', { name: /my children/i }).count()) > 0) {
+        await expect(page.getByRole('link', { name: /my clubs/i })).toBeVisible();
+      }
       await expect(
         page.getByRole('link', {
           name: /Attendance|Behaviour|PACE|Calendar|Messages|Noticeboard|User Access|People & Profiles/i,

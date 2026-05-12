@@ -166,6 +166,11 @@ const defaultUsers: StoredUser[] = [
     role: otherSupervisorUser.role,
   }),
   makeStoredUser({
+    id: clubsUser.id,
+    fullNameEnc: 'enc:Clubs Admin User',
+    role: clubsUser.role,
+  }),
+  makeStoredUser({
     id: parentUser.id,
     emailEnc: 'enc:jane.parent@example.com',
     fullNameEnc: 'enc:Jane Parent',
@@ -327,7 +332,8 @@ function makeFakeDb(
     staffShift: {
       findMany: vi.fn(({ where }: { where: { staffUserId: string } }) =>
         Promise.resolve(
-          supervisorHasShift && where.staffUserId === supervisorUser.id
+          supervisorHasShift &&
+            (where.staffUserId === supervisorUser.id || where.staffUserId === clubsUser.id)
             ? [{ yearGroupBand: bands[0] }]
             : [],
         ),
@@ -639,15 +645,6 @@ describe('behaviour.log', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
-      makeCaller(clubsUser, db).behaviour.log({
-        studentId: activeStudentId,
-        type: 'Merit',
-        category: 'Kindness',
-        amount: 1,
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-
-    await expect(
       makeCaller(supervisorUser, db).behaviour.log({
         studentId: activeStudentId,
         type: 'Merit',
@@ -676,7 +673,8 @@ describe('behaviour.log', () => {
         entity: 'behaviour.log',
         meta: {
           role: 'Parent',
-          reason: 'Access denied: behaviour workflow requires full-admin or Supervisor',
+          reason:
+            'Access denied: behaviour workflow requires full-admin, ClubsAdmin, or Supervisor',
         },
       },
     });
@@ -827,7 +825,7 @@ describe('behaviour.listForStudent', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('denies Parent, Student, and ClubsAdmin reads', async () => {
+  it('denies Parent and Student reads', async () => {
     const { db } = makeFakeDb();
 
     await expect(
@@ -836,21 +834,6 @@ describe('behaviour.listForStudent', () => {
     await expect(
       makeCaller(studentUser, db).behaviour.listForStudent({ studentId: activeStudentId }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(
-      makeCaller(clubsUser, db).behaviour.listForStudent({ studentId: activeStudentId }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-
-    expect(db.auditLog.create).toHaveBeenCalledWith({
-      data: {
-        userId: clubsUser.id,
-        action: 'PermissionDenied',
-        entity: 'behaviour.listForStudent',
-        meta: {
-          role: 'ClubsAdmin',
-          reason: 'Access denied: behaviour workflow requires full-admin or Supervisor',
-        },
-      },
-    });
   });
 });
 
@@ -962,5 +945,32 @@ describe('behaviour.recentEntries', () => {
         amount: 1,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('allows ClubsAdmin users to log and read assigned-band behaviour like supervisors', async () => {
+    const { db } = makeFakeDb();
+
+    await makeCaller(clubsUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Service',
+      note: 'Helped tidy club equipment',
+      visibility: 'General',
+      amount: 3,
+    });
+
+    const result = await makeCaller(clubsUser, db).behaviour.recentEntries({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({
+        type: 'Merit',
+        category: 'Service',
+        note: 'Helped tidy club equipment',
+        recordedById: clubsUser.id,
+        recordedByName: 'Clubs Admin User',
+      }),
+    ]);
   });
 });

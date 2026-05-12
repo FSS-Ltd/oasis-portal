@@ -7,6 +7,7 @@ import {
   canViewSensitiveBehaviour,
   canViewBehaviourReports,
   isFullAdmin,
+  isStaff,
   rowsForDemerit,
   rowsForMerit,
   type SessionUser,
@@ -54,7 +55,7 @@ interface BehaviourNotificationEntry {
 }
 
 function canUseBehaviourWorkflow(user: SessionUser): boolean {
-  return isFullAdmin(user) || user.role === 'Supervisor';
+  return isFullAdmin(user) || isStaff(user);
 }
 
 async function auditPermissionDenied(
@@ -62,7 +63,9 @@ async function auditPermissionDenied(
   entity: string,
   meta: Record<string, unknown>,
 ): Promise<never> {
-  const denied = new AccessDeniedError('behaviour workflow requires full-admin or Supervisor');
+  const denied = new AccessDeniedError(
+    'behaviour workflow requires full-admin, ClubsAdmin, or Supervisor',
+  );
   await ctx.db.auditLog.create({
     data: {
       userId: ctx.user.id,
@@ -204,7 +207,7 @@ async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string):
 
 function visibleBehaviourWhere(user: SessionUser) {
   if (canViewSensitiveBehaviour(user)) return {};
-  if (user.role === 'Supervisor') {
+  if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
     return {
       OR: [
         { visibility: 'General' as const },

@@ -87,6 +87,7 @@ describe('TechnicalSupport account administration', () => {
     expect(canManageUserAccounts(technicalSupport)).toBe(true);
     expect(canManageUserAccounts(head)).toBe(false);
     expect(canManageUserAccounts(principal)).toBe(false);
+    expect(isStaff(clubsAdmin)).toBe(true);
     expect(isStaff(technicalSupport)).toBe(false);
     expect(isFullAdmin(technicalSupport)).toBe(false);
     expect(() => {
@@ -181,12 +182,13 @@ describe('requireCanViewSensitive', () => {
     }).toThrow(AccessDeniedError);
   });
 
-  it('allows supervisors to read only their own sensitive demerits', () => {
+  it('allows supervisor workflow users to read only their own sensitive demerits', () => {
     expect(canViewSensitiveBehaviour(head)).toBe(true);
     expect(canViewSensitiveBehaviour(hod)).toBe(true);
     expect(canViewSensitiveBehaviour(principal)).toBe(false);
     expect(canViewSensitiveBehaviour(pastor)).toBe(false);
     expect(canViewSensitiveBehaviour(supervisor)).toBe(false);
+    expect(canViewSensitiveBehaviour(clubsAdmin)).toBe(false);
 
     expect(
       canViewSensitiveBehaviourEntry(supervisor, {
@@ -209,15 +211,24 @@ describe('requireCanViewSensitive', () => {
         visibility: 'Sensitive',
       }),
     ).toBe(false);
+    expect(
+      canViewSensitiveBehaviourEntry(clubsAdmin, {
+        recordedById: clubsAdmin.id,
+        type: 'Demerit',
+        visibility: 'Sensitive',
+      }),
+    ).toBe(true);
   });
 
-  it('limits sensitive behaviour creation to Head, HeadOfDiscipline, or Supervisor demerits', () => {
+  it('limits sensitive behaviour creation to Head, HeadOfDiscipline, or staff demerits', () => {
     expect(canCreateSensitiveBehaviour(head, { type: 'Merit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(hod, { type: 'Demerit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(principal, { type: 'Demerit' })).toBe(false);
     expect(canCreateSensitiveBehaviour(pastor, { type: 'Merit' })).toBe(false);
     expect(canCreateSensitiveBehaviour(supervisor, { type: 'Demerit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(supervisor, { type: 'Merit' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Demerit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Merit' })).toBe(false);
   });
 });
 
@@ -284,7 +295,7 @@ describe('workflow tags', () => {
     expect(canViewStudentDrillThrough(parent)).toBe(true);
     expect(canViewStudentDrillThrough(student)).toBe(false);
     expect(canViewStudentDrillThrough(technicalSupport)).toBe(true);
-    expect(canViewStudentDrillThrough(clubsAdmin)).toBe(false);
+    expect(canViewStudentDrillThrough(clubsAdmin)).toBe(true);
   });
 
   it('limits sensitive student drill-through data to Head', () => {

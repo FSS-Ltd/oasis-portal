@@ -23,7 +23,9 @@ export function assertCanManageClub(user: SessionUser): void {
 }
 
 export function canUseLinkedChildClubSignup(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+  return (
+    user.role === 'Parent' || user.role === 'ClubsAdmin' || canAnswerChildRegistrationPrompt(user)
+  );
 }
 
 export function validateClubDraft(draft: ClubDraft): Required<Pick<ClubDraft, 'name'>> & ClubDraft {

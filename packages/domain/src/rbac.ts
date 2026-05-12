@@ -3,7 +3,7 @@
  *
  * - Head, Principal, Pastor, HeadOfDiscipline all have full-admin parity.
  * - TechnicalSupport: User Access account-shell support for Parent / TechnicalSupport shells.
- * - ClubsAdmin: clubs module only.
+ * - ClubsAdmin: clubs module plus daily supervisor operations.
  * - Supervisor: daily operations; Sensitive behaviour is limited to their own demerits.
  * - Parent: own children only.
  * - Student: self only.
@@ -101,7 +101,7 @@ export function isFullAdmin(user: Pick<SessionUser, 'role'>): boolean {
 }
 
 export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
-  return isFullAdmin(user) || user.role === 'Supervisor';
+  return isFullAdmin(user) || user.role === 'ClubsAdmin' || user.role === 'Supervisor';
 }
 
 export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
@@ -227,7 +227,11 @@ export function canViewSensitiveBehaviourEntry(
 ): boolean {
   if (entry.visibility === 'General') return true;
   if (canViewSensitiveBehaviour(user)) return true;
-  return user.role === 'Supervisor' && entry.type === 'Demerit' && entry.recordedById === user.id;
+  return (
+    (user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
+    entry.type === 'Demerit' &&
+    entry.recordedById === user.id
+  );
 }
 
 export function canCreateSensitiveBehaviour(
@@ -235,7 +239,8 @@ export function canCreateSensitiveBehaviour(
   input: { type: 'Merit' | 'Demerit' },
 ): boolean {
   return (
-    canViewSensitiveBehaviour(user) || (user.role === 'Supervisor' && input.type === 'Demerit')
+    canViewSensitiveBehaviour(user) ||
+    ((user.role === 'Supervisor' || user.role === 'ClubsAdmin') && input.type === 'Demerit')
   );
 }
 
@@ -259,6 +264,7 @@ export function canViewStudentDrillThrough(user: SessionUser): boolean {
   return (
     canViewAnyStudentDrillThrough(user) ||
     user.role === 'Parent' ||
+    user.role === 'ClubsAdmin' ||
     canAnswerChildRegistrationPrompt(user)
   );
 }
