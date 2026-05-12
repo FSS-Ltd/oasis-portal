@@ -161,19 +161,19 @@ describe('resolvePostSignInPortal', () => {
 });
 
 describe('requireCanViewSensitive', () => {
-  it('limits global sensitive behaviour reads to Head and HeadOfDiscipline', () => {
+  it('allows full admins to read global sensitive behaviour', () => {
     expect(() => {
       requireCanViewSensitive(head);
     }).not.toThrow();
     expect(() => {
-      requireCanViewSensitive(hod);
+      requireCanViewSensitive(principal);
     }).not.toThrow();
     expect(() => {
-      requireCanViewSensitive(principal);
-    }).toThrow(AccessDeniedError);
-    expect(() => {
       requireCanViewSensitive(pastor);
-    }).toThrow(AccessDeniedError);
+    }).not.toThrow();
+    expect(() => {
+      requireCanViewSensitive(hod);
+    }).not.toThrow();
     expect(() => {
       requireCanViewSensitive(supervisor);
     }).toThrow(AccessDeniedError);
@@ -185,8 +185,8 @@ describe('requireCanViewSensitive', () => {
   it('allows supervisor workflow users to read only their own sensitive demerits', () => {
     expect(canViewSensitiveBehaviour(head)).toBe(true);
     expect(canViewSensitiveBehaviour(hod)).toBe(true);
-    expect(canViewSensitiveBehaviour(principal)).toBe(false);
-    expect(canViewSensitiveBehaviour(pastor)).toBe(false);
+    expect(canViewSensitiveBehaviour(principal)).toBe(true);
+    expect(canViewSensitiveBehaviour(pastor)).toBe(true);
     expect(canViewSensitiveBehaviour(supervisor)).toBe(false);
     expect(canViewSensitiveBehaviour(clubsAdmin)).toBe(false);
 
@@ -220,11 +220,11 @@ describe('requireCanViewSensitive', () => {
     ).toBe(true);
   });
 
-  it('limits sensitive behaviour creation to Head, HeadOfDiscipline, or staff demerits', () => {
+  it('limits sensitive behaviour creation to full admins or staff demerits', () => {
     expect(canCreateSensitiveBehaviour(head, { type: 'Merit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(hod, { type: 'Demerit' })).toBe(true);
-    expect(canCreateSensitiveBehaviour(principal, { type: 'Demerit' })).toBe(false);
-    expect(canCreateSensitiveBehaviour(pastor, { type: 'Merit' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(principal, { type: 'Demerit' })).toBe(true);
+    expect(canCreateSensitiveBehaviour(pastor, { type: 'Merit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(supervisor, { type: 'Demerit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(supervisor, { type: 'Merit' })).toBe(false);
     expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Demerit' })).toBe(true);
@@ -252,11 +252,12 @@ describe('requireTag', () => {
 });
 
 describe('workflow tags', () => {
-  it('limits attendance recording to Head or attendance-recorder', () => {
+  it('limits attendance recording to full-admin or attendance-recorder', () => {
     expect(canRecordStudentAttendance(head)).toBe(true);
+    expect(canRecordStudentAttendance(principal)).toBe(true);
+    expect(canRecordStudentAttendance(pastor)).toBe(true);
     expect(canRecordStudentAttendance(supervisor)).toBe(false);
     expect(canRecordStudentAttendance({ ...supervisor, tags: ['attendance-recorder'] })).toBe(true);
-    expect(canRecordStudentAttendance(principal)).toBe(false);
   });
 
   it('limits attendance exports to full-admin or attendance-exporter', () => {
@@ -267,8 +268,10 @@ describe('workflow tags', () => {
     expect(canExportAttendance(technicalSupport)).toBe(false);
   });
 
-  it('limits sensitive child notes to Head or sensitive-note-viewer', () => {
+  it('limits sensitive child notes to full-admin or sensitive-note-viewer', () => {
     expect(canViewSensitiveChildNotes(head)).toBe(true);
+    expect(canViewSensitiveChildNotes(principal)).toBe(true);
+    expect(canViewSensitiveChildNotes(pastor)).toBe(true);
     expect(canViewSensitiveChildNotes(supervisor)).toBe(false);
     expect(canViewSensitiveChildNotes({ ...supervisor, tags: ['sensitive-note-viewer'] })).toBe(
       true,
@@ -298,9 +301,11 @@ describe('workflow tags', () => {
     expect(canViewStudentDrillThrough(clubsAdmin)).toBe(true);
   });
 
-  it('limits sensitive student drill-through data to Head', () => {
+  it('limits sensitive student drill-through data to full admins', () => {
     expect(canViewSensitiveStudentDrillThrough(head)).toBe(true);
-    expect(canViewSensitiveStudentDrillThrough(hod)).toBe(false);
+    expect(canViewSensitiveStudentDrillThrough(principal)).toBe(true);
+    expect(canViewSensitiveStudentDrillThrough(pastor)).toBe(true);
+    expect(canViewSensitiveStudentDrillThrough(hod)).toBe(true);
     expect(
       canViewSensitiveStudentDrillThrough({ ...supervisor, tags: ['student-drillthrough-viewer'] }),
     ).toBe(false);
@@ -318,10 +323,11 @@ describe('workflow tags', () => {
     expect(canUseFullPaceAccess(technicalSupport)).toBe(false);
   });
 
-  it('limits calendar management to Head or tagged staff', () => {
+  it('limits calendar management to full-admin or tagged staff', () => {
     expect(canManageCalendar(head)).toBe(true);
-    expect(canManageCalendar(principal)).toBe(false);
-    expect(canManageCalendar(hod)).toBe(false);
+    expect(canManageCalendar(principal)).toBe(true);
+    expect(canManageCalendar(pastor)).toBe(true);
+    expect(canManageCalendar(hod)).toBe(true);
     expect(canManageCalendar({ ...principal, tags: ['calendar-manager'] })).toBe(true);
     expect(canManageCalendar(supervisor)).toBe(false);
     expect(canManageCalendar({ ...supervisor, tags: ['calendar-manager'] })).toBe(true);
@@ -330,12 +336,11 @@ describe('workflow tags', () => {
     expect(canManageCalendar({ ...technicalSupport, tags: ['calendar-manager'] })).toBe(false);
   });
 
-  it('limits parent message response to Head or tagged full-admin users', () => {
+  it('limits parent message response to full-admin users', () => {
     expect(canRespondToParentMessages(head)).toBe(true);
-    expect(canRespondToParentMessages(principal)).toBe(false);
-    expect(canRespondToParentMessages({ ...principal, tags: ['parent-message-responder'] })).toBe(
-      true,
-    );
+    expect(canRespondToParentMessages(principal)).toBe(true);
+    expect(canRespondToParentMessages(pastor)).toBe(true);
+    expect(canRespondToParentMessages(hod)).toBe(true);
     expect(canRespondToParentMessages({ ...supervisor, tags: ['parent-message-responder'] })).toBe(
       false,
     );

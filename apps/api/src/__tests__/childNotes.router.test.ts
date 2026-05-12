@@ -485,7 +485,7 @@ function makeCaller(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>[
 }
 
 describe('childNotes', () => {
-  it('creates encrypted notes and filters sensitive notes by Head or tag', async () => {
+  it('creates encrypted notes and filters sensitive notes by full-admin or tag', async () => {
     const { db, notes } = makeFakeDb();
     await makeCaller(supervisorUser, db).childNotes.create({
       studentId: 'student_1',
@@ -516,6 +516,15 @@ describe('childNotes', () => {
       studentId: 'student_1',
     });
     expect(headNotes.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ note: 'Sensitive note', sensitive: true }),
+        expect.objectContaining({ note: 'General note', sensitive: false }),
+      ]),
+    );
+    const principalNotes = await makeCaller(principalUser, db).childNotes.listForStudent({
+      studentId: 'student_1',
+    });
+    expect(principalNotes.notes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ note: 'Sensitive note', sensitive: true }),
         expect.objectContaining({ note: 'General note', sensitive: false }),
@@ -773,7 +782,7 @@ describe('childLog.snapshot', () => {
     ).resolves.toMatchObject([{ id: 'student_1', fullName: 'Jane Learner' }]);
   });
 
-  it('returns drill-through data and sensitive behaviour only to Head', async () => {
+  it('returns drill-through data and sensitive behaviour to full admins', async () => {
     const { db } = makeFakeDb();
     await makeCaller(supervisorUser, db).childNotes.create({
       studentId: 'student_1',
@@ -807,12 +816,8 @@ describe('childLog.snapshot', () => {
     const principalView = await makeCaller(principalUser, db).childLog.drillThrough({
       studentId: 'student_1',
     });
-    expect(principalView.behaviour).toEqual([
-      expect.objectContaining({ visibility: 'General', note: 'Focused well' }),
-    ]);
-    expect(principalView.notes).toEqual([
-      expect.objectContaining({ note: 'General drill-through note', sensitive: false }),
-    ]);
+    expect(principalView.behaviour).toEqual(headView.behaviour);
+    expect(principalView.notes).toEqual(headView.notes);
 
     const taggedSensitiveView = await makeCaller(sensitiveViewerUser, db).childLog.drillThrough({
       studentId: 'student_1',

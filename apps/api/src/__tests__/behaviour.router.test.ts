@@ -791,7 +791,7 @@ describe('behaviour.listForStudent', () => {
           studentId: activeStudentId,
           requested: 'Sensitive',
           role: 'Supervisor',
-          reason: 'Access denied: sensitive entries require Head or HeadOfDiscipline',
+          reason: 'Access denied: sensitive entries require full-admin access',
         },
       },
     });
@@ -918,8 +918,7 @@ describe('behaviour.recentEntries', () => {
     const principalResult = await makeCaller(principalUser, db).behaviour.recentEntries({
       date: new Date('2026-04-29T00:00:00.000Z'),
     });
-    expect(principalResult.entries).toHaveLength(1);
-    expect(principalResult.entries[0]).toMatchObject({ visibility: 'General' });
+    expect(principalResult.entries).toEqual(headResult.entries);
   });
 
   it('returns no daily activity for Supervisor when no shift is assigned', async () => {

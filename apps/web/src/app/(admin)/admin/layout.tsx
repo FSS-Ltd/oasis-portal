@@ -42,7 +42,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       ? prisma.message.count({
           where: {
             senderId: { not: user.id },
-            ...(user.role === 'Head' ? {} : { thread: { adminId: user.id } }),
+            ...(fullAdmin ? {} : { thread: { adminId: user.id } }),
             reads: {
               none: { userId: user.id },
             },

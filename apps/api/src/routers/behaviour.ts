@@ -84,7 +84,7 @@ async function requireBehaviourWorkflow(ctx: AuthedContext, entity: string): Pro
 
 async function requireCanRequestSensitive(ctx: AuthedContext, studentId: string): Promise<void> {
   if (canViewSensitiveBehaviour(ctx.user)) return;
-  const denied = new AccessDeniedError('sensitive entries require Head or HeadOfDiscipline');
+  const denied = new AccessDeniedError('sensitive entries require full-admin access');
   await ctx.db.auditLog.create({
     data: {
       userId: ctx.user.id,

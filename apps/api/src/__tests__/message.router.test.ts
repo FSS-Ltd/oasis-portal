@@ -420,12 +420,12 @@ describe('message.openThread', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('denies parent thread assignment to an untagged full-admin user', async () => {
+  it('allows parent thread assignment to an untagged full-admin user', async () => {
     const { caller } = makeCaller(parentUser);
 
     await expect(
       caller.message.openThread({ adminId: untaggedPrincipalUser.id, subject: 'Question' }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    ).resolves.toMatchObject({ adminId: untaggedPrincipalUser.id });
   });
 });
 
@@ -492,7 +492,7 @@ describe('message.send', () => {
     ).resolves.toMatchObject({ senderId: headUser.id });
   });
 
-  it('allows other full-admin users to respond only when assigned', async () => {
+  it('allows other full-admin users to respond when assigned', async () => {
     const assignedThread = makeThread({
       id: 'cthread000000000000105',
       parentId: parentUser.id,
@@ -505,7 +505,7 @@ describe('message.send', () => {
     ).resolves.toMatchObject({ senderId: principalUser.id });
   });
 
-  it('denies untagged full-admin users even when assigned', async () => {
+  it('allows untagged full-admin users to respond to parent threads', async () => {
     const assignedThread = makeThread({
       id: 'cthread000000000000106',
       parentId: parentUser.id,
@@ -514,8 +514,8 @@ describe('message.send', () => {
     const { caller } = makeCaller(untaggedPrincipalUser, makeFakeDb([assignedThread]));
 
     await expect(
-      caller.message.send({ threadId: assignedThread.id, body: 'I should not send this.' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      caller.message.send({ threadId: assignedThread.id, body: 'I can help with this.' }),
+    ).resolves.toMatchObject({ senderId: untaggedPrincipalUser.id });
   });
 
   it('keeps the saved portal message when notification email delivery fails', async () => {
@@ -579,14 +579,14 @@ describe('message.send', () => {
     await expect(
       makeCaller(principalUser, makeFakeDb([unassignedThread])).caller.message.send({
         threadId: unassignedThread.id,
-        body: 'Wrong admin',
+        body: 'Full admin can respond',
       }),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    ).resolves.toMatchObject({ senderId: principalUser.id });
   });
 });
 
 describe('message.listRecipients', () => {
-  it('returns active Head and tagged full-admin recipients for parents', async () => {
+  it('returns active full-admin recipients for parents', async () => {
     const inactiveTagged = makeUser({
       id: 'cpastor000000000000001',
       role: 'Pastor',
@@ -601,6 +601,7 @@ describe('message.listRecipients', () => {
     await expect(caller.message.listRecipients()).resolves.toEqual([
       expect.objectContaining({ id: headUser.id, role: 'Head' }),
       expect.objectContaining({ id: principalUser.id, role: 'Principal' }),
+      expect.objectContaining({ id: untaggedPrincipalUser.id, role: 'Principal' }),
     ]);
   });
 
@@ -653,7 +654,7 @@ describe('message.listThreads', () => {
     expect(decryptSpy).not.toHaveBeenCalledWith(message.bodyEnc);
   });
 
-  it('lets Head see all threads and other full-admin users see only assigned threads', async () => {
+  it('lets full-admin users see all threads', async () => {
     const headAssigned = makeThread({
       id: 'cthread000000000000203',
       adminId: headUser.id,
@@ -667,9 +668,9 @@ describe('message.listThreads', () => {
     const db = makeFakeDb([headAssigned, principalAssigned]);
 
     await expect(makeCaller(headUser, db).caller.message.listThreads()).resolves.toHaveLength(2);
-    await expect(makeCaller(principalUser, db).caller.message.listThreads()).resolves.toEqual([
-      expect.objectContaining({ id: principalAssigned.id, adminId: principalUser.id }),
-    ]);
+    await expect(makeCaller(principalUser, db).caller.message.listThreads()).resolves.toHaveLength(
+      2,
+    );
   });
 });
 

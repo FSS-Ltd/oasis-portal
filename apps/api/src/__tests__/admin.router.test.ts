@@ -885,17 +885,44 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     });
   });
 
-  it('blocks non-Head full admins from changing user email addresses', async () => {
-    const { caller, db, updatePrimaryEmail } = makeCaller(principalUser);
+  it('lets Principal update a user email in Clerk and the local encrypted profile', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique
+      .mockResolvedValueOnce({
+        id: 'u_parent',
+        clerkId: 'clerk_parent',
+        emailEnc: 'enc:jane@example.com',
+      })
+      .mockResolvedValueOnce(null);
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({
+        id: 'u_parent',
+        role: 'Parent',
+        tags: [],
+        fullNameEnc: 'enc:Jane Parent',
+        emailEnc: 'enc:new@example.com',
+      }),
+    );
+    const { caller, updatePrimaryEmail } = makeCaller(principalUser, { db });
 
     await expect(
       caller.admin.updateUserProfile({ userId: 'u_parent', email: 'new@example.com' }),
-    ).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'only Head can change account email addresses',
+    ).resolves.toMatchObject({
+      id: 'u_parent',
+      email: 'new@example.com',
     });
-    expect(updatePrimaryEmail).not.toHaveBeenCalled();
-    expect(db.user.update).not.toHaveBeenCalled();
+    expect(updatePrimaryEmail).toHaveBeenCalledWith({
+      clerkUserId: 'clerk_parent',
+      email: 'new@example.com',
+    });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          emailEnc: 'enc:new@example.com',
+          emailBidx: 'bidx:new@example.com',
+        },
+      }),
+    );
   });
 
   it('rejects Head email updates when another user already has the address', async () => {
@@ -1072,18 +1099,29 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     expect(db.user.update).not.toHaveBeenCalled();
   });
 
-  it('rejects role changes from non-Head full-admin users', async () => {
+  it('lets Principal change another adult user role', async () => {
     const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: ['attendance-exporter'],
+    });
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({
+        role: 'Parent',
+        tags: [],
+      }),
+    );
     const { caller } = makeCaller(principalUser, { db });
 
     await expect(
       caller.admin.updateUserRole({ userId: 'u_sup', role: 'Parent' }),
-    ).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'only Head can change user roles',
-    });
-    expect(db.user.findUnique).not.toHaveBeenCalled();
-    expect(db.user.update).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ id: 'u_sup', role: 'Parent', tags: [] });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { role: 'Parent', tags: [] },
+      }),
+    );
   });
 
   it('rejects Student as a role change target', async () => {
