@@ -25,6 +25,7 @@ export {
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
   EMAIL_LOGO_PATH,
+  CLUB_NOTIFICATION_EMAIL_SUBJECT,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
   SMOKE_TEST_EMAIL_SUBJECT,
@@ -32,6 +33,7 @@ export {
   SMOKE_TEST_EMAIL_TO,
   USER_INVITE_EMAIL_SUBJECT,
   buildBehaviourNotificationEmail,
+  buildClubNotificationEmail,
   buildEmailLogoUrl,
   buildHelloWorldEmail,
   buildMessageNotificationEmail,
@@ -43,6 +45,7 @@ export {
   type EmailConfig,
   type EmailEnv,
   type BehaviourNotificationEmailInput,
+  type ClubNotificationEmailInput,
   type MessageNotificationEmailInput,
   type SendEmailInput,
   type SendEmailResult,
@@ -53,6 +56,7 @@ export {
   createBehaviourRouter,
   type BehaviourRouterDeps,
 } from './routers/behaviour.js';
+export { clubRouter, createClubRouter, type ClubRouterDeps } from './routers/club.js';
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {
