@@ -247,7 +247,7 @@ export interface BehaviourNotificationEmailInput {
   note?: string | null;
   recipientName?: string;
   to: string;
-  type: 'Merit' | 'Demerit';
+  type: 'Merit' | 'Demerit' | 'General';
 }
 
 export function buildBehaviourNotificationEmail(

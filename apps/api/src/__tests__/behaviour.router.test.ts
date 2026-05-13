@@ -609,6 +609,42 @@ describe('behaviour.log', () => {
     expect(sentEmail?.text).toContain('Note: Interrupted group work');
   });
 
+  it('emails parent-visible General marks to linked guardians', async () => {
+    const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
+    const email = makeFakeEmailClient();
+
+    const result = await makeCaller(supervisorUser, db, email.client).behaviour.log({
+      studentId: activeStudentId,
+      type: 'General',
+      category: 'Misc',
+      note: 'Shared pastoral update',
+      visibility: 'General',
+    });
+
+    expect(result).toMatchObject({
+      studentId: activeStudentId,
+      type: 'General',
+      category: 'Misc',
+      visibility: 'General',
+      meritDelta: 0,
+    });
+    expect(behaviour).toEqual([
+      expect.objectContaining({
+        type: 'General',
+        noteEnc: 'enc:Shared pastoral update',
+        visibility: 'General',
+        meritDelta: 0,
+      }),
+    ]);
+    expect(ledger).toEqual([]);
+    expect(email.send).toHaveBeenCalledTimes(1);
+    const sentEmail = email.send.mock.calls[0]?.[0];
+    expect(sentEmail?.text).toContain('received a general mark');
+    expect(sentEmail?.text).toContain('Type: General');
+    expect(sentEmail?.text).toContain('Category: Misc');
+    expect(sentEmail?.text).toContain('Note: Shared pastoral update');
+  });
+
   it('does not email linked guardians for Sensitive merit or demerit entries', async () => {
     const { db } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
     const email = makeFakeEmailClient();
@@ -633,7 +669,7 @@ describe('behaviour.log', () => {
     expect(auditCreateArgs(db).some((args) => args.data.entity === 'Email')).toBe(false);
   });
 
-  it('creates Sensitive General marks with no merit ledger rows or guardian emails', async () => {
+  it('defaults General marks to Sensitive with no merit ledger rows or guardian emails', async () => {
     const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
     const email = makeFakeEmailClient();
 
@@ -1184,6 +1220,58 @@ describe('behaviour corrections', () => {
     expect(updateAudit?.data.meta).toMatchObject({
       ledgerCorrectionRows: 1,
       previousMeritDelta: 3,
+    });
+  });
+
+  it('lets full-admin edit a Demerit deduction and writes a ledger delta correction', async () => {
+    const { db, ledger } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    const created = await caller.behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      note: 'Original note',
+      amount: 5,
+    });
+
+    await expect(
+      caller.behaviour.updateEntry({
+        id: created.id,
+        category: 'Conduct',
+        note: 'Updated demerit note',
+        visibility: 'General',
+        amount: 2,
+      }),
+    ).resolves.toMatchObject({ id: created.id, category: 'Conduct', meritDelta: -2 });
+
+    expect(ledger).toEqual([
+      expect.objectContaining({ delta: -5, relatedEntryId: created.id }),
+      expect.objectContaining({
+        delta: 3,
+        reason: 'correction:Conduct',
+        relatedEntryId: created.id,
+      }),
+    ]);
+  });
+
+  it('rejects amount edits for General marks', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    const created = await caller.behaviour.log({
+      studentId: activeStudentId,
+      type: 'General',
+      note: 'Pastoral context',
+    });
+
+    await expect(
+      caller.behaviour.updateEntry({
+        id: created.id,
+        note: 'Pastoral context',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'general marks have no merit value',
     });
   });
 

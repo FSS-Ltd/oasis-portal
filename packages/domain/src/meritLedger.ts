@@ -151,7 +151,7 @@ export function getMeritActivity(
   let demeritsMerits = 0;
   for (const e of entries) {
     if (e.type === 'Merit') meritsEarned += e.meritDelta;
-    else {
+    else if (e.type === 'Demerit') {
       demeritsCount += 1;
       demeritsMerits += Math.abs(e.meritDelta);
     }

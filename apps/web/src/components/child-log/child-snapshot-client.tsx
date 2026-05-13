@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { Edit3, Trash2, X } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
-import { TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { categoriesFor } from '@/components/behaviour/behaviour-categories';
 import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import {
@@ -186,7 +187,7 @@ export function ChildSnapshotClient({
       category: editingBehaviour.category,
       note: editingBehaviour.note.trim() ? editingBehaviour.note : null,
       visibility: editingBehaviour.visibility,
-      ...(editingBehaviour.type === 'Merit' ? { amount: Number(editingBehaviour.amount) } : {}),
+      ...(editingBehaviour.type !== 'General' ? { amount: Number(editingBehaviour.amount) } : {}),
     });
   }
 
@@ -539,7 +540,11 @@ export function ChildSnapshotClient({
                           category: entry.category,
                           note: entry.note ?? '',
                           visibility: entry.visibility,
-                          amount: String(Math.max(entry.meritDelta, 1)),
+                          amount: String(
+                            entry.type === 'Demerit'
+                              ? Math.abs(entry.meritDelta)
+                              : Math.max(entry.meritDelta, 1),
+                          ),
                         });
                       }}
                       size="sm"
@@ -722,58 +727,76 @@ export function ChildSnapshotClient({
               void submitBehaviourEdit(event);
             }}
           >
-            <TextInput
-              aria-label="Behaviour category"
-              onChange={(event) => {
-                setEditingBehaviour((current) =>
-                  current ? { ...current, category: event.target.value } : current,
-                );
-              }}
-              required
-              value={editingBehaviour.category}
-            />
-            <textarea
-              aria-label="Behaviour note"
-              className="input textarea"
-              maxLength={2000}
-              onChange={(event) => {
-                setEditingBehaviour((current) =>
-                  current ? { ...current, note: event.target.value } : current,
-                );
-              }}
-              required={editingBehaviour.type === 'General'}
-              rows={3}
-              value={editingBehaviour.note}
-            />
-            <div className="behaviour-visibility-toggle" role="group">
-              {(['General', 'Sensitive'] as const).map((item) => (
-                <button
-                  className={editingBehaviour.visibility === item ? 'is-selected' : undefined}
-                  key={item}
-                  onClick={() => {
-                    setEditingBehaviour((current) =>
-                      current ? { ...current, visibility: item } : current,
-                    );
-                  }}
-                  type="button"
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-            {editingBehaviour.type === 'Merit' ? (
-              <TextInput
-                aria-label="Merit amount"
-                min={1}
+            <Field label="Category">
+              <SelectInput
+                aria-label="Behaviour category"
                 onChange={(event) => {
                   setEditingBehaviour((current) =>
-                    current ? { ...current, amount: event.target.value } : current,
+                    current ? { ...current, category: event.target.value } : current,
                   );
                 }}
                 required
-                type="number"
-                value={editingBehaviour.amount}
+                value={editingBehaviour.category}
+              >
+                {categoriesFor(editingBehaviour.type).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="Notes">
+              <textarea
+                aria-label="Behaviour note"
+                className="input textarea"
+                maxLength={2000}
+                onChange={(event) => {
+                  setEditingBehaviour((current) =>
+                    current ? { ...current, note: event.target.value } : current,
+                  );
+                }}
+                required={editingBehaviour.type === 'General'}
+                rows={3}
+                value={editingBehaviour.note}
               />
+            </Field>
+            <Field label="Visibility">
+              <div className="behaviour-visibility-toggle" role="group">
+                {(['General', 'Sensitive'] as const).map((item) => (
+                  <button
+                    className={editingBehaviour.visibility === item ? 'is-selected' : undefined}
+                    key={item}
+                    onClick={() => {
+                      setEditingBehaviour((current) =>
+                        current ? { ...current, visibility: item } : current,
+                      );
+                    }}
+                    type="button"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            {editingBehaviour.type !== 'General' ? (
+              <Field
+                label={editingBehaviour.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}
+              >
+                <TextInput
+                  aria-label={
+                    editingBehaviour.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
+                  }
+                  min={1}
+                  onChange={(event) => {
+                    setEditingBehaviour((current) =>
+                      current ? { ...current, amount: event.target.value } : current,
+                    );
+                  }}
+                  required
+                  type="number"
+                  value={editingBehaviour.amount}
+                />
+              </Field>
             ) : null}
             <div className="lifecycle-actions">
               <Button pending={updateBehaviour.isPending} size="sm" type="submit">

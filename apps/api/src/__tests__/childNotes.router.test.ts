@@ -892,7 +892,7 @@ describe('childLog.snapshot', () => {
   });
 
   it('returns a scoped parent dashboard for linked active children only', async () => {
-    const { db } = makeFakeDb();
+    const { behaviourEntries, db } = makeFakeDb();
     await makeCaller(supervisorUser, db).childNotes.create({
       studentId: 'student_1',
       note: 'Parent-visible note',
@@ -902,6 +902,22 @@ describe('childLog.snapshot', () => {
       studentId: 'student_1',
       note: 'Parent-hidden note',
       sensitive: true,
+    });
+    behaviourEntries.push({
+      id: 'behaviour_3',
+      studentId: 'student_1',
+      type: 'General',
+      category: 'Misc',
+      visibility: 'General',
+      meritDelta: 0,
+      recordedById: supervisorUser.id,
+      createdAt: day('2026-04-29'),
+      noteEnc: 'enc:Parent-visible general update',
+      recordedBy: {
+        id: supervisorUser.id,
+        fullNameEnc: 'enc:Supervisor User',
+        role: 'Supervisor',
+      },
     });
 
     const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
@@ -921,6 +937,12 @@ describe('childLog.snapshot', () => {
           category: 'Focus',
           note: 'Focused well',
           meritDelta: 3,
+        },
+        {
+          type: 'General',
+          category: 'Misc',
+          note: 'Parent-visible general update',
+          meritDelta: 0,
         },
       ],
       notes: [{ note: 'Parent-visible note' }],

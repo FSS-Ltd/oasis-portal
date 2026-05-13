@@ -17,6 +17,7 @@ DROP POLICY IF EXISTS behaviour_parent_own_child ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_guardian_own_child ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_full_admin_update ON "BehaviourEntry";
 
 -- Full admins see everything.
 CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"
@@ -98,4 +99,15 @@ CREATE POLICY behaviour_write ON "BehaviourEntry"
       AND "type" IN ('Demerit', 'General')
       AND "recordedById" = current_setting('app.user_id', true)
     )
+  );
+
+-- Corrections and soft deletes are Head/full-admin only.
+CREATE POLICY behaviour_full_admin_update ON "BehaviourEntry"
+  FOR UPDATE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    AND "deletedAt" IS NULL
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
   );
