@@ -1148,7 +1148,10 @@ describe('pace.record — automatic PACE merits', () => {
           data: {
             studentId: STUDENT_ID,
             type: 'Merit',
-            category: 'Academic Excellence',
+            category:
+              testType === 'FinalTest'
+                ? `Academic Excellence - PACE Test ${String(score)}`
+                : `Academic Excellence - Self-Test ${String(score)}`,
             noteEnc: null,
             visibility: 'General',
             meritDelta: awardedMerits,
@@ -1162,7 +1165,10 @@ describe('pace.record — automatic PACE merits', () => {
               studentId: STUDENT_ID,
               account: 'Spend',
               delta: awardedMerits,
-              reason: 'Academic Excellence',
+              reason:
+                testType === 'FinalTest'
+                  ? `Academic Excellence - PACE Test ${String(score)}`
+                  : `Academic Excellence - Self-Test ${String(score)}`,
               relatedEntryId: 'behaviour_1',
             },
           ],

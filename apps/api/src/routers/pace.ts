@@ -69,6 +69,11 @@ function meritsForPaceScore(testType: PaceTestType, score: number): number {
   return 0;
 }
 
+function automaticPaceMeritCategory(testType: PaceTestType, score: number): string {
+  const testTypeLabel = testType === 'FinalTest' ? 'PACE Test' : 'Self-Test';
+  return `${AUTOMATIC_PACE_MERIT_CATEGORY} - ${testTypeLabel} ${String(score)}`;
+}
+
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
   value: string,
@@ -592,6 +597,7 @@ export const paceRouter = router({
     const isPassing = testType === 'FinalTest' && score >= policy.passThreshold;
     const shouldAdvance = isPassing && paceNumber >= assignment.currentPaceNumber;
     const awardedMerits = meritsForPaceScore(testType, score);
+    const automaticMeritCategory = automaticPaceMeritCategory(testType, score);
 
     const [record, automaticMerit] = await ctx.withRls(async (tx) => {
       const created = await tx.paceRecord.create({
@@ -622,7 +628,7 @@ export const paceRouter = router({
           data: {
             studentId,
             type: 'Merit',
-            category: AUTOMATIC_PACE_MERIT_CATEGORY,
+            category: automaticMeritCategory,
             noteEnc: null,
             visibility: 'General',
             meritDelta: awardedMerits,
@@ -633,7 +639,7 @@ export const paceRouter = router({
         const ledgerRows = rowsForMerit({
           studentId,
           amount: awardedMerits,
-          reason: AUTOMATIC_PACE_MERIT_CATEGORY,
+          reason: automaticMeritCategory,
           behaviourEntryId: behaviour.id,
         });
         await tx.meritLedger.createMany({ data: ledgerRows });
