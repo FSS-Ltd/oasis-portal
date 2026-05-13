@@ -56,6 +56,8 @@ interface StoredChildNote {
   noteEnc: string;
   sensitive: boolean;
   createdById: string;
+  deletedAt: Date | null;
+  deletedById: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,6 +65,7 @@ interface StoredChildNote {
 interface ChildNoteWhere {
   studentId: string | { in: string[] };
   sensitive?: boolean;
+  deletedAt?: null;
   createdAt?: { gte: Date; lt: Date };
 }
 
@@ -292,16 +295,30 @@ function makeFakeDb() {
         const row: StoredChildNote = {
           id: `note_${rowNumber}`,
           createdAt: now,
+          deletedAt: null,
+          deletedById: null,
           updatedAt: now,
           ...data,
         };
         notes.push(row);
         return Promise.resolve(row);
       }),
+      findUnique: vi.fn(({ where }: { where: { id: string } }) =>
+        Promise.resolve(notes.find((note) => note.id === where.id) ?? null),
+      ),
+      update: vi.fn(
+        ({ where, data }: { where: { id: string }; data: Partial<StoredChildNote> }) => {
+          const note = notes.find((candidate) => candidate.id === where.id);
+          if (!note) return Promise.reject(new Error('Record not found'));
+          Object.assign(note, data, { updatedAt: new Date('2026-04-30T11:00:00.000Z') });
+          return Promise.resolve(note);
+        },
+      ),
       findMany: vi.fn(
         ({ where, include }: { where: ChildNoteWhere; include?: { createdBy?: unknown } }) => {
           const rows = notes.filter((note) => {
             if (!matchesStudentId(where.studentId, note.studentId)) return false;
+            if (where.deletedAt === null && note.deletedAt !== null) return false;
             if (where.sensitive === false && note.sensitive) return false;
             if (where.createdAt) {
               return note.createdAt >= where.createdAt.gte && note.createdAt < where.createdAt.lt;
@@ -556,6 +573,55 @@ describe('childNotes', () => {
         expect.objectContaining({ note: 'General note', sensitive: false }),
       ]),
     );
+  });
+
+  it('lets full-admin edit and soft-delete child notes', async () => {
+    const { db, notes } = makeFakeDb();
+    const created = await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Original note',
+      sensitive: false,
+    });
+
+    await expect(
+      makeCaller(headUser, db).childNotes.update({
+        id: created.id,
+        note: 'Updated note',
+        sensitive: true,
+      }),
+    ).resolves.toMatchObject({ id: created.id, sensitive: true });
+    expect(notes[0]).toMatchObject({ noteEnc: 'enc:Updated note', sensitive: true });
+
+    await expect(
+      makeCaller(headUser, db).childNotes.delete({ id: created.id }),
+    ).resolves.toMatchObject({
+      id: created.id,
+      studentId: 'student_1',
+    });
+    expect(notes[0]?.deletedById).toBe(headUser.id);
+    await expect(
+      makeCaller(headUser, db).childNotes.listForStudent({ studentId: 'student_1' }),
+    ).resolves.toMatchObject({ notes: [] });
+  });
+
+  it('denies child note corrections to non-full-admin users', async () => {
+    const { db } = makeFakeDb();
+    const created = await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Original note',
+      sensitive: false,
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).childNotes.update({
+        id: created.id,
+        note: 'Updated note',
+        sensitive: false,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(parentUser, db).childNotes.delete({ id: created.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

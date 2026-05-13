@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { BarChart3, Lock, Plus, Trash2 } from 'lucide-react';
+import { BarChart3, Edit3, Lock, Plus, Trash2 } from 'lucide-react';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
-import { api } from '@/lib/trpc';
+import { api, type RouterOutputs } from '@/lib/trpc';
 
 type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BatchBehaviourType = Exclude<BehaviourType, 'General'>;
@@ -12,6 +13,7 @@ type BehaviourVisibility = 'General' | 'Sensitive';
 export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 type EntryMode = 'single' | 'batch';
+type RecentBehaviourEntry = RouterOutputs['behaviour']['recentEntries']['entries'][number];
 
 interface BatchEntryForm {
   id: string;
@@ -19,6 +21,15 @@ interface BatchEntryForm {
   note: string;
   amount: string;
   count: string;
+}
+
+interface EditingEntryForm {
+  id: string;
+  type: BehaviourType;
+  category: string;
+  note: string;
+  visibility: BehaviourVisibility;
+  amount: string;
 }
 
 const meritCategories = [
@@ -98,10 +109,12 @@ function totalBatchEntries(entries: readonly BatchEntryForm[]): number {
 }
 
 export function BehaviourLogClient({
+  canManageEntries,
   canLogBehaviour,
   sensitiveMode,
   showTrends = false,
 }: {
+  canManageEntries: boolean;
   canLogBehaviour: boolean;
   sensitiveMode: BehaviourSensitiveMode;
   showTrends?: boolean;
@@ -119,6 +132,8 @@ export function BehaviourLogClient({
   const [amount, setAmount] = useState('5');
   const [status, setStatus] = useState<string | null>(null);
   const [date, setDate] = useState(dateKey(new Date()));
+  const [editingEntry, setEditingEntry] = useState<EditingEntryForm | null>(null);
+  const [deleteEntry, setDeleteEntry] = useState<RecentBehaviourEntry | null>(null);
 
   const studentsQuery = api.student.list.useQuery(undefined, { retry: false });
   const recentQuery = api.behaviour.recentEntries.useQuery(
@@ -147,6 +162,26 @@ export function BehaviourLogClient({
     onSuccess: async (_result, input) => {
       setStatus(`${String(input.entries.length)} ${input.type.toLowerCase()} entries recorded.`);
       setBatchEntries([newBatchEntry(input.type)]);
+      await Promise.all([
+        utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
+        utils.behaviour.trends.invalidate(),
+      ]);
+    },
+  });
+  const updateEntry = api.behaviour.updateEntry.useMutation({
+    onSuccess: async () => {
+      setStatus('Behaviour entry updated.');
+      setEditingEntry(null);
+      await Promise.all([
+        utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
+        utils.behaviour.trends.invalidate(),
+      ]);
+    },
+  });
+  const deleteEntryMutation = api.behaviour.deleteEntry.useMutation({
+    onSuccess: async () => {
+      setStatus('Behaviour entry deleted.');
+      setDeleteEntry(null);
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
@@ -216,6 +251,31 @@ export function BehaviourLogClient({
     setBatchEntries((current) =>
       current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
     );
+  }
+
+  function startEditingEntry(entry: RecentBehaviourEntry): void {
+    setEditingEntry({
+      id: entry.id,
+      type: entry.type,
+      category: entry.category,
+      note: entry.note ?? '',
+      visibility: entry.visibility,
+      amount: String(Math.max(entry.meritDelta, 1)),
+    });
+    setStatus(null);
+  }
+
+  async function submitEntryEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingEntry) return;
+    setStatus(null);
+    await updateEntry.mutateAsync({
+      id: editingEntry.id,
+      category: editingEntry.category,
+      note: editingEntry.note.trim() ? editingEntry.note : null,
+      visibility: editingEntry.visibility,
+      ...(editingEntry.type === 'Merit' ? { amount: Number(editingEntry.amount) } : {}),
+    });
   }
 
   return (
@@ -594,11 +654,136 @@ export function BehaviourLogClient({
                     {entry.visibility === 'Sensitive' ? (
                       <span className="head-merit-pill head-merit-pill--sensitive">Sensitive</span>
                     ) : null}
+                    {canManageEntries ? (
+                      <>
+                        <Button
+                          onClick={() => {
+                            startEditingEntry(entry);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          <Edit3 aria-hidden="true" size={14} />
+                          Edit
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setDeleteEntry(entry);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="danger"
+                        >
+                          <Trash2 aria-hidden="true" size={14} />
+                          Delete
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                   {entry.note ? <p>{entry.note}</p> : null}
                   <span>
                     by {entry.recordedByName} · {formatTime(entry.createdAt)}
                   </span>
+                  {editingEntry?.id === entry.id ? (
+                    <form
+                      className="form-grid"
+                      onSubmit={(event) => {
+                        void submitEntryEdit(event);
+                      }}
+                    >
+                      <Field label="Category">
+                        <SelectInput
+                          onChange={(event) => {
+                            setEditingEntry((current) =>
+                              current ? { ...current, category: event.target.value } : current,
+                            );
+                          }}
+                          value={editingEntry.category}
+                        >
+                          {categoriesFor(editingEntry.type).map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </SelectInput>
+                      </Field>
+                      <Field label="Notes">
+                        <textarea
+                          className="input textarea"
+                          maxLength={2000}
+                          onChange={(event) => {
+                            setEditingEntry((current) =>
+                              current ? { ...current, note: event.target.value } : current,
+                            );
+                          }}
+                          required={editingEntry.type === 'General'}
+                          rows={3}
+                          value={editingEntry.note}
+                        />
+                      </Field>
+                      <Field label="Visibility">
+                        <div
+                          aria-label="Edit visibility"
+                          className="behaviour-visibility-toggle"
+                          role="group"
+                        >
+                          {(['General', 'Sensitive'] as const).map((item) => (
+                            <button
+                              className={
+                                item === editingEntry.visibility ? 'is-selected' : undefined
+                              }
+                              key={item}
+                              onClick={() => {
+                                setEditingEntry((current) =>
+                                  current ? { ...current, visibility: item } : current,
+                                );
+                              }}
+                              type="button"
+                            >
+                              {item}
+                            </button>
+                          ))}
+                        </div>
+                      </Field>
+                      {editingEntry.type === 'Merit' ? (
+                        <Field label="Merit amount">
+                          <TextInput
+                            min={1}
+                            onChange={(event) => {
+                              setEditingEntry((current) =>
+                                current ? { ...current, amount: event.target.value } : current,
+                              );
+                            }}
+                            required
+                            type="number"
+                            value={editingEntry.amount}
+                          />
+                        </Field>
+                      ) : null}
+                      {updateEntry.error ? (
+                        <p className="status--error" role="alert">
+                          {updateEntry.error.message}
+                        </p>
+                      ) : null}
+                      <div className="lifecycle-actions">
+                        <Button pending={updateEntry.isPending} size="sm" type="submit">
+                          Save entry
+                        </Button>
+                        <Button
+                          disabled={updateEntry.isPending}
+                          onClick={() => {
+                            setEditingEntry(null);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -607,6 +792,24 @@ export function BehaviourLogClient({
       </div>
 
       {showTrends ? <BehaviourTrendsPanel /> : null}
+      <ConfirmationDialog
+        confirmLabel="Delete entry"
+        errorMessage={deleteEntryMutation.error?.message}
+        onCancel={() => {
+          if (!deleteEntryMutation.isPending) setDeleteEntry(null);
+        }}
+        onConfirm={() => {
+          if (deleteEntry) void deleteEntryMutation.mutateAsync({ id: deleteEntry.id });
+        }}
+        open={deleteEntry !== null}
+        pending={deleteEntryMutation.isPending}
+        title="Delete behaviour entry?"
+      >
+        <p>
+          This removes the entry from operational views and adds correction ledger rows when merit
+          balances need adjusting.
+        </p>
+      </ConfirmationDialog>
     </div>
   );
 }

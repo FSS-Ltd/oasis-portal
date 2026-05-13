@@ -92,6 +92,8 @@ interface StoredBehaviour {
   visibility: BehaviourVisibility;
   meritDelta: number;
   recordedById: string;
+  deletedAt: Date | null;
+  deletedById: string | null;
   createdAt: Date;
 }
 
@@ -114,6 +116,7 @@ interface AuditCreateArgs {
 }
 
 interface FakeDb {
+  $transaction: ReturnType<typeof vi.fn>;
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
@@ -123,7 +126,9 @@ interface FakeDb {
   guardian: { findMany: ReturnType<typeof vi.fn> };
   behaviourEntry: {
     create: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   meritLedger: { createMany: ReturnType<typeof vi.fn> };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
@@ -216,6 +221,7 @@ function makeFakeDb(
   const ledger: StoredLedgerRow[] = [];
 
   const db: FakeDb = {
+    $transaction: vi.fn(<T>(fn: (tx: FakeDb) => Promise<T>) => fn(db)),
     $enc: {
       encrypt: vi.fn(encrypt),
       decrypt: vi.fn(decrypt),
@@ -247,16 +253,34 @@ function makeFakeDb(
       ),
     },
     behaviourEntry: {
-      create: vi.fn(({ data }: { data: Omit<StoredBehaviour, 'id' | 'createdAt'> }) => {
-        const rowNumber = String(behaviour.length + 1).padStart(2, '0');
-        const row: StoredBehaviour = {
-          id: `ckbehaviour0000000000${rowNumber}`,
-          createdAt: new Date(`2026-04-29T10:${rowNumber}:00.000Z`),
-          ...data,
-        };
-        behaviour.push(row);
-        return Promise.resolve(row);
-      }),
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: Omit<StoredBehaviour, 'id' | 'createdAt' | 'deletedAt' | 'deletedById'>;
+        }) => {
+          const rowNumber = String(behaviour.length + 1).padStart(2, '0');
+          const row: StoredBehaviour = {
+            id: `ckbehaviour0000000000${rowNumber}`,
+            createdAt: new Date(`2026-04-29T10:${rowNumber}:00.000Z`),
+            deletedAt: null,
+            deletedById: null,
+            ...data,
+          };
+          behaviour.push(row);
+          return Promise.resolve(row);
+        },
+      ),
+      findUnique: vi.fn(
+        ({ where }: { where: { id: string }; include?: { ledgerRows?: unknown } }) => {
+          const row = behaviour.find((candidate) => candidate.id === where.id);
+          if (!row) return Promise.resolve(null);
+          return Promise.resolve({
+            ...row,
+            ledgerRows: ledger.filter((ledgerRow) => ledgerRow.relatedEntryId === row.id),
+          });
+        },
+      ),
       findMany: vi.fn(
         ({
           include,
@@ -272,6 +296,7 @@ function makeFakeDb(
             }>;
             student?: { id?: { in: string[] }; yearGroup?: { in: string[] } };
             studentId?: string;
+            deletedAt?: null;
             type?: BehaviourType;
             visibility?: BehaviourVisibility;
           };
@@ -289,6 +314,7 @@ function makeFakeDb(
             (condition.visibility === undefined || row.visibility === condition.visibility);
           const rows = behaviour
             .filter((row) => where.studentId === undefined || row.studentId === where.studentId)
+            .filter((row) => where.deletedAt === undefined || row.deletedAt === where.deletedAt)
             .filter((row) => where.type === undefined || row.type === where.type)
             .filter((row) => where.visibility === undefined || row.visibility === where.visibility)
             .filter(
@@ -319,6 +345,27 @@ function makeFakeDb(
               student: students.find((student) => student.id === row.studentId),
               recordedBy: users.find((user) => user.id === row.recordedById) ?? users[0],
             })),
+          );
+        },
+      ),
+      update: vi.fn(
+        ({
+          where,
+          data,
+          select,
+        }: {
+          where: { id: string };
+          data: Partial<StoredBehaviour>;
+          select?: Record<string, boolean>;
+        }) => {
+          const row = behaviour.find((candidate) => candidate.id === where.id);
+          if (!row) return Promise.reject(new Error('Record not found'));
+          Object.assign(row, data);
+          if (!select) return Promise.resolve(row);
+          return Promise.resolve(
+            Object.fromEntries(
+              Object.keys(select).map((key) => [key, row[key as keyof StoredBehaviour]]),
+            ),
           );
         },
       ),
@@ -1091,6 +1138,113 @@ describe('behaviour.listForStudent', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
       makeCaller(studentUser, db).behaviour.listForStudent({ studentId: activeStudentId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('behaviour corrections', () => {
+  it('lets full-admin edit a Merit amount and writes a ledger delta correction', async () => {
+    const { db, ledger } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    const created = await caller.behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      note: 'Original note',
+      amount: 3,
+    });
+
+    await expect(
+      caller.behaviour.updateEntry({
+        id: created.id,
+        category: 'Leadership',
+        note: 'Updated note',
+        visibility: 'General',
+        amount: 5,
+      }),
+    ).resolves.toMatchObject({ id: created.id, category: 'Leadership', meritDelta: 5 });
+
+    expect(ledger).toEqual([
+      expect.objectContaining({ delta: 3, relatedEntryId: created.id }),
+      expect.objectContaining({
+        delta: 2,
+        reason: 'correction:Leadership',
+        relatedEntryId: created.id,
+      }),
+    ]);
+    const updateAudit = auditCreateArgs(db).find(
+      (args) => args.data.action === 'Update' && args.data.entityId === created.id,
+    );
+    expect(updateAudit?.data).toMatchObject({
+      action: 'Update',
+      entity: 'BehaviourEntry',
+      entityId: created.id,
+      userId: headUser.id,
+    });
+    expect(updateAudit?.data.meta).toMatchObject({
+      ledgerCorrectionRows: 1,
+      previousMeritDelta: 3,
+    });
+  });
+
+  it('soft-deletes a Demerit and writes inverse ledger correction rows', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    const created = await caller.behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      note: 'Original note',
+    });
+
+    await expect(caller.behaviour.deleteEntry({ id: created.id })).resolves.toMatchObject({
+      id: created.id,
+      ledgerCorrectionRows: 1,
+    });
+
+    expect(behaviour[0]?.deletedById).toBe(headUser.id);
+    expect(ledger).toEqual([
+      expect.objectContaining({ delta: -5, relatedEntryId: created.id }),
+      expect.objectContaining({
+        delta: 5,
+        reason: 'correction:delete:Conduct',
+        relatedEntryId: created.id,
+      }),
+    ]);
+  });
+
+  it('excludes soft-deleted behaviour entries from recent entries', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    const created = await caller.behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Kindness',
+      amount: 1,
+    });
+    await caller.behaviour.deleteEntry({ id: created.id });
+
+    await expect(
+      caller.behaviour.recentEntries({ date: new Date('2026-04-29T00:00:00.000Z') }),
+    ).resolves.toMatchObject({ entries: [] });
+  });
+
+  it('denies correction mutations to non-full-admin users', async () => {
+    const { db } = makeFakeDb();
+    const created = await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'General',
+      note: 'Pastoral context',
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.updateEntry({
+        id: created.id,
+        note: 'Changed',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(clubsUser, db).behaviour.deleteEntry({ id: created.id }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });

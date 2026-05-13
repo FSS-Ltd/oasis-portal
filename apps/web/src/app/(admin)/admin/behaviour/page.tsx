@@ -14,6 +14,7 @@ export default async function AdminBehaviourPage() {
     <MotionPage>
       <BehaviourLogClient
         canLogBehaviour={canLogBehaviour}
+        canManageEntries={canLogBehaviour}
         sensitiveMode={sensitiveMode}
         showTrends
       />

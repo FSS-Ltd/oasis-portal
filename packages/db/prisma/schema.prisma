@@ -72,6 +72,8 @@ model User {
   studentProfile          Student?                  @relation("StudentLogin")
   behaviourEntries        BehaviourEntry[]          @relation("RecordedBehaviour")
   childNotesCreated       ChildNote[]               @relation("ChildNotesCreated")
+  deletedBehaviourEntries BehaviourEntry[]          @relation("DeletedBehaviour")
+  deletedChildNotes       ChildNote[]               @relation("DeletedChildNotes")
   paceRecords             PaceRecord[]              @relation("RecordedPace")
   attendanceRecords       Attendance[]              @relation("RecordedAttendance")
   availabilityWindows     StaffAvailabilityWindow[] @relation("StaffAvailability")
@@ -507,31 +509,41 @@ model BehaviourEntry {
   // Merit: positive N. Demerit: negative chosen amount, defaulting to -5. General: 0.
   meritDelta   Int
   recordedById String
+  deletedAt    DateTime?
+  deletedById  String?
   createdAt    DateTime            @default(now())
 
   student    Student       @relation(fields: [studentId], references: [id])
   recordedBy User          @relation("RecordedBehaviour", fields: [recordedById], references: [id])
+  deletedBy  User?         @relation("DeletedBehaviour", fields: [deletedById], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
 
   @@index([studentId, createdAt])
   @@index([visibility])
+  @@index([deletedAt])
+  @@index([deletedById])
 }
 
 model ChildNote {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   studentId   String
   noteEnc     String
-  sensitive   Boolean  @default(false)
+  sensitive   Boolean   @default(false)
   createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   student   Student @relation(fields: [studentId], references: [id])
   createdBy User    @relation("ChildNotesCreated", fields: [createdById], references: [id])
+  deletedBy User?   @relation("DeletedChildNotes", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([studentId, createdAt])
   @@index([sensitive])
   @@index([createdById, createdAt])
+  @@index([deletedAt])
+  @@index([deletedById])
 }
 
 // ---------------------------------------------------------------------------

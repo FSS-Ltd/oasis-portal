@@ -1,9 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Edit3, Trash2, X } from 'lucide-react';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
+import { TextInput } from '@/components/ui/field';
 import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
-import { api } from '@/lib/trpc';
+import { api, type RouterOutputs } from '@/lib/trpc';
 import {
   SnapshotHeroStudent,
   SnapshotRangePicker,
@@ -31,7 +34,26 @@ import {
   SummaryTotal,
 } from './snapshot-widgets';
 
-export function ChildSnapshotClient() {
+type SnapshotResult = RouterOutputs['childLog']['snapshot'];
+type SnapshotBehaviourEntry = SnapshotResult['behaviour'][number];
+type SnapshotNoteEntry = SnapshotResult['notes'][number];
+
+interface EditingBehaviourForm {
+  id: string;
+  type: SnapshotBehaviourEntry['type'];
+  category: string;
+  note: string;
+  visibility: SnapshotBehaviourEntry['visibility'];
+  amount: string;
+}
+
+interface EditingNoteForm {
+  id: string;
+  note: string;
+  sensitive: boolean;
+}
+
+export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrections: boolean }) {
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [rangePreset, setRangePreset] = useState<RangePreset>('previous-day');
   const [from, setFrom] = useState(previousDay);
@@ -40,6 +62,10 @@ export function ChildSnapshotClient() {
   const [note, setNote] = useState('');
   const [sensitive, setSensitive] = useState(false);
   const [noteStatus, setNoteStatus] = useState<string | null>(null);
+  const [editingBehaviour, setEditingBehaviour] = useState<EditingBehaviourForm | null>(null);
+  const [deletingBehaviour, setDeletingBehaviour] = useState<SnapshotBehaviourEntry | null>(null);
+  const [editingNote, setEditingNote] = useState<EditingNoteForm | null>(null);
+  const [deletingNote, setDeletingNote] = useState<SnapshotNoteEntry | null>(null);
 
   const studentsQuery = api.childLog.listSnapshotStudents.useQuery(undefined, { retry: false });
   const snapshotQuery = api.childLog.snapshot.useQuery(
@@ -56,6 +82,30 @@ export function ChildSnapshotClient() {
       setNote('');
       setSensitive(false);
       setNoteStatus('Child note saved.');
+      await utils.childLog.snapshot.invalidate();
+    },
+  });
+  const updateBehaviour = api.behaviour.updateEntry.useMutation({
+    onSuccess: async () => {
+      setEditingBehaviour(null);
+      await utils.childLog.snapshot.invalidate();
+    },
+  });
+  const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
+    onSuccess: async () => {
+      setDeletingBehaviour(null);
+      await utils.childLog.snapshot.invalidate();
+    },
+  });
+  const updateNote = api.childNotes.update.useMutation({
+    onSuccess: async () => {
+      setEditingNote(null);
+      await utils.childLog.snapshot.invalidate();
+    },
+  });
+  const deleteNote = api.childNotes.delete.useMutation({
+    onSuccess: async () => {
+      setDeletingNote(null);
       await utils.childLog.snapshot.invalidate();
     },
   });
@@ -83,6 +133,28 @@ export function ChildSnapshotClient() {
     setNoteStatus(null);
     if (!selectedStudentId || !note.trim()) return;
     await createNote.mutateAsync({ studentId: selectedStudentId, note, sensitive });
+  }
+
+  async function submitBehaviourEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingBehaviour) return;
+    await updateBehaviour.mutateAsync({
+      id: editingBehaviour.id,
+      category: editingBehaviour.category,
+      note: editingBehaviour.note.trim() ? editingBehaviour.note : null,
+      visibility: editingBehaviour.visibility,
+      ...(editingBehaviour.type === 'Merit' ? { amount: Number(editingBehaviour.amount) } : {}),
+    });
+  }
+
+  async function submitNoteEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!editingNote) return;
+    await updateNote.mutateAsync({
+      id: editingNote.id,
+      note: editingNote.note,
+      sensitive: editingNote.sensitive,
+    });
   }
 
   const students = studentsQuery.data ?? [];
@@ -307,6 +379,39 @@ export function ChildSnapshotClient() {
                 <small>
                   Recorded by <strong>{entry.recordedByName}</strong>
                 </small>
+                {canManageCorrections ? (
+                  <div className="lifecycle-actions">
+                    <Button
+                      onClick={() => {
+                        setEditingBehaviour({
+                          id: entry.id,
+                          type: entry.type,
+                          category: entry.category,
+                          note: entry.note ?? '',
+                          visibility: entry.visibility,
+                          amount: String(Math.max(entry.meritDelta, 1)),
+                        });
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Edit3 aria-hidden="true" size={14} />
+                      Edit
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setDeletingBehaviour(entry);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="danger"
+                    >
+                      <Trash2 aria-hidden="true" size={14} />
+                      Delete
+                    </Button>
+                  </div>
+                ) : null}
               </div>
               <time>{formatShortDate(entry.createdAt)}</time>
             </article>
@@ -364,6 +469,32 @@ export function ChildSnapshotClient() {
               </div>
               <time>{formatShortDate(item.createdAt)}</time>
               <p>{item.note}</p>
+              {canManageCorrections ? (
+                <div className="lifecycle-actions">
+                  <Button
+                    onClick={() => {
+                      setEditingNote({ id: item.id, note: item.note, sensitive: item.sensitive });
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Edit3 aria-hidden="true" size={14} />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setDeletingNote(item);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="danger"
+                  >
+                    <Trash2 aria-hidden="true" size={14} />
+                    Delete
+                  </Button>
+                </div>
+              ) : null}
             </article>
           ))}
           <form
@@ -414,6 +545,232 @@ export function ChildSnapshotClient() {
           </form>
         </div>
       ) : null}
+      {editingBehaviour ? (
+        <CorrectionModal
+          errorMessage={updateBehaviour.error?.message}
+          onClose={() => {
+            setEditingBehaviour(null);
+          }}
+          pending={updateBehaviour.isPending}
+          title="Edit behaviour entry"
+        >
+          <form
+            className="form-grid snapshot-note-form"
+            onSubmit={(event) => {
+              void submitBehaviourEdit(event);
+            }}
+          >
+            <TextInput
+              aria-label="Behaviour category"
+              onChange={(event) => {
+                setEditingBehaviour((current) =>
+                  current ? { ...current, category: event.target.value } : current,
+                );
+              }}
+              required
+              value={editingBehaviour.category}
+            />
+            <textarea
+              aria-label="Behaviour note"
+              className="input textarea"
+              maxLength={2000}
+              onChange={(event) => {
+                setEditingBehaviour((current) =>
+                  current ? { ...current, note: event.target.value } : current,
+                );
+              }}
+              required={editingBehaviour.type === 'General'}
+              rows={3}
+              value={editingBehaviour.note}
+            />
+            <div className="behaviour-visibility-toggle" role="group">
+              {(['General', 'Sensitive'] as const).map((item) => (
+                <button
+                  className={editingBehaviour.visibility === item ? 'is-selected' : undefined}
+                  key={item}
+                  onClick={() => {
+                    setEditingBehaviour((current) =>
+                      current ? { ...current, visibility: item } : current,
+                    );
+                  }}
+                  type="button"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            {editingBehaviour.type === 'Merit' ? (
+              <TextInput
+                aria-label="Merit amount"
+                min={1}
+                onChange={(event) => {
+                  setEditingBehaviour((current) =>
+                    current ? { ...current, amount: event.target.value } : current,
+                  );
+                }}
+                required
+                type="number"
+                value={editingBehaviour.amount}
+              />
+            ) : null}
+            <div className="lifecycle-actions">
+              <Button pending={updateBehaviour.isPending} size="sm" type="submit">
+                Save
+              </Button>
+              <Button
+                disabled={updateBehaviour.isPending}
+                onClick={() => {
+                  setEditingBehaviour(null);
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </CorrectionModal>
+      ) : null}
+      {editingNote ? (
+        <CorrectionModal
+          errorMessage={updateNote.error?.message}
+          onClose={() => {
+            setEditingNote(null);
+          }}
+          pending={updateNote.isPending}
+          title="Edit note"
+        >
+          <form
+            className="form-grid snapshot-note-form"
+            onSubmit={(event) => {
+              void submitNoteEdit(event);
+            }}
+          >
+            <textarea
+              aria-label="Edit child note"
+              className="input textarea"
+              maxLength={3000}
+              onChange={(event) => {
+                setEditingNote((current) =>
+                  current ? { ...current, note: event.target.value } : current,
+                );
+              }}
+              required
+              rows={3}
+              value={editingNote.note}
+            />
+            <div className="behaviour-visibility-toggle" role="group">
+              <button
+                className={editingNote.sensitive ? undefined : 'is-selected'}
+                onClick={() => {
+                  setEditingNote((current) =>
+                    current ? { ...current, sensitive: false } : current,
+                  );
+                }}
+                type="button"
+              >
+                General
+              </button>
+              <button
+                className={editingNote.sensitive ? 'is-selected' : undefined}
+                onClick={() => {
+                  setEditingNote((current) =>
+                    current ? { ...current, sensitive: true } : current,
+                  );
+                }}
+                type="button"
+              >
+                Sensitive
+              </button>
+            </div>
+            <div className="lifecycle-actions">
+              <Button pending={updateNote.isPending} size="sm" type="submit">
+                Save
+              </Button>
+              <Button
+                disabled={updateNote.isPending}
+                onClick={() => {
+                  setEditingNote(null);
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </CorrectionModal>
+      ) : null}
+      <ConfirmationDialog
+        confirmLabel="Delete entry"
+        errorMessage={deleteBehaviour.error?.message}
+        onCancel={() => {
+          if (!deleteBehaviour.isPending) setDeletingBehaviour(null);
+        }}
+        onConfirm={() => {
+          if (deletingBehaviour) void deleteBehaviour.mutateAsync({ id: deletingBehaviour.id });
+        }}
+        open={deletingBehaviour !== null}
+        pending={deleteBehaviour.isPending}
+        title="Delete behaviour entry?"
+      >
+        <p>This removes the entry from snapshot views and applies any merit correction rows.</p>
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        confirmLabel="Delete note"
+        errorMessage={deleteNote.error?.message}
+        onCancel={() => {
+          if (!deleteNote.isPending) setDeletingNote(null);
+        }}
+        onConfirm={() => {
+          if (deletingNote) void deleteNote.mutateAsync({ id: deletingNote.id });
+        }}
+        open={deletingNote !== null}
+        pending={deleteNote.isPending}
+        title="Delete note?"
+      >
+        <p>This removes the note from snapshot views while keeping an audit trail.</p>
+      </ConfirmationDialog>
+    </div>
+  );
+}
+
+function CorrectionModal({
+  children,
+  errorMessage,
+  onClose,
+  pending,
+  title,
+}: {
+  children: ReactNode;
+  errorMessage?: string | undefined;
+  onClose: () => void;
+  pending: boolean;
+  title: string;
+}) {
+  return (
+    <div className="admin-confirmation-backdrop">
+      <section aria-modal="true" className="admin-confirmation-dialog" role="dialog">
+        <header className="admin-confirmation-dialog__header">
+          <div>
+            <h2>{title}</h2>
+          </div>
+          <Button
+            aria-label="Close"
+            disabled={pending}
+            onClick={onClose}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <X aria-hidden="true" size={16} />
+          </Button>
+        </header>
+        {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
+        {children}
+      </section>
     </div>
   );
 }

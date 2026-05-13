@@ -23,6 +23,7 @@ CREATE POLICY behaviour_full_admin_select ON "BehaviourEntry"
   FOR SELECT
   USING (
     current_setting('app.full_admin', true) = 'true'
+    AND "deletedAt" IS NULL
   );
 
 -- Supervisors/ClubsAdmin see General entries and Sensitive demerits or General marks they recorded.
@@ -30,6 +31,7 @@ CREATE POLICY behaviour_supervisor_general ON "BehaviourEntry"
   FOR SELECT
   USING (
     current_setting('app.user_role', true) IN ('Supervisor', 'ClubsAdmin')
+    AND "deletedAt" IS NULL
     AND (
       "visibility" = 'General'
       OR (
@@ -54,6 +56,7 @@ CREATE POLICY behaviour_guardian_own_child ON "BehaviourEntry"
       'Supervisor',
       'Parent'
     )
+    AND "deletedAt" IS NULL
     AND "visibility" = 'General'
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
@@ -67,6 +70,7 @@ CREATE POLICY behaviour_student_self ON "BehaviourEntry"
   FOR SELECT
   USING (
     current_setting('app.user_role', true) = 'Student'
+    AND "deletedAt" IS NULL
     AND "visibility" = 'General'
     AND EXISTS (
       SELECT 1 FROM "Student" s
