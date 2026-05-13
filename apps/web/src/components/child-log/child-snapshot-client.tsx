@@ -470,10 +470,11 @@ export function ChildSnapshotClient({
                   <div>
                     <strong>
                       {item.subjectName} <span>#{item.paceNumber}</span>
+                      {hasSnapshotStudent(item) ? ` - ${item.student.fullName}` : ''}
                     </strong>
                     <p>
                       {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)} ·{' '}
-                      {item.recordedByName}
+                      Supervisor: {item.recordedByName}
                     </p>
                   </div>
                   <span>{item.testType}</span>
