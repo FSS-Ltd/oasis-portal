@@ -2656,7 +2656,7 @@
 }
 
 .pace-progress-table {
-  min-width: 980px;
+  min-width: 1180px;
 }
 
 .pace-progress-table th {
@@ -2698,6 +2698,23 @@
 .pace-status-cell span {
   color: var(--oasis-text-secondary);
   font-size: 0.72rem;
+}
+
+.pace-timing-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.pace-timing-cell strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.pace-timing-cell span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .pace-number {

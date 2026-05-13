@@ -61,6 +61,18 @@ interface StoredPaceRecord {
   createdAt: Date;
 }
 
+interface StoredPaceProgress {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  paceNumber: number;
+  startedAt: Date;
+  completedAt: Date | null;
+  completedByRecordId: string | null;
+  finalTestAttempts: number;
+  createdAt: Date;
+}
+
 interface BehaviourEntryCreateData {
   studentId: string;
   type: 'Merit';
@@ -103,6 +115,12 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+  };
+  paceProgress: {
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
   yearGroupBand: { findMany: ReturnType<typeof vi.fn> };
@@ -153,6 +171,7 @@ const defaultStudent = {
 
 function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const records: StoredPaceRecord[] = [];
+  const progressRows: StoredPaceProgress[] = [];
   const behaviourEntries: StoredBehaviourEntry[] = [];
 
   const createPaceRecord = vi.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -189,6 +208,85 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     Promise.resolve({ count: data.length }),
   );
 
+  const findProgress = (params: {
+    studentId: string;
+    subjectId: string;
+    paceNumber: number;
+  }): StoredPaceProgress | null =>
+    progressRows.find(
+      (row) =>
+        row.studentId === params.studentId &&
+        row.subjectId === params.subjectId &&
+        row.paceNumber === params.paceNumber,
+    ) ?? null;
+
+  const findManyProgress = vi.fn(
+    ({ where }: { where: { studentId: string; subjectId: { in: string[] } } }) =>
+      Promise.resolve(
+        progressRows.filter(
+          (row) => row.studentId === where.studentId && where.subjectId.in.includes(row.subjectId),
+        ),
+      ),
+  );
+  const findUniqueProgress = vi.fn(
+    ({
+      where,
+    }: {
+      where: {
+        studentId_subjectId_paceNumber: {
+          studentId: string;
+          subjectId: string;
+          paceNumber: number;
+        };
+      };
+    }) => Promise.resolve(findProgress(where.studentId_subjectId_paceNumber)),
+  );
+  const createProgress = vi.fn(
+    ({
+      data,
+    }: {
+      data: {
+        studentId: string;
+        subjectId: string;
+        paceNumber: number;
+        startedAt: Date;
+      };
+    }) => {
+      const row: StoredPaceProgress = {
+        ...data,
+        id: `progress_${String(progressRows.length + 1)}`,
+        completedAt: null,
+        completedByRecordId: null,
+        finalTestAttempts: 0,
+        createdAt: new Date(),
+      };
+      progressRows.push(row);
+      return Promise.resolve(row);
+    },
+  );
+  const updateProgress = vi.fn(
+    ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: {
+        finalTestAttempts?: { increment: number };
+        completedAt?: Date;
+        completedByRecordId?: string;
+      };
+    }) => {
+      const row = progressRows.find((item) => item.id === where.id);
+      if (!row) throw new Error('progress row not found');
+      if (data.finalTestAttempts) {
+        row.finalTestAttempts += data.finalTestAttempts.increment;
+      }
+      if (data.completedAt) row.completedAt = data.completedAt;
+      if (data.completedByRecordId) row.completedByRecordId = data.completedByRecordId;
+      return Promise.resolve(row);
+    },
+  );
+
   const subjectUpdate = vi.fn().mockResolvedValue({ id: ASSIGNMENT_ID, currentPaceNumber: 1002 });
 
   const $transaction = vi.fn(
@@ -204,6 +302,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         behaviourEntry: { ...db.behaviourEntry, create: createBehaviourEntry },
         meritLedger: { ...db.meritLedger, createMany: createLedgerRows },
         paceRecord: { ...db.paceRecord, create: createPaceRecord },
+        paceProgress: {
+          ...db.paceProgress,
+          create: createProgress,
+          findUnique: findUniqueProgress,
+          update: updateProgress,
+        },
         studentSubject: { ...db.studentSubject, update: subjectUpdate },
       }),
   );
@@ -258,6 +362,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       create: createPaceRecord,
+    },
+    paceProgress: {
+      findMany: findManyProgress,
+      findUnique: findUniqueProgress,
+      create: createProgress,
+      update: updateProgress,
     },
     staffShift: {
       findMany: vi.fn().mockResolvedValue([{ yearGroupBand: defaultBands[0] }]),
@@ -529,6 +639,41 @@ describe('pace.forStudent read model', () => {
             .filter((record) => where.subjectId.in.includes(record.subjectId)),
         ),
     );
+    db.paceProgress.findMany.mockResolvedValue([
+      {
+        id: 'progress_eng_current',
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        startedAt: new Date('2026-04-28T10:00:00.000Z'),
+        completedAt: null,
+        completedByRecordId: null,
+        finalTestAttempts: 0,
+        createdAt: new Date('2026-04-28T10:00:00.000Z'),
+      },
+      {
+        id: 'progress_eng_done',
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1000,
+        startedAt: new Date('2026-04-20T10:00:00.000Z'),
+        completedAt: new Date('2026-04-28T10:00:00.000Z'),
+        completedByRecordId: 'pace_final',
+        finalTestAttempts: 2,
+        createdAt: new Date('2026-04-20T10:00:00.000Z'),
+      },
+      {
+        id: 'progress_math_current',
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_2_ID,
+        paceNumber: 1007,
+        startedAt: new Date('2026-04-27T10:00:00.000Z'),
+        completedAt: null,
+        completedByRecordId: null,
+        finalTestAttempts: 1,
+        createdAt: new Date('2026-04-27T10:00:00.000Z'),
+      },
+    ]);
     const { caller } = makeCaller(headUser, db);
 
     const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
@@ -557,16 +702,17 @@ describe('pace.forStudent read model', () => {
         name: 'English',
         active: true,
         currentPaceNumber: 1001,
+        currentPaceStartedAt: new Date('2026-04-28T10:00:00.000Z'),
+        currentPaceDays: 0.6,
+        currentFinalTestAttempts: 0,
+        completedPaceCount: 1,
+        averagePaceCompletionDays: 8,
         latestSelfTest: {
           paceNumber: 1001,
           score: 74,
           completedAt: new Date('2026-04-29T10:00:00.000Z'),
         },
-        latestFinalTest: {
-          paceNumber: 1000,
-          score: 90,
-          completedAt: new Date('2026-04-28T10:00:00.000Z'),
-        },
+        latestFinalTest: null,
         latestCompletedAt: new Date('2026-04-29T10:00:00.000Z'),
         status: {
           status: 'Behind',
@@ -579,6 +725,7 @@ describe('pace.forStudent read model', () => {
             paceNumber: 1001,
             testType: 'SelfTest',
             score: 74,
+            passed: false,
             completedAt: new Date('2026-04-29T10:00:00.000Z'),
             createdAt: new Date('2026-04-29T10:01:00.000Z'),
           },
@@ -587,6 +734,7 @@ describe('pace.forStudent read model', () => {
             paceNumber: 1000,
             testType: 'FinalTest',
             score: 90,
+            passed: true,
             completedAt: new Date('2026-04-28T10:00:00.000Z'),
             createdAt: new Date('2026-04-28T10:01:00.000Z'),
           },
@@ -598,12 +746,13 @@ describe('pace.forStudent read model', () => {
         name: 'Maths',
         active: true,
         currentPaceNumber: 1007,
-        latestFinalTest: {
-          paceNumber: 1006,
-          score: 81,
-          completedAt: null,
-        },
-        latestCompletedAt: new Date('2026-04-27T10:01:00.000Z'),
+        currentPaceStartedAt: new Date('2026-04-27T10:00:00.000Z'),
+        currentPaceDays: 1.6,
+        currentFinalTestAttempts: 1,
+        completedPaceCount: 0,
+        averagePaceCompletionDays: null,
+        latestFinalTest: null,
+        latestCompletedAt: null,
         status: {
           status: 'Behind',
           detail: 'Testing at Level 1',
@@ -615,6 +764,7 @@ describe('pace.forStudent read model', () => {
             paceNumber: 1006,
             testType: 'FinalTest',
             score: 81,
+            passed: true,
             completedAt: null,
             createdAt: new Date('2026-04-27T10:01:00.000Z'),
           },
@@ -645,6 +795,21 @@ describe('pace.forStudent read model', () => {
         paceTestScore: true,
         completedAt: true,
         createdAt: true,
+      },
+    });
+    expect(db.paceProgress.findMany).toHaveBeenCalledWith({
+      where: {
+        studentId: STUDENT_ID,
+        subjectId: { in: [SUBJECT_ID, SUBJECT_2_ID] },
+      },
+      orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        subjectId: true,
+        paceNumber: true,
+        startedAt: true,
+        completedAt: true,
+        finalTestAttempts: true,
       },
     });
   });
@@ -1016,16 +1181,44 @@ describe('pace.record — passing final test advancement', () => {
   it('advances currentPaceNumber on passing FinalTest for current PACE number', async () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, db);
+    const completedAt = new Date('2026-04-20T10:00:00.000Z');
 
     const result = await caller.pace.record({
       ...validInput,
       paceNumber: 1001,
       testType: 'FinalTest',
       score: 90,
+      completedAt,
     });
 
     expect(result.advanced).toBe(true);
     expect(result.newPaceNumber).toBe(1002);
+    expect(db.paceProgress.create).toHaveBeenCalledWith({
+      data: {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        startedAt: completedAt,
+      },
+      select: { id: true, finalTestAttempts: true, completedAt: true },
+    });
+    expect(db.paceProgress.update).toHaveBeenCalledWith({
+      where: { id: 'progress_1' },
+      data: {
+        finalTestAttempts: { increment: 1 },
+        completedAt,
+        completedByRecordId: 'pace_1',
+      },
+    });
+    expect(db.paceProgress.create).toHaveBeenCalledWith({
+      data: {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1002,
+        startedAt: completedAt,
+      },
+      select: { id: true, finalTestAttempts: true, completedAt: true },
+    });
     expect(auditCalls(db)).toContainEqual(
       expect.objectContaining({
         action: 'Update',
@@ -1053,15 +1246,88 @@ describe('pace.record — passing final test advancement', () => {
   it('does not advance on a failing FinalTest', async () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, db);
+    const completedAt = new Date('2026-04-20T10:00:00.000Z');
 
     const result = await caller.pace.record({
       ...validInput,
       testType: 'FinalTest',
       score: 79,
+      completedAt,
     });
 
     expect(result.advanced).toBe(false);
     expect(result.newPaceNumber).toBeUndefined();
+    expect(db.paceProgress.create).toHaveBeenCalledWith({
+      data: {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        startedAt: completedAt,
+      },
+      select: { id: true, finalTestAttempts: true, completedAt: true },
+    });
+    expect(db.paceProgress.update).toHaveBeenCalledWith({
+      where: { id: 'progress_1' },
+      data: {
+        finalTestAttempts: { increment: 1 },
+      },
+    });
+    expect(db.studentSubject.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps failed FinalTest records and links the later passing attempt to the same PACE lifecycle', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+
+    const failed = await caller.pace.record({
+      ...validInput,
+      testType: 'FinalTest',
+      score: 79,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+    const passed = await caller.pace.record({
+      ...validInput,
+      testType: 'FinalTest',
+      score: 85,
+      completedAt: new Date('2026-04-21T10:00:00.000Z'),
+    });
+
+    expect(failed.advanced).toBe(false);
+    expect(passed.advanced).toBe(true);
+    expect(db.paceRecord.create).toHaveBeenCalledTimes(2);
+    expect(db.paceProgress.create).toHaveBeenCalledTimes(2);
+    expect(db.paceProgress.create).toHaveBeenNthCalledWith(1, {
+      data: {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        startedAt: new Date('2026-04-20T10:00:00.000Z'),
+      },
+      select: { id: true, finalTestAttempts: true, completedAt: true },
+    });
+    expect(db.paceProgress.create).toHaveBeenNthCalledWith(2, {
+      data: {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1002,
+        startedAt: new Date('2026-04-21T10:00:00.000Z'),
+      },
+      select: { id: true, finalTestAttempts: true, completedAt: true },
+    });
+    expect(db.paceProgress.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'progress_1' },
+      data: {
+        finalTestAttempts: { increment: 1 },
+      },
+    });
+    expect(db.paceProgress.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'progress_1' },
+      data: {
+        finalTestAttempts: { increment: 1 },
+        completedAt: new Date('2026-04-21T10:00:00.000Z'),
+        completedByRecordId: 'pace_2',
+      },
+    });
   });
 
   it('does not advance on a SelfTest even if score is passing', async () => {
