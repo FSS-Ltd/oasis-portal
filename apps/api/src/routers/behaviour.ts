@@ -25,7 +25,7 @@ import {
   createResendEmailClient,
   type EmailClient,
 } from '../lib/email.js';
-import { authedProcedure, router } from '../trpc.js';
+import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
@@ -67,6 +67,7 @@ const behaviourTypeSchema = z.enum(['Merit', 'Demerit', 'General']);
 const behaviourVisibilitySchema = z.enum(['General', 'Sensitive']);
 const behaviourCategorySchema = z.string().trim().min(1).max(120);
 const behaviourNoteSchema = z.string().trim().min(1).max(2000);
+const behaviourUpdateNoteSchema = z.string().trim().max(2000).nullable().optional();
 const behaviourAmountSchema = z.number().int().positive();
 
 const logEntrySchema = z.object({
@@ -228,9 +229,10 @@ async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string):
 }
 
 function visibleBehaviourWhere(user: SessionUser) {
-  if (canViewSensitiveBehaviour(user)) return {};
+  if (canViewSensitiveBehaviour(user)) return { deletedAt: null };
   if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
     return {
+      deletedAt: null,
       OR: [
         { visibility: 'General' as const },
         {
@@ -246,7 +248,7 @@ function visibleBehaviourWhere(user: SessionUser) {
       ],
     };
   }
-  return { visibility: 'General' as const };
+  return { deletedAt: null, visibility: 'General' as const };
 }
 
 async function loadActiveScopedStudent(
@@ -423,6 +425,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const rows = await ctx.db.behaviourEntry.findMany({
           where: {
             type: 'Merit',
+            deletedAt: null,
             createdAt: { gte: from, lt: to },
             ...(canReadSensitive ? {} : { visibility: 'General' as const }),
           },
@@ -492,6 +495,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
 
         const rows = await ctx.db.behaviourEntry.findMany({
           where: {
+            deletedAt: null,
             createdAt: { gte: from, lt: to },
             ...(canReadSensitive ? {} : { visibility: 'General' as const }),
           },
@@ -936,6 +940,181 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           meritDelta: result.behaviour.meritDelta,
           recordedById: result.behaviour.recordedById,
           createdAt: result.behaviour.createdAt,
+        };
+      }),
+
+    updateEntry: fullAdminProcedure
+      .input(
+        z.object({
+          id: z.string().min(1),
+          category: behaviourCategorySchema.optional(),
+          note: behaviourUpdateNoteSchema,
+          visibility: behaviourVisibilitySchema.optional(),
+          amount: behaviourAmountSchema.optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const existing = await ctx.db.behaviourEntry.findUnique({
+          where: { id: input.id },
+          include: { ledgerRows: { select: { id: true, delta: true, account: true } } },
+        });
+        if (!existing || existing.deletedAt !== null) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
+        }
+
+        if (existing.type !== 'Merit' && input.amount !== undefined) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+              existing.type === 'Demerit'
+                ? 'demerit amount is fixed'
+                : 'general marks have no merit value',
+          });
+        }
+
+        const nextCategory = input.category ?? existing.category;
+        const nextVisibility = input.visibility ?? existing.visibility;
+        const nextNote =
+          input.note === undefined ? undefined : input.note === null ? null : input.note.trim();
+        if (
+          existing.type === 'General' &&
+          ((nextNote === undefined && !existing.noteEnc) || nextNote === null || nextNote === '')
+        ) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'general mark note is required' });
+        }
+
+        const nextMeritDelta =
+          existing.type === 'Merit' ? (input.amount ?? existing.meritDelta) : existing.meritDelta;
+        const ledgerDelta = nextMeritDelta - existing.meritDelta;
+
+        const updated = await ctx.db.$transaction(async (tx) => {
+          const row = await tx.behaviourEntry.update({
+            where: { id: existing.id },
+            data: {
+              category: nextCategory,
+              visibility: nextVisibility,
+              meritDelta: nextMeritDelta,
+              ...(nextNote === undefined
+                ? {}
+                : { noteEnc: nextNote ? ctx.db.$enc.encrypt(nextNote) : null }),
+            },
+            select: {
+              id: true,
+              studentId: true,
+              type: true,
+              category: true,
+              visibility: true,
+              meritDelta: true,
+              recordedById: true,
+              createdAt: true,
+            },
+          });
+
+          if (ledgerDelta !== 0) {
+            await tx.meritLedger.createMany({
+              data: [
+                {
+                  studentId: existing.studentId,
+                  account: 'Spend',
+                  delta: ledgerDelta,
+                  reason: `correction:${nextCategory}`,
+                  relatedEntryId: existing.id,
+                },
+              ],
+            });
+          }
+
+          return row;
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'BehaviourEntry',
+            entityId: updated.id,
+            meta: {
+              studentId: updated.studentId,
+              type: existing.type,
+              previousCategory: existing.category,
+              previousVisibility: existing.visibility,
+              previousMeritDelta: existing.meritDelta,
+              previousNotePresent: existing.noteEnc !== null,
+              category: updated.category,
+              visibility: updated.visibility,
+              meritDelta: updated.meritDelta,
+              noteChanged: nextNote !== undefined,
+              ledgerCorrectionRows: ledgerDelta === 0 ? 0 : 1,
+            },
+          },
+        });
+
+        return updated;
+      }),
+
+    deleteEntry: fullAdminProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .mutation(async ({ ctx, input }) => {
+        const existing = await ctx.db.behaviourEntry.findUnique({
+          where: { id: input.id },
+          include: {
+            ledgerRows: {
+              select: { studentId: true, account: true, delta: true, reason: true },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        });
+        if (!existing || existing.deletedAt !== null) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
+        }
+
+        const correctionRows = existing.ledgerRows
+          .filter((row) => row.delta !== 0)
+          .map((row) => ({
+            studentId: row.studentId,
+            account: row.account,
+            delta: -row.delta,
+            reason: `correction:delete:${row.reason}`,
+            relatedEntryId: existing.id,
+          }));
+
+        const deleted = await ctx.db.$transaction(async (tx) => {
+          const row = await tx.behaviourEntry.update({
+            where: { id: existing.id },
+            data: { deletedAt: new Date(), deletedById: ctx.user.id },
+            select: { id: true, studentId: true, type: true, meritDelta: true },
+          });
+
+          if (correctionRows.length > 0) {
+            await tx.meritLedger.createMany({ data: correctionRows });
+          }
+
+          return row;
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'BehaviourEntry',
+            entityId: deleted.id,
+            meta: {
+              studentId: deleted.studentId,
+              type: deleted.type,
+              previousCategory: existing.category,
+              previousVisibility: existing.visibility,
+              previousMeritDelta: existing.meritDelta,
+              previousNotePresent: existing.noteEnc !== null,
+              ledgerCorrectionRows: correctionRows.length,
+            },
+          },
+        });
+
+        return {
+          id: deleted.id,
+          studentId: deleted.studentId,
+          type: deleted.type,
+          ledgerCorrectionRows: correctionRows.length,
         };
       }),
 

@@ -182,9 +182,10 @@ function takeRecentByStudent<T extends { studentId: string }>(
 }
 
 function visibleBehaviourWhere(user: SessionUser): Prisma.BehaviourEntryWhereInput {
-  if (isFullAdmin(user)) return {};
+  if (isFullAdmin(user)) return { deletedAt: null };
   if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
     return {
+      deletedAt: null,
       OR: [
         { visibility: 'General' as const },
         {
@@ -195,7 +196,7 @@ function visibleBehaviourWhere(user: SessionUser): Prisma.BehaviourEntryWhereInp
       ],
     };
   }
-  return { visibility: 'General' as const };
+  return { deletedAt: null, visibility: 'General' as const };
 }
 
 export const childLogRouter = router({
@@ -314,6 +315,7 @@ export const childLogRouter = router({
           where: {
             studentId: { in: studentIds },
             createdAt: { gte: from, lt: to },
+            deletedAt: null,
             visibility: 'General',
           },
           select: {
@@ -332,6 +334,7 @@ export const childLogRouter = router({
         where: {
           studentId: { in: studentIds },
           createdAt: { gte: from, lt: to },
+          deletedAt: null,
           sensitive: false,
         },
         select: { id: true, studentId: true, noteEnc: true, createdAt: true },
@@ -470,6 +473,7 @@ export const childLogRouter = router({
           where: {
             studentId: input.studentId,
             createdAt: { gte: from, lt: to },
+            deletedAt: null,
             ...(canReadSensitiveNotes ? {} : { sensitive: false }),
           },
           include: {
@@ -686,29 +690,32 @@ export const childLogRouter = router({
         },
         orderBy: [{ completedAt: 'asc' }, { createdAt: 'asc' }],
       }),
-      ctx.db.behaviourEntry.findMany({
-        where: {
-          studentId: input.studentId,
-          createdAt: { gte: from, lt: to },
-          ...visibleBehaviourWhere(ctx.user),
-        },
-        select: {
-          id: true,
-          type: true,
-          category: true,
-          noteEnc: true,
-          visibility: true,
-          meritDelta: true,
-          recordedById: true,
-          createdAt: true,
-          recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
-        },
-        orderBy: { createdAt: 'asc' },
-      }),
+      ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: {
+            studentId: input.studentId,
+            createdAt: { gte: from, lt: to },
+            ...visibleBehaviourWhere(ctx.user),
+          },
+          select: {
+            id: true,
+            type: true,
+            category: true,
+            noteEnc: true,
+            visibility: true,
+            meritDelta: true,
+            recordedById: true,
+            createdAt: true,
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+      ),
       ctx.db.childNote.findMany({
         where: {
           studentId: input.studentId,
           createdAt: { gte: from, lt: to },
+          deletedAt: null,
           ...(canReadSensitiveNotes ? {} : { sensitive: false }),
         },
         include: { createdBy: { select: { id: true, fullNameEnc: true, role: true } } },

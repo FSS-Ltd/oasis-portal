@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Archive, Link2, RotateCcw, Save } from 'lucide-react';
+import { Archive, Link2, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -86,6 +86,15 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       await utils.student.byId.invalidate({ id: studentId });
     },
   });
+  const unassignSubject = api.student.unassignSubject.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.student.byId.invalidate({ id: studentId }),
+        utils.childLog.drillThrough.invalidate({ studentId }),
+      ]);
+      setSubjectToUnassign(null);
+    },
+  });
   const linkGuardian = api.admin.linkGuardian.useMutation();
   const [subjectId, setSubjectId] = useState('');
   const [paceNumber, setPaceNumber] = useState('1001');
@@ -93,6 +102,11 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   const [guardianEmail, setGuardianEmail] = useState('');
   const [selectedGuardianId, setSelectedGuardianId] = useState('');
   const [updatedSubjectId, setUpdatedSubjectId] = useState<string | null>(null);
+  const [subjectToUnassign, setSubjectToUnassign] = useState<{
+    code: string;
+    name: string;
+    subjectId: string;
+  } | null>(null);
   const guardianLookup = api.admin.searchGuardianAccounts.useQuery(
     { search: guardianEmail.trim() || 'none', limit: 5 },
     { enabled: false, retry: false },
@@ -306,6 +320,21 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                         >
                           Update PACE
                         </Button>
+                        <Button
+                          onClick={() => {
+                            setSubjectToUnassign({
+                              code: subject.code,
+                              name: subject.name,
+                              subjectId: subject.subjectId,
+                            });
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="danger"
+                        >
+                          <Trash2 aria-hidden="true" size={14} />
+                          Unassign
+                        </Button>
                       </form>
                     ))}
                   </div>
@@ -514,6 +543,29 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
           {statusAction === 'archive'
             ? 'This will remove the student from active workflows while keeping their profile, history, and audit records.'
             : 'This will return the student to active workflows and student directories.'}
+        </p>
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        confirmLabel="Unassign subject"
+        errorMessage={unassignSubject.error?.message}
+        onCancel={() => {
+          if (!unassignSubject.isPending) setSubjectToUnassign(null);
+        }}
+        onConfirm={() => {
+          if (!subjectToUnassign) return;
+          unassignSubject.mutate({ studentId, subjectId: subjectToUnassign.subjectId });
+        }}
+        open={subjectToUnassign !== null}
+        pending={unassignSubject.isPending}
+        title={
+          subjectToUnassign
+            ? `Unassign ${subjectToUnassign.code} from ${student.fullName}?`
+            : 'Unassign subject?'
+        }
+      >
+        <p>
+          This removes the current subject assignment from active PACE workflows. Historical PACE
+          records for this subject are kept.
         </p>
       </ConfirmationDialog>
     </>

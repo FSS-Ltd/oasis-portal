@@ -7,7 +7,7 @@ export default async function SupervisorBehaviourPage() {
 
   return (
     <MotionPage>
-      <BehaviourLogClient canLogBehaviour sensitiveMode="demerit-only" />
+      <BehaviourLogClient canLogBehaviour canManageEntries={false} sensitiveMode="demerit-only" />
     </MotionPage>
   );
 }

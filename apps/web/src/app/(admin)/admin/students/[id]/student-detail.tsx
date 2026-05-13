@@ -38,9 +38,14 @@ export function StudentDetail({ canEdit, studentId }: StudentDetailProps) {
     <StudentDrillThroughContent
       backHref="/admin/students"
       backLabel="Back to Students"
-      onEdit={canEdit ? () => {
-        setEditing(true);
-      } : undefined}
+      canManageCorrections={canEdit}
+      onEdit={
+        canEdit
+          ? () => {
+              setEditing(true);
+            }
+          : undefined
+      }
       studentId={studentId}
     />
   );

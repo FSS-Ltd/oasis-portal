@@ -68,6 +68,11 @@ const setCurrentPaceInput = z.object({
   currentPaceNumber: z.number().int().positive(),
 });
 
+const unassignSubjectInput = z.object({
+  studentId: z.string().min(1),
+  subjectId: z.string().min(1),
+});
+
 type StudentWithSubjects = Prisma.StudentGetPayload<{ include: typeof studentInclude }>;
 
 function dateOnly(date: Date): string {
@@ -320,4 +325,43 @@ export const studentRouter = router({
       throw err;
     }
   }),
+
+  unassignSubject: fullAdminProcedure
+    .input(unassignSubjectInput)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const assignment = await ctx.db.studentSubject.delete({
+          where: {
+            studentId_subjectId: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+            },
+          },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'StudentSubject',
+            entityId: assignment.id,
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              previousPaceNumber: assignment.currentPaceNumber,
+              historicalPaceRecordsPreserved: true,
+            },
+          },
+        });
+        return {
+          assignmentId: assignment.id,
+          studentId: input.studentId,
+          subjectId: input.subjectId,
+        };
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'student subject not found' });
+        }
+        throw err;
+      }
+    }),
 });

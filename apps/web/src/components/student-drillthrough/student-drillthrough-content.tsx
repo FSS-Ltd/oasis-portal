@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { ArrowLeft, Edit3 } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, Edit3, Trash2, X } from 'lucide-react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SelectInput, TextInput } from '@/components/ui/field';
 import {
   AttendanceRing,
   EmptyCard,
@@ -25,6 +27,8 @@ import { NotesList } from './notes-list';
 
 type DrillThrough = RouterOutputs['childLog']['drillThrough'];
 type DrillThroughTab = 'overview' | 'attendance' | 'behaviour' | 'pace' | 'merits' | 'notes';
+type BehaviourEntry = DrillThrough['behaviour'][number];
+type NoteEntry = DrillThrough['notes'][number];
 
 const DRILL_THROUGH_TABS = [
   ['overview', 'Overview'],
@@ -39,7 +43,23 @@ interface StudentDrillThroughContentProps {
   backHref: Route;
   backLabel: string;
   onEdit?: (() => void) | undefined;
+  canManageCorrections?: boolean;
   studentId: string;
+}
+
+interface BehaviourCorrectionDraft {
+  id: string;
+  type: BehaviourEntry['type'];
+  category: string;
+  note: string;
+  visibility: BehaviourEntry['visibility'];
+  amount: string;
+}
+
+interface NoteCorrectionDraft {
+  id: string;
+  note: string;
+  sensitive: boolean;
 }
 
 function signed(value: number): string {
@@ -265,7 +285,17 @@ function AttendanceTab({ data }: { data: DrillThrough }) {
   );
 }
 
-function BehaviourTab({ data }: { data: DrillThrough }) {
+function BehaviourTab({
+  canManageCorrections,
+  data,
+  onDelete,
+  onEdit,
+}: {
+  canManageCorrections: boolean;
+  data: DrillThrough;
+  onDelete: (entry: BehaviourEntry) => void;
+  onEdit: (entry: BehaviourEntry) => void;
+}) {
   return (
     <div className="snapshot-tab-panel snapshot-list-panel">
       {data.behaviour.length === 0 ? (
@@ -297,6 +327,32 @@ function BehaviourTab({ data }: { data: DrillThrough }) {
             <small>
               Recorded by <strong>{entry.recordedByName}</strong>
             </small>
+            {canManageCorrections ? (
+              <div className="lifecycle-actions">
+                <Button
+                  onClick={() => {
+                    onEdit(entry);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <Edit3 aria-hidden="true" size={14} />
+                  Edit
+                </Button>
+                <Button
+                  onClick={() => {
+                    onDelete(entry);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="danger"
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                  Delete
+                </Button>
+              </div>
+            ) : null}
           </div>
           <time>{formatShortDate(entry.createdAt)}</time>
         </article>
@@ -367,19 +423,99 @@ function MeritsTab({ data }: { data: DrillThrough }) {
   );
 }
 
-function NotesTab({ data }: { data: DrillThrough }) {
-  return <NotesList notes={data.notes} />;
+function NotesTab({
+  canManageCorrections,
+  data,
+  onDelete,
+  onEdit,
+}: {
+  canManageCorrections: boolean;
+  data: DrillThrough;
+  onDelete: (note: NoteEntry) => void;
+  onEdit: (note: NoteEntry) => void;
+}) {
+  return (
+    <NotesList
+      canManageCorrections={canManageCorrections}
+      notes={data.notes}
+      onDelete={onDelete}
+      onEdit={onEdit}
+    />
+  );
 }
 
 export function StudentDrillThroughContent({
   backHref,
   backLabel,
+  canManageCorrections = false,
   onEdit,
   studentId,
 }: StudentDrillThroughContentProps) {
   const [activeTab, setActiveTab] = useState<DrillThroughTab>('overview');
   const drillThroughQuery = api.childLog.drillThrough.useQuery({ studentId }, { retry: false });
+  const utils = api.useUtils();
+  const [behaviourDraft, setBehaviourDraft] = useState<BehaviourCorrectionDraft | null>(null);
+  const [behaviourDelete, setBehaviourDelete] = useState<BehaviourEntry | null>(null);
+  const [noteDraft, setNoteDraft] = useState<NoteCorrectionDraft | null>(null);
+  const [noteDelete, setNoteDelete] = useState<NoteEntry | null>(null);
+  const updateBehaviour = api.behaviour.updateEntry.useMutation({
+    onSuccess: async () => {
+      setBehaviourDraft(null);
+      await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+  });
+  const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
+    onSuccess: async () => {
+      setBehaviourDelete(null);
+      await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+  });
+  const updateNote = api.childNotes.update.useMutation({
+    onSuccess: async () => {
+      setNoteDraft(null);
+      await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+  });
+  const deleteNote = api.childNotes.delete.useMutation({
+    onSuccess: async () => {
+      setNoteDelete(null);
+      await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+  });
   const data = drillThroughQuery.data;
+
+  function editBehaviour(entry: BehaviourEntry): void {
+    setBehaviourDraft({
+      id: entry.id,
+      type: entry.type,
+      category: entry.category,
+      note: entry.note ?? '',
+      visibility: entry.visibility,
+      amount: String(Math.max(entry.meritDelta, 1)),
+    });
+  }
+
+  async function submitBehaviourCorrection(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!behaviourDraft) return;
+    await updateBehaviour.mutateAsync({
+      id: behaviourDraft.id,
+      category: behaviourDraft.category,
+      note: behaviourDraft.note.trim() ? behaviourDraft.note : null,
+      visibility: behaviourDraft.visibility,
+      ...(behaviourDraft.type === 'Merit' ? { amount: Number(behaviourDraft.amount) } : {}),
+    });
+  }
+
+  async function submitNoteCorrection(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!noteDraft) return;
+    await updateNote.mutateAsync({
+      id: noteDraft.id,
+      note: noteDraft.note,
+      sensitive: noteDraft.sensitive,
+    });
+  }
 
   if (drillThroughQuery.isLoading) {
     return <div className="empty-state">Loading student record...</div>;
@@ -399,10 +535,212 @@ export function StudentDrillThroughContent({
       <StudentTabs activeTab={activeTab} onSelect={setActiveTab} />
       {activeTab === 'overview' ? <OverviewTab data={data} /> : null}
       {activeTab === 'attendance' ? <AttendanceTab data={data} /> : null}
-      {activeTab === 'behaviour' ? <BehaviourTab data={data} /> : null}
+      {activeTab === 'behaviour' ? (
+        <BehaviourTab
+          canManageCorrections={canManageCorrections}
+          data={data}
+          onDelete={setBehaviourDelete}
+          onEdit={editBehaviour}
+        />
+      ) : null}
       {activeTab === 'pace' ? <PaceTab data={data} /> : null}
       {activeTab === 'merits' ? <MeritsTab data={data} /> : null}
-      {activeTab === 'notes' ? <NotesTab data={data} /> : null}
+      {activeTab === 'notes' ? (
+        <NotesTab
+          canManageCorrections={canManageCorrections}
+          data={data}
+          onDelete={setNoteDelete}
+          onEdit={(note) => {
+            setNoteDraft({ id: note.id, note: note.note, sensitive: note.sensitive });
+          }}
+        />
+      ) : null}
+      {behaviourDraft ? (
+        <CorrectionModal
+          errorMessage={updateBehaviour.error?.message}
+          onClose={() => {
+            if (!updateBehaviour.isPending) setBehaviourDraft(null);
+          }}
+          pending={updateBehaviour.isPending}
+          title="Edit behaviour entry"
+        >
+          <form
+            className="form-grid"
+            onSubmit={(event) => {
+              void submitBehaviourCorrection(event);
+            }}
+          >
+            <TextInput
+              aria-label="Behaviour category"
+              onChange={(event) => {
+                setBehaviourDraft((current) =>
+                  current ? { ...current, category: event.target.value } : current,
+                );
+              }}
+              required
+              value={behaviourDraft.category}
+            />
+            <textarea
+              aria-label="Behaviour note"
+              className="input textarea"
+              maxLength={2000}
+              onChange={(event) => {
+                setBehaviourDraft((current) =>
+                  current ? { ...current, note: event.target.value } : current,
+                );
+              }}
+              required={behaviourDraft.type === 'General'}
+              rows={4}
+              value={behaviourDraft.note}
+            />
+            <SelectInput
+              aria-label="Behaviour visibility"
+              onChange={(event) => {
+                setBehaviourDraft((current) =>
+                  current
+                    ? { ...current, visibility: event.target.value as BehaviourEntry['visibility'] }
+                    : current,
+                );
+              }}
+              value={behaviourDraft.visibility}
+            >
+              <option value="General">General</option>
+              <option value="Sensitive">Sensitive</option>
+            </SelectInput>
+            {behaviourDraft.type === 'Merit' ? (
+              <TextInput
+                aria-label="Merit amount"
+                min={1}
+                onChange={(event) => {
+                  setBehaviourDraft((current) =>
+                    current ? { ...current, amount: event.target.value } : current,
+                  );
+                }}
+                required
+                type="number"
+                value={behaviourDraft.amount}
+              />
+            ) : null}
+            <Button pending={updateBehaviour.isPending} type="submit">
+              Save entry
+            </Button>
+          </form>
+        </CorrectionModal>
+      ) : null}
+      {noteDraft ? (
+        <CorrectionModal
+          errorMessage={updateNote.error?.message}
+          onClose={() => {
+            if (!updateNote.isPending) setNoteDraft(null);
+          }}
+          pending={updateNote.isPending}
+          title="Edit note"
+        >
+          <form
+            className="form-grid"
+            onSubmit={(event) => {
+              void submitNoteCorrection(event);
+            }}
+          >
+            <textarea
+              aria-label="Child note"
+              className="input textarea"
+              maxLength={3000}
+              onChange={(event) => {
+                setNoteDraft((current) =>
+                  current ? { ...current, note: event.target.value } : current,
+                );
+              }}
+              required
+              rows={4}
+              value={noteDraft.note}
+            />
+            <SelectInput
+              aria-label="Note sensitivity"
+              onChange={(event) => {
+                setNoteDraft((current) =>
+                  current ? { ...current, sensitive: event.target.value === 'true' } : current,
+                );
+              }}
+              value={String(noteDraft.sensitive)}
+            >
+              <option value="false">General</option>
+              <option value="true">Sensitive</option>
+            </SelectInput>
+            <Button pending={updateNote.isPending} type="submit">
+              Save note
+            </Button>
+          </form>
+        </CorrectionModal>
+      ) : null}
+      <ConfirmationDialog
+        confirmLabel="Delete entry"
+        errorMessage={deleteBehaviour.error?.message}
+        onCancel={() => {
+          if (!deleteBehaviour.isPending) setBehaviourDelete(null);
+        }}
+        onConfirm={() => {
+          if (behaviourDelete) void deleteBehaviour.mutateAsync({ id: behaviourDelete.id });
+        }}
+        open={behaviourDelete !== null}
+        pending={deleteBehaviour.isPending}
+        title="Delete behaviour entry?"
+      >
+        <p>This removes the entry from views and applies any merit correction rows.</p>
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        confirmLabel="Delete note"
+        errorMessage={deleteNote.error?.message}
+        onCancel={() => {
+          if (!deleteNote.isPending) setNoteDelete(null);
+        }}
+        onConfirm={() => {
+          if (noteDelete) void deleteNote.mutateAsync({ id: noteDelete.id });
+        }}
+        open={noteDelete !== null}
+        pending={deleteNote.isPending}
+        title="Delete note?"
+      >
+        <p>This removes the note from student views while keeping an audit trail.</p>
+      </ConfirmationDialog>
+    </div>
+  );
+}
+
+function CorrectionModal({
+  children,
+  errorMessage,
+  onClose,
+  pending,
+  title,
+}: {
+  children: ReactNode;
+  errorMessage?: string | undefined;
+  onClose: () => void;
+  pending: boolean;
+  title: string;
+}) {
+  return (
+    <div className="admin-confirmation-backdrop">
+      <section aria-modal="true" className="admin-confirmation-dialog" role="dialog">
+        <header className="admin-confirmation-dialog__header">
+          <div>
+            <h2>{title}</h2>
+          </div>
+          <Button
+            aria-label="Close"
+            disabled={pending}
+            onClick={onClose}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <X aria-hidden="true" size={16} />
+          </Button>
+        </header>
+        {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
+        {children}
+      </section>
     </div>
   );
 }
