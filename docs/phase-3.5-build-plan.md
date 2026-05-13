@@ -1,7 +1,7 @@
 # Phase 3.5 - Clubs module: sprint & PR plan
 
-**Status:** PR-3.5.4 club notification UI ready for review
-**Last updated:** 2026-05-12
+**Status:** PR-3.5.5 mobile clubs smoke in progress
+**Last updated:** 2026-05-13
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -238,7 +238,9 @@ Tests:
 - Parent/Supervisor cannot send club notifications.
 - Email failure is surfaced and audited without leaking PII.
 
-### PR-3.5.4 - `feat(web): club notification UI` READY FOR REVIEW
+### PR-3.5.4 - `feat(web): club notification UI` MERGED
+
+Merged via PR #112 on 2026-05-12.
 
 Scope:
 
@@ -274,7 +276,7 @@ Verification:
 
 ## Sprint 4 - Mobile smoke and phase verification
 
-### PR-3.5.5 - `feat(mobile): clubs smoke` PLANNED
+### PR-3.5.5 - `feat(mobile): clubs smoke` IN PROGRESS
 
 Scope:
 
@@ -282,12 +284,30 @@ Scope:
   roster read smoke.
 - Keep styling minimal and use the typed API client.
 - Stick to design guidelines set in Oasis Learning Center.zip
+- Use the existing parent and staff smoke shells; do not add new backend
+  endpoints or mobile dependencies.
 
 Tests:
 
 - Mobile typecheck.
+- Mobile lint.
+- Expo iOS export.
 - Manual or automated smoke for listing clubs, parent signup, withdrawal, and
   roster read.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-clubs-smoke-export` -
+  pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- Manual live-account mobile smoke was not run because local Parent and
+  ClubsAdmin mobile credentials were not configured in this environment.
 
 ### PR-3.5.6 - `test: Phase 3.5 verification suite` PLANNED
 

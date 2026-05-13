@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-13
 **Agent:** Technical Agent (Codex)
-**Phase:** Centre snapshot PACE identity label ready for review.
+**Phase:** PR-3.5.5 Mobile clubs smoke in progress.
 
 ---
 
@@ -17,6 +17,40 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - PR-3.5.5 Mobile clubs smoke
+
+Working branch: `feat/mobile-clubs-smoke`.
+
+**PR scope:** Add minimal Expo mobile smoke coverage for parent club
+signup/withdrawal and ClubsAdmin roster reads using the existing typed club API.
+PR-3.5.4 is marked merged via PR #112 on 2026-05-12.
+
+Changed scope:
+
+- Added a parent mobile Clubs tab that reads `club.linkedChildSignupContext`,
+  shows linked-child selection, active clubs, capacity/full state, signed-up
+  state, pending state, success feedback, empty state, and mutation errors.
+- Added a staff mobile Clubs tab that reads `club.list` and `club.roster` for
+  club-manager accounts, with access errors kept inside the clubs panel.
+- Extended the shared mobile nav icons with a clubs icon while preserving the
+  existing smoke shell styling derived from the Oasis design reference.
+- Updated the Phase 3.5 tracker so PR-3.5.4 is recorded as merged and PR-3.5.5
+  is active.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-clubs-smoke-export` -
+  pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- Manual mobile smoke with live Parent and ClubsAdmin credentials was not run in
+  this environment.
 
 ## Current status - Centre snapshot PACE identity label
 

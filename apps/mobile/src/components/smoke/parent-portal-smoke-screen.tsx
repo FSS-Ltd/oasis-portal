@@ -6,6 +6,7 @@ import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
 import { ParentChildOverview, ParentChildPicker } from './parent-smoke-children';
+import { ParentClubsPanel } from './parent-smoke-clubs';
 import { ParentMessagesPanel } from './parent-smoke-messages';
 import { ParentNoticesPanel } from './parent-smoke-notices';
 import {
@@ -16,12 +17,15 @@ import {
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
-type ParentMobileTab = 'home' | 'notices' | 'messages';
+type SignupClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
+type SignupChild = RouterOutputs['club']['linkedChildSignupContext']['children'][number];
+type ParentMobileTab = 'home' | 'notices' | 'messages' | 'clubs';
 
 const tabs: Array<PortalMobileNavItem<ParentMobileTab>> = [
   { id: 'home', label: 'Home', icon: 'dashboard' },
   { id: 'notices', label: 'Notices', icon: 'notices' },
   { id: 'messages', label: 'Messages', icon: 'messages' },
+  { id: 'clubs', label: 'Clubs', icon: 'clubs' },
 ];
 
 function firstError(...messages: Array<string | undefined>): string | null {
@@ -44,13 +48,18 @@ function ParentHomeIntro({ child }: { child: DashboardChild | null }) {
 
 export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
+  const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<ParentMobileTab>('home');
   const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [pendingClubId, setPendingClubId] = useState<string | null>(null);
+  const [clubStatus, setClubStatus] = useState<string | null>(null);
+  const [clubOperationError, setClubOperationError] = useState<string | null>(null);
 
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
   const notices = api.notice.listForParents.useQuery(undefined, { retry: false });
   const threads = api.message.listThreads.useQuery(undefined, { retry: false });
   const recipients = api.message.listRecipients.useQuery(undefined, { retry: false });
+  const clubSignupContext = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
 
   const children = dashboard.data?.children ?? [];
   const selectedChild =
@@ -60,24 +69,30 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
     { studentId: selectedChildId },
     { enabled: Boolean(selectedChildId), retry: false },
   );
+  const signUpForClub = api.club.signUp.useMutation();
+  const withdrawFromClub = api.club.withdraw.useMutation();
 
   const loading =
     dashboard.isFetching ||
     notices.isFetching ||
     threads.isFetching ||
     recipients.isFetching ||
-    childDetail.isFetching;
+    childDetail.isFetching ||
+    clubSignupContext.isFetching;
   const unreadNoticeCount = (notices.data ?? []).filter((notice) => !notice.read).length;
   const unreadMessageCount = (threads.data ?? []).reduce(
     (count, thread) => count + thread.unreadCount,
     0,
   );
+  const clubChildren = clubSignupContext.data?.children ?? [];
+  const clubs = clubSignupContext.data?.clubs ?? [];
   const queryError = firstError(
     dashboard.error?.message,
     notices.error?.message,
     threads.error?.message,
     recipients.error?.message,
     childDetail.error?.message,
+    clubSignupContext.error?.message,
   );
 
   async function refresh() {
@@ -86,8 +101,39 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
       notices.refetch(),
       threads.refetch(),
       recipients.refetch(),
+      clubSignupContext.refetch(),
     ]);
     if (selectedChildId) await childDetail.refetch();
+  }
+
+  async function signChildUp(club: SignupClub, child: SignupChild) {
+    setClubStatus(null);
+    setClubOperationError(null);
+    setPendingClubId(club.id);
+    try {
+      await signUpForClub.mutateAsync({ clubId: club.id, studentId: child.id });
+      setClubStatus(`${child.fullName} signed up for ${club.name}.`);
+      await utils.club.linkedChildSignupContext.invalidate();
+    } catch (error) {
+      setClubOperationError(error instanceof Error ? error.message : 'Club signup failed.');
+    } finally {
+      setPendingClubId(null);
+    }
+  }
+
+  async function withdrawChild(club: SignupClub, child: SignupChild) {
+    setClubStatus(null);
+    setClubOperationError(null);
+    setPendingClubId(club.id);
+    try {
+      await withdrawFromClub.mutateAsync({ clubId: club.id, studentId: child.id });
+      setClubStatus(`${child.fullName} withdrawn from ${club.name}.`);
+      await utils.club.linkedChildSignupContext.invalidate();
+    } catch (error) {
+      setClubOperationError(error instanceof Error ? error.message : 'Club withdrawal failed.');
+    } finally {
+      setPendingClubId(null);
+    }
   }
 
   const header = (
@@ -169,13 +215,34 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
             ) : (
               <Card>
                 <SectionTitle>No linked children</SectionTitle>
-                <MutedText>No active linked children were returned for this parent account.</MutedText>
+                <MutedText>
+                  No active linked children were returned for this parent account.
+                </MutedText>
               </Card>
             )}
           </>
         ) : null}
 
         {activeTab === 'notices' ? <ParentNoticesPanel notices={notices.data ?? []} /> : null}
+
+        {activeTab === 'clubs' ? (
+          <ParentClubsPanel
+            childrenRows={clubChildren}
+            clubs={clubs}
+            loading={clubSignupContext.isLoading}
+            operationError={clubOperationError}
+            pendingClubId={pendingClubId}
+            selectedChildId={selectedStudentId}
+            status={clubStatus}
+            onSelectChild={setSelectedStudentId}
+            onSignUp={(club, child) => {
+              void signChildUp(club, child);
+            }}
+            onWithdraw={(club, child) => {
+              void withdrawChild(club, child);
+            }}
+          />
+        ) : null}
       </ScrollView>
       {bottomNav}
     </SafeAreaView>
