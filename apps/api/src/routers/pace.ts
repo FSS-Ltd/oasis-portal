@@ -593,7 +593,7 @@ export const paceRouter = router({
     const shouldAdvance = isPassing && paceNumber >= assignment.currentPaceNumber;
     const awardedMerits = meritsForPaceScore(testType, score);
 
-    const [record, automaticMerit] = await ctx.db.$transaction(async (tx) => {
+    const [record, automaticMerit] = await ctx.withRls(async (tx) => {
       const created = await tx.paceRecord.create({
         data: {
           studentId,

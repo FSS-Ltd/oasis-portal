@@ -272,20 +272,28 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   return db;
 }
 
-function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
+function makeCtx(
+  user: SessionUser | null,
+  db: FakeDb,
+): AppContext & { rlsTransactionCalls: () => number } {
+  let rlsTransactionCount = 0;
   return {
     db: db as unknown as AppContext['db'],
     user,
     requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
-  } satisfies AppContext;
+    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => {
+      rlsTransactionCount += 1;
+      return fn(db as unknown as RlsTx);
+    },
+    rlsTransactionCalls: () => rlsTransactionCount,
+  } satisfies AppContext & { rlsTransactionCalls: () => number };
 }
 
 function makeCaller(user: SessionUser | null, db?: FakeDb) {
   const fakeDb = db ?? makeFakeDb();
   const appRouter = router({ pace: paceRouter });
   const ctx = makeCtx(user, fakeDb);
-  return { caller: appRouter.createCaller(ctx), db: fakeDb };
+  return { caller: appRouter.createCaller(ctx), ctx, db: fakeDb };
 }
 
 const validInput = {
@@ -1196,6 +1204,21 @@ describe('pace.record — automatic PACE merits', () => {
       rowCount: 1,
       source: 'pace.record',
     });
+  });
+
+  it('writes automatic merit rows through the RLS transaction context', async () => {
+    const db = makeFakeDb();
+    const { caller, ctx } = makeCaller(headUser, db);
+
+    await caller.pace.record({
+      ...validInput,
+      completedAt: new Date('2026-04-20T10:30:00.000Z'),
+      score: 100,
+    });
+
+    expect(ctx.rlsTransactionCalls()).toBe(1);
+    expect(db.behaviourEntry.create).toHaveBeenCalledTimes(1);
+    expect(db.meritLedger.createMany).toHaveBeenCalledTimes(1);
   });
 
   it('does not advance currentPaceNumber for SelfTest automatic merit awards', async () => {
