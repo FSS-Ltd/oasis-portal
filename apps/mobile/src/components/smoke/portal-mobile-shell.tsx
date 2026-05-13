@@ -6,6 +6,7 @@ type NavVariant = 'light' | 'dark';
 export type PortalMobileNavIconName =
   | 'attendance'
   | 'behaviour'
+  | 'clubs'
   | 'dashboard'
   | 'messages'
   | 'notices'
@@ -138,6 +139,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
   switch (id) {
     case 'attendance':
     case 'behaviour':
+    case 'clubs':
     case 'dashboard':
     case 'messages':
     case 'notices':
@@ -151,13 +153,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
   }
 }
 
-function PortalMobileNavIcon({
-  color,
-  name,
-}: {
-  color: string;
-  name: PortalMobileNavIconName;
-}) {
+function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobileNavIconName }) {
   switch (name) {
     case 'students':
       return <StudentsNavIcon color={color} />;
@@ -165,6 +161,8 @@ function PortalMobileNavIcon({
       return <AttendanceNavIcon color={color} />;
     case 'behaviour':
       return <BehaviourNavIcon color={color} />;
+    case 'clubs':
+      return <ClubsNavIcon color={color} />;
     case 'messages':
       return <MessagesNavIcon color={color} />;
     case 'notices':
@@ -216,6 +214,19 @@ function BehaviourNavIcon({ color }: { color: string }) {
     <Text allowFontScaling={false} style={[styles.starIcon, { color }]}>
       ☆
     </Text>
+  );
+}
+
+function ClubsNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={[styles.clubHead, styles.clubHeadLeft, { borderColor: color }]} />
+      <View style={[styles.clubHead, styles.clubHeadRight, { borderColor: color }]} />
+      <View style={[styles.clubHeadPrimary, { borderColor: color }]} />
+      <View style={[styles.clubBase, styles.clubBaseLeft, { borderColor: color }]} />
+      <View style={[styles.clubBase, styles.clubBaseRight, { borderColor: color }]} />
+      <View style={[styles.clubBasePrimary, { borderColor: color }]} />
+    </View>
   );
 }
 
@@ -412,6 +423,54 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -5,
     width: 9,
+  },
+  clubBase: {
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+    borderTopWidth: 2.1,
+    height: 9,
+    position: 'absolute',
+    top: 18,
+    width: 13,
+  },
+  clubBaseLeft: {
+    left: 3,
+  },
+  clubBasePrimary: {
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    borderTopWidth: 2.1,
+    height: 10,
+    position: 'absolute',
+    top: 17,
+    width: 18,
+    zIndex: 1,
+  },
+  clubBaseRight: {
+    right: 3,
+  },
+  clubHead: {
+    borderRadius: 5,
+    borderWidth: 2.1,
+    height: 10,
+    position: 'absolute',
+    top: 6,
+    width: 10,
+  },
+  clubHeadLeft: {
+    left: 4,
+  },
+  clubHeadPrimary: {
+    borderRadius: 6,
+    borderWidth: 2.1,
+    height: 12,
+    position: 'absolute',
+    top: 3,
+    width: 12,
+    zIndex: 1,
+  },
+  clubHeadRight: {
+    right: 4,
   },
   dashboardBody: {
     alignItems: 'center',

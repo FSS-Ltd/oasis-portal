@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
+import { StaffClubsPanel } from './staff-smoke-clubs';
 import {
   Badge,
   Card,
@@ -23,7 +24,7 @@ import {
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit';
 type PaceTestType = 'SelfTest' | 'FinalTest';
-type SupervisorMobileTab = 'dashboard' | 'attendance' | 'behaviour' | 'pace';
+type SupervisorMobileTab = 'dashboard' | 'attendance' | 'behaviour' | 'pace' | 'clubs';
 
 const attendanceStatuses: AttendanceStatus[] = ['Present', 'Absent', 'Late'];
 const behaviourTypes: BehaviourType[] = ['Merit', 'Demerit'];
@@ -33,6 +34,7 @@ const supervisorTabs: Array<PortalMobileNavItem<SupervisorMobileTab>> = [
   { id: 'attendance', label: 'Attendance', icon: 'attendance' },
   { id: 'behaviour', label: 'Behaviour', icon: 'behaviour' },
   { id: 'pace', label: 'PACE', icon: 'pace' },
+  { id: 'clubs', label: 'Clubs', icon: 'clubs' },
 ];
 
 const attendancePalette: Record<
@@ -97,6 +99,7 @@ export function SupervisorSmokeScreen() {
   const [paceNumber, setPaceNumber] = useState('');
   const [paceScore, setPaceScore] = useState('');
   const [paceTestType, setPaceTestType] = useState<PaceTestType>('SelfTest');
+  const [selectedClubId, setSelectedClubId] = useState('');
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
   const health = api.health.me.useQuery();
@@ -108,8 +111,23 @@ export function SupervisorSmokeScreen() {
     { studentId: activePaceStudentId, date: today },
     { enabled: Boolean(activePaceStudentId) },
   );
+  const clubList = api.club.list.useQuery(undefined, {
+    enabled: activeTab === 'clubs',
+    retry: false,
+  });
 
   const activeStudentId = selectedStudentId || attendance.data?.[0]?.studentId || '';
+  const clubs = clubList.data ?? [];
+  const selectedClub =
+    clubs.find((club) => club.id === selectedClubId) ??
+    clubs.find((club) => club.active) ??
+    clubs[0] ??
+    null;
+  const activeClubId = selectedClub?.id ?? '';
+  const clubRoster = api.club.roster.useQuery(
+    { clubId: activeClubId },
+    { enabled: activeTab === 'clubs' && Boolean(activeClubId), retry: false },
+  );
   const selectedPaceSubject =
     paceDetail.data?.subjects.find((subject) => subject.subjectId === paceSubjectId) ??
     paceDetail.data?.subjects[0] ??
@@ -163,7 +181,8 @@ export function SupervisorSmokeScreen() {
     rota.isFetching ||
     attendance.isFetching ||
     paceRoster.isFetching ||
-    paceDetail.isFetching;
+    paceDetail.isFetching ||
+    (activeTab === 'clubs' && (clubList.isFetching || clubRoster.isFetching));
   const queryError = firstError(
     health.error?.message,
     rota.error?.message,
@@ -173,17 +192,24 @@ export function SupervisorSmokeScreen() {
   );
   const attendanceRows = attendance.data ?? [];
   const rotaRows = rota.data ?? [];
-  const paceCount = paceWarnings ? `${String(paceWarnings.count)}/${String(paceWarnings.limit)}` : '...';
+  const paceCount = paceWarnings
+    ? `${String(paceWarnings.count)}/${String(paceWarnings.limit)}`
+    : '...';
   const staffRole = health.data?.user?.role ?? 'Staff';
 
   async function refresh() {
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       health.refetch(),
       rota.refetch(),
       attendance.refetch(),
       paceRoster.refetch(),
       paceDetail.refetch(),
-    ]);
+    ];
+    if (activeTab === 'clubs') {
+      tasks.push(clubList.refetch());
+      if (activeClubId) tasks.push(clubRoster.refetch());
+    }
+    await Promise.all(tasks);
   }
 
   return (
@@ -258,7 +284,9 @@ export function SupervisorSmokeScreen() {
             <Card style={styles.compactCard}>
               <SectionTitle>Rota this week</SectionTitle>
               {rota.isLoading ? <InlineSpinner label="Loading rota" /> : null}
-              {rotaRows.length === 0 ? <MutedText>No shifts returned for this week.</MutedText> : null}
+              {rotaRows.length === 0 ? (
+                <MutedText>No shifts returned for this week.</MutedText>
+              ) : null}
               {rotaRows.map((shift) => (
                 <View key={shift.id} style={styles.row}>
                   <View style={[styles.bandDot, { backgroundColor: shift.bandColour ?? C.blue }]} />
@@ -327,7 +355,9 @@ export function SupervisorSmokeScreen() {
                   </View>
                 </View>
               ))}
-              {attendanceRows.length === 0 ? <MutedText>No attendance rows returned.</MutedText> : null}
+              {attendanceRows.length === 0 ? (
+                <MutedText>No attendance rows returned.</MutedText>
+              ) : null}
             </Card>
           </>
         ) : null}
@@ -486,6 +516,19 @@ export function SupervisorSmokeScreen() {
               />
             </Card>
           </>
+        ) : null}
+
+        {activeTab === 'clubs' ? (
+          <StaffClubsPanel
+            clubs={clubs}
+            listError={clubList.error?.message ?? null}
+            listLoading={clubList.isLoading}
+            rosterError={clubRoster.error?.message ?? null}
+            rosterLoading={clubRoster.isLoading}
+            rosterSignups={clubRoster.data?.signups ?? []}
+            selectedClubId={activeClubId}
+            onSelectClub={setSelectedClubId}
+          />
         ) : null}
       </ScrollView>
       <PortalMobileBottomNav
