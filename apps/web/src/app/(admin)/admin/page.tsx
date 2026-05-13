@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import type { CSSProperties } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { applyRlsTx } from '@oasis/api/context';
 import { prisma } from '@oasis/db';
 import { canViewSensitiveBehaviour } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
@@ -52,34 +53,32 @@ export default async function AdminIndexPage() {
   const user = await getFullAdminUser();
   const { start, end } = todayBounds();
   const canReadSensitiveBehaviour = canViewSensitiveBehaviour(user);
-  const [
-    currentUser,
-    activeStudentCount,
-    attendanceRows,
-    activityRows,
-    unreadMessages,
-    reportsDue,
-  ] = await Promise.all([
+  const [attendanceRows, activityRows] = await applyRlsTx(prisma, user, (tx) =>
+    Promise.all([
+      tx.attendance.findMany({
+        where: { date: start },
+        select: { status: true },
+      }),
+      tx.behaviourEntry.findMany({
+        where: {
+          createdAt: { gte: start, lt: end },
+          ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
+        },
+        include: {
+          student: { select: { fullNameEnc: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+      }),
+    ]),
+  );
+
+  const [currentUser, activeStudentCount, unreadMessages, reportsDue] = await Promise.all([
     prisma.user.findUnique({
       where: { id: user.id },
       select: { fullNameEnc: true },
     }),
     prisma.student.count({ where: { active: true } }),
-    prisma.attendance.findMany({
-      where: { date: start },
-      select: { status: true },
-    }),
-    prisma.behaviourEntry.findMany({
-      where: {
-        createdAt: { gte: start, lt: end },
-        ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
-      },
-      include: {
-        student: { select: { fullNameEnc: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 6,
-    }),
     prisma.message.count({ where: { createdAt: { gte: start, lt: end } } }),
     prisma.termReport.count({ where: { status: { in: ['Draft', 'UnderReview'] } } }),
   ]);
@@ -91,6 +90,16 @@ export default async function AdminIndexPage() {
     .filter((entry) => entry.type === 'Merit')
     .reduce((sum, entry) => sum + entry.meritDelta, 0);
   const headName = currentUser ? decrypt(currentUser.fullNameEnc) : 'Head of Centre';
+  const recorderRows =
+    activityRows.length === 0
+      ? []
+      : await prisma.user.findMany({
+          where: { id: { in: [...new Set(activityRows.map((entry) => entry.recordedById))] } },
+          select: { id: true, fullNameEnc: true },
+        });
+  const recorderNames = new Map(
+    recorderRows.map((recorder) => [recorder.id, decrypt(recorder.fullNameEnc)]),
+  );
 
   return (
     <MotionPage>
@@ -138,6 +147,7 @@ export default async function AdminIndexPage() {
             ) : (
               activityRows.map((entry, index) => {
                 const studentName = decrypt(entry.student.fullNameEnc);
+                const recordedByName = recorderNames.get(entry.recordedById) ?? 'Unknown staff';
                 return (
                   <div className="head-activity-row" key={entry.id}>
                     <span
@@ -170,6 +180,7 @@ export default async function AdminIndexPage() {
                         {entry.category}
                         {entry.noteEnc ? ` · ${decrypt(entry.noteEnc)}` : null}
                       </p>
+                      <p>Recorded by {recordedByName}</p>
                     </div>
                     <time>{formatTime(entry.createdAt)}</time>
                   </div>

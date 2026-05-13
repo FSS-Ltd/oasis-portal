@@ -88,7 +88,7 @@ function newBatchEntry(type: BatchBehaviourType): BatchEntryForm {
     id: crypto.randomUUID(),
     category: categories[0] ?? 'Misc',
     note: '',
-    amount: '1',
+    amount: type === 'Demerit' ? '5' : '1',
     count: '1',
   };
 }
@@ -192,7 +192,7 @@ export function BehaviourLogClient({
       category,
       note: note.trim() ? note : undefined,
       visibility,
-      ...(type === 'Merit' ? { amount: Number(amount) } : {}),
+      ...(type !== 'General' ? { amount: Number(amount) } : {}),
     });
   }
 
@@ -207,7 +207,7 @@ export function BehaviourLogClient({
         category: entry.category,
         note: entry.note.trim() ? entry.note : undefined,
         count: Number(entry.count),
-        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+        amount: Number(entry.amount),
       })),
     });
   }
@@ -264,6 +264,7 @@ export function BehaviourLogClient({
                       setType(item);
                       setCategory(categoriesFor(item)[0] ?? 'Misc');
                       if (item === 'General') setVisibility('Sensitive');
+                      if (item === 'Demerit') setAmount('5');
                     }}
                     type="button"
                   >
@@ -362,10 +363,10 @@ export function BehaviourLogClient({
                 </p>
               ) : null}
 
-              {type === 'Merit' ? (
-                <Field label="Merit amount">
+              {type !== 'General' ? (
+                <Field label={type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}>
                   <TextInput
-                    aria-label="Merit amount"
+                    aria-label={type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}
                     disabled={!canLogBehaviour}
                     min={1}
                     onChange={(event) => {
@@ -389,7 +390,7 @@ export function BehaviourLogClient({
                 {type === 'Merit'
                   ? `Record +${amount || '0'} Merit`
                   : type === 'Demerit'
-                    ? 'Record -5 Demerit'
+                    ? `Record -${amount || '0'} Demerit`
                     : 'Record General mark'}
               </Button>
               {status ? <p className="status--success">{status}</p> : null}
@@ -462,21 +463,19 @@ export function BehaviourLogClient({
                       ))}
                     </SelectInput>
                   </Field>
-                  {batchType === 'Merit' ? (
-                    <Field label={`Entry ${String(index + 1)} amount`}>
-                      <TextInput
-                        aria-label={`Entry ${String(index + 1)} merit amount`}
-                        disabled={!canLogBehaviour}
-                        min={1}
-                        onChange={(event) => {
-                          setBatchEntry(entry.id, { amount: event.target.value });
-                        }}
-                        required
-                        type="number"
-                        value={entry.amount}
-                      />
-                    </Field>
-                  ) : null}
+                  <Field label={`Entry ${String(index + 1)} amount`}>
+                    <TextInput
+                      aria-label={`Entry ${String(index + 1)} ${batchType.toLowerCase()} amount`}
+                      disabled={!canLogBehaviour}
+                      min={1}
+                      onChange={(event) => {
+                        setBatchEntry(entry.id, { amount: event.target.value });
+                      }}
+                      required
+                      type="number"
+                      value={entry.amount}
+                    />
+                  </Field>
                   <Field label={`Entry ${String(index + 1)} quantity`}>
                     <TextInput
                       aria-label={`Entry ${String(index + 1)} quantity`}

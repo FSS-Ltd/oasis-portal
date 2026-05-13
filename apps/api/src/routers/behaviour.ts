@@ -809,7 +809,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           category: behaviourCategorySchema.optional(),
           note: behaviourNoteSchema.optional(),
           visibility: behaviourVisibilitySchema.default('General'),
-          // Merit: positive integer; Demerit: server overrides to DEMERIT_COST.
+          // Merit/Demerit: positive integer; Demerit defaults to DEMERIT_COST.
           amount: behaviourAmountSchema.optional(),
         }),
       )
@@ -847,7 +847,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           input.type === 'Merit'
             ? (input.amount ?? 0)
             : input.type === 'Demerit'
-              ? -DEMERIT_COST
+              ? -(input.amount ?? DEMERIT_COST)
               : 0;
 
         const result = await ctx.withRls(async (tx) => {
@@ -873,6 +873,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               : input.type === 'Demerit'
                 ? rowsForDemerit({
                     studentId: input.studentId,
+                    amount: Math.abs(meritDelta),
                     reason: category,
                     behaviourEntryId: behaviour.id,
                   })
@@ -957,12 +958,6 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               message: `merit amount is required for entry ${String(index + 1)}`,
             });
           }
-          if (input.type === 'Demerit' && entry.amount !== undefined) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: `demerit amount is fixed for entry ${String(index + 1)}`,
-            });
-          }
         }
         const totalEntries = input.entries.reduce((sum, entry) => sum + entry.count, 0);
         if (totalEntries > 50) {
@@ -981,7 +976,8 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             category: entry.category,
             note: entry.note,
             noteEnc: entry.note ? ctx.db.$enc.encrypt(entry.note) : null,
-            meritDelta: input.type === 'Merit' ? (entry.amount ?? 0) : -DEMERIT_COST,
+            meritDelta:
+              input.type === 'Merit' ? (entry.amount ?? 0) : -(entry.amount ?? DEMERIT_COST),
           })),
         );
 
@@ -1021,6 +1017,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                   })
                 : rowsForDemerit({
                     studentId: input.studentId,
+                    amount: Math.abs(entry.meritDelta),
                     reason: entry.category,
                     behaviourEntryId: behaviour.id,
                   });

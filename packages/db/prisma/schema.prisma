@@ -504,7 +504,7 @@ model BehaviourEntry {
   // note is free text PII — encrypted at rest (ADR-005)
   noteEnc      String?
   visibility   BehaviourVisibility @default(General)
-  // Merit: positive N. Demerit: fixed -5 per Director mandate. General: 0.
+  // Merit: positive N. Demerit: negative chosen amount, defaulting to -5. General: 0.
   meritDelta   Int
   recordedById String
   createdAt    DateTime            @default(now())

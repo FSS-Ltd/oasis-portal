@@ -401,7 +401,7 @@ describe('behaviour.log', () => {
       category: 'Disruption',
       note: 'Repeated interruption',
       visibility: 'Sensitive',
-      amount: 999,
+      amount: 3,
     });
 
     expect(merit).toMatchObject({
@@ -415,7 +415,7 @@ describe('behaviour.log', () => {
       id: 'ckbehaviour000000000002',
       type: 'Demerit',
       visibility: 'Sensitive',
-      meritDelta: -5,
+      meritDelta: -3,
       recordedById: headUser.id,
     });
     expect(behaviour.map((row) => row.noteEnc)).toEqual([
@@ -433,7 +433,7 @@ describe('behaviour.log', () => {
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -5,
+        delta: -3,
         reason: 'Disruption',
         relatedEntryId: 'ckbehaviour000000000002',
       },
@@ -464,6 +464,31 @@ describe('behaviour.log', () => {
         },
       },
     });
+  });
+
+  it('defaults a demerit to DEMERIT_COST when no amount is provided', async () => {
+    const { db, ledger } = makeFakeDb();
+
+    const demerit = await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Disruption',
+      visibility: 'General',
+    });
+
+    expect(demerit).toMatchObject({
+      type: 'Demerit',
+      meritDelta: -5,
+    });
+    expect(ledger).toEqual([
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: -5,
+        reason: 'Disruption',
+        relatedEntryId: 'ckbehaviour000000000001',
+      },
+    ]);
   });
 
   it('emails General merits to every active linked guardian and skips inactive accounts', async () => {
@@ -626,7 +651,10 @@ describe('behaviour.log', () => {
     const demeritResult = await makeCaller(supervisorUser, db).behaviour.logMany({
       studentId: activeStudentId,
       type: 'Demerit',
-      entries: [{ category: 'Conduct' }, { category: 'Punctuality', note: 'Late to line up' }],
+      entries: [
+        { category: 'Conduct', amount: 2, count: 2 },
+        { category: 'Punctuality', note: 'Late to line up' },
+      ],
     });
 
     expect(meritResult).toMatchObject({
@@ -638,12 +666,13 @@ describe('behaviour.log', () => {
     });
     expect(demeritResult).toMatchObject({
       entries: [
-        { type: 'Demerit', category: 'Conduct', meritDelta: -5 },
+        { type: 'Demerit', category: 'Conduct', meritDelta: -2 },
+        { type: 'Demerit', category: 'Conduct', meritDelta: -2 },
         { type: 'Demerit', category: 'Punctuality', meritDelta: -5 },
       ],
-      ledgerRowCount: 2,
+      ledgerRowCount: 3,
     });
-    expect(behaviour).toHaveLength(4);
+    expect(behaviour).toHaveLength(5);
     expect(ledger).toEqual([
       {
         studentId: activeStudentId,
@@ -662,16 +691,23 @@ describe('behaviour.log', () => {
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -5,
+        delta: -2,
         reason: 'Conduct',
         relatedEntryId: 'ckbehaviour000000000003',
       },
       {
         studentId: activeStudentId,
         account: 'Spend',
+        delta: -2,
+        reason: 'Conduct',
+        relatedEntryId: 'ckbehaviour000000000004',
+      },
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
         delta: -5,
         reason: 'Punctuality',
-        relatedEntryId: 'ckbehaviour000000000004',
+        relatedEntryId: 'ckbehaviour000000000005',
       },
     ]);
   });
@@ -720,6 +756,13 @@ describe('behaviour.log', () => {
         studentId: activeStudentId,
         type: 'General' as 'Merit',
         entries: [{ category: 'Misc', note: 'Not allowed', amount: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.logMany({
+        studentId: activeStudentId,
+        type: 'Demerit',
+        entries: [{ category: 'Conduct', amount: 0 }],
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
 

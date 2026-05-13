@@ -42,7 +42,7 @@ describe('rowsForMerit', () => {
 });
 
 describe('rowsForDemerit', () => {
-  it('debits Spend by exactly DEMERIT_COST (5)', () => {
+  it('debits Spend by the default DEMERIT_COST (5)', () => {
     const rows = rowsForDemerit({
       studentId: 's1',
       reason: 'disruption',
@@ -51,6 +51,28 @@ describe('rowsForDemerit', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.delta).toBe(-DEMERIT_COST);
     expect(DEMERIT_COST).toBe(5);
+  });
+
+  it('debits Spend by a chosen positive amount', () => {
+    const rows = rowsForDemerit({
+      studentId: 's1',
+      amount: 3,
+      reason: 'disruption',
+      behaviourEntryId: 'b2',
+    });
+    expect(rows[0]?.delta).toBe(-3);
+  });
+
+  it('rejects non-positive or non-integer amounts', () => {
+    expect(() =>
+      rowsForDemerit({ studentId: 's1', amount: 0, reason: 'x', behaviourEntryId: 'b' }),
+    ).toThrow();
+    expect(() =>
+      rowsForDemerit({ studentId: 's1', amount: -1, reason: 'x', behaviourEntryId: 'b' }),
+    ).toThrow();
+    expect(() =>
+      rowsForDemerit({ studentId: 's1', amount: 1.5, reason: 'x', behaviourEntryId: 'b' }),
+    ).toThrow();
   });
 });
 
