@@ -28,6 +28,30 @@ interface SnapshotStudentPickerProps {
   students: readonly StudentOption[];
 }
 
+interface SnapshotCentrePickerProps {
+  active: boolean;
+  onSelect: () => void;
+  studentCount: number;
+}
+
+export function SnapshotCentrePickerCard({
+  active,
+  onSelect,
+  studentCount,
+}: SnapshotCentrePickerProps) {
+  return (
+    <button
+      className={active ? 'snapshot-centre-card is-selected' : 'snapshot-centre-card'}
+      onClick={onSelect}
+      type="button"
+    >
+      <span>All</span>
+      <strong>Centre overview</strong>
+      <small>{studentCount} active students</small>
+    </button>
+  );
+}
+
 export function SnapshotStudentPicker({
   onSelect,
   selectedStudentId,
@@ -64,14 +88,22 @@ interface SnapshotHeroProps {
   snapshotStudent: SnapshotStudentSummary | undefined;
 }
 
-export function SnapshotHeroStudent({ colour, selectedStudent, snapshotStudent }: SnapshotHeroProps) {
+export function SnapshotHeroStudent({
+  colour,
+  selectedStudent,
+  snapshotStudent,
+}: SnapshotHeroProps) {
   const name = snapshotStudent?.fullName ?? selectedStudent?.fullName ?? 'Select a student';
   const yearGroup = snapshotStudent?.yearGroup ?? selectedStudent?.yearGroup;
 
   return (
     <div className="snapshot-hero__student">
       <span className="snapshot-hero__avatar" style={{ backgroundColor: colour }}>
-        {snapshotStudent ? getInitials(snapshotStudent.fullName) : selectedStudent ? getInitials(selectedStudent.fullName) : '--'}
+        {snapshotStudent
+          ? getInitials(snapshotStudent.fullName)
+          : selectedStudent
+            ? getInitials(selectedStudent.fullName)
+            : '--'}
       </span>
       <div>
         <h2>{name}</h2>
@@ -83,6 +115,27 @@ export function SnapshotHeroStudent({ colour, selectedStudent, snapshotStudent }
       <div className="snapshot-hero__merits">
         <strong>{snapshotStudent?.totalMerits ?? 0}</strong>
         <span>total merits</span>
+      </div>
+    </div>
+  );
+}
+
+interface SnapshotHeroCentreProps {
+  activeStudentCount: number;
+  netMerits: number;
+}
+
+export function SnapshotHeroCentre({ activeStudentCount, netMerits }: SnapshotHeroCentreProps) {
+  return (
+    <div className="snapshot-hero__student">
+      <span className="snapshot-hero__avatar snapshot-hero__avatar--centre">All</span>
+      <div>
+        <h2>Centre overview</h2>
+        <p>All active students · Overall attendance, behaviour, PACE and notes</p>
+      </div>
+      <div className="snapshot-hero__merits">
+        <strong>{netMerits >= 0 ? `+${String(netMerits)}` : netMerits}</strong>
+        <span>{activeStudentCount} students</span>
       </div>
     </div>
   );
@@ -110,6 +163,7 @@ export function SnapshotRangePicker({
       <h3>Viewing period</h3>
       <div className="snapshot-range__controls">
         {[
+          ['today', 'Today'],
           ['previous-day', 'Yesterday'],
           ['previous-week', 'Last 7 days'],
           ['custom', 'Custom'],

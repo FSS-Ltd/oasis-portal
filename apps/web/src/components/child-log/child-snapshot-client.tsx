@@ -8,6 +8,8 @@ import { TextInput } from '@/components/ui/field';
 import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import {
+  SnapshotCentrePickerCard,
+  SnapshotHeroCentre,
   SnapshotHeroStudent,
   SnapshotRangePicker,
   SnapshotStudentPicker,
@@ -20,6 +22,7 @@ import {
   previousWeekStart,
   scoreLabel,
   scoreTone,
+  todayDate,
   type RangePreset,
   type SnapshotTab,
 } from './snapshot-utils';
@@ -37,6 +40,8 @@ import {
 type SnapshotResult = RouterOutputs['childLog']['snapshot'];
 type SnapshotBehaviourEntry = SnapshotResult['behaviour'][number];
 type SnapshotNoteEntry = SnapshotResult['notes'][number];
+type SnapshotViewMode = 'centre' | 'student';
+type SnapshotStudentIdentity = { student: { fullName: string } };
 
 interface EditingBehaviourForm {
   id: string;
@@ -53,11 +58,30 @@ interface EditingNoteForm {
   sensitive: boolean;
 }
 
-export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrections: boolean }) {
+function hasSnapshotStudent(value: unknown): value is SnapshotStudentIdentity {
+  if (!value || typeof value !== 'object' || !('student' in value)) return false;
+  const student = (value as { student?: { fullName?: unknown } }).student;
+  return typeof student?.fullName === 'string';
+}
+
+interface ChildSnapshotClientProps {
+  canManageCorrections: boolean;
+  defaultView?: SnapshotViewMode;
+  enableCentreOverview?: boolean;
+}
+
+export function ChildSnapshotClient({
+  canManageCorrections,
+  defaultView = 'student',
+  enableCentreOverview = false,
+}: ChildSnapshotClientProps) {
+  const [viewMode, setViewMode] = useState<SnapshotViewMode>(
+    enableCentreOverview ? defaultView : 'student',
+  );
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [rangePreset, setRangePreset] = useState<RangePreset>('previous-day');
-  const [from, setFrom] = useState(previousDay);
-  const [to, setTo] = useState(previousDay);
+  const [rangePreset, setRangePreset] = useState<RangePreset>('today');
+  const [from, setFrom] = useState(todayDate);
+  const [to, setTo] = useState(todayDate);
   const [activeTab, setActiveTab] = useState<SnapshotTab>('overview');
   const [note, setNote] = useState('');
   const [sensitive, setSensitive] = useState(false);
@@ -74,7 +98,14 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
       from: new Date(`${from}T00:00:00.000Z`),
       to: new Date(`${to}T00:00:00.000Z`),
     },
-    { enabled: selectedStudentId.length > 0, retry: false },
+    { enabled: viewMode === 'student' && selectedStudentId.length > 0, retry: false },
+  );
+  const centreSnapshotQuery = api.childLog.centreSnapshot.useQuery(
+    {
+      from: new Date(`${from}T00:00:00.000Z`),
+      to: new Date(`${to}T00:00:00.000Z`),
+    },
+    { enabled: enableCentreOverview && viewMode === 'centre', retry: false },
   );
   const utils = api.useUtils();
   const createNote = api.childNotes.create.useMutation({
@@ -83,40 +114,52 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
       setSensitive(false);
       setNoteStatus('Child note saved.');
       await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
     },
   });
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
       setEditingBehaviour(null);
       await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
     },
   });
   const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
     onSuccess: async () => {
       setDeletingBehaviour(null);
       await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
     },
   });
   const updateNote = api.childNotes.update.useMutation({
     onSuccess: async () => {
       setEditingNote(null);
       await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
     },
   });
   const deleteNote = api.childNotes.delete.useMutation({
     onSuccess: async () => {
       setDeletingNote(null);
       await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
     },
   });
 
   useEffect(() => {
     const firstStudent = studentsQuery.data?.[0];
-    if (!selectedStudentId && firstStudent) setSelectedStudentId(firstStudent.id);
-  }, [selectedStudentId, studentsQuery.data]);
+    if (viewMode === 'student' && !selectedStudentId && firstStudent) {
+      setSelectedStudentId(firstStudent.id);
+    }
+  }, [selectedStudentId, studentsQuery.data, viewMode]);
 
   function applyRange(value: RangePreset) {
     setRangePreset(value);
+    if (value === 'today') {
+      const day = todayDate();
+      setFrom(day);
+      setTo(day);
+    }
     if (value === 'previous-day') {
       const day = previousDay();
       setFrom(day);
@@ -159,23 +202,40 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
 
   const students = studentsQuery.data ?? [];
   const selectedStudent = students.find((student) => student.id === selectedStudentId) ?? null;
+  const isCentreMode = enableCentreOverview && viewMode === 'centre';
   const snapshot = snapshotQuery.data;
-  const attendance = snapshot?.attendance ?? [];
-  const behaviour = snapshot?.behaviour ?? [];
-  const pace = snapshot?.passedTests ?? [];
-  const notes = snapshot?.notes ?? [];
-  const presentDays = attendance.filter((row) => row.status === 'Present').length;
-  const lateDays = attendance.filter((row) => row.status === 'Late').length;
-  const absentDays = attendance.filter((row) => row.status === 'Absent').length;
-  const meritsEarned = behaviour
-    .filter((entry) => entry.meritDelta > 0)
-    .reduce((sum, entry) => sum + entry.meritDelta, 0);
-  const demeritsTotal = behaviour
-    .filter((entry) => entry.meritDelta < 0)
-    .reduce((sum, entry) => sum + entry.meritDelta, 0);
-  const netMerits = meritsEarned + demeritsTotal;
-  const avgPaceScore =
-    pace.length > 0
+  const centreSnapshot = centreSnapshotQuery.data;
+  const attendance = isCentreMode
+    ? (centreSnapshot?.attendance ?? [])
+    : (snapshot?.attendance ?? []);
+  const behaviour = isCentreMode ? (centreSnapshot?.behaviour ?? []) : (snapshot?.behaviour ?? []);
+  const pace = isCentreMode ? (centreSnapshot?.passedTests ?? []) : (snapshot?.passedTests ?? []);
+  const notes = isCentreMode ? (centreSnapshot?.notes ?? []) : (snapshot?.notes ?? []);
+  const presentDays = isCentreMode
+    ? (centreSnapshot?.summary.attendance.present ?? 0)
+    : attendance.filter((row) => row.status === 'Present').length;
+  const lateDays = isCentreMode
+    ? (centreSnapshot?.summary.attendance.late ?? 0)
+    : attendance.filter((row) => row.status === 'Late').length;
+  const absentDays = isCentreMode
+    ? (centreSnapshot?.summary.attendance.absent ?? 0)
+    : attendance.filter((row) => row.status === 'Absent').length;
+  const meritsEarned = isCentreMode
+    ? (centreSnapshot?.summary.meritsEarned ?? 0)
+    : behaviour
+        .filter((entry) => entry.meritDelta > 0)
+        .reduce((sum, entry) => sum + entry.meritDelta, 0);
+  const demeritsTotal = isCentreMode
+    ? (centreSnapshot?.summary.demeritsTotal ?? 0)
+    : behaviour
+        .filter((entry) => entry.meritDelta < 0)
+        .reduce((sum, entry) => sum + entry.meritDelta, 0);
+  const netMerits = isCentreMode
+    ? (centreSnapshot?.summary.netMerits ?? 0)
+    : meritsEarned + demeritsTotal;
+  const avgPaceScore = isCentreMode
+    ? (centreSnapshot?.summary.averagePaceScore ?? null)
+    : pace.length > 0
       ? Math.round(pace.reduce((sum, item) => sum + item.score, 0) / pace.length)
       : null;
   const latestNote = notes[0] ?? null;
@@ -199,33 +259,53 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
     <div className="snapshot-page">
       <div className="snapshot-page__header">
         <h1>Student Progress Snapshot</h1>
-        <p>Review a child&apos;s attendance, behaviour, PACE scores and notes for any period.</p>
+        <p>Review attendance, behaviour, PACE scores and notes for any period.</p>
       </div>
 
       <section className="panel panel__body snapshot-picker-panel">
-        <h2>Select student</h2>
+        <h2>{enableCentreOverview ? 'Select view' : 'Select student'}</h2>
         {studentsQuery.error ? (
           <p className="status--error">{studentsQuery.error.message}</p>
         ) : null}
         {!studentsQuery.isLoading && students.length === 0 ? (
           <div className="empty-state">No active students found.</div>
         ) : null}
-        <SnapshotStudentPicker
-          onSelect={(studentId) => {
-            setSelectedStudentId(studentId);
-            setActiveTab('overview');
-          }}
-          selectedStudentId={selectedStudentId}
-          students={students}
-        />
+        <div className="snapshot-view-picker">
+          {enableCentreOverview ? (
+            <SnapshotCentrePickerCard
+              active={isCentreMode}
+              onSelect={() => {
+                setViewMode('centre');
+                setActiveTab('overview');
+              }}
+              studentCount={centreSnapshot?.summary.activeStudentCount ?? students.length}
+            />
+          ) : null}
+          <SnapshotStudentPicker
+            onSelect={(studentId) => {
+              setViewMode('student');
+              setSelectedStudentId(studentId);
+              setActiveTab('overview');
+            }}
+            selectedStudentId={isCentreMode ? '' : selectedStudentId}
+            students={students}
+          />
+        </div>
       </section>
 
       <section className="snapshot-hero">
-        <SnapshotHeroStudent
-          colour={selectedColour}
-          selectedStudent={selectedStudent}
-          snapshotStudent={snapshot?.student}
-        />
+        {isCentreMode ? (
+          <SnapshotHeroCentre
+            activeStudentCount={centreSnapshot?.summary.activeStudentCount ?? students.length}
+            netMerits={netMerits}
+          />
+        ) : (
+          <SnapshotHeroStudent
+            colour={selectedColour}
+            selectedStudent={selectedStudent}
+            snapshotStudent={snapshot?.student}
+          />
+        )}
         <SnapshotRangePicker
           from={from}
           onFromChange={setFrom}
@@ -236,8 +316,13 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
         />
       </section>
 
-      {snapshotQuery.isLoading ? <div className="empty-state">Loading snapshot...</div> : null}
+      {snapshotQuery.isLoading || centreSnapshotQuery.isLoading ? (
+        <div className="empty-state">Loading snapshot...</div>
+      ) : null}
       {snapshotQuery.error ? <p className="status--error">{snapshotQuery.error.message}</p> : null}
+      {centreSnapshotQuery.error ? (
+        <p className="status--error">{centreSnapshotQuery.error.message}</p>
+      ) : null}
 
       <SnapshotTabs activeTab={activeTab} onSelect={setActiveTab} tabs={tabs} />
 
@@ -303,7 +388,11 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
                 <>
                   <p>{latestNote.note}</p>
                   <footer>
-                    <strong>{latestNote.createdByName}</strong>
+                    <strong>
+                      {hasSnapshotStudent(latestNote)
+                        ? `${latestNote.student.fullName} · ${latestNote.createdByName}`
+                        : latestNote.createdByName}
+                    </strong>
                     <span>{formatShortDate(latestNote.createdAt)}</span>
                   </footer>
                 </>
@@ -312,6 +401,63 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
               )}
             </section>
           </div>
+
+          {isCentreMode ? (
+            <section className="panel panel__body snapshot-centre-table-panel">
+              <h3>All students</h3>
+              {centreSnapshot?.students.length ? (
+                <div className="snapshot-centre-table-wrap">
+                  <table className="snapshot-centre-table">
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Year</th>
+                        <th>Attendance</th>
+                        <th>Net merits</th>
+                        <th>PACE</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {centreSnapshot.students.map((row) => (
+                        <tr key={row.student.id}>
+                          <td>
+                            <strong>{row.student.fullName}</strong>
+                          </td>
+                          <td>{row.student.yearGroup}</td>
+                          <td>
+                            {row.metrics.attendance.recorded
+                              ? `${String(row.metrics.attendance.present)} present · ${String(
+                                  row.metrics.attendance.late,
+                                )} late · ${String(row.metrics.attendance.absent)} absent`
+                              : 'No mark'}
+                          </td>
+                          <td>
+                            {row.metrics.netMerits >= 0 ? '+' : ''}
+                            {row.metrics.netMerits}
+                          </td>
+                          <td>
+                            {row.metrics.paceCount
+                              ? `${String(row.metrics.paceCount)} test${
+                                  row.metrics.paceCount === 1 ? '' : 's'
+                                } · ${
+                                  row.metrics.averagePaceScore === null
+                                    ? 'no average'
+                                    : `${String(row.metrics.averagePaceScore)}% avg`
+                                }`
+                              : 'No tests'}
+                          </td>
+                          <td>{row.metrics.notesCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p>No active students found.</p>
+              )}
+            </section>
+          ) : null}
 
           {pace.length > 0 ? (
             <section className="panel panel__body snapshot-pace-compact">
@@ -363,6 +509,9 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
               </span>
               <div>
                 <div>
+                  {hasSnapshotStudent(entry) ? (
+                    <SnapshotBadge tone="blue">{entry.student.fullName}</SnapshotBadge>
+                  ) : null}
                   <SnapshotBadge
                     tone={
                       entry.type === 'General' ? 'blue' : entry.meritDelta > 0 ? 'green' : 'red'
@@ -429,7 +578,10 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
               <ScoreDonut score={item.score} />
               <div className="snapshot-pace-row__main">
                 <div>
-                  <h3>{item.subjectName}</h3>
+                  <h3>
+                    {hasSnapshotStudent(item) ? `${item.student.fullName} · ` : ''}
+                    {item.subjectName}
+                  </h3>
                   <SnapshotBadge tone="blue">{item.testType}</SnapshotBadge>
                 </div>
                 <p>PACE #{item.paceNumber}</p>
@@ -463,8 +615,13 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
               <div>
                 <span className="snapshot-note-avatar">{getInitials(item.createdByName)}</span>
                 <div>
-                  <strong>{item.createdByName}</strong>
-                  <small>{item.sensitive ? 'Sensitive note' : 'Supervisor note'}</small>
+                  <strong>
+                    {hasSnapshotStudent(item) ? item.student.fullName : item.createdByName}
+                  </strong>
+                  <small>
+                    {hasSnapshotStudent(item) ? `${item.createdByName} · ` : ''}
+                    {item.sensitive ? 'Sensitive note' : 'Supervisor note'}
+                  </small>
                 </div>
               </div>
               <time>{formatShortDate(item.createdAt)}</time>
@@ -497,52 +654,56 @@ export function ChildSnapshotClient({ canManageCorrections }: { canManageCorrect
               ) : null}
             </article>
           ))}
-          <form
-            className="panel panel__body snapshot-note-form"
-            onSubmit={(event) => {
-              void submitNote(event);
-            }}
-          >
-            <h3>Add supervisor note</h3>
-            <textarea
-              aria-label="Child note"
-              className="input textarea"
-              onChange={(event) => {
-                setNote(event.target.value);
+          {!isCentreMode ? (
+            <form
+              className="panel panel__body snapshot-note-form"
+              onSubmit={(event) => {
+                void submitNote(event);
               }}
-              placeholder="Write a note for this child..."
-              value={note}
-            />
-            <div className="behaviour-visibility-toggle" role="group">
-              <button
-                className={sensitive ? undefined : 'is-selected'}
-                onClick={() => {
-                  setSensitive(false);
-                }}
-                type="button"
-              >
-                General
-              </button>
-              <button
-                className={sensitive ? 'is-selected' : undefined}
-                onClick={() => {
-                  setSensitive(true);
-                }}
-                type="button"
-              >
-                Sensitive
-              </button>
-            </div>
-            <Button
-              disabled={!selectedStudentId || !note.trim()}
-              pending={createNote.isPending}
-              type="submit"
             >
-              Save note
-            </Button>
-            {noteStatus ? <p className="status--success">{noteStatus}</p> : null}
-            {createNote.error ? <p className="status--error">{createNote.error.message}</p> : null}
-          </form>
+              <h3>Add supervisor note</h3>
+              <textarea
+                aria-label="Child note"
+                className="input textarea"
+                onChange={(event) => {
+                  setNote(event.target.value);
+                }}
+                placeholder="Write a note for this child..."
+                value={note}
+              />
+              <div className="behaviour-visibility-toggle" role="group">
+                <button
+                  className={sensitive ? undefined : 'is-selected'}
+                  onClick={() => {
+                    setSensitive(false);
+                  }}
+                  type="button"
+                >
+                  General
+                </button>
+                <button
+                  className={sensitive ? 'is-selected' : undefined}
+                  onClick={() => {
+                    setSensitive(true);
+                  }}
+                  type="button"
+                >
+                  Sensitive
+                </button>
+              </div>
+              <Button
+                disabled={!selectedStudentId || !note.trim()}
+                pending={createNote.isPending}
+                type="submit"
+              >
+                Save note
+              </Button>
+              {noteStatus ? <p className="status--success">{noteStatus}</p> : null}
+              {createNote.error ? (
+                <p className="status--error">{createNote.error.message}</p>
+              ) : null}
+            </form>
+          ) : null}
         </div>
       ) : null}
       {editingBehaviour ? (

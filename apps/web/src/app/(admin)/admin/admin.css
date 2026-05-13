@@ -4522,6 +4522,14 @@
   gap: 12px;
 }
 
+.snapshot-view-picker {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
 .snapshot-picker-panel h2,
 .snapshot-stat-card h3,
 .snapshot-attendance-card h3 {
@@ -4535,8 +4543,48 @@
 .snapshot-student-picker {
   display: flex;
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 4px;
+}
+
+.snapshot-centre-card {
+  display: grid;
+  min-width: 148px;
+  align-content: center;
+  justify-items: start;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 2px solid var(--oasis-border);
+  border-radius: 12px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.snapshot-centre-card.is-selected {
+  border-color: var(--oasis-navy);
+  background: color-mix(in srgb, var(--oasis-navy) 10%, #ffffff);
+}
+
+.snapshot-centre-card span {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--oasis-navy);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.snapshot-centre-card strong {
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+}
+
+.snapshot-centre-card small {
+  color: var(--oasis-text-muted);
+  font-size: 0.68rem;
 }
 
 .snapshot-student-card {
@@ -4607,6 +4655,10 @@
   height: 60px;
   flex: 0 0 auto;
   font-size: 1rem;
+}
+
+.snapshot-hero__avatar--centre {
+  background: var(--oasis-blue);
 }
 
 .snapshot-hero h2 {
@@ -4934,6 +4986,44 @@
 .snapshot-pace-compact {
   display: grid;
   gap: 10px;
+}
+
+.snapshot-centre-table-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.snapshot-centre-table-wrap {
+  overflow-x: auto;
+}
+
+.snapshot-centre-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.snapshot-centre-table th,
+.snapshot-centre-table td {
+  padding: 11px 12px;
+  border-top: 1px solid var(--oasis-border-light);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.snapshot-centre-table th {
+  border-top: 0;
+  background: var(--oasis-bg);
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.snapshot-centre-table strong {
+  color: var(--oasis-navy);
 }
 
 .snapshot-pace-compact > div {
