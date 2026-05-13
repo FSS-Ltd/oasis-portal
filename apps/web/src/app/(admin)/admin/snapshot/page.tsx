@@ -7,7 +7,7 @@ export default async function AdminSnapshotPage() {
 
   return (
     <MotionPage>
-      <ChildSnapshotClient canManageCorrections />
+      <ChildSnapshotClient canManageCorrections defaultView="centre" enableCentreOverview />
     </MotionPage>
   );
 }

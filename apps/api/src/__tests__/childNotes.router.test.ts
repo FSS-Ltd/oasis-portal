@@ -240,6 +240,32 @@ function makeFakeDb() {
       role: sensitiveViewerUser.role,
     },
   ];
+  const behaviourEntries = [
+    {
+      id: 'behaviour_1',
+      studentId: 'student_1',
+      type: 'Merit',
+      category: 'Focus',
+      visibility: 'General',
+      meritDelta: 3,
+      recordedById: supervisorUser.id,
+      createdAt: day('2026-04-29'),
+      noteEnc: 'enc:Focused well',
+      recordedBy: users.find((user) => user.id === supervisorUser.id),
+    },
+    {
+      id: 'behaviour_2',
+      studentId: 'student_1',
+      type: 'Demerit',
+      category: 'Pastoral',
+      visibility: 'Sensitive',
+      meritDelta: -5,
+      recordedById: headUser.id,
+      createdAt: day('2026-04-29'),
+      noteEnc: 'enc:Sensitive behaviour',
+      recordedBy: users.find((user) => user.id === headUser.id),
+    },
+  ];
   const db = {
     $enc: {
       encrypt: vi.fn((value: string | null | undefined) => (value ? `enc:${value}` : null)),
@@ -442,34 +468,8 @@ function makeFakeDb() {
             studentId?: string | { in: string[] };
           };
         }) => {
-          const rows = [
-            {
-              id: 'behaviour_1',
-              studentId: 'student_1',
-              type: 'Merit',
-              category: 'Focus',
-              visibility: 'General',
-              meritDelta: 3,
-              recordedById: supervisorUser.id,
-              createdAt: day('2026-04-29'),
-              noteEnc: 'enc:Focused well',
-              recordedBy: users.find((user) => user.id === supervisorUser.id),
-            },
-            {
-              id: 'behaviour_2',
-              studentId: 'student_1',
-              type: 'Demerit',
-              category: 'Pastoral',
-              visibility: 'Sensitive',
-              meritDelta: -5,
-              recordedById: headUser.id,
-              createdAt: day('2026-04-29'),
-              noteEnc: 'enc:Sensitive behaviour',
-              recordedBy: users.find((user) => user.id === headUser.id),
-            },
-          ];
           return Promise.resolve(
-            rows
+            behaviourEntries
               .filter(
                 (row) =>
                   where?.studentId === undefined ||
@@ -501,7 +501,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, guardians, notes, staffShifts, students };
+  return { behaviourEntries, db, guardians, notes, staffShifts, students };
 }
 
 function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>['db']): AppContext {
@@ -731,6 +731,124 @@ describe('childLog.snapshot', () => {
       }),
     ).resolves.toMatchObject({
       student: { id: 'student_2', fullName: 'Secondary Learner', yearGroup: 'Year 9' },
+    });
+  });
+
+  it('returns a full-admin centre snapshot for today across active students', async () => {
+    const { behaviourEntries, db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+    students.push({
+      ...makeOutOfBandStudent(),
+      id: 'student_archived',
+      active: false,
+      fullNameEnc: 'enc:Archived Learner',
+    });
+    await makeCaller(headUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Visible centre note',
+      sensitive: false,
+    });
+    await makeCaller(headUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Sensitive centre note',
+      sensitive: true,
+    });
+    behaviourEntries.push({
+      id: 'behaviour_today',
+      studentId: 'student_1',
+      type: 'Merit',
+      category: 'Scripture Memory',
+      visibility: 'General',
+      meritDelta: 5,
+      recordedById: headUser.id,
+      createdAt: day('2026-04-30'),
+      noteEnc: 'enc:Today centre merit',
+      recordedBy: { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
+    });
+
+    const snapshot = await makeCaller(headUser, db).childLog.centreSnapshot({
+      from: day('2026-04-30'),
+      to: day('2026-04-30'),
+    });
+
+    expect(snapshot.summary).toMatchObject({
+      activeStudentCount: 2,
+      behaviourCount: 1,
+      meritsEarned: 5,
+      netMerits: 5,
+      notesCount: 2,
+      paceCount: 0,
+    });
+    expect(snapshot.students.map((row) => row.student.id)).toEqual(['student_1', 'student_2']);
+    expect(snapshot.notes).toMatchObject([
+      { note: 'Visible centre note', sensitive: false, student: { id: 'student_1' } },
+      { note: 'Sensitive centre note', sensitive: true, student: { id: 'student_1' } },
+    ]);
+    expect(snapshot.behaviour).toMatchObject([
+      {
+        category: 'Scripture Memory',
+        meritDelta: 5,
+        note: 'Today centre merit',
+        student: { id: 'student_1' },
+      },
+    ]);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'ReadSensitive',
+        entity: 'ChildNote',
+        meta: {
+          count: 1,
+          source: 'childLog.centreSnapshot',
+        },
+        userId: headUser.id,
+      },
+    });
+  });
+
+  it('filters centre snapshot activity by the selected range', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(headUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Today only note',
+      sensitive: false,
+    });
+
+    const snapshot = await makeCaller(headUser, db).childLog.centreSnapshot({
+      from: day('2026-04-29'),
+      to: day('2026-04-29'),
+    });
+
+    expect(snapshot.summary).toMatchObject({
+      activeStudentCount: 1,
+      attendance: { late: 1, recorded: 1 },
+      behaviourCount: 2,
+      notesCount: 0,
+      paceCount: 1,
+    });
+    expect(snapshot.behaviour).toHaveLength(2);
+    expect(snapshot.passedTests).toMatchObject([{ subjectCode: 'MATH', score: 90 }]);
+    expect(snapshot.notes).toEqual([]);
+  });
+
+  it('blocks Supervisors from centre snapshot access', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(supervisorUser, db).childLog.centreSnapshot({
+        from: day('2026-04-30'),
+        to: day('2026-04-30'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        action: 'PermissionDenied',
+        entity: 'childLog.centreSnapshot',
+        meta: {
+          reason: 'Access denied: centre snapshot requires full-admin access',
+          role: 'Supervisor',
+        },
+        userId: supervisorUser.id,
+      },
     });
   });
 

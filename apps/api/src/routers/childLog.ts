@@ -32,11 +32,24 @@ const studentListInclude = {
 
 const listAccessibleStudentsInput = z.object({ linkedOnly: z.boolean().default(false) }).optional();
 
+const snapshotRangeShape = {
+  from: z.coerce.date(),
+  to: z.coerce.date(),
+};
+
+const snapshotRangeInput = z
+  .object({
+    ...snapshotRangeShape,
+  })
+  .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
+    message: 'from must be on or before to',
+    path: ['to'],
+  });
+
 const snapshotInput = z
   .object({
+    ...snapshotRangeShape,
     studentId: z.string().min(1),
-    from: z.coerce.date(),
-    to: z.coerce.date(),
   })
   .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
     message: 'from must be on or before to',
@@ -90,6 +103,20 @@ async function requireSnapshotWorkflow(ctx: AuthedContext): Promise<void> {
       userId: ctx.user.id,
       action: 'PermissionDenied',
       entity: 'childLog.snapshot',
+      meta: { role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
+async function requireCentreSnapshotWorkflow(ctx: AuthedContext): Promise<void> {
+  if (isFullAdmin(ctx.user)) return;
+  const denied = new AccessDeniedError('centre snapshot requires full-admin access');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'childLog.centreSnapshot',
       meta: { role: ctx.user.role, reason: denied.message },
     },
   });
@@ -219,6 +246,314 @@ export const childLogRouter = router({
     });
 
     return students.map((student) => mapStudentSummary(ctx, student));
+  }),
+
+  centreSnapshot: authedProcedure.input(snapshotRangeInput).query(async ({ ctx, input }) => {
+    await requireCentreSnapshotWorkflow(ctx);
+
+    const from = normalizeDate(input.from);
+    const to = dayEnd(input.to);
+    const students = await ctx.db.student.findMany({
+      where: { active: true },
+      include: studentListInclude,
+      orderBy: { createdAt: 'desc' },
+    });
+    const studentIds = students.map((student) => student.id);
+    const studentSummaries = students.map((student) => mapStudentSummary(ctx, student));
+    const studentSummaryById = new Map(studentSummaries.map((student) => [student.id, student]));
+
+    const emptySummary = {
+      activeStudentCount: students.length,
+      attendance: { present: 0, late: 0, absent: 0, recorded: 0 },
+      meritsEarned: 0,
+      demeritsTotal: 0,
+      netMerits: 0,
+      averagePaceScore: null as number | null,
+      behaviourCount: 0,
+      paceCount: 0,
+      notesCount: 0,
+    };
+
+    if (studentIds.length === 0) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'Student',
+          meta: {
+            count: 0,
+            source: 'childLog.centreSnapshot',
+            fields: ['student.fullName'],
+          },
+        },
+      });
+      return {
+        summary: emptySummary,
+        range: { from: dateKey(from), to: dateKey(input.to) },
+        students: [],
+        attendance: [],
+        behaviour: [],
+        passedTests: [],
+        notes: [],
+      };
+    }
+
+    const canReadSensitiveNotes = canViewSensitiveChildNotes(ctx.user);
+    const [attendance, paceTests, behaviour, notes, meritBalances] = await Promise.all([
+      ctx.db.attendance.findMany({
+        where: {
+          studentId: { in: studentIds },
+          date: { gte: from, lt: to },
+        },
+        select: {
+          id: true,
+          studentId: true,
+          date: true,
+          status: true,
+          recordedById: true,
+          createdAt: true,
+        },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      }),
+      ctx.db.paceRecord.findMany({
+        where: {
+          studentId: { in: studentIds },
+          completedAt: { gte: from, lt: to },
+          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+        },
+        include: {
+          subject: { select: { id: true, code: true, name: true } },
+          recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+        },
+        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+      ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: {
+            studentId: { in: studentIds },
+            createdAt: { gte: from, lt: to },
+            ...visibleBehaviourWhere(ctx.user),
+          },
+          select: {
+            id: true,
+            studentId: true,
+            type: true,
+            category: true,
+            noteEnc: true,
+            visibility: true,
+            meritDelta: true,
+            recordedById: true,
+            createdAt: true,
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
+      ctx.db.childNote.findMany({
+        where: {
+          studentId: { in: studentIds },
+          createdAt: { gte: from, lt: to },
+          deletedAt: null,
+          ...(canReadSensitiveNotes ? {} : { sensitive: false }),
+        },
+        include: { createdBy: { select: { id: true, fullNameEnc: true, role: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      ctx.db.meritLedger.groupBy({
+        by: ['studentId', 'account'],
+        where: {
+          studentId: { in: studentIds },
+          account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+        },
+        _sum: { delta: true },
+      }),
+    ]);
+
+    function requireStudent(studentId: string) {
+      const student = studentSummaryById.get(studentId);
+      if (!student) {
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student summary missing' });
+      }
+      return student;
+    }
+
+    const meritBalanceByStudent = new Map<string, number>();
+    for (const row of meritBalances) {
+      meritBalanceByStudent.set(
+        row.studentId,
+        (meritBalanceByStudent.get(row.studentId) ?? 0) + (row._sum.delta ?? 0),
+      );
+    }
+
+    const meritsEarned = behaviour
+      .filter((entry) => entry.meritDelta > 0)
+      .reduce((sum, entry) => sum + entry.meritDelta, 0);
+    const demeritsTotal = behaviour
+      .filter((entry) => entry.meritDelta < 0)
+      .reduce((sum, entry) => sum + entry.meritDelta, 0);
+    const paceScores = paceTests.map((record) => record.paceTestScore ?? record.selfTestScore ?? 0);
+    const sensitiveNoteCount = notes.filter((note) => note.sensitive).length;
+
+    if (sensitiveNoteCount > 0) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'ReadSensitive',
+          entity: 'ChildNote',
+          meta: {
+            count: sensitiveNoteCount,
+            source: 'childLog.centreSnapshot',
+          },
+        },
+      });
+    }
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: {
+          count: students.length,
+          source: 'childLog.centreSnapshot',
+          fields: [
+            'student.fullName',
+            'behaviour.note',
+            'behaviour.recordedBy.fullName',
+            'childNote.note',
+            'childNote.createdBy.fullName',
+            'paceRecord.recordedBy.fullName',
+          ],
+          behaviourCount: behaviour.length,
+          noteCount: notes.length,
+          paceCount: paceTests.length,
+        },
+      },
+    });
+
+    return {
+      summary: {
+        activeStudentCount: students.length,
+        attendance: {
+          present: attendance.filter((row) => row.status === 'Present').length,
+          late: attendance.filter((row) => row.status === 'Late').length,
+          absent: attendance.filter((row) => row.status === 'Absent').length,
+          recorded: attendance.length,
+        },
+        meritsEarned,
+        demeritsTotal,
+        netMerits: meritsEarned + demeritsTotal,
+        averagePaceScore:
+          paceScores.length > 0
+            ? Math.round(paceScores.reduce((sum, score) => sum + score, 0) / paceScores.length)
+            : null,
+        behaviourCount: behaviour.length,
+        paceCount: paceTests.length,
+        notesCount: notes.length,
+      },
+      range: {
+        from: dateKey(from),
+        to: dateKey(input.to),
+      },
+      students: studentSummaries.map((student) => {
+        const studentAttendance = attendance.filter((row) => row.studentId === student.id);
+        const studentBehaviour = behaviour.filter((entry) => entry.studentId === student.id);
+        const studentPace = paceTests.filter((record) => record.studentId === student.id);
+        const studentNotes = notes.filter((note) => note.studentId === student.id);
+        const studentScores = studentPace.map(
+          (record) => record.paceTestScore ?? record.selfTestScore ?? 0,
+        );
+        const studentMeritsEarned = studentBehaviour
+          .filter((entry) => entry.meritDelta > 0)
+          .reduce((sum, entry) => sum + entry.meritDelta, 0);
+        const studentDemeritsTotal = studentBehaviour
+          .filter((entry) => entry.meritDelta < 0)
+          .reduce((sum, entry) => sum + entry.meritDelta, 0);
+
+        return {
+          student,
+          metrics: {
+            attendance: {
+              present: studentAttendance.filter((row) => row.status === 'Present').length,
+              late: studentAttendance.filter((row) => row.status === 'Late').length,
+              absent: studentAttendance.filter((row) => row.status === 'Absent').length,
+              recorded: studentAttendance.length,
+            },
+            meritsEarned: studentMeritsEarned,
+            demeritsTotal: studentDemeritsTotal,
+            netMerits: studentMeritsEarned + studentDemeritsTotal,
+            totalMerits: meritBalanceByStudent.get(student.id) ?? 0,
+            averagePaceScore:
+              studentScores.length > 0
+                ? Math.round(
+                    studentScores.reduce((sum, score) => sum + score, 0) / studentScores.length,
+                  )
+                : null,
+            behaviourCount: studentBehaviour.length,
+            paceCount: studentPace.length,
+            notesCount: studentNotes.length,
+          },
+        };
+      }),
+      attendance: attendance.map((row) => ({
+        id: row.id,
+        student: requireStudent(row.studentId),
+        date: dateKey(row.date),
+        status: row.status,
+        recordedById: row.recordedById,
+        recordedAt: row.createdAt,
+      })),
+      passedTests: paceTests.map((record) => ({
+        id: record.id,
+        student: requireStudent(record.studentId),
+        date: record.completedAt ? dateKey(record.completedAt) : dateKey(record.createdAt),
+        subjectId: record.subjectId,
+        subjectCode: record.subject.code,
+        subjectName: record.subject.name,
+        paceNumber: record.paceNumber,
+        score: record.paceTestScore ?? record.selfTestScore ?? 0,
+        maxScore: 100,
+        testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
+        recordedById: record.recordedById,
+        recordedByName: decryptRequired(
+          ctx.db.$enc.decrypt,
+          record.recordedBy.fullNameEnc,
+          'user PII',
+        ),
+        recordedByRole: record.recordedBy.role,
+        completedAt: record.completedAt,
+        createdAt: record.createdAt,
+      })),
+      behaviour: behaviour.map((entry) => ({
+        id: entry.id,
+        student: requireStudent(entry.studentId),
+        type: entry.type,
+        category: entry.category,
+        note: entry.noteEnc
+          ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
+          : null,
+        visibility: entry.visibility,
+        meritDelta: entry.meritDelta,
+        recordedById: entry.recordedById,
+        recordedByName: decryptRequired(
+          ctx.db.$enc.decrypt,
+          entry.recordedBy.fullNameEnc,
+          'user PII',
+        ),
+        recordedByRole: entry.recordedBy.role,
+        createdAt: entry.createdAt,
+      })),
+      notes: notes.map((note) => ({
+        id: note.id,
+        student: requireStudent(note.studentId),
+        note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
+        sensitive: note.sensitive,
+        createdById: note.createdById,
+        createdByName: decryptRequired(ctx.db.$enc.decrypt, note.createdBy.fullNameEnc, 'user PII'),
+        createdByRole: note.createdBy.role,
+        createdAt: note.createdAt,
+      })),
+    };
   }),
 
   listAccessibleStudents: authedProcedure
