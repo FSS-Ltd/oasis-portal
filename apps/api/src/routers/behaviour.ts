@@ -321,7 +321,6 @@ async function notifyBehaviourGuardians({
   getEmailClient: () => EmailClient;
 }): Promise<void> {
   if (entry.visibility !== 'General') return;
-  if (entry.type === 'General') return;
 
   let guardians: BehaviourNotificationGuardian[];
   let childName: string;
@@ -812,7 +811,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           type: behaviourTypeSchema,
           category: behaviourCategorySchema.optional(),
           note: behaviourNoteSchema.optional(),
-          visibility: behaviourVisibilitySchema.default('General'),
+          visibility: behaviourVisibilitySchema.optional(),
           // Merit/Demerit: positive integer; Demerit defaults to DEMERIT_COST.
           amount: behaviourAmountSchema.optional(),
         }),
@@ -835,7 +834,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           });
         }
 
-        const visibility = input.type === 'General' ? 'Sensitive' : input.visibility;
+        const visibility = input.visibility ?? (input.type === 'General' ? 'Sensitive' : 'General');
         if (visibility === 'Sensitive') {
           await requireCanCreateSensitive(ctx, { studentId: input.studentId, type: input.type });
         }
@@ -955,40 +954,43 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        const existing = await ctx.db.behaviourEntry.findUnique({
-          where: { id: input.id },
-          include: { ledgerRows: { select: { id: true, delta: true, account: true } } },
-        });
-        if (!existing || existing.deletedAt !== null) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
-        }
-
-        if (existing.type !== 'Merit' && input.amount !== undefined) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message:
-              existing.type === 'Demerit'
-                ? 'demerit amount is fixed'
-                : 'general marks have no merit value',
+        const { existing, ledgerDelta, nextNote, updated } = await ctx.withRls(async (tx) => {
+          const existing = await tx.behaviourEntry.findUnique({
+            where: { id: input.id },
+            include: { ledgerRows: { select: { id: true, delta: true, account: true } } },
           });
-        }
+          if (!existing || existing.deletedAt !== null) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
+          }
 
-        const nextCategory = input.category ?? existing.category;
-        const nextVisibility = input.visibility ?? existing.visibility;
-        const nextNote =
-          input.note === undefined ? undefined : input.note === null ? null : input.note.trim();
-        if (
-          existing.type === 'General' &&
-          ((nextNote === undefined && !existing.noteEnc) || nextNote === null || nextNote === '')
-        ) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'general mark note is required' });
-        }
+          if (existing.type === 'General' && input.amount !== undefined) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'general marks have no merit value',
+            });
+          }
 
-        const nextMeritDelta =
-          existing.type === 'Merit' ? (input.amount ?? existing.meritDelta) : existing.meritDelta;
-        const ledgerDelta = nextMeritDelta - existing.meritDelta;
+          const nextCategory = input.category ?? existing.category;
+          const nextVisibility = input.visibility ?? existing.visibility;
+          const nextNote =
+            input.note === undefined ? undefined : input.note === null ? null : input.note.trim();
+          if (
+            existing.type === 'General' &&
+            ((nextNote === undefined && !existing.noteEnc) || nextNote === null || nextNote === '')
+          ) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: 'general mark note is required' });
+          }
 
-        const updated = await ctx.db.$transaction(async (tx) => {
+          const nextMeritDelta =
+            existing.type === 'Merit'
+              ? (input.amount ?? existing.meritDelta)
+              : existing.type === 'Demerit'
+                ? input.amount === undefined
+                  ? existing.meritDelta
+                  : -input.amount
+                : existing.meritDelta;
+          const ledgerDelta = nextMeritDelta - existing.meritDelta;
+
           const row = await tx.behaviourEntry.update({
             where: { id: existing.id },
             data: {
@@ -1025,7 +1027,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             });
           }
 
-          return row;
+          return { existing, ledgerDelta, nextNote, updated: row };
         });
 
         await ctx.db.auditLog.create({
@@ -1056,30 +1058,30 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     deleteEntry: fullAdminProcedure
       .input(z.object({ id: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
-        const existing = await ctx.db.behaviourEntry.findUnique({
-          where: { id: input.id },
-          include: {
-            ledgerRows: {
-              select: { studentId: true, account: true, delta: true, reason: true },
-              orderBy: { createdAt: 'asc' },
+        const { correctionRows, deleted, existing } = await ctx.withRls(async (tx) => {
+          const existing = await tx.behaviourEntry.findUnique({
+            where: { id: input.id },
+            include: {
+              ledgerRows: {
+                select: { studentId: true, account: true, delta: true, reason: true },
+                orderBy: { createdAt: 'asc' },
+              },
             },
-          },
-        });
-        if (!existing || existing.deletedAt !== null) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
-        }
+          });
+          if (!existing || existing.deletedAt !== null) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
+          }
 
-        const correctionRows = existing.ledgerRows
-          .filter((row) => row.delta !== 0)
-          .map((row) => ({
-            studentId: row.studentId,
-            account: row.account,
-            delta: -row.delta,
-            reason: `correction:delete:${row.reason}`,
-            relatedEntryId: existing.id,
-          }));
+          const correctionRows = existing.ledgerRows
+            .filter((row) => row.delta !== 0)
+            .map((row) => ({
+              studentId: row.studentId,
+              account: row.account,
+              delta: -row.delta,
+              reason: `correction:delete:${row.reason}`,
+              relatedEntryId: existing.id,
+            }));
 
-        const deleted = await ctx.db.$transaction(async (tx) => {
           const row = await tx.behaviourEntry.update({
             where: { id: existing.id },
             data: { deletedAt: new Date(), deletedById: ctx.user.id },
@@ -1090,7 +1092,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             await tx.meritLedger.createMany({ data: correctionRows });
           }
 
-          return row;
+          return { correctionRows, deleted: row, existing };
         });
 
         await ctx.db.auditLog.create({

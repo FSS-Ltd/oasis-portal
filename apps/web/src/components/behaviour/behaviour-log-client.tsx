@@ -6,8 +6,12 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import {
+  categoriesFor,
+  meritCategories,
+  type BehaviourType,
+} from '@/components/behaviour/behaviour-categories';
 
-type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BatchBehaviourType = Exclude<BehaviourType, 'General'>;
 type BehaviourVisibility = 'General' | 'Sensitive';
 export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
@@ -31,27 +35,6 @@ interface EditingEntryForm {
   visibility: BehaviourVisibility;
   amount: string;
 }
-
-const meritCategories = [
-  'Scripture Memory',
-  'Academic Excellence',
-  'Helpfulness',
-  'Character',
-  'Leadership',
-  'Punctuality',
-  'Creativity',
-] as const;
-
-const demeritCategories = [
-  'Misc',
-  'Punctuality',
-  'Conduct',
-  'Disrespect',
-  'Negligence',
-  'Dishonesty',
-] as const;
-
-const generalCategories = ['Misc'] as const;
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -85,12 +68,6 @@ function avatarColour(index: number): string {
 
 function canUseSensitiveMode(mode: BehaviourSensitiveMode, type: BehaviourType): boolean {
   return mode === 'all' || (mode === 'demerit-only' && (type === 'Demerit' || type === 'General'));
-}
-
-function categoriesFor(type: BehaviourType): readonly string[] {
-  if (type === 'Merit') return meritCategories;
-  if (type === 'Demerit') return demeritCategories;
-  return generalCategories;
 }
 
 function newBatchEntry(type: BatchBehaviourType): BatchEntryForm {
@@ -206,14 +183,10 @@ export function BehaviourLogClient({
     if (visibility === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) {
       setVisibility('General');
     }
-    if (type === 'General') {
-      setVisibility(canUseSensitiveMode(sensitiveMode, type) ? 'Sensitive' : 'General');
-    }
   }, [sensitiveMode, type, visibility]);
 
   function chooseVisibility(next: BehaviourVisibility): void {
     if (next === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) return;
-    if (type === 'General') return;
     setVisibility(next);
   }
 
@@ -260,7 +233,9 @@ export function BehaviourLogClient({
       category: entry.category,
       note: entry.note ?? '',
       visibility: entry.visibility,
-      amount: String(Math.max(entry.meritDelta, 1)),
+      amount: String(
+        entry.type === 'Demerit' ? Math.abs(entry.meritDelta) : Math.max(entry.meritDelta, 1),
+      ),
     });
     setStatus(null);
   }
@@ -274,7 +249,7 @@ export function BehaviourLogClient({
       category: editingEntry.category,
       note: editingEntry.note.trim() ? editingEntry.note : null,
       visibility: editingEntry.visibility,
-      ...(editingEntry.type === 'Merit' ? { amount: Number(editingEntry.amount) } : {}),
+      ...(editingEntry.type !== 'General' ? { amount: Number(editingEntry.amount) } : {}),
     });
   }
 
@@ -323,7 +298,11 @@ export function BehaviourLogClient({
                     onClick={() => {
                       setType(item);
                       setCategory(categoriesFor(item)[0] ?? 'Misc');
-                      if (item === 'General') setVisibility('Sensitive');
+                      if (item === 'General') {
+                        setVisibility(
+                          canUseSensitiveMode(sensitiveMode, item) ? 'Sensitive' : 'General',
+                        );
+                      }
                       if (item === 'Demerit') setAmount('5');
                     }}
                     type="button"
@@ -391,7 +370,6 @@ export function BehaviourLogClient({
                       className={item === visibility ? 'is-selected' : undefined}
                       disabled={
                         !canLogBehaviour ||
-                        type === 'General' ||
                         (item === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type))
                       }
                       key={item}
@@ -439,7 +417,9 @@ export function BehaviourLogClient({
                 </Field>
               ) : null}
               {type === 'General' ? (
-                <p className="field__hint">General marks have no merit value.</p>
+                <p className="field__hint">
+                  General marks have no merit value. General visibility notifies linked guardians.
+                </p>
               ) : null}
 
               <Button
@@ -746,8 +726,12 @@ export function BehaviourLogClient({
                           ))}
                         </div>
                       </Field>
-                      {editingEntry.type === 'Merit' ? (
-                        <Field label="Merit amount">
+                      {editingEntry.type !== 'General' ? (
+                        <Field
+                          label={
+                            editingEntry.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
+                          }
+                        >
                           <TextInput
                             min={1}
                             onChange={(event) => {

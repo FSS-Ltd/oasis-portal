@@ -10,7 +10,8 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { SelectInput, TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { categoriesFor } from '@/components/behaviour/behaviour-categories';
 import {
   AttendanceRing,
   EmptyCard,
@@ -491,7 +492,9 @@ export function StudentDrillThroughContent({
       category: entry.category,
       note: entry.note ?? '',
       visibility: entry.visibility,
-      amount: String(Math.max(entry.meritDelta, 1)),
+      amount: String(
+        entry.type === 'Demerit' ? Math.abs(entry.meritDelta) : Math.max(entry.meritDelta, 1),
+      ),
     });
   }
 
@@ -503,7 +506,7 @@ export function StudentDrillThroughContent({
       category: behaviourDraft.category,
       note: behaviourDraft.note.trim() ? behaviourDraft.note : null,
       visibility: behaviourDraft.visibility,
-      ...(behaviourDraft.type === 'Merit' ? { amount: Number(behaviourDraft.amount) } : {}),
+      ...(behaviourDraft.type !== 'General' ? { amount: Number(behaviourDraft.amount) } : {}),
     });
   }
 
@@ -570,56 +573,77 @@ export function StudentDrillThroughContent({
               void submitBehaviourCorrection(event);
             }}
           >
-            <TextInput
-              aria-label="Behaviour category"
-              onChange={(event) => {
-                setBehaviourDraft((current) =>
-                  current ? { ...current, category: event.target.value } : current,
-                );
-              }}
-              required
-              value={behaviourDraft.category}
-            />
-            <textarea
-              aria-label="Behaviour note"
-              className="input textarea"
-              maxLength={2000}
-              onChange={(event) => {
-                setBehaviourDraft((current) =>
-                  current ? { ...current, note: event.target.value } : current,
-                );
-              }}
-              required={behaviourDraft.type === 'General'}
-              rows={4}
-              value={behaviourDraft.note}
-            />
-            <SelectInput
-              aria-label="Behaviour visibility"
-              onChange={(event) => {
-                setBehaviourDraft((current) =>
-                  current
-                    ? { ...current, visibility: event.target.value as BehaviourEntry['visibility'] }
-                    : current,
-                );
-              }}
-              value={behaviourDraft.visibility}
-            >
-              <option value="General">General</option>
-              <option value="Sensitive">Sensitive</option>
-            </SelectInput>
-            {behaviourDraft.type === 'Merit' ? (
-              <TextInput
-                aria-label="Merit amount"
-                min={1}
+            <Field label="Category">
+              <SelectInput
+                aria-label="Behaviour category"
                 onChange={(event) => {
                   setBehaviourDraft((current) =>
-                    current ? { ...current, amount: event.target.value } : current,
+                    current ? { ...current, category: event.target.value } : current,
                   );
                 }}
                 required
-                type="number"
-                value={behaviourDraft.amount}
+                value={behaviourDraft.category}
+              >
+                {categoriesFor(behaviourDraft.type).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="Notes">
+              <textarea
+                aria-label="Behaviour note"
+                className="input textarea"
+                maxLength={2000}
+                onChange={(event) => {
+                  setBehaviourDraft((current) =>
+                    current ? { ...current, note: event.target.value } : current,
+                  );
+                }}
+                required={behaviourDraft.type === 'General'}
+                rows={4}
+                value={behaviourDraft.note}
               />
+            </Field>
+            <Field label="Visibility">
+              <SelectInput
+                aria-label="Behaviour visibility"
+                onChange={(event) => {
+                  setBehaviourDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          visibility: event.target.value as BehaviourEntry['visibility'],
+                        }
+                      : current,
+                  );
+                }}
+                value={behaviourDraft.visibility}
+              >
+                <option value="General">General</option>
+                <option value="Sensitive">Sensitive</option>
+              </SelectInput>
+            </Field>
+            {behaviourDraft.type !== 'General' ? (
+              <Field
+                label={behaviourDraft.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}
+              >
+                <TextInput
+                  aria-label={
+                    behaviourDraft.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
+                  }
+                  min={1}
+                  onChange={(event) => {
+                    setBehaviourDraft((current) =>
+                      current ? { ...current, amount: event.target.value } : current,
+                    );
+                  }}
+                  required
+                  type="number"
+                  value={behaviourDraft.amount}
+                />
+              </Field>
             ) : null}
             <Button pending={updateBehaviour.isPending} type="submit">
               Save entry

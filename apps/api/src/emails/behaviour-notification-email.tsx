@@ -12,7 +12,15 @@ export interface BehaviourNotificationEmailProps {
   logoUrl?: string;
   note?: string | null;
   recipientName?: string;
-  type: 'Merit' | 'Demerit';
+  type: 'Merit' | 'Demerit' | 'General';
+}
+
+function notificationLabel(type: BehaviourNotificationEmailProps['type']): string {
+  return type === 'General' ? 'general mark' : type.toLowerCase();
+}
+
+function notificationTitle(type: BehaviourNotificationEmailProps['type']): string {
+  return type === 'General' ? 'General mark recorded' : `${type} recorded`;
 }
 
 export function buildBehaviourNotificationEmailText({
@@ -22,7 +30,7 @@ export function buildBehaviourNotificationEmailText({
   type,
 }: Pick<BehaviourNotificationEmailProps, 'category' | 'childName' | 'note' | 'type'>): string {
   const lines = [
-    `${childName} received a ${type.toLowerCase()} on Oasis Portal.`,
+    `${childName} received a ${notificationLabel(type)} on Oasis Portal.`,
     `Type: ${type}`,
     `Category: ${category}`,
   ];
@@ -39,13 +47,14 @@ export function BehaviourNotificationEmail({
   type,
 }: BehaviourNotificationEmailProps) {
   const logoProps = logoUrl ? { logoUrl } : {};
+  const label = notificationLabel(type);
 
   return (
     <OasisEmailShell
       eyebrow="Oasis Learning Centre"
-      footerNote="For privacy, automated behaviour emails are sent only for General behaviour entries."
-      preview={`${childName} received a ${type.toLowerCase()} on Oasis Portal.`}
-      title={`${type} recorded`}
+      footerNote="For privacy, automated behaviour emails are sent only for parent-visible behaviour entries."
+      preview={`${childName} received a ${label} on Oasis Portal.`}
+      title={notificationTitle(type)}
       {...logoProps}
     >
       <Text style={paragraphStyle}>

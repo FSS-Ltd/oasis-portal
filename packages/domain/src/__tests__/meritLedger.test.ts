@@ -139,6 +139,7 @@ describe('getMeritActivity', () => {
       { type: 'Merit', meritDelta: 2 },
       { type: 'Demerit', meritDelta: -5 },
       { type: 'Demerit', meritDelta: -5 },
+      { type: 'General', meritDelta: 0 },
     ]);
     expect(a.meritsEarned).toBe(6);
     expect(a.demeritsCount).toBe(2);

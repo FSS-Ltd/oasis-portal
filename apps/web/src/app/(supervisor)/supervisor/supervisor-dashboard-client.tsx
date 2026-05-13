@@ -139,7 +139,9 @@ export function SupervisorDashboardClient({
     onSuccess: async (_result, input) => {
       setBehaviourStatus(
         input.type === 'General'
-          ? 'General mark saved. Heads and you can view it.'
+          ? input.visibility === 'General'
+            ? 'Parent-visible general mark saved.'
+            : 'General mark saved. Heads and you can view it.'
           : input.visibility === 'Sensitive'
             ? 'Sensitive demerit saved. Heads and you can view it.'
             : 'Behaviour saved.',
@@ -412,7 +414,6 @@ export function SupervisorDashboardClient({
                       <Field label="Visibility">
                         <SelectInput
                           aria-label="Behaviour visibility"
-                          disabled={behaviourForm.type === 'General'}
                           onChange={(event) => {
                             setBehaviourForm((form) => ({
                               ...form,
@@ -460,7 +461,10 @@ export function SupervisorDashboardClient({
                       </Field>
                     ) : null}
                     {behaviourForm.type === 'General' ? (
-                      <p className="field__hint">General marks have no merit value.</p>
+                      <p className="field__hint">
+                        General marks have no merit value. General visibility notifies linked
+                        guardians.
+                      </p>
                     ) : null}
                     <Field
                       label="Note"
