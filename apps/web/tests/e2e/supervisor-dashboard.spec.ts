@@ -168,6 +168,7 @@ test.describe('Supervisor dashboard shell', () => {
         await expect(page.getByRole('heading', { name: /PACE Progress/i })).toBeVisible();
         await expect(page.getByLabel('PACE student')).toBeVisible();
         const recordButton = page.getByRole('button', { name: /record new score/i });
+        await expect(recordButton).toBeVisible();
         if (!(await recordButton.isDisabled())) {
           await recordButton.click();
           const subjectSelect = page.getByLabel('PACE subject');
