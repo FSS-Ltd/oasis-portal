@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-12
+**Last updated:** 2026-05-13
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.5.4 club notification UI ready for review.
+**Phase:** Centre snapshot PACE identity label ready for review.
 
 ---
 
@@ -17,6 +17,28 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - Centre snapshot PACE identity label
+
+Working branch: `feat/pace-auto-merits`.
+
+**PR scope:** Clarify the whole-centre snapshot PACE test rows so staff can
+distinguish the student who took the test from the supervisor who recorded it.
+
+Changed scope:
+
+- Updated the compact "PACE Tests this period" rows to render
+  `Subject #PACE - Student full name` when the row is shown from the
+  whole-centre snapshot.
+- Labelled the recorder as `Supervisor: Name` in the compact row metadata.
+
+Verification:
+
+- `pnpm exec prettier --check apps/web/src/components/child-log/child-snapshot-client.tsx` -
+  pass.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `graphify update .` - pass.
 
 ## Current status - PR-3.5.4 Club notification UI
 
