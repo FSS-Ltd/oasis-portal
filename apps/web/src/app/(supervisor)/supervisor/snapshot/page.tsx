@@ -7,7 +7,7 @@ export default async function SupervisorSnapshotPage() {
 
   return (
     <MotionPage>
-      <ChildSnapshotClient />
+      <ChildSnapshotClient canManageCorrections={false} />
     </MotionPage>
   );
 }

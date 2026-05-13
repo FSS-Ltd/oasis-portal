@@ -77,6 +77,7 @@ interface FakeDb {
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
     create: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
@@ -227,6 +228,29 @@ function makeFakeDb() {
         assignments.push(assignment);
         return Promise.resolve(assignment);
       }),
+      delete: vi.fn(
+        ({
+          where,
+        }: {
+          where: { studentId_subjectId: { studentId: string; subjectId: string } };
+        }) => {
+          const index = assignments.findIndex(
+            (candidate) =>
+              candidate.studentId === where.studentId_subjectId.studentId &&
+              candidate.subjectId === where.studentId_subjectId.subjectId,
+          );
+          if (index === -1) {
+            return Promise.reject(
+              new Prisma.PrismaClientKnownRequestError('Record not found', {
+                code: 'P2025',
+                clientVersion: 'test',
+              }),
+            );
+          }
+          const [assignment] = assignments.splice(index, 1);
+          return Promise.resolve(assignment);
+        },
+      ),
       update: vi.fn(
         ({
           where,
@@ -457,6 +481,11 @@ describe('student subject assignment', () => {
       assignmentId: 'ckassignment000000000001',
       currentPaceNumber: 1008,
     });
+    await expect(caller.student.unassignSubject({ studentId, subjectId })).resolves.toEqual({
+      assignmentId: 'ckassignment000000000001',
+      studentId,
+      subjectId,
+    });
 
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -474,6 +503,20 @@ describe('student subject assignment', () => {
         entity: 'StudentSubject',
         entityId: 'ckassignment000000000001',
         meta: { studentId, subjectId, currentPaceNumber: 1008 },
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Delete',
+        entity: 'StudentSubject',
+        entityId: 'ckassignment000000000001',
+        meta: {
+          studentId,
+          subjectId,
+          previousPaceNumber: 1008,
+          historicalPaceRecordsPreserved: true,
+        },
       },
     });
   });
@@ -503,5 +546,9 @@ describe('student subject assignment', () => {
     await expect(
       caller.student.setCurrentPace({ studentId, subjectId, currentPaceNumber: 1002 }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND', message: 'student subject not found' });
+    await expect(caller.student.unassignSubject({ studentId, subjectId })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'student subject not found',
+    });
   });
 });

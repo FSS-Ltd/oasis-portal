@@ -7,11 +7,8 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
-import {
-  loadDailyYearBandScope,
-  studentMatchesDailyScope,
-} from '../lib/daily-year-band-scope.js';
-import { authedProcedure, router } from '../trpc.js';
+import { loadDailyYearBandScope, studentMatchesDailyScope } from '../lib/daily-year-band-scope.js';
+import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
@@ -146,6 +143,7 @@ export const childNotesRouter = router({
       const notes = await ctx.db.childNote.findMany({
         where: {
           studentId: input.studentId,
+          deletedAt: null,
           ...(canReadSensitive ? {} : { sensitive: false }),
         },
         include: {
@@ -161,7 +159,11 @@ export const childNotesRouter = router({
             userId: ctx.user.id,
             action: 'ReadSensitive',
             entity: 'ChildNote',
-            meta: { studentId: input.studentId, count: sensitiveCount, source: 'childNotes.listForStudent' },
+            meta: {
+              studentId: input.studentId,
+              count: sensitiveCount,
+              source: 'childNotes.listForStudent',
+            },
           },
         });
       }
@@ -171,7 +173,11 @@ export const childNotesRouter = router({
           userId: ctx.user.id,
           action: 'DecryptPii',
           entity: 'ChildNote',
-          meta: { studentId: input.studentId, count: notes.length, source: 'childNotes.listForStudent' },
+          meta: {
+            studentId: input.studentId,
+            count: notes.length,
+            source: 'childNotes.listForStudent',
+          },
         },
       });
 
@@ -183,11 +189,106 @@ export const childNotesRouter = router({
           note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
           sensitive: note.sensitive,
           createdById: note.createdById,
-          createdByName: decryptRequired(ctx.db.$enc.decrypt, note.createdBy.fullNameEnc, 'user PII'),
+          createdByName: decryptRequired(
+            ctx.db.$enc.decrypt,
+            note.createdBy.fullNameEnc,
+            'user PII',
+          ),
           createdByRole: note.createdBy.role,
           createdAt: note.createdAt,
           updatedAt: note.updatedAt,
         })),
       };
+    }),
+
+  update: fullAdminProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        note: z.string().trim().min(1).max(3000),
+        sensitive: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.childNote.findUnique({
+        where: { id: input.id },
+        select: {
+          id: true,
+          studentId: true,
+          sensitive: true,
+          deletedAt: true,
+        },
+      });
+      if (!existing || existing.deletedAt !== null) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'child note not found' });
+      }
+
+      const note = await ctx.db.childNote.update({
+        where: { id: input.id },
+        data: {
+          noteEnc: ctx.db.$enc.encrypt(input.note),
+          sensitive: input.sensitive,
+        },
+        select: {
+          id: true,
+          studentId: true,
+          sensitive: true,
+          createdById: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'ChildNote',
+          entityId: note.id,
+          meta: {
+            studentId: note.studentId,
+            previousSensitive: existing.sensitive,
+            sensitive: note.sensitive,
+            noteChanged: true,
+          },
+        },
+      });
+
+      return note;
+    }),
+
+  delete: fullAdminProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.childNote.findUnique({
+        where: { id: input.id },
+        select: {
+          id: true,
+          studentId: true,
+          sensitive: true,
+          deletedAt: true,
+        },
+      });
+      if (!existing || existing.deletedAt !== null) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'child note not found' });
+      }
+
+      const note = await ctx.db.childNote.update({
+        where: { id: input.id },
+        data: { deletedAt: new Date(), deletedById: ctx.user.id },
+        select: { id: true, studentId: true, sensitive: true },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Delete',
+          entity: 'ChildNote',
+          entityId: note.id,
+          meta: { studentId: note.studentId, previousSensitive: existing.sensitive },
+        },
+      });
+
+      return note;
     }),
 });
