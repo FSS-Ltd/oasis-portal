@@ -61,9 +61,33 @@ interface StoredPaceRecord {
   createdAt: Date;
 }
 
+interface BehaviourEntryCreateData {
+  studentId: string;
+  type: 'Merit';
+  category: string;
+  noteEnc: string | null;
+  visibility: 'General';
+  meritDelta: number;
+  recordedById: string;
+}
+
+interface StoredBehaviourEntry extends BehaviourEntryCreateData {
+  id: string;
+}
+
+interface StoredLedgerRow {
+  studentId: string;
+  account: string;
+  delta: number;
+  reason: string;
+  relatedEntryId?: string;
+}
+
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
   $enc: { decrypt: ReturnType<typeof vi.fn> };
+  behaviourEntry: { create: ReturnType<typeof vi.fn> };
+  meritLedger: { createMany: ReturnType<typeof vi.fn> };
   student: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -129,8 +153,9 @@ const defaultStudent = {
 
 function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const records: StoredPaceRecord[] = [];
+  const behaviourEntries: StoredBehaviourEntry[] = [];
 
-  const create = vi.fn(({ data }: { data: Record<string, unknown> }) => {
+  const createPaceRecord = vi.fn(({ data }: { data: Record<string, unknown> }) => {
     const record: StoredPaceRecord = {
       id: `pace_${String(records.length + 1)}`,
       studentId: data.studentId as string,
@@ -151,14 +176,36 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     return Promise.resolve(record);
   });
 
+  const createBehaviourEntry = vi.fn(({ data }: { data: BehaviourEntryCreateData }) => {
+    const entry: StoredBehaviourEntry = {
+      ...data,
+      id: `behaviour_${String(behaviourEntries.length + 1)}`,
+    };
+    behaviourEntries.push(entry);
+    return Promise.resolve({ id: entry.id });
+  });
+
+  const createLedgerRows = vi.fn(({ data }: { data: StoredLedgerRow[] }) =>
+    Promise.resolve({ count: data.length }),
+  );
+
   const subjectUpdate = vi.fn().mockResolvedValue({ id: ASSIGNMENT_ID, currentPaceNumber: 1002 });
 
-  const $transaction = vi.fn(async (fn: (tx: FakeDb) => Promise<[StoredPaceRecord]>) =>
-    fn({
-      ...db,
-      paceRecord: { ...db.paceRecord, create },
-      studentSubject: { ...db.studentSubject, update: subjectUpdate },
-    }),
+  const $transaction = vi.fn(
+    async (
+      fn: (
+        tx: FakeDb,
+      ) => Promise<
+        readonly [StoredPaceRecord, { behaviourEntryId: string; ledgerRowCount: number } | null]
+      >,
+    ) =>
+      fn({
+        ...db,
+        behaviourEntry: { ...db.behaviourEntry, create: createBehaviourEntry },
+        meritLedger: { ...db.meritLedger, createMany: createLedgerRows },
+        paceRecord: { ...db.paceRecord, create: createPaceRecord },
+        studentSubject: { ...db.studentSubject, update: subjectUpdate },
+      }),
   );
 
   const db: FakeDb = {
@@ -167,6 +214,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       decrypt: vi.fn((value: string | null | undefined) =>
         value ? value.replace(/^enc:/u, '') : null,
       ),
+    },
+    behaviourEntry: {
+      create: createBehaviourEntry,
+    },
+    meritLedger: {
+      createMany: createLedgerRows,
     },
     student: {
       findMany: vi.fn(({ where }: { where?: { yearGroup?: { in: string[] } } } = {}) => {
@@ -204,7 +257,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       count: vi.fn().mockResolvedValue(0),
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
-      create,
+      create: createPaceRecord,
     },
     staffShift: {
       findMany: vi.fn().mockResolvedValue([{ yearGroupBand: defaultBands[0] }]),
@@ -1060,6 +1113,106 @@ describe('pace.record — passing final test advancement', () => {
     const { caller: caller2 } = makeCaller(headUser, db2);
     const passing = await caller2.pace.record({ ...validInput, testType: 'FinalTest', score: 90 });
     expect(passing.advanced).toBe(true);
+  });
+});
+
+describe('pace.record — automatic PACE merits', () => {
+  it.each([
+    { testType: 'FinalTest' as const, score: 100, awardedMerits: 10 },
+    { testType: 'FinalTest' as const, score: 90, awardedMerits: 5 },
+    { testType: 'FinalTest' as const, score: 80, awardedMerits: 1 },
+    { testType: 'FinalTest' as const, score: 79, awardedMerits: 0 },
+    { testType: 'SelfTest' as const, score: 100, awardedMerits: 3 },
+    { testType: 'SelfTest' as const, score: 90, awardedMerits: 2 },
+    { testType: 'SelfTest' as const, score: 80, awardedMerits: 1 },
+    { testType: 'SelfTest' as const, score: 79, awardedMerits: 0 },
+  ])(
+    'awards $awardedMerits merits for $testType score $score',
+    async ({ testType, score, awardedMerits }) => {
+      const db = makeFakeDb();
+      const { caller } = makeCaller(headUser, db);
+
+      const result = await caller.pace.record({ ...validInput, testType, score });
+
+      expect(result.awardedMerits).toBe(awardedMerits);
+      if (awardedMerits > 0) {
+        expect(db.behaviourEntry.create).toHaveBeenCalledWith({
+          data: {
+            studentId: STUDENT_ID,
+            type: 'Merit',
+            category: 'Academic Excellence',
+            noteEnc: null,
+            visibility: 'General',
+            meritDelta: awardedMerits,
+            recordedById: headUser.id,
+          },
+          select: { id: true },
+        });
+        expect(db.meritLedger.createMany).toHaveBeenCalledWith({
+          data: [
+            {
+              studentId: STUDENT_ID,
+              account: 'Spend',
+              delta: awardedMerits,
+              reason: 'Academic Excellence',
+              relatedEntryId: 'behaviour_1',
+            },
+          ],
+        });
+      } else {
+        expect(db.behaviourEntry.create).not.toHaveBeenCalled();
+        expect(db.meritLedger.createMany).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it('audits automatic merit behaviour and ledger rows', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+
+    await caller.pace.record({ ...validInput, testType: 'FinalTest', score: 100 });
+
+    const calls = auditCalls(db);
+    const behaviourAudit = calls.find(
+      (call) =>
+        call.action === 'Create' &&
+        call.entity === 'BehaviourEntry' &&
+        call.entityId === 'behaviour_1',
+    );
+    const ledgerAudit = calls.find(
+      (call) => call.action === 'Create' && call.entity === 'MeritLedger',
+    );
+
+    expect(behaviourAudit?.meta).toMatchObject({
+      studentId: STUDENT_ID,
+      meritDelta: 10,
+      source: 'pace.record',
+      paceRecordId: 'pace_1',
+    });
+    expect(ledgerAudit?.meta).toMatchObject({
+      studentId: STUDENT_ID,
+      behaviourEntryId: 'behaviour_1',
+      paceRecordId: 'pace_1',
+      rowCount: 1,
+      source: 'pace.record',
+    });
+  });
+
+  it('does not advance currentPaceNumber for SelfTest automatic merit awards', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+
+    const result = await caller.pace.record({
+      ...validInput,
+      testType: 'SelfTest',
+      score: 100,
+    });
+
+    expect(result.awardedMerits).toBe(3);
+    expect(result.advanced).toBe(false);
+    expect(db.studentSubject.update).not.toHaveBeenCalled();
+    expect(db.behaviourEntry.create).toHaveBeenCalledTimes(1);
+    expect(db.meritLedger.createMany).toHaveBeenCalledTimes(1);
   });
 });
 

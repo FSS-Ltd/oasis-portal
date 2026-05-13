@@ -7,6 +7,7 @@ import {
   isStaff,
   paceProgressStatusForYear,
   paceRecordInput,
+  rowsForMerit,
   schoolYearStorageAliases,
   type SessionUser,
 } from '@oasis/domain';
@@ -19,8 +20,10 @@ const DEFAULT_POLICY = {
   samePaceSameDayBlockEnabled: true,
   passThreshold: 80,
 };
+const AUTOMATIC_PACE_MERIT_CATEGORY = 'Academic Excellence';
 
 type AuthedContext = AppContext & { user: SessionUser };
+type PaceTestType = 'SelfTest' | 'FinalTest';
 
 const paceRosterInput = z
   .object({
@@ -50,6 +53,20 @@ function dateKey(date: Date): string {
 
 function canUsePaceWorkflow(user: SessionUser): boolean {
   return isStaff(user) || canUseFullPaceAccess(user);
+}
+
+function meritsForPaceScore(testType: PaceTestType, score: number): number {
+  if (testType === 'FinalTest') {
+    if (score === 100) return 10;
+    if (score >= 90) return 5;
+    if (score >= 80) return 1;
+    return 0;
+  }
+
+  if (score === 100) return 3;
+  if (score >= 90) return 2;
+  if (score >= 80) return 1;
+  return 0;
 }
 
 function decryptRequired(
@@ -532,7 +549,9 @@ export const paceRouter = router({
     if (policy.samePaceSameDayBlockEnabled) {
       const oppositeType = testType === 'SelfTest' ? 'FinalTest' : 'SelfTest';
       const oppositeScore =
-        oppositeType === 'SelfTest' ? { selfTestScore: { not: null } } : { paceTestScore: { not: null } };
+        oppositeType === 'SelfTest'
+          ? { selfTestScore: { not: null } }
+          : { paceTestScore: { not: null } };
       const sameDay = await ctx.db.paceRecord.findFirst({
         where: {
           studentId,
@@ -572,8 +591,9 @@ export const paceRouter = router({
 
     const isPassing = testType === 'FinalTest' && score >= policy.passThreshold;
     const shouldAdvance = isPassing && paceNumber >= assignment.currentPaceNumber;
+    const awardedMerits = meritsForPaceScore(testType, score);
 
-    const [record] = await ctx.db.$transaction(async (tx) => {
+    const [record, automaticMerit] = await ctx.db.$transaction(async (tx) => {
       const created = await tx.paceRecord.create({
         data: {
           studentId,
@@ -596,6 +616,30 @@ export const paceRouter = router({
         },
       });
 
+      let meritResult: { behaviourEntryId: string; ledgerRowCount: number } | null = null;
+      if (awardedMerits > 0) {
+        const behaviour = await tx.behaviourEntry.create({
+          data: {
+            studentId,
+            type: 'Merit',
+            category: AUTOMATIC_PACE_MERIT_CATEGORY,
+            noteEnc: null,
+            visibility: 'General',
+            meritDelta: awardedMerits,
+            recordedById: ctx.user.id,
+          },
+          select: { id: true },
+        });
+        const ledgerRows = rowsForMerit({
+          studentId,
+          amount: awardedMerits,
+          reason: AUTOMATIC_PACE_MERIT_CATEGORY,
+          behaviourEntryId: behaviour.id,
+        });
+        await tx.meritLedger.createMany({ data: ledgerRows });
+        meritResult = { behaviourEntryId: behaviour.id, ledgerRowCount: ledgerRows.length };
+      }
+
       if (shouldAdvance) {
         await tx.studentSubject.update({
           where: { studentId_subjectId: { studentId, subjectId } },
@@ -603,7 +647,7 @@ export const paceRouter = router({
         });
       }
 
-      return [created] as const;
+      return [created, meritResult] as const;
     });
 
     await ctx.db.auditLog.create({
@@ -619,10 +663,44 @@ export const paceRouter = router({
           testType,
           score,
           advanced: shouldAdvance,
+          awardedMerits,
           ...(shouldAdvance ? { newPaceNumber: paceNumber + 1 } : {}),
         },
       },
     });
+
+    if (automaticMerit) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'BehaviourEntry',
+          entityId: automaticMerit.behaviourEntryId,
+          meta: {
+            studentId,
+            type: 'Merit',
+            visibility: 'General',
+            meritDelta: awardedMerits,
+            source: 'pace.record',
+            paceRecordId: record.id,
+          },
+        },
+      });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'MeritLedger',
+          meta: {
+            studentId,
+            behaviourEntryId: automaticMerit.behaviourEntryId,
+            paceRecordId: record.id,
+            rowCount: automaticMerit.ledgerRowCount,
+            source: 'pace.record',
+          },
+        },
+      });
+    }
 
     if (shouldAdvance) {
       await ctx.db.auditLog.create({
@@ -645,6 +723,7 @@ export const paceRouter = router({
     return {
       ...record,
       advanced: shouldAdvance,
+      awardedMerits,
       newPaceNumber: shouldAdvance ? paceNumber + 1 : undefined,
     };
   }),
