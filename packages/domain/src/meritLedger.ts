@@ -72,19 +72,24 @@ export function rowsForMerit(params: {
 }
 
 /**
- * Ledger rows for a demerit (fixed -5 merits per Director mandate).
- * Debits Spend by DEMERIT_COST.
+ * Ledger rows for a demerit.
+ * Debits Spend by the chosen positive amount, defaulting to DEMERIT_COST.
  */
 export function rowsForDemerit(params: {
   studentId: string;
+  amount?: number;
   reason: string;
   behaviourEntryId: string;
 }): LedgerRow[] {
+  const amount = params.amount ?? DEMERIT_COST;
+  if (!Number.isInteger(amount) || amount <= 0) {
+    throw new Error('demerit amount must be a positive integer');
+  }
   return [
     {
       studentId: params.studentId,
       account: 'Spend',
-      delta: -DEMERIT_COST,
+      delta: -amount,
       reason: params.reason,
       relatedEntryId: params.behaviourEntryId,
     },

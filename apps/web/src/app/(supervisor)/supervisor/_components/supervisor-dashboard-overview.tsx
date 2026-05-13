@@ -40,6 +40,7 @@ type DashboardActivityEntry = {
   id: string;
   meritDelta: number;
   note: string | null;
+  recordedByName: string;
   studentName: string;
   type: 'Merit' | 'Demerit' | 'General';
 };
@@ -283,6 +284,7 @@ export function SupervisorDashboardOverview({
                       {entry.category}
                       {entry.note ? ` · ${entry.note}` : null}
                     </p>
+                    <p>Recorded by {entry.recordedByName}</p>
                   </div>
                   <time>{formatTime(entry.createdAt)}</time>
                 </div>
