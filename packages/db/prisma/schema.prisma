@@ -93,6 +93,11 @@ model User {
   clubsCreated            Club[]                    @relation("ClubsCreated")
   clubSignupsCreated      ClubSignup[]              @relation("SignupsCreated")
   clubNotifications       ClubNotification[]        @relation("ClubNotificationsSent")
+  clubAttendanceRecords   ClubAttendance[]          @relation("RecordedClubAttendance")
+  clubRotaSelections      ClubRotaParticipant[]     @relation("ClubRotaSelectedUsers")
+  clubRotaParticipants    ClubRotaParticipant[]     @relation("ClubRotaParticipants")
+  clubRotaShifts          ClubRotaShift[]           @relation("ClubRotaShifts")
+  clubAvailabilityWindows ClubAvailabilityWindow[]  @relation("ClubAvailability")
   auditEvents             AuditLog[]
   invitationsSent         UserInvitation[]          @relation("InvitedUserInvitations")
   acceptedInvitations     UserInvitation[]          @relation("AcceptedUserInvitations")
@@ -164,6 +169,7 @@ model Student {
   investmentTx        InvestmentTransaction[]
   shopPurchases       ShopPurchase[]
   clubSignups         ClubSignup[]
+  clubAttendance      ClubAttendance[]
   termReports         TermReport[]
   registrationProfile StudentRegistrationProfile?
 
@@ -673,23 +679,35 @@ model LeaderboardSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Clubs (v1: tracking only)
+// Clubs
 // ---------------------------------------------------------------------------
 
-model Club {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  schedule    String?
-  capacity    Int?
-  active      Boolean  @default(true)
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum ClubScheduleFrequency {
+  Weekly
+}
 
-  createdBy     User               @relation("ClubsCreated", fields: [createdById], references: [id])
-  signups       ClubSignup[]
-  notifications ClubNotification[]
+model Club {
+  id                  String                 @id @default(cuid())
+  name                String
+  description         String?
+  schedule            String?
+  scheduleStartDate   DateTime?              @db.Date
+  scheduleStartMinute Int?
+  scheduleEndMinute   Int?
+  scheduleFrequency   ClubScheduleFrequency?
+  capacity            Int?
+  active              Boolean                @default(true)
+  createdById         String
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  createdBy           User                     @relation("ClubsCreated", fields: [createdById], references: [id])
+  signups             ClubSignup[]
+  notifications       ClubNotification[]
+  attendance          ClubAttendance[]
+  rotaParticipants    ClubRotaParticipant[]
+  rotaShifts          ClubRotaShift[]
+  availabilityWindows ClubAvailabilityWindow[]
 }
 
 enum ClubSignupStatus {
@@ -726,6 +744,76 @@ model ClubNotification {
   sentBy User @relation("ClubNotificationsSent", fields: [sentById], references: [id])
 
   @@index([clubId, sentAt])
+}
+
+model ClubAttendance {
+  id           String           @id @default(cuid())
+  clubId       String
+  studentId    String
+  sessionDate  DateTime         @db.Date
+  status       AttendanceStatus
+  recordedById String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  club       Club    @relation(fields: [clubId], references: [id])
+  student    Student @relation(fields: [studentId], references: [id])
+  recordedBy User    @relation("RecordedClubAttendance", fields: [recordedById], references: [id])
+
+  @@unique([clubId, studentId, sessionDate])
+  @@index([clubId, sessionDate])
+  @@index([studentId])
+}
+
+model ClubRotaParticipant {
+  id           String   @id @default(cuid())
+  clubId       String
+  userId       String
+  selectedById String
+  createdAt    DateTime @default(now())
+
+  club       Club @relation(fields: [clubId], references: [id])
+  user       User @relation("ClubRotaParticipants", fields: [userId], references: [id])
+  selectedBy User @relation("ClubRotaSelectedUsers", fields: [selectedById], references: [id])
+
+  @@unique([clubId, userId])
+  @@index([userId])
+  @@index([selectedById])
+}
+
+model ClubRotaShift {
+  id                String   @id @default(cuid())
+  clubId            String
+  participantUserId String
+  date              DateTime @db.Date
+  startsAt          DateTime
+  endsAt            DateTime
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  club            Club @relation(fields: [clubId], references: [id])
+  participantUser User @relation("ClubRotaShifts", fields: [participantUserId], references: [id])
+
+  @@index([clubId, date])
+  @@index([participantUserId, date])
+}
+
+model ClubAvailabilityWindow {
+  id          String   @id @default(cuid())
+  clubId      String
+  userId      String
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  club Club @relation(fields: [clubId], references: [id])
+  user User @relation("ClubAvailability", fields: [userId], references: [id])
+
+  @@index([clubId, userId])
+  @@index([userId, dayOfWeek])
 }
 
 // ---------------------------------------------------------------------------

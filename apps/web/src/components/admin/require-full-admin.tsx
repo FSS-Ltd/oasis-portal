@@ -192,8 +192,11 @@ export async function getLinkedChildPortalUser(): Promise<SessionUser> {
   if (!user) notFound();
   if (!canUseLinkedChildClubSignup(user)) notFound();
 
-  const count = await linkedChildCount(user.id);
-  if (count === 0) notFound();
+  const [children, clubRotaSelections] = await Promise.all([
+    linkedChildCount(user.id),
+    prisma.clubRotaParticipant.count({ where: { userId: user.id, club: { active: true } } }),
+  ]);
+  if (children === 0 && clubRotaSelections === 0) notFound();
 
   return user;
 }

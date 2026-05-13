@@ -56,6 +56,10 @@ interface StoredClub {
   name: string;
   description: string | null;
   schedule: string | null;
+  scheduleStartDate: Date | null;
+  scheduleStartMinute: number | null;
+  scheduleEndMinute: number | null;
+  scheduleFrequency: 'Weekly' | null;
   capacity: number | null;
   active: boolean;
   createdById: string;
@@ -127,6 +131,10 @@ interface FakeClubCreateArgs {
     name: string;
     description: string | null;
     schedule: string | null;
+    scheduleStartDate: Date | null;
+    scheduleStartMinute: number | null;
+    scheduleEndMinute: number | null;
+    scheduleFrequency: 'Weekly' | null;
     capacity: number | null;
     active: boolean;
     createdById: string;
@@ -136,7 +144,20 @@ interface FakeClubCreateArgs {
 
 interface FakeClubUpdateArgs {
   where: { id: string };
-  data: Partial<Pick<StoredClub, 'name' | 'description' | 'schedule' | 'capacity' | 'active'>>;
+  data: Partial<
+    Pick<
+      StoredClub,
+      | 'name'
+      | 'description'
+      | 'schedule'
+      | 'scheduleStartDate'
+      | 'scheduleStartMinute'
+      | 'scheduleEndMinute'
+      | 'scheduleFrequency'
+      | 'capacity'
+      | 'active'
+    >
+  >;
   include: FakeClubInclude;
 }
 
@@ -252,6 +273,10 @@ function makeClub(input: Partial<StoredClub> & Pick<StoredClub, 'id' | 'name'>):
   return {
     description: null,
     schedule: null,
+    scheduleStartDate: null,
+    scheduleStartMinute: null,
+    scheduleEndMinute: null,
+    scheduleFrequency: null,
     capacity: null,
     active: true,
     createdById: headUser.id,
@@ -645,14 +670,25 @@ describe('club management', () => {
     const created = await headCaller.club.create({
       name: '  Coding Club  ',
       description: '  Tuesdays  ',
-      schedule: '  15:30  ',
+      schedule: {
+        startDate: new Date('2026-05-15T00:00:00.000Z'),
+        startMinute: 930,
+        endMinute: 990,
+        frequency: 'Weekly',
+      },
       capacity: 12,
     });
 
     expect(created).toMatchObject({
       name: 'Coding Club',
       description: 'Tuesdays',
-      schedule: '15:30',
+      schedule: {
+        startDate: '2026-05-15',
+        startMinute: 930,
+        endMinute: 990,
+        frequency: 'Weekly',
+      },
+      scheduleLabel: 'Weekly from 2026-05-15, 15:30-16:30',
       capacity: 12,
       active: true,
       activeSignupCount: 0,
@@ -671,6 +707,7 @@ describe('club management', () => {
       name: 'STEM Club',
       description: null,
       schedule: null,
+      scheduleLabel: null,
       capacity: null,
     });
 
