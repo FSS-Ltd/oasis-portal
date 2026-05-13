@@ -7,10 +7,11 @@ import {
   isStaff,
   paceProgressStatusForYear,
   paceRecordInput,
+  rowsForMerit,
   schoolYearStorageAliases,
   type SessionUser,
 } from '@oasis/domain';
-import type { AppContext } from '../context.js';
+import type { AppContext, RlsTx } from '../context.js';
 import { authedProcedure, router } from '../trpc.js';
 
 const DEFAULT_POLICY = {
@@ -19,8 +20,15 @@ const DEFAULT_POLICY = {
   samePaceSameDayBlockEnabled: true,
   passThreshold: 80,
 };
+const AUTOMATIC_PACE_MERIT_CATEGORY = 'Academic Excellence';
 
 type AuthedContext = AppContext & { user: SessionUser };
+type PaceTestType = 'SelfTest' | 'FinalTest';
+type PaceProgressLifecycle = {
+  id: string;
+  finalTestAttempts: number;
+  completedAt: Date | null;
+};
 
 const paceRosterInput = z
   .object({
@@ -50,6 +58,25 @@ function dateKey(date: Date): string {
 
 function canUsePaceWorkflow(user: SessionUser): boolean {
   return isStaff(user) || canUseFullPaceAccess(user);
+}
+
+function meritsForPaceScore(testType: PaceTestType, score: number): number {
+  if (testType === 'FinalTest') {
+    if (score === 100) return 10;
+    if (score >= 90) return 5;
+    if (score >= 80) return 1;
+    return 0;
+  }
+
+  if (score === 100) return 3;
+  if (score >= 90) return 2;
+  if (score >= 80) return 1;
+  return 0;
+}
+
+function automaticPaceMeritCategory(testType: PaceTestType, score: number): string {
+  const testTypeLabel = testType === 'FinalTest' ? 'PACE Test' : 'Self-Test';
+  return `${AUTOMATIC_PACE_MERIT_CATEGORY} - ${testTypeLabel} ${String(score)}`;
 }
 
 function decryptRequired(
@@ -126,6 +153,47 @@ function bandForYear(yearGroup: string, bands: readonly PaceBand[]): PaceBand | 
 
 function effectivePaceRecordTime(record: { completedAt: Date | null; createdAt: Date }): number {
   return (record.completedAt ?? record.createdAt).getTime();
+}
+
+function daysBetween(start: Date, end: Date): number {
+  const days = (end.getTime() - start.getTime()) / 86_400_000;
+  return Math.max(0, Math.round(days * 10) / 10);
+}
+
+function paceProgressKey(subjectId: string, paceNumber: number): string {
+  return `${subjectId}:${String(paceNumber)}`;
+}
+
+async function ensurePaceProgressStarted(
+  tx: RlsTx,
+  params: {
+    studentId: string;
+    subjectId: string;
+    paceNumber: number;
+    startedAt: Date;
+  },
+): Promise<PaceProgressLifecycle> {
+  const existing = await tx.paceProgress.findUnique({
+    where: {
+      studentId_subjectId_paceNumber: {
+        studentId: params.studentId,
+        subjectId: params.subjectId,
+        paceNumber: params.paceNumber,
+      },
+    },
+    select: { id: true, finalTestAttempts: true, completedAt: true },
+  });
+  if (existing) return existing;
+
+  return tx.paceProgress.create({
+    data: {
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      paceNumber: params.paceNumber,
+      startedAt: params.startedAt,
+    },
+    select: { id: true, finalTestAttempts: true, completedAt: true },
+  });
 }
 
 async function loadPaceScope(
@@ -341,6 +409,24 @@ export const paceRouter = router({
                 createdAt: true,
               },
             });
+      const progressRows =
+        subjectIds.length === 0
+          ? []
+          : await ctx.db.paceProgress.findMany({
+              where: {
+                studentId: input.studentId,
+                subjectId: { in: subjectIds },
+              },
+              orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
+              select: {
+                id: true,
+                subjectId: true,
+                paceNumber: true,
+                startedAt: true,
+                completedAt: true,
+                finalTestAttempts: true,
+              },
+            });
       const recentRecords = [...fetchedRecords].sort((left, right) => {
         const timeDifference = effectivePaceRecordTime(right) - effectivePaceRecordTime(left);
         if (timeDifference !== 0) return timeDifference;
@@ -352,12 +438,43 @@ export const paceRouter = router({
         subjectRecords.push(record);
         recordsBySubject.set(record.subjectId, subjectRecords);
       }
+      const progressBySubjectAndPace = new Map<string, (typeof progressRows)[number]>();
+      const progressBySubject = new Map<string, typeof progressRows>();
+      for (const row of progressRows) {
+        progressBySubjectAndPace.set(paceProgressKey(row.subjectId, row.paceNumber), row);
+        const subjectProgress = progressBySubject.get(row.subjectId) ?? [];
+        subjectProgress.push(row);
+        progressBySubject.set(row.subjectId, subjectProgress);
+      }
 
       const subjects = student.subjects.map((assignment) => {
         const records = recordsBySubject.get(assignment.subjectId) ?? [];
-        const latestSelfTest = records.find((record) => record.selfTestScore !== null) ?? null;
-        const latestFinalTest = records.find((record) => record.paceTestScore !== null) ?? null;
-        const latestRecord = records[0] ?? null;
+        const currentPaceRecords = records.filter(
+          (record) => record.paceNumber === assignment.currentPaceNumber,
+        );
+        const latestSelfTest =
+          currentPaceRecords.find((record) => record.selfTestScore !== null) ?? null;
+        const latestFinalTest =
+          currentPaceRecords.find((record) => record.paceTestScore !== null) ?? null;
+        const latestRecord = currentPaceRecords[0] ?? null;
+        const currentProgress =
+          progressBySubjectAndPace.get(
+            paceProgressKey(assignment.subjectId, assignment.currentPaceNumber),
+          ) ?? null;
+        const completedProgress = (progressBySubject.get(assignment.subjectId) ?? []).filter(
+          (row) => row.completedAt !== null,
+        );
+        const completionDurations = completedProgress.map((row) =>
+          daysBetween(row.startedAt, row.completedAt ?? row.startedAt),
+        );
+        const averagePaceCompletionDays =
+          completionDurations.length === 0
+            ? null
+            : Math.round(
+                (completionDurations.reduce((sum, days) => sum + days, 0) /
+                  completionDurations.length) *
+                  10,
+              ) / 10;
         const status = paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup);
         const recentRecordDtos = records.slice(0, 5).map((record) => {
           const isSelfTest = record.selfTestScore !== null;
@@ -373,6 +490,7 @@ export const paceRouter = router({
             paceNumber: record.paceNumber,
             testType: isSelfTest ? ('SelfTest' as const) : ('FinalTest' as const),
             score,
+            passed: score >= policy.passThreshold,
             completedAt: record.completedAt,
             createdAt: record.createdAt,
           };
@@ -384,6 +502,14 @@ export const paceRouter = router({
           name: assignment.subject.name,
           active: assignment.subject.active,
           currentPaceNumber: assignment.currentPaceNumber,
+          currentPaceStartedAt: currentProgress?.startedAt ?? null,
+          currentPaceDays:
+            currentProgress === null
+              ? null
+              : daysBetween(currentProgress.startedAt, scope.selectedDate),
+          currentFinalTestAttempts: currentProgress?.finalTestAttempts ?? 0,
+          completedPaceCount: completedProgress.length,
+          averagePaceCompletionDays,
           latestSelfTest: latestSelfTest
             ? {
                 paceNumber: latestSelfTest.paceNumber,
@@ -532,7 +658,9 @@ export const paceRouter = router({
     if (policy.samePaceSameDayBlockEnabled) {
       const oppositeType = testType === 'SelfTest' ? 'FinalTest' : 'SelfTest';
       const oppositeScore =
-        oppositeType === 'SelfTest' ? { selfTestScore: { not: null } } : { paceTestScore: { not: null } };
+        oppositeType === 'SelfTest'
+          ? { selfTestScore: { not: null } }
+          : { paceTestScore: { not: null } };
       const sameDay = await ctx.db.paceRecord.findFirst({
         where: {
           studentId,
@@ -572,8 +700,10 @@ export const paceRouter = router({
 
     const isPassing = testType === 'FinalTest' && score >= policy.passThreshold;
     const shouldAdvance = isPassing && paceNumber >= assignment.currentPaceNumber;
+    const awardedMerits = meritsForPaceScore(testType, score);
+    const automaticMeritCategory = automaticPaceMeritCategory(testType, score);
 
-    const [record] = await ctx.db.$transaction(async (tx) => {
+    const [record, automaticMerit] = await ctx.withRls(async (tx) => {
       const created = await tx.paceRecord.create({
         data: {
           studentId,
@@ -596,14 +726,62 @@ export const paceRouter = router({
         },
       });
 
+      const currentProgress = await ensurePaceProgressStarted(tx, {
+        studentId,
+        subjectId,
+        paceNumber,
+        startedAt: recordedAt,
+      });
+      if (testType === 'FinalTest') {
+        await tx.paceProgress.update({
+          where: { id: currentProgress.id },
+          data: {
+            finalTestAttempts: { increment: 1 },
+            ...(isPassing && currentProgress.completedAt === null
+              ? { completedAt: recordedAt, completedByRecordId: created.id }
+              : {}),
+          },
+        });
+      }
+
+      let meritResult: { behaviourEntryId: string; ledgerRowCount: number } | null = null;
+      if (awardedMerits > 0) {
+        const behaviour = await tx.behaviourEntry.create({
+          data: {
+            studentId,
+            type: 'Merit',
+            category: automaticMeritCategory,
+            noteEnc: null,
+            visibility: 'General',
+            meritDelta: awardedMerits,
+            recordedById: ctx.user.id,
+          },
+          select: { id: true },
+        });
+        const ledgerRows = rowsForMerit({
+          studentId,
+          amount: awardedMerits,
+          reason: automaticMeritCategory,
+          behaviourEntryId: behaviour.id,
+        });
+        await tx.meritLedger.createMany({ data: ledgerRows });
+        meritResult = { behaviourEntryId: behaviour.id, ledgerRowCount: ledgerRows.length };
+      }
+
       if (shouldAdvance) {
+        await ensurePaceProgressStarted(tx, {
+          studentId,
+          subjectId,
+          paceNumber: paceNumber + 1,
+          startedAt: recordedAt,
+        });
         await tx.studentSubject.update({
           where: { studentId_subjectId: { studentId, subjectId } },
           data: { currentPaceNumber: paceNumber + 1 },
         });
       }
 
-      return [created] as const;
+      return [created, meritResult] as const;
     });
 
     await ctx.db.auditLog.create({
@@ -619,10 +797,44 @@ export const paceRouter = router({
           testType,
           score,
           advanced: shouldAdvance,
+          awardedMerits,
           ...(shouldAdvance ? { newPaceNumber: paceNumber + 1 } : {}),
         },
       },
     });
+
+    if (automaticMerit) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'BehaviourEntry',
+          entityId: automaticMerit.behaviourEntryId,
+          meta: {
+            studentId,
+            type: 'Merit',
+            visibility: 'General',
+            meritDelta: awardedMerits,
+            source: 'pace.record',
+            paceRecordId: record.id,
+          },
+        },
+      });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'MeritLedger',
+          meta: {
+            studentId,
+            behaviourEntryId: automaticMerit.behaviourEntryId,
+            paceRecordId: record.id,
+            rowCount: automaticMerit.ledgerRowCount,
+            source: 'pace.record',
+          },
+        },
+      });
+    }
 
     if (shouldAdvance) {
       await ctx.db.auditLog.create({
@@ -645,6 +857,7 @@ export const paceRouter = router({
     return {
       ...record,
       advanced: shouldAdvance,
+      awardedMerits,
       newPaceNumber: shouldAdvance ? paceNumber + 1 : undefined,
     };
   }),

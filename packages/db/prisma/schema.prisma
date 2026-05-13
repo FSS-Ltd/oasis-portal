@@ -161,6 +161,7 @@ model Student {
   guardians           Guardian[]
   subjects            StudentSubject[]
   paceRecords         PaceRecord[]
+  paceProgress        PaceProgress[]
   attendance          Attendance[]
   behaviour           BehaviourEntry[]
   childNotes          ChildNote[]
@@ -199,6 +200,7 @@ model Subject {
   active   Boolean          @default(true)
   students StudentSubject[]
   paces    PaceRecord[]
+  progress PaceProgress[]
 }
 
 model StudentSubject {
@@ -237,11 +239,33 @@ model PaceRecord {
   recordedById  String
   createdAt     DateTime  @default(now())
 
-  student    Student @relation(fields: [studentId], references: [id])
-  subject    Subject @relation(fields: [subjectId], references: [id])
-  recordedBy User    @relation("RecordedPace", fields: [recordedById], references: [id])
+  student               Student        @relation(fields: [studentId], references: [id])
+  subject               Subject        @relation(fields: [subjectId], references: [id])
+  recordedBy            User           @relation("RecordedPace", fields: [recordedById], references: [id])
+  completedPaceProgress PaceProgress[] @relation("PaceProgressCompletedByRecord")
 
   @@index([studentId, subjectId])
+}
+
+model PaceProgress {
+  id                  String    @id @default(cuid())
+  studentId           String
+  subjectId           String
+  paceNumber          Int
+  startedAt           DateTime
+  completedAt         DateTime?
+  completedByRecordId String?
+  finalTestAttempts   Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  student           Student     @relation(fields: [studentId], references: [id])
+  subject           Subject     @relation(fields: [subjectId], references: [id])
+  completedByRecord PaceRecord? @relation("PaceProgressCompletedByRecord", fields: [completedByRecordId], references: [id])
+
+  @@unique([studentId, subjectId, paceNumber])
+  @@index([studentId, subjectId, completedAt])
+  @@index([completedByRecordId])
 }
 
 model PacePolicy {

@@ -23,6 +23,20 @@ interface PaceWorkflowClientProps {
   canManageProgress: boolean;
 }
 
+function paceRecordStatus(result: {
+  advanced: boolean;
+  awardedMerits: number;
+  newPaceNumber: number | undefined;
+}): string {
+  const meritMessage =
+    result.awardedMerits > 0
+      ? ` ${String(result.awardedMerits)} merit${result.awardedMerits === 1 ? '' : 's'} awarded.`
+      : '';
+  return result.advanced
+    ? `PACE recorded. Current PACE advanced to ${String(result.newPaceNumber)}.${meritMessage}`
+    : `PACE score saved.${meritMessage}`;
+}
+
 export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -45,11 +59,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   const subjects = paceQuery.data?.subjects ?? [];
   const recordPace = api.pace.record.useMutation({
     async onSuccess(result) {
-      setStatus(
-        result.advanced
-          ? `PACE recorded. Current PACE advanced to ${String(result.newPaceNumber)}.`
-          : 'PACE score saved.',
-      );
+      setStatus(paceRecordStatus(result));
       setSelectedSubject(null);
       await Promise.all([
         utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),

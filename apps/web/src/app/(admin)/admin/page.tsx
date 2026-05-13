@@ -53,7 +53,7 @@ export default async function AdminIndexPage() {
   const user = await getFullAdminUser();
   const { start, end } = todayBounds();
   const canReadSensitiveBehaviour = canViewSensitiveBehaviour(user);
-  const [attendanceRows, activityRows] = await applyRlsTx(prisma, user, (tx) =>
+  const [attendanceRows, activityRows, meritAwardedToday] = await applyRlsTx(prisma, user, (tx) =>
     Promise.all([
       tx.attendance.findMany({
         where: { date: start },
@@ -61,6 +61,7 @@ export default async function AdminIndexPage() {
       }),
       tx.behaviourEntry.findMany({
         where: {
+          deletedAt: null,
           createdAt: { gte: start, lt: end },
           ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
         },
@@ -69,6 +70,15 @@ export default async function AdminIndexPage() {
         },
         orderBy: { createdAt: 'desc' },
         take: 6,
+      }),
+      tx.behaviourEntry.aggregate({
+        where: {
+          deletedAt: null,
+          createdAt: { gte: start, lt: end },
+          type: 'Merit',
+          ...(canReadSensitiveBehaviour ? {} : { visibility: 'General' as const }),
+        },
+        _sum: { meritDelta: true },
       }),
     ]),
   );
@@ -86,9 +96,7 @@ export default async function AdminIndexPage() {
   const present = attendanceRows.filter((row) => row.status === 'Present').length;
   const absent = attendanceRows.filter((row) => row.status === 'Absent').length;
   const late = attendanceRows.filter((row) => row.status === 'Late').length;
-  const meritTotal = activityRows
-    .filter((entry) => entry.type === 'Merit')
-    .reduce((sum, entry) => sum + entry.meritDelta, 0);
+  const meritTotal = meritAwardedToday._sum.meritDelta ?? 0;
   const headName = currentUser ? decrypt(currentUser.fullNameEnc) : 'Head of Centre';
   const recorderRows =
     activityRows.length === 0

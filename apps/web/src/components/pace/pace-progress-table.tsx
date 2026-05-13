@@ -29,6 +29,24 @@ function ScoreValue({ score }: { score: number | null | undefined }) {
   );
 }
 
+function formatDays(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '-';
+  return `${String(value)} day${value === 1 ? '' : 's'}`;
+}
+
+function PaceTiming({ subject }: { subject: PaceSubject }) {
+  const attempts = subject.currentFinalTestAttempts;
+  return (
+    <span className="pace-timing-cell">
+      <strong>{formatDays(subject.currentPaceDays)}</strong>
+      <span>
+        {String(attempts)} PACE test attempt{attempts === 1 ? '' : 's'} · avg{' '}
+        {formatDays(subject.averagePaceCompletionDays)}
+      </span>
+    </span>
+  );
+}
+
 export function PaceProgressTable({
   canManageProgress,
   errorMessage,
@@ -54,6 +72,13 @@ export function PaceProgressTable({
       ),
     },
     {
+      id: 'started',
+      header: 'Started',
+      render: (subject) => (
+        <span className="muted">{formatShortDate(subject.currentPaceStartedAt)}</span>
+      ),
+    },
+    {
       id: 'self',
       header: 'Self-Test',
       render: (subject) => <ScoreValue score={subject.latestSelfTest?.score} />,
@@ -69,6 +94,11 @@ export function PaceProgressTable({
       render: (subject) => (
         <span className="muted">{formatShortDate(subject.latestCompletedAt)}</span>
       ),
+    },
+    {
+      id: 'pace-time',
+      header: 'Pace Time',
+      render: (subject) => <PaceTiming subject={subject} />,
     },
   ];
 
