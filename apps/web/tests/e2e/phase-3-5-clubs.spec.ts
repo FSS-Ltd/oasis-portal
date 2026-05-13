@@ -37,7 +37,9 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
 
     await page.getByLabel('Club name').fill(clubName);
     await page.getByLabel('Description').fill('E2E club management verification.');
-    await page.getByLabel('Schedule').fill('Fridays, 15:30');
+    await page.getByLabel('First club date').fill('2026-05-15');
+    await page.getByLabel('Start time').fill('15:30');
+    await page.getByLabel('End time').fill('16:30');
     await page.getByLabel('Capacity').fill('12');
     await page.getByRole('button', { name: /add club/i }).click();
 

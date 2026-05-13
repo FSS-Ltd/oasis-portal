@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { MyClubRotaPanel } from './my-club-rota-panel';
 
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupClub = SignupContext['clubs'][number];
@@ -131,7 +132,7 @@ function ClubSignupCard({
           <Badge tone="blue">{capacityLabel(club)}</Badge>
         </span>
         <strong>{club.name}</strong>
-        <span>{club.schedule ?? 'No schedule set'}</span>
+        <span>{club.scheduleLabel ?? 'No schedule set'}</span>
         {club.description ? <p>{club.description}</p> : null}
       </div>
       <div className="club-card__actions">
@@ -245,7 +246,7 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
 
       {children.length === 0 ? (
         <EmptyState
-          detail="Ask the Head of Centre to link child records to this account."
+          detail="Club signups need linked child records. Volunteer rota access appears below when available."
           title="No linked children found"
         />
       ) : (
@@ -310,6 +311,7 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
           </section>
         </div>
       )}
+      <MyClubRotaPanel />
     </div>
   );
 }

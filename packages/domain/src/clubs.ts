@@ -14,8 +14,18 @@ import {
 export interface ClubDraft {
   name: string;
   description?: string;
-  schedule?: string;
+  schedule?: string | ClubScheduleDraft | null;
   capacity?: number;
+}
+
+export const CLUB_SCHEDULE_FREQUENCIES = ['Weekly'] as const;
+export type ClubScheduleFrequency = (typeof CLUB_SCHEDULE_FREQUENCIES)[number];
+
+export interface ClubScheduleDraft {
+  startDate: Date;
+  startMinute: number;
+  endMinute: number;
+  frequency: ClubScheduleFrequency;
 }
 
 export function assertCanManageClub(user: SessionUser): void {
@@ -37,6 +47,35 @@ export function validateClubDraft(draft: ClubDraft): Required<Pick<ClubDraft, 'n
     }
   }
   return { ...draft, name };
+}
+
+export function validateClubScheduleDraft(
+  draft: ClubScheduleDraft | null | undefined,
+): ClubScheduleDraft | null {
+  if (!draft) return null;
+  if (Number.isNaN(draft.startDate.getTime())) throw new Error('club schedule date is invalid');
+  if (!Number.isInteger(draft.startMinute) || draft.startMinute < 0 || draft.startMinute > 1439) {
+    throw new Error('club schedule start time is invalid');
+  }
+  if (!Number.isInteger(draft.endMinute) || draft.endMinute < 1 || draft.endMinute > 1440) {
+    throw new Error('club schedule end time is invalid');
+  }
+  if (draft.startMinute >= draft.endMinute) {
+    throw new Error('club schedule start time must be before end time');
+  }
+  return draft;
+}
+
+function formatMinute(minute: number): string {
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+}
+
+export function formatClubSchedule(schedule: ClubScheduleDraft | null | undefined): string | null {
+  const validSchedule = validateClubScheduleDraft(schedule);
+  if (!validSchedule) return null;
+  return `Weekly from ${validSchedule.startDate.toISOString().slice(0, 10)}, ${formatMinute(
+    validSchedule.startMinute,
+  )}-${formatMinute(validSchedule.endMinute)}`;
 }
 
 export interface SignupCheckInput {

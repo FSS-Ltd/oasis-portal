@@ -1,0 +1,141 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { displaySchoolYearLabel } from '@oasis/domain';
+import { CheckCircle2, Clock3, XCircle } from 'lucide-react';
+import { api, type RouterOutputs } from '@/lib/trpc';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Field, TextInput } from '@/components/ui/field';
+import { type ManagedClub, nextScheduledDate } from './club-schedule-utils';
+
+type ClubAttendanceRow = RouterOutputs['club']['attendanceForSession']['students'][number];
+type ClubAttendanceStatus = NonNullable<ClubAttendanceRow['status']>;
+
+const statuses = [
+  { value: 'Present', label: 'Present', icon: CheckCircle2 },
+  { value: 'Late', label: 'Late', icon: Clock3 },
+  { value: 'Absent', label: 'Absent', icon: XCircle },
+] as const satisfies readonly {
+  value: ClubAttendanceStatus;
+  label: string;
+  icon: typeof CheckCircle2;
+}[];
+
+function statusTone(status: ClubAttendanceStatus | null): 'amber' | 'green' | 'red' {
+  if (status === 'Absent') return 'red';
+  if (status) return 'green';
+  return 'amber';
+}
+
+function statusLabel(status: ClubAttendanceStatus | null): string {
+  return status ?? 'Unmarked';
+}
+
+export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
+  const utils = api.useUtils();
+  const [selectedDate, setSelectedDate] = useState(() => nextScheduledDate(club));
+  const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const date = useMemo(() => new Date(`${selectedDate}T00:00:00.000Z`), [selectedDate]);
+  const attendanceQuery = api.club.attendanceForSession.useQuery(
+    { clubId: club.id, date },
+    { retry: false },
+  );
+  const markAttendance = api.club.markAttendance.useMutation();
+  const rows = attendanceQuery.data?.students ?? [];
+
+  async function mark(row: ClubAttendanceRow, status: ClubAttendanceStatus) {
+    setPendingStudentId(row.studentId);
+    setRowErrors((current) => {
+      const { [row.studentId]: _removed, ...next } = current;
+      void _removed;
+      return next;
+    });
+    try {
+      await markAttendance.mutateAsync({
+        clubId: club.id,
+        date,
+        studentId: row.studentId,
+        status,
+      });
+      await utils.club.attendanceForSession.invalidate({ clubId: club.id, date });
+    } catch (error) {
+      setRowErrors((current) => ({
+        ...current,
+        [row.studentId]:
+          error instanceof Error ? error.message : 'Club attendance could not be saved.',
+      }));
+    } finally {
+      setPendingStudentId(null);
+    }
+  }
+
+  return (
+    <section className="club-modal-section" aria-labelledby="club-attendance-title">
+      <div className="section-title">
+        <div>
+          <p className="muted">Club-only register</p>
+          <h3 id="club-attendance-title">Attendance</h3>
+        </div>
+        <Field label="Session date">
+          <TextInput
+            onChange={(event) => {
+              setSelectedDate(event.target.value);
+            }}
+            type="date"
+            value={selectedDate}
+          />
+        </Field>
+      </div>
+
+      {attendanceQuery.isLoading ? <div className="empty-state">Loading attendance...</div> : null}
+      {attendanceQuery.error ? (
+        <p className="status--error">{attendanceQuery.error.message}</p>
+      ) : null}
+      {!attendanceQuery.isLoading && rows.length === 0 ? (
+        <div className="empty-state">No signed-up students for this club.</div>
+      ) : null}
+
+      <div className="club-attendance-list">
+        {rows.map((row) => {
+          const pending = pendingStudentId === row.studentId;
+          return (
+            <article className="club-attendance-row" key={row.studentId}>
+              <div className="student-row">
+                <Avatar className="student-row__avatar" name={row.studentName} />
+                <span className="student-row__text">
+                  <strong>{row.studentName}</strong>
+                  <span>{displaySchoolYearLabel(row.yearGroup)}</span>
+                </span>
+              </div>
+              <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
+              <div className="club-attendance-actions">
+                {statuses.map(({ icon: Icon, label, value }) => (
+                  <Button
+                    disabled={pending}
+                    key={value}
+                    onClick={() => {
+                      void mark(row, value);
+                    }}
+                    pending={pending && row.status !== value}
+                    size="sm"
+                    type="button"
+                    variant={row.status === value ? 'primary' : 'secondary'}
+                  >
+                    <Icon aria-hidden="true" size={14} />
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              {rowErrors[row.studentId] ? (
+                <p className="status--error">{rowErrors[row.studentId]}</p>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}

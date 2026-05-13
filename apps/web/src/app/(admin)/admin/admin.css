@@ -2187,6 +2187,120 @@
   line-height: 1.4;
 }
 
+.club-modal {
+  width: min(100%, 1040px);
+}
+
+.club-modal__body,
+.club-modal-section,
+.club-attendance-list,
+.club-rota-panel,
+.club-rota-candidates,
+.my-club-rota-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.club-modal-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.club-modal-tabs button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.club-modal-tabs button.is-selected {
+  background: var(--oasis-navy);
+  color: #ffffff;
+}
+
+.club-attendance-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(220px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.club-attendance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.club-rota-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.club-rota-panel {
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.club-rota-panel h3,
+.club-rota-panel h4,
+.club-modal-section h3 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 0.96rem;
+}
+
+.club-rota-candidate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.club-rota-candidate span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.club-rota-candidate strong {
+  color: var(--oasis-navy);
+  font-size: 0.84rem;
+}
+
+.club-rota-candidate small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.club-rota-week-grid {
+  grid-template-columns: repeat(7, minmax(130px, 1fr));
+}
+
 .dashboard-empty-state {
   color: var(--oasis-text-muted);
   font-size: 0.78rem;
@@ -5897,6 +6011,8 @@
   .settings-grid,
   .calendar-layout,
   .clubs-layout,
+  .club-attendance-row,
+  .club-rota-grid,
   .linked-clubs-layout,
   .head-dashboard-layout,
   .messages-layout,
