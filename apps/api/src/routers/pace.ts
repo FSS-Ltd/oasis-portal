@@ -7,6 +7,7 @@ import {
   isStaff,
   paceProgressStatusForYear,
   paceRecordInput,
+  paceUpdateRecordInput,
   rowsForMerit,
   schoolYearStorageAliases,
   type SessionUser,
@@ -77,6 +78,41 @@ function meritsForPaceScore(testType: PaceTestType, score: number): number {
 function automaticPaceMeritCategory(testType: PaceTestType, score: number): string {
   const testTypeLabel = testType === 'FinalTest' ? 'PACE Test' : 'Self-Test';
   return `${AUTOMATIC_PACE_MERIT_CATEGORY} - ${testTypeLabel} ${String(score)}`;
+}
+
+function testTypeForRecord(record: {
+  selfTestScore: number | null;
+  paceTestScore: number | null;
+}): PaceTestType {
+  if (record.selfTestScore !== null) return 'SelfTest';
+  if (record.paceTestScore !== null) return 'FinalTest';
+  throw new TRPCError({
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'PACE record has no score',
+  });
+}
+
+function scoreForRecord(record: {
+  selfTestScore: number | null;
+  paceTestScore: number | null;
+}): number {
+  const score = record.selfTestScore ?? record.paceTestScore;
+  if (score === null) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'PACE record has no score',
+    });
+  }
+  return score;
+}
+
+function scoreDataForTestType(
+  testType: PaceTestType,
+  score: number,
+): { selfTestScore: number | null; paceTestScore: number | null } {
+  return testType === 'SelfTest'
+    ? { selfTestScore: score, paceTestScore: null }
+    : { selfTestScore: null, paceTestScore: score };
 }
 
 function decryptRequired(
@@ -194,6 +230,169 @@ async function ensurePaceProgressStarted(
     },
     select: { id: true, finalTestAttempts: true, completedAt: true },
   });
+}
+
+async function syncAutomaticPaceMerit(
+  tx: RlsTx,
+  params: {
+    studentId: string;
+    paceRecordId: string;
+    testType: PaceTestType;
+    score: number;
+    recordedById: string;
+  },
+): Promise<{
+  behaviourEntryId: string;
+  created: boolean;
+  ledgerCorrectionRows: number;
+} | null> {
+  const awardedMerits = meritsForPaceScore(params.testType, params.score);
+  const category = automaticPaceMeritCategory(params.testType, params.score);
+  const existing = await tx.behaviourEntry.findFirst({
+    where: { paceRecordId: params.paceRecordId, type: 'Merit' },
+    include: {
+      ledgerRows: { select: { account: true, delta: true, studentId: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (!existing && awardedMerits === 0) return null;
+
+  if (!existing) {
+    const behaviour = await tx.behaviourEntry.create({
+      data: {
+        studentId: params.studentId,
+        type: 'Merit',
+        category,
+        noteEnc: null,
+        visibility: 'General',
+        meritDelta: awardedMerits,
+        recordedById: params.recordedById,
+        paceRecordId: params.paceRecordId,
+      },
+      select: { id: true },
+    });
+    await tx.meritLedger.createMany({
+      data: rowsForMerit({
+        studentId: params.studentId,
+        amount: awardedMerits,
+        reason: category,
+        behaviourEntryId: behaviour.id,
+      }),
+    });
+    return { behaviourEntryId: behaviour.id, created: true, ledgerCorrectionRows: 1 };
+  }
+
+  const ledgerTotal = existing.ledgerRows.reduce((sum, row) => sum + row.delta, 0);
+  const ledgerDelta = awardedMerits - ledgerTotal;
+  await tx.behaviourEntry.update({
+    where: { id: existing.id },
+    data: {
+      category,
+      meritDelta: awardedMerits,
+      deletedAt: awardedMerits === 0 ? new Date() : null,
+      deletedById: awardedMerits === 0 ? params.recordedById : null,
+    },
+    select: { id: true },
+  });
+
+  if (ledgerDelta !== 0) {
+    await tx.meritLedger.createMany({
+      data: [
+        {
+          studentId: params.studentId,
+          account: 'Spend',
+          delta: ledgerDelta,
+          reason: `correction:${category}`,
+          relatedEntryId: existing.id,
+        },
+      ],
+    });
+  }
+
+  return {
+    behaviourEntryId: existing.id,
+    created: false,
+    ledgerCorrectionRows: ledgerDelta === 0 ? 0 : 1,
+  };
+}
+
+async function recalculatePaceLifecycle(
+  tx: RlsTx,
+  params: {
+    assignmentCurrentPaceNumber: number;
+    passThreshold: number;
+    paceNumber: number;
+    startedAt: Date;
+    studentId: string;
+    subjectId: string;
+  },
+): Promise<{ advanced: boolean; newPaceNumber: number | undefined }> {
+  const currentProgress = await ensurePaceProgressStarted(tx, {
+    studentId: params.studentId,
+    subjectId: params.subjectId,
+    paceNumber: params.paceNumber,
+    startedAt: params.startedAt,
+  });
+  const records = await tx.paceRecord.findMany({
+    where: {
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      paceNumber: params.paceNumber,
+      OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
+    },
+    orderBy: [{ completedAt: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      paceTestScore: true,
+      completedAt: true,
+      createdAt: true,
+    },
+  });
+  const finalTestAttempts = records.filter((record) => record.paceTestScore !== null).length;
+  const passingFinal =
+    records.find(
+      (record) => record.paceTestScore !== null && record.paceTestScore >= params.passThreshold,
+    ) ?? null;
+
+  await tx.paceProgress.update({
+    where: { id: currentProgress.id },
+    data: {
+      startedAt: params.startedAt,
+      finalTestAttempts,
+      completedAt: passingFinal?.completedAt ?? null,
+      completedByRecordId: passingFinal?.id ?? null,
+    },
+  });
+
+  if (passingFinal && params.paceNumber >= params.assignmentCurrentPaceNumber) {
+    const nextStartedAt = passingFinal.completedAt ?? passingFinal.createdAt;
+    const nextProgress = await ensurePaceProgressStarted(tx, {
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      paceNumber: params.paceNumber + 1,
+      startedAt: nextStartedAt,
+    });
+    await tx.paceProgress.update({
+      where: { id: nextProgress.id },
+      data: { startedAt: nextStartedAt },
+    });
+    await tx.studentSubject.update({
+      where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
+      data: { currentPaceNumber: params.paceNumber + 1 },
+    });
+    return { advanced: true, newPaceNumber: params.paceNumber + 1 };
+  }
+
+  if (!passingFinal && params.assignmentCurrentPaceNumber === params.paceNumber + 1) {
+    await tx.studentSubject.update({
+      where: { studentId_subjectId: { studentId: params.studentId, subjectId: params.subjectId } },
+      data: { currentPaceNumber: params.paceNumber },
+    });
+    return { advanced: false, newPaceNumber: params.paceNumber };
+  }
+
+  return { advanced: false, newPaceNumber: undefined };
 }
 
 async function loadPaceScope(
@@ -351,226 +550,240 @@ export const paceRouter = router({
     };
   }),
 
-  forStudent: authedProcedure
-    .input(paceForStudentInput)
-    .query(async ({ ctx, input }) => {
-      const scope = await loadPaceScope(ctx, input.date, 'pace.forStudent');
+  forStudent: authedProcedure.input(paceForStudentInput).query(async ({ ctx, input }) => {
+    const scope = await loadPaceScope(ctx, input.date, 'pace.forStudent');
 
-      const student = await ctx.db.student.findUnique({
-        where: { id: input.studentId },
-        select: {
-          id: true,
-          active: true,
-          fullNameEnc: true,
-          yearGroup: true,
-          subjects: {
-            include: { subject: true },
-            orderBy: { subject: { code: 'asc' } },
-          },
+    const student = await ctx.db.student.findUnique({
+      where: { id: input.studentId },
+      select: {
+        id: true,
+        active: true,
+        fullNameEnc: true,
+        yearGroup: true,
+        subjects: {
+          include: { subject: true },
+          orderBy: { subject: { code: 'asc' } },
         },
-      });
-      if (!student) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
-      }
-      if (!student.active) {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
-      }
-      await assertStudentInPaceScope(ctx, scope, student, 'pace.forStudent');
+      },
+    });
+    if (!student) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+    }
+    if (!student.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
+    }
+    await assertStudentInPaceScope(ctx, scope, student, 'pace.forStudent');
 
-      const storedPolicy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
-      const policy = storedPolicy ?? DEFAULT_POLICY;
-      const { dayKey, dayStart, dayEnd } = utcDayBounds(scope.selectedDate);
+    const storedPolicy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
+    const policy = storedPolicy ?? DEFAULT_POLICY;
+    const { dayKey, dayStart, dayEnd } = utcDayBounds(scope.selectedDate);
 
-      const todayCount = await ctx.db.paceRecord.count({
-        where: {
-          studentId: input.studentId,
-          completedAt: { gte: dayStart, lt: dayEnd },
-        },
-      });
+    const todayCount = await ctx.db.paceRecord.count({
+      where: {
+        studentId: input.studentId,
+        completedAt: { gte: dayStart, lt: dayEnd },
+      },
+    });
 
-      const subjectIds = student.subjects.map((assignment) => assignment.subjectId);
-      const fetchedRecords =
-        subjectIds.length === 0
-          ? []
-          : await ctx.db.paceRecord.findMany({
-              where: {
-                studentId: input.studentId,
-                subjectId: { in: subjectIds },
-                OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
-              },
-              orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-              select: {
-                id: true,
-                subjectId: true,
-                paceNumber: true,
-                selfTestScore: true,
-                paceTestScore: true,
-                completedAt: true,
-                createdAt: true,
-              },
-            });
-      const progressRows =
-        subjectIds.length === 0
-          ? []
-          : await ctx.db.paceProgress.findMany({
-              where: {
-                studentId: input.studentId,
-                subjectId: { in: subjectIds },
-              },
-              orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
-              select: {
-                id: true,
-                subjectId: true,
-                paceNumber: true,
-                startedAt: true,
-                completedAt: true,
-                finalTestAttempts: true,
-              },
-            });
-      const recentRecords = [...fetchedRecords].sort((left, right) => {
-        const timeDifference = effectivePaceRecordTime(right) - effectivePaceRecordTime(left);
-        if (timeDifference !== 0) return timeDifference;
-        return right.createdAt.getTime() - left.createdAt.getTime();
-      });
-      const recordsBySubject = new Map<string, typeof recentRecords>();
-      for (const record of recentRecords) {
-        const subjectRecords = recordsBySubject.get(record.subjectId) ?? [];
-        subjectRecords.push(record);
-        recordsBySubject.set(record.subjectId, subjectRecords);
-      }
-      const progressBySubjectAndPace = new Map<string, (typeof progressRows)[number]>();
-      const progressBySubject = new Map<string, typeof progressRows>();
-      for (const row of progressRows) {
-        progressBySubjectAndPace.set(paceProgressKey(row.subjectId, row.paceNumber), row);
-        const subjectProgress = progressBySubject.get(row.subjectId) ?? [];
-        subjectProgress.push(row);
-        progressBySubject.set(row.subjectId, subjectProgress);
-      }
+    const subjectIds = student.subjects.map((assignment) => assignment.subjectId);
+    const fetchedRecords =
+      subjectIds.length === 0
+        ? []
+        : await ctx.db.paceRecord.findMany({
+            where: {
+              studentId: input.studentId,
+              subjectId: { in: subjectIds },
+              OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
+            },
+            orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+            select: {
+              id: true,
+              subjectId: true,
+              paceNumber: true,
+              selfTestScore: true,
+              paceTestScore: true,
+              completedAt: true,
+              createdAt: true,
+            },
+          });
+    const progressRows =
+      subjectIds.length === 0
+        ? []
+        : await ctx.db.paceProgress.findMany({
+            where: {
+              studentId: input.studentId,
+              subjectId: { in: subjectIds },
+            },
+            orderBy: [{ startedAt: 'desc' }, { createdAt: 'desc' }],
+            select: {
+              id: true,
+              subjectId: true,
+              paceNumber: true,
+              startedAt: true,
+              completedAt: true,
+              finalTestAttempts: true,
+            },
+          });
+    const recentRecords = [...fetchedRecords].sort((left, right) => {
+      const timeDifference = effectivePaceRecordTime(right) - effectivePaceRecordTime(left);
+      if (timeDifference !== 0) return timeDifference;
+      return right.createdAt.getTime() - left.createdAt.getTime();
+    });
+    const recordsBySubject = new Map<string, typeof recentRecords>();
+    for (const record of recentRecords) {
+      const subjectRecords = recordsBySubject.get(record.subjectId) ?? [];
+      subjectRecords.push(record);
+      recordsBySubject.set(record.subjectId, subjectRecords);
+    }
+    const progressBySubjectAndPace = new Map<string, (typeof progressRows)[number]>();
+    const progressBySubject = new Map<string, typeof progressRows>();
+    for (const row of progressRows) {
+      progressBySubjectAndPace.set(paceProgressKey(row.subjectId, row.paceNumber), row);
+      const subjectProgress = progressBySubject.get(row.subjectId) ?? [];
+      subjectProgress.push(row);
+      progressBySubject.set(row.subjectId, subjectProgress);
+    }
 
-      const subjects = student.subjects.map((assignment) => {
-        const records = recordsBySubject.get(assignment.subjectId) ?? [];
-        const currentPaceRecords = records.filter(
-          (record) => record.paceNumber === assignment.currentPaceNumber,
-        );
-        const latestSelfTest =
-          currentPaceRecords.find((record) => record.selfTestScore !== null) ?? null;
-        const latestFinalTest =
-          currentPaceRecords.find((record) => record.paceTestScore !== null) ?? null;
-        const latestRecord = currentPaceRecords[0] ?? null;
-        const currentProgress =
-          progressBySubjectAndPace.get(
-            paceProgressKey(assignment.subjectId, assignment.currentPaceNumber),
-          ) ?? null;
-        const completedProgress = (progressBySubject.get(assignment.subjectId) ?? []).filter(
-          (row) => row.completedAt !== null,
-        );
-        const completionDurations = completedProgress.map((row) =>
-          daysBetween(row.startedAt, row.completedAt ?? row.startedAt),
-        );
-        const averagePaceCompletionDays =
-          completionDurations.length === 0
-            ? null
-            : Math.round(
-                (completionDurations.reduce((sum, days) => sum + days, 0) /
-                  completionDurations.length) *
-                  10,
-              ) / 10;
-        const status = paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup);
-        const recentRecordDtos = records.slice(0, 5).map((record) => {
-          const isSelfTest = record.selfTestScore !== null;
-          const score = record.selfTestScore ?? record.paceTestScore;
-          if (score === null) {
-            throw new TRPCError({
-              code: 'INTERNAL_SERVER_ERROR',
-              message: 'PACE record has no score',
-            });
-          }
-          return {
-            id: record.id,
-            paceNumber: record.paceNumber,
-            testType: isSelfTest ? ('SelfTest' as const) : ('FinalTest' as const),
-            score,
-            passed: score >= policy.passThreshold,
-            completedAt: record.completedAt,
-            createdAt: record.createdAt,
-          };
-        });
-
+    const subjects = student.subjects.map((assignment) => {
+      const records = recordsBySubject.get(assignment.subjectId) ?? [];
+      const currentPaceRecords = records.filter(
+        (record) => record.paceNumber === assignment.currentPaceNumber,
+      );
+      const latestSelfTest =
+        currentPaceRecords.find((record) => record.selfTestScore !== null) ?? null;
+      const latestFinalTest =
+        currentPaceRecords.find((record) => record.paceTestScore !== null) ?? null;
+      const latestRecord = currentPaceRecords[0] ?? null;
+      const currentProgress =
+        progressBySubjectAndPace.get(
+          paceProgressKey(assignment.subjectId, assignment.currentPaceNumber),
+        ) ?? null;
+      const completedProgress = (progressBySubject.get(assignment.subjectId) ?? []).filter(
+        (row) => row.completedAt !== null,
+      );
+      const completionDurations = completedProgress.map((row) =>
+        daysBetween(row.startedAt, row.completedAt ?? row.startedAt),
+      );
+      const averagePaceCompletionDays =
+        completionDurations.length === 0
+          ? null
+          : Math.round(
+              (completionDurations.reduce((sum, days) => sum + days, 0) /
+                completionDurations.length) *
+                10,
+            ) / 10;
+      const status = paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup);
+      const recentRecordDtos = records.slice(0, 5).map((record) => {
+        const testType = testTypeForRecord(record);
+        const score = scoreForRecord(record);
+        const progress =
+          progressBySubjectAndPace.get(paceProgressKey(record.subjectId, record.paceNumber)) ??
+          null;
         return {
-          subjectId: assignment.subjectId,
-          code: assignment.subject.code,
-          name: assignment.subject.name,
-          active: assignment.subject.active,
-          currentPaceNumber: assignment.currentPaceNumber,
-          currentPaceStartedAt: currentProgress?.startedAt ?? null,
-          currentPaceDays:
-            currentProgress === null
-              ? null
-              : daysBetween(currentProgress.startedAt, scope.selectedDate),
-          currentFinalTestAttempts: currentProgress?.finalTestAttempts ?? 0,
-          completedPaceCount: completedProgress.length,
-          averagePaceCompletionDays,
-          latestSelfTest: latestSelfTest
-            ? {
-                paceNumber: latestSelfTest.paceNumber,
-                score: latestSelfTest.selfTestScore,
-                completedAt: latestSelfTest.completedAt,
-                createdAt: latestSelfTest.createdAt,
-              }
-            : null,
-          latestFinalTest: latestFinalTest
-            ? {
-                paceNumber: latestFinalTest.paceNumber,
-                score: latestFinalTest.paceTestScore,
-                completedAt: latestFinalTest.completedAt,
-                createdAt: latestFinalTest.createdAt,
-              }
-            : null,
-          latestCompletedAt: latestRecord?.completedAt ?? latestRecord?.createdAt ?? null,
-          status,
-          recentRecords: recentRecordDtos,
+          id: record.id,
+          paceNumber: record.paceNumber,
+          testType,
+          score,
+          passed: score >= policy.passThreshold,
+          completedAt: record.completedAt,
+          createdAt: record.createdAt,
+          startedAt: progress?.startedAt ?? null,
         };
       });
-
-      const remaining = policy.dailyTestLimitEnabled
-        ? Math.max(policy.maxTestsPerStudentPerDay - todayCount, 0)
+      const currentScoreRecord = latestRecord
+        ? {
+            id: latestRecord.id,
+            paceNumber: latestRecord.paceNumber,
+            testType: testTypeForRecord(latestRecord),
+            score: scoreForRecord(latestRecord),
+            completedAt: latestRecord.completedAt,
+            createdAt: latestRecord.createdAt,
+            startedAt: currentProgress?.startedAt ?? null,
+          }
         : null;
-      const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'Student',
-          entityId: student.id,
-          meta: { count: 1, source: 'pace.forStudent', date: scope.dayKey },
-        },
-      });
 
       return {
-        studentId: student.id,
-        studentName,
-        yearGroup: canonicalSchoolYear(student.yearGroup) ?? student.yearGroup,
-        yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
-        subjects,
-        today: {
-          date: dayKey,
-          testCount: todayCount,
-        },
-        policy: {
-          dailyTestLimitEnabled: policy.dailyTestLimitEnabled,
-          maxTestsPerStudentPerDay: policy.maxTestsPerStudentPerDay,
-          samePaceSameDayBlockEnabled: policy.samePaceSameDayBlockEnabled,
-          passThreshold: policy.passThreshold,
-        },
-        warnings: {
-          dailyLimitEnabled: policy.dailyTestLimitEnabled,
-          count: todayCount,
-          limit: policy.maxTestsPerStudentPerDay,
-          remaining,
-          atLimit: policy.dailyTestLimitEnabled && todayCount >= policy.maxTestsPerStudentPerDay,
-        },
+        subjectId: assignment.subjectId,
+        code: assignment.subject.code,
+        name: assignment.subject.name,
+        active: assignment.subject.active,
+        currentPaceNumber: assignment.currentPaceNumber,
+        currentPaceStartedAt: currentProgress?.startedAt ?? null,
+        currentPaceDays:
+          currentProgress === null
+            ? null
+            : daysBetween(currentProgress.startedAt, scope.selectedDate),
+        currentFinalTestAttempts: currentProgress?.finalTestAttempts ?? 0,
+        completedPaceCount: completedProgress.length,
+        averagePaceCompletionDays,
+        latestSelfTest: latestSelfTest
+          ? {
+              id: latestSelfTest.id,
+              paceNumber: latestSelfTest.paceNumber,
+              testType: 'SelfTest' as const,
+              score: scoreForRecord(latestSelfTest),
+              completedAt: latestSelfTest.completedAt,
+              createdAt: latestSelfTest.createdAt,
+              startedAt: currentProgress?.startedAt ?? null,
+            }
+          : null,
+        latestFinalTest: latestFinalTest
+          ? {
+              id: latestFinalTest.id,
+              paceNumber: latestFinalTest.paceNumber,
+              testType: 'FinalTest' as const,
+              score: scoreForRecord(latestFinalTest),
+              completedAt: latestFinalTest.completedAt,
+              createdAt: latestFinalTest.createdAt,
+              startedAt: currentProgress?.startedAt ?? null,
+            }
+          : null,
+        currentScoreRecord,
+        latestCompletedAt: latestFinalTest?.completedAt ?? null,
+        status,
+        recentRecords: recentRecordDtos,
       };
+    });
+
+    const remaining = policy.dailyTestLimitEnabled
+      ? Math.max(policy.maxTestsPerStudentPerDay - todayCount, 0)
+      : null;
+    const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        entityId: student.id,
+        meta: { count: 1, source: 'pace.forStudent', date: scope.dayKey },
+      },
+    });
+
+    return {
+      studentId: student.id,
+      studentName,
+      yearGroup: canonicalSchoolYear(student.yearGroup) ?? student.yearGroup,
+      yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
+      subjects,
+      today: {
+        date: dayKey,
+        testCount: todayCount,
+      },
+      policy: {
+        dailyTestLimitEnabled: policy.dailyTestLimitEnabled,
+        maxTestsPerStudentPerDay: policy.maxTestsPerStudentPerDay,
+        samePaceSameDayBlockEnabled: policy.samePaceSameDayBlockEnabled,
+        passThreshold: policy.passThreshold,
+      },
+      warnings: {
+        dailyLimitEnabled: policy.dailyTestLimitEnabled,
+        count: todayCount,
+        limit: policy.maxTestsPerStudentPerDay,
+        remaining,
+        atLimit: policy.dailyTestLimitEnabled && todayCount >= policy.maxTestsPerStudentPerDay,
+      },
+    };
   }),
 
   record: authedProcedure.input(paceRecordInput).mutation(async ({ ctx, input }) => {
@@ -755,6 +968,7 @@ export const paceRouter = router({
             visibility: 'General',
             meritDelta: awardedMerits,
             recordedById: ctx.user.id,
+            paceRecordId: created.id,
           },
           select: { id: true },
         });
@@ -859,6 +1073,215 @@ export const paceRouter = router({
       advanced: shouldAdvance,
       awardedMerits,
       newPaceNumber: shouldAdvance ? paceNumber + 1 : undefined,
+    };
+  }),
+
+  updateRecord: authedProcedure.input(paceUpdateRecordInput).mutation(async ({ ctx, input }) => {
+    const scope = await loadPaceScope(ctx, input.completedAt, 'pace.updateRecord');
+    if (!scope.fullAccess && dateKey(input.startedAt) !== scope.dayKey) {
+      await denyPaceAccess(ctx, 'pace.updateRecord', 'Supervisor PACE access is limited to today', {
+        requestedStartedDate: dateKey(input.startedAt),
+        today: scope.dayKey,
+      });
+    }
+
+    const existing = await ctx.db.paceRecord.findUnique({
+      where: { id: input.recordId },
+      select: {
+        id: true,
+        studentId: true,
+        subjectId: true,
+        paceNumber: true,
+        selfTestScore: true,
+        paceTestScore: true,
+        completedAt: true,
+        createdAt: true,
+        student: { select: { id: true, active: true, yearGroup: true } },
+        subject: { select: { id: true, active: true } },
+      },
+    });
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'PACE record not found' });
+    }
+    if (!existing.student.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
+    }
+    if (!existing.subject.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
+    }
+    if (!scope.fullAccess && dateKey(existing.completedAt ?? existing.createdAt) !== scope.dayKey) {
+      await denyPaceAccess(ctx, 'pace.updateRecord', 'Supervisor PACE access is limited to today', {
+        recordId: existing.id,
+        existingDate: dateKey(existing.completedAt ?? existing.createdAt),
+        today: scope.dayKey,
+      });
+    }
+    await assertStudentInPaceScope(ctx, scope, existing.student, 'pace.updateRecord');
+
+    const assignment = await ctx.db.studentSubject.findUnique({
+      where: {
+        studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
+      },
+      select: { id: true, currentPaceNumber: true },
+    });
+    if (!assignment) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'student is not assigned to this subject',
+      });
+    }
+
+    const storedPolicy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
+    const policy = storedPolicy ?? DEFAULT_POLICY;
+    const testType = testTypeForRecord(existing);
+    const previousScore = scoreForRecord(existing);
+    const { dayStart, dayEnd } = utcDayBounds(input.completedAt);
+
+    if (policy.samePaceSameDayBlockEnabled) {
+      const oppositeScore =
+        testType === 'SelfTest'
+          ? { paceTestScore: { not: null } }
+          : { selfTestScore: { not: null } };
+      const sameDay = await ctx.db.paceRecord.findFirst({
+        where: {
+          id: { not: existing.id },
+          studentId: existing.studentId,
+          subjectId: existing.subjectId,
+          paceNumber: existing.paceNumber,
+          completedAt: { gte: dayStart, lt: dayEnd },
+          ...oppositeScore,
+        },
+        select: { id: true },
+      });
+      if (sameDay) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'PermissionDenied',
+            entity: 'PaceRecord',
+            meta: {
+              reason: 'same-pace-same-day-block',
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              paceNumber: existing.paceNumber,
+              testType,
+              blockedBy: testType === 'SelfTest' ? 'FinalTest' : 'SelfTest',
+              recordId: existing.id,
+            },
+          },
+        });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `cannot update ${testType} for the same PACE number on the same day as the opposite test type`,
+        });
+      }
+    }
+
+    const [record, meritResult, lifecycle] = await ctx.withRls(async (tx) => {
+      const updated = await tx.paceRecord.update({
+        where: { id: existing.id },
+        data: {
+          ...scoreDataForTestType(testType, input.score),
+          completedAt: input.completedAt,
+        },
+        select: {
+          id: true,
+          studentId: true,
+          subjectId: true,
+          paceNumber: true,
+          selfTestScore: true,
+          paceTestScore: true,
+          completedAt: true,
+          createdAt: true,
+        },
+      });
+
+      const nextLifecycle = await recalculatePaceLifecycle(tx, {
+        assignmentCurrentPaceNumber: assignment.currentPaceNumber,
+        passThreshold: policy.passThreshold,
+        paceNumber: existing.paceNumber,
+        startedAt: input.startedAt,
+        studentId: existing.studentId,
+        subjectId: existing.subjectId,
+      });
+      const nextMeritResult = await syncAutomaticPaceMerit(tx, {
+        studentId: existing.studentId,
+        paceRecordId: existing.id,
+        testType,
+        score: input.score,
+        recordedById: ctx.user.id,
+      });
+
+      return [updated, nextMeritResult, nextLifecycle] as const;
+    });
+
+    const awardedMerits = meritsForPaceScore(testType, input.score);
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'PaceRecord',
+        entityId: record.id,
+        meta: {
+          studentId: existing.studentId,
+          subjectId: existing.subjectId,
+          paceNumber: existing.paceNumber,
+          testType,
+          previousScore,
+          score: input.score,
+          previousCompletedAt: existing.completedAt,
+          completedAt: input.completedAt,
+          startedAt: input.startedAt,
+          awardedMerits,
+          ledgerCorrectionRows: meritResult?.ledgerCorrectionRows ?? 0,
+        },
+      },
+    });
+
+    if (meritResult) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: meritResult.created ? 'Create' : 'Update',
+          entity: 'BehaviourEntry',
+          entityId: meritResult.behaviourEntryId,
+          meta: {
+            studentId: existing.studentId,
+            type: 'Merit',
+            visibility: 'General',
+            meritDelta: awardedMerits,
+            source: 'pace.updateRecord',
+            paceRecordId: record.id,
+            ledgerCorrectionRows: meritResult.ledgerCorrectionRows,
+          },
+        },
+      });
+    }
+
+    if (lifecycle.newPaceNumber !== undefined) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StudentSubject',
+          entityId: assignment.id,
+          meta: {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            previousPaceNumber: assignment.currentPaceNumber,
+            newPaceNumber: lifecycle.newPaceNumber,
+            triggeredBy: record.id,
+            source: 'pace.updateRecord',
+          },
+        },
+      });
+    }
+
+    return {
+      ...record,
+      advanced: lifecycle.advanced,
+      awardedMerits,
+      newPaceNumber: lifecycle.newPaceNumber,
     };
   }),
 });

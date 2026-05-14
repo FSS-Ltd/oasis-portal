@@ -83,6 +83,51 @@ function percentage(numerator: number, denominator: number): number | null {
   return Math.round((numerator / denominator) * 100);
 }
 
+function paceProgressKey(record: {
+  paceNumber: number;
+  studentId: string;
+  subjectId: string;
+}): string {
+  return `${record.studentId}:${record.subjectId}:${String(record.paceNumber)}`;
+}
+
+async function loadPaceStartedAtByKey(
+  ctx: AuthedContext,
+  records: readonly {
+    paceNumber: number;
+    studentId: string;
+    subjectId: string;
+  }[],
+): Promise<Map<string, Date>> {
+  const uniqueKeys = new Map<
+    string,
+    { paceNumber: number; studentId: string; subjectId: string }
+  >();
+  for (const record of records) {
+    uniqueKeys.set(paceProgressKey(record), record);
+  }
+  const keys = [...uniqueKeys.values()];
+  if (keys.length === 0) return new Map();
+
+  const progressRows = await ctx.db.paceProgress.findMany({
+    where: {
+      OR: keys.map((record) => ({
+        studentId: record.studentId,
+        subjectId: record.subjectId,
+        paceNumber: record.paceNumber,
+      })),
+    },
+    select: {
+      studentId: true,
+      subjectId: true,
+      paceNumber: true,
+      startedAt: true,
+    },
+  });
+
+  return new Map(progressRows.map((row) => [paceProgressKey(row), row.startedAt]));
+}
+
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
   value: string,
@@ -384,6 +429,7 @@ export const childLogRouter = router({
         (meritBalanceByStudent.get(row.studentId) ?? 0) + (row._sum.delta ?? 0),
       );
     }
+    const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
 
     const meritsEarned = behaviour
       .filter((entry) => entry.meritDelta > 0)
@@ -522,6 +568,7 @@ export const childLogRouter = router({
         ),
         recordedByRole: record.recordedBy.role,
         completedAt: record.completedAt,
+        startedAt: paceStartedAtByKey.get(paceProgressKey(record)) ?? null,
         createdAt: record.createdAt,
       })),
       behaviour: behaviour.map((entry) => ({
@@ -687,6 +734,7 @@ export const childLogRouter = router({
     ]);
 
     const passThreshold = policy?.passThreshold ?? 80;
+    const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
 
     return {
       children: students.map((student) => {
@@ -741,6 +789,9 @@ export const childLogRouter = router({
             score: record.paceTestScore ?? record.selfTestScore ?? 0,
             testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
             passed: (record.paceTestScore ?? record.selfTestScore ?? 0) >= passThreshold,
+            completedAt: record.completedAt,
+            startedAt: paceStartedAtByKey.get(paceProgressKey(record)) ?? null,
+            createdAt: record.createdAt,
           })),
           notes: takeRecentByStudent(notes, student.id).map((note) => ({
             id: note.id,
@@ -839,6 +890,7 @@ export const childLogRouter = router({
       }
 
       const passThreshold = policy?.passThreshold ?? 80;
+      const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
       const pacesCompletedThisAcademicYear = paceTests.filter(
         (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
       ).length;
@@ -959,6 +1011,7 @@ export const childLogRouter = router({
           ),
           recordedByRole: record.recordedBy.role,
           completedAt: record.completedAt,
+          startedAt: paceStartedAtByKey.get(paceProgressKey(record)) ?? null,
           createdAt: record.createdAt,
         })),
         notes: notes.map((note) => ({
@@ -1066,6 +1119,7 @@ export const childLogRouter = router({
     ]);
 
     const sensitiveNoteCount = notes.filter((note) => note.sensitive).length;
+    const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
     if (sensitiveNoteCount > 0) {
       await ctx.db.auditLog.create({
         data: {
@@ -1150,6 +1204,7 @@ export const childLogRouter = router({
         ),
         recordedByRole: record.recordedBy.role,
         completedAt: record.completedAt,
+        startedAt: paceStartedAtByKey.get(paceProgressKey(record)) ?? null,
         createdAt: record.createdAt,
       })),
       behaviour: behaviour.map((entry) => ({

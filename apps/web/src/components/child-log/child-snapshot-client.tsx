@@ -6,6 +6,11 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { categoriesFor } from '@/components/behaviour/behaviour-categories';
+import {
+  type EditablePaceRecord,
+  PaceRecordEditModal,
+} from '@/components/pace/pace-record-edit-modal';
+import { asDate } from '@/components/pace/pace-workflow-utils';
 import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import {
@@ -41,6 +46,7 @@ import {
 type SnapshotResult = RouterOutputs['childLog']['snapshot'];
 type SnapshotBehaviourEntry = SnapshotResult['behaviour'][number];
 type SnapshotNoteEntry = SnapshotResult['notes'][number];
+type SnapshotPaceEntry = SnapshotResult['passedTests'][number];
 type SnapshotViewMode = 'centre' | 'student';
 type SnapshotStudentIdentity = { student: { fullName: string } };
 
@@ -91,6 +97,7 @@ export function ChildSnapshotClient({
   const [deletingBehaviour, setDeletingBehaviour] = useState<SnapshotBehaviourEntry | null>(null);
   const [editingNote, setEditingNote] = useState<EditingNoteForm | null>(null);
   const [deletingNote, setDeletingNote] = useState<SnapshotNoteEntry | null>(null);
+  const [editingPace, setEditingPace] = useState<SnapshotPaceEntry | null>(null);
 
   const studentsQuery = api.childLog.listSnapshotStudents.useQuery(undefined, { retry: false });
   const snapshotQuery = api.childLog.snapshot.useQuery(
@@ -142,6 +149,13 @@ export function ChildSnapshotClient({
   const deleteNote = api.childNotes.delete.useMutation({
     onSuccess: async () => {
       setDeletingNote(null);
+      await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
+    },
+  });
+  const updatePace = api.pace.updateRecord.useMutation({
+    onSuccess: async () => {
+      setEditingPace(null);
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
     },
@@ -198,6 +212,20 @@ export function ChildSnapshotClient({
       id: editingNote.id,
       note: editingNote.note,
       sensitive: editingNote.sensitive,
+    });
+  }
+
+  async function savePaceEdit(input: {
+    completedAt: string;
+    recordId: string;
+    score: number;
+    startedAt: string;
+  }): Promise<void> {
+    await updatePace.mutateAsync({
+      recordId: input.recordId,
+      score: input.score,
+      completedAt: asDate(input.completedAt),
+      startedAt: asDate(input.startedAt),
     });
   }
 
@@ -462,7 +490,7 @@ export function ChildSnapshotClient({
 
           {pace.length > 0 ? (
             <section className="panel panel__body snapshot-pace-compact">
-              <h3>PACE Tests this period</h3>
+              <h3>PACE and self tests this period</h3>
               {pace.map((item) => (
                 <div key={item.id}>
                   <span className={`snapshot-score-pill is-${scoreTone(item.score)}`}>
@@ -478,7 +506,24 @@ export function ChildSnapshotClient({
                       Supervisor: {item.recordedByName}
                     </p>
                   </div>
-                  <span>{item.testType}</span>
+                  <span className="snapshot-pace-actions">
+                    <span>{item.testType}</span>
+                    {canManageCorrections ? (
+                      <Button
+                        aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
+                        className="pace-score-edit-button"
+                        onClick={() => {
+                          setEditingPace(item);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Edit3 aria-hidden="true" size={14} />
+                        <span className="sr-only">Edit PACE score</span>
+                      </Button>
+                    ) : null}
+                  </span>
                 </div>
               ))}
             </section>
@@ -595,6 +640,21 @@ export function ChildSnapshotClient({
                   Date: <strong>{formatShortDate(item.completedAt ?? item.createdAt)}</strong> ·
                   Supervisor: <strong>{item.recordedByName}</strong>
                 </span>
+                {canManageCorrections ? (
+                  <div className="lifecycle-actions">
+                    <Button
+                      onClick={() => {
+                        setEditingPace(item);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Edit3 aria-hidden="true" size={14} />
+                      Edit
+                    </Button>
+                  </div>
+                ) : null}
               </div>
               <div className="snapshot-score-bar">
                 <div>
@@ -918,8 +978,33 @@ export function ChildSnapshotClient({
       >
         <p>This removes the note from snapshot views while keeping an audit trail.</p>
       </ConfirmationDialog>
+      {editingPace ? (
+        <PaceRecordEditModal
+          errorMessage={updatePace.error?.message}
+          onClose={() => {
+            if (!updatePace.isPending) setEditingPace(null);
+          }}
+          onSave={savePaceEdit}
+          pending={updatePace.isPending}
+          record={snapshotPaceToEditable(editingPace)}
+        />
+      ) : null}
     </div>
   );
+}
+
+function snapshotPaceToEditable(entry: SnapshotPaceEntry): EditablePaceRecord {
+  return {
+    id: entry.id,
+    completedAt: entry.completedAt,
+    createdAt: entry.createdAt,
+    paceNumber: entry.paceNumber,
+    score: entry.score,
+    startedAt: entry.startedAt,
+    studentName: hasSnapshotStudent(entry) ? entry.student.fullName : undefined,
+    subjectName: entry.subjectName,
+    testType: entry.testType,
+  };
 }
 
 function CorrectionModal({

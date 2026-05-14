@@ -11,6 +11,7 @@ import { PaceProgressTable } from './pace-progress-table';
 import { PaceScoreModal } from './pace-score-modal';
 import {
   asDate,
+  dateInputValue,
   todayKey,
   type PaceRosterStudent,
   type PaceSubject,
@@ -18,6 +19,10 @@ import {
 } from './pace-workflow-utils';
 
 const EMPTY_ROSTER_STUDENTS: readonly PaceRosterStudent[] = [];
+type PaceEditableRecord = NonNullable<PaceSubject['currentScoreRecord']>;
+type PaceModalState =
+  | { initialTestType?: PaceTestType | undefined; mode: 'create'; subject: PaceSubject }
+  | { mode: 'update'; record: PaceEditableRecord; subject: PaceSubject };
 
 interface PaceWorkflowClientProps {
   canManageProgress: boolean;
@@ -37,10 +42,30 @@ function paceRecordStatus(result: {
     : `PACE score saved.${meritMessage}`;
 }
 
+function paceUpdateStatus(result: {
+  advanced: boolean;
+  awardedMerits: number;
+  newPaceNumber: number | undefined;
+}): string {
+  const meritMessage =
+    result.awardedMerits > 0
+      ? ` ${String(result.awardedMerits)} merit${result.awardedMerits === 1 ? '' : 's'} now linked.`
+      : '';
+  return result.advanced && result.newPaceNumber
+    ? `PACE score updated. Current PACE is ${String(result.newPaceNumber)}.${meritMessage}`
+    : `PACE score updated.${meritMessage}`;
+}
+
+function nextRecordTestType(subject: PaceSubject): PaceTestType {
+  if (!subject.latestSelfTest) return 'SelfTest';
+  if (!subject.latestFinalTest) return 'FinalTest';
+  return 'SelfTest';
+}
+
 export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState<PaceSubject | null>(null);
+  const [scoreModal, setScoreModal] = useState<PaceModalState | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const utils = api.useUtils();
@@ -60,10 +85,23 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   const recordPace = api.pace.record.useMutation({
     async onSuccess(result) {
       setStatus(paceRecordStatus(result));
-      setSelectedSubject(null);
+      setScoreModal(null);
       await Promise.all([
         utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
         utils.pace.roster.invalidate({ date }),
+      ]);
+    },
+  });
+  const updatePace = api.pace.updateRecord.useMutation({
+    async onSuccess(result) {
+      setStatus(paceUpdateStatus(result));
+      setScoreModal(null);
+      const completedDate = asDate(dateInputValue(result.completedAt));
+      await Promise.all([
+        utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
+        utils.pace.forStudent.invalidate({ studentId: result.studentId, date: completedDate }),
+        utils.pace.roster.invalidate({ date }),
+        utils.pace.roster.invalidate({ date: completedDate }),
       ]);
     },
   });
@@ -80,19 +118,30 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
 
   function handleStudentChange(studentId: string): void {
     setSelectedStudentId(studentId);
-    setSelectedSubject(null);
+    setScoreModal(null);
     setStatus(null);
   }
 
   async function saveScore(input: {
     completedAt: string;
     paceNumber: number;
+    recordId?: string | undefined;
     score: number;
+    startedAt?: string | undefined;
     subjectId: string;
     testType: PaceTestType;
   }): Promise<void> {
     if (!selectedStudentId) return;
     setStatus(null);
+    if (input.recordId) {
+      await updatePace.mutateAsync({
+        recordId: input.recordId,
+        score: input.score,
+        completedAt: asDate(input.completedAt),
+        startedAt: asDate(input.startedAt ?? input.completedAt),
+      });
+      return;
+    }
     await recordPace.mutateAsync({
       studentId: selectedStudentId,
       subjectId: input.subjectId,
@@ -129,7 +178,8 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
             <Button
               disabled={!selectedStudent || subjects.length === 0}
               onClick={() => {
-                setSelectedSubject(subjects.find((subject) => subject.active) ?? subjects[0] ?? null);
+                const subject = subjects.find((item) => item.active) ?? subjects[0] ?? null;
+                setScoreModal(subject ? { mode: 'create', subject } : null);
               }}
               type="button"
             >
@@ -216,7 +266,16 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
             canManageProgress={canManageProgress}
             errorMessage={paceQuery.error?.message}
             loading={paceQuery.isLoading}
-            onUpdateScore={setSelectedSubject}
+            onRecordScore={(subject) => {
+              setScoreModal({
+                initialTestType: nextRecordTestType(subject),
+                mode: 'create',
+                subject,
+              });
+            }}
+            onUpdateScore={(subject, record) => {
+              setScoreModal({ mode: 'update', record, subject });
+            }}
             subjects={subjects}
           />
         </>
@@ -224,19 +283,22 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
 
       {status ? <p className="status--success">{status}</p> : null}
 
-      {canManageProgress && selectedSubject && selectedStudent ? (
+      {canManageProgress && scoreModal && selectedStudent ? (
         <PaceScoreModal
           canEditDate={canEditDate}
           completedDate={roster?.date ?? selectedDate}
-          errorMessage={recordPace.error?.message}
+          errorMessage={recordPace.error?.message ?? updatePace.error?.message}
+          initialRecord={scoreModal.mode === 'update' ? scoreModal.record : undefined}
+          initialTestType={scoreModal.mode === 'create' ? scoreModal.initialTestType : undefined}
+          mode={scoreModal.mode}
           onClose={() => {
-            setSelectedSubject(null);
+            setScoreModal(null);
           }}
           onSave={saveScore}
-          pending={recordPace.isPending}
+          pending={recordPace.isPending || updatePace.isPending}
           studentName={selectedStudent.studentName}
           studentYearLabel={selectedStudent.yearGroupLabel}
-          subject={selectedSubject}
+          subject={scoreModal.subject}
           subjects={subjects}
         />
       ) : null}

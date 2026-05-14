@@ -2727,6 +2727,22 @@
   font-size: 0.92rem;
 }
 
+.pace-score-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+}
+
+.pace-score-edit-button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0;
+  justify-content: center;
+  color: var(--oasis-blue);
+}
+
 .pace-score--success {
   color: var(--oasis-success);
 }
@@ -5096,6 +5112,20 @@
 .snapshot-pace-compact strong span,
 .snapshot-pace-row__main p {
   color: var(--oasis-blue);
+}
+
+.snapshot-pace-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.snapshot-pace-actions > span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .snapshot-pace-compact p,
