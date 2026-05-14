@@ -7,12 +7,13 @@ import {
   isStaff,
   type SessionUser,
 } from '@oasis/domain';
+import type { Prisma } from '@oasis/db';
 import type { AppContext } from '../context.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
-const calendarAudienceSchema = z.enum(['All', 'Parents', 'Supervisors', 'Heads']);
+const calendarAudienceSchema = z.enum(['All', 'Parents', 'Supervisors', 'Heads', 'Custom']);
 type CalendarAudience = z.infer<typeof calendarAudienceSchema>;
 const calendarCategorySchema = z.enum([
   'HalfTerm',
@@ -24,6 +25,15 @@ const calendarCategorySchema = z.enum([
 ]);
 type CalendarCategory = z.infer<typeof calendarCategorySchema>;
 const manualCalendarCategorySchema = calendarCategorySchema.exclude(['Birthdays']);
+const hiddenFromCalendarManagers: CalendarAudience[] = ['Heads', 'Custom'];
+const requiredPersonRoles = [
+  'Head',
+  'Principal',
+  'Pastor',
+  'HeadOfDiscipline',
+  'ClubsAdmin',
+  'Supervisor',
+] as const satisfies readonly SessionUser['role'][];
 
 interface CalendarEventRow {
   id: string;
@@ -39,6 +49,21 @@ interface CalendarEventRow {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+  requiredPeople?: CalendarRequiredPersonRow[];
+}
+
+interface CalendarRequiredPersonRow {
+  user: {
+    id: string;
+    role: SessionUser['role'];
+    fullNameEnc: string;
+  };
+}
+
+interface RequiredPersonCandidateRow {
+  id: string;
+  role: SessionUser['role'];
+  fullNameEnc: string;
 }
 
 const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date');
@@ -53,11 +78,26 @@ const calendarEventInput = z.object({
   endDate: dateKeySchema.optional(),
   startTime: timeKeySchema.optional(),
   endTime: timeKeySchema.optional(),
+  requiredPersonIds: z.array(z.string().min(1)).max(100).optional(),
 });
 
 const updateCalendarEventInput = calendarEventInput.extend({
   id: z.string().min(1),
 });
+
+const requiredPeopleInclude = {
+  requiredPeople: {
+    include: {
+      user: {
+        select: {
+          id: true,
+          role: true,
+          fullNameEnc: true,
+        },
+      },
+    },
+  },
+} as const;
 
 function toForbidden(error: AccessDeniedError): TRPCError {
   return new TRPCError({ code: 'FORBIDDEN', message: error.message, cause: error });
@@ -75,6 +115,15 @@ function requireHeadAudienceManager(user: SessionUser, audience: CalendarAudienc
   throw toForbidden(
     new AccessDeniedError(
       'head-only calendar dates require Head, Principal, Pastor, or Head of Discipline',
+    ),
+  );
+}
+
+function requireCustomAudienceManager(user: SessionUser, audience: CalendarAudience): void {
+  if (audience !== 'Custom' || isFullAdmin(user)) return;
+  throw toForbidden(
+    new AccessDeniedError(
+      'custom calendar dates require Head, Principal, Pastor, or Head of Discipline',
     ),
   );
 }
@@ -177,7 +226,45 @@ function decryptOptional(
   return decrypt(value);
 }
 
-function mapCalendarEvent(ctx: AuthedContext, event: CalendarEventRow) {
+function mapRequiredPeople(ctx: AuthedContext, event: CalendarEventRow) {
+  return (event.requiredPeople ?? [])
+    .map((person) => ({
+      id: person.user.id,
+      fullName: decryptRequired(ctx.db.$enc.decrypt, person.user.fullNameEnc, 'user PII'),
+      role: person.user.role,
+    }))
+    .sort((left, right) => left.fullName.localeCompare(right.fullName));
+}
+
+function mapRequiredPersonCandidate(ctx: AuthedContext, user: RequiredPersonCandidateRow) {
+  return {
+    id: user.id,
+    fullName: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'user PII'),
+    role: user.role,
+  };
+}
+
+async function auditRequiredPeopleDecrypt(
+  ctx: AuthedContext,
+  source: string,
+  count: number,
+): Promise<void> {
+  if (count === 0) return;
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'DecryptPii',
+      entity: 'CalendarEventRequiredPerson',
+      meta: { count, source },
+    },
+  });
+}
+
+function mapCalendarEvent(
+  ctx: AuthedContext,
+  event: CalendarEventRow,
+  options: { includeRequiredPeople?: boolean } = {},
+) {
   return {
     id: event.id,
     title: event.title,
@@ -192,6 +279,7 @@ function mapCalendarEvent(ctx: AuthedContext, event: CalendarEventRow) {
     createdById: event.createdById,
     createdAt: event.createdAt,
     updatedAt: event.updatedAt,
+    requiredPeople: options.includeRequiredPeople ? mapRequiredPeople(ctx, event) : [],
     source: 'Manual' as const,
   };
 }
@@ -210,9 +298,111 @@ function visibleAudiencesFor(user: SessionUser): readonly CalendarAudience[] {
   return ['All'];
 }
 
-function adminEventWhere(user: SessionUser) {
+function adminEventWhere(user: SessionUser): Prisma.CalendarEventWhereInput | undefined {
   if (isFullAdmin(user)) return undefined;
-  return { audience: { not: 'Heads' as const } };
+  return {
+    OR: [
+      { audience: { notIn: hiddenFromCalendarManagers } },
+      { requiredPeople: { some: { userId: user.id } } },
+    ],
+  };
+}
+
+function activeVisibleEventWhere(user: SessionUser) {
+  const audienceWhere = activeAudienceWhere(visibleAudiencesFor(user));
+  if (!isStaff(user)) return audienceWhere;
+  return {
+    active: true,
+    OR: [
+      { audience: { in: [...visibleAudiencesFor(user)] } },
+      { requiredPeople: { some: { userId: user.id } } },
+    ],
+  };
+}
+
+function hasRequiredPersonInput(input: z.infer<typeof calendarEventInput>): boolean {
+  return Object.prototype.hasOwnProperty.call(input, 'requiredPersonIds');
+}
+
+function uniqueRequiredPersonIds(input: readonly string[] | undefined): string[] {
+  return [...new Set(input ?? [])];
+}
+
+async function resolveRequiredPersonIds(
+  ctx: AuthedContext,
+  input: z.infer<typeof calendarEventInput>,
+): Promise<string[] | undefined> {
+  if (!hasRequiredPersonInput(input)) return undefined;
+  if (!isFullAdmin(ctx.user)) {
+    throw toForbidden(
+      new AccessDeniedError(
+        'calendar required people can only be changed by Head, Principal, Pastor, or Head of Discipline',
+      ),
+    );
+  }
+
+  const requiredPersonIds = uniqueRequiredPersonIds(input.requiredPersonIds);
+  if (requiredPersonIds.length === 0) return [];
+
+  const users = await ctx.db.user.findMany({
+    where: {
+      id: { in: requiredPersonIds },
+      active: true,
+      role: { in: [...requiredPersonRoles] },
+    },
+    select: { id: true },
+  });
+  const validUserIds = new Set(users.map((user) => user.id));
+  const invalidUserId = requiredPersonIds.find((userId) => !validUserIds.has(userId));
+  if (invalidUserId) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'calendar required people must be active staff accounts',
+    });
+  }
+
+  return requiredPersonIds;
+}
+
+async function replaceRequiredPeople(
+  db: Pick<AuthedContext['db'], 'calendarEventRequiredPerson'>,
+  taggedById: string,
+  eventId: string,
+  requiredPersonIds: readonly string[],
+): Promise<void> {
+  await db.calendarEventRequiredPerson.deleteMany({ where: { eventId } });
+  if (requiredPersonIds.length === 0) return;
+  await db.calendarEventRequiredPerson.createMany({
+    data: requiredPersonIds.map((userId) => ({
+      eventId,
+      userId,
+      taggedById,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+async function loadCalendarEvent(
+  db: Pick<AuthedContext['db'], 'calendarEvent'>,
+  id: string,
+): Promise<CalendarEventRow> {
+  const event = await db.calendarEvent.findUnique({
+    where: { id },
+    include: requiredPeopleInclude,
+  });
+  if (!event) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'calendar event not found' });
+  }
+  return event;
+}
+
+function assertCustomAudienceHasRequiredPeople(event: CalendarEventRow): void {
+  if (event.audience !== 'Custom') return;
+  if ((event.requiredPeople ?? []).length > 0) return;
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: 'custom calendar dates require at least one required person',
+  });
 }
 
 function eventDataFromInput(
@@ -232,6 +422,7 @@ function eventDataFromInput(
   const endDate = dateFromKey(input.endDate ?? input.startDate);
   validateDateRange(startDate, endDate);
   requireHeadAudienceManager(ctx.user, input.audience);
+  requireCustomAudienceManager(ctx.user, input.audience);
   const timeRange = validateTimeRange({
     startDate,
     endDate,
@@ -302,6 +493,7 @@ function mapBirthdayEvent(input: {
     createdById: 'system',
     createdAt: date,
     updatedAt: date,
+    requiredPeople: [],
     source: 'Birthday' as const,
     personType: input.personType,
   };
@@ -381,11 +573,17 @@ export const calendarRouter = router({
 
     const events = await ctx.db.calendarEvent.findMany({
       ...(where ? { where } : {}),
+      include: requiredPeopleInclude,
       orderBy: [{ active: 'desc' }, { startDate: 'asc' }, { createdAt: 'desc' }],
     });
+    const requiredPeopleCount = events.reduce(
+      (count, event) => count + event.requiredPeople.length,
+      0,
+    );
+    await auditRequiredPeopleDecrypt(ctx, 'calendar.listForAdmin', requiredPeopleCount);
 
     return sortCalendarEvents([
-      ...events.map((event) => mapCalendarEvent(ctx, event)),
+      ...events.map((event) => mapCalendarEvent(ctx, event, { includeRequiredPeople: true })),
       ...(await listBirthdayEvents(ctx)),
     ]);
   }),
@@ -394,12 +592,18 @@ export const calendarRouter = router({
     requireStaffCalendarReader(ctx.user);
 
     const events = await ctx.db.calendarEvent.findMany({
-      where: activeAudienceWhere(visibleAudiencesFor(ctx.user)),
+      where: activeVisibleEventWhere(ctx.user),
+      include: requiredPeopleInclude,
       orderBy: [{ startDate: 'asc' }, { createdAt: 'desc' }],
     });
+    const requiredPeopleCount = events.reduce(
+      (count, event) => count + event.requiredPeople.length,
+      0,
+    );
+    await auditRequiredPeopleDecrypt(ctx, 'calendar.listForStaff', requiredPeopleCount);
 
     return sortCalendarEvents([
-      ...events.map((event) => mapCalendarEvent(ctx, event)),
+      ...events.map((event) => mapCalendarEvent(ctx, event, { includeRequiredPeople: true })),
       ...(await listBirthdayEvents(ctx)),
     ]);
   }),
@@ -416,26 +620,76 @@ export const calendarRouter = router({
   }),
 
   listVisible: authedProcedure.query(async ({ ctx }) => {
+    if (isStaff(ctx.user)) {
+      const events = await ctx.db.calendarEvent.findMany({
+        where: activeVisibleEventWhere(ctx.user),
+        include: requiredPeopleInclude,
+        orderBy: [{ startDate: 'asc' }, { createdAt: 'desc' }],
+      });
+      const requiredPeopleCount = events.reduce(
+        (count, event) => count + event.requiredPeople.length,
+        0,
+      );
+      await auditRequiredPeopleDecrypt(ctx, 'calendar.listVisible', requiredPeopleCount);
+
+      return sortCalendarEvents([
+        ...events.map((event) => mapCalendarEvent(ctx, event, { includeRequiredPeople: true })),
+        ...(await listBirthdayEvents(ctx)),
+      ]);
+    }
+
     const events = await ctx.db.calendarEvent.findMany({
-      where: activeAudienceWhere(visibleAudiencesFor(ctx.user)),
+      where: activeVisibleEventWhere(ctx.user),
       orderBy: [{ startDate: 'asc' }, { createdAt: 'desc' }],
     });
 
-    return sortCalendarEvents([
-      ...events.map((event) => mapCalendarEvent(ctx, event)),
-      ...(await listBirthdayEvents(ctx)),
-    ]);
+    return sortCalendarEvents(events.map((event) => mapCalendarEvent(ctx, event)));
+  }),
+
+  listRequiredPersonCandidates: authedProcedure.query(async ({ ctx }) => {
+    if (!isFullAdmin(ctx.user)) {
+      throw toForbidden(
+        new AccessDeniedError('calendar required people candidates require full-admin access'),
+      );
+    }
+
+    const users = await ctx.db.user.findMany({
+      where: { active: true, role: { in: [...requiredPersonRoles] } },
+      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      select: { id: true, role: true, fullNameEnc: true },
+    });
+    const rows = users.map((user) => mapRequiredPersonCandidate(ctx, user));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { count: rows.length, source: 'calendar.listRequiredPersonCandidates' },
+      },
+    });
+
+    return rows;
   }),
 
   create: authedProcedure.input(calendarEventInput).mutation(async ({ ctx, input }) => {
     requireCalendarManager(ctx.user);
+    const requiredPersonIds = await resolveRequiredPersonIds(ctx, input);
 
-    const event = await ctx.db.calendarEvent.create({
-      data: {
-        ...eventDataFromInput(ctx, input),
-        active: true,
-        createdById: ctx.user.id,
-      },
+    const eventWithRequiredPeople = await ctx.db.$transaction(async (tx) => {
+      const event = await tx.calendarEvent.create({
+        data: {
+          ...eventDataFromInput(ctx, input),
+          active: true,
+          createdById: ctx.user.id,
+        },
+      });
+      if (requiredPersonIds !== undefined) {
+        await replaceRequiredPeople(tx, ctx.user.id, event.id, requiredPersonIds);
+      }
+      const loadedEvent = await loadCalendarEvent(tx, event.id);
+      assertCustomAudienceHasRequiredPeople(loadedEvent);
+      return loadedEvent;
     });
 
     await ctx.db.auditLog.create({
@@ -443,29 +697,43 @@ export const calendarRouter = router({
         userId: ctx.user.id,
         action: 'Create',
         entity: 'CalendarEvent',
-        entityId: event.id,
+        entityId: eventWithRequiredPeople.id,
         meta: {
           source: 'calendar.create',
-          audience: event.audience,
-          category: event.category,
-          startDate: dateKey(event.startDate),
-          endDate: dateKey(event.endDate),
-          startTime: timeFromMinutes(event.startTimeMinutes),
-          endTime: timeFromMinutes(event.endTimeMinutes),
+          audience: eventWithRequiredPeople.audience,
+          category: eventWithRequiredPeople.category,
+          startDate: dateKey(eventWithRequiredPeople.startDate),
+          endDate: dateKey(eventWithRequiredPeople.endDate),
+          startTime: timeFromMinutes(eventWithRequiredPeople.startTimeMinutes),
+          endTime: timeFromMinutes(eventWithRequiredPeople.endTimeMinutes),
         },
       },
     });
+    await auditRequiredPeopleDecrypt(
+      ctx,
+      'calendar.create',
+      eventWithRequiredPeople.requiredPeople?.length ?? 0,
+    );
 
-    return mapCalendarEvent(ctx, event);
+    return mapCalendarEvent(ctx, eventWithRequiredPeople, { includeRequiredPeople: true });
   }),
 
   update: authedProcedure.input(updateCalendarEventInput).mutation(async ({ ctx, input }) => {
     requireCalendarManager(ctx.user);
     await assertCalendarEventCanBeManaged(ctx, input.id);
+    const requiredPersonIds = await resolveRequiredPersonIds(ctx, input);
 
-    const event = await ctx.db.calendarEvent.update({
-      where: { id: input.id },
-      data: eventDataFromInput(ctx, input),
+    const eventWithRequiredPeople = await ctx.db.$transaction(async (tx) => {
+      const event = await tx.calendarEvent.update({
+        where: { id: input.id },
+        data: eventDataFromInput(ctx, input),
+      });
+      if (requiredPersonIds !== undefined) {
+        await replaceRequiredPeople(tx, ctx.user.id, event.id, requiredPersonIds);
+      }
+      const loadedEvent = await loadCalendarEvent(tx, event.id);
+      assertCustomAudienceHasRequiredPeople(loadedEvent);
+      return loadedEvent;
     });
 
     await ctx.db.auditLog.create({
@@ -473,20 +741,25 @@ export const calendarRouter = router({
         userId: ctx.user.id,
         action: 'Update',
         entity: 'CalendarEvent',
-        entityId: event.id,
+        entityId: eventWithRequiredPeople.id,
         meta: {
           source: 'calendar.update',
-          audience: event.audience,
-          category: event.category,
-          startDate: dateKey(event.startDate),
-          endDate: dateKey(event.endDate),
-          startTime: timeFromMinutes(event.startTimeMinutes),
-          endTime: timeFromMinutes(event.endTimeMinutes),
+          audience: eventWithRequiredPeople.audience,
+          category: eventWithRequiredPeople.category,
+          startDate: dateKey(eventWithRequiredPeople.startDate),
+          endDate: dateKey(eventWithRequiredPeople.endDate),
+          startTime: timeFromMinutes(eventWithRequiredPeople.startTimeMinutes),
+          endTime: timeFromMinutes(eventWithRequiredPeople.endTimeMinutes),
         },
       },
     });
+    await auditRequiredPeopleDecrypt(
+      ctx,
+      'calendar.update',
+      eventWithRequiredPeople.requiredPeople?.length ?? 0,
+    );
 
-    return mapCalendarEvent(ctx, event);
+    return mapCalendarEvent(ctx, eventWithRequiredPeople, { includeRequiredPeople: true });
   }),
 
   archive: authedProcedure

@@ -37,7 +37,7 @@ const technicalSupportUser: SessionUser = {
   requires2fa: false,
 };
 
-type CalendarAudience = 'All' | 'Parents' | 'Supervisors' | 'Heads';
+type CalendarAudience = 'All' | 'Parents' | 'Supervisors' | 'Heads' | 'Custom';
 type CalendarCategory = 'HalfTerm' | 'Trips' | 'OasisDays' | 'Birthdays' | 'Meetings' | 'Trainings';
 
 interface StoredCalendarEvent {
@@ -68,6 +68,22 @@ interface StoredBirthdaySupervisor {
   dobEnc: string | null;
 }
 
+interface StoredUser {
+  id: string;
+  role: SessionUser['role'];
+  active: boolean;
+  fullNameEnc: string;
+  emailEnc: string;
+  createdAt: Date;
+}
+
+interface StoredRequiredPerson {
+  eventId: string;
+  userId: string;
+  taggedById: string;
+  createdAt: Date;
+}
+
 interface FakeCalendarCreateArgs {
   data: Omit<StoredCalendarEvent, 'id' | 'createdAt' | 'updatedAt'>;
 }
@@ -75,12 +91,27 @@ interface FakeCalendarCreateArgs {
 interface FakeCalendarFindManyArgs {
   where?: {
     active?: boolean;
-    audience?: { in?: CalendarAudience[]; not?: CalendarAudience };
+    audience?: {
+      in?: CalendarAudience[];
+      not?: CalendarAudience;
+      notIn?: readonly CalendarAudience[];
+    };
+    OR?: Array<{
+      audience?: {
+        in?: CalendarAudience[];
+        not?: CalendarAudience;
+        notIn?: readonly CalendarAudience[];
+      };
+      requiredPeople?: { some: { userId: string } };
+    }>;
+    requiredPeople?: { some: { userId: string } };
   };
+  include?: unknown;
 }
 
 interface FakeCalendarFindUniqueArgs {
   where: { id: string };
+  include?: unknown;
 }
 
 interface FakeCalendarUpdateArgs {
@@ -91,9 +122,9 @@ interface FakeCalendarUpdateArgs {
 interface FakeAuditCreateArgs {
   data: {
     userId: string;
-    action: 'Create' | 'Update';
-    entity: 'CalendarEvent';
-    entityId: string;
+    action: 'Create' | 'Update' | 'DecryptPii';
+    entity: string;
+    entityId?: string;
     meta: Record<string, unknown>;
   };
 }
@@ -130,19 +161,85 @@ function makeEvent(
   } satisfies StoredCalendarEvent;
 }
 
+function makeUser(input: Partial<StoredUser> & Pick<StoredUser, 'id' | 'role'>): StoredUser {
+  return {
+    active: true,
+    fullNameEnc: `enc:${input.id}`,
+    emailEnc: `enc:${input.id}@oasis.test`,
+    createdAt: new Date('2026-05-08T09:00:00.000Z'),
+    ...input,
+  };
+}
+
 function makeFakeDb(
   initialEvents: StoredCalendarEvent[] = [],
   birthdayRows: {
     students?: StoredBirthdayStudent[];
     supervisors?: StoredBirthdaySupervisor[];
   } = {},
+  initialUsers: StoredUser[] = [],
+  initialRequiredPeople: StoredRequiredPerson[] = [],
 ) {
   const events = [...initialEvents];
   const students = [...(birthdayRows.students ?? [])];
   const supervisors = [...(birthdayRows.supervisors ?? [])];
+  const users = [...initialUsers];
+  const requiredPeople = [...initialRequiredPeople];
   const auditCreate = vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args));
 
-  return {
+  function eventMatchesWhere(event: StoredCalendarEvent, where: FakeCalendarFindManyArgs['where']) {
+    if (!where) return true;
+    if (where.active !== undefined && event.active !== where.active) return false;
+    if (where.audience?.in && !where.audience.in.includes(event.audience)) return false;
+    if (where.audience?.not && event.audience === where.audience.not) return false;
+    if (where.audience?.notIn?.includes(event.audience)) return false;
+    if (
+      where.requiredPeople?.some &&
+      !requiredPeople.some(
+        (person) =>
+          person.eventId === event.id && person.userId === where.requiredPeople?.some.userId,
+      )
+    ) {
+      return false;
+    }
+    if (where.OR && !where.OR.some((candidate) => eventMatchesWhere(event, candidate))) {
+      return false;
+    }
+    return true;
+  }
+
+  function withRequiredPeople(event: StoredCalendarEvent) {
+    return {
+      ...event,
+      requiredPeople: requiredPeople
+        .filter((person) => person.eventId === event.id)
+        .map((person) => {
+          const user = users.find((candidate) => candidate.id === person.userId);
+          if (!user) throw new Error('required person user not found');
+          return {
+            user: {
+              id: user.id,
+              role: user.role,
+              fullNameEnc: user.fullNameEnc,
+            },
+          };
+        }),
+    };
+  }
+
+  function userMatchesWhere(user: StoredUser, where: Record<string, unknown> | undefined) {
+    if (!where) return true;
+    if (where.active !== undefined && user.active !== where.active) return false;
+    const role = where.role as { in?: SessionUser['role'][] } | SessionUser['role'] | undefined;
+    if (typeof role === 'string' && user.role !== role) return false;
+    if (role && typeof role !== 'string' && role.in && !role.in.includes(user.role)) return false;
+    const id = where.id as { in?: string[] } | undefined;
+    if (id?.in && !id.in.includes(user.id)) return false;
+    return true;
+  }
+
+  const db = {
+    $transaction: vi.fn(),
     $enc: { encrypt, decrypt },
     auditLog: { create: auditCreate },
     calendarEvent: {
@@ -159,23 +256,21 @@ function makeFakeDb(
       findMany: vi.fn((args: FakeCalendarFindManyArgs = {}) =>
         Promise.resolve(
           events
-            .filter(
-              (event) =>
-                (args.where?.active === undefined || event.active === args.where.active) &&
-                (!args.where?.audience?.in || args.where.audience.in.includes(event.audience)) &&
-                (!args.where?.audience?.not || event.audience !== args.where.audience.not),
-            )
+            .filter((event) => eventMatchesWhere(event, args.where))
             .sort(
               (a, b) =>
                 Number(b.active) - Number(a.active) ||
                 a.startDate.getTime() - b.startDate.getTime() ||
                 b.createdAt.getTime() - a.createdAt.getTime(),
-            ),
+            )
+            .map((event) => (args.include ? withRequiredPeople(event) : event)),
         ),
       ),
-      findUnique: vi.fn((args: FakeCalendarFindUniqueArgs) =>
-        Promise.resolve(events.find((event) => event.id === args.where.id) ?? null),
-      ),
+      findUnique: vi.fn((args: FakeCalendarFindUniqueArgs) => {
+        const event = events.find((candidate) => candidate.id === args.where.id);
+        if (!event) return Promise.resolve(null);
+        return Promise.resolve(args.include ? withRequiredPeople(event) : event);
+      }),
       update: vi.fn((args: FakeCalendarUpdateArgs) => {
         const index = events.findIndex((event) => event.id === args.where.id);
         if (index === -1) throw new Error('not found');
@@ -190,14 +285,48 @@ function makeFakeDb(
         return Promise.resolve(updated);
       }),
     },
+    calendarEventRequiredPerson: {
+      deleteMany: vi.fn((args: { where: { eventId: string } }) => {
+        for (let index = requiredPeople.length - 1; index >= 0; index -= 1) {
+          if (requiredPeople[index]?.eventId === args.where.eventId) {
+            requiredPeople.splice(index, 1);
+          }
+        }
+        return Promise.resolve({ count: 0 });
+      }),
+      createMany: vi.fn(
+        (args: {
+          data: Array<{ eventId: string; taggedById: string; userId: string }>;
+          skipDuplicates: boolean;
+        }) => {
+          args.data.forEach((row) => {
+            if (
+              requiredPeople.some(
+                (person) => person.eventId === row.eventId && person.userId === row.userId,
+              )
+            ) {
+              return;
+            }
+            requiredPeople.push({ ...row, createdAt: new Date('2026-05-08T12:30:00.000Z') });
+          });
+          return Promise.resolve({ count: args.data.length });
+        },
+      ),
+    },
     student: {
       findMany: vi.fn(() => Promise.resolve(students)),
     },
     user: {
-      findMany: vi.fn(() => Promise.resolve(supervisors)),
+      findMany: vi.fn((args: { where?: Record<string, unknown>; select?: unknown } = {}) => {
+        if (args.where?.dobEnc) return Promise.resolve(supervisors);
+        return Promise.resolve(users.filter((user) => userMatchesWhere(user, args.where)));
+      }),
     },
     events,
+    requiredPeople,
   };
+  db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
+  return db;
 }
 
 function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): AppContext {
@@ -380,6 +509,133 @@ describe('calendar.create', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
+
+  it('allows full admins to assign active staff as required people', async () => {
+    const staff = makeUser({
+      id: 'staff_required',
+      role: 'Supervisor',
+      fullNameEnc: 'enc:Required Supervisor',
+    });
+    const { caller, db } = makeCaller(headUser, makeFakeDb([], {}, [staff]));
+
+    await expect(
+      caller.calendar.create({
+        title: 'Trip planning',
+        audience: 'Parents',
+        category: 'Trips',
+        startDate: '2026-05-25',
+        requiredPersonIds: [staff.id],
+      }),
+    ).resolves.toMatchObject({
+      title: 'Trip planning',
+      requiredPeople: [{ id: staff.id, fullName: 'Required Supervisor', role: 'Supervisor' }],
+    });
+    expect(db.requiredPeople).toEqual([
+      expect.objectContaining({
+        eventId: 'cmevent00000000000000001',
+        userId: staff.id,
+        taggedById: headUser.id,
+      }),
+    ]);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'CalendarEventRequiredPerson',
+        meta: { count: 1, source: 'calendar.create' },
+      },
+    });
+  });
+
+  it('allows full admins to create custom events visible only to required people', async () => {
+    const staff = makeUser({
+      id: supervisorUser.id,
+      role: 'Supervisor',
+      fullNameEnc: 'enc:Required Supervisor',
+    });
+    const db = makeFakeDb([], {}, [staff]);
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(
+      caller.calendar.create({
+        title: 'Private planning',
+        audience: 'Custom',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+        requiredPersonIds: [staff.id],
+      }),
+    ).resolves.toMatchObject({
+      title: 'Private planning',
+      audience: 'Custom',
+      requiredPeople: [
+        { id: supervisorUser.id, fullName: 'Required Supervisor', role: 'Supervisor' },
+      ],
+    });
+
+    await expect(makeCaller(supervisorUser, db).caller.calendar.listForStaff()).resolves.toEqual([
+      expect.objectContaining({ audience: 'Custom', id: 'cmevent00000000000000001' }),
+    ]);
+    await expect(makeCaller(parentUser, db).caller.calendar.listForParents()).resolves.toEqual([]);
+  });
+
+  it('rejects custom events without required people and from tagged calendar managers', async () => {
+    const staff = makeUser({ id: supervisorUser.id, role: 'Supervisor' });
+
+    await expect(
+      makeCaller(headUser).caller.calendar.create({
+        title: 'Private planning',
+        audience: 'Custom',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      makeCaller(calendarManagerUser, makeFakeDb([], {}, [staff])).caller.calendar.create({
+        title: 'Private planning',
+        audience: 'Custom',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+        requiredPersonIds: [staff.id],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('rejects required people from tagged calendar managers and invalid users', async () => {
+    const staff = makeUser({ id: 'staff_required', role: 'Supervisor' });
+    const inactiveStaff = makeUser({ id: 'staff_inactive', role: 'Supervisor', active: false });
+    const parent = makeUser({ id: 'parent_required', role: 'Parent' });
+
+    await expect(
+      makeCaller(calendarManagerUser, makeFakeDb([], {}, [staff])).caller.calendar.create({
+        title: 'Planning',
+        audience: 'Supervisors',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+        requiredPersonIds: [staff.id],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await expect(
+      makeCaller(headUser, makeFakeDb([], {}, [inactiveStaff])).caller.calendar.create({
+        title: 'Planning',
+        audience: 'Supervisors',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+        requiredPersonIds: [inactiveStaff.id],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      makeCaller(headUser, makeFakeDb([], {}, [parent])).caller.calendar.create({
+        title: 'Planning',
+        audience: 'Supervisors',
+        category: 'Meetings',
+        startDate: '2026-05-25',
+        requiredPersonIds: [parent.id],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
 });
 
 describe('calendar reader lists', () => {
@@ -388,6 +644,7 @@ describe('calendar reader lists', () => {
     makeEvent({ id: 'event_parent', title: 'Parents only', audience: 'Parents' }),
     makeEvent({ id: 'event_staff', title: 'Staff only', audience: 'Supervisors' }),
     makeEvent({ id: 'event_heads', title: 'Heads only', audience: 'Heads' }),
+    makeEvent({ id: 'event_custom', title: 'Custom only', audience: 'Custom' }),
     makeEvent({ id: 'event_archived', title: 'Archived', active: false, audience: 'All' }),
   ];
 
@@ -406,6 +663,9 @@ describe('calendar reader lists', () => {
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_heads' })]),
+    );
+    expect(result).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_custom' })]),
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_archived' })]),
@@ -427,6 +687,9 @@ describe('calendar reader lists', () => {
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_heads' })]),
+    );
+    expect(result).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_custom' })]),
     );
     expect(result).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'event_archived' })]),
@@ -515,6 +778,60 @@ describe('calendar reader lists', () => {
     );
     await expect(makeCaller(parentUser, db).caller.calendar.listVisible()).resolves.toEqual([]);
   });
+
+  it('shows tagged staff otherwise hidden events without exposing people to parents', async () => {
+    const staff = makeUser({
+      id: supervisorUser.id,
+      role: 'Supervisor',
+      fullNameEnc: 'enc:Required Supervisor',
+    });
+    const db = makeFakeDb(
+      [makeEvent({ id: 'event_parent_required_staff', title: 'Parent trip', audience: 'Parents' })],
+      {},
+      [staff],
+      [
+        {
+          eventId: 'event_parent_required_staff',
+          userId: supervisorUser.id,
+          taggedById: headUser.id,
+          createdAt: new Date('2026-05-08T12:00:00.000Z'),
+        },
+      ],
+    );
+
+    await expect(makeCaller(supervisorUser, db).caller.calendar.listForStaff()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'event_parent_required_staff',
+        requiredPeople: [
+          { id: supervisorUser.id, fullName: 'Required Supervisor', role: 'Supervisor' },
+        ],
+      }),
+    ]);
+
+    await expect(makeCaller(parentUser, db).caller.calendar.listForParents()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'event_parent_required_staff',
+        requiredPeople: [],
+      }),
+    ]);
+  });
+
+  it('lists required person candidates for full admins only', async () => {
+    const staff = makeUser({
+      id: 'staff_required',
+      role: 'Supervisor',
+      fullNameEnc: 'enc:Required Supervisor',
+    });
+    const parent = makeUser({ id: 'parent_1', role: 'Parent', fullNameEnc: 'enc:Parent' });
+    const db = makeFakeDb([], {}, [staff, parent]);
+
+    await expect(
+      makeCaller(headUser, db).caller.calendar.listRequiredPersonCandidates(),
+    ).resolves.toEqual([{ id: staff.id, fullName: 'Required Supervisor', role: 'Supervisor' }]);
+    await expect(
+      makeCaller(calendarManagerUser, db).caller.calendar.listRequiredPersonCandidates(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
 });
 
 describe('calendar.update and calendar.archive', () => {
@@ -558,6 +875,64 @@ describe('calendar.update and calendar.archive', () => {
         },
       },
     });
+  });
+
+  it('preserves required people when omitted and replaces them when full admin submits ids', async () => {
+    const firstStaff = makeUser({
+      id: 'staff_first',
+      role: 'Supervisor',
+      fullNameEnc: 'enc:First Staff',
+    });
+    const secondStaff = makeUser({
+      id: 'staff_second',
+      role: 'Principal',
+      fullNameEnc: 'enc:Second Staff',
+    });
+    const db = makeFakeDb(
+      [makeEvent({ id: 'event_update_people', title: 'Original' })],
+      {},
+      [firstStaff, secondStaff],
+      [
+        {
+          eventId: 'event_update_people',
+          userId: firstStaff.id,
+          taggedById: headUser.id,
+          createdAt: new Date('2026-05-08T12:00:00.000Z'),
+        },
+      ],
+    );
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(
+      caller.calendar.update({
+        id: 'event_update_people',
+        title: 'Updated title',
+        audience: 'All',
+        category: 'OasisDays',
+        startDate: '2026-05-25',
+      }),
+    ).resolves.toMatchObject({
+      requiredPeople: [{ id: firstStaff.id, fullName: 'First Staff', role: 'Supervisor' }],
+    });
+    expect(db.requiredPeople).toEqual([
+      expect.objectContaining({ eventId: 'event_update_people', userId: firstStaff.id }),
+    ]);
+
+    await expect(
+      caller.calendar.update({
+        id: 'event_update_people',
+        title: 'Updated title',
+        audience: 'All',
+        category: 'OasisDays',
+        startDate: '2026-05-25',
+        requiredPersonIds: [secondStaff.id],
+      }),
+    ).resolves.toMatchObject({
+      requiredPeople: [{ id: secondStaff.id, fullName: 'Second Staff', role: 'Principal' }],
+    });
+    expect(db.requiredPeople).toEqual([
+      expect.objectContaining({ eventId: 'event_update_people', userId: secondStaff.id }),
+    ]);
   });
 
   it('prevents tagged calendar managers from updating or archiving head-only events', async () => {

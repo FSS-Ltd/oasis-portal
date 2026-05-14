@@ -87,6 +87,8 @@ model User {
   noticesPosted            StaffNotice[]             @relation("NoticesPosted")
   noticeReads              StaffNoticeRead[]
   calendarEventsCreated    CalendarEvent[]           @relation("CalendarEventsCreated")
+  requiredCalendarEvents   CalendarEventRequiredPerson[] @relation("CalendarEventRequiredUser")
+  calendarEventTagsCreated CalendarEventRequiredPerson[] @relation("CalendarEventRequiredTaggedBy")
   messagesSent             Message[]                 @relation("MessagesSent")
   messageReads             MessageRead[]
   threadsAsParent          MessageThread[]           @relation("ThreadParent")
@@ -900,6 +902,7 @@ enum CalendarEventAudience {
   Parents
   Supervisors
   Heads
+  Custom
 }
 
 enum CalendarEventCategory {
@@ -954,10 +957,26 @@ model CalendarEvent {
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
 
-  createdBy User @relation("CalendarEventsCreated", fields: [createdById], references: [id])
+  createdBy      User                          @relation("CalendarEventsCreated", fields: [createdById], references: [id])
+  requiredPeople CalendarEventRequiredPerson[] @relation("CalendarEventRequiredPeople")
 
   @@index([active, audience, startDate, endDate])
   @@index([createdById, createdAt])
+}
+
+model CalendarEventRequiredPerson {
+  eventId    String
+  userId     String
+  taggedById String
+  createdAt  DateTime @default(now())
+
+  event    CalendarEvent @relation("CalendarEventRequiredPeople", fields: [eventId], references: [id], onDelete: Cascade)
+  user     User          @relation("CalendarEventRequiredUser", fields: [userId], references: [id])
+  taggedBy User          @relation("CalendarEventRequiredTaggedBy", fields: [taggedById], references: [id])
+
+  @@id([eventId, userId])
+  @@index([userId, eventId])
+  @@index([taggedById, createdAt])
 }
 
 model MessageThread {

@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { Plus, Save, X } from 'lucide-react';
+import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -26,11 +27,16 @@ import {
 } from './calendar-model';
 
 interface SharedCalendarProps {
+  canAssignRequiredPeople?: boolean;
   canManage: boolean;
   mode: CalendarMode;
 }
 
-export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
+export function SharedCalendar({
+  canAssignRequiredPeople = false,
+  canManage,
+  mode,
+}: SharedCalendarProps) {
   const utils = api.useUtils();
   const [form, setForm] = useState<CalendarFormState>(emptyCalendarForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -47,6 +53,10 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
   });
   const visibleEventsQuery = api.calendar.listVisible.useQuery(undefined, {
     enabled: !canManage,
+    retry: false,
+  });
+  const requiredPeopleQuery = api.calendar.listRequiredPersonCandidates.useQuery(undefined, {
+    enabled: canAssignRequiredPeople,
     retry: false,
   });
   const eventsQuery = canManage ? adminEventsQuery : visibleEventsQuery;
@@ -126,6 +136,14 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
       setFormError('End time must be after start time.');
       return;
     }
+    if (
+      canAssignRequiredPeople &&
+      form.audience === 'Custom' &&
+      form.requiredPersonIds.length === 0
+    ) {
+      setFormError('Choose at least one required person for a tagged-only date.');
+      return;
+    }
 
     setFormError(null);
     const payload = {
@@ -138,6 +156,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
         ? { startTime: form.startTime, endTime: form.endTime }
         : {}),
       ...(description ? { description } : {}),
+      ...(canAssignRequiredPeople ? { requiredPersonIds: form.requiredPersonIds } : {}),
     };
 
     try {
@@ -158,6 +177,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
       description: event.description ?? '',
       audience: event.audience,
       category: event.category === 'Birthdays' ? 'OasisDays' : event.category,
+      requiredPersonIds: event.requiredPeople.map((person) => person.id),
       selectionMode: event.startDate === event.endDate ? 'single' : 'range',
       startDate: event.startDate,
       endDate: event.endDate === event.startDate ? '' : event.endDate,
@@ -165,6 +185,20 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
       endTime: event.endTime ?? '',
     });
     setEditingId(event.id);
+    setFormError(null);
+    setFormStatus(null);
+  }
+
+  function toggleRequiredPerson(userId: string): void {
+    setForm((current) => {
+      const next = new Set(current.requiredPersonIds);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return { ...current, requiredPersonIds: [...next] };
+    });
     setFormError(null);
     setFormStatus(null);
   }
@@ -277,6 +311,9 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
                   <option value="Parents">Parents</option>
                   <option value="Supervisors">Supervisors</option>
                   <option value="Heads">Heads only</option>
+                  {canAssignRequiredPeople ? (
+                    <option value="Custom">Tagged people only</option>
+                  ) : null}
                 </SelectInput>
               </Field>
               <Field label="Category" required>
@@ -366,6 +403,56 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
                       value={form.endTime}
                     />
                   </Field>
+                </div>
+              ) : null}
+              {canAssignRequiredPeople ? (
+                <div className="field">
+                  <span className="field__label">
+                    Required people
+                    <span className="field__hint">Optional</span>
+                  </span>
+                  {requiredPeopleQuery.isLoading ? (
+                    <div className="empty-state">Loading staff...</div>
+                  ) : null}
+                  {requiredPeopleQuery.error ? (
+                    <p className="status--error">{requiredPeopleQuery.error.message}</p>
+                  ) : null}
+                  {!requiredPeopleQuery.isLoading &&
+                  !requiredPeopleQuery.error &&
+                  (requiredPeopleQuery.data ?? []).length === 0 ? (
+                    <div className="empty-state">No active staff found.</div>
+                  ) : null}
+                  <div
+                    className="calendar-required-picker"
+                    role="group"
+                    aria-label="Required people"
+                  >
+                    {(requiredPeopleQuery.data ?? []).map((person) => {
+                      const selected = form.requiredPersonIds.includes(person.id);
+                      return (
+                        <label
+                          className={
+                            selected
+                              ? 'calendar-required-picker__item is-selected'
+                              : 'calendar-required-picker__item'
+                          }
+                          key={person.id}
+                        >
+                          <input
+                            checked={selected}
+                            onChange={() => {
+                              toggleRequiredPerson(person.id);
+                            }}
+                            type="checkbox"
+                          />
+                          <span>
+                            <strong>{person.fullName}</strong>
+                            <small>{roleLabel(person.role)}</small>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               ) : null}
               <div className="calendar-form__actions">
@@ -464,6 +551,7 @@ export function SharedCalendar({ canManage, mode }: SharedCalendarProps) {
                   onView={(calendarEvent) => {
                     setSelectedEvent(calendarEvent);
                   }}
+                  canAssignRequiredPeople={canAssignRequiredPeople}
                   pendingArchive={pendingArchiveId === event.id}
                 />
               ))}

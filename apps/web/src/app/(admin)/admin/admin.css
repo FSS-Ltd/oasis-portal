@@ -1715,6 +1715,59 @@
   gap: 8px;
 }
 
+.calendar-required-picker {
+  display: grid;
+  max-height: 220px;
+  overflow: auto;
+  gap: 8px;
+  padding: 2px;
+}
+
+.calendar-required-picker__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.calendar-required-picker__item input {
+  margin: 0;
+}
+
+.calendar-required-picker__item span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.calendar-required-picker__item strong,
+.calendar-required-picker__item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-required-picker__item strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+}
+
+.calendar-required-picker__item small {
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.calendar-required-picker__item.is-selected {
+  border-color: rgba(91, 144, 197, 0.48);
+  background: var(--oasis-blue-light);
+}
+
 .calendar-card {
   display: grid;
   grid-template-columns: 86px minmax(0, 1fr);
@@ -1789,6 +1842,22 @@
   color: var(--oasis-text-muted);
   font-size: 0.76rem;
   font-weight: 800;
+}
+
+.calendar-required-summary,
+.calendar-detail-required {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.calendar-required-summary span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .calendar-category--half-term {
@@ -1955,6 +2024,25 @@
   gap: 8px;
   color: var(--oasis-navy);
   font-weight: 800;
+}
+
+.calendar-detail-required {
+  align-items: flex-start;
+}
+
+.calendar-detail-required div {
+  display: grid;
+  gap: 2px;
+}
+
+.calendar-detail-required strong {
+  font-size: 0.78rem;
+}
+
+.calendar-detail-required span {
+  color: var(--oasis-text-secondary);
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 .clubs-page {
