@@ -1,4 +1,4 @@
-import { Archive, CalendarDays, Pencil } from 'lucide-react';
+import { Archive, CalendarDays, Pencil, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   audienceLabels,
@@ -10,6 +10,7 @@ import {
 } from './calendar-model';
 
 interface CalendarEventCardProps {
+  canAssignRequiredPeople: boolean;
   canManage: boolean;
   event: CalendarEvent;
   onArchive: (eventId: string) => void;
@@ -19,6 +20,7 @@ interface CalendarEventCardProps {
 }
 
 export function CalendarEventCard({
+  canAssignRequiredPeople,
   canManage,
   event,
   onArchive,
@@ -26,7 +28,10 @@ export function CalendarEventCard({
   onView,
   pendingArchive,
 }: CalendarEventCardProps) {
-  const canEdit = canManage && event.source === 'Manual';
+  const canEdit =
+    canManage &&
+    event.source === 'Manual' &&
+    (event.audience !== 'Custom' || canAssignRequiredPeople);
 
   return (
     <article className={event.active ? 'calendar-card' : 'calendar-card is-archived'}>
@@ -95,6 +100,12 @@ export function CalendarEventCard({
           ) : null}
         </div>
         <p className="calendar-card__date-line">{formatEventSchedule(event)}</p>
+        {event.requiredPeople.length > 0 ? (
+          <div className="calendar-required-summary">
+            <UsersRound aria-hidden="true" size={14} />
+            <span>Needed: {event.requiredPeople.map((person) => person.fullName).join(', ')}</span>
+          </div>
+        ) : null}
         {event.description ? <p>{event.description}</p> : null}
       </div>
     </article>

@@ -11,6 +11,7 @@ export interface CalendarFormState {
   description: string;
   audience: CalendarAudience;
   category: Exclude<CalendarCategory, 'Birthdays'>;
+  requiredPersonIds: string[];
   selectionMode: CalendarSelectionMode;
   startDate: string;
   endDate: string;
@@ -31,6 +32,7 @@ export const audienceLabels: Record<CalendarAudience, string> = {
   Parents: 'Parents',
   Supervisors: 'Supervisors',
   Heads: 'Heads only',
+  Custom: 'Tagged people only',
 };
 
 export const categoryLabels: Record<CalendarCategory, string> = {
@@ -133,6 +135,7 @@ export function emptyCalendarForm(): CalendarFormState {
     description: '',
     audience: 'All',
     category: 'OasisDays',
+    requiredPersonIds: [],
     selectionMode: 'single',
     startDate: todayKey(),
     endDate: '',

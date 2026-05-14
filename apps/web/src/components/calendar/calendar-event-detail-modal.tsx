@@ -1,4 +1,4 @@
-import { CalendarDays, X } from 'lucide-react';
+import { CalendarDays, UsersRound, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   audienceLabels,
@@ -42,6 +42,15 @@ export function CalendarEventDetailModal({ event, onClose }: CalendarEventDetail
               {categoryLabels[event.category]}
             </span>
           </div>
+          {event.requiredPeople.length > 0 ? (
+            <div className="calendar-detail-required">
+              <UsersRound aria-hidden="true" size={16} />
+              <div>
+                <strong>Needed</strong>
+                <span>{event.requiredPeople.map((person) => person.fullName).join(', ')}</span>
+              </div>
+            </div>
+          ) : null}
           {event.description ? <p>{event.description}</p> : null}
         </div>
       </article>
