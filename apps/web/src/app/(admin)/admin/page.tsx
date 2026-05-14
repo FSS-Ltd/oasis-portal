@@ -93,9 +93,13 @@ export default async function AdminIndexPage() {
     prisma.termReport.count({ where: { status: { in: ['Draft', 'UnderReview'] } } }),
   ]);
 
-  const present = attendanceRows.filter((row) => row.status === 'Present').length;
+  const onTime = attendanceRows.filter((row) => row.status === 'Present').length;
   const absent = attendanceRows.filter((row) => row.status === 'Absent').length;
   const late = attendanceRows.filter((row) => row.status === 'Late').length;
+  const attendingToday = onTime + late;
+  const attendanceBreakdown = `${String(absent)} absent · ${String(late)} late · ${String(
+    onTime,
+  )} on time`;
   const meritTotal = meritAwardedToday._sum.meritDelta ?? 0;
   const headName = currentUser ? decrypt(currentUser.fullNameEnc) : 'Head of Centre';
   const recorderRows =
@@ -120,9 +124,9 @@ export default async function AdminIndexPage() {
       <section className="dashboard-grid dashboard-grid--hero" aria-label="Head dashboard summary">
         <StatCard
           accent="#166534"
-          label="Present today"
-          sub={`${String(absent)} absent · ${String(late)} late`}
-          value={`${String(present)}/${String(activeStudentCount)}`}
+          label="Today’s Attendance"
+          sub={attendanceBreakdown}
+          value={`${String(attendingToday)}/${String(activeStudentCount)}`}
         />
         <StatCard
           accent="#5B90C5"
@@ -216,7 +220,7 @@ export default async function AdminIndexPage() {
               <h2>Attendance Today</h2>
             </div>
             <div className="attendance-summary-grid">
-              <AttendanceSummary label="Present" tone="green" value={present} />
+              <AttendanceSummary label="On time" tone="green" value={onTime} />
               <AttendanceSummary label="Absent" tone="red" value={absent} />
               <AttendanceSummary label="Late" tone="amber" value={late} />
             </div>
