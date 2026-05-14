@@ -269,6 +269,54 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         }),
       ),
   );
+  const findFirstPaceRecord = vi.fn(
+    ({
+      where,
+    }: {
+      where?: {
+        id?: { not: string };
+        studentId?: string;
+        subjectId?: string;
+        paceNumber?: number;
+        completedAt?: { gte: Date; lt: Date };
+        selfTestScore?: { not: null };
+        paceTestScore?: { not: null };
+      };
+    } = {}) => {
+      const record =
+        records.find((item) => {
+          if (where?.id?.not && item.id === where.id.not) return false;
+          if (where?.studentId && item.studentId !== where.studentId) return false;
+          if (where?.subjectId && item.subjectId !== where.subjectId) return false;
+          if (where?.paceNumber !== undefined && item.paceNumber !== where.paceNumber) {
+            return false;
+          }
+          if (where?.completedAt) {
+            if (!item.completedAt) return false;
+            if (
+              item.completedAt < where.completedAt.gte ||
+              item.completedAt >= where.completedAt.lt
+            ) {
+              return false;
+            }
+          }
+          if (where?.selfTestScore && item.selfTestScore === null) return false;
+          if (where?.paceTestScore && item.paceTestScore === null) return false;
+          return true;
+        }) ?? null;
+      if (record) return Promise.resolve({ id: record.id });
+      if (
+        where?.completedAt === undefined &&
+        where?.selfTestScore &&
+        where.studentId === STUDENT_ID &&
+        where.subjectId === SUBJECT_ID &&
+        where.paceNumber === 1001
+      ) {
+        return Promise.resolve({ id: 'pace_self_prerequisite' });
+      }
+      return Promise.resolve(null);
+    },
+  );
   const countPaceRecords = vi.fn(
     ({
       where,
@@ -585,7 +633,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     },
     paceRecord: {
       count: countPaceRecords,
-      findFirst: vi.fn().mockResolvedValue(null),
+      findFirst: findFirstPaceRecord,
       findUnique: findUniquePaceRecord,
       findMany: findManyPaceRecords,
       create: createPaceRecord,
@@ -936,6 +984,7 @@ describe('pace.forStudent read model', () => {
         currentFinalTestAttempts: 0,
         completedPaceCount: 1,
         averagePaceCompletionDays: 8,
+        selfTestPaceNumbers: [1001],
         latestSelfTest: {
           paceNumber: 1001,
           score: 74,
@@ -980,6 +1029,7 @@ describe('pace.forStudent read model', () => {
         currentFinalTestAttempts: 1,
         completedPaceCount: 0,
         averagePaceCompletionDays: null,
+        selfTestPaceNumbers: [],
         latestFinalTest: null,
         latestCompletedAt: null,
         status: {
@@ -1240,6 +1290,61 @@ describe('pace.record validation', () => {
     const { caller } = makeCaller(headUser);
     await expect(caller.pace.record({ ...validInput, score: -1 })).rejects.toMatchObject({
       code: 'BAD_REQUEST',
+    });
+  });
+});
+
+describe('pace.record policy — final test prerequisite', () => {
+  it('rejects FinalTest when no matching SelfTest exists for the same subject PACE number', async () => {
+    const db = makeFakeDb();
+    db.paceRecord.findFirst.mockResolvedValueOnce(null);
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(
+      caller.pace.record({ ...validInput, testType: 'FinalTest' }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(db.paceRecord.findFirst).toHaveBeenCalledWith({
+      where: {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        selfTestScore: { not: null },
+      },
+      select: { id: true },
+    });
+    const denialAudit = auditCalls(db).find(
+      (call) => call.action === 'PermissionDenied' && call.entity === 'PaceRecord',
+    );
+    expect(denialAudit?.meta).toMatchObject({ reason: 'missing-self-test-prerequisite' });
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('allows FinalTest when a matching SelfTest exists for the same subject PACE number', async () => {
+    const db = makeFakeDb();
+    db.paceRecord.findFirst
+      .mockResolvedValueOnce({ id: 'pace_self' })
+      .mockResolvedValueOnce(null);
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(
+      caller.pace.record({ ...validInput, testType: 'FinalTest' }),
+    ).resolves.toMatchObject({
+      paceNumber: 1001,
+      paceTestScore: 90,
+    });
+  });
+
+  it('allows SelfTest without a prior SelfTest prerequisite', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(
+      caller.pace.record({ ...validInput, testType: 'SelfTest' }),
+    ).resolves.toMatchObject({
+      paceNumber: 1001,
+      selfTestScore: 90,
     });
   });
 });

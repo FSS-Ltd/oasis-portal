@@ -815,6 +815,13 @@ export const paceRouter = router({
         currentFinalTestAttempts: currentProgress?.finalTestAttempts ?? 0,
         completedPaceCount: completedProgress.length,
         averagePaceCompletionDays,
+        selfTestPaceNumbers: [
+          ...new Set(
+            records
+              .filter((record) => record.selfTestScore !== null)
+              .map((record) => record.paceNumber),
+          ),
+        ].sort((left, right) => left - right),
         latestSelfTest: latestSelfTest
           ? {
               id: latestSelfTest.id,
@@ -966,6 +973,38 @@ export const paceRouter = router({
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: `daily test limit of ${String(policy.maxTestsPerStudentPerDay)} reached`,
+        });
+      }
+    }
+
+    if (testType === 'FinalTest') {
+      const prerequisiteSelfTest = await ctx.db.paceRecord.findFirst({
+        where: {
+          studentId,
+          subjectId,
+          paceNumber,
+          selfTestScore: { not: null },
+        },
+        select: { id: true },
+      });
+      if (!prerequisiteSelfTest) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'PermissionDenied',
+            entity: 'PaceRecord',
+            meta: {
+              reason: 'missing-self-test-prerequisite',
+              studentId,
+              subjectId,
+              paceNumber,
+              testType,
+            },
+          },
+        });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'cannot record PACE Test before a Self-Test for the same subject PACE number',
         });
       }
     }
