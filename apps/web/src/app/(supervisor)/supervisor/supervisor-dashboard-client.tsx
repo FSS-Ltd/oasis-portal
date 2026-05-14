@@ -204,7 +204,7 @@ export function SupervisorDashboardClient({
     [noticesQuery.data],
   );
   const dashboardActivity = dashboardActivityQuery.data?.entries ?? [];
-  const presentCount = rosterRows.filter((row) => row.status === 'Present').length;
+  const onTimeCount = rosterRows.filter((row) => row.status === 'Present').length;
   const absentCount = rosterRows.filter((row) => row.status === 'Absent').length;
   const lateCount = rosterRows.filter((row) => row.status === 'Late').length;
   const totalStudents = rosterRows.length;
@@ -271,8 +271,8 @@ export function SupervisorDashboardClient({
         mySwapRequests={mySwapRequests}
         mySwapRequestsError={mySwapRequestsQuery.error?.message}
         mySwapRequestsLoading={mySwapRequestsQuery.isLoading}
+        onTimeCount={onTimeCount}
         openItems={openItems}
-        presentCount={presentCount}
         todayShifts={todayShifts}
         totalStudents={totalStudents}
         unreadNotices={unreadNotices}
