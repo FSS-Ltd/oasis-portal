@@ -1,6 +1,6 @@
 'use client';
 
-import { type CSSProperties, type FormEvent, useMemo, useState } from 'react';
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -79,6 +79,12 @@ export function PaceScoreModal({
   const validScore =
     scoreNumber !== null && Number.isFinite(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
   const validPaceNumber = Number.isInteger(Number(paceNumber)) && Number(paceNumber) > 0;
+  const finalTestPrerequisiteMet =
+    validPaceNumber && selectedSubject.selfTestPaceNumbers.includes(Number(paceNumber));
+  const finalTestDisabled = !isUpdateMode && !finalTestPrerequisiteMet;
+  const testTypeHint = finalTestDisabled
+    ? 'Add a Self-Test for this subject PACE number before adding a PACE Test.'
+    : undefined;
   const tone = scoreTone(scoreNumber);
   const ringStyle = useMemo(
     () =>
@@ -88,9 +94,17 @@ export function PaceScoreModal({
     [scoreNumber, validScore],
   );
 
+  useEffect(() => {
+    if (testType === 'FinalTest' && finalTestDisabled) {
+      setTestType('SelfTest');
+    }
+  }, [finalTestDisabled, testType]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validScore || !validPaceNumber) return;
+    if (!validScore || !validPaceNumber || (testType === 'FinalTest' && finalTestDisabled)) {
+      return;
+    }
     await onSave({
       completedAt: date,
       paceNumber: Number(paceNumber),
@@ -158,12 +172,12 @@ export function PaceScoreModal({
             </Field>
           </div>
 
-          <Field label="Test type">
+          <Field hint={testTypeHint} label="Test type">
             <div aria-label="PACE test type" className="pace-test-toggle" role="group">
               {(['SelfTest', 'FinalTest'] as const).map((item) => (
                 <button
                   className={testType === item ? 'is-selected' : undefined}
-                  disabled={isUpdateMode}
+                  disabled={isUpdateMode || (item === 'FinalTest' && finalTestDisabled)}
                   key={item}
                   onClick={() => {
                     setTestType(item);
@@ -251,7 +265,13 @@ export function PaceScoreModal({
           <Button disabled={pending} onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>
-          <Button disabled={!validScore || !validPaceNumber} pending={pending} type="submit">
+          <Button
+            disabled={
+              !validScore || !validPaceNumber || (testType === 'FinalTest' && finalTestDisabled)
+            }
+            pending={pending}
+            type="submit"
+          >
             <Save aria-hidden="true" size={16} />
             {isUpdateMode ? 'Update Score' : 'Save Score'}
           </Button>
