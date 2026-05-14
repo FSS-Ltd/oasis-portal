@@ -12,6 +12,11 @@ export function asDate(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
 }
 
+export function dateInputValue(value: Date | string | null | undefined): string {
+  if (!value) return todayKey();
+  return new Date(value).toISOString().slice(0, 10);
+}
+
 export function formatShortDate(value: Date | string | null): string {
   if (!value) return 'No date recorded';
   return new Intl.DateTimeFormat('en-GB', {
@@ -24,7 +29,9 @@ export function formatScore(value: number | null | undefined): string {
   return value === null || value === undefined ? '-' : `${String(value)}%`;
 }
 
-export function scoreTone(score: number | null | undefined): 'danger' | 'muted' | 'success' | 'warning' {
+export function scoreTone(
+  score: number | null | undefined,
+): 'danger' | 'muted' | 'success' | 'warning' {
   if (score === null || score === undefined) return 'muted';
   if (score >= 90) return 'success';
   if (score >= 75) return 'warning';

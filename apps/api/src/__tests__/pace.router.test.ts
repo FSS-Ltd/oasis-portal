@@ -81,10 +81,13 @@ interface BehaviourEntryCreateData {
   visibility: 'General';
   meritDelta: number;
   recordedById: string;
+  paceRecordId?: string;
 }
 
 interface StoredBehaviourEntry extends BehaviourEntryCreateData {
   id: string;
+  deletedAt: Date | null;
+  deletedById: string | null;
 }
 
 interface StoredLedgerRow {
@@ -98,7 +101,11 @@ interface StoredLedgerRow {
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
   $enc: { decrypt: ReturnType<typeof vi.fn> };
-  behaviourEntry: { create: ReturnType<typeof vi.fn> };
+  behaviourEntry: {
+    create: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   meritLedger: { createMany: ReturnType<typeof vi.fn> };
   student: {
     findMany: ReturnType<typeof vi.fn>;
@@ -113,8 +120,10 @@ interface FakeDb {
   paceRecord: {
     count: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   paceProgress: {
     findMany: ReturnType<typeof vi.fn>;
@@ -173,6 +182,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const records: StoredPaceRecord[] = [];
   const progressRows: StoredPaceProgress[] = [];
   const behaviourEntries: StoredBehaviourEntry[] = [];
+  const ledgerRows: StoredLedgerRow[] = [];
 
   const createPaceRecord = vi.fn(({ data }: { data: Record<string, unknown> }) => {
     const record: StoredPaceRecord = {
@@ -194,19 +204,147 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     records.push(record);
     return Promise.resolve(record);
   });
+  const findPaceRecord = (id: string): StoredPaceRecord | null =>
+    records.find((record) => record.id === id) ?? null;
+  const findUniquePaceRecord = vi.fn(({ where }: { where: { id: string } }) => {
+    const record = findPaceRecord(where.id);
+    if (!record) return Promise.resolve(null);
+    return Promise.resolve({
+      ...record,
+      student: {
+        id: record.studentId,
+        active: defaultStudent.active,
+        yearGroup: defaultStudent.yearGroup,
+      },
+      subject: { id: record.subjectId, active: true },
+    });
+  });
+  const findManyPaceRecords = vi.fn(
+    ({
+      where,
+    }: {
+      where?: {
+        studentId?: string;
+        subjectId?: string | { in: string[] };
+        paceNumber?: number;
+        OR?: readonly unknown[];
+      };
+    } = {}) =>
+      Promise.resolve(
+        records.filter((record) => {
+          if (where?.studentId && record.studentId !== where.studentId) return false;
+          if (typeof where?.subjectId === 'string' && record.subjectId !== where.subjectId) {
+            return false;
+          }
+          if (
+            typeof where?.subjectId === 'object' &&
+            !where.subjectId.in.includes(record.subjectId)
+          ) {
+            return false;
+          }
+          if (where?.paceNumber !== undefined && record.paceNumber !== where.paceNumber) {
+            return false;
+          }
+          return true;
+        }),
+      ),
+  );
+  const countPaceRecords = vi.fn(
+    ({
+      where,
+    }: {
+      where?: {
+        studentId?: string;
+        completedAt?: { gte: Date; lt: Date };
+      };
+    } = {}) =>
+      Promise.resolve(
+        records.filter((record) => {
+          if (where?.studentId && record.studentId !== where.studentId) return false;
+          if (where?.completedAt) {
+            if (!record.completedAt) return false;
+            if (
+              record.completedAt < where.completedAt.gte ||
+              record.completedAt >= where.completedAt.lt
+            ) {
+              return false;
+            }
+          }
+          return true;
+        }).length,
+      ),
+  );
+  const updatePaceRecord = vi.fn(
+    ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: {
+        selfTestScore: number | null;
+        paceTestScore: number | null;
+        completedAt: Date;
+      };
+    }) => {
+      const record = findPaceRecord(where.id);
+      if (!record) throw new Error('pace record not found');
+      record.selfTestScore = data.selfTestScore;
+      record.paceTestScore = data.paceTestScore;
+      record.completedAt = data.completedAt;
+      return Promise.resolve(record);
+    },
+  );
 
   const createBehaviourEntry = vi.fn(({ data }: { data: BehaviourEntryCreateData }) => {
     const entry: StoredBehaviourEntry = {
       ...data,
       id: `behaviour_${String(behaviourEntries.length + 1)}`,
+      deletedAt: null,
+      deletedById: null,
     };
     behaviourEntries.push(entry);
     return Promise.resolve({ id: entry.id });
   });
-
-  const createLedgerRows = vi.fn(({ data }: { data: StoredLedgerRow[] }) =>
-    Promise.resolve({ count: data.length }),
+  const findFirstBehaviourEntry = vi.fn(
+    ({ where }: { where: { paceRecordId?: string; type?: 'Merit' } }) => {
+      const entry =
+        behaviourEntries.find(
+          (item) => where.paceRecordId === undefined || item.paceRecordId === where.paceRecordId,
+        ) ?? null;
+      if (!entry) return Promise.resolve(null);
+      return Promise.resolve({
+        ...entry,
+        ledgerRows: ledgerRows.filter((row) => row.relatedEntryId === entry.id),
+      });
+    },
   );
+  const updateBehaviourEntry = vi.fn(
+    ({
+      where,
+      data,
+    }: {
+      where: { id: string };
+      data: {
+        category?: string;
+        deletedAt?: Date | null;
+        deletedById?: string | null;
+        meritDelta?: number;
+      };
+    }) => {
+      const entry = behaviourEntries.find((item) => item.id === where.id);
+      if (!entry) throw new Error('behaviour entry not found');
+      if (data.category !== undefined) entry.category = data.category;
+      if (data.meritDelta !== undefined) entry.meritDelta = data.meritDelta;
+      if (data.deletedAt !== undefined) entry.deletedAt = data.deletedAt;
+      if (data.deletedById !== undefined) entry.deletedById = data.deletedById;
+      return Promise.resolve({ id: entry.id });
+    },
+  );
+
+  const createLedgerRows = vi.fn(({ data }: { data: StoredLedgerRow[] }) => {
+    ledgerRows.push(...data);
+    return Promise.resolve({ count: data.length });
+  });
 
   const findProgress = (params: {
     studentId: string;
@@ -271,18 +409,24 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     }: {
       where: { id: string };
       data: {
-        finalTestAttempts?: { increment: number };
-        completedAt?: Date;
-        completedByRecordId?: string;
+        startedAt?: Date;
+        finalTestAttempts?: { increment: number } | number;
+        completedAt?: Date | null;
+        completedByRecordId?: string | null;
       };
     }) => {
       const row = progressRows.find((item) => item.id === where.id);
       if (!row) throw new Error('progress row not found');
-      if (data.finalTestAttempts) {
+      if (typeof data.finalTestAttempts === 'number') {
+        row.finalTestAttempts = data.finalTestAttempts;
+      } else if (data.finalTestAttempts) {
         row.finalTestAttempts += data.finalTestAttempts.increment;
       }
-      if (data.completedAt) row.completedAt = data.completedAt;
-      if (data.completedByRecordId) row.completedByRecordId = data.completedByRecordId;
+      if (data.startedAt) row.startedAt = data.startedAt;
+      if (data.completedAt !== undefined) row.completedAt = data.completedAt;
+      if (data.completedByRecordId !== undefined) {
+        row.completedByRecordId = data.completedByRecordId;
+      }
       return Promise.resolve(row);
     },
   );
@@ -299,9 +443,19 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     ) =>
       fn({
         ...db,
-        behaviourEntry: { ...db.behaviourEntry, create: createBehaviourEntry },
+        behaviourEntry: {
+          ...db.behaviourEntry,
+          create: createBehaviourEntry,
+          findFirst: findFirstBehaviourEntry,
+          update: updateBehaviourEntry,
+        },
         meritLedger: { ...db.meritLedger, createMany: createLedgerRows },
-        paceRecord: { ...db.paceRecord, create: createPaceRecord },
+        paceRecord: {
+          ...db.paceRecord,
+          create: createPaceRecord,
+          findMany: findManyPaceRecords,
+          update: updatePaceRecord,
+        },
         paceProgress: {
           ...db.paceProgress,
           create: createProgress,
@@ -321,6 +475,8 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     },
     behaviourEntry: {
       create: createBehaviourEntry,
+      findFirst: findFirstBehaviourEntry,
+      update: updateBehaviourEntry,
     },
     meritLedger: {
       createMany: createLedgerRows,
@@ -358,10 +514,12 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       findUnique: vi.fn().mockResolvedValue(null),
     },
     paceRecord: {
-      count: vi.fn().mockResolvedValue(0),
+      count: countPaceRecords,
       findFirst: vi.fn().mockResolvedValue(null),
-      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: findUniquePaceRecord,
+      findMany: findManyPaceRecords,
       create: createPaceRecord,
+      update: updatePaceRecord,
     },
     paceProgress: {
       findMany: findManyProgress,
@@ -713,7 +871,7 @@ describe('pace.forStudent read model', () => {
           completedAt: new Date('2026-04-29T10:00:00.000Z'),
         },
         latestFinalTest: null,
-        latestCompletedAt: new Date('2026-04-29T10:00:00.000Z'),
+        latestCompletedAt: null,
         status: {
           status: 'Behind',
           detail: 'Testing at Level 1',
@@ -1422,6 +1580,7 @@ describe('pace.record — automatic PACE merits', () => {
             visibility: 'General',
             meritDelta: awardedMerits,
             recordedById: headUser.id,
+            paceRecordId: 'pace_1',
           },
           select: { id: true },
         });
@@ -1556,5 +1715,225 @@ describe('pace.record — audit rows', () => {
 
     expect(result.paceTestScore).toBe(88.5);
     expect(result.selfTestScore).toBeNull();
+  });
+});
+
+describe('pace.updateRecord', () => {
+  it('updates an existing PACE score without creating a new PaceRecord', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record({
+      ...validInput,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+    db.paceRecord.create.mockClear();
+
+    const result = await caller.pace.updateRecord({
+      recordId: created.id,
+      score: 95,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-19T00:00:00.000Z'),
+    });
+
+    expect(result).toMatchObject({
+      id: created.id,
+      paceNumber: 1001,
+      paceTestScore: 95,
+    });
+    expect(db.paceRecord.create).not.toHaveBeenCalled();
+    expect(db.paceRecord.update).toHaveBeenCalledWith({
+      where: { id: created.id },
+      data: {
+        selfTestScore: null,
+        paceTestScore: 95,
+        completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      },
+      select: {
+        id: true,
+        studentId: true,
+        subjectId: true,
+        paceNumber: true,
+        selfTestScore: true,
+        paceTestScore: true,
+        completedAt: true,
+        createdAt: true,
+      },
+    });
+  });
+
+  it('moves the record between daily counts when completion date changes', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record({
+      ...validInput,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+
+    await caller.pace.updateRecord({
+      recordId: created.id,
+      score: 95,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-19T00:00:00.000Z'),
+    });
+
+    await expect(
+      caller.pace.forStudent({ studentId: STUDENT_ID, date: new Date('2026-04-20T00:00:00.000Z') }),
+    ).resolves.toMatchObject({ today: { testCount: 0 } });
+    await expect(
+      caller.pace.forStudent({ studentId: STUDENT_ID, date: new Date('2026-04-21T00:00:00.000Z') }),
+    ).resolves.toMatchObject({ today: { testCount: 1 } });
+  });
+
+  it('updates the matching PACE progress started date', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record(validInput);
+    const startedAt = new Date('2026-04-18T00:00:00.000Z');
+
+    await caller.pace.updateRecord({
+      recordId: created.id,
+      score: 92,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt,
+    });
+
+    const progressUpdateCalls = db.paceProgress.update.mock.calls as unknown as Array<
+      [{ data: { startedAt?: Date }; where: { id: string } }]
+    >;
+    expect(
+      progressUpdateCalls.some(
+        ([call]) =>
+          call.where.id === 'progress_1' && call.data.startedAt?.getTime() === startedAt.getTime(),
+      ),
+    ).toBe(true);
+  });
+
+  it('writes correction ledger rows when an edited score changes automatic merit value', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record({ ...validInput, score: 100 });
+    db.meritLedger.createMany.mockClear();
+
+    const result = await caller.pace.updateRecord({
+      recordId: created.id,
+      score: 85,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-18T00:00:00.000Z'),
+    });
+
+    expect(result.awardedMerits).toBe(1);
+    const behaviourUpdateCalls = db.behaviourEntry.update.mock.calls as unknown as Array<
+      [
+        {
+          data: { deletedAt?: Date | null; deletedById?: string | null; meritDelta?: number };
+          select: { id: true };
+          where: { id: string };
+        },
+      ]
+    >;
+    expect(behaviourUpdateCalls).toContainEqual([
+      {
+        where: { id: 'behaviour_1' },
+        data: expect.objectContaining({
+          meritDelta: 1,
+          deletedAt: null,
+          deletedById: null,
+        }) as { deletedAt?: Date | null; deletedById?: string | null; meritDelta?: number },
+        select: { id: true },
+      },
+    ]);
+    expect(db.meritLedger.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          delta: -9,
+          relatedEntryId: 'behaviour_1',
+          reason: 'correction:Academic Excellence - PACE Test 85',
+        }),
+      ],
+    });
+  });
+
+  it('recalculates advancement when a passing final test is edited below threshold', async () => {
+    const db = makeFakeDb();
+    db.studentSubject.findUnique
+      .mockResolvedValueOnce({ id: ASSIGNMENT_ID, currentPaceNumber: 1001 })
+      .mockResolvedValueOnce({ id: ASSIGNMENT_ID, currentPaceNumber: 1002 });
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record({ ...validInput, score: 90 });
+
+    const result = await caller.pace.updateRecord({
+      recordId: created.id,
+      score: 70,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-18T00:00:00.000Z'),
+    });
+
+    expect(result.newPaceNumber).toBe(1001);
+    expect(db.studentSubject.update).toHaveBeenLastCalledWith({
+      where: { studentId_subjectId: { studentId: STUDENT_ID, subjectId: SUBJECT_ID } },
+      data: { currentPaceNumber: 1001 },
+    });
+    const progressUpdateCalls = db.paceProgress.update.mock.calls as unknown as Array<
+      [
+        {
+          data: { completedAt?: Date | null; completedByRecordId?: string | null };
+          where: { id: string };
+        },
+      ]
+    >;
+    expect(
+      progressUpdateCalls.some(
+        ([call]) =>
+          call.where.id === 'progress_1' &&
+          call.data.completedAt === null &&
+          call.data.completedByRecordId === null,
+      ),
+    ).toBe(true);
+  });
+
+  it('blocks normal Supervisors from updating historical records', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+    try {
+      const db = makeFakeDb();
+      const { caller: headCaller } = makeCaller(headUser, db);
+      const created = await headCaller.pace.record({
+        ...validInput,
+        completedAt: new Date('2026-04-29T10:00:00.000Z'),
+      });
+      const { caller } = makeCaller(supervisorUser, db);
+
+      await expect(
+        caller.pace.updateRecord({
+          recordId: created.id,
+          score: 91,
+          completedAt: new Date('2026-04-28T00:00:00.000Z'),
+          startedAt: new Date('2026-04-28T00:00:00.000Z'),
+        }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('allows pace-full-access Supervisors to update historical records without rota scope', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([]);
+    const { caller: headCaller } = makeCaller(headUser, db);
+    const created = await headCaller.pace.record({
+      ...validInput,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+    const { caller } = makeCaller(fullPaceSupervisorUser, db);
+
+    await expect(
+      caller.pace.updateRecord({
+        recordId: created.id,
+        score: 91,
+        completedAt: new Date('2026-04-20T00:00:00.000Z'),
+        startedAt: new Date('2026-04-18T00:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({ id: created.id, paceTestScore: 91 });
+    expect(db.staffShift.findMany).not.toHaveBeenCalled();
   });
 });

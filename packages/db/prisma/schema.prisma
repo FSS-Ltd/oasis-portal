@@ -239,10 +239,11 @@ model PaceRecord {
   recordedById  String
   createdAt     DateTime  @default(now())
 
-  student               Student        @relation(fields: [studentId], references: [id])
-  subject               Subject        @relation(fields: [subjectId], references: [id])
-  recordedBy            User           @relation("RecordedPace", fields: [recordedById], references: [id])
-  completedPaceProgress PaceProgress[] @relation("PaceProgressCompletedByRecord")
+  student               Student          @relation(fields: [studentId], references: [id])
+  subject               Subject          @relation(fields: [subjectId], references: [id])
+  recordedBy            User             @relation("RecordedPace", fields: [recordedById], references: [id])
+  completedPaceProgress PaceProgress[]   @relation("PaceProgressCompletedByRecord")
+  automaticMeritEntries BehaviourEntry[] @relation("PaceRecordAutomaticMerit")
 
   @@index([studentId, subjectId])
 }
@@ -533,6 +534,7 @@ model BehaviourEntry {
   // Merit: positive N. Demerit: negative chosen amount, defaulting to -5. General: 0.
   meritDelta   Int
   recordedById String
+  paceRecordId String?
   deletedAt    DateTime?
   deletedById  String?
   createdAt    DateTime            @default(now())
@@ -540,10 +542,12 @@ model BehaviourEntry {
   student    Student       @relation(fields: [studentId], references: [id])
   recordedBy User          @relation("RecordedBehaviour", fields: [recordedById], references: [id])
   deletedBy  User?         @relation("DeletedBehaviour", fields: [deletedById], references: [id], onDelete: SetNull)
+  paceRecord PaceRecord?   @relation("PaceRecordAutomaticMerit", fields: [paceRecordId], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
 
   @@index([studentId, createdAt])
   @@index([visibility])
+  @@index([paceRecordId])
   @@index([deletedAt])
   @@index([deletedById])
 }

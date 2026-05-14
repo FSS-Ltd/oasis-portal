@@ -13,6 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { categoriesFor } from '@/components/behaviour/behaviour-categories';
 import {
+  type EditablePaceRecord,
+  PaceRecordEditModal,
+} from '@/components/pace/pace-record-edit-modal';
+import { asDate } from '@/components/pace/pace-workflow-utils';
+import {
   AttendanceRing,
   EmptyCard,
   LegendRow,
@@ -30,6 +35,7 @@ type DrillThrough = RouterOutputs['childLog']['drillThrough'];
 type DrillThroughTab = 'overview' | 'attendance' | 'behaviour' | 'pace' | 'merits' | 'notes';
 type BehaviourEntry = DrillThrough['behaviour'][number];
 type NoteEntry = DrillThrough['notes'][number];
+type PaceEntry = DrillThrough['pace'][number];
 
 const DRILL_THROUGH_TABS = [
   ['overview', 'Overview'],
@@ -155,7 +161,15 @@ function StudentTabs({
   );
 }
 
-function OverviewTab({ data }: { data: DrillThrough }) {
+function OverviewTab({
+  canManageCorrections,
+  data,
+  onEditPace,
+}: {
+  canManageCorrections: boolean;
+  data: DrillThrough;
+  onEditPace: (entry: PaceEntry) => void;
+}) {
   const presentDays = data.attendance.filter((row) => row.status === 'Present').length;
   const lateDays = data.attendance.filter((row) => row.status === 'Late').length;
   const absentDays = data.attendance.filter((row) => row.status === 'Absent').length;
@@ -255,19 +269,41 @@ function OverviewTab({ data }: { data: DrillThrough }) {
           </div>
         </section>
         <section className="panel panel__body snapshot-pace-compact">
-          <h3>Assigned subjects</h3>
-          {data.student.subjects.length === 0 ? (
-            <p className="muted">No subjects assigned.</p>
+          <h3>PACE scores</h3>
+          {data.pace.length === 0 ? (
+            <p className="muted">No PACE scores recorded this academic year.</p>
           ) : null}
-          {data.student.subjects.map((subject) => (
-            <div key={subject.subjectId}>
-              <SnapshotBadge tone="blue">{subject.code}</SnapshotBadge>
+          {data.pace.slice(0, 5).map((item) => (
+            <div key={item.id}>
+              <span className={`snapshot-score-pill is-${scoreTone(item.score)}`}>
+                {item.score}%
+              </span>
               <div>
                 <strong>
-                  {subject.name} <span>PACE {subject.currentPaceNumber}</span>
+                  {item.subjectName} <span>PACE {item.paceNumber}</span>
                 </strong>
-                <p>Current assignment</p>
+                <p>
+                  {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)}
+                </p>
               </div>
+              <span className="snapshot-pace-actions">
+                <span>{item.testType}</span>
+                {canManageCorrections ? (
+                  <Button
+                    aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
+                    className="pace-score-edit-button"
+                    onClick={() => {
+                      onEditPace(item);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Edit3 aria-hidden="true" size={14} />
+                    <span className="sr-only">Edit PACE score</span>
+                  </Button>
+                ) : null}
+              </span>
             </div>
           ))}
         </section>
@@ -362,7 +398,15 @@ function BehaviourTab({
   );
 }
 
-function PaceTab({ data }: { data: DrillThrough }) {
+function PaceTab({
+  canManageCorrections,
+  data,
+  onEdit,
+}: {
+  canManageCorrections: boolean;
+  data: DrillThrough;
+  onEdit: (entry: PaceEntry) => void;
+}) {
   return (
     <div className="snapshot-tab-panel snapshot-list-panel">
       {data.pace.length === 0 ? (
@@ -383,6 +427,21 @@ function PaceTab({ data }: { data: DrillThrough }) {
               Date: <strong>{formatShortDate(item.completedAt ?? item.createdAt)}</strong> ·
               Supervisor: <strong>{item.recordedByName}</strong>
             </span>
+            {canManageCorrections ? (
+              <div className="lifecycle-actions">
+                <Button
+                  onClick={() => {
+                    onEdit(item);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <Edit3 aria-hidden="true" size={14} />
+                  Edit
+                </Button>
+              </div>
+            ) : null}
           </div>
           <div className="snapshot-score-bar">
             <div>
@@ -459,6 +518,7 @@ export function StudentDrillThroughContent({
   const [behaviourDelete, setBehaviourDelete] = useState<BehaviourEntry | null>(null);
   const [noteDraft, setNoteDraft] = useState<NoteCorrectionDraft | null>(null);
   const [noteDelete, setNoteDelete] = useState<NoteEntry | null>(null);
+  const [paceDraft, setPaceDraft] = useState<PaceEntry | null>(null);
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
       setBehaviourDraft(null);
@@ -480,6 +540,12 @@ export function StudentDrillThroughContent({
   const deleteNote = api.childNotes.delete.useMutation({
     onSuccess: async () => {
       setNoteDelete(null);
+      await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+  });
+  const updatePace = api.pace.updateRecord.useMutation({
+    onSuccess: async () => {
+      setPaceDraft(null);
       await utils.childLog.drillThrough.invalidate({ studentId });
     },
   });
@@ -520,6 +586,20 @@ export function StudentDrillThroughContent({
     });
   }
 
+  async function savePaceCorrection(input: {
+    completedAt: string;
+    recordId: string;
+    score: number;
+    startedAt: string;
+  }): Promise<void> {
+    await updatePace.mutateAsync({
+      completedAt: asDate(input.completedAt),
+      recordId: input.recordId,
+      score: input.score,
+      startedAt: asDate(input.startedAt),
+    });
+  }
+
   if (drillThroughQuery.isLoading) {
     return <div className="empty-state">Loading student record...</div>;
   }
@@ -536,7 +616,13 @@ export function StudentDrillThroughContent({
     <div className="student-drillthrough">
       <StudentHero backHref={backHref} backLabel={backLabel} data={data} onEdit={onEdit} />
       <StudentTabs activeTab={activeTab} onSelect={setActiveTab} />
-      {activeTab === 'overview' ? <OverviewTab data={data} /> : null}
+      {activeTab === 'overview' ? (
+        <OverviewTab
+          canManageCorrections={canManageCorrections}
+          data={data}
+          onEditPace={setPaceDraft}
+        />
+      ) : null}
       {activeTab === 'attendance' ? <AttendanceTab data={data} /> : null}
       {activeTab === 'behaviour' ? (
         <BehaviourTab
@@ -546,7 +632,9 @@ export function StudentDrillThroughContent({
           onEdit={editBehaviour}
         />
       ) : null}
-      {activeTab === 'pace' ? <PaceTab data={data} /> : null}
+      {activeTab === 'pace' ? (
+        <PaceTab canManageCorrections={canManageCorrections} data={data} onEdit={setPaceDraft} />
+      ) : null}
       {activeTab === 'merits' ? <MeritsTab data={data} /> : null}
       {activeTab === 'notes' ? (
         <NotesTab
@@ -626,9 +714,7 @@ export function StudentDrillThroughContent({
               </SelectInput>
             </Field>
             {behaviourDraft.type !== 'General' ? (
-              <Field
-                label={behaviourDraft.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}
-              >
+              <Field label={behaviourDraft.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}>
                 <TextInput
                   aria-label={
                     behaviourDraft.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
@@ -697,6 +783,17 @@ export function StudentDrillThroughContent({
           </form>
         </CorrectionModal>
       ) : null}
+      {paceDraft ? (
+        <PaceRecordEditModal
+          errorMessage={updatePace.error?.message}
+          onClose={() => {
+            if (!updatePace.isPending) setPaceDraft(null);
+          }}
+          onSave={savePaceCorrection}
+          pending={updatePace.isPending}
+          record={drillThroughPaceToEditable(data.student.fullName, paceDraft)}
+        />
+      ) : null}
       <ConfirmationDialog
         confirmLabel="Delete entry"
         errorMessage={deleteBehaviour.error?.message}
@@ -729,6 +826,20 @@ export function StudentDrillThroughContent({
       </ConfirmationDialog>
     </div>
   );
+}
+
+function drillThroughPaceToEditable(studentName: string, entry: PaceEntry): EditablePaceRecord {
+  return {
+    id: entry.id,
+    completedAt: entry.completedAt,
+    createdAt: entry.createdAt,
+    paceNumber: entry.paceNumber,
+    score: entry.score,
+    startedAt: entry.startedAt,
+    studentName,
+    subjectName: entry.subjectName,
+    testType: entry.testType,
+  };
 }
 
 function CorrectionModal({

@@ -5,21 +5,29 @@ import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import {
+  dateInputValue,
   scoreLabel,
   scoreTone,
   type PaceSubject,
   type PaceTestType,
 } from './pace-workflow-utils';
 
+type PaceEditableRecord = NonNullable<PaceSubject['currentScoreRecord']>;
+
 interface PaceScoreModalProps {
   canEditDate: boolean;
   completedDate: string;
   errorMessage?: string | undefined;
+  initialRecord?: PaceEditableRecord | undefined;
+  initialTestType?: PaceTestType | undefined;
+  mode: 'create' | 'update';
   onClose: () => void;
   onSave: (input: {
     completedAt: string;
     paceNumber: number;
+    recordId?: string | undefined;
     score: number;
+    startedAt?: string | undefined;
     subjectId: string;
     testType: PaceTestType;
   }) => Promise<void>;
@@ -34,6 +42,9 @@ export function PaceScoreModal({
   canEditDate,
   completedDate,
   errorMessage,
+  initialRecord,
+  initialTestType,
+  mode,
   onClose,
   onSave,
   pending,
@@ -42,20 +53,38 @@ export function PaceScoreModal({
   subject,
   subjects,
 }: PaceScoreModalProps) {
+  const isUpdateMode = mode === 'update' && initialRecord !== undefined;
   const [subjectId, setSubjectId] = useState(subject.subjectId);
-  const [paceNumber, setPaceNumber] = useState(String(subject.currentPaceNumber));
-  const [score, setScore] = useState('');
-  const [testType, setTestType] = useState<PaceTestType>('SelfTest');
-  const [date, setDate] = useState(completedDate);
+  const [paceNumber, setPaceNumber] = useState(
+    isUpdateMode ? String(initialRecord.paceNumber) : String(subject.currentPaceNumber),
+  );
+  const [score, setScore] = useState(isUpdateMode ? String(initialRecord.score) : '');
+  const [testType, setTestType] = useState<PaceTestType>(
+    isUpdateMode ? initialRecord.testType : (initialTestType ?? 'SelfTest'),
+  );
+  const [date, setDate] = useState(
+    isUpdateMode
+      ? dateInputValue(initialRecord.completedAt ?? initialRecord.createdAt)
+      : completedDate,
+  );
+  const [startedDate, setStartedDate] = useState(
+    isUpdateMode
+      ? dateInputValue(
+          initialRecord.startedAt ?? initialRecord.completedAt ?? initialRecord.createdAt,
+        )
+      : completedDate,
+  );
   const selectedSubject = subjects.find((item) => item.subjectId === subjectId) ?? subject;
   const scoreNumber = score.trim() === '' ? null : Number(score);
-  const validScore = scoreNumber !== null && Number.isFinite(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
+  const validScore =
+    scoreNumber !== null && Number.isFinite(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
   const validPaceNumber = Number.isInteger(Number(paceNumber)) && Number(paceNumber) > 0;
   const tone = scoreTone(scoreNumber);
   const ringStyle = useMemo(
-    () => ({
-      '--score-percent': `${String(validScore ? scoreNumber : 0)}%`,
-    }) as CSSProperties,
+    () =>
+      ({
+        '--score-percent': `${String(validScore ? scoreNumber : 0)}%`,
+      }) as CSSProperties,
     [scoreNumber, validScore],
   );
 
@@ -65,22 +94,25 @@ export function PaceScoreModal({
     await onSave({
       completedAt: date,
       paceNumber: Number(paceNumber),
+      recordId: isUpdateMode ? initialRecord.id : undefined,
       score: scoreNumber,
+      startedAt: isUpdateMode ? startedDate : undefined,
       subjectId,
       testType,
     });
   }
 
   return (
-    <div
-      aria-modal="true"
-      className="pace-modal-backdrop"
-      role="dialog"
-    >
-      <form className="pace-modal" onSubmit={(event) => { void submit(event); }}>
+    <div aria-modal="true" className="pace-modal-backdrop" role="dialog">
+      <form
+        className="pace-modal"
+        onSubmit={(event) => {
+          void submit(event);
+        }}
+      >
         <header className="pace-modal__header">
           <div>
-            <h2>Update PACE Score</h2>
+            <h2>{isUpdateMode ? 'Update PACE Score' : 'Record PACE Score'}</h2>
             <p>
               {studentName} · {studentYearLabel}
             </p>
@@ -96,6 +128,7 @@ export function PaceScoreModal({
             <Field label="Subject">
               <SelectInput
                 aria-label="PACE subject"
+                disabled={isUpdateMode}
                 onChange={(event) => {
                   const next = subjects.find((item) => item.subjectId === event.target.value);
                   setSubjectId(event.target.value);
@@ -113,6 +146,7 @@ export function PaceScoreModal({
             <Field label="PACE number">
               <TextInput
                 aria-label="PACE number"
+                disabled={isUpdateMode}
                 min={1}
                 onChange={(event) => {
                   setPaceNumber(event.target.value);
@@ -129,6 +163,7 @@ export function PaceScoreModal({
               {(['SelfTest', 'FinalTest'] as const).map((item) => (
                 <button
                   className={testType === item ? 'is-selected' : undefined}
+                  disabled={isUpdateMode}
                   key={item}
                   onClick={() => {
                     setTestType(item);
@@ -176,13 +211,38 @@ export function PaceScoreModal({
                 value={date}
               />
             </Field>
+            {isUpdateMode ? (
+              <Field label="Started date">
+                <TextInput
+                  aria-label="PACE started date"
+                  disabled={!canEditDate}
+                  onChange={(event) => {
+                    setStartedDate(event.target.value);
+                  }}
+                  required
+                  type="date"
+                  value={startedDate}
+                />
+              </Field>
+            ) : (
+              <div className="pace-modal__summary">
+                <span>Current subject PACE</span>
+                <strong>
+                  {selectedSubject.code} #{String(selectedSubject.currentPaceNumber)}
+                </strong>
+              </div>
+            )}
+          </div>
+
+          {isUpdateMode ? (
             <div className="pace-modal__summary">
-              <span>Current subject PACE</span>
+              <span>Existing record</span>
               <strong>
-                {selectedSubject.code} #{String(selectedSubject.currentPaceNumber)}
+                {selectedSubject.code} #{String(initialRecord.paceNumber)} ·{' '}
+                {initialRecord.testType === 'SelfTest' ? 'Self-Test' : 'PACE Test'}
               </strong>
             </div>
-          </div>
+          ) : null}
 
           {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
         </div>
@@ -193,7 +253,7 @@ export function PaceScoreModal({
           </Button>
           <Button disabled={!validScore || !validPaceNumber} pending={pending} type="submit">
             <Save aria-hidden="true" size={16} />
-            Save Score
+            {isUpdateMode ? 'Update Score' : 'Save Score'}
           </Button>
         </footer>
       </form>

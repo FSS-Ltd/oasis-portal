@@ -452,6 +452,38 @@ function makeFakeDb() {
         },
       ),
     },
+    paceProgress: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            OR?: Array<{ paceNumber: number; studentId: string; subjectId: string }>;
+          };
+        } = {}) => {
+          const rows = [
+            {
+              studentId: 'student_1',
+              subjectId: 'subject_1',
+              paceNumber: 1001,
+              startedAt: day('2026-04-22'),
+            },
+          ];
+          return Promise.resolve(
+            rows.filter(
+              (row) =>
+                !where?.OR?.length ||
+                where.OR.some(
+                  (candidate) =>
+                    candidate.studentId === row.studentId &&
+                    candidate.subjectId === row.subjectId &&
+                    candidate.paceNumber === row.paceNumber,
+                ),
+            ),
+          );
+        },
+      ),
+    },
     behaviourEntry: {
       findMany: vi.fn(
         ({

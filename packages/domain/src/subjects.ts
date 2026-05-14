@@ -63,6 +63,15 @@ export const paceRecordInput = z.object({
 
 export type PaceRecordInput = z.infer<typeof paceRecordInput>;
 
+export const paceUpdateRecordInput = z.object({
+  recordId: z.string().trim().min(1),
+  score: z.number().min(0).max(100),
+  completedAt: z.coerce.date(),
+  startedAt: z.coerce.date(),
+});
+
+export type PaceUpdateRecordInput = z.infer<typeof paceUpdateRecordInput>;
+
 export type PaceProgressStatus = 'Behind' | 'On Track' | 'Ahead' | 'Unavailable';
 export type PaceProgressStatusTone = 'amber' | 'blue' | 'green' | 'grey';
 

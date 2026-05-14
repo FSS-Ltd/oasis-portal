@@ -17,14 +17,51 @@ interface PaceProgressTableProps {
   loading: boolean;
   canManageProgress: boolean;
   errorMessage?: string | undefined;
-  onUpdateScore: (subject: PaceSubject) => void;
+  onRecordScore: (subject: PaceSubject) => void;
+  onUpdateScore: (
+    subject: PaceSubject,
+    record: NonNullable<PaceSubject['currentScoreRecord']>,
+  ) => void;
   subjects: readonly PaceSubject[];
 }
 
-function ScoreValue({ score }: { score: number | null | undefined }) {
+function ScoreValue({
+  canManageProgress,
+  label,
+  onUpdateScore,
+  record,
+  subject,
+}: {
+  canManageProgress: boolean;
+  label: string;
+  onUpdateScore: (
+    subject: PaceSubject,
+    record: NonNullable<PaceSubject['currentScoreRecord']>,
+  ) => void;
+  record: NonNullable<PaceSubject['currentScoreRecord']> | null | undefined;
+  subject: PaceSubject;
+}) {
   return (
-    <span className={`pace-score pace-score--${scoreTone(score)}`}>
-      {formatScore(score)}
+    <span className="pace-score-cell">
+      <span className={`pace-score pace-score--${scoreTone(record?.score)}`}>
+        {formatScore(record?.score)}
+      </span>
+      {canManageProgress && record ? (
+        <Button
+          aria-label={`Update ${label} score for ${subject.name}`}
+          className="pace-score-edit-button"
+          disabled={!subject.active}
+          onClick={() => {
+            onUpdateScore(subject, record);
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Edit3 aria-hidden="true" size={14} />
+          <span className="sr-only">Update {label} score</span>
+        </Button>
+      ) : null}
     </span>
   );
 }
@@ -51,6 +88,7 @@ export function PaceProgressTable({
   canManageProgress,
   errorMessage,
   loading,
+  onRecordScore,
   onUpdateScore,
   subjects,
 }: PaceProgressTableProps) {
@@ -81,12 +119,28 @@ export function PaceProgressTable({
     {
       id: 'self',
       header: 'Self-Test',
-      render: (subject) => <ScoreValue score={subject.latestSelfTest?.score} />,
+      render: (subject) => (
+        <ScoreValue
+          canManageProgress={canManageProgress}
+          label="Self-Test"
+          onUpdateScore={onUpdateScore}
+          record={subject.latestSelfTest}
+          subject={subject}
+        />
+      ),
     },
     {
       id: 'final',
       header: 'PACE Test',
-      render: (subject) => <ScoreValue score={subject.latestFinalTest?.score} />,
+      render: (subject) => (
+        <ScoreValue
+          canManageProgress={canManageProgress}
+          label="PACE Test"
+          onUpdateScore={onUpdateScore}
+          record={subject.latestFinalTest}
+          subject={subject}
+        />
+      ),
     },
     {
       id: 'completed',
@@ -119,21 +173,29 @@ export function PaceProgressTable({
         className: 'pace-action-cell',
         header: <span className="sr-only">Update score</span>,
         headerClassName: 'pace-action-heading',
-        render: (subject) => (
-          <Button
-            className="pace-update-button"
-            disabled={!subject.active}
-            onClick={() => {
-              onUpdateScore(subject);
-            }}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            <Edit3 aria-hidden="true" size={14} />
-            Update Score
-          </Button>
-        ),
+        render: (subject) => {
+          const hasBothTestTypes =
+            subject.latestSelfTest !== null && subject.latestFinalTest !== null;
+          if (hasBothTestTypes) {
+            return <span className="sr-only">Both scores recorded</span>;
+          }
+
+          return (
+            <Button
+              className="pace-update-button"
+              disabled={!subject.active}
+              onClick={() => {
+                onRecordScore(subject);
+              }}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <Edit3 aria-hidden="true" size={14} />
+              Record Score
+            </Button>
+          );
+        },
       },
     );
   }
@@ -142,7 +204,12 @@ export function PaceProgressTable({
     <div className="panel panel--scroll pace-table-panel">
       <DataTable
         columns={columns}
-        empty={<EmptyState detail="Assign subjects before recording PACE scores." title="No subjects assigned" />}
+        empty={
+          <EmptyState
+            detail="Assign subjects before recording PACE scores."
+            title="No subjects assigned"
+          />
+        }
         errorMessage={errorMessage}
         getRowKey={(subject) => subject.subjectId}
         loading={loading}
