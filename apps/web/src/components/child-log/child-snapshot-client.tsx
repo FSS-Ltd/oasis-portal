@@ -98,6 +98,7 @@ export function ChildSnapshotClient({
   const [editingNote, setEditingNote] = useState<EditingNoteForm | null>(null);
   const [deletingNote, setDeletingNote] = useState<SnapshotNoteEntry | null>(null);
   const [editingPace, setEditingPace] = useState<SnapshotPaceEntry | null>(null);
+  const [deletingPace, setDeletingPace] = useState<SnapshotPaceEntry | null>(null);
 
   const studentsQuery = api.childLog.listSnapshotStudents.useQuery(undefined, { retry: false });
   const snapshotQuery = api.childLog.snapshot.useQuery(
@@ -156,6 +157,13 @@ export function ChildSnapshotClient({
   const updatePace = api.pace.updateRecord.useMutation({
     onSuccess: async () => {
       setEditingPace(null);
+      await utils.childLog.snapshot.invalidate();
+      await utils.childLog.centreSnapshot.invalidate();
+    },
+  });
+  const deletePace = api.pace.deleteRecord.useMutation({
+    onSuccess: async () => {
+      setDeletingPace(null);
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
     },
@@ -505,23 +513,43 @@ export function ChildSnapshotClient({
                       {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)} ·{' '}
                       Supervisor: {item.recordedByName}
                     </p>
+                    {item.approval ? (
+                      <p>
+                        Approved advance by {item.approval.approvedByName} · {item.approval.notes}
+                      </p>
+                    ) : null}
                   </div>
                   <span className="snapshot-pace-actions">
                     <span>{item.testType}</span>
                     {canManageCorrections ? (
-                      <Button
-                        aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
-                        className="pace-score-edit-button"
-                        onClick={() => {
-                          setEditingPace(item);
-                        }}
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <Edit3 aria-hidden="true" size={14} />
-                        <span className="sr-only">Edit PACE score</span>
-                      </Button>
+                      <>
+                        <Button
+                          aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
+                          className="pace-score-edit-button"
+                          onClick={() => {
+                            setEditingPace(item);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Edit3 aria-hidden="true" size={14} />
+                          <span className="sr-only">Edit PACE score</span>
+                        </Button>
+                        <Button
+                          aria-label={`Delete ${item.testType} score for ${item.subjectName}`}
+                          className="pace-score-edit-button"
+                          onClick={() => {
+                            setDeletingPace(item);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Trash2 aria-hidden="true" size={14} />
+                          <span className="sr-only">Delete PACE score</span>
+                        </Button>
+                      </>
                     ) : null}
                   </span>
                 </div>
@@ -640,6 +668,12 @@ export function ChildSnapshotClient({
                   Date: <strong>{formatShortDate(item.completedAt ?? item.createdAt)}</strong> ·
                   Supervisor: <strong>{item.recordedByName}</strong>
                 </span>
+                {item.approval ? (
+                  <p>
+                    Approved advance by <strong>{item.approval.approvedByName}</strong>:{' '}
+                    {item.approval.notes}
+                  </p>
+                ) : null}
                 {canManageCorrections ? (
                   <div className="lifecycle-actions">
                     <Button
@@ -652,6 +686,17 @@ export function ChildSnapshotClient({
                     >
                       <Edit3 aria-hidden="true" size={14} />
                       Edit
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setDeletingPace(item);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="danger"
+                    >
+                      <Trash2 aria-hidden="true" size={14} />
+                      Delete
                     </Button>
                   </div>
                 ) : null}
@@ -989,6 +1034,21 @@ export function ChildSnapshotClient({
           record={snapshotPaceToEditable(editingPace)}
         />
       ) : null}
+      <ConfirmationDialog
+        confirmLabel="Delete test"
+        errorMessage={deletePace.error?.message}
+        onCancel={() => {
+          if (!deletePace.isPending) setDeletingPace(null);
+        }}
+        onConfirm={() => {
+          if (deletingPace) void deletePace.mutateAsync({ recordId: deletingPace.id });
+        }}
+        open={deletingPace !== null}
+        pending={deletePace.isPending}
+        title="Delete PACE test?"
+      >
+        <p>This permanently removes the test record and recalculates PACE progress.</p>
+      </ConfirmationDialog>
     </div>
   );
 }

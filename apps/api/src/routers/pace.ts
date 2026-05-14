@@ -13,7 +13,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { authedProcedure, router } from '../trpc.js';
+import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 const DEFAULT_POLICY = {
   dailyTestLimitEnabled: false,
@@ -40,6 +40,10 @@ const paceRosterInput = z
 const paceForStudentInput = paceRecordInput
   .pick({ studentId: true })
   .extend({ date: z.coerce.date().optional() });
+const paceRecordByIdInput = z.object({ recordId: z.string().trim().min(1) });
+const paceApprovalInput = paceRecordByIdInput.extend({
+  notes: z.string().trim().min(1).max(3000),
+});
 
 function utcDayBounds(date: Date): { dayKey: string; dayStart: Date; dayEnd: Date } {
   const dayKey = date.toISOString().slice(0, 10);
@@ -113,6 +117,34 @@ function scoreDataForTestType(
   return testType === 'SelfTest'
     ? { selfTestScore: score, paceTestScore: null }
     : { selfTestScore: null, paceTestScore: score };
+}
+
+function mapApproval(
+  ctx: AuthedContext,
+  approval: {
+    id: string;
+    approvedAt: Date;
+    approvedById: string;
+    notesEnc: string;
+    approvedBy: { fullNameEnc: string; role: string };
+  } | null,
+): {
+  id: string;
+  approvedAt: Date;
+  approvedById: string;
+  approvedByName: string;
+  approvedByRole: string;
+  notes: string;
+} | null {
+  if (!approval) return null;
+  return {
+    id: approval.id,
+    approvedAt: approval.approvedAt,
+    approvedById: approval.approvedById,
+    approvedByName: decryptRequired(ctx.db.$enc.decrypt, approval.approvedBy.fullNameEnc, 'user'),
+    approvedByRole: approval.approvedBy.role,
+    notes: decryptRequired(ctx.db.$enc.decrypt, approval.notesEnc, 'approval notes'),
+  };
 }
 
 function decryptRequired(
@@ -317,6 +349,42 @@ async function syncAutomaticPaceMerit(
   };
 }
 
+async function reverseAutomaticPaceMerit(
+  tx: RlsTx,
+  params: { paceRecordId: string; deletedById: string },
+): Promise<{ behaviourEntryId: string; correctionRows: number } | null> {
+  const existing = await tx.behaviourEntry.findFirst({
+    where: { paceRecordId: params.paceRecordId, type: 'Merit' },
+    include: {
+      ledgerRows: { select: { studentId: true, account: true, delta: true, reason: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!existing || existing.deletedAt !== null) return null;
+
+  const correctionRows = existing.ledgerRows
+    .filter((row) => row.delta !== 0)
+    .map((row) => ({
+      studentId: row.studentId,
+      account: row.account,
+      delta: -row.delta,
+      reason: `correction:delete:${row.reason}`,
+      relatedEntryId: existing.id,
+    }));
+
+  await tx.behaviourEntry.update({
+    where: { id: existing.id },
+    data: { deletedAt: new Date(), deletedById: params.deletedById },
+    select: { id: true },
+  });
+
+  if (correctionRows.length > 0) {
+    await tx.meritLedger.createMany({ data: correctionRows });
+  }
+
+  return { behaviourEntryId: existing.id, correctionRows: correctionRows.length };
+}
+
 async function recalculatePaceLifecycle(
   tx: RlsTx,
   params: {
@@ -347,6 +415,7 @@ async function recalculatePaceLifecycle(
       paceTestScore: true,
       completedAt: true,
       createdAt: true,
+      advancementApproval: { select: { id: true, approvedAt: true } },
     },
   });
   const finalTestAttempts = records.filter((record) => record.paceTestScore !== null).length;
@@ -354,19 +423,37 @@ async function recalculatePaceLifecycle(
     records.find(
       (record) => record.paceTestScore !== null && record.paceTestScore >= params.passThreshold,
     ) ?? null;
+  const approvedFinal =
+    records.find(
+      (record) => record.paceTestScore !== null && record.advancementApproval !== null,
+    ) ?? null;
+  const completion = passingFinal
+    ? {
+        completedAt: passingFinal.completedAt ?? passingFinal.createdAt,
+        completedByApprovalId: null,
+        completedByRecordId: passingFinal.id,
+      }
+    : approvedFinal?.advancementApproval
+      ? {
+          completedAt: approvedFinal.advancementApproval.approvedAt,
+          completedByApprovalId: approvedFinal.advancementApproval.id,
+          completedByRecordId: null,
+        }
+      : null;
 
   await tx.paceProgress.update({
     where: { id: currentProgress.id },
     data: {
       startedAt: params.startedAt,
       finalTestAttempts,
-      completedAt: passingFinal?.completedAt ?? null,
-      completedByRecordId: passingFinal?.id ?? null,
+      completedAt: completion?.completedAt ?? null,
+      completedByRecordId: completion?.completedByRecordId ?? null,
+      completedByApprovalId: completion?.completedByApprovalId ?? null,
     },
   });
 
-  if (passingFinal && params.paceNumber >= params.assignmentCurrentPaceNumber) {
-    const nextStartedAt = passingFinal.completedAt ?? passingFinal.createdAt;
+  if (completion && params.paceNumber >= params.assignmentCurrentPaceNumber) {
+    const nextStartedAt = completion.completedAt;
     const nextProgress = await ensurePaceProgressStarted(tx, {
       studentId: params.studentId,
       subjectId: params.subjectId,
@@ -604,6 +691,15 @@ export const paceRouter = router({
               paceTestScore: true,
               completedAt: true,
               createdAt: true,
+              advancementApproval: {
+                select: {
+                  id: true,
+                  approvedAt: true,
+                  approvedById: true,
+                  notesEnc: true,
+                  approvedBy: { select: { fullNameEnc: true, role: true } },
+                },
+              },
             },
           });
     const progressRows =
@@ -685,6 +781,7 @@ export const paceRouter = router({
           testType,
           score,
           passed: score >= policy.passThreshold,
+          approval: mapApproval(ctx, record.advancementApproval),
           completedAt: record.completedAt,
           createdAt: record.createdAt,
           startedAt: progress?.startedAt ?? null,
@@ -696,6 +793,8 @@ export const paceRouter = router({
             paceNumber: latestRecord.paceNumber,
             testType: testTypeForRecord(latestRecord),
             score: scoreForRecord(latestRecord),
+            passed: scoreForRecord(latestRecord) >= policy.passThreshold,
+            approval: mapApproval(ctx, latestRecord.advancementApproval),
             completedAt: latestRecord.completedAt,
             createdAt: latestRecord.createdAt,
             startedAt: currentProgress?.startedAt ?? null,
@@ -722,6 +821,8 @@ export const paceRouter = router({
               paceNumber: latestSelfTest.paceNumber,
               testType: 'SelfTest' as const,
               score: scoreForRecord(latestSelfTest),
+              passed: scoreForRecord(latestSelfTest) >= policy.passThreshold,
+              approval: mapApproval(ctx, latestSelfTest.advancementApproval),
               completedAt: latestSelfTest.completedAt,
               createdAt: latestSelfTest.createdAt,
               startedAt: currentProgress?.startedAt ?? null,
@@ -733,6 +834,8 @@ export const paceRouter = router({
               paceNumber: latestFinalTest.paceNumber,
               testType: 'FinalTest' as const,
               score: scoreForRecord(latestFinalTest),
+              passed: scoreForRecord(latestFinalTest) >= policy.passThreshold,
+              approval: mapApproval(ctx, latestFinalTest.advancementApproval),
               completedAt: latestFinalTest.completedAt,
               createdAt: latestFinalTest.createdAt,
               startedAt: currentProgress?.startedAt ?? null,
@@ -1284,4 +1387,340 @@ export const paceRouter = router({
       newPaceNumber: lifecycle.newPaceNumber,
     };
   }),
+
+  deleteRecord: fullAdminProcedure.input(paceRecordByIdInput).mutation(async ({ ctx, input }) => {
+    const existing = await ctx.db.paceRecord.findUnique({
+      where: { id: input.recordId },
+      select: {
+        id: true,
+        studentId: true,
+        subjectId: true,
+        paceNumber: true,
+        selfTestScore: true,
+        paceTestScore: true,
+        completedAt: true,
+        createdAt: true,
+        advancementApproval: { select: { id: true } },
+        student: { select: { id: true, active: true, yearGroup: true } },
+        subject: { select: { id: true, active: true } },
+      },
+    });
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'PACE record not found' });
+    }
+    if (existing.advancementApproval) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'approved advancement records cannot be deleted',
+      });
+    }
+    if (!existing.student.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
+    }
+    if (!existing.subject.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
+    }
+
+    const assignment = await ctx.db.studentSubject.findUnique({
+      where: {
+        studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
+      },
+      select: { id: true, currentPaceNumber: true },
+    });
+    if (!assignment) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'student is not assigned to this subject',
+      });
+    }
+
+    const [storedPolicy, progress] = await Promise.all([
+      ctx.db.pacePolicy.findUnique({ where: { id: 'default' } }),
+      ctx.db.paceProgress.findUnique({
+        where: {
+          studentId_subjectId_paceNumber: {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+          },
+        },
+        select: { startedAt: true },
+      }),
+    ]);
+    const policy = storedPolicy ?? DEFAULT_POLICY;
+    const testType = testTypeForRecord(existing);
+    const previousScore = scoreForRecord(existing);
+    const startedAt = progress?.startedAt ?? existing.completedAt ?? existing.createdAt;
+
+    const [deleted, meritResult, lifecycle] = await ctx.withRls(async (tx) => {
+      const nextMeritResult = await reverseAutomaticPaceMerit(tx, {
+        paceRecordId: existing.id,
+        deletedById: ctx.user.id,
+      });
+      const removed = await tx.paceRecord.delete({
+        where: { id: existing.id },
+        select: {
+          id: true,
+          studentId: true,
+          subjectId: true,
+          paceNumber: true,
+          completedAt: true,
+          createdAt: true,
+        },
+      });
+      const nextLifecycle = await recalculatePaceLifecycle(tx, {
+        assignmentCurrentPaceNumber: assignment.currentPaceNumber,
+        passThreshold: policy.passThreshold,
+        paceNumber: existing.paceNumber,
+        startedAt,
+        studentId: existing.studentId,
+        subjectId: existing.subjectId,
+      });
+      return [removed, nextMeritResult, nextLifecycle] as const;
+    });
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Delete',
+        entity: 'PaceRecord',
+        entityId: deleted.id,
+        meta: {
+          studentId: existing.studentId,
+          subjectId: existing.subjectId,
+          paceNumber: existing.paceNumber,
+          testType,
+          previousScore,
+          previousCompletedAt: existing.completedAt,
+          automaticMeritReversed: meritResult !== null,
+          ledgerCorrectionRows: meritResult?.correctionRows ?? 0,
+        },
+      },
+    });
+
+    if (meritResult) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Delete',
+          entity: 'BehaviourEntry',
+          entityId: meritResult.behaviourEntryId,
+          meta: {
+            studentId: existing.studentId,
+            source: 'pace.deleteRecord',
+            paceRecordId: existing.id,
+            ledgerCorrectionRows: meritResult.correctionRows,
+          },
+        },
+      });
+    }
+
+    if (lifecycle.newPaceNumber !== undefined) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StudentSubject',
+          entityId: assignment.id,
+          meta: {
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            previousPaceNumber: assignment.currentPaceNumber,
+            newPaceNumber: lifecycle.newPaceNumber,
+            triggeredBy: deleted.id,
+            source: 'pace.deleteRecord',
+          },
+        },
+      });
+    }
+
+    return {
+      ...deleted,
+      deleted: true,
+      newPaceNumber: lifecycle.newPaceNumber,
+    };
+  }),
+
+  approveFailedFinalTestAdvance: authedProcedure
+    .input(paceApprovalInput)
+    .mutation(async ({ ctx, input }) => {
+      const scope = await loadPaceScope(ctx, undefined, 'pace.approveFailedFinalTestAdvance');
+      const existing = await ctx.db.paceRecord.findUnique({
+        where: { id: input.recordId },
+        select: {
+          id: true,
+          studentId: true,
+          subjectId: true,
+          paceNumber: true,
+          selfTestScore: true,
+          paceTestScore: true,
+          completedAt: true,
+          createdAt: true,
+          advancementApproval: { select: { id: true } },
+          student: { select: { id: true, active: true, yearGroup: true } },
+          subject: { select: { id: true, active: true } },
+        },
+      });
+      if (!existing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'PACE record not found' });
+      }
+      if (!existing.student.active) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
+      }
+      if (!existing.subject.active) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
+      }
+      if (
+        !scope.fullAccess &&
+        dateKey(existing.completedAt ?? existing.createdAt) !== scope.dayKey
+      ) {
+        await denyPaceAccess(
+          ctx,
+          'pace.approveFailedFinalTestAdvance',
+          'Supervisor PACE access is limited to today',
+          {
+            recordId: existing.id,
+            existingDate: dateKey(existing.completedAt ?? existing.createdAt),
+            today: scope.dayKey,
+          },
+        );
+      }
+      await assertStudentInPaceScope(
+        ctx,
+        scope,
+        existing.student,
+        'pace.approveFailedFinalTestAdvance',
+      );
+
+      const assignment = await ctx.db.studentSubject.findUnique({
+        where: {
+          studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
+        },
+        select: { id: true, currentPaceNumber: true },
+      });
+      if (!assignment) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'student is not assigned to this subject',
+        });
+      }
+
+      const [storedPolicy, progress] = await Promise.all([
+        ctx.db.pacePolicy.findUnique({ where: { id: 'default' } }),
+        ctx.db.paceProgress.findUnique({
+          where: {
+            studentId_subjectId_paceNumber: {
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              paceNumber: existing.paceNumber,
+            },
+          },
+          select: { startedAt: true },
+        }),
+      ]);
+      const policy = storedPolicy ?? DEFAULT_POLICY;
+      const testType = testTypeForRecord(existing);
+      const score = scoreForRecord(existing);
+      if (testType !== 'FinalTest') {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'only failed PACE Tests can be approved for advancement',
+        });
+      }
+      if (score >= policy.passThreshold) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'passing PACE Tests advance without supervisor approval',
+        });
+      }
+      if (existing.advancementApproval) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'PACE Test already has an advancement approval',
+        });
+      }
+      if (assignment.currentPaceNumber !== existing.paceNumber) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'approved advancement must match the current PACE number',
+        });
+      }
+
+      const startedAt = progress?.startedAt ?? existing.completedAt ?? existing.createdAt;
+      const [approval, lifecycle] = await ctx.withRls(async (tx) => {
+        const created = await tx.paceAdvancementApproval.create({
+          data: {
+            paceRecordId: existing.id,
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+            notesEnc: ctx.db.$enc.encrypt(input.notes),
+            approvedById: ctx.user.id,
+          },
+          select: {
+            id: true,
+            paceRecordId: true,
+            studentId: true,
+            subjectId: true,
+            paceNumber: true,
+            approvedAt: true,
+            approvedById: true,
+          },
+        });
+        const nextLifecycle = await recalculatePaceLifecycle(tx, {
+          assignmentCurrentPaceNumber: assignment.currentPaceNumber,
+          passThreshold: policy.passThreshold,
+          paceNumber: existing.paceNumber,
+          startedAt,
+          studentId: existing.studentId,
+          subjectId: existing.subjectId,
+        });
+        return [created, nextLifecycle] as const;
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'PaceAdvancementApproval',
+          entityId: approval.id,
+          meta: {
+            paceRecordId: existing.id,
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+            paceNumber: existing.paceNumber,
+            score,
+            notesPresent: true,
+            advanced: lifecycle.advanced,
+            newPaceNumber: lifecycle.newPaceNumber,
+          },
+        },
+      });
+
+      if (lifecycle.newPaceNumber !== undefined) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'StudentSubject',
+            entityId: assignment.id,
+            meta: {
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              previousPaceNumber: assignment.currentPaceNumber,
+              newPaceNumber: lifecycle.newPaceNumber,
+              triggeredBy: approval.id,
+              source: 'pace.approveFailedFinalTestAdvance',
+            },
+          },
+        });
+      }
+
+      return {
+        ...approval,
+        advanced: lifecycle.advanced,
+        newPaceNumber: lifecycle.newPaceNumber,
+        notes: input.notes,
+      };
+    }),
 });

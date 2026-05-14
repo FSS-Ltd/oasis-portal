@@ -7,6 +7,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
+import { PaceApprovalModal } from './pace-approval-modal';
 import { PaceProgressTable } from './pace-progress-table';
 import { PaceScoreModal } from './pace-score-modal';
 import {
@@ -20,6 +21,7 @@ import {
 
 const EMPTY_ROSTER_STUDENTS: readonly PaceRosterStudent[] = [];
 type PaceEditableRecord = NonNullable<PaceSubject['currentScoreRecord']>;
+type PaceApprovalRecord = NonNullable<PaceSubject['latestFinalTest']>;
 type PaceModalState =
   | { initialTestType?: PaceTestType | undefined; mode: 'create'; subject: PaceSubject }
   | { mode: 'update'; record: PaceEditableRecord; subject: PaceSubject };
@@ -66,6 +68,10 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [scoreModal, setScoreModal] = useState<PaceModalState | null>(null);
+  const [approvalModal, setApprovalModal] = useState<{
+    record: PaceApprovalRecord;
+    subject: PaceSubject;
+  } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const utils = api.useUtils();
@@ -105,6 +111,16 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
       ]);
     },
   });
+  const approveAdvance = api.pace.approveFailedFinalTestAdvance.useMutation({
+    async onSuccess(result) {
+      setStatus(`Advance approved. Current PACE is ${String(result.newPaceNumber)}.`);
+      setApprovalModal(null);
+      await Promise.all([
+        utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
+        utils.pace.roster.invalidate({ date }),
+      ]);
+    },
+  });
 
   useEffect(() => {
     if (students.length === 0) {
@@ -119,6 +135,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   function handleStudentChange(studentId: string): void {
     setSelectedStudentId(studentId);
     setScoreModal(null);
+    setApprovalModal(null);
     setStatus(null);
   }
 
@@ -150,6 +167,11 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
       score: input.score,
       completedAt: asDate(input.completedAt),
     });
+  }
+
+  async function approveFailedFinalTest(input: { notes: string; recordId: string }): Promise<void> {
+    setStatus(null);
+    await approveAdvance.mutateAsync(input);
   }
 
   return (
@@ -266,6 +288,9 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
             canManageProgress={canManageProgress}
             errorMessage={paceQuery.error?.message}
             loading={paceQuery.isLoading}
+            onApproveAdvance={(subject, record) => {
+              setApprovalModal({ record, subject });
+            }}
             onRecordScore={(subject) => {
               setScoreModal({
                 initialTestType: nextRecordTestType(subject),
@@ -300,6 +325,22 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
           studentYearLabel={selectedStudent.yearGroupLabel}
           subject={scoreModal.subject}
           subjects={subjects}
+        />
+      ) : null}
+      {canManageProgress && approvalModal ? (
+        <PaceApprovalModal
+          errorMessage={approveAdvance.error?.message}
+          onClose={() => {
+            if (!approveAdvance.isPending) setApprovalModal(null);
+          }}
+          onSave={approveFailedFinalTest}
+          pending={approveAdvance.isPending}
+          record={{
+            id: approvalModal.record.id,
+            paceNumber: approvalModal.record.paceNumber,
+            score: approvalModal.record.score,
+            subjectName: approvalModal.subject.name,
+          }}
         />
       ) : null}
     </div>

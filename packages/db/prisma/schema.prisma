@@ -68,43 +68,44 @@ model User {
   createdAt                         DateTime                      @default(now())
   updatedAt                         DateTime                      @updatedAt
 
-  guardianOf              Guardian[]
-  studentProfile          Student?                  @relation("StudentLogin")
-  behaviourEntries        BehaviourEntry[]          @relation("RecordedBehaviour")
-  childNotesCreated       ChildNote[]               @relation("ChildNotesCreated")
-  deletedBehaviourEntries BehaviourEntry[]          @relation("DeletedBehaviour")
-  deletedChildNotes       ChildNote[]               @relation("DeletedChildNotes")
-  paceRecords             PaceRecord[]              @relation("RecordedPace")
-  attendanceRecords       Attendance[]              @relation("RecordedAttendance")
-  availabilityWindows     StaffAvailabilityWindow[] @relation("StaffAvailability")
-  staffShifts             StaffShift[]              @relation("StaffShifts")
-  requestedShiftSwaps     ShiftSwapRequest[]        @relation("RequestedShiftSwaps")
-  targetedShiftSwaps      ShiftSwapRequest[]        @relation("TargetedShiftSwaps")
-  approvedShiftSwaps      ShiftSwapRequest[]        @relation("ApprovedShiftSwaps")
-  staffAttendance         StaffAttendance[]         @relation("StaffAttendanceUser")
-  recordedStaffAttendance StaffAttendance[]         @relation("RecordedStaffAttendance")
-  noticesPosted           StaffNotice[]             @relation("NoticesPosted")
-  noticeReads             StaffNoticeRead[]
-  calendarEventsCreated   CalendarEvent[]           @relation("CalendarEventsCreated")
-  messagesSent            Message[]                 @relation("MessagesSent")
-  messageReads            MessageRead[]
-  threadsAsParent         MessageThread[]           @relation("ThreadParent")
-  threadsAsAdmin          MessageThread[]           @relation("ThreadAdmin")
-  shopPurchases           ShopPurchase[]            @relation("Shopkeeper")
-  shopItemsCreated        ShopItem[]                @relation("ShopItemsCreated")
-  clubsCreated            Club[]                    @relation("ClubsCreated")
-  clubSignupsCreated      ClubSignup[]              @relation("SignupsCreated")
-  clubNotifications       ClubNotification[]        @relation("ClubNotificationsSent")
-  clubAttendanceRecords   ClubAttendance[]          @relation("RecordedClubAttendance")
-  clubRotaSelections      ClubRotaParticipant[]     @relation("ClubRotaSelectedUsers")
-  clubRotaParticipants    ClubRotaParticipant[]     @relation("ClubRotaParticipants")
-  clubRotaShifts          ClubRotaShift[]           @relation("ClubRotaShifts")
-  clubAvailabilityWindows ClubAvailabilityWindow[]  @relation("ClubAvailability")
-  auditEvents             AuditLog[]
-  invitationsSent         UserInvitation[]          @relation("InvitedUserInvitations")
-  acceptedInvitations     UserInvitation[]          @relation("AcceptedUserInvitations")
-  spouseInvitationsSent   UserInvitation[]          @relation("GuardianLinkInviterInvitations")
-  parentRegistration      ParentRegistration?       @relation("ParentRegistrationParent")
+  guardianOf               Guardian[]
+  studentProfile           Student?                  @relation("StudentLogin")
+  behaviourEntries         BehaviourEntry[]          @relation("RecordedBehaviour")
+  childNotesCreated        ChildNote[]               @relation("ChildNotesCreated")
+  deletedBehaviourEntries  BehaviourEntry[]          @relation("DeletedBehaviour")
+  deletedChildNotes        ChildNote[]               @relation("DeletedChildNotes")
+  paceRecords              PaceRecord[]              @relation("RecordedPace")
+  approvedPaceAdvancements PaceAdvancementApproval[] @relation("ApprovedPaceAdvancements")
+  attendanceRecords        Attendance[]              @relation("RecordedAttendance")
+  availabilityWindows      StaffAvailabilityWindow[] @relation("StaffAvailability")
+  staffShifts              StaffShift[]              @relation("StaffShifts")
+  requestedShiftSwaps      ShiftSwapRequest[]        @relation("RequestedShiftSwaps")
+  targetedShiftSwaps       ShiftSwapRequest[]        @relation("TargetedShiftSwaps")
+  approvedShiftSwaps       ShiftSwapRequest[]        @relation("ApprovedShiftSwaps")
+  staffAttendance          StaffAttendance[]         @relation("StaffAttendanceUser")
+  recordedStaffAttendance  StaffAttendance[]         @relation("RecordedStaffAttendance")
+  noticesPosted            StaffNotice[]             @relation("NoticesPosted")
+  noticeReads              StaffNoticeRead[]
+  calendarEventsCreated    CalendarEvent[]           @relation("CalendarEventsCreated")
+  messagesSent             Message[]                 @relation("MessagesSent")
+  messageReads             MessageRead[]
+  threadsAsParent          MessageThread[]           @relation("ThreadParent")
+  threadsAsAdmin           MessageThread[]           @relation("ThreadAdmin")
+  shopPurchases            ShopPurchase[]            @relation("Shopkeeper")
+  shopItemsCreated         ShopItem[]                @relation("ShopItemsCreated")
+  clubsCreated             Club[]                    @relation("ClubsCreated")
+  clubSignupsCreated       ClubSignup[]              @relation("SignupsCreated")
+  clubNotifications        ClubNotification[]        @relation("ClubNotificationsSent")
+  clubAttendanceRecords    ClubAttendance[]          @relation("RecordedClubAttendance")
+  clubRotaSelections       ClubRotaParticipant[]     @relation("ClubRotaSelectedUsers")
+  clubRotaParticipants     ClubRotaParticipant[]     @relation("ClubRotaParticipants")
+  clubRotaShifts           ClubRotaShift[]           @relation("ClubRotaShifts")
+  clubAvailabilityWindows  ClubAvailabilityWindow[]  @relation("ClubAvailability")
+  auditEvents              AuditLog[]
+  invitationsSent          UserInvitation[]          @relation("InvitedUserInvitations")
+  acceptedInvitations      UserInvitation[]          @relation("AcceptedUserInvitations")
+  spouseInvitationsSent    UserInvitation[]          @relation("GuardianLinkInviterInvitations")
+  parentRegistration       ParentRegistration?       @relation("ParentRegistrationParent")
 
   @@index([role])
 }
@@ -158,23 +159,24 @@ model Student {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  guardians           Guardian[]
-  subjects            StudentSubject[]
-  paceRecords         PaceRecord[]
-  paceProgress        PaceProgress[]
-  attendance          Attendance[]
-  behaviour           BehaviourEntry[]
-  childNotes          ChildNote[]
-  meritLedger         MeritLedger[]
-  titheConfig         TitheConfig?
-  titheRuns           TitheRun[]
-  investment          InvestmentAccount?
-  investmentTx        InvestmentTransaction[]
-  shopPurchases       ShopPurchase[]
-  clubSignups         ClubSignup[]
-  clubAttendance      ClubAttendance[]
-  termReports         TermReport[]
-  registrationProfile StudentRegistrationProfile?
+  guardians                Guardian[]
+  subjects                 StudentSubject[]
+  paceRecords              PaceRecord[]
+  paceProgress             PaceProgress[]
+  paceAdvancementApprovals PaceAdvancementApproval[]
+  attendance               Attendance[]
+  behaviour                BehaviourEntry[]
+  childNotes               ChildNote[]
+  meritLedger              MeritLedger[]
+  titheConfig              TitheConfig?
+  titheRuns                TitheRun[]
+  investment               InvestmentAccount?
+  investmentTx             InvestmentTransaction[]
+  shopPurchases            ShopPurchase[]
+  clubSignups              ClubSignup[]
+  clubAttendance           ClubAttendance[]
+  termReports              TermReport[]
+  registrationProfile      StudentRegistrationProfile?
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -194,13 +196,14 @@ model Guardian {
 }
 
 model Subject {
-  id       String           @id @default(cuid())
-  code     String           @unique // e.g. "MATH", "ENG", "SOC"
-  name     String
-  active   Boolean          @default(true)
-  students StudentSubject[]
-  paces    PaceRecord[]
-  progress PaceProgress[]
+  id                   String                    @id @default(cuid())
+  code                 String                    @unique // e.g. "MATH", "ENG", "SOC"
+  name                 String
+  active               Boolean                   @default(true)
+  students             StudentSubject[]
+  paces                PaceRecord[]
+  progress             PaceProgress[]
+  advancementApprovals PaceAdvancementApproval[]
 }
 
 model StudentSubject {
@@ -239,34 +242,38 @@ model PaceRecord {
   recordedById  String
   createdAt     DateTime  @default(now())
 
-  student               Student          @relation(fields: [studentId], references: [id])
-  subject               Subject          @relation(fields: [subjectId], references: [id])
-  recordedBy            User             @relation("RecordedPace", fields: [recordedById], references: [id])
-  completedPaceProgress PaceProgress[]   @relation("PaceProgressCompletedByRecord")
-  automaticMeritEntries BehaviourEntry[] @relation("PaceRecordAutomaticMerit")
+  student               Student                  @relation(fields: [studentId], references: [id])
+  subject               Subject                  @relation(fields: [subjectId], references: [id])
+  recordedBy            User                     @relation("RecordedPace", fields: [recordedById], references: [id])
+  completedPaceProgress PaceProgress[]           @relation("PaceProgressCompletedByRecord")
+  advancementApproval   PaceAdvancementApproval? @relation("PaceAdvancementApprovalRecord")
+  automaticMeritEntries BehaviourEntry[]         @relation("PaceRecordAutomaticMerit")
 
   @@index([studentId, subjectId])
 }
 
 model PaceProgress {
-  id                  String    @id @default(cuid())
-  studentId           String
-  subjectId           String
-  paceNumber          Int
-  startedAt           DateTime
-  completedAt         DateTime?
-  completedByRecordId String?
-  finalTestAttempts   Int       @default(0)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  studentId             String
+  subjectId             String
+  paceNumber            Int
+  startedAt             DateTime
+  completedAt           DateTime?
+  completedByRecordId   String?
+  completedByApprovalId String?
+  finalTestAttempts     Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  student           Student     @relation(fields: [studentId], references: [id])
-  subject           Subject     @relation(fields: [subjectId], references: [id])
-  completedByRecord PaceRecord? @relation("PaceProgressCompletedByRecord", fields: [completedByRecordId], references: [id])
+  student             Student                  @relation(fields: [studentId], references: [id])
+  subject             Subject                  @relation(fields: [subjectId], references: [id])
+  completedByRecord   PaceRecord?              @relation("PaceProgressCompletedByRecord", fields: [completedByRecordId], references: [id])
+  completedByApproval PaceAdvancementApproval? @relation("PaceProgressCompletedByApproval", fields: [completedByApprovalId], references: [id])
 
   @@unique([studentId, subjectId, paceNumber])
   @@index([studentId, subjectId, completedAt])
   @@index([completedByRecordId])
+  @@index([completedByApprovalId])
 }
 
 model PacePolicy {
@@ -276,6 +283,28 @@ model PacePolicy {
   samePaceSameDayBlockEnabled Boolean  @default(true)
   passThreshold               Int      @default(80)
   updatedAt                   DateTime @updatedAt
+}
+
+model PaceAdvancementApproval {
+  id           String   @id @default(cuid())
+  paceRecordId String   @unique
+  studentId    String
+  subjectId    String
+  paceNumber   Int
+  notesEnc     String
+  approvedById String
+  approvedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  paceRecord        PaceRecord     @relation("PaceAdvancementApprovalRecord", fields: [paceRecordId], references: [id], onDelete: Restrict)
+  student           Student        @relation(fields: [studentId], references: [id])
+  subject           Subject        @relation(fields: [subjectId], references: [id])
+  approvedBy        User           @relation("ApprovedPaceAdvancements", fields: [approvedById], references: [id])
+  completedProgress PaceProgress[] @relation("PaceProgressCompletedByApproval")
+
+  @@index([studentId, subjectId, paceNumber])
+  @@index([approvedById, approvedAt])
+  @@index([approvedAt])
 }
 
 // ---------------------------------------------------------------------------

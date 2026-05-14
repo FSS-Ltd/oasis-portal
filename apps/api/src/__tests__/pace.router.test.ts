@@ -59,6 +59,7 @@ interface StoredPaceRecord {
   paceTestScore: number | null;
   completedAt: Date | null;
   createdAt: Date;
+  advancementApproval?: StoredPaceApproval | null;
 }
 
 interface StoredPaceProgress {
@@ -69,8 +70,21 @@ interface StoredPaceProgress {
   startedAt: Date;
   completedAt: Date | null;
   completedByRecordId: string | null;
+  completedByApprovalId: string | null;
   finalTestAttempts: number;
   createdAt: Date;
+}
+
+interface StoredPaceApproval {
+  id: string;
+  paceRecordId: string;
+  studentId: string;
+  subjectId: string;
+  paceNumber: number;
+  notesEnc: string;
+  approvedById: string;
+  approvedAt: Date;
+  approvedBy: { fullNameEnc: string; role: string };
 }
 
 interface BehaviourEntryCreateData {
@@ -100,7 +114,10 @@ interface StoredLedgerRow {
 
 interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
-  $enc: { decrypt: ReturnType<typeof vi.fn> };
+  $enc: { decrypt: ReturnType<typeof vi.fn>; encrypt: ReturnType<typeof vi.fn> };
+  paceAdvancementApproval: {
+    create: ReturnType<typeof vi.fn>;
+  };
   behaviourEntry: {
     create: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
@@ -124,6 +141,7 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
   };
   paceProgress: {
     findMany: ReturnType<typeof vi.fn>;
@@ -181,6 +199,7 @@ const defaultStudent = {
 function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
   const records: StoredPaceRecord[] = [];
   const progressRows: StoredPaceProgress[] = [];
+  const approvals: StoredPaceApproval[] = [];
   const behaviourEntries: StoredBehaviourEntry[] = [];
   const ledgerRows: StoredLedgerRow[] = [];
 
@@ -200,6 +219,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
           : null,
       completedAt: data.completedAt instanceof Date ? data.completedAt : new Date(),
       createdAt: new Date(),
+      advancementApproval: null,
     };
     records.push(record);
     return Promise.resolve(record);
@@ -292,6 +312,42 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       record.paceTestScore = data.paceTestScore;
       record.completedAt = data.completedAt;
       return Promise.resolve(record);
+    },
+  );
+  const deletePaceRecord = vi.fn(({ where }: { where: { id: string } }) => {
+    const index = records.findIndex((record) => record.id === where.id);
+    if (index === -1) throw new Error('pace record not found');
+    const [record] = records.splice(index, 1);
+    return Promise.resolve(record);
+  });
+
+  const createPaceApproval = vi.fn(
+    ({
+      data,
+    }: {
+      data: {
+        approvedById: string;
+        notesEnc: string;
+        paceNumber: number;
+        paceRecordId: string;
+        studentId: string;
+        subjectId: string;
+      };
+    }) => {
+      const approval: StoredPaceApproval = {
+        ...data,
+        id: `approval_${String(approvals.length + 1)}`,
+        approvedAt: new Date(),
+        approvedBy: {
+          fullNameEnc:
+            data.approvedById === supervisorUser.id ? 'enc:Supervisor User' : 'enc:Head User',
+          role: data.approvedById === supervisorUser.id ? 'Supervisor' : 'Head',
+        },
+      };
+      approvals.push(approval);
+      const record = findPaceRecord(data.paceRecordId);
+      if (record) record.advancementApproval = approval;
+      return Promise.resolve(approval);
     },
   );
 
@@ -395,6 +451,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         id: `progress_${String(progressRows.length + 1)}`,
         completedAt: null,
         completedByRecordId: null,
+        completedByApprovalId: null,
         finalTestAttempts: 0,
         createdAt: new Date(),
       };
@@ -413,6 +470,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         finalTestAttempts?: { increment: number } | number;
         completedAt?: Date | null;
         completedByRecordId?: string | null;
+        completedByApprovalId?: string | null;
       };
     }) => {
       const row = progressRows.find((item) => item.id === where.id);
@@ -426,6 +484,9 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       if (data.completedAt !== undefined) row.completedAt = data.completedAt;
       if (data.completedByRecordId !== undefined) {
         row.completedByRecordId = data.completedByRecordId;
+      }
+      if (data.completedByApprovalId !== undefined) {
+        row.completedByApprovalId = data.completedByApprovalId;
       }
       return Promise.resolve(row);
     },
@@ -453,8 +514,13 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         paceRecord: {
           ...db.paceRecord,
           create: createPaceRecord,
+          delete: deletePaceRecord,
           findMany: findManyPaceRecords,
           update: updatePaceRecord,
+        },
+        paceAdvancementApproval: {
+          ...db.paceAdvancementApproval,
+          create: createPaceApproval,
         },
         paceProgress: {
           ...db.paceProgress,
@@ -472,6 +538,10 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       decrypt: vi.fn((value: string | null | undefined) =>
         value ? value.replace(/^enc:/u, '') : null,
       ),
+      encrypt: vi.fn((value: string | null | undefined) => (value ? `enc:${value}` : null)),
+    },
+    paceAdvancementApproval: {
+      create: createPaceApproval,
     },
     behaviourEntry: {
       create: createBehaviourEntry,
@@ -520,6 +590,7 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       findMany: findManyPaceRecords,
       create: createPaceRecord,
       update: updatePaceRecord,
+      delete: deletePaceRecord,
     },
     paceProgress: {
       findMany: findManyProgress,
@@ -953,6 +1024,15 @@ describe('pace.forStudent read model', () => {
         paceTestScore: true,
         completedAt: true,
         createdAt: true,
+        advancementApproval: {
+          select: {
+            id: true,
+            approvedAt: true,
+            approvedById: true,
+            notesEnc: true,
+            approvedBy: { select: { fullNameEnc: true, role: true } },
+          },
+        },
       },
     });
     expect(db.paceProgress.findMany).toHaveBeenCalledWith({
@@ -1935,5 +2015,155 @@ describe('pace.updateRecord', () => {
       }),
     ).resolves.toMatchObject({ id: created.id, paceTestScore: 91 });
     expect(db.staffShift.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('pace.deleteRecord', () => {
+  it('hard deletes a PACE record, reverses automatic merits, and recalculates advancement', async () => {
+    const db = makeFakeDb();
+    db.studentSubject.findUnique
+      .mockResolvedValueOnce({ id: ASSIGNMENT_ID, currentPaceNumber: 1001 })
+      .mockResolvedValueOnce({ id: ASSIGNMENT_ID, currentPaceNumber: 1002 });
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record({
+      ...validInput,
+      score: 100,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+
+    const result = await caller.pace.deleteRecord({ recordId: created.id });
+
+    expect(result).toMatchObject({ id: created.id, deleted: true, newPaceNumber: 1001 });
+    expect(db.paceRecord.delete).toHaveBeenCalledWith({
+      where: { id: created.id },
+      select: {
+        id: true,
+        studentId: true,
+        subjectId: true,
+        paceNumber: true,
+        completedAt: true,
+        createdAt: true,
+      },
+    });
+    expect(db.behaviourEntry.update).toHaveBeenCalledWith({
+      where: { id: 'behaviour_1' },
+      data: expect.objectContaining({ deletedById: headUser.id }) as {
+        deletedAt: Date;
+        deletedById: string;
+      },
+      select: { id: true },
+    });
+    expect(db.meritLedger.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          delta: -10,
+          relatedEntryId: 'behaviour_1',
+        }),
+      ],
+    });
+    expect(db.studentSubject.update).toHaveBeenLastCalledWith({
+      where: { studentId_subjectId: { studentId: STUDENT_ID, subjectId: SUBJECT_ID } },
+      data: { currentPaceNumber: 1001 },
+    });
+    expect(auditCalls(db)).toContainEqual(
+      expect.objectContaining({ action: 'Delete', entity: 'PaceRecord', entityId: created.id }),
+    );
+  });
+
+  it('rejects deletion for a failed PACE Test that has an advancement approval', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const failed = await caller.pace.record({ ...validInput, score: 79 });
+    await caller.pace.approveFailedFinalTestAdvance({
+      recordId: failed.id,
+      notes: 'Reviewed mastery verbally with the child.',
+    });
+
+    await expect(caller.pace.deleteRecord({ recordId: failed.id })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+    });
+    expect(db.paceRecord.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('pace.approveFailedFinalTestAdvance', () => {
+  it('lets an in-scope Supervisor approve advancement from a failed PACE Test with notes', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(supervisorUser, db);
+    const failed = await caller.pace.record({ ...validInput, score: 79 });
+
+    const result = await caller.pace.approveFailedFinalTestAdvance({
+      recordId: failed.id,
+      notes: 'Child explained corrections and demonstrated readiness.',
+    });
+
+    expect(result).toMatchObject({
+      paceRecordId: failed.id,
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      paceNumber: 1001,
+      advanced: true,
+      newPaceNumber: 1002,
+      notes: 'Child explained corrections and demonstrated readiness.',
+    });
+    expect(db.$enc.encrypt).toHaveBeenCalledWith(
+      'Child explained corrections and demonstrated readiness.',
+    );
+    expect(db.paceAdvancementApproval.create).toHaveBeenCalledWith({
+      data: {
+        paceRecordId: failed.id,
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        notesEnc: 'enc:Child explained corrections and demonstrated readiness.',
+        approvedById: supervisorUser.id,
+      },
+      select: {
+        id: true,
+        paceRecordId: true,
+        studentId: true,
+        subjectId: true,
+        paceNumber: true,
+        approvedAt: true,
+        approvedById: true,
+      },
+    });
+    expect(db.studentSubject.update).toHaveBeenLastCalledWith({
+      where: { studentId_subjectId: { studentId: STUDENT_ID, subjectId: SUBJECT_ID } },
+      data: { currentPaceNumber: 1002 },
+    });
+    expect(auditCalls(db)).toContainEqual(
+      expect.objectContaining({
+        action: 'Create',
+        entity: 'PaceAdvancementApproval',
+      }),
+    );
+  });
+
+  it('blocks parents, students, and out-of-scope Supervisors from approving advancement', async () => {
+    const db = makeFakeDb();
+    const { caller: headCaller } = makeCaller(headUser, db);
+    const failed = await headCaller.pace.record({ ...validInput, score: 79 });
+
+    await expect(
+      makeCaller(parentUser, db).caller.pace.approveFailedFinalTestAdvance({
+        recordId: failed.id,
+        notes: 'Parent should not approve.',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(studentUser, db).caller.pace.approveFailedFinalTestAdvance({
+        recordId: failed.id,
+        notes: 'Student should not approve.',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    db.staffShift.findMany.mockResolvedValue([]);
+    await expect(
+      makeCaller(supervisorUser, db).caller.pace.approveFailedFinalTestAdvance({
+        recordId: failed.id,
+        notes: 'Out of band.',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
