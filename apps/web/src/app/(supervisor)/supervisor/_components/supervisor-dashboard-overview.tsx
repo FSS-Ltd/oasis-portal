@@ -70,8 +70,8 @@ interface SupervisorDashboardOverviewProps {
   mySwapRequests: readonly SwapRequestSummary[];
   mySwapRequestsError?: string | undefined;
   mySwapRequestsLoading: boolean;
+  onTimeCount: number;
   openItems: number;
-  presentCount: number;
   todayShifts: readonly SupervisorShift[];
   totalStudents: number;
   unreadNotices: number;
@@ -126,8 +126,8 @@ export function SupervisorDashboardOverview({
   mySwapRequests,
   mySwapRequestsError,
   mySwapRequestsLoading,
+  onTimeCount,
   openItems,
-  presentCount,
   todayShifts,
   totalStudents,
   unreadNotices,
@@ -137,6 +137,11 @@ export function SupervisorDashboardOverview({
   weekShifts,
   weekStart,
 }: SupervisorDashboardOverviewProps) {
+  const attendingTodayCount = onTimeCount + lateCount;
+  const attendanceBreakdown = `${String(absentCount)} absent · ${String(lateCount)} late · ${String(
+    onTimeCount,
+  )} on time`;
+
   return (
     <div className="supervisor-dashboard-home" aria-label="Supervisor daily overview">
       <div className="dashboard-hero">
@@ -152,9 +157,9 @@ export function SupervisorDashboardOverview({
         <StatCard
           accent="#166534"
           className="head-stat-card"
-          label="Present today"
-          sub={`${String(absentCount)} absent · ${String(lateCount)} late`}
-          value={`${String(presentCount)}/${String(totalStudents)}`}
+          label="Today’s Attendance"
+          sub={attendanceBreakdown}
+          value={`${String(attendingTodayCount)}/${String(totalStudents)}`}
         />
         <StatCard
           accent="#5B90C5"
@@ -429,7 +434,7 @@ export function SupervisorDashboardOverview({
               <h2>Attendance Today</h2>
             </div>
             <div className="attendance-summary-grid">
-              <AttendanceSummary label="Present" tone="green" value={presentCount} />
+              <AttendanceSummary label="On time" tone="green" value={onTimeCount} />
               <AttendanceSummary label="Absent" tone="red" value={absentCount} />
               <AttendanceSummary label="Late" tone="amber" value={lateCount} />
             </div>
