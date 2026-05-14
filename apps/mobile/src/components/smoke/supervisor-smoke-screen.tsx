@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
-import { api } from '../../lib/trpc';
+import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { StaffClubsPanel } from './staff-smoke-clubs';
 import {
@@ -24,6 +24,7 @@ import {
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit';
 type PaceTestType = 'SelfTest' | 'FinalTest';
+type SessionRole = NonNullable<RouterOutputs['health']['me']['user']>['role'];
 type SupervisorMobileTab = 'dashboard' | 'attendance' | 'behaviour' | 'pace' | 'clubs';
 
 const attendanceStatuses: AttendanceStatus[] = ['Present', 'Absent', 'Late'];
@@ -80,6 +81,16 @@ function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
 }
 
+function canUseMobileClubAdmin(role: SessionRole | undefined): boolean {
+  return (
+    role === 'Head' ||
+    role === 'Principal' ||
+    role === 'Pastor' ||
+    role === 'HeadOfDiscipline' ||
+    role === 'ClubsAdmin'
+  );
+}
+
 export function SupervisorSmokeScreen() {
   const { signOut } = useClerk();
   const utils = api.useUtils();
@@ -103,6 +114,8 @@ export function SupervisorSmokeScreen() {
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
   const health = api.health.me.useQuery();
+  const sessionRole = health.data?.user?.role;
+  const canUseClubAdmin = canUseMobileClubAdmin(sessionRole);
   const rota = api.rota.myRota.useQuery({ from: weekStart, to: weekEnd });
   const attendance = api.attendance.forDate.useQuery({ date: attendanceDate });
   const paceRoster = api.pace.roster.useQuery({ date: today });
@@ -112,7 +125,7 @@ export function SupervisorSmokeScreen() {
     { enabled: Boolean(activePaceStudentId) },
   );
   const clubList = api.club.list.useQuery(undefined, {
-    enabled: activeTab === 'clubs',
+    enabled: activeTab === 'clubs' || canUseClubAdmin,
     retry: false,
   });
 
@@ -182,7 +195,8 @@ export function SupervisorSmokeScreen() {
     attendance.isFetching ||
     paceRoster.isFetching ||
     paceDetail.isFetching ||
-    (activeTab === 'clubs' && (clubList.isFetching || clubRoster.isFetching));
+    ((activeTab === 'clubs' || canUseClubAdmin) && clubList.isFetching) ||
+    (activeTab === 'clubs' && clubRoster.isFetching);
   const queryError = firstError(
     health.error?.message,
     rota.error?.message,
@@ -195,7 +209,13 @@ export function SupervisorSmokeScreen() {
   const paceCount = paceWarnings
     ? `${String(paceWarnings.count)}/${String(paceWarnings.limit)}`
     : '...';
-  const staffRole = health.data?.user?.role ?? 'Staff';
+  const staffRole = sessionRole ?? 'Staff';
+  const clubDashboardLabel = clubList.isLoading
+    ? 'Loading club access'
+    : clubList.error
+      ? clubList.error.message
+      : `${String(clubs.length)} clubs available for roster checks.`;
+  const clubDashboardCount = clubList.isLoading ? '...' : String(clubs.length);
 
   async function refresh() {
     const tasks: Promise<unknown>[] = [
@@ -205,8 +225,10 @@ export function SupervisorSmokeScreen() {
       paceRoster.refetch(),
       paceDetail.refetch(),
     ];
-    if (activeTab === 'clubs') {
+    if (activeTab === 'clubs' || canUseClubAdmin) {
       tasks.push(clubList.refetch());
+    }
+    if (activeTab === 'clubs') {
       if (activeClubId) tasks.push(clubRoster.refetch());
     }
     await Promise.all(tasks);
@@ -272,6 +294,27 @@ export function SupervisorSmokeScreen() {
                 value={paceCount}
               />
             </View>
+
+            {canUseClubAdmin ? (
+              <Card style={styles.compactCard}>
+                <View style={styles.selectedRow}>
+                  <View style={styles.rowBody}>
+                    <SectionTitle>Clubs</SectionTitle>
+                    <MutedText>{clubDashboardLabel}</MutedText>
+                  </View>
+                  <Badge variant={clubList.error ? 'danger' : 'blue'}>{clubDashboardCount}</Badge>
+                </View>
+                <SmokeButton
+                  compact
+                  disabled={clubList.isLoading}
+                  label="Open Clubs"
+                  onPress={() => {
+                    setActiveTab('clubs');
+                  }}
+                  variant="blue"
+                />
+              </Card>
+            ) : null}
 
             <Card style={styles.compactCard}>
               <SectionTitle>Session</SectionTitle>

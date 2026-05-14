@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-13
+**Last updated:** 2026-05-14
 **Agent:** Technical Agent (Codex)
-**Phase:** PR-3.5.5 Mobile clubs smoke in progress.
+**Phase:** Mobile admin clubs visibility fix.
 
 ---
 
@@ -17,6 +17,36 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - Mobile admin clubs visibility fix
+
+Working branch: `fix/mobile-admin-clubs-visible`.
+
+**PR scope:** Make the admin/staff side of the Expo mobile smoke app surface
+club access visibly from the staff dashboard, not only behind the bottom Clubs
+tab.
+
+Changed scope:
+
+- Added a club-manager role gate in the staff mobile smoke screen for Head,
+  Principal, Pastor, HeadOfDiscipline, and ClubsAdmin users.
+- Loaded `club.list` on the dashboard for those club-manager roles so the admin
+  side shows a Clubs card immediately after sign-in.
+- Added an "Open Clubs" dashboard action that switches to the existing Clubs
+  roster tab.
+- Kept Supervisor accounts from loading club manager data on the dashboard, so
+  club access errors remain scoped to the Clubs tab if they open it.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-admin-clubs-visible-export` -
+  pass.
+- `git diff --check` - pass.
+- `pnpm exec prettier --check apps/mobile/src/components/smoke/supervisor-smoke-screen.tsx PROJECT_Oasis_Context.md` -
+  pass.
+- `graphify update .` - pass.
 
 ## Current status - PR-3.5.5 Mobile clubs smoke
 
