@@ -164,10 +164,12 @@ function StudentTabs({
 function OverviewTab({
   canManageCorrections,
   data,
+  onDeletePace,
   onEditPace,
 }: {
   canManageCorrections: boolean;
   data: DrillThrough;
+  onDeletePace: (entry: PaceEntry) => void;
   onEditPace: (entry: PaceEntry) => void;
 }) {
   const presentDays = data.attendance.filter((row) => row.status === 'Present').length;
@@ -285,23 +287,43 @@ function OverviewTab({
                 <p>
                   {item.testType} · {formatShortDate(item.completedAt ?? item.createdAt)}
                 </p>
+                {item.approval ? (
+                  <p>
+                    Approved advance by {item.approval.approvedByName} · {item.approval.notes}
+                  </p>
+                ) : null}
               </div>
               <span className="snapshot-pace-actions">
                 <span>{item.testType}</span>
                 {canManageCorrections ? (
-                  <Button
-                    aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
-                    className="pace-score-edit-button"
-                    onClick={() => {
-                      onEditPace(item);
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Edit3 aria-hidden="true" size={14} />
-                    <span className="sr-only">Edit PACE score</span>
-                  </Button>
+                  <>
+                    <Button
+                      aria-label={`Edit ${item.testType} score for ${item.subjectName}`}
+                      className="pace-score-edit-button"
+                      onClick={() => {
+                        onEditPace(item);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Edit3 aria-hidden="true" size={14} />
+                      <span className="sr-only">Edit PACE score</span>
+                    </Button>
+                    <Button
+                      aria-label={`Delete ${item.testType} score for ${item.subjectName}`}
+                      className="pace-score-edit-button"
+                      onClick={() => {
+                        onDeletePace(item);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 aria-hidden="true" size={14} />
+                      <span className="sr-only">Delete PACE score</span>
+                    </Button>
+                  </>
                 ) : null}
               </span>
             </div>
@@ -401,10 +423,12 @@ function BehaviourTab({
 function PaceTab({
   canManageCorrections,
   data,
+  onDelete,
   onEdit,
 }: {
   canManageCorrections: boolean;
   data: DrillThrough;
+  onDelete: (entry: PaceEntry) => void;
   onEdit: (entry: PaceEntry) => void;
 }) {
   return (
@@ -427,6 +451,12 @@ function PaceTab({
               Date: <strong>{formatShortDate(item.completedAt ?? item.createdAt)}</strong> ·
               Supervisor: <strong>{item.recordedByName}</strong>
             </span>
+            {item.approval ? (
+              <p>
+                Approved advance by <strong>{item.approval.approvedByName}</strong>:{' '}
+                {item.approval.notes}
+              </p>
+            ) : null}
             {canManageCorrections ? (
               <div className="lifecycle-actions">
                 <Button
@@ -439,6 +469,17 @@ function PaceTab({
                 >
                   <Edit3 aria-hidden="true" size={14} />
                   Edit
+                </Button>
+                <Button
+                  onClick={() => {
+                    onDelete(item);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="danger"
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                  Delete
                 </Button>
               </div>
             ) : null}
@@ -519,6 +560,7 @@ export function StudentDrillThroughContent({
   const [noteDraft, setNoteDraft] = useState<NoteCorrectionDraft | null>(null);
   const [noteDelete, setNoteDelete] = useState<NoteEntry | null>(null);
   const [paceDraft, setPaceDraft] = useState<PaceEntry | null>(null);
+  const [paceDelete, setPaceDelete] = useState<PaceEntry | null>(null);
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
       setBehaviourDraft(null);
@@ -546,6 +588,12 @@ export function StudentDrillThroughContent({
   const updatePace = api.pace.updateRecord.useMutation({
     onSuccess: async () => {
       setPaceDraft(null);
+      await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+  });
+  const deletePace = api.pace.deleteRecord.useMutation({
+    onSuccess: async () => {
+      setPaceDelete(null);
       await utils.childLog.drillThrough.invalidate({ studentId });
     },
   });
@@ -620,6 +668,7 @@ export function StudentDrillThroughContent({
         <OverviewTab
           canManageCorrections={canManageCorrections}
           data={data}
+          onDeletePace={setPaceDelete}
           onEditPace={setPaceDraft}
         />
       ) : null}
@@ -633,7 +682,12 @@ export function StudentDrillThroughContent({
         />
       ) : null}
       {activeTab === 'pace' ? (
-        <PaceTab canManageCorrections={canManageCorrections} data={data} onEdit={setPaceDraft} />
+        <PaceTab
+          canManageCorrections={canManageCorrections}
+          data={data}
+          onDelete={setPaceDelete}
+          onEdit={setPaceDraft}
+        />
       ) : null}
       {activeTab === 'merits' ? <MeritsTab data={data} /> : null}
       {activeTab === 'notes' ? (
@@ -823,6 +877,21 @@ export function StudentDrillThroughContent({
         title="Delete note?"
       >
         <p>This removes the note from student views while keeping an audit trail.</p>
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        confirmLabel="Delete test"
+        errorMessage={deletePace.error?.message}
+        onCancel={() => {
+          if (!deletePace.isPending) setPaceDelete(null);
+        }}
+        onConfirm={() => {
+          if (paceDelete) void deletePace.mutateAsync({ recordId: paceDelete.id });
+        }}
+        open={paceDelete !== null}
+        pending={deletePace.isPending}
+        title="Delete PACE test?"
+      >
+        <p>This permanently removes the test record and recalculates PACE progress.</p>
       </ConfirmationDialog>
     </div>
   );

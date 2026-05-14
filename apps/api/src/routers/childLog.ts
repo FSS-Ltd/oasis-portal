@@ -140,6 +140,38 @@ function decryptRequired(
   return decrypted;
 }
 
+function mapPaceApproval(
+  ctx: AuthedContext,
+  approval: {
+    id: string;
+    approvedAt: Date;
+    approvedById: string;
+    notesEnc: string;
+    approvedBy: { fullNameEnc: string; role: string };
+  } | null,
+): {
+  id: string;
+  approvedAt: Date;
+  approvedById: string;
+  approvedByName: string;
+  approvedByRole: string;
+  notes: string;
+} | null {
+  if (!approval) return null;
+  return {
+    id: approval.id,
+    approvedAt: approval.approvedAt,
+    approvedById: approval.approvedById,
+    approvedByName: decryptRequired(
+      ctx.db.$enc.decrypt,
+      approval.approvedBy.fullNameEnc,
+      'user PII',
+    ),
+    approvedByRole: approval.approvedBy.role,
+    notes: decryptRequired(ctx.db.$enc.decrypt, approval.notesEnc, 'PACE approval notes'),
+  };
+}
+
 async function requireSnapshotWorkflow(ctx: AuthedContext): Promise<void> {
   if (isStaff(ctx.user)) return;
   const denied = new AccessDeniedError('child snapshot requires full-admin or Supervisor');
@@ -369,6 +401,15 @@ export const childLogRouter = router({
         include: {
           subject: { select: { id: true, code: true, name: true } },
           recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          advancementApproval: {
+            select: {
+              id: true,
+              approvedAt: true,
+              approvedById: true,
+              notesEnc: true,
+              approvedBy: { select: { fullNameEnc: true, role: true } },
+            },
+          },
         },
         orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
       }),
@@ -560,6 +601,7 @@ export const childLogRouter = router({
         score: record.paceTestScore ?? record.selfTestScore ?? 0,
         maxScore: 100,
         testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
+        approval: mapPaceApproval(ctx, record.advancementApproval),
         recordedById: record.recordedById,
         recordedByName: decryptRequired(
           ctx.db.$enc.decrypt,
@@ -677,61 +719,69 @@ export const childLogRouter = router({
       return { children: [], range: { from: dateKey(from), to: dateKey(new Date()) } };
     }
 
-    const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
-      ctx.db.attendance.findMany({
-        where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
-        select: { id: true, studentId: true, date: true, status: true, createdAt: true },
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.db.paceRecord.findMany({
-        where: {
-          studentId: { in: studentIds },
-          completedAt: { gte: from, lt: to },
-          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
-        },
-        include: { subject: { select: { id: true, code: true, name: true } } },
-        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.withRls((tx) =>
-        tx.behaviourEntry.findMany({
+    const [attendance, paceTests, paceProgress, behaviour, notes, meritBalances, policy] =
+      await Promise.all([
+        ctx.db.attendance.findMany({
+          where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
+          select: { id: true, studentId: true, date: true, status: true, createdAt: true },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.db.paceRecord.findMany({
+          where: {
+            studentId: { in: studentIds },
+            completedAt: { gte: from, lt: to },
+            OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+          },
+          include: { subject: { select: { id: true, code: true, name: true } } },
+          orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.db.paceProgress.findMany({
+          where: {
+            studentId: { in: studentIds },
+            completedAt: { gte: from, lt: to },
+          },
+          select: { id: true, studentId: true },
+        }),
+        ctx.withRls((tx) =>
+          tx.behaviourEntry.findMany({
+            where: {
+              studentId: { in: studentIds },
+              createdAt: { gte: from, lt: to },
+              deletedAt: null,
+              visibility: 'General',
+            },
+            select: {
+              id: true,
+              studentId: true,
+              type: true,
+              category: true,
+              noteEnc: true,
+              meritDelta: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+        ),
+        ctx.db.childNote.findMany({
           where: {
             studentId: { in: studentIds },
             createdAt: { gte: from, lt: to },
             deletedAt: null,
-            visibility: 'General',
+            sensitive: false,
           },
-          select: {
-            id: true,
-            studentId: true,
-            type: true,
-            category: true,
-            noteEnc: true,
-            meritDelta: true,
-            createdAt: true,
-          },
+          select: { id: true, studentId: true, noteEnc: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
         }),
-      ),
-      ctx.db.childNote.findMany({
-        where: {
-          studentId: { in: studentIds },
-          createdAt: { gte: from, lt: to },
-          deletedAt: null,
-          sensitive: false,
-        },
-        select: { id: true, studentId: true, noteEnc: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      ctx.db.meritLedger.groupBy({
-        by: ['studentId', 'account'],
-        where: {
-          studentId: { in: studentIds },
-          account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
-        },
-        _sum: { delta: true },
-      }),
-      ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
-    ]);
+        ctx.db.meritLedger.groupBy({
+          by: ['studentId', 'account'],
+          where: {
+            studentId: { in: studentIds },
+            account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+          },
+          _sum: { delta: true },
+        }),
+        ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+      ]);
 
     const passThreshold = policy?.passThreshold ?? 80;
     const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
@@ -749,8 +799,8 @@ export const childLogRouter = router({
         const studentAttendance = attendance.filter((row) => row.studentId === student.id);
         const presentDays = studentAttendance.filter((row) => row.status === 'Present').length;
         const studentPace = paceTests.filter((record) => record.studentId === student.id);
-        const pacesCompletedThisAcademicYear = studentPace.filter(
-          (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
+        const pacesCompletedThisAcademicYear = paceProgress.filter(
+          (row) => row.studentId === student.id,
         ).length;
 
         return {
@@ -824,59 +874,79 @@ export const childLogRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
       }
 
-      const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
-        ctx.db.attendance.findMany({
-          where: { studentId: input.studentId, date: { gte: from, lt: to } },
-          select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
-          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        }),
-        ctx.db.paceRecord.findMany({
-          where: {
-            studentId: input.studentId,
-            completedAt: { gte: from, lt: to },
-            OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
-          },
-          include: {
-            subject: { select: { id: true, code: true, name: true } },
-            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
-          },
-          orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-        }),
-        ctx.withRls((tx) =>
-          tx.behaviourEntry.findMany({
+      const [attendance, paceTests, paceProgress, behaviour, notes, meritBalances, policy] =
+        await Promise.all([
+          ctx.db.attendance.findMany({
+            where: { studentId: input.studentId, date: { gte: from, lt: to } },
+            select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
+            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+          }),
+          ctx.db.paceRecord.findMany({
+            where: {
+              studentId: input.studentId,
+              completedAt: { gte: from, lt: to },
+              OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+            },
+            include: {
+              subject: { select: { id: true, code: true, name: true } },
+              recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+              advancementApproval: {
+                select: {
+                  id: true,
+                  approvedAt: true,
+                  approvedById: true,
+                  notesEnc: true,
+                  approvedBy: { select: { fullNameEnc: true, role: true } },
+                },
+              },
+            },
+            orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+          }),
+          ctx.db.paceProgress.findMany({
+            where: {
+              studentId: input.studentId,
+              completedAt: { gte: from, lt: to },
+            },
+            select: { id: true },
+          }),
+          ctx.withRls((tx) =>
+            tx.behaviourEntry.findMany({
+              where: {
+                studentId: input.studentId,
+                createdAt: { gte: from, lt: to },
+                ...visibleBehaviourWhere(ctx.user),
+              },
+              include: {
+                recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+              },
+              orderBy: { createdAt: 'desc' },
+            }),
+          ),
+          ctx.db.childNote.findMany({
             where: {
               studentId: input.studentId,
               createdAt: { gte: from, lt: to },
-              ...visibleBehaviourWhere(ctx.user),
+              deletedAt: null,
+              ...(canReadSensitiveNotes ? {} : { sensitive: false }),
             },
             include: {
-              recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+              createdBy: { select: { id: true, fullNameEnc: true, role: true } },
             },
             orderBy: { createdAt: 'desc' },
           }),
-        ),
-        ctx.db.childNote.findMany({
-          where: {
-            studentId: input.studentId,
-            createdAt: { gte: from, lt: to },
-            deletedAt: null,
-            ...(canReadSensitiveNotes ? {} : { sensitive: false }),
-          },
-          include: {
-            createdBy: { select: { id: true, fullNameEnc: true, role: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        ctx.db.meritLedger.groupBy({
-          by: ['account'],
-          where: {
-            studentId: input.studentId,
-            account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
-          },
-          _sum: { delta: true },
-        }),
-        ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
-      ]);
+          ctx.db.meritLedger.groupBy({
+            by: ['account'],
+            where: {
+              studentId: input.studentId,
+              account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+            },
+            _sum: { delta: true },
+          }),
+          ctx.db.pacePolicy.findUnique({
+            where: { id: 'default' },
+            select: { passThreshold: true },
+          }),
+        ]);
 
       const balances = {
         Spend: 0,
@@ -891,9 +961,7 @@ export const childLogRouter = router({
 
       const passThreshold = policy?.passThreshold ?? 80;
       const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
-      const pacesCompletedThisAcademicYear = paceTests.filter(
-        (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
-      ).length;
+      const pacesCompletedThisAcademicYear = paceProgress.length;
       const presentDays = attendance.filter((row) => row.status === 'Present').length;
       const recordedAttendanceDays = attendance.length;
       const sensitiveBehaviourCount = behaviour.filter(
@@ -1003,6 +1071,7 @@ export const childLogRouter = router({
           maxScore: 100,
           testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
           passed: (record.paceTestScore ?? record.selfTestScore ?? 0) >= passThreshold,
+          approval: mapPaceApproval(ctx, record.advancementApproval),
           recordedById: record.recordedById,
           recordedByName: decryptRequired(
             ctx.db.$enc.decrypt,
@@ -1075,6 +1144,15 @@ export const childLogRouter = router({
         include: {
           subject: { select: { id: true, code: true, name: true } },
           recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+          advancementApproval: {
+            select: {
+              id: true,
+              approvedAt: true,
+              approvedById: true,
+              notesEnc: true,
+              approvedBy: { select: { fullNameEnc: true, role: true } },
+            },
+          },
         },
         orderBy: [{ completedAt: 'asc' }, { createdAt: 'asc' }],
       }),
@@ -1196,6 +1274,7 @@ export const childLogRouter = router({
         score: record.paceTestScore ?? record.selfTestScore ?? 0,
         maxScore: 100,
         testType: record.paceTestScore !== null ? 'PACE Test' : 'Self-Test',
+        approval: mapPaceApproval(ctx, record.advancementApproval),
         recordedById: record.recordedById,
         recordedByName: decryptRequired(
           ctx.db.$enc.decrypt,

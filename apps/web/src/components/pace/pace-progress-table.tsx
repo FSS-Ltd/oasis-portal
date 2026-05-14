@@ -1,6 +1,6 @@
 'use client';
 
-import { Edit3 } from 'lucide-react';
+import { CheckCircle2, Edit3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
@@ -18,6 +18,10 @@ interface PaceProgressTableProps {
   canManageProgress: boolean;
   errorMessage?: string | undefined;
   onRecordScore: (subject: PaceSubject) => void;
+  onApproveAdvance: (
+    subject: PaceSubject,
+    record: NonNullable<PaceSubject['latestFinalTest']>,
+  ) => void;
   onUpdateScore: (
     subject: PaceSubject,
     record: NonNullable<PaceSubject['currentScoreRecord']>,
@@ -29,6 +33,7 @@ function ScoreValue({
   canManageProgress,
   label,
   onUpdateScore,
+  onApproveAdvance,
   record,
   subject,
 }: {
@@ -37,6 +42,10 @@ function ScoreValue({
   onUpdateScore: (
     subject: PaceSubject,
     record: NonNullable<PaceSubject['currentScoreRecord']>,
+  ) => void;
+  onApproveAdvance: (
+    subject: PaceSubject,
+    record: NonNullable<PaceSubject['latestFinalTest']>,
   ) => void;
   record: NonNullable<PaceSubject['currentScoreRecord']> | null | undefined;
   subject: PaceSubject;
@@ -62,6 +71,26 @@ function ScoreValue({
           <span className="sr-only">Update {label} score</span>
         </Button>
       ) : null}
+      {canManageProgress &&
+      record?.testType === 'FinalTest' &&
+      !record.passed &&
+      !record.approval ? (
+        <Button
+          aria-label={`Approve advance for ${subject.name}`}
+          className="pace-score-edit-button"
+          disabled={!subject.active}
+          onClick={() => {
+            onApproveAdvance(subject, record as NonNullable<PaceSubject['latestFinalTest']>);
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <CheckCircle2 aria-hidden="true" size={14} />
+          <span className="sr-only">Approve advance</span>
+        </Button>
+      ) : null}
+      {record?.approval ? <Badge tone="green">Approved</Badge> : null}
     </span>
   );
 }
@@ -88,6 +117,7 @@ export function PaceProgressTable({
   canManageProgress,
   errorMessage,
   loading,
+  onApproveAdvance,
   onRecordScore,
   onUpdateScore,
   subjects,
@@ -123,6 +153,7 @@ export function PaceProgressTable({
         <ScoreValue
           canManageProgress={canManageProgress}
           label="Self-Test"
+          onApproveAdvance={onApproveAdvance}
           onUpdateScore={onUpdateScore}
           record={subject.latestSelfTest}
           subject={subject}
@@ -136,6 +167,7 @@ export function PaceProgressTable({
         <ScoreValue
           canManageProgress={canManageProgress}
           label="PACE Test"
+          onApproveAdvance={onApproveAdvance}
           onUpdateScore={onUpdateScore}
           record={subject.latestFinalTest}
           subject={subject}
@@ -174,8 +206,27 @@ export function PaceProgressTable({
         header: <span className="sr-only">Update score</span>,
         headerClassName: 'pace-action-heading',
         render: (subject) => {
-          const hasBothTestTypes =
-            subject.latestSelfTest !== null && subject.latestFinalTest !== null;
+          const latestFinalTest = subject.latestFinalTest;
+          const hasBothTestTypes = subject.latestSelfTest !== null && latestFinalTest !== null;
+          const canApproveLatestFinal =
+            latestFinalTest !== null && !latestFinalTest.passed && !latestFinalTest.approval;
+          if (canApproveLatestFinal) {
+            return (
+              <Button
+                className="pace-update-button"
+                disabled={!subject.active}
+                onClick={() => {
+                  onApproveAdvance(subject, latestFinalTest);
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <CheckCircle2 aria-hidden="true" size={14} />
+                Approve Advance
+              </Button>
+            );
+          }
           if (hasBothTestTypes) {
             return <span className="sr-only">Both scores recorded</span>;
           }
