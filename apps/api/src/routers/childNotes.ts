@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
   AccessDeniedError,
+  canUseAllStudentSupervisorWorkflow,
   canViewSensitiveChildNotes,
   isStaff,
   type SessionUser,
@@ -78,7 +79,9 @@ async function requireStudentInChildNoteScope(
   student: { id: string; yearGroup: string },
 ): Promise<void> {
   const scope = await loadDailyYearBandScope(ctx, new Date());
-  if (studentMatchesDailyScope(scope, student)) return;
+  if (canUseAllStudentSupervisorWorkflow(ctx.user) || studentMatchesDailyScope(scope, student)) {
+    return;
+  }
 
   await denyOutOfChildNoteScope(ctx, entity, {
     studentId: student.id,

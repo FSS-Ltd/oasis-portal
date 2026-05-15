@@ -33,6 +33,7 @@ const navItems = [
   { href: '/admin/access', label: 'User Access', icon: UserCog },
   { href: '/admin/staff', label: 'People & Profiles', icon: UsersRound },
   { href: '/admin/audit', label: 'Audit', icon: ClipboardList },
+  { href: '/admin/sensitive-review', label: 'Sensitive Review', icon: ClipboardList },
   { href: '/admin/behaviour', label: 'Behaviour', icon: Star },
   { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },

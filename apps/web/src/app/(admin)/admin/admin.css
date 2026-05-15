@@ -5414,6 +5414,123 @@
   gap: 12px;
 }
 
+.sensitive-review-row,
+.notes-history-group {
+  display: grid;
+  gap: 1rem;
+}
+
+.sensitive-review-row header,
+.notes-history-group header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sensitive-review-row h3,
+.notes-history-group h2 {
+  margin: 0;
+  color: var(--oasis-navy);
+}
+
+.sensitive-review-row p,
+.notes-history-group p {
+  margin: 0;
+}
+
+.sensitive-review-row__meta,
+.notes-history-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--oasis-text-muted);
+  font-size: 0.85rem;
+}
+
+.sensitive-review-comment,
+.notes-history-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.notes-history-row {
+  --notes-history-accent: var(--oasis-blue);
+
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: flex-start;
+  padding: 1.25rem;
+  border: 1px solid var(--oasis-border);
+  border-left: 4px solid var(--notes-history-accent);
+  border-radius: 12px;
+  background: var(--oasis-surface);
+  box-shadow: 0 2px 8px rgba(23, 37, 84, 0.08);
+}
+
+.notes-history-row.is-demerit {
+  --notes-history-accent: var(--oasis-danger);
+}
+
+.notes-history-row.is-merit {
+  --notes-history-accent: var(--oasis-success);
+}
+
+.notes-history-row__value {
+  display: inline-grid;
+  width: 4.5rem;
+  min-height: 4.5rem;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1;
+  text-align: center;
+}
+
+.notes-history-row.is-demerit .notes-history-row__value {
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+  font-size: 1.6rem;
+}
+
+.notes-history-row.is-merit .notes-history-row__value {
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+  font-size: 1.6rem;
+}
+
+.notes-history-row__content {
+  display: grid;
+  min-width: 0;
+  gap: 0.65rem;
+}
+
+.notes-history-row__body {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.notes-history-row__meta {
+  color: var(--oasis-text-secondary);
+  font-size: 0.84rem;
+}
+
+.notes-history-row__meta strong {
+  color: var(--oasis-text-secondary);
+  font-weight: 850;
+}
+
+.notes-history-row__comment {
+  border-left: 3px solid rgba(0, 107, 74, 0.28);
+  color: var(--oasis-navy);
+  padding-left: 0.75rem;
+}
+
 .attendance-error {
   margin: 12px 0 0;
 }

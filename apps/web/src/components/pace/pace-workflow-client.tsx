@@ -81,7 +81,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   const students = roster?.students ?? EMPTY_ROSTER_STUDENTS;
   const selectedStudent =
     students.find((student) => student.studentId === selectedStudentId) ?? null;
-  const canEditDate = roster?.fullAccess ?? false;
+  const canEditDate = roster?.canEditDate ?? false;
 
   const paceQuery = api.pace.forStudent.useQuery(
     { studentId: selectedStudentId, date },

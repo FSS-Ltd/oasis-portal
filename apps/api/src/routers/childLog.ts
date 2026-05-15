@@ -3,11 +3,13 @@ import { z } from 'zod';
 import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  canUseAllStudentSupervisorWorkflow,
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
   canViewStudentDrillThrough,
   isFullAdmin,
   isStaff,
+  type Role,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -29,6 +31,18 @@ const studentListInclude = {
     orderBy: { subject: { code: 'asc' } },
   },
 } as const;
+
+const supervisorNotesHistoryNoteInclude = {
+  createdBy: { select: { id: true, fullNameEnc: true, role: true } },
+  seenBy: { select: { id: true, fullNameEnc: true, role: true } },
+  student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+} satisfies Prisma.ChildNoteInclude;
+
+const supervisorNotesHistoryMarkInclude = {
+  recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+  seenBy: { select: { id: true, fullNameEnc: true, role: true } },
+  student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+} satisfies Prisma.BehaviourEntryInclude;
 
 const listAccessibleStudentsInput = z.object({ linkedOnly: z.boolean().default(false) }).optional();
 
@@ -55,6 +69,12 @@ const snapshotInput = z
     message: 'from must be on or before to',
     path: ['to'],
   });
+
+const reviewSensitiveItemInput = z.object({
+  kind: z.enum(['note', 'mark']),
+  id: z.string().min(1),
+  comment: z.string().trim().max(3000).optional(),
+});
 
 function normalizeDate(date: Date): Date {
   return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
@@ -138,6 +158,14 @@ function decryptRequired(
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
   }
   return decrypted;
+}
+
+function decryptOptional(
+  decrypt: (value: string | null | undefined) => string | null,
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  return decrypt(value);
 }
 
 function mapPaceApproval(
@@ -307,8 +335,11 @@ export const childLogRouter = router({
   listSnapshotStudents: authedProcedure.query(async ({ ctx }) => {
     await requireSnapshotWorkflow(ctx);
     const scope = await loadDailyYearBandScope(ctx, new Date());
+    const scopeWhere = canUseAllStudentSupervisorWorkflow(ctx.user)
+      ? {}
+      : studentWhereForDailyScope(scope);
     const students = await ctx.db.student.findMany({
-      where: { active: true, ...studentWhereForDailyScope(scope) },
+      where: { active: true, ...scopeWhere },
       include: studentListInclude,
       orderBy: { createdAt: 'desc' },
     });
@@ -1115,7 +1146,10 @@ export const childLogRouter = router({
     if (!student.active) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
     }
-    if (!studentMatchesDailyScope(scope, student)) {
+    if (
+      !canUseAllStudentSupervisorWorkflow(ctx.user) &&
+      !studentMatchesDailyScope(scope, student)
+    ) {
       await denyOutOfSnapshotScope(ctx, 'childLog.snapshot', {
         studentId: input.studentId,
         studentYearGroup: student.yearGroup,
@@ -1314,5 +1348,369 @@ export const childLogRouter = router({
         createdAt: note.createdAt,
       })),
     };
+  }),
+
+  sensitiveReviewQueue: authedProcedure.query(async ({ ctx }) => {
+    await requireCentreSnapshotWorkflow(ctx);
+
+    const [notes, marks] = await Promise.all([
+      ctx.db.childNote.findMany({
+        where: {
+          sensitive: true,
+          deletedAt: null,
+          createdBy: { role: { in: ['Supervisor', 'ClubsAdmin'] } },
+        },
+        include: {
+          createdBy: { select: { id: true, fullNameEnc: true, role: true } },
+          seenBy: { select: { id: true, fullNameEnc: true, role: true } },
+          student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: {
+            ...visibleBehaviourWhere(ctx.user),
+            visibility: 'Sensitive',
+            recordedBy: { role: { in: ['Supervisor', 'ClubsAdmin'] } },
+          },
+          include: {
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+            seenBy: { select: { id: true, fullNameEnc: true, role: true } },
+            student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
+    ]);
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'ReadSensitive',
+        entity: 'SensitiveReview',
+        meta: {
+          source: 'childLog.sensitiveReviewQueue',
+          noteCount: notes.length,
+          markCount: marks.length,
+        },
+      },
+    });
+
+    const noteItems = notes.map((note) => ({
+      id: note.id,
+      kind: 'note' as const,
+      student: {
+        id: note.student.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, note.student.fullNameEnc, 'student PII'),
+        yearGroup: note.student.yearGroup,
+      },
+      author: {
+        id: note.createdById,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, note.createdBy.fullNameEnc, 'user PII'),
+        role: note.createdBy.role,
+      },
+      body: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
+      category: 'Sensitive note',
+      type: 'Note',
+      meritDelta: 0,
+      createdAt: note.createdAt,
+      seenAt: note.seenAt,
+      seenByName: note.seenBy
+        ? decryptRequired(ctx.db.$enc.decrypt, note.seenBy.fullNameEnc, 'user PII')
+        : null,
+      headComment: decryptOptional(ctx.db.$enc.decrypt, note.headCommentEnc),
+    }));
+    const markItems = marks.map((mark) => ({
+      id: mark.id,
+      kind: 'mark' as const,
+      student: {
+        id: mark.student.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, mark.student.fullNameEnc, 'student PII'),
+        yearGroup: mark.student.yearGroup,
+      },
+      author: {
+        id: mark.recordedById,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, mark.recordedBy.fullNameEnc, 'user PII'),
+        role: mark.recordedBy.role,
+      },
+      body: decryptOptional(ctx.db.$enc.decrypt, mark.noteEnc),
+      category: mark.category,
+      type: mark.type,
+      meritDelta: mark.meritDelta,
+      createdAt: mark.createdAt,
+      seenAt: mark.seenAt,
+      seenByName: mark.seenBy
+        ? decryptRequired(ctx.db.$enc.decrypt, mark.seenBy.fullNameEnc, 'user PII')
+        : null,
+      headComment: decryptOptional(ctx.db.$enc.decrypt, mark.headCommentEnc),
+    }));
+
+    return [...noteItems, ...markItems].sort(
+      (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+    );
+  }),
+
+  reviewSensitiveItem: authedProcedure
+    .input(reviewSensitiveItemInput)
+    .mutation(async ({ ctx, input }) => {
+      await requireCentreSnapshotWorkflow(ctx);
+      const now = new Date();
+      const comment = input.comment?.trim();
+      const commentPatch =
+        input.comment === undefined
+          ? {}
+          : { headCommentEnc: comment ? ctx.db.$enc.encrypt(comment) : null };
+
+      if (input.kind === 'note') {
+        const existing = await ctx.db.childNote.findUnique({
+          where: { id: input.id },
+          select: {
+            id: true,
+            studentId: true,
+            sensitive: true,
+            deletedAt: true,
+            createdBy: { select: { role: true } },
+          },
+        });
+        if (
+          !existing ||
+          existing.deletedAt !== null ||
+          !existing.sensitive ||
+          !['Supervisor', 'ClubsAdmin'].includes(existing.createdBy.role)
+        ) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'sensitive note not found' });
+        }
+
+        const updated = await ctx.db.childNote.update({
+          where: { id: input.id },
+          data: { seenAt: now, seenById: ctx.user.id, ...commentPatch },
+          select: { id: true, studentId: true, seenAt: true },
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'ChildNote',
+            entityId: updated.id,
+            meta: {
+              source: 'childLog.reviewSensitiveItem',
+              studentId: updated.studentId,
+              commentChanged: input.comment !== undefined,
+            },
+          },
+        });
+        return { id: updated.id, kind: input.kind, seenAt: updated.seenAt };
+      }
+
+      const existing = await ctx.db.behaviourEntry.findUnique({
+        where: { id: input.id },
+        select: {
+          id: true,
+          studentId: true,
+          visibility: true,
+          deletedAt: true,
+          recordedBy: { select: { role: true } },
+        },
+      });
+      if (
+        !existing ||
+        existing.deletedAt !== null ||
+        existing.visibility !== 'Sensitive' ||
+        !['Supervisor', 'ClubsAdmin'].includes(existing.recordedBy.role)
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'sensitive mark not found' });
+      }
+
+      const updated = await ctx.db.behaviourEntry.update({
+        where: { id: input.id },
+        data: { seenAt: now, seenById: ctx.user.id, ...commentPatch },
+        select: { id: true, studentId: true, seenAt: true },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'BehaviourEntry',
+          entityId: updated.id,
+          meta: {
+            source: 'childLog.reviewSensitiveItem',
+            studentId: updated.studentId,
+            commentChanged: input.comment !== undefined,
+          },
+        },
+      });
+      return { id: updated.id, kind: input.kind, seenAt: updated.seenAt };
+    }),
+
+  supervisorNotesHistory: authedProcedure.query(async ({ ctx }) => {
+    await requireSnapshotWorkflow(ctx);
+    if (!isStaff(ctx.user)) {
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'notes history requires staff access' });
+    }
+    const scope = await loadDailyYearBandScope(ctx, new Date());
+    const scopeWhere = canUseAllStudentSupervisorWorkflow(ctx.user)
+      ? {}
+      : studentWhereForDailyScope(scope);
+    const students = await ctx.db.student.findMany({
+      where: { active: true, ...scopeWhere },
+      select: { id: true, fullNameEnc: true, yearGroup: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const studentIds = students.map((student) => student.id);
+    const studentById = new Map(students.map((student) => [student.id, student]));
+    if (studentIds.length === 0) return [];
+
+    const supervisorAuthorRoles: Role[] = ['Supervisor', 'ClubsAdmin'];
+    const noteWhere: Prisma.ChildNoteWhereInput = {
+      studentId: { in: studentIds },
+      deletedAt: null,
+      ...(isFullAdmin(ctx.user)
+        ? {
+            OR: [
+              { createdById: ctx.user.id },
+              { createdBy: { role: { in: supervisorAuthorRoles } } },
+            ],
+          }
+        : { createdById: ctx.user.id }),
+    };
+    const markWhere: Prisma.BehaviourEntryWhereInput = {
+      studentId: { in: studentIds },
+      visibility: 'Sensitive',
+      ...visibleBehaviourWhere(ctx.user),
+    };
+
+    const [notes, marks] = await Promise.all([
+      ctx.db.childNote.findMany({
+        where: noteWhere,
+        include: supervisorNotesHistoryNoteInclude,
+        orderBy: { createdAt: 'desc' },
+      }),
+      ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
+          where: markWhere,
+          include: supervisorNotesHistoryMarkInclude,
+          orderBy: { createdAt: 'desc' },
+        }),
+      ),
+    ]);
+
+    const studentMap = new Map<
+      string,
+      {
+        fullName: string;
+        id: string;
+        latestAt: Date;
+        notes: Array<{
+          id: string;
+          kind: 'note' | 'mark';
+          body: string | null;
+          category: string;
+          type: string;
+          meritDelta: number;
+          sensitive: boolean;
+          createdAt: Date;
+          seenAt: Date | null;
+          seenByName: string | null;
+          headComment: string | null;
+          author: { id: string; fullName: string; role: string };
+        }>;
+        yearGroup: string;
+      }
+    >();
+
+    function ensureStudent(
+      student: { id: string; fullNameEnc: string; yearGroup: string },
+      date: Date,
+    ) {
+      const existing = studentMap.get(student.id);
+      if (existing) {
+        if (date.getTime() > existing.latestAt.getTime()) existing.latestAt = date;
+        return existing;
+      }
+      const row = {
+        id: student.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII'),
+        yearGroup: student.yearGroup,
+        latestAt: date,
+        notes: [],
+      };
+      studentMap.set(student.id, row);
+      return row;
+    }
+
+    for (const note of notes) {
+      const student = studentById.get(note.studentId);
+      if (!student) continue;
+      ensureStudent(student, note.createdAt).notes.push({
+        id: note.id,
+        kind: 'note',
+        body: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
+        category: note.sensitive ? 'Sensitive note' : 'Supervisor note',
+        type: 'Note',
+        meritDelta: 0,
+        sensitive: note.sensitive,
+        createdAt: note.createdAt,
+        seenAt: note.seenAt,
+        seenByName: note.seenBy
+          ? decryptRequired(ctx.db.$enc.decrypt, note.seenBy.fullNameEnc, 'user PII')
+          : null,
+        headComment: decryptOptional(ctx.db.$enc.decrypt, note.headCommentEnc),
+        author: {
+          id: note.createdBy.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, note.createdBy.fullNameEnc, 'user PII'),
+          role: note.createdBy.role,
+        },
+      });
+    }
+
+    for (const mark of marks) {
+      const student = studentById.get(mark.studentId);
+      if (!student) continue;
+      ensureStudent(student, mark.createdAt).notes.push({
+        id: mark.id,
+        kind: 'mark',
+        body: decryptOptional(ctx.db.$enc.decrypt, mark.noteEnc),
+        category: mark.category,
+        type: mark.type,
+        meritDelta: mark.meritDelta,
+        sensitive: true,
+        createdAt: mark.createdAt,
+        seenAt: mark.seenAt,
+        seenByName: mark.seenBy
+          ? decryptRequired(ctx.db.$enc.decrypt, mark.seenBy.fullNameEnc, 'user PII')
+          : null,
+        headComment: decryptOptional(ctx.db.$enc.decrypt, mark.headCommentEnc),
+        author: {
+          id: mark.recordedBy.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, mark.recordedBy.fullNameEnc, 'user PII'),
+          role: mark.recordedBy.role,
+        },
+      });
+    }
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'SupervisorNotesHistory',
+        meta: {
+          source: 'childLog.supervisorNotesHistory',
+          noteCount: notes.length,
+          markCount: marks.length,
+        },
+      },
+    });
+
+    return [...studentMap.values()]
+      .map((student) => ({
+        ...student,
+        notes: student.notes.sort(
+          (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+        ),
+      }))
+      .sort((left, right) => right.latestAt.getTime() - left.latestAt.getTime());
   }),
 });

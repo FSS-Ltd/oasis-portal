@@ -69,45 +69,48 @@ model User {
   updatedAt                         DateTime                      @updatedAt
 
   guardianOf               Guardian[]
-  studentProfile           Student?                  @relation("StudentLogin")
-  behaviourEntries         BehaviourEntry[]          @relation("RecordedBehaviour")
-  childNotesCreated        ChildNote[]               @relation("ChildNotesCreated")
-  deletedBehaviourEntries  BehaviourEntry[]          @relation("DeletedBehaviour")
-  deletedChildNotes        ChildNote[]               @relation("DeletedChildNotes")
-  paceRecords              PaceRecord[]              @relation("RecordedPace")
-  approvedPaceAdvancements PaceAdvancementApproval[] @relation("ApprovedPaceAdvancements")
-  attendanceRecords        Attendance[]              @relation("RecordedAttendance")
-  availabilityWindows      StaffAvailabilityWindow[] @relation("StaffAvailability")
-  staffShifts              StaffShift[]              @relation("StaffShifts")
-  requestedShiftSwaps      ShiftSwapRequest[]        @relation("RequestedShiftSwaps")
-  targetedShiftSwaps       ShiftSwapRequest[]        @relation("TargetedShiftSwaps")
-  approvedShiftSwaps       ShiftSwapRequest[]        @relation("ApprovedShiftSwaps")
-  staffAttendance          StaffAttendance[]         @relation("StaffAttendanceUser")
-  recordedStaffAttendance  StaffAttendance[]         @relation("RecordedStaffAttendance")
-  noticesPosted            StaffNotice[]             @relation("NoticesPosted")
+  studentProfile           Student?                      @relation("StudentLogin")
+  behaviourEntries         BehaviourEntry[]              @relation("RecordedBehaviour")
+  childNotesCreated        ChildNote[]                   @relation("ChildNotesCreated")
+  deletedBehaviourEntries  BehaviourEntry[]              @relation("DeletedBehaviour")
+  deletedChildNotes        ChildNote[]                   @relation("DeletedChildNotes")
+  seenBehaviourEntries     BehaviourEntry[]              @relation("SeenBehaviour")
+  seenChildNotes           ChildNote[]                   @relation("SeenChildNotes")
+  paceRecords              PaceRecord[]                  @relation("RecordedPace")
+  approvedPaceAdvancements PaceAdvancementApproval[]     @relation("ApprovedPaceAdvancements")
+  attendanceRecords        Attendance[]                  @relation("RecordedAttendance")
+  availabilityWindows      StaffAvailabilityWindow[]     @relation("StaffAvailability")
+  staffShifts              StaffShift[]                  @relation("StaffShifts")
+  requestedShiftSwaps      ShiftSwapRequest[]            @relation("RequestedShiftSwaps")
+  targetedShiftSwaps       ShiftSwapRequest[]            @relation("TargetedShiftSwaps")
+  approvedShiftSwaps       ShiftSwapRequest[]            @relation("ApprovedShiftSwaps")
+  staffAttendance          StaffAttendance[]             @relation("StaffAttendanceUser")
+  recordedStaffAttendance  StaffAttendance[]             @relation("RecordedStaffAttendance")
+  noticesPosted            StaffNotice[]                 @relation("NoticesPosted")
   noticeReads              StaffNoticeRead[]
-  calendarEventsCreated    CalendarEvent[]           @relation("CalendarEventsCreated")
+  calendarEventsCreated    CalendarEvent[]               @relation("CalendarEventsCreated")
   requiredCalendarEvents   CalendarEventRequiredPerson[] @relation("CalendarEventRequiredUser")
   calendarEventTagsCreated CalendarEventRequiredPerson[] @relation("CalendarEventRequiredTaggedBy")
-  messagesSent             Message[]                 @relation("MessagesSent")
+  messagesSent             Message[]                     @relation("MessagesSent")
   messageReads             MessageRead[]
-  threadsAsParent          MessageThread[]           @relation("ThreadParent")
-  threadsAsAdmin           MessageThread[]           @relation("ThreadAdmin")
-  shopPurchases            ShopPurchase[]            @relation("Shopkeeper")
-  shopItemsCreated         ShopItem[]                @relation("ShopItemsCreated")
-  clubsCreated             Club[]                    @relation("ClubsCreated")
-  clubSignupsCreated       ClubSignup[]              @relation("SignupsCreated")
-  clubNotifications        ClubNotification[]        @relation("ClubNotificationsSent")
-  clubAttendanceRecords    ClubAttendance[]          @relation("RecordedClubAttendance")
-  clubRotaSelections       ClubRotaParticipant[]     @relation("ClubRotaSelectedUsers")
-  clubRotaParticipants     ClubRotaParticipant[]     @relation("ClubRotaParticipants")
-  clubRotaShifts           ClubRotaShift[]           @relation("ClubRotaShifts")
-  clubAvailabilityWindows  ClubAvailabilityWindow[]  @relation("ClubAvailability")
+  threadsAsParent          MessageThread[]               @relation("ThreadParent")
+  threadsAsSupervisor      MessageThread[]               @relation("ThreadSupervisor")
+  threadsAsAdmin           MessageThread[]               @relation("ThreadAdmin")
+  shopPurchases            ShopPurchase[]                @relation("Shopkeeper")
+  shopItemsCreated         ShopItem[]                    @relation("ShopItemsCreated")
+  clubsCreated             Club[]                        @relation("ClubsCreated")
+  clubSignupsCreated       ClubSignup[]                  @relation("SignupsCreated")
+  clubNotifications        ClubNotification[]            @relation("ClubNotificationsSent")
+  clubAttendanceRecords    ClubAttendance[]              @relation("RecordedClubAttendance")
+  clubRotaSelections       ClubRotaParticipant[]         @relation("ClubRotaSelectedUsers")
+  clubRotaParticipants     ClubRotaParticipant[]         @relation("ClubRotaParticipants")
+  clubRotaShifts           ClubRotaShift[]               @relation("ClubRotaShifts")
+  clubAvailabilityWindows  ClubAvailabilityWindow[]      @relation("ClubAvailability")
   auditEvents              AuditLog[]
-  invitationsSent          UserInvitation[]          @relation("InvitedUserInvitations")
-  acceptedInvitations      UserInvitation[]          @relation("AcceptedUserInvitations")
-  spouseInvitationsSent    UserInvitation[]          @relation("GuardianLinkInviterInvitations")
-  parentRegistration       ParentRegistration?       @relation("ParentRegistrationParent")
+  invitationsSent          UserInvitation[]              @relation("InvitedUserInvitations")
+  acceptedInvitations      UserInvitation[]              @relation("AcceptedUserInvitations")
+  spouseInvitationsSent    UserInvitation[]              @relation("GuardianLinkInviterInvitations")
+  parentRegistration       ParentRegistration?           @relation("ParentRegistrationParent")
 
   @@index([role])
 }
@@ -554,25 +557,34 @@ enum BehaviourVisibility {
   Sensitive
 }
 
+enum MessageThreadKind {
+  ParentStaff
+  SupervisorHead
+}
+
 model BehaviourEntry {
-  id           String              @id @default(cuid())
-  studentId    String
-  type         BehaviourType
-  category     String
+  id             String              @id @default(cuid())
+  studentId      String
+  type           BehaviourType
+  category       String
   // note is free text PII — encrypted at rest (ADR-005)
-  noteEnc      String?
-  visibility   BehaviourVisibility @default(General)
+  noteEnc        String?
+  visibility     BehaviourVisibility @default(General)
   // Merit: positive N. Demerit: negative chosen amount, defaulting to -5. General: 0.
-  meritDelta   Int
-  recordedById String
-  paceRecordId String?
-  deletedAt    DateTime?
-  deletedById  String?
-  createdAt    DateTime            @default(now())
+  meritDelta     Int
+  recordedById   String
+  paceRecordId   String?
+  deletedAt      DateTime?
+  deletedById    String?
+  seenAt         DateTime?
+  seenById       String?
+  headCommentEnc String?
+  createdAt      DateTime            @default(now())
 
   student    Student       @relation(fields: [studentId], references: [id])
   recordedBy User          @relation("RecordedBehaviour", fields: [recordedById], references: [id])
   deletedBy  User?         @relation("DeletedBehaviour", fields: [deletedById], references: [id], onDelete: SetNull)
+  seenBy     User?         @relation("SeenBehaviour", fields: [seenById], references: [id], onDelete: SetNull)
   paceRecord PaceRecord?   @relation("PaceRecordAutomaticMerit", fields: [paceRecordId], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
 
@@ -581,28 +593,36 @@ model BehaviourEntry {
   @@index([paceRecordId])
   @@index([deletedAt])
   @@index([deletedById])
+  @@index([seenAt])
+  @@index([seenById])
 }
 
 model ChildNote {
-  id          String    @id @default(cuid())
-  studentId   String
-  noteEnc     String
-  sensitive   Boolean   @default(false)
-  createdById String
-  deletedAt   DateTime?
-  deletedById String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  studentId      String
+  noteEnc        String
+  sensitive      Boolean   @default(false)
+  createdById    String
+  deletedAt      DateTime?
+  deletedById    String?
+  seenAt         DateTime?
+  seenById       String?
+  headCommentEnc String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   student   Student @relation(fields: [studentId], references: [id])
   createdBy User    @relation("ChildNotesCreated", fields: [createdById], references: [id])
   deletedBy User?   @relation("DeletedChildNotes", fields: [deletedById], references: [id], onDelete: SetNull)
+  seenBy    User?   @relation("SeenChildNotes", fields: [seenById], references: [id], onDelete: SetNull)
 
   @@index([studentId, createdAt])
   @@index([sensitive])
   @@index([createdById, createdAt])
   @@index([deletedAt])
   @@index([deletedById])
+  @@index([seenAt])
+  @@index([seenById])
 }
 
 // ---------------------------------------------------------------------------
@@ -980,18 +1000,23 @@ model CalendarEventRequiredPerson {
 }
 
 model MessageThread {
-  id        String   @id @default(cuid())
-  parentId  String
-  adminId   String
-  subject   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String            @id @default(cuid())
+  kind         MessageThreadKind @default(ParentStaff)
+  parentId     String?
+  supervisorId String?
+  adminId      String
+  subject      String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
-  parent   User      @relation("ThreadParent", fields: [parentId], references: [id])
-  admin    User      @relation("ThreadAdmin", fields: [adminId], references: [id])
-  messages Message[]
+  parent     User?     @relation("ThreadParent", fields: [parentId], references: [id])
+  supervisor User?     @relation("ThreadSupervisor", fields: [supervisorId], references: [id])
+  admin      User      @relation("ThreadAdmin", fields: [adminId], references: [id])
+  messages   Message[]
 
+  @@index([kind])
   @@index([parentId])
+  @@index([supervisorId])
   @@index([adminId])
 }
 

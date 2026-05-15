@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
-type MessageMode = 'admin' | 'parent';
+type MessageMode = 'admin' | 'parent' | 'supervisor';
+type ThreadKind = 'ParentStaff' | 'SupervisorHead';
 type ThreadSummary = RouterOutputs['message']['listThreads'][number];
 type ThreadDetail = RouterOutputs['message']['listInThread'];
 type Recipient = RouterOutputs['message']['listRecipients'][number];
@@ -36,7 +37,22 @@ const copy = {
     replyPlaceholder: 'Type your message...',
     threadListLabel: 'Your message threads',
   },
+  supervisor: {
+    eyebrow: 'Head communications',
+    heading: 'Messages',
+    sub: 'Message the Head team from your supervisor portal.',
+    emptyTitle: 'No messages yet',
+    emptyDetail: 'Start a message thread with the Head team.',
+    replyPlaceholder: 'Type your message...',
+    threadListLabel: 'Your message threads',
+  },
 } as const;
+
+const threadKindByMode: Record<MessageMode, ThreadKind | null> = {
+  admin: null,
+  parent: 'ParentStaff',
+  supervisor: 'SupervisorHead',
+};
 
 function formatDateTime(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -48,11 +64,15 @@ function formatDateTime(value: Date | string): string {
 }
 
 function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
-  return mode === 'parent' ? thread.admin.fullName : thread.parent.fullName;
+  if (mode === 'parent' || mode === 'supervisor') return thread.admin.fullName;
+  return thread.kind === 'SupervisorHead'
+    ? (thread.supervisor?.fullName ?? 'Supervisor')
+    : (thread.parent?.fullName ?? 'Parent');
 }
 
 function counterpartRole(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
-  return mode === 'parent' ? thread.admin.role : 'Parent';
+  if (mode === 'parent' || mode === 'supervisor') return thread.admin.role;
+  return thread.kind === 'SupervisorHead' ? 'Supervisor' : 'Parent';
 }
 
 function submitFormOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -122,18 +142,18 @@ function MessageBubble({
         <time>{formatDateTime(message.createdAt)}</time>
       </header>
       <p>{message.body}</p>
-      {mine ? (
-        <footer>{message.readByOtherParticipant ? 'Read' : 'Sent'}</footer>
-      ) : null}
+      {mine ? <footer>{message.readByOtherParticipant ? 'Read' : 'Sent'}</footer> : null}
     </article>
   );
 }
 
 function NewThreadComposer({
+  kind,
   onCreated,
   recipients,
   recipientsLoading,
 }: {
+  kind: ThreadKind;
   onCreated: (threadId: string) => void;
   recipients: Recipient[];
   recipientsLoading: boolean;
@@ -161,7 +181,7 @@ function NewThreadComposer({
 
     setError(null);
     try {
-      const thread = await openThread.mutateAsync({ adminId, subject: trimmedSubject });
+      const thread = await openThread.mutateAsync({ adminId, kind, subject: trimmedSubject });
       await sendMessage.mutateAsync({ threadId: thread.id, body: trimmedBody });
       setSubject('');
       setBody('');
@@ -179,7 +199,10 @@ function NewThreadComposer({
       <div className="section-title">
         <div>
           <h2 id="new-message-title">New Message</h2>
-          <p className="muted">Start a private thread with the centre team.</p>
+          <p className="muted">
+            Start a private thread with{' '}
+            {kind === 'ParentStaff' ? 'the centre team' : 'the Head team'}.
+          </p>
         </div>
       </div>
       <form
@@ -293,7 +316,11 @@ function ReplyComposer({
         rows={3}
         value={body}
       />
-      <Button disabled={disabled || body.trim().length === 0} pending={sendMessage.isPending} type="submit">
+      <Button
+        disabled={disabled || body.trim().length === 0}
+        pending={sendMessage.isPending}
+        type="submit"
+      >
         <Send aria-hidden="true" size={16} />
         Send
       </Button>
@@ -306,12 +333,16 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const utils = api.useUtils();
+  const threadKind = threadKindByMode[mode];
   const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
   const threadsQuery = api.message.listThreads.useQuery(undefined, { retry: false });
-  const recipientsQuery = api.message.listRecipients.useQuery(undefined, {
-    enabled: mode === 'parent',
-    retry: false,
-  });
+  const recipientsQuery = api.message.listRecipients.useQuery(
+    threadKind ? { kind: threadKind } : undefined,
+    {
+      enabled: mode === 'parent' || mode === 'supervisor',
+      retry: false,
+    },
+  );
   const threads = threadsQuery.data ?? [];
   const queryThreadId = searchParams.get('threadId');
   const selectedThreadId = useMemo(() => {
@@ -363,7 +394,9 @@ export function MessageCentre({ mode }: MessageCentreProps) {
     const href =
       mode === 'parent'
         ? `/parent/messages?threadId=${encodedThreadId}`
-        : `/admin/messages?threadId=${encodedThreadId}`;
+        : mode === 'supervisor'
+          ? `/supervisor/messages?threadId=${encodedThreadId}`
+          : `/admin/messages?threadId=${encodedThreadId}`;
     window.history.replaceState(null, '', href);
   }
 
@@ -382,8 +415,9 @@ export function MessageCentre({ mode }: MessageCentreProps) {
         <span>{pageCopy.sub}</span>
       </div>
 
-      {mode === 'parent' ? (
+      {threadKind ? (
         <NewThreadComposer
+          kind={threadKind}
           onCreated={selectThread}
           recipients={recipientsQuery.data ?? []}
           recipientsLoading={recipientsQuery.isLoading}
@@ -397,10 +431,14 @@ export function MessageCentre({ mode }: MessageCentreProps) {
         <section className="panel message-thread-list-panel" aria-labelledby="message-list-title">
           <div className="message-panel-header">
             <h2 id="message-list-title">{pageCopy.threadListLabel}</h2>
-            <span>{unreadTotal > 0 ? `${String(unreadTotal)} unread` : String(threads.length)}</span>
+            <span>
+              {unreadTotal > 0 ? `${String(unreadTotal)} unread` : String(threads.length)}
+            </span>
           </div>
           {threadsQuery.isLoading ? <EmptyState>Loading messages...</EmptyState> : null}
-          {threadsQuery.error ? <p className="status--error">{threadsQuery.error.message}</p> : null}
+          {threadsQuery.error ? (
+            <p className="status--error">{threadsQuery.error.message}</p>
+          ) : null}
           {!threadsQuery.isLoading && threads.length === 0 ? (
             <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
           ) : null}
@@ -440,11 +478,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
             <>
               <div className="message-bubble-list" aria-label="Message thread">
                 {selectedThread.messages.map((message) => (
-                  <MessageBubble
-                    currentUserId={currentUserId}
-                    key={message.id}
-                    message={message}
-                  />
+                  <MessageBubble currentUserId={currentUserId} key={message.id} message={message} />
                 ))}
               </div>
               <ReplyComposer

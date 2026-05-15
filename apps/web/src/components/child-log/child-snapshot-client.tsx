@@ -124,6 +124,7 @@ export function ChildSnapshotClient({
       setNoteStatus('Child note saved.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+      await utils.childLog.supervisorNotesHistory.invalidate();
     },
   });
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
@@ -131,6 +132,7 @@ export function ChildSnapshotClient({
       setEditingBehaviour(null);
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+      await utils.childLog.supervisorNotesHistory.invalidate();
     },
   });
   const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
@@ -138,6 +140,7 @@ export function ChildSnapshotClient({
       setDeletingBehaviour(null);
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+      await utils.childLog.supervisorNotesHistory.invalidate();
     },
   });
   const updateNote = api.childNotes.update.useMutation({
@@ -145,6 +148,7 @@ export function ChildSnapshotClient({
       setEditingNote(null);
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+      await utils.childLog.supervisorNotesHistory.invalidate();
     },
   });
   const deleteNote = api.childNotes.delete.useMutation({
@@ -152,6 +156,7 @@ export function ChildSnapshotClient({
       setDeletingNote(null);
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+      await utils.childLog.supervisorNotesHistory.invalidate();
     },
   });
   const updatePace = api.pace.updateRecord.useMutation({

@@ -4,6 +4,7 @@ import {
   AccessDeniedError,
   DEMERIT_COST,
   canCreateSensitiveBehaviour,
+  canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
   canViewBehaviourReports,
   isFullAdmin,
@@ -266,7 +267,7 @@ async function loadActiveScopedStudent(
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
   }
   const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
-  if (!studentMatchesDailyScope(scope, student)) {
+  if (!canUseAllStudentSupervisorWorkflow(ctx.user) && !studentMatchesDailyScope(scope, student)) {
     await denyOutOfDailyScope(ctx, input.entity, {
       studentId: input.studentId,
       studentYearGroup: student.yearGroup,
@@ -277,8 +278,8 @@ async function loadActiveScopedStudent(
   return student;
 }
 
-function scopedStudentRelationWhere(scope: DailyYearBandScope) {
-  if (scope.scopedYears === null) return {};
+function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser) {
+  if (canUseAllStudentSupervisorWorkflow(user) || scope.scopedYears === null) return {};
   return { student: studentWhereForDailyScope(scope) };
 }
 
@@ -566,7 +567,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             where: {
               createdAt: { gte: from, lt: to },
               ...visibleBehaviourWhere(ctx.user),
-              ...scopedStudentRelationWhere(scope),
+              ...scopedStudentRelationWhere(scope, ctx.user),
             },
             include: {
               student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -627,7 +628,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             where: {
               createdAt: { gte: from, lt: to },
               ...visibleBehaviourWhere(ctx.user),
-              ...scopedStudentRelationWhere(scope),
+              ...scopedStudentRelationWhere(scope, ctx.user),
             },
             include: {
               student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -711,7 +712,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
         }
         const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
-        if (!studentMatchesDailyScope(scope, student)) {
+        if (
+          !canUseAllStudentSupervisorWorkflow(ctx.user) &&
+          !studentMatchesDailyScope(scope, student)
+        ) {
           await denyOutOfDailyScope(ctx, 'behaviour.listForStudent', {
             studentId: input.studentId,
             studentYearGroup: student.yearGroup,

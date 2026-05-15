@@ -17,8 +17,17 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
   const user = await getStaffUser();
   const userRoleLabel = user.role === 'Supervisor' ? 'Supervisor' : roleLabel(user.role);
   const now = new Date();
-  const [linkedChildren, unreadNoticeCount] = await Promise.all([
+  const [linkedChildren, unreadMessageCount, unreadNoticeCount] = await Promise.all([
     linkedChildCount(user.id),
+    prisma.message.count({
+      where: {
+        senderId: { not: user.id },
+        thread: { kind: 'SupervisorHead', supervisorId: user.id },
+        reads: {
+          none: { userId: user.id },
+        },
+      },
+    }),
     prisma.staffNotice.count({
       where: {
         active: true,
@@ -34,6 +43,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
   const supervisorNavProps = {
     canManageClubs: canManageClubs(user),
     hasLinkedChildren,
+    unreadMessageCount,
     unreadNoticeCount,
   };
 

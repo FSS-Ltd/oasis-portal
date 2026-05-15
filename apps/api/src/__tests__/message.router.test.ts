@@ -70,7 +70,9 @@ interface StoredUser {
 
 interface StoredThread {
   id: string;
-  parentId: string;
+  kind: 'ParentStaff' | 'SupervisorHead';
+  parentId: string | null;
+  supervisorId: string | null;
   adminId: string;
   subject: string;
   createdAt: Date;
@@ -93,7 +95,9 @@ interface StoredMessageRead {
 
 interface FakeThreadFindManyArgs {
   where?: {
+    kind?: 'ParentStaff' | 'SupervisorHead';
     parentId?: string;
+    supervisorId?: string;
     adminId?: string;
   };
 }
@@ -106,7 +110,9 @@ interface FakeThreadFindUniqueArgs {
 
 interface FakeThreadCreateArgs {
   data: {
-    parentId: string;
+    kind: 'ParentStaff' | 'SupervisorHead';
+    parentId: string | null;
+    supervisorId: string | null;
     adminId: string;
     subject: string;
   };
@@ -139,6 +145,7 @@ interface FakeUserFindUniqueArgs {
 interface FakeUserFindManyArgs {
   where?: {
     active?: boolean;
+    OR?: Array<{ role?: Role; tags?: { has: string } }>;
     role?: { in: Role[] };
   };
 }
@@ -164,7 +171,9 @@ function decrypt(value: string | null | undefined): string | null {
 
 function makeThread(input: Partial<StoredThread> & Pick<StoredThread, 'id'>): StoredThread {
   return {
+    kind: 'ParentStaff',
     parentId: parentUser.id,
+    supervisorId: null,
     adminId: headUser.id,
     subject: 'Fees question',
     createdAt: new Date('2026-05-09T09:00:00.000Z'),
@@ -182,7 +191,9 @@ function makeMessage(input: Partial<StoredMessage> & Pick<StoredMessage, 'id' | 
   } satisfies StoredMessage;
 }
 
-function makeRead(input: Pick<StoredMessageRead, 'messageId' | 'userId'> & Partial<StoredMessageRead>) {
+function makeRead(
+  input: Pick<StoredMessageRead, 'messageId' | 'userId'> & Partial<StoredMessageRead>,
+) {
   return {
     readAt: new Date('2026-05-09T10:30:00.000Z'),
     ...input,
@@ -205,6 +216,14 @@ const defaultUsers: StoredUser[] = [
   makeUser({ id: principalUser.id, role: principalUser.role, tags: [...principalUser.tags] }),
   makeUser({ id: untaggedPrincipalUser.id, role: untaggedPrincipalUser.role }),
   makeUser({ id: parentUser.id, role: parentUser.role, fullNameEnc: encrypt('Jane Parent') }),
+  makeUser({
+    id: supervisorUser.id,
+    role: supervisorUser.role,
+    fullNameEnc: encrypt('Sue Supervisor'),
+  }),
+  makeUser({ id: clubsAdminUser.id, role: clubsAdminUser.role }),
+  makeUser({ id: technicalSupportUser.id, role: technicalSupportUser.role }),
+  makeUser({ id: studentUser.id, role: studentUser.role }),
   makeUser({
     id: otherParentUser.id,
     role: otherParentUser.role,
@@ -235,7 +254,8 @@ function makeFakeDb(
   };
   const threadWithUsers = (thread: StoredThread) => ({
     ...thread,
-    parent: userFor(thread.parentId),
+    parent: thread.parentId ? userFor(thread.parentId) : null,
+    supervisor: thread.supervisorId ? userFor(thread.supervisorId) : null,
     admin: userFor(thread.adminId),
   });
 
@@ -252,7 +272,13 @@ function makeFakeDb(
             .filter(
               (user) =>
                 (args.where?.active === undefined || user.active === args.where.active) &&
-                (!args.where?.role?.in || args.where.role.in.includes(user.role)),
+                (!args.where?.role?.in || args.where.role.in.includes(user.role)) &&
+                (!args.where?.OR ||
+                  args.where.OR.some(
+                    (condition) =>
+                      (condition.role === undefined || user.role === condition.role) &&
+                      (condition.tags === undefined || user.tags.includes(condition.tags.has)),
+                  )),
             )
             .sort((a, b) => a.id.localeCompare(b.id)),
         ),
@@ -264,7 +290,9 @@ function makeFakeDb(
           threads
             .filter(
               (thread) =>
+                (!args.where?.kind || thread.kind === args.where.kind) &&
                 (!args.where?.parentId || thread.parentId === args.where.parentId) &&
+                (!args.where?.supervisorId || thread.supervisorId === args.where.supervisorId) &&
                 (!args.where?.adminId || thread.adminId === args.where.adminId),
             )
             .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
@@ -290,13 +318,13 @@ function makeFakeDb(
         if (args.include) {
           return Promise.resolve({
             ...threadWithUsers(thread),
-            messages: messagesForThread(thread.id).sort(
-              (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-            ).map((message) => ({
-              ...message,
-              reads: readsForMessage(message.id),
-              sender: userFor(message.senderId),
-            })),
+            messages: messagesForThread(thread.id)
+              .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+              .map((message) => ({
+                ...message,
+                reads: readsForMessage(message.id),
+                sender: userFor(message.senderId),
+              })),
           });
         }
         if (args.select) {
@@ -376,11 +404,7 @@ function makeFakeEmailClient(result = { id: 'email_123' }) {
   return { client, send };
 }
 
-function makeCaller(
-  user: SessionUser | null,
-  db = makeFakeDb(),
-  email = makeFakeEmailClient(),
-) {
+function makeCaller(user: SessionUser | null, db = makeFakeDb(), email = makeFakeEmailClient()) {
   const appRouter = router({ message: createMessageRouter({ emailClient: email.client }) });
   return { caller: appRouter.createCaller(makeCtx(user, db)), db, email };
 }
@@ -396,7 +420,9 @@ describe('message.openThread', () => {
       }),
     ).resolves.toMatchObject({
       id: 'cthread000000000000001',
+      kind: 'ParentStaff',
       parentId: parentUser.id,
+      supervisorId: null,
       adminId: headUser.id,
       subject: 'Attendance question',
     });
@@ -407,7 +433,7 @@ describe('message.openThread', () => {
         action: 'Create',
         entity: 'MessageThread',
         entityId: 'cthread000000000000001',
-        meta: { source: 'message.openThread', adminId: headUser.id },
+        meta: { source: 'message.openThread', adminId: headUser.id, kind: 'ParentStaff' },
       },
     });
   });
@@ -426,6 +452,29 @@ describe('message.openThread', () => {
     await expect(
       caller.message.openThread({ adminId: untaggedPrincipalUser.id, subject: 'Question' }),
     ).resolves.toMatchObject({ adminId: untaggedPrincipalUser.id });
+  });
+
+  it('allows a supervisor to open a Head thread', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(
+      caller.message.openThread({
+        adminId: headUser.id,
+        kind: 'SupervisorHead',
+        subject: 'Sensitive note follow-up',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'SupervisorHead',
+      parentId: null,
+      supervisorId: supervisorUser.id,
+      adminId: headUser.id,
+    });
+
+    expect(db.threads[0]).toMatchObject({
+      kind: 'SupervisorHead',
+      parentId: null,
+      supervisorId: supervisorUser.id,
+    });
   });
 });
 
@@ -465,18 +514,16 @@ describe('message.send', () => {
     const emailAudit = db.auditLog.create.mock.calls
       .map(([args]) => args)
       .find((args) => args.data.entity === 'Email');
-    expect(emailAudit?.data).toMatchObject(
-      {
-        action: 'Create',
-        entity: 'Email',
-        meta: {
-          emailStatus: 'Sent',
-          source: 'message.send.notification',
-          threadId: thread.id,
-          toUserId: headUser.id,
-        },
+    expect(emailAudit?.data).toMatchObject({
+      action: 'Create',
+      entity: 'Email',
+      meta: {
+        emailStatus: 'Sent',
+        source: 'message.send.notification',
+        threadId: thread.id,
+        toUserId: headUser.id,
       },
-    );
+    });
   });
 
   it('allows Head to respond to any parent thread', async () => {
@@ -518,6 +565,30 @@ describe('message.send', () => {
     ).resolves.toMatchObject({ senderId: untaggedPrincipalUser.id });
   });
 
+  it('allows supervisor and Head replies in supervisor threads', async () => {
+    const supervisorThread = makeThread({
+      id: 'cthread000000000000108',
+      kind: 'SupervisorHead',
+      parentId: null,
+      supervisorId: supervisorUser.id,
+      adminId: headUser.id,
+    });
+
+    await expect(
+      makeCaller(supervisorUser, makeFakeDb([supervisorThread])).caller.message.send({
+        threadId: supervisorThread.id,
+        body: 'Please review this.',
+      }),
+    ).resolves.toMatchObject({ senderId: supervisorUser.id });
+
+    await expect(
+      makeCaller(headUser, makeFakeDb([supervisorThread])).caller.message.send({
+        threadId: supervisorThread.id,
+        body: 'Seen, thank you.',
+      }),
+    ).resolves.toMatchObject({ senderId: headUser.id });
+  });
+
   it('keeps the saved portal message when notification email delivery fails', async () => {
     const thread = makeThread({ id: 'cthread000000000000107' });
     const failingEmail = makeFakeEmailClient();
@@ -546,14 +617,14 @@ describe('message.send', () => {
           args.data.meta['source'] === 'message.send.notification',
       );
     expect(failedNotificationAudit?.data).toMatchObject({
-        action: 'Update',
-        entity: 'Message',
-        entityId: 'cmessage00000000000001',
-        meta: {
-          emailStatus: 'Failed',
-          source: 'message.send.notification',
-          threadId: thread.id,
-        },
+      action: 'Update',
+      entity: 'Message',
+      entityId: 'cmessage00000000000001',
+      meta: {
+        emailStatus: 'Failed',
+        source: 'message.send.notification',
+        threadId: thread.id,
+      },
     });
   });
 
@@ -601,7 +672,6 @@ describe('message.listRecipients', () => {
     await expect(caller.message.listRecipients()).resolves.toEqual([
       expect.objectContaining({ id: headUser.id, role: 'Head' }),
       expect.objectContaining({ id: principalUser.id, role: 'Principal' }),
-      expect.objectContaining({ id: untaggedPrincipalUser.id, role: 'Principal' }),
     ]);
   });
 
@@ -609,6 +679,15 @@ describe('message.listRecipients', () => {
     const { caller } = makeCaller(headUser);
 
     await expect(caller.message.listRecipients()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('returns Head and tagged recipients for supervisors', async () => {
+    const { caller } = makeCaller(supervisorUser);
+
+    await expect(caller.message.listRecipients({ kind: 'SupervisorHead' })).resolves.toEqual([
+      expect.objectContaining({ id: headUser.id, role: 'Head' }),
+      expect.objectContaining({ id: principalUser.id, role: 'Principal' }),
+    ]);
   });
 });
 
@@ -710,13 +789,13 @@ describe('message.listInThread', () => {
       .map(([args]) => args)
       .find((args) => args.data.entity === 'MessageRead');
     expect(readAudit?.data).toMatchObject({
-        action: 'Create',
-        entity: 'MessageRead',
-        meta: {
-          count: 1,
-          source: 'message.listInThread.markRead',
-          threadId: thread.id,
-        },
+      action: 'Create',
+      entity: 'MessageRead',
+      meta: {
+        count: 1,
+        source: 'message.listInThread.markRead',
+        threadId: thread.id,
+      },
     });
   });
 
@@ -729,7 +808,10 @@ describe('message.listInThread', () => {
       bodyEnc: encrypt('Can you confirm?'),
     });
     const read = makeRead({ messageId: parentMessage.id, userId: headUser.id });
-    const { caller } = makeCaller(parentUser, makeFakeDb([thread], [parentMessage], defaultUsers, [read]));
+    const { caller } = makeCaller(
+      parentUser,
+      makeFakeDb([thread], [parentMessage], defaultUsers, [read]),
+    );
 
     await expect(caller.message.listInThread({ threadId: thread.id })).resolves.toMatchObject({
       messages: [
@@ -744,7 +826,7 @@ describe('message.listInThread', () => {
 
   it('denies unsupported roles', async () => {
     const thread = makeThread({ id: 'cthread000000000000302' });
-    const deniedUsers = [supervisorUser, clubsAdminUser, technicalSupportUser, studentUser];
+    const deniedUsers = [technicalSupportUser, studentUser];
 
     for (const user of deniedUsers) {
       await expect(
@@ -753,6 +835,16 @@ describe('message.listInThread', () => {
         }),
       ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     }
+  });
+
+  it('hides parent threads from supervisor readers', async () => {
+    const thread = makeThread({ id: 'cthread000000000000305' });
+
+    await expect(
+      makeCaller(supervisorUser, makeFakeDb([thread])).caller.message.listInThread({
+        threadId: thread.id,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('hides another parent account thread from parent readers', async () => {
