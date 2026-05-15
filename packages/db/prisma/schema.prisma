@@ -633,6 +633,7 @@ enum MeritAccount {
   Spend
   Saving
   Investment
+  InvestmentReturn
   TithePaid
   Given
   FeeSink

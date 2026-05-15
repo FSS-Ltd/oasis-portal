@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.1 weekly tithe API.
+**Phase:** Phase 4 PR-4.2 investment NAV and account transactions.
 
 ---
 
@@ -18,6 +18,50 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
+## Current status - PR-4.2 Investment NAV and account transactions
+
+Working branch: `feat/investment-nav-account-transactions`.
+
+**PR scope:** Implement API-only investment NAV ticks, account reads, buy, and
+sell transactions on top of the merged PR-4.0 merit wallet API and PR-4.1
+weekly tithe API, while leaving shop, leaderboards, reports, and UI surfaces to
+later Phase 4 PRs.
+
+Merged Phase 4 status:
+
+- PR-4.0 `feat(api): merit wallet balances and transfers` merged via PR #134
+  on 2026-05-15.
+- PR #135 `feat: add mobile more nav drawer` merged on 2026-05-15.
+- PR-4.1 `feat(api): weekly tithe config and run` merged via PR #136 on
+  2026-05-15.
+
+Planned scope:
+
+- Replace the `investment` placeholder router with `account`, `navHistory`,
+  `buy`, `sell`, and `tickNav`.
+- Use the deterministic investment simulator and `INVESTMENT_NAV_SEED`, falling
+  back to `oasis-v1` in local/test mode when the env var is absent.
+- Store one `InvestmentNav` row per UTC day and make repeat ticks idempotent.
+- Allow full-admin users to view/transact for active students, linked parents to
+  view linked children, and linked students to view/transact for themselves.
+- Keep parent investment writes denied and audited in PR-4.2.
+- Buy investment units from Spend merits at latest NAV.
+- Sell units back to Spend at latest NAV, applying the 5 percent withdrawal fee.
+- Add `InvestmentReturn` ledger accounting so realized gains/losses keep
+  buy/sell ledger rows balanced without corrupting Investment cost basis.
+- Audit buy, sell, tick, rejected transaction, and permission-denied paths.
+
+Verification target:
+
+- `pnpm --filter @oasis/api test -- investment.router.test.ts meritLedger.router.test.ts tithe.router.test.ts`
+- `pnpm --filter @oasis/domain test -- investmentSim.test.ts investmentTransactions.test.ts meritLedger.test.ts tithe.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm lint`
+- `pnpm typecheck`
+- `git diff --check`
+- `graphify update .`
+
 ## Current status - PR-4.1 Weekly tithe config and run
 
 Working branch: `feat/weekly-tithe-config-run`.
@@ -30,6 +74,8 @@ Merged Phase 4 status:
 
 - PR-4.0 `feat(api): merit wallet balances and transfers` merged via PR #134
   on 2026-05-15.
+- PR-4.1 `feat(api): weekly tithe config and run` merged via PR #136 on
+  2026-05-15.
 
 Planned scope:
 
