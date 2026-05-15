@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.4 shopkeeper purchase flow.
+**Phase:** Phase 4 PR-4.5 shop admin and shopkeeper UI.
 
 ---
 
@@ -18,7 +18,57 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.4 Shopkeeper purchase flow
+## Current status - PR-4.5 Shop admin and shopkeeper UI
+
+Working branch: `feat/shop-admin-shopkeeper-ui`.
+
+**PR scope:** Add web Merit Shop surfaces for item management and shopkeeper
+purchase recording on top of merged PR-4.3 and PR-4.4 shop APIs. Keep
+parent/student receipt views, leaderboards, reports, and mobile shop browsing
+to later Phase 4 PRs.
+
+Merged Phase 4 status:
+
+- PR-4.0 `feat(api): merit wallet balances and transfers` merged via PR #134
+  on 2026-05-15.
+- PR #135 `feat: add mobile more nav drawer` merged on 2026-05-15.
+- PR-4.1 `feat(api): weekly tithe config and run` merged via PR #136 on
+  2026-05-15.
+- PR-4.2 `feat(api): investment NAV and account transactions` merged via PR
+  #138 on 2026-05-15.
+- PR-4.3 `feat(api): shop item management` merged via PR #139 on 2026-05-15.
+- PR-4.4 `feat(api): shopkeeper purchase flow` merged via PR #140 on
+  2026-05-15; post-merge `main` CI/CD run 25945758410 passed, including
+  production deploy.
+
+Planned scope:
+
+- Add guarded admin and supervisor shop routes for full-admin, `shopadmin`, and
+  `shopkeeper` users.
+- Add shop admin item create/update/deactivate UI.
+- Add shopkeeper purchase UI with student, active item, quantity, stock,
+  insufficient balance, and success states.
+- Add the minimal shop API read needed by the UI to list active purchasers with
+  Spend balances, including permission gating and PII decrypt audit.
+- Wire permitted staff navigation to the shop route.
+
+Verification target:
+
+- `pnpm --filter @oasis/api test -- shop.router.test.ts`
+- `pnpm --filter @oasis/domain test -- shop.test.ts rbac.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm lint`
+- `pnpm typecheck`
+- `pnpm --filter @oasis/web build`
+- Browser smoke for `/admin/shop` and responsive layout
+- `git diff --check`
+- `graphify update .`
+- `pnpm docs:component-map`
+
+## Previous status - PR-4.4 Shopkeeper purchase flow
 
 Working branch: `feat/shopkeeper-purchase-flow`.
 
@@ -36,6 +86,8 @@ Merged Phase 4 status:
 - PR-4.2 `feat(api): investment NAV and account transactions` merged via PR
   #138 on 2026-05-15.
 - PR-4.3 `feat(api): shop item management` merged via PR #139 on 2026-05-15.
+- PR-4.4 `feat(api): shopkeeper purchase flow` merged via PR #140 on
+  2026-05-15.
 
 Planned scope:
 

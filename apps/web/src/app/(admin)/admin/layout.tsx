@@ -7,9 +7,11 @@ import {
   canExportAttendance,
   canManageCalendar,
   canManageClubs,
+  canManageShop,
   canRespondToParentMessages,
   canUseFullPaceAccess,
   canManageUserAccounts,
+  canSellInShop,
   hasTag,
   isFullAdmin,
 } from '@oasis/domain';
@@ -35,6 +37,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canExportAttendanceCsv = canExportAttendance(user);
   const canManageCalendarDates = canManageCalendar(user);
   const canManageClubModule = canManageClubs(user);
+  const canUseShop = canManageShop(user) || canSellInShop(user);
   const canUseMessages = canRespondToParentMessages(user);
   const [linkedChildren, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
@@ -66,10 +69,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               ? '/admin/calendar'
               : canManageClubModule
                 ? '/admin/clubs'
-                : '/admin/profile';
+                : canUseShop
+                  ? '/admin/shop'
+                  : '/admin/profile';
   const adminNavProps = {
     canManageCalendar: canManageCalendarDates,
     canManageClubs: canManageClubModule,
+    canUseShop,
     canManageUserAccounts: canManageAccounts,
     canUseMessages,
     canViewAudit,

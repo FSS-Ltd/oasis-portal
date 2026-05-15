@@ -38,7 +38,7 @@ const navItems = [
   { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
-  { href: '/admin', label: 'Merit Shop', icon: ShoppingBag },
+  { href: '/admin/shop', label: 'Merit Shop', icon: ShoppingBag },
   { href: '/admin', label: 'Reports', icon: BarChart3 },
   { href: '/admin/messages', label: 'Messages', icon: MessageSquare },
   { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell },
@@ -52,6 +52,7 @@ type AdminNavProps = {
   canManageUserAccounts: boolean;
   canManageCalendar: boolean;
   canManageClubs: boolean;
+  canUseShop: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
   fullAdmin: boolean;
@@ -80,6 +81,7 @@ function visibleForUser(
     | 'canManageUserAccounts'
     | 'canManageCalendar'
     | 'canManageClubs'
+    | 'canUseShop'
     | 'clubsOnly'
     | 'canViewAudit'
     | 'canViewBehaviour'
@@ -96,6 +98,7 @@ function visibleForUser(
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Clubs') return access.canManageClubs;
+  if (item.label === 'Merit Shop') return access.canUseShop;
   if (item.label === 'Calendar') return !access.clubsOnly;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
@@ -117,6 +120,7 @@ export function AdminSidebarNav({
   canManageUserAccounts,
   canManageCalendar,
   canManageClubs,
+  canUseShop,
   clubsOnly,
   canExportAttendance,
   fullAdmin,
@@ -130,6 +134,7 @@ export function AdminSidebarNav({
       canManageUserAccounts,
       canManageCalendar,
       canManageClubs,
+      canUseShop,
       clubsOnly,
       canViewAudit,
       canViewBehaviour,
@@ -146,7 +151,7 @@ export function AdminSidebarNav({
     <nav className="admin-shell__nav">
       {visibleNavItems.map((item, index) => {
         const Icon = item.icon;
-        const enabled = item.href !== '/admin' || item.label === 'Dashboard';
+        const enabled = item.label !== 'Reports';
         const active = enabled && isActiveRoute(pathname, item.href, item.label);
         const badge = item.label === 'Messages' ? countBadge(unreadMessageCount) : null;
         const className = [
@@ -183,6 +188,7 @@ export function AdminBottomNav({
   canManageUserAccounts,
   canManageCalendar,
   canManageClubs,
+  canUseShop,
   clubsOnly,
   canExportAttendance,
   fullAdmin,
@@ -197,6 +203,7 @@ export function AdminBottomNav({
         canManageUserAccounts,
         canManageCalendar,
         canManageClubs,
+        canUseShop,
         clubsOnly,
         canViewAudit,
         canViewBehaviour,

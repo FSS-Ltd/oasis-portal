@@ -41,6 +41,12 @@ interface PurchaseItemRow {
   active: boolean;
 }
 
+interface PurchaserStudentRow {
+  id: string;
+  fullNameEnc: string;
+  yearGroup: string;
+}
+
 export interface ShopItemDto {
   id: string;
   name: string;
@@ -62,6 +68,13 @@ export interface ShopPurchaseDto {
   totalPriceMerits: number;
   remainingStockCount: number;
   createdAt: Date;
+}
+
+export interface ShopPurchaserDto {
+  id: string;
+  fullName: string;
+  yearGroup: string;
+  spendBalance: number;
 }
 
 const itemSelect = {
@@ -114,6 +127,14 @@ function mapItem(row: ShopItemRow): ShopItemDto {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function decryptPurchaserName(ctx: AuthedContext, student: PurchaserStudentRow): string {
+  const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
+  if (!fullName) {
+    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
+  }
+  return fullName;
 }
 
 function draftInput(input: LooseShopItemDraft): ShopItemDraft {
@@ -205,6 +226,32 @@ async function loadSpendBalance(
   return result._sum.delta ?? 0;
 }
 
+async function loadSpendBalances(
+  ctx: AuthedContext,
+  studentIds: readonly string[],
+): Promise<ReadonlyMap<string, number>> {
+  if (studentIds.length === 0) return new Map();
+
+  const balances = await ctx.db.meritLedger.groupBy({
+    by: ['studentId'],
+    where: { studentId: { in: [...studentIds] }, account: 'Spend' },
+    _sum: { delta: true },
+  });
+
+  return new Map(balances.map((row) => [row.studentId, row._sum.delta ?? 0]));
+}
+
+async function auditPurchaserListDecrypt(ctx: AuthedContext, count: number): Promise<void> {
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'DecryptPii',
+      entity: 'Student',
+      meta: { count, source: 'shop.listPurchasers' },
+    },
+  });
+}
+
 async function auditRejectedPurchase(
   ctx: AuthedContext,
   input: { studentId: string; itemId: string; unitsBought: number },
@@ -250,6 +297,30 @@ export const shopRouter = router({
     });
 
     return items.map(mapItem);
+  }),
+
+  listPurchasers: authedProcedure.query(async ({ ctx }) => {
+    await requireCanSellInShop(ctx, 'shop.listPurchasers');
+
+    const students = await ctx.db.student.findMany({
+      where: { active: true },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, fullNameEnc: true, yearGroup: true },
+    });
+    const spendBalanceByStudentId = await loadSpendBalances(
+      ctx,
+      students.map((student) => student.id),
+    );
+
+    const rows = students.map((student) => ({
+      id: student.id,
+      fullName: decryptPurchaserName(ctx, student),
+      yearGroup: student.yearGroup,
+      spendBalance: spendBalanceByStudentId.get(student.id) ?? 0,
+    }));
+
+    await auditPurchaserListDecrypt(ctx, rows.length);
+    return rows satisfies ShopPurchaserDto[];
   }),
 
   createItem: authedProcedure.input(createItemInput).mutation(async ({ ctx, input }) => {

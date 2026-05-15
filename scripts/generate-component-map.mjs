@@ -142,10 +142,12 @@ const PRODUCT_MODULES = [
     ],
     webSurfaces: [
       'apps/web/src/app/(admin)/',
+      'apps/web/src/app/(supervisor)/supervisor/shop/',
       'apps/web/src/app/(parent)/',
       'apps/web/src/components/calendar/',
       'apps/web/src/components/clubs/',
       'apps/web/src/components/noticeboard/',
+      'apps/web/src/components/shop/',
       'apps/web/src/components/ui/',
     ],
     mobileSurfaces: [

@@ -55,15 +55,23 @@ export function validateDraft(draft: ShopItemDraft): ShopItemPricing & {
 }
 
 export function assertCanManageShop(user: SessionUser): void {
-  if (!isFullAdmin(user) && !hasTag(user, 'shopadmin')) {
+  if (!canManageShop(user)) {
     throw new AccessDeniedError('shop management requires full-admin or shopadmin');
   }
 }
 
 export function assertCanSellInShop(user: SessionUser): void {
-  if (!isFullAdmin(user) && !hasTag(user, 'shopkeeper')) {
+  if (!canSellInShop(user)) {
     throw new AccessDeniedError('shop selling requires full-admin or shopkeeper');
   }
+}
+
+export function canManageShop(user: SessionUser): boolean {
+  return isFullAdmin(user) || hasTag(user, 'shopadmin');
+}
+
+export function canSellInShop(user: SessionUser): boolean {
+  return isFullAdmin(user) || hasTag(user, 'shopkeeper');
 }
 
 export interface PurchaseInput {

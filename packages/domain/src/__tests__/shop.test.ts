@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   assertCanManageShop,
   assertCanSellInShop,
+  canManageShop,
+  canSellInShop,
   computePriceIncVat,
   prepareShopPurchase,
   validateDraft,
@@ -10,7 +12,7 @@ import { AccessDeniedError, type SessionUser } from '../rbac.js';
 
 const shopadmin: SessionUser = {
   id: 'u1',
-  role: 'Head',
+  role: 'Supervisor',
   tags: ['shopadmin'],
   requires2fa: false,
 };
@@ -66,17 +68,25 @@ describe('validateDraft', () => {
 describe('assertCanManageShop / assertCanSellInShop', () => {
   it('shopadmin can manage', () => {
     expect(() => { assertCanManageShop(shopadmin); }).not.toThrow();
+    expect(canManageShop(shopadmin)).toBe(true);
+    expect(canSellInShop(shopadmin)).toBe(false);
   });
   it('full-admin can manage and sell without shop tags', () => {
     expect(() => { assertCanManageShop(head); }).not.toThrow();
     expect(() => { assertCanSellInShop(head); }).not.toThrow();
+    expect(canManageShop(head)).toBe(true);
+    expect(canSellInShop(head)).toBe(true);
   });
   it('shopkeeper can sell', () => {
     expect(() => { assertCanSellInShop(shopkeeper); }).not.toThrow();
+    expect(canSellInShop(shopkeeper)).toBe(true);
+    expect(canManageShop(shopkeeper)).toBe(false);
   });
   it('untagged users blocked', () => {
     expect(() => { assertCanManageShop(nobody); }).toThrow(AccessDeniedError);
     expect(() => { assertCanSellInShop(nobody); }).toThrow(AccessDeniedError);
+    expect(canManageShop(nobody)).toBe(false);
+    expect(canSellInShop(nobody)).toBe(false);
   });
 });
 
