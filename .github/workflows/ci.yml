@@ -16,6 +16,7 @@ permissions:
 env:
   NODE_VERSION: '20'
   PNPM_VERSION: '10.0.0'
+  TURBO_CACHE_DIR: .turbo/cache
   VERCEL_CLI_VERSION: '53.0.1'
 
 jobs:
@@ -42,6 +43,9 @@ jobs:
     env:
       DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
       DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +59,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Restore Turbo cache
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -71,8 +85,8 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
-  db-integration:
-    name: DB migration / RLS smoke
+  db-verification:
+    name: DB migration / RLS / encryption verification
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -107,6 +121,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -123,67 +138,55 @@ jobs:
       - name: tRPC context RLS smoke
         run: pnpm api:smoke-context-rls
 
-  encryption-verification:
-    name: Encryption dump verification
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: db-integration
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: oasis
-          POSTGRES_PASSWORD: oasis
-          POSTGRES_DB: oasis_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U oasis"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-      DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable corepack (pnpm)
-        run: |
-          corepack enable
-          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm --filter @oasis/db generate
-
-      - name: Migrate and apply RLS
-        run: pnpm db:migrate
-
-      - name: Seed encrypted smoke data
-        run: pnpm db:integration
-
       - name: Verify encrypted dump
         env:
           PG_DUMP_CONTAINER_ID: ${{ job.services.postgres.id }}
         run: pnpm verify:encryption
 
+  preview-changes:
+    name: Detect preview deploy changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      preview_required: ${{ steps.detect.outputs.preview_required }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect deploy-relevant files
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          preview_required=false
+          changed_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+
+          while IFS= read -r path; do
+            case "${path}" in
+              .github/workflows/*|apps/api/*|apps/web/*|packages/*|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|scripts/*|turbo.json|tsconfig*)
+                preview_required=true
+                break
+                ;;
+            esac
+          done <<< "${changed_files}"
+
+          echo "preview_required=${preview_required}" >> "${GITHUB_OUTPUT}"
+
+          if [ "${preview_required}" = "true" ]; then
+            echo "Preview deployment required because deploy-relevant files changed." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "Preview deployment skipped because only non-deploy files changed." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
   deploy-preview:
     name: Vercel preview deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [verify, db-integration, encryption-verification]
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [verify, db-verification, preview-changes]
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.preview-changes.outputs.preview_required == 'true'
 
     permissions:
       contents: read
@@ -197,6 +200,9 @@ jobs:
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -210,6 +216,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-next-preview-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**', 'apps/api/**', 'packages/**', 'package.json', 'turbo.json') }}
+          restore-keys: |
+            ${{ runner.os }}-next-preview-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-next-preview-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -270,7 +286,7 @@ jobs:
     name: Vercel production deploy
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [verify, db-integration, encryption-verification]
+    needs: [verify, db-verification]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     env:
@@ -283,6 +299,9 @@ jobs:
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+      TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -296,6 +315,16 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: ${{ runner.os }}-next-production-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/**', 'apps/api/**', 'packages/**', 'package.json', 'turbo.json') }}
+          restore-keys: |
+            ${{ runner.os }}-next-production-${{ hashFiles('pnpm-lock.yaml') }}-
+            ${{ runner.os }}-next-production-
 
       - name: Install
         run: pnpm install --frozen-lockfile
