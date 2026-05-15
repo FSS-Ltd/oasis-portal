@@ -6,7 +6,7 @@
  * - Purchase: atomic — decrement stock, debit Spend account.
  * - Price stored as merits. VAT rounded half-up to nearest integer merit.
  */
-import { requireTag, type SessionUser } from './rbac.js';
+import { AccessDeniedError, hasTag, isFullAdmin, type SessionUser } from './rbac.js';
 import type { LedgerRow } from './meritLedger.js';
 
 export interface ShopItemDraft {
@@ -55,11 +55,15 @@ export function validateDraft(draft: ShopItemDraft): ShopItemPricing & {
 }
 
 export function assertCanManageShop(user: SessionUser): void {
-  requireTag(user, 'shopadmin');
+  if (!isFullAdmin(user) && !hasTag(user, 'shopadmin')) {
+    throw new AccessDeniedError('shop management requires full-admin or shopadmin');
+  }
 }
 
 export function assertCanSellInShop(user: SessionUser): void {
-  requireTag(user, 'shopkeeper');
+  if (!isFullAdmin(user) && !hasTag(user, 'shopkeeper')) {
+    throw new AccessDeniedError('shop selling requires full-admin or shopkeeper');
+  }
 }
 
 export interface PurchaseInput {

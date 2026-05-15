@@ -20,6 +20,12 @@ const shopkeeper: SessionUser = {
   tags: ['shopkeeper'],
   requires2fa: false,
 };
+const head: SessionUser = {
+  id: 'u4',
+  role: 'Head',
+  tags: [],
+  requires2fa: false,
+};
 const nobody: SessionUser = { id: 'u3', role: 'Supervisor', tags: [], requires2fa: false };
 
 describe('computePriceIncVat', () => {
@@ -60,6 +66,10 @@ describe('validateDraft', () => {
 describe('assertCanManageShop / assertCanSellInShop', () => {
   it('shopadmin can manage', () => {
     expect(() => { assertCanManageShop(shopadmin); }).not.toThrow();
+  });
+  it('full-admin can manage and sell without shop tags', () => {
+    expect(() => { assertCanManageShop(head); }).not.toThrow();
+    expect(() => { assertCanSellInShop(head); }).not.toThrow();
   });
   it('shopkeeper can sell', () => {
     expect(() => { assertCanSellInShop(shopkeeper); }).not.toThrow();
