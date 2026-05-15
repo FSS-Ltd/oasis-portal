@@ -1,4 +1,15 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Easing,
+  Image,
+  Modal,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import oasisLogo from '../../../assets/oasis-logo.png';
 import { C } from './mobile-theme';
 
@@ -9,6 +20,7 @@ export type PortalMobileNavIconName =
   | 'clubs'
   | 'dashboard'
   | 'messages'
+  | 'more'
   | 'notices'
   | 'pace'
   | 'students';
@@ -35,6 +47,7 @@ interface PortalMobileBottomNavProps<T extends string> {
   items: Array<PortalMobileNavItem<T>>;
   activeId: T;
   onSelect: (id: T) => void;
+  primaryItemLimit?: number | undefined;
   variant?: NavVariant;
 }
 
@@ -92,46 +105,265 @@ export function PortalMobileBottomNav<T extends string>({
   activeId,
   items,
   onSelect,
+  primaryItemLimit = 4,
   variant = 'light',
 }: PortalMobileBottomNavProps<T>) {
   const dark = variant === 'dark';
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const drawerOffset = useRef(new Animated.Value(360)).current;
+  const visiblePrimaryCount =
+    items.length > primaryItemLimit ? Math.max(primaryItemLimit - 1, 1) : items.length;
+  const primaryItems = useMemo(
+    () => items.slice(0, visiblePrimaryCount),
+    [items, visiblePrimaryCount],
+  );
+  const overflowItems = useMemo(
+    () => items.slice(visiblePrimaryCount),
+    [items, visiblePrimaryCount],
+  );
+  const hasOverflow = overflowItems.length > 0;
+  const overflowActive = overflowItems.some((item) => item.id === activeId);
+  const overflowBadgeCount = overflowItems.reduce((count, item) => count + (item.badge ?? 0), 0);
+
+  function settleDrawer() {
+    Animated.sequence([
+      Animated.timing(drawerOffset, {
+        duration: 210,
+        easing: Easing.out(Easing.quad),
+        toValue: -12,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 260,
+        easing: Easing.in(Easing.quad),
+        toValue: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        toValue: -4,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 210,
+        easing: Easing.in(Easing.quad),
+        toValue: 2,
+        useNativeDriver: true,
+      }),
+      Animated.spring(drawerOffset, {
+        bounciness: 2,
+        speed: 5,
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }
+
+  function openDrawer() {
+    setDrawerVisible(true);
+    drawerOffset.setValue(360);
+    Animated.sequence([
+      Animated.timing(drawerOffset, {
+        duration: 620,
+        easing: Easing.out(Easing.cubic),
+        toValue: -30,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 330,
+        easing: Easing.in(Easing.quad),
+        toValue: 17,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 250,
+        easing: Easing.out(Easing.quad),
+        toValue: -11,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 270,
+        easing: Easing.in(Easing.quad),
+        toValue: 6,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 190,
+        easing: Easing.out(Easing.quad),
+        toValue: -3,
+        useNativeDriver: true,
+      }),
+      Animated.timing(drawerOffset, {
+        duration: 210,
+        easing: Easing.in(Easing.quad),
+        toValue: 2,
+        useNativeDriver: true,
+      }),
+      Animated.spring(drawerOffset, {
+        bounciness: 2,
+        speed: 5,
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }
+
+  function closeDrawer() {
+    Animated.timing(drawerOffset, {
+      duration: 320,
+      easing: Easing.inOut(Easing.cubic),
+      toValue: 360,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setDrawerVisible(false);
+    });
+  }
+
+  const drawerPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_, gestureState) =>
+          gestureState.dy > 8 && gestureState.dy > Math.abs(gestureState.dx),
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          gestureState.dy > 8 && gestureState.dy > Math.abs(gestureState.dx),
+        onPanResponderMove: (_, gestureState) => {
+          drawerOffset.setValue(Math.max(gestureState.dy, 0));
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          if (gestureState.dy > 86 || gestureState.vy > 0.75) {
+            closeDrawer();
+            return;
+          }
+
+          settleDrawer();
+        },
+        onPanResponderTerminate: settleDrawer,
+      }),
+    [drawerOffset],
+  );
+
+  function itemColor(active: boolean) {
+    if (active) return dark ? C.surface : C.crimson;
+    return dark ? 'rgba(255,255,255,0.54)' : C.textMuted;
+  }
+
+  function renderBottomNavItem(item: PortalMobileNavItem<T>) {
+    const active = activeId === item.id;
+    const badge = item.badge ?? 0;
+    const color = itemColor(active);
+
+    return (
+      <Pressable
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
+        key={item.id}
+        onPress={() => {
+          onSelect(item.id);
+        }}
+        style={styles.bottomNavItem}
+      >
+        <PortalMobileNavIcon color={color} name={item.icon ?? navIconFromId(item.id)} />
+        <Text numberOfLines={1} style={[styles.bottomNavLabel, { color }]}>
+          {item.label}
+        </Text>
+        {badge > 0 ? (
+          <View style={styles.bottomNavBadge}>
+            <Text style={styles.bottomNavBadgeText}>{String(badge)}</Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  }
 
   return (
-    <View style={[styles.bottomNav, dark ? styles.bottomNavDark : styles.bottomNavLight]}>
-      {items.map((item) => {
-        const active = activeId === item.id;
-        const badge = item.badge ?? 0;
-        const itemColor = active
-          ? dark
-            ? C.surface
-            : C.crimson
-          : dark
-            ? 'rgba(255,255,255,0.54)'
-            : C.textMuted;
-
-        return (
+    <>
+      <View style={[styles.bottomNav, dark ? styles.bottomNavDark : styles.bottomNavLight]}>
+        {primaryItems.map(renderBottomNavItem)}
+        {hasOverflow ? (
           <Pressable
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            key={item.id}
-            onPress={() => {
-              onSelect(item.id);
-            }}
+            accessibilityLabel="More navigation options"
+            accessibilityRole="button"
+            accessibilityState={{ expanded: drawerVisible, selected: overflowActive }}
+            onPress={openDrawer}
             style={styles.bottomNavItem}
           >
-            <PortalMobileNavIcon color={itemColor} name={item.icon ?? navIconFromId(item.id)} />
-            <Text numberOfLines={1} style={[styles.bottomNavLabel, { color: itemColor }]}>
-              {item.label}
+            <PortalMobileNavIcon color={itemColor(overflowActive)} name="more" />
+            <Text
+              numberOfLines={1}
+              style={[styles.bottomNavLabel, { color: itemColor(overflowActive) }]}
+            >
+              More
             </Text>
-            {badge > 0 ? (
+            {overflowBadgeCount > 0 ? (
               <View style={styles.bottomNavBadge}>
-                <Text style={styles.bottomNavBadgeText}>{String(badge)}</Text>
+                <Text style={styles.bottomNavBadgeText}>{String(overflowBadgeCount)}</Text>
               </View>
             ) : null}
           </Pressable>
-        );
-      })}
-    </View>
+        ) : null}
+      </View>
+      <Modal animationType="none" onRequestClose={closeDrawer} transparent visible={drawerVisible}>
+        <View style={styles.drawerRoot}>
+          <Pressable
+            accessibilityLabel="Close navigation menu"
+            accessibilityRole="button"
+            onPress={closeDrawer}
+            style={styles.drawerBackdrop}
+          />
+          <Animated.View
+            {...drawerPanResponder.panHandlers}
+            style={[
+              styles.drawerPanel,
+              dark ? styles.drawerPanelDark : styles.drawerPanelLight,
+              { transform: [{ translateY: drawerOffset }] },
+            ]}
+          >
+            <View style={styles.drawerHandle} />
+            <Text
+              style={[styles.drawerTitle, dark ? styles.drawerTitleDark : styles.drawerTitleLight]}
+            >
+              More
+            </Text>
+            <View style={styles.drawerList}>
+              {overflowItems.map((item) => {
+                const active = activeId === item.id;
+                const badge = item.badge ?? 0;
+                const color = itemColor(active);
+
+                return (
+                  <Pressable
+                    accessibilityRole="menuitem"
+                    accessibilityState={{ selected: active }}
+                    key={item.id}
+                    onPress={() => {
+                      closeDrawer();
+                      onSelect(item.id);
+                    }}
+                    style={[
+                      styles.drawerItem,
+                      active
+                        ? dark
+                          ? styles.drawerItemActiveDark
+                          : styles.drawerItemActiveLight
+                        : null,
+                    ]}
+                  >
+                    <PortalMobileNavIcon color={color} name={item.icon ?? navIconFromId(item.id)} />
+                    <Text style={[styles.drawerItemLabel, { color }]}>{item.label}</Text>
+                    {badge > 0 ? (
+                      <View style={styles.drawerBadge}>
+                        <Text style={styles.bottomNavBadgeText}>{String(badge)}</Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -142,6 +374,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
     case 'clubs':
     case 'dashboard':
     case 'messages':
+    case 'more':
     case 'notices':
     case 'pace':
     case 'students':
@@ -165,6 +398,8 @@ function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobil
       return <ClubsNavIcon color={color} />;
     case 'messages':
       return <MessagesNavIcon color={color} />;
+    case 'more':
+      return <MoreNavIcon color={color} />;
     case 'notices':
       return <NoticesNavIcon color={color} />;
     case 'pace':
@@ -264,6 +499,18 @@ function PaceNavIcon({ color }: { color: string }) {
         <View style={[styles.pacePage, styles.pacePageLeft, { borderColor: color }]} />
         <View style={[styles.paceSpine, { backgroundColor: color }]} />
         <View style={[styles.pacePage, styles.pacePageRight, { borderColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function MoreNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={styles.moreDotRow}>
+        <View style={[styles.moreDot, { backgroundColor: color }]} />
+        <View style={[styles.moreDot, { backgroundColor: color }]} />
+        <View style={[styles.moreDot, { backgroundColor: color }]} />
       </View>
     </View>
   );
@@ -501,6 +748,84 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
     width: 17,
   },
+  drawerBackdrop: {
+    flex: 1,
+  },
+  drawerBadge: {
+    alignItems: 'center',
+    backgroundColor: C.crimson,
+    borderRadius: 10,
+    justifyContent: 'center',
+    minHeight: 20,
+    minWidth: 20,
+    paddingHorizontal: 6,
+  },
+  drawerHandle: {
+    alignSelf: 'center',
+    backgroundColor: C.border,
+    borderRadius: 2,
+    height: 4,
+    marginBottom: 14,
+    width: 42,
+  },
+  drawerItem: {
+    alignItems: 'center',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 56,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  drawerItemActiveDark: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  drawerItemActiveLight: {
+    backgroundColor: C.crimsonLight,
+  },
+  drawerItemLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  drawerList: {
+    gap: 6,
+  },
+  drawerPanel: {
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    marginBottom: -72,
+    paddingBottom: 96,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  drawerPanelDark: {
+    backgroundColor: C.navy,
+    borderColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+  },
+  drawerPanelLight: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderWidth: 1,
+  },
+  drawerRoot: {
+    backgroundColor: 'rgba(10,18,42,0.34)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  drawerTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    marginBottom: 10,
+  },
+  drawerTitleDark: {
+    color: C.surface,
+  },
+  drawerTitleLight: {
+    color: C.navy,
+  },
   messageBubble: {
     alignItems: 'center',
     borderRadius: 5,
@@ -527,6 +852,15 @@ const styles = StyleSheet.create({
     right: 6,
     transform: [{ rotate: '45deg' }],
     width: 8,
+  },
+  moreDot: {
+    borderRadius: 3,
+    height: 6,
+    width: 6,
+  },
+  moreDotRow: {
+    flexDirection: 'row',
+    gap: 5,
   },
   navIconBox: {
     alignItems: 'center',

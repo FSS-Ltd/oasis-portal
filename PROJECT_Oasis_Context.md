@@ -18,6 +18,95 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
+## Current status - PR-4.0 Merit wallet API
+
+Working branch: `feat/merit-wallet-api`.
+
+**PR scope:** Implement API-only merit wallet balances, calendar activity, and
+Spend/Saving transfers while leaving UI, tithe, shop, leaderboard, and
+investment unit accounting to later Phase 4 PRs.
+
+Changed scope:
+
+- Replaced the `meritLedger` placeholder router with implemented
+  `balances`, `activity`, and `transfer` procedures.
+- Added role-aware wallet access: full-admin users can read and transfer for
+  active students, parents can read linked active children only, and students
+  can read/transfer only their linked student record.
+- Kept transfers limited to `Spend` and `Saving`; Investment movement now
+  returns a clear API error and is reserved for the investment buy/sell API.
+- Derive balances from append-only `MeritLedger` rows and calendar activity
+  from behaviour entries for the current Monday-Sunday week or current calendar
+  month.
+- Added audit writes for permission denials, rejected transfer attempts, and
+  successful balanced transfer rows.
+- Added focused API router coverage for balances, activity periods, access
+  boundaries, insufficient funds, Investment transfer rejection, and audit rows.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- meritLedger.router.test.ts behaviour.router.test.ts` -
+  pass; due to existing Vitest argument handling this ran all API router tests:
+  19 files / 450 tests.
+- `pnpm --filter @oasis/domain test -- meritLedger.test.ts` - pass; due to
+  package-script argument handling this ran all domain tests: 12 files / 148
+  tests.
+- `pnpm --filter @oasis/api typecheck` - pass.
+- `pnpm --filter @oasis/api lint` - pass.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `git diff --check` - pass.
+- `graphify update .` - pass with an existing graph-size warning; graphify
+  reported `graph.json`, `graph.html`, and `GRAPH_REPORT.md` updated under
+  `graphify-out`.
+
+Notes:
+
+- No database migration was needed.
+- Unrelated working-tree changes are present in the mobile more-nav drawer
+  scope and were left untouched.
+
+## Current status - Mobile more nav drawer
+
+Working branch: `feat/mobile-more-nav-drawer`.
+
+**PR scope:** Add a reusable Expo mobile overflow navigation drawer so mobile
+shells can support more destinations without overcrowding the bottom bar.
+
+Changed scope:
+
+- Extended the shared mobile bottom nav to render up to four primary buttons by
+  default, with the rightmost button becoming `More` when overflow items exist.
+- Added a modal bottom drawer for overflow nav items with Oasis-themed light and
+  dark styling, active states, badges, backdrop dismissal, and built-in React
+  Native slide/spring animation.
+- Tuned the drawer to use a slower eased entrance with three bounce steps before
+  settling, and added manual drag-down dismissal using React Native
+  `PanResponder`.
+- Strengthened the drawer gesture capture so downward swipes over drawer content
+  dismiss reliably while outside backdrop taps still close the drawer.
+- Refined the bounce animation to use smaller decaying overshoots and extended
+  the drawer background below the viewport so the bottom UI is not exposed
+  during the slide-up bounce.
+- Added a hand-drawn `more` icon to the existing mobile nav icon set without
+  adding dependencies.
+- Staff mobile now overflows `Clubs` into the More drawer because it has five
+  tabs; parent mobile remains unchanged because it currently has four tabs.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile typecheck` - pass.
+- `pnpm --filter @oasis/mobile lint` - pass.
+- `pnpm exec prettier --check apps/mobile/src/components/smoke/portal-mobile-shell.tsx` -
+  pass.
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-more-nav-drawer-export` -
+  pass.
+- `git diff --check` - pass.
+- `PYTHONPATH=graphify python3 -m graphify query "mobile bottom navigation drawer more menu options" --budget 1500` -
+  blocked by missing local Python dependency `networkx`.
+- `PYTHONPATH=graphify python3 -m graphify update .` - blocked by missing local
+  Python dependency `networkx`.
+
 ## Current status - PR-3.5.6 Phase 3.5 verification suite
 
 Working branch: `test/phase-3-5-verification-suite`.
