@@ -25,12 +25,6 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
-const fullPaceSupervisorUser: SessionUser = {
-  id: 'u_pace',
-  role: 'Supervisor',
-  tags: ['pace-full-access'],
-  requires2fa: false,
-};
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
 const studentUser: SessionUser = {
   id: 'u_student',
@@ -706,10 +700,10 @@ describe('pace.forStudent RBAC', () => {
     });
   });
 
-  it('allows pace-full-access tagged Supervisors to read without a rota assignment', async () => {
+  it('allows Supervisors to read without a rota assignment', async () => {
     const db = makeFakeDb();
     db.staffShift.findMany.mockResolvedValue([]);
-    const { caller } = makeCaller(fullPaceSupervisorUser, db);
+    const { caller } = makeCaller(supervisorUser, db);
 
     await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
       studentId: STUDENT_ID,
@@ -815,47 +809,39 @@ describe('pace.roster access scope', () => {
     );
   });
 
-  it('returns only today assigned band children for normal Supervisors', async () => {
+  it('returns all active children for Supervisors', async () => {
     const { caller, db } = makeCaller(supervisorUser);
 
     const result = await caller.pace.roster();
 
-    expect(result.fullAccess).toBe(false);
-    expect(result.assignedBands).toEqual([
-      {
-        id: 'band_lower',
-        name: 'Lower Primary',
-        standardYears: ['Year 5', 'Year 6'],
-        colour: '#5B90C5',
-      },
-    ]);
-    expect(result.students).toHaveLength(1);
+    expect(result.fullAccess).toBe(true);
+    expect(result.assignedBands).toEqual([]);
+    expect(result.students).toHaveLength(2);
     expect(result.students[0]).toMatchObject({
       studentId: STUDENT_ID,
       yearGroup: 'Year 6',
     });
-    expect(db.student.findMany).toHaveBeenCalledWith({
-      where: { active: true, yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] } },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        fullNameEnc: true,
-        yearGroup: true,
-      },
-    });
+    expect(db.student.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { active: true } }),
+    );
+    expect(db.staffShift.findMany).not.toHaveBeenCalled();
   });
 
-  it('returns an empty roster when a normal Supervisor has no shift today', async () => {
+  it('returns the full roster when a Supervisor has no shift today', async () => {
     const db = makeFakeDb();
     db.staffShift.findMany.mockResolvedValue([]);
     const { caller } = makeCaller(supervisorUser, db);
 
     const result = await caller.pace.roster();
 
-    expect(result.fullAccess).toBe(false);
+    expect(result.fullAccess).toBe(true);
     expect(result.assignedBands).toEqual([]);
-    expect(result.students).toEqual([]);
-    expect(db.student.findMany).not.toHaveBeenCalled();
+    expect(result.students).toHaveLength(2);
+    expect(db.student.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { active: true },
+      }),
+    );
   });
 });
 
@@ -1175,16 +1161,16 @@ describe('pace.record RBAC', () => {
     await expect(caller.pace.record(validInput)).resolves.toMatchObject({ paceNumber: 1001 });
   });
 
-  it('allows pace-full-access tagged Supervisors to record without a rota assignment', async () => {
+  it('allows Supervisors to record without a rota assignment', async () => {
     const db = makeFakeDb();
     db.staffShift.findMany.mockResolvedValue([]);
-    const { caller } = makeCaller(fullPaceSupervisorUser, db);
+    const { caller } = makeCaller(supervisorUser, db);
 
     await expect(caller.pace.record(validInput)).resolves.toMatchObject({ paceNumber: 1001 });
     expect(db.staffShift.findMany).not.toHaveBeenCalled();
   });
 
-  it("blocks a normal Supervisor when the student is outside today's assigned band", async () => {
+  it("allows Supervisors to record when the student is outside today's assigned band", async () => {
     const db = makeFakeDb();
     db.student.findUnique.mockResolvedValue({
       ...defaultStudent,
@@ -1192,21 +1178,18 @@ describe('pace.record RBAC', () => {
     });
     const { caller } = makeCaller(supervisorUser, db);
 
-    await expect(caller.pace.record(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(auditCalls(db)).toContainEqual(
-      expect.objectContaining({ action: 'PermissionDenied', entity: 'pace.record' }),
-    );
+    await expect(caller.pace.record(validInput)).resolves.toMatchObject({ paceNumber: 1001 });
   });
 
-  it('blocks a normal Supervisor when they have no shift today', async () => {
+  it('allows Supervisors to record when they have no shift today', async () => {
     const db = makeFakeDb();
     db.staffShift.findMany.mockResolvedValue([]);
     const { caller } = makeCaller(supervisorUser, db);
 
-    await expect(caller.pace.record(validInput)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(caller.pace.record(validInput)).resolves.toMatchObject({ paceNumber: 1001 });
   });
 
-  it('blocks normal Supervisor backdated records', async () => {
+  it('allows Supervisors to record backdated tests', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
     try {
@@ -1216,7 +1199,7 @@ describe('pace.record RBAC', () => {
           ...validInput,
           completedAt: new Date('2026-04-28T10:00:00.000Z'),
         }),
-      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      ).resolves.toMatchObject({ paceNumber: 1001 });
     } finally {
       vi.useRealTimers();
     }
@@ -2076,7 +2059,7 @@ describe('pace.updateRecord', () => {
     ).toBe(true);
   });
 
-  it('blocks normal Supervisors from updating historical records', async () => {
+  it('allows Supervisors to update historical records', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
     try {
@@ -2095,13 +2078,13 @@ describe('pace.updateRecord', () => {
           completedAt: new Date('2026-04-28T00:00:00.000Z'),
           startedAt: new Date('2026-04-28T00:00:00.000Z'),
         }),
-      ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      ).resolves.toMatchObject({ id: created.id, paceTestScore: 91 });
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('allows pace-full-access Supervisors to update historical records without rota scope', async () => {
+  it('allows Supervisors to update historical records without rota scope', async () => {
     const db = makeFakeDb();
     db.staffShift.findMany.mockResolvedValue([]);
     const { caller: headCaller } = makeCaller(headUser, db);
@@ -2109,7 +2092,7 @@ describe('pace.updateRecord', () => {
       ...validInput,
       completedAt: new Date('2026-04-20T10:00:00.000Z'),
     });
-    const { caller } = makeCaller(fullPaceSupervisorUser, db);
+    const { caller } = makeCaller(supervisorUser, db);
 
     await expect(
       caller.pace.updateRecord({
@@ -2245,7 +2228,7 @@ describe('pace.approveFailedFinalTestAdvance', () => {
     );
   });
 
-  it('blocks parents, students, and out-of-scope Supervisors from approving advancement', async () => {
+  it('blocks parents and students from approving advancement', async () => {
     const db = makeFakeDb();
     const { caller: headCaller } = makeCaller(headUser, db);
     const failed = await headCaller.pace.record({ ...validInput, score: 79 });
@@ -2262,13 +2245,20 @@ describe('pace.approveFailedFinalTestAdvance', () => {
         notes: 'Student should not approve.',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
 
+  it('allows Supervisors to approve advancement without rota scope', async () => {
+    const db = makeFakeDb();
+    const { caller: headCaller } = makeCaller(headUser, db);
+    const failed = await headCaller.pace.record({ ...validInput, score: 79 });
     db.staffShift.findMany.mockResolvedValue([]);
+
     await expect(
       makeCaller(supervisorUser, db).caller.pace.approveFailedFinalTestAdvance({
         recordId: failed.id,
-        notes: 'Out of band.',
+        notes: 'Approved after review.',
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toMatchObject({ paceRecordId: failed.id, advanced: true });
+    expect(db.staffShift.findMany).not.toHaveBeenCalled();
   });
 });
