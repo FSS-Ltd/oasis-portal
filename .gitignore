@@ -22,7 +22,16 @@ build/
 .agents/
 .claude/
 .codex/
+.playwright-mcp/
 graphify-out/
+
+# Local research artifacts
+docs/oasis-portal-market-research-report.md
+
+# Local backfill scratch files
+packages/db/scripts/backfill-pace-scores-from-csvs.ts
+packages/db/src/multi-student-pace-score-backfill.ts
+packages/db/src/__tests__/multi-student-pace-score-backfill.test.ts
 
 # Agent Rules
 CLAUDE.md
