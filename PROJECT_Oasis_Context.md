@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.2 investment NAV and account transactions.
+**Phase:** Phase 4 PR-4.3 shop item management.
 
 ---
 
@@ -18,7 +18,48 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.2 Investment NAV and account transactions
+## Current status - PR-4.3 Shop item management
+
+Working branch: `feat/shop-item-management`.
+
+**PR scope:** Implement API-only Merit Shop item listing, creation, update, and
+deactivation on top of the merged Phase 4 wallet, tithe, and investment APIs,
+while leaving shopkeeper purchase flow, shop UI, leaderboards, reports, and
+mobile surfaces to later Phase 4 PRs.
+
+Merged Phase 4 status:
+
+- PR-4.0 `feat(api): merit wallet balances and transfers` merged via PR #134
+  on 2026-05-15.
+- PR #135 `feat: add mobile more nav drawer` merged on 2026-05-15.
+- PR-4.1 `feat(api): weekly tithe config and run` merged via PR #136 on
+  2026-05-15.
+- PR-4.2 `feat(api): investment NAV and account transactions` merged via PR
+  #138 on 2026-05-15.
+
+Planned scope:
+
+- Replace the shop item-management placeholder handlers with implemented
+  `listItems`, `createItem`, and `updateItem`.
+- Keep `shop.purchase` deferred to PR-4.4.
+- Allow active item browsing for signed-in users by default.
+- Gate inactive item listing and item create/update/deactivate to full-admin or
+  `shopadmin`.
+- Reuse the domain shop pricing and validation helpers for VAT-inclusive prices.
+- Audit item create, update, deactivate, and permission-denied management paths.
+
+Verification target:
+
+- `pnpm --filter @oasis/api test -- shop.router.test.ts`
+- `pnpm --filter @oasis/domain test -- shop.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm lint`
+- `pnpm typecheck`
+- `git diff --check`
+- `graphify update .`
+
+## Previous status - PR-4.2 Investment NAV and account transactions
 
 Working branch: `feat/investment-nav-account-transactions`.
 
