@@ -341,13 +341,12 @@ Verification:
 - `pnpm test` - pass: 18 API files / 440 tests, 5 DB files / 28 tests, and 12
   domain files / 148 tests.
 - `pnpm --filter @oasis/web build` - pass.
-- `pnpm db:integration` - not completed in this environment. The first run
-  failed because sandboxing blocked `tsx` IPC pipe creation; escalation was
-  rejected because the smoke script truncates database tables and the configured
-  target could not be proven to be disposable.
-- `pnpm api:smoke-context-rls` - not completed in this environment. The first
-  run failed because sandboxing blocked `tsx` IPC pipe creation; the script also
-  truncates database tables during seeding, so it was not escalated.
+- `pnpm db:integration` - pass; run by Jean-Fidele against a confirmed
+  disposable database after the sandboxed run was blocked by `tsx` IPC
+  restrictions.
+- `pnpm api:smoke-context-rls` - pass; run by Jean-Fidele against a confirmed
+  disposable database after the sandboxed run was blocked by `tsx` IPC
+  restrictions.
 - `pnpm verify:encryption` - pass after sandbox escalation for read-only
   `pg_dump`; 16 plaintext fixture values absent from dump data.
 - `git diff --check` - pass.
