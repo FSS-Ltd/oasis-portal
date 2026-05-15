@@ -5,9 +5,11 @@ import { prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canExportAttendance,
+  canManageShop,
   canManageCalendar,
   canManageClubs,
   canRespondToParentMessages,
+  canSellInShop,
   canSubmitInitialRegistration,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -72,8 +74,19 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canExportAttendance(user) &&
     !canManageCalendar(user) &&
     !canRespondToParentMessages(user) &&
-    !canManageClubs(user)
+    !canManageClubs(user) &&
+    !canManageShop(user) &&
+    !canSellInShop(user)
   ) {
+    notFound();
+  }
+
+  return user;
+}
+
+export async function getShopWorkflowUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+  if (!canManageShop(user) && !canSellInShop(user)) {
     notFound();
   }
 

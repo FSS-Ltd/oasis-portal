@@ -60,6 +60,9 @@ interface StoredShopItem {
 interface StoredStudent {
   id: string;
   active: boolean;
+  fullNameEnc: string;
+  yearGroup: string;
+  createdAt: Date;
 }
 
 interface StoredLedgerRow {
@@ -123,8 +126,20 @@ interface FakeStudentFindUniqueArgs {
   select: { id: true; active: true };
 }
 
+interface FakeStudentFindManyArgs {
+  where: { active: true };
+  orderBy: { createdAt: 'desc' };
+  select: { id: true; fullNameEnc: true; yearGroup: true };
+}
+
 interface FakeLedgerAggregateArgs {
   where: { studentId: string; account: MeritAccount };
+  _sum: { delta: true };
+}
+
+interface FakeLedgerGroupByArgs {
+  by: ['studentId'];
+  where: { studentId: { in: string[] }; account: MeritAccount };
   _sum: { delta: true };
 }
 
@@ -168,6 +183,18 @@ function makeItem(input: Partial<StoredShopItem> & Pick<StoredShopItem, 'id'>): 
   };
 }
 
+function makeStudent(
+  input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>,
+): StoredStudent {
+  return {
+    active: true,
+    fullNameEnc: 'Joshua Johnson',
+    yearGroup: 'Y9',
+    createdAt: new Date('2026-05-15T09:00:00.000Z'),
+    ...input,
+  };
+}
+
 function selectItem(item: StoredShopItem) {
   return {
     id: item.id,
@@ -186,14 +213,14 @@ function selectItem(item: StoredShopItem) {
 function makeFakeDb(
   input: {
     items?: StoredShopItem[];
-    students?: StoredStudent[];
+    students?: Array<Partial<StoredStudent> & Pick<StoredStudent, 'id'>>;
     ledger?: StoredLedgerRow[];
     purchases?: StoredShopPurchase[];
     forceStockConflict?: boolean;
   } = {},
 ) {
   const items = input.items ?? [];
-  const students = input.students ?? [{ id: linkedStudentId, active: true }];
+  const students = (input.students ?? [{ id: linkedStudentId }]).map(makeStudent);
   const ledger = input.ledger ?? [];
   const purchases = input.purchases ?? [];
   const forceStockConflict = input.forceStockConflict ?? false;
@@ -205,10 +232,25 @@ function makeFakeDb(
     auditLog: {
       create: vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args)),
     },
+    $enc: {
+      decrypt: vi.fn((value: string | null | undefined) => value ?? null),
+    },
     student: {
       findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
         Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
       ),
+      findMany: vi.fn((args: FakeStudentFindManyArgs) => {
+        const filtered = students.filter((student) => student.active === args.where.active);
+        return Promise.resolve(
+          filtered
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map((student) => ({
+              id: student.id,
+              fullNameEnc: student.fullNameEnc,
+              yearGroup: student.yearGroup,
+            })),
+        );
+      }),
     },
     meritLedger: {
       aggregate: vi.fn((args: FakeLedgerAggregateArgs) => {
@@ -217,6 +259,20 @@ function makeFakeDb(
           .filter((row) => row.account === args.where.account)
           .reduce((total, row) => total + row.delta, 0);
         return Promise.resolve({ _sum: { delta: delta === 0 ? null : delta } });
+      }),
+      groupBy: vi.fn((args: FakeLedgerGroupByArgs) => {
+        const studentIds = new Set(args.where.studentId.in);
+        const totals = new Map<string, number>();
+        for (const row of ledger) {
+          if (!studentIds.has(row.studentId) || row.account !== args.where.account) continue;
+          totals.set(row.studentId, (totals.get(row.studentId) ?? 0) + row.delta);
+        }
+        return Promise.resolve(
+          [...totals.entries()].map(([studentId, delta]) => ({
+            studentId,
+            _sum: { delta },
+          })),
+        );
       }),
       createMany: vi.fn((args: FakeLedgerCreateManyArgs) => {
         ledger.push(...args.data);
@@ -377,6 +433,75 @@ describe('shop.listItems', () => {
       expect.objectContaining({
         action: 'PermissionDenied',
         entity: 'shop.listItems',
+      }),
+    );
+  });
+});
+
+describe('shop.listPurchasers', () => {
+  it('lists active students with Spend balances for shopkeepers and audits PII decrypt', async () => {
+    const db = makeFakeDb({
+      students: [
+        makeStudent({
+          id: linkedStudentId,
+          fullNameEnc: 'Joshua Johnson',
+          yearGroup: 'Y9',
+          createdAt: new Date('2026-05-15T10:00:00.000Z'),
+        }),
+        makeStudent({
+          id: 'ckshopstudent000000002',
+          fullNameEnc: 'Grace Williams',
+          yearGroup: 'Y8',
+          createdAt: new Date('2026-05-15T11:00:00.000Z'),
+        }),
+        makeStudent({
+          id: 'ckshopstudent000000003',
+          active: false,
+          fullNameEnc: 'Archived Student',
+          yearGroup: 'Y7',
+        }),
+      ],
+      ledger: [
+        { studentId: linkedStudentId, account: 'Spend', delta: 40, reason: 'merit' },
+        { studentId: linkedStudentId, account: 'Spend', delta: -10, reason: 'shop' },
+        { studentId: 'ckshopstudent000000002', account: 'Saving', delta: 100, reason: 'saving' },
+      ],
+    });
+
+    await expect(makeCaller(shopkeeperUser, db).caller.shop.listPurchasers()).resolves.toEqual([
+      {
+        id: 'ckshopstudent000000002',
+        fullName: 'Grace Williams',
+        yearGroup: 'Y8',
+        spendBalance: 0,
+      },
+      {
+        id: linkedStudentId,
+        fullName: 'Joshua Johnson',
+        yearGroup: 'Y9',
+        spendBalance: 30,
+      },
+    ]);
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: 2, source: 'shop.listPurchasers' },
+      }),
+    );
+  });
+
+  it('denies untagged users before listing student PII', async () => {
+    const db = makeFakeDb();
+
+    await expect(makeCaller(supervisorUser, db).caller.shop.listPurchasers()).rejects.toMatchObject(
+      { code: 'FORBIDDEN' },
+    );
+    expect(db.student.findMany).not.toHaveBeenCalled();
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.listPurchasers',
       }),
     );
   });

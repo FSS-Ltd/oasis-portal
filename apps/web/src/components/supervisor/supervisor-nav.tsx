@@ -12,6 +12,7 @@ import {
   FileText,
   Home,
   MessageSquare,
+  ShoppingBag,
   Star,
   UsersRound,
 } from 'lucide-react';
@@ -26,6 +27,7 @@ const navItems = [
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
   { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays, enabled: true },
   { href: '/supervisor/calendar', label: 'Calendar', icon: CalendarDays, enabled: true },
+  { href: '/supervisor/shop', label: 'Merit Shop', icon: ShoppingBag, enabled: true },
   { href: '/supervisor/messages', label: 'Messages', icon: MessageSquare, enabled: true },
   { href: '/supervisor/noticeboard', label: 'Noticeboard', icon: Bell, enabled: true },
   { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList, enabled: true },
@@ -34,6 +36,7 @@ const navItems = [
 
 type SupervisorNavProps = {
   canManageClubs: boolean;
+  canUseShop: boolean;
   hasLinkedChildren: boolean;
   unreadMessageCount: number;
   unreadNoticeCount: number;
@@ -62,6 +65,7 @@ function badgeForItem(
 
 export function SupervisorSidebarNav({
   canManageClubs,
+  canUseShop,
   hasLinkedChildren,
   unreadMessageCount,
   unreadNoticeCount,
@@ -70,6 +74,7 @@ export function SupervisorSidebarNav({
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
+      (item.label !== 'Merit Shop' || canUseShop) &&
       (!['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren),
   );
 
@@ -102,6 +107,7 @@ export function SupervisorSidebarNav({
 
 export function SupervisorBottomNav({
   canManageClubs,
+  canUseShop,
   hasLinkedChildren,
   unreadMessageCount,
   unreadNoticeCount,
@@ -110,6 +116,7 @@ export function SupervisorBottomNav({
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
+      (item.label !== 'Merit Shop' || canUseShop) &&
       (!['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren),
   );
 
