@@ -105,7 +105,14 @@ interface StoredBehaviour {
 
 interface StoredLedgerRow {
   studentId: string;
-  account: 'Spend' | 'Saving' | 'Investment' | 'TithePaid' | 'Given' | 'FeeSink';
+  account:
+    | 'Spend'
+    | 'Saving'
+    | 'Investment'
+    | 'InvestmentReturn'
+    | 'TithePaid'
+    | 'Given'
+    | 'FeeSink';
   delta: number;
   reason: string;
   relatedEntryId?: string;

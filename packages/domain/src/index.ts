@@ -4,6 +4,7 @@ export * from './users.js';
 export * from './meritLedger.js';
 export * from './tithe.js';
 export * from './investmentSim.js';
+export * from './investmentTransactions.js';
 export * from './shop.js';
 export * from './leaderboard.js';
 export * from './clubs.js';

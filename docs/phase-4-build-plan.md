@@ -1,6 +1,6 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.1 in progress
+**Status:** PR-4.2 in progress
 **Last updated:** 2026-05-15
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -20,8 +20,10 @@ Important current state:
 - Domain helpers and tests exist for merit ledger, tithe, investment simulator,
   shop, leaderboards, clubs, and reports.
 - API router PR-4.0 implemented `meritLedger` balances, activity, and
-  transfers. Routers for `tithe`, `investment`, `shop`, `leaderboard`, and
-  `report` still need production workflows.
+  transfers.
+- API router PR-4.1 implemented weekly tithe config and idempotent weekly runs.
+- Routers for `investment`, `shop`, `leaderboard`, and `report` still need
+  production workflows.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -103,7 +105,9 @@ Verification:
 
 Goal: implement the biblical money-management engine behind the wallet.
 
-### PR-4.1 - `feat(api): weekly tithe config and run` IN PROGRESS
+### PR-4.1 - `feat(api): weekly tithe config and run` MERGED
+
+Merged via PR #136 on 2026-05-15.
 
 Scope:
 
@@ -124,7 +128,7 @@ Tests:
 - Ledger rows balance.
 - RBAC for Head/parent/student policy.
 
-### PR-4.2 - `feat(api): investment NAV and account transactions` PLANNED
+### PR-4.2 - `feat(api): investment NAV and account transactions` IN PROGRESS
 
 Scope:
 
@@ -133,7 +137,9 @@ Scope:
 - Use the existing deterministic investment simulator domain helper.
 - Store one NAV row per day and make ticks idempotent.
 - Buy uses Spend merits to buy units at latest NAV.
-- Sell converts units back to Spend minus configured fee.
+- Sell converts units back to Spend minus the 5 percent configured fee.
+- Add `InvestmentReturn` ledger accounting so NAV gains/losses balance without
+  corrupting Investment cost basis.
 - Audit buy/sell/tick operations.
 
 Tests:

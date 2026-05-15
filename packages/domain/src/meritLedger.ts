@@ -10,6 +10,7 @@ export const MERIT_ACCOUNTS = [
   'Spend',
   'Saving',
   'Investment',
+  'InvestmentReturn',
   'TithePaid',
   'Given',
   'FeeSink',
@@ -30,13 +31,22 @@ export interface Balances {
   Spend: number;
   Saving: number;
   Investment: number;
+  InvestmentReturn: number;
   TithePaid: number;
   Given: number;
   FeeSink: number;
 }
 
 export function emptyBalances(): Balances {
-  return { Spend: 0, Saving: 0, Investment: 0, TithePaid: 0, Given: 0, FeeSink: 0 };
+  return {
+    Spend: 0,
+    Saving: 0,
+    Investment: 0,
+    InvestmentReturn: 0,
+    TithePaid: 0,
+    Given: 0,
+    FeeSink: 0,
+  };
 }
 
 export function applyRows(rows: readonly Pick<LedgerRow, 'account' | 'delta'>[]): Balances {
