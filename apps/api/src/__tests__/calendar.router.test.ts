@@ -935,9 +935,10 @@ describe('calendar.update and calendar.archive', () => {
     ]);
   });
 
-  it('prevents tagged calendar managers from updating or archiving head-only events', async () => {
+  it('prevents tagged calendar managers from updating or archiving restricted events', async () => {
     const db = makeFakeDb([
       makeEvent({ id: 'event_heads', title: 'Heads only', audience: 'Heads' }),
+      makeEvent({ id: 'event_custom', title: 'Tagged people only', audience: 'Custom' }),
     ]);
     const { caller } = makeCaller(calendarManagerUser, db);
 
@@ -951,6 +952,18 @@ describe('calendar.update and calendar.archive', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(caller.calendar.archive({ id: 'event_heads' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      caller.calendar.update({
+        id: 'event_custom',
+        title: 'Updated',
+        audience: 'Supervisors',
+        category: 'Meetings',
+        startDate: '2026-06-01',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(caller.calendar.archive({ id: 'event_custom' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });

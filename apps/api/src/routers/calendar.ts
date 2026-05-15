@@ -564,6 +564,7 @@ async function assertCalendarEventCanBeManaged(ctx: AuthedContext, id: string): 
     throw new TRPCError({ code: 'NOT_FOUND', message: 'calendar event not found' });
   }
   requireHeadAudienceManager(ctx.user, event.audience);
+  requireCustomAudienceManager(ctx.user, event.audience);
 }
 
 export const calendarRouter = router({
