@@ -1,6 +1,6 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.3 in progress
+**Status:** PR-4.4 in progress
 **Last updated:** 2026-05-15
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -23,8 +23,9 @@ Important current state:
   transfers.
 - API router PR-4.1 implemented weekly tithe config and idempotent weekly runs.
 - Investment router production workflows are implemented through PR-4.2.
-- Routers for `shop`, `leaderboard`, and `report` still need production
-  workflows.
+- Shop item-management workflows are implemented through PR-4.3.
+- Shop purchase, leaderboard, and report workflows still need production
+  completion.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -168,7 +169,9 @@ Verification for Sprint 2:
 Goal: make the Merit Shop operational with safe inventory and Spend debit
 rules.
 
-### PR-4.3 - `feat(api): shop item management` IN PROGRESS
+### PR-4.3 - `feat(api): shop item management` MERGED
+
+Merged via PR #139 on 2026-05-15.
 
 Scope:
 
@@ -186,7 +189,7 @@ Tests:
 - VAT-inclusive price is calculated consistently.
 - Inactive items stay out of purchase lists by default.
 
-### PR-4.4 - `feat(api): shopkeeper purchase flow` PLANNED
+### PR-4.4 - `feat(api): shopkeeper purchase flow` IN PROGRESS
 
 Scope:
 

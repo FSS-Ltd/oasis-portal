@@ -3,7 +3,7 @@
  *
  * - `shopadmin` tag: create/edit/remove items, set prices + VAT + stock.
  * - `shopkeeper` tag: record a purchase.
- * - Purchase: atomic — decrement stock, debit Spend account.
+ * - Purchase: atomic - decrement stock, debit Spend, credit Given.
  * - Price stored as merits. VAT rounded half-up to nearest integer merit.
  */
 import { AccessDeniedError, hasTag, isFullAdmin, type SessionUser } from './rbac.js';
@@ -101,6 +101,12 @@ export function prepareShopPurchase(input: PurchaseInput): PurchaseResult {
         studentId: input.studentId,
         account: 'Spend',
         delta: -totalPriceMerits,
+        reason: `shop:${input.item.id}:x${String(input.unitsBought)}`,
+      },
+      {
+        studentId: input.studentId,
+        account: 'Given',
+        delta: totalPriceMerits,
         reason: `shop:${input.item.id}:x${String(input.unitsBought)}`,
       },
     ],
