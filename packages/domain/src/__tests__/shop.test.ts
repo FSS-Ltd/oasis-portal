@@ -93,9 +93,21 @@ describe('prepareShopPurchase', () => {
     });
     expect(r.totalPriceMerits).toBe(40);
     expect(r.newStockCount).toBe(1);
-    expect(r.ledger).toHaveLength(1);
-    expect(r.ledger[0]?.delta).toBe(-40);
-    expect(r.ledger[0]?.account).toBe('Spend');
+    expect(r.ledger).toEqual([
+      {
+        studentId: 's1',
+        account: 'Spend',
+        delta: -40,
+        reason: 'shop:i1:x2',
+      },
+      {
+        studentId: 's1',
+        account: 'Given',
+        delta: 40,
+        reason: 'shop:i1:x2',
+      },
+    ]);
+    expect(r.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
   });
 
   it('rejects when stock is insufficient', () => {

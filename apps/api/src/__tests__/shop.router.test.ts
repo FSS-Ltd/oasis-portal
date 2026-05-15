@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SessionUser } from '@oasis/domain';
+import type { MeritAccount, SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { shopRouter } from '../routers/shop.js';
 import { router } from '../trpc.js';
@@ -16,12 +16,21 @@ const shopadminUser: SessionUser = {
   tags: ['shopadmin'],
   requires2fa: false,
 };
+const shopkeeperUser: SessionUser = {
+  id: 'ckshopkeeper000000001',
+  role: 'Supervisor',
+  tags: ['shopkeeper'],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'ckshopsupervisor000001',
   role: 'Supervisor',
   tags: [],
   requires2fa: false,
 };
+
+const linkedStudentId = 'ckshopstudent000000001';
+const shopItemId = 'ckshopitem000000000001';
 
 type AuditAction =
   | 'Create'
@@ -46,6 +55,28 @@ interface StoredShopItem {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface StoredStudent {
+  id: string;
+  active: boolean;
+}
+
+interface StoredLedgerRow {
+  studentId: string;
+  account: MeritAccount;
+  delta: number;
+  reason: string;
+}
+
+interface StoredShopPurchase {
+  id: string;
+  studentId: string;
+  itemId: string;
+  unitsBought: number;
+  totalPriceMerits: number;
+  shopkeeperId: string;
+  createdAt: Date;
 }
 
 interface FakeShopItemFindManyArgs {
@@ -79,6 +110,35 @@ interface FakeShopItemUpdateArgs {
     priceIncVat: number;
     stockCount: number;
     active: boolean;
+  };
+}
+
+interface FakeShopItemUpdateManyArgs {
+  where: { id: string; active: true; stockCount: { gte: number } };
+  data: { stockCount: { decrement: number } };
+}
+
+interface FakeStudentFindUniqueArgs {
+  where: { id: string };
+  select: { id: true; active: true };
+}
+
+interface FakeLedgerAggregateArgs {
+  where: { studentId: string; account: MeritAccount };
+  _sum: { delta: true };
+}
+
+interface FakeLedgerCreateManyArgs {
+  data: StoredLedgerRow[];
+}
+
+interface FakeShopPurchaseCreateArgs {
+  data: {
+    studentId: string;
+    itemId: string;
+    unitsBought: number;
+    totalPriceMerits: number;
+    shopkeeperId: string;
   };
 }
 
@@ -123,13 +183,45 @@ function selectItem(item: StoredShopItem) {
   };
 }
 
-function makeFakeDb(input: { items?: StoredShopItem[] } = {}) {
+function makeFakeDb(
+  input: {
+    items?: StoredShopItem[];
+    students?: StoredStudent[];
+    ledger?: StoredLedgerRow[];
+    purchases?: StoredShopPurchase[];
+    forceStockConflict?: boolean;
+  } = {},
+) {
   const items = input.items ?? [];
+  const students = input.students ?? [{ id: linkedStudentId, active: true }];
+  const ledger = input.ledger ?? [];
+  const purchases = input.purchases ?? [];
+  const forceStockConflict = input.forceStockConflict ?? false;
   let nextItem = items.length + 1;
+  let nextPurchase = purchases.length + 1;
 
   const db = {
+    $transaction: vi.fn(),
     auditLog: {
       create: vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args)),
+    },
+    student: {
+      findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
+        Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
+      ),
+    },
+    meritLedger: {
+      aggregate: vi.fn((args: FakeLedgerAggregateArgs) => {
+        const delta = ledger
+          .filter((row) => row.studentId === args.where.studentId)
+          .filter((row) => row.account === args.where.account)
+          .reduce((total, row) => total + row.delta, 0);
+        return Promise.resolve({ _sum: { delta: delta === 0 ? null : delta } });
+      }),
+      createMany: vi.fn((args: FakeLedgerCreateManyArgs) => {
+        ledger.push(...args.data);
+        return Promise.resolve({ count: args.data.length });
+      }),
     },
     shopItem: {
       findMany: vi.fn((args: FakeShopItemFindManyArgs) => {
@@ -180,9 +272,46 @@ function makeFakeDb(input: { items?: StoredShopItem[] } = {}) {
         item.updatedAt = new Date();
         return Promise.resolve(selectItem(item));
       }),
+      updateMany: vi.fn((args: FakeShopItemUpdateManyArgs) => {
+        if (forceStockConflict) return Promise.resolve({ count: 0 });
+        const item = items.find((row) => row.id === args.where.id);
+        if (!item || item.active !== args.where.active || item.stockCount < args.where.stockCount.gte) {
+          return Promise.resolve({ count: 0 });
+        }
+        item.stockCount -= args.data.stockCount.decrement;
+        item.updatedAt = new Date();
+        return Promise.resolve({ count: 1 });
+      }),
+    },
+    shopPurchase: {
+      create: vi.fn((args: FakeShopPurchaseCreateArgs) => {
+        const purchase: StoredShopPurchase = {
+          id: `ckshoppurchase${String(nextPurchase++).padStart(10, '0')}`,
+          studentId: args.data.studentId,
+          itemId: args.data.itemId,
+          unitsBought: args.data.unitsBought,
+          totalPriceMerits: args.data.totalPriceMerits,
+          shopkeeperId: args.data.shopkeeperId,
+          createdAt: new Date(),
+        };
+        purchases.push(purchase);
+        return Promise.resolve({
+          id: purchase.id,
+          studentId: purchase.studentId,
+          itemId: purchase.itemId,
+          unitsBought: purchase.unitsBought,
+          totalPriceMerits: purchase.totalPriceMerits,
+          createdAt: purchase.createdAt,
+        });
+      }),
     },
     items,
+    students,
+    ledger,
+    purchases,
   };
+
+  db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
 
   return db;
 }
@@ -361,6 +490,234 @@ describe('shop.updateItem', () => {
       makeCaller(headUser).caller.shop.updateItem({
         id: 'ckshopitem000000000999',
         active: false,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('shop.purchase', () => {
+  it('records a shopkeeper purchase, decrements stock, writes balanced ledger rows, and audits it', async () => {
+    const { caller, db } = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 3 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 2,
+      }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      itemId: shopItemId,
+      unitsBought: 2,
+      totalPriceMerits: 40,
+      remainingStockCount: 1,
+    });
+
+    expect(db.items[0]?.stockCount).toBe(1);
+    expect(db.purchases).toMatchObject([
+      {
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 2,
+        totalPriceMerits: 40,
+        shopkeeperId: shopkeeperUser.id,
+      },
+    ]);
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'Spend',
+      delta: -40,
+      reason: `shop:${shopItemId}:x2`,
+    });
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'Given',
+      delta: 40,
+      reason: `shop:${shopItemId}:x2`,
+    });
+    expect(
+      db.ledger
+        .filter((row) => row.reason === `shop:${shopItemId}:x2`)
+        .reduce((total, row) => total + row.delta, 0),
+    ).toBe(0);
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'Create',
+        entity: 'ShopPurchase',
+        meta: expect.objectContaining({
+          source: 'shop.purchase',
+          studentId: linkedStudentId,
+          itemId: shopItemId,
+          totalPriceMerits: 40,
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('allows full-admin users to record purchases without shopkeeper tags', async () => {
+    const { caller } = makeCaller(
+      headUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 10, stockCount: 1 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 10, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).resolves.toMatchObject({ totalPriceMerits: 10 });
+  });
+
+  it('rejects unauthorized purchase attempts before writing purchases', async () => {
+    const { caller, db } = makeCaller(
+      supervisorUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 3 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.purchases).toHaveLength(0);
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.purchase',
+        entityId: linkedStudentId,
+      }),
+    );
+  });
+
+  it('rejects inactive items, insufficient stock, and insufficient Spend without writes', async () => {
+    const inactive = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, active: false, priceIncVat: 20, stockCount: 3 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      inactive.caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(inactive.db.purchases).toHaveLength(0);
+
+    const stock = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 1 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      stock.caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(stock.db.purchases).toHaveLength(0);
+
+    const spend = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 3 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 10, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      spend.caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(spend.db.purchases).toHaveLength(0);
+    expect(spend.db.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'Spend', delta: 10, reason: 'merit' },
+    ]);
+    expect(auditCreates(spend.db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'Update',
+        entity: 'ShopPurchase',
+        entityId: linkedStudentId,
+        meta: expect.objectContaining({
+          source: 'shop.purchase',
+          outcome: 'Rejected',
+          reason: 'InsufficientSpend',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('rejects stale stock updates without creating purchase or ledger rows', async () => {
+    const { caller, db } = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        forceStockConflict: true,
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 2 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.items[0]?.stockCount).toBe(2);
+    expect(db.purchases).toHaveLength(0);
+    expect(db.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' },
+    ]);
+  });
+
+  it('returns not found for inactive students and missing items', async () => {
+    await expect(
+      makeCaller(
+        shopkeeperUser,
+        makeFakeDb({ students: [{ id: linkedStudentId, active: false }] }),
+      ).caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    await expect(
+      makeCaller(
+        shopkeeperUser,
+        makeFakeDb({
+          ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+        }),
+      ).caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });

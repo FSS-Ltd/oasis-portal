@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.3 shop item management.
+**Phase:** Phase 4 PR-4.4 shopkeeper purchase flow.
 
 ---
 
@@ -18,7 +18,48 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.3 Shop item management
+## Current status - PR-4.4 Shopkeeper purchase flow
+
+Working branch: `feat/shopkeeper-purchase-flow`.
+
+**PR scope:** Implement API-only Merit Shop purchase recording on top of merged
+PR-4.3 item management, while leaving shop web UI, leaderboards, reports, and
+mobile surfaces to later Phase 4 PRs.
+
+Merged Phase 4 status:
+
+- PR-4.0 `feat(api): merit wallet balances and transfers` merged via PR #134
+  on 2026-05-15.
+- PR #135 `feat: add mobile more nav drawer` merged on 2026-05-15.
+- PR-4.1 `feat(api): weekly tithe config and run` merged via PR #136 on
+  2026-05-15.
+- PR-4.2 `feat(api): investment NAV and account transactions` merged via PR
+  #138 on 2026-05-15.
+- PR-4.3 `feat(api): shop item management` merged via PR #139 on 2026-05-15.
+
+Planned scope:
+
+- Implement `shop.purchase`.
+- Gate purchase recording to full-admin or `shopkeeper`.
+- Require active student, active item, positive units, sufficient stock, and
+  sufficient Spend balance.
+- Run purchase writes in a serializable transaction.
+- Atomically decrement item stock, create `ShopPurchase`, and append balanced
+  Spend/Given ledger rows.
+- Audit purchase success, rejected purchase paths, and permission-denied paths.
+
+Verification target:
+
+- `pnpm --filter @oasis/api test -- shop.router.test.ts`
+- `pnpm --filter @oasis/domain test -- shop.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm lint`
+- `pnpm typecheck`
+- `git diff --check`
+- `graphify update .`
+
+## Previous status - PR-4.3 Shop item management
 
 Working branch: `feat/shop-item-management`.
 
