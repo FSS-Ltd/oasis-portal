@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-14
+**Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile admin clubs visibility fix.
+**Phase:** Phase 3.5 verification suite.
 
 ---
 
@@ -17,6 +17,71 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - PR-3.5.6 Phase 3.5 verification suite
+
+Working branch: `test/phase-3-5-verification-suite`.
+
+**PR scope:** Close Phase 3.5 by confirming merged club PRs, extending the
+credential-gated web verification suite for parent signup/withdrawal, and
+re-running end-of-phase API/domain/web/DB/RLS/encryption checks.
+
+Merged Phase 3.5 status:
+
+- PR-3.5.0 `feat(api): club management and signups` merged via PR #96 on
+  2026-05-11.
+- PR-3.5.1 `feat(web): ClubsAdmin club management` merged via PR #103 on
+  2026-05-11.
+- PR-3.5.2 `feat(web): parent club signup` merged via PR #105 on 2026-05-11.
+- PR-3.5.3 `feat(api): club notifications` merged via PR #110 on 2026-05-12.
+- PR-3.5.4 `feat(web): club notification UI` merged via PR #112 on
+  2026-05-12.
+- PR-3.5.5 `feat(mobile): clubs smoke` merged via PR #121 on 2026-05-13.
+- Follow-up `fix(mobile): surface admin clubs` merged via PR #128 on
+  2026-05-14.
+
+Changed scope:
+
+- Updated the Phase 3.5 plan so PR-3.5.5 is recorded as merged, the PR #128
+  mobile club-manager visibility follow-up is captured, and PR-3.5.6 is active.
+- Extended `phase-3-5-clubs.spec.ts` with parent signup/withdrawal coverage
+  that runs when the configured Parent fixture has linked children and at least
+  one available or signed-up club.
+
+Verification:
+
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass after
+  sandbox escalation for the local web server bind; 6 credential-gated tests
+  skipped because local E2E account variables are not configured.
+- `pnpm --filter @oasis/api test -- club.router.test.ts profile.router.test.ts clerkWebhook.test.ts admin.router.test.ts email.router.test.ts` -
+  pass, ran all API tests because of Vitest argument handling: 18 files / 440
+  tests.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts clubs.test.ts users.test.ts` -
+  pass, ran all domain tests because of package-script argument handling: 12
+  files / 148 tests.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass: 18 API files / 440 tests, 5 DB files / 28 tests, and 12
+  domain files / 148 tests.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm db:integration` - pass; run by Jean-Fidele against a confirmed
+  disposable database after the sandboxed run was blocked by `tsx` IPC
+  restrictions.
+- `pnpm api:smoke-context-rls` - pass; run by Jean-Fidele against a confirmed
+  disposable database after the sandboxed run was blocked by `tsx` IPC
+  restrictions.
+- `pnpm verify:encryption` - pass after sandbox escalation for read-only
+  `pg_dump`; 16 plaintext fixture values absent from dump data.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Carry-forward:
+
+- Run credential-gated web club scenarios in an environment with
+  `E2E_HEAD_EMAIL`, `E2E_HEAD_PASSWORD`, `E2E_CLUBS_ADMIN_EMAIL`,
+  `E2E_CLUBS_ADMIN_PASSWORD`, `E2E_SUPERVISOR_EMAIL`,
+  `E2E_SUPERVISOR_PASSWORD`, `E2E_PARENT_EMAIL`, and `E2E_PARENT_PASSWORD`
+  configured if the local environment skips those paths.
 
 ## Current status - Mobile admin clubs visibility fix
 
