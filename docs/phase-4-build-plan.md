@@ -1,7 +1,7 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** Planned
-**Last updated:** 2026-05-06
+**Status:** PR-4.1 in progress
+**Last updated:** 2026-05-15
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -19,8 +19,9 @@ Important current state:
   Demerit entries.
 - Domain helpers and tests exist for merit ledger, tithe, investment simulator,
   shop, leaderboards, clubs, and reports.
-- API routers for `meritLedger`, `tithe`, `investment`, `shop`, `leaderboard`,
-  and `report` currently expose typed placeholders returning `NOT_IMPLEMENTED`.
+- API router PR-4.0 implemented `meritLedger` balances, activity, and
+  transfers. Routers for `tithe`, `investment`, `shop`, `leaderboard`, and
+  `report` still need production workflows.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -61,7 +62,9 @@ Phase 4 is complete when:
 Goal: expose current ledger balances and safe transfers before adding tithe,
 investment, shop, and reports.
 
-### PR-4.0 - `feat(api): merit wallet balances and transfers` PLANNED
+### PR-4.0 - `feat(api): merit wallet balances and transfers` MERGED
+
+Merged via PR #134 on 2026-05-15.
 
 Scope:
 
@@ -100,7 +103,7 @@ Verification:
 
 Goal: implement the biblical money-management engine behind the wallet.
 
-### PR-4.1 - `feat(api): weekly tithe config and run` PLANNED
+### PR-4.1 - `feat(api): weekly tithe config and run` IN PROGRESS
 
 Scope:
 

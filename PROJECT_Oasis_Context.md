@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 3.5 verification suite.
+**Phase:** Phase 4 PR-4.1 weekly tithe API.
 
 ---
 
@@ -17,6 +17,45 @@ ships as a single Next.js 15 web app plus an Expo iOS/Android mobile app,
 with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
+
+## Current status - PR-4.1 Weekly tithe config and run
+
+Working branch: `feat/weekly-tithe-config-run`.
+
+**PR scope:** Implement API-only weekly tithe config and run support on top of
+the merged PR-4.0 merit wallet API, while leaving investment, shop,
+leaderboards, reports, and UI surfaces to later Phase 4 PRs.
+
+Merged Phase 4 status:
+
+- PR-4.0 `feat(api): merit wallet balances and transfers` merged via PR #134
+  on 2026-05-15.
+
+Planned scope:
+
+- Replace the `tithe` placeholder router with `getConfig`, `setPercentage`,
+  and `runWeek`.
+- Default tithe config to 10 percent weekly when no row exists.
+- Allow full-admin users and linked parents to view/update tithe percentage;
+  students cannot view or update tithe config in PR-4.1.
+- Run weekly tithe for active students only, using Monday-Sunday UTC periods.
+- Compute tithe from gross positive merits only; demerits do not reduce the
+  base.
+- Make each student/week run idempotent via `TitheRun`.
+- Create balanced `Spend` debit and `TithePaid` credit ledger rows when a
+  positive tithe is due.
+- Audit config changes, denied access, and weekly run summaries.
+
+Verification target:
+
+- `pnpm --filter @oasis/api test -- tithe.router.test.ts meritLedger.router.test.ts`
+- `pnpm --filter @oasis/domain test -- tithe.test.ts meritLedger.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm lint`
+- `pnpm typecheck`
+- `git diff --check`
+- `graphify update .`
 
 ## Current status - PR-4.0 Merit wallet API
 
