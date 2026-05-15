@@ -128,10 +128,16 @@ export function BehaviourLogClient({
             : 'General mark recorded.',
       );
       setNote('');
-      setVisibility(input.type === 'General' ? 'Sensitive' : 'General');
+      setVisibility(
+        canUseSensitiveMode(sensitiveMode, input.type) &&
+          (input.type === 'General' || input.type === 'Demerit')
+          ? 'Sensitive'
+          : 'General',
+      );
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
+        utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
   });
@@ -142,6 +148,7 @@ export function BehaviourLogClient({
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
+        utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
   });
@@ -303,7 +310,12 @@ export function BehaviourLogClient({
                           canUseSensitiveMode(sensitiveMode, item) ? 'Sensitive' : 'General',
                         );
                       }
-                      if (item === 'Demerit') setAmount('5');
+                      if (item === 'Demerit') {
+                        setAmount('5');
+                        setVisibility(
+                          canUseSensitiveMode(sensitiveMode, item) ? 'Sensitive' : 'General',
+                        );
+                      }
                     }}
                     type="button"
                   >

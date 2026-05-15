@@ -153,11 +153,14 @@ export function SupervisorDashboardClient({
         amount: current.type === 'Demerit' ? '5' : current.amount,
         visibility: current.type === 'General' ? 'Sensitive' : current.visibility,
       }));
-      await utils.behaviour.listForStudent.invalidate({
-        studentId: input.studentId,
-        includeSensitive: false,
-        date,
-      });
+      await Promise.all([
+        utils.behaviour.listForStudent.invalidate({
+          studentId: input.studentId,
+          includeSensitive: false,
+          date,
+        }),
+        utils.childLog.supervisorNotesHistory.invalidate(),
+      ]);
     },
   });
   const logManyBehaviour = api.behaviour.logMany.useMutation({
@@ -166,11 +169,14 @@ export function SupervisorDashboardClient({
         `${String(input.entries.length)} ${input.type.toLowerCase()} entries saved.`,
       );
       setBatchEntries([newBatchEntry(input.type)]);
-      await utils.behaviour.listForStudent.invalidate({
-        studentId: input.studentId,
-        includeSensitive: false,
-        date,
-      });
+      await Promise.all([
+        utils.behaviour.listForStudent.invalidate({
+          studentId: input.studentId,
+          includeSensitive: false,
+          date,
+        }),
+        utils.childLog.supervisorNotesHistory.invalidate(),
+      ]);
     },
   });
 
@@ -393,9 +399,11 @@ export function SupervisorDashboardClient({
                               visibility:
                                 nextType === 'General'
                                   ? 'Sensitive'
-                                  : nextType === 'Merit' && form.visibility === 'Sensitive'
-                                    ? 'General'
-                                    : form.visibility,
+                                  : nextType === 'Demerit'
+                                    ? 'Sensitive'
+                                    : form.visibility === 'Sensitive'
+                                      ? 'General'
+                                      : form.visibility,
                               amount:
                                 nextType === 'Demerit'
                                   ? '5'

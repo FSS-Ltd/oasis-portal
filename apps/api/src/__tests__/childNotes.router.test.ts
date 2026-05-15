@@ -30,6 +30,12 @@ const taggedSupervisorUser: SessionUser = {
   tags: ['student-drillthrough-viewer'],
   requires2fa: false,
 };
+const allStudentsSupervisorUser: SessionUser = {
+  id: 'u_all_students_sup',
+  role: 'Supervisor',
+  tags: ['supervisor-all-students'],
+  requires2fa: false,
+};
 const sensitiveViewerUser: SessionUser = {
   id: 'u_sensitive',
   role: 'Supervisor',
@@ -58,12 +64,18 @@ interface StoredChildNote {
   createdById: string;
   deletedAt: Date | null;
   deletedById: string | null;
+  seenAt: Date | null;
+  seenById: string | null;
+  headCommentEnc: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 interface ChildNoteWhere {
-  studentId: string | { in: string[] };
+  OR?: Array<{ createdBy?: { role: { in: readonly string[] } }; createdById?: string }>;
+  studentId?: string | { in: string[] };
+  createdBy?: { role: { in: readonly string[] } };
+  createdById?: string;
   sensitive?: boolean;
   deletedAt?: null;
   createdAt?: { gte: Date; lt: Date };
@@ -112,6 +124,25 @@ interface StoredStaffShift {
   date: Date;
   startsAt: Date;
   yearGroupBand: StoredYearGroupBand;
+}
+
+interface StoredBehaviourEntry {
+  id: string;
+  studentId: string;
+  type: string;
+  category: string;
+  visibility: string;
+  meritDelta: number;
+  recordedById: string;
+  createdAt: Date;
+  deletedAt: Date | null;
+  headCommentEnc: string | null;
+  noteEnc: string | null;
+  recordedBy: { id: string; fullNameEnc: string; role: string } | undefined;
+  seenAt: Date | null;
+  seenBy: { id: string; fullNameEnc: string; role: string } | null;
+  seenById: string | null;
+  student: StoredStudent | undefined;
 }
 
 interface StaffShiftFindManyInput {
@@ -235,12 +266,17 @@ function makeFakeDb() {
       role: taggedSupervisorUser.role,
     },
     {
+      id: allStudentsSupervisorUser.id,
+      fullNameEnc: 'enc:All Students Supervisor',
+      role: allStudentsSupervisorUser.role,
+    },
+    {
       id: sensitiveViewerUser.id,
       fullNameEnc: 'enc:Sensitive Viewer',
       role: sensitiveViewerUser.role,
     },
   ];
-  const behaviourEntries = [
+  const behaviourEntries: StoredBehaviourEntry[] = [
     {
       id: 'behaviour_1',
       studentId: 'student_1',
@@ -250,8 +286,14 @@ function makeFakeDb() {
       meritDelta: 3,
       recordedById: supervisorUser.id,
       createdAt: day('2026-04-29'),
+      deletedAt: null,
+      headCommentEnc: null,
       noteEnc: 'enc:Focused well',
       recordedBy: users.find((user) => user.id === supervisorUser.id),
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
     },
     {
       id: 'behaviour_2',
@@ -262,8 +304,14 @@ function makeFakeDb() {
       meritDelta: -5,
       recordedById: headUser.id,
       createdAt: day('2026-04-29'),
+      deletedAt: null,
+      headCommentEnc: null,
       noteEnc: 'enc:Sensitive behaviour',
       recordedBy: users.find((user) => user.id === headUser.id),
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
     },
   ];
   const db = {
@@ -323,15 +371,23 @@ function makeFakeDb() {
           createdAt: now,
           deletedAt: null,
           deletedById: null,
+          headCommentEnc: null,
+          seenAt: null,
+          seenById: null,
           updatedAt: now,
           ...data,
         };
         notes.push(row);
         return Promise.resolve(row);
       }),
-      findUnique: vi.fn(({ where }: { where: { id: string } }) =>
-        Promise.resolve(notes.find((note) => note.id === where.id) ?? null),
-      ),
+      findUnique: vi.fn(({ where }: { where: { id: string } }) => {
+        const note = notes.find((candidate) => candidate.id === where.id);
+        if (!note) return Promise.resolve(null);
+        return Promise.resolve({
+          ...note,
+          createdBy: users.find((user) => user.id === note.createdById) ?? users[0],
+        });
+      }),
       update: vi.fn(
         ({ where, data }: { where: { id: string }; data: Partial<StoredChildNote> }) => {
           const note = notes.find((candidate) => candidate.id === where.id);
@@ -340,26 +396,56 @@ function makeFakeDb() {
           return Promise.resolve(note);
         },
       ),
-      findMany: vi.fn(
-        ({ where, include }: { where: ChildNoteWhere; include?: { createdBy?: unknown } }) => {
-          const rows = notes.filter((note) => {
-            if (!matchesStudentId(where.studentId, note.studentId)) return false;
-            if (where.deletedAt === null && note.deletedAt !== null) return false;
-            if (where.sensitive === false && note.sensitive) return false;
-            if (where.createdAt) {
-              return note.createdAt >= where.createdAt.gte && note.createdAt < where.createdAt.lt;
-            }
-            return true;
-          });
-          if (!include?.createdBy) return Promise.resolve(rows);
-          return Promise.resolve(
-            rows.map((note) => ({
-              ...note,
-              createdBy: users.find((user) => user.id === note.createdById) ?? users[0],
-            })),
-          );
-        },
-      ),
+      findMany: vi.fn(({ where }: { where: ChildNoteWhere; include?: { createdBy?: unknown } }) => {
+        const rows = notes.filter((note) => {
+          if (where.studentId && !matchesStudentId(where.studentId, note.studentId)) return false;
+          if (where.createdById && note.createdById !== where.createdById) return false;
+          if (
+            where.createdBy &&
+            !where.createdBy.role.in.includes(
+              users.find((user) => user.id === note.createdById)?.role ?? '',
+            )
+          ) {
+            return false;
+          }
+          if (
+            where.OR &&
+            !where.OR.some((condition) => {
+              if (condition.createdById && note.createdById !== condition.createdById) {
+                return false;
+              }
+              if (
+                condition.createdBy &&
+                !condition.createdBy.role.in.includes(
+                  users.find((user) => user.id === note.createdById)?.role ?? '',
+                )
+              ) {
+                return false;
+              }
+              return true;
+            })
+          ) {
+            return false;
+          }
+          if (where.deletedAt === null && note.deletedAt !== null) return false;
+          if (where.sensitive === true && !note.sensitive) return false;
+          if (where.sensitive === false && note.sensitive) return false;
+          if (where.createdAt) {
+            return note.createdAt >= where.createdAt.gte && note.createdAt < where.createdAt.lt;
+          }
+          return true;
+        });
+        return Promise.resolve(
+          rows.map((note) => ({
+            ...note,
+            createdBy: users.find((user) => user.id === note.createdById) ?? users[0],
+            seenBy: note.seenById
+              ? (users.find((user) => user.id === note.seenById) ?? null)
+              : null,
+            student: students.find((student) => student.id === note.studentId) ?? students[0],
+          })),
+        );
+      }),
     },
     attendance: {
       findMany: vi.fn(
@@ -485,17 +571,44 @@ function makeFakeDb() {
       ),
     },
     behaviourEntry: {
+      findUnique: vi.fn(({ where }: { where: { id: string } }) => {
+        const row = behaviourEntries.find((entry) => entry.id === where.id);
+        if (!row) return Promise.resolve(null);
+        return Promise.resolve(row);
+      }),
+      update: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Partial<{
+            seenAt: Date;
+            seenById: string;
+            headCommentEnc: string | null;
+          }>;
+        }) => {
+          const entry = behaviourEntries.find((candidate) => candidate.id === where.id);
+          if (!entry) return Promise.reject(new Error('Record not found'));
+          Object.assign(entry, data);
+          return Promise.resolve(entry);
+        },
+      ),
       findMany: vi.fn(
         ({
           where,
         }: {
           where?: {
             OR?: Array<{
+              recordedBy?: { role: { in: readonly string[] } };
               recordedById?: string;
               type?: { in: readonly string[] };
               visibility?: 'General' | 'Sensitive';
             }>;
-            visibility?: 'General';
+            deletedAt?: null;
+            recordedBy?: { role: { in: readonly string[] } };
+            recordedById?: string;
+            visibility?: 'General' | 'Sensitive';
             createdAt?: { gte: Date; lt: Date };
             studentId?: string | { in: string[] };
           };
@@ -510,6 +623,16 @@ function makeFakeDb() {
               .filter(
                 (row) => where?.visibility === undefined || row.visibility === where.visibility,
               )
+              .filter((row) => where?.deletedAt === undefined || row.deletedAt === where.deletedAt)
+              .filter(
+                (row) =>
+                  where?.recordedById === undefined || row.recordedById === where.recordedById,
+              )
+              .filter(
+                (row) =>
+                  where?.recordedBy === undefined ||
+                  where.recordedBy.role.in.includes(row.recordedBy?.role ?? ''),
+              )
               .filter(
                 (row) =>
                   where?.OR === undefined ||
@@ -517,6 +640,8 @@ function makeFakeDb() {
                     (condition) =>
                       (condition.recordedById === undefined ||
                         row.recordedById === condition.recordedById) &&
+                      (condition.recordedBy === undefined ||
+                        condition.recordedBy.role.in.includes(row.recordedBy?.role ?? '')) &&
                       (condition.visibility === undefined ||
                         row.visibility === condition.visibility) &&
                       (condition.type === undefined || condition.type.in.includes(row.type)),
@@ -712,6 +837,12 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(taggedSupervisorUser, db).childLog.listSnapshotStudents(),
     ).resolves.toMatchObject([{ id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' }]);
+    await expect(
+      makeCaller(allStudentsSupervisorUser, db).childLog.listSnapshotStudents(),
+    ).resolves.toMatchObject([
+      { id: 'student_1', fullName: 'Jane Learner', yearGroup: 'Year 6' },
+      { id: 'student_2', fullName: 'Secondary Learner', yearGroup: 'Year 9' },
+    ]);
   });
 
   it('returns no snapshot picker students when a Supervisor has no shift today', async () => {
@@ -766,6 +897,21 @@ describe('childLog.snapshot', () => {
     });
   });
 
+  it('allows tagged Supervisors to open individual snapshots outside their assigned bands', async () => {
+    const { db, students } = makeFakeDb();
+    students.push(makeOutOfBandStudent());
+
+    await expect(
+      makeCaller(allStudentsSupervisorUser, db).childLog.snapshot({
+        studentId: 'student_2',
+        from: day('2026-04-29'),
+        to: day('2026-04-30'),
+      }),
+    ).resolves.toMatchObject({
+      student: { id: 'student_2', fullName: 'Secondary Learner', yearGroup: 'Year 9' },
+    });
+  });
+
   it('returns a full-admin centre snapshot for today across active students', async () => {
     const { behaviourEntries, db, students } = makeFakeDb();
     students.push(makeOutOfBandStudent());
@@ -794,8 +940,14 @@ describe('childLog.snapshot', () => {
       meritDelta: 5,
       recordedById: headUser.id,
       createdAt: day('2026-04-30'),
+      deletedAt: null,
+      headCommentEnc: null,
       noteEnc: 'enc:Today centre merit',
       recordedBy: { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
     });
 
     const snapshot = await makeCaller(headUser, db).childLog.centreSnapshot({
@@ -882,6 +1034,13 @@ describe('childLog.snapshot', () => {
         userId: supervisorUser.id,
       },
     });
+
+    await expect(
+      makeCaller(allStudentsSupervisorUser, db).childLog.centreSnapshot({
+        from: day('2026-04-30'),
+        to: day('2026-04-30'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('blocks Supervisor child notes outside their assigned band', async () => {
@@ -901,6 +1060,27 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(supervisorUser, db).childNotes.listForStudent({ studentId: 'student_2' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await expect(
+      makeCaller(allStudentsSupervisorUser, db).childNotes.create({
+        studentId: 'student_2',
+        note: 'All-student supervisor note',
+      }),
+    ).resolves.toMatchObject({ studentId: 'student_2', createdById: allStudentsSupervisorUser.id });
+
+    const allStudentSupervisorNotes = await makeCaller(
+      allStudentsSupervisorUser,
+      db,
+    ).childNotes.listForStudent({ studentId: 'student_2' });
+    expect(allStudentSupervisorNotes.studentId).toBe('student_2');
+    expect(allStudentSupervisorNotes.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          note: 'All-student supervisor note',
+          createdById: allStudentsSupervisorUser.id,
+        }),
+      ]),
+    );
   });
 
   it('lists only accessible students for linked adult accounts', async () => {
@@ -944,12 +1124,18 @@ describe('childLog.snapshot', () => {
       meritDelta: 0,
       recordedById: supervisorUser.id,
       createdAt: day('2026-04-29'),
+      deletedAt: null,
+      headCommentEnc: null,
       noteEnc: 'enc:Parent-visible general update',
       recordedBy: {
         id: supervisorUser.id,
         fullNameEnc: 'enc:Supervisor User',
         role: 'Supervisor',
       },
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: undefined,
     });
 
     const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
@@ -1127,5 +1313,210 @@ describe('childLog.snapshot', () => {
     await expect(
       makeCaller(unlinkedParentUser, db).childLog.drillThrough({ studentId: 'student_1' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets Head review supervisor sensitive notes and marks with optional comments', async () => {
+    const { behaviourEntries, db, notes, students } = makeFakeDb();
+    const note = await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Sensitive family context',
+      sensitive: true,
+    });
+    const mark = {
+      id: 'behaviour_supervisor_sensitive',
+      studentId: 'student_1',
+      type: 'Demerit',
+      category: 'Pastoral',
+      visibility: 'Sensitive',
+      meritDelta: -5,
+      recordedById: supervisorUser.id,
+      createdAt: day('2026-04-30'),
+      deletedAt: null,
+      headCommentEnc: null,
+      noteEnc: 'enc:Sensitive demerit',
+      recordedBy: { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: 'Supervisor' },
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
+    } as (typeof behaviourEntries)[number];
+    behaviourEntries.push(mark);
+
+    const queue = await makeCaller(headUser, db).childLog.sensitiveReviewQueue();
+    expect(queue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: note.id, kind: 'note', body: 'Sensitive family context' }),
+        expect.objectContaining({
+          id: 'behaviour_supervisor_sensitive',
+          kind: 'mark',
+          body: 'Sensitive demerit',
+          type: 'Demerit',
+        }),
+      ]),
+    );
+
+    await expect(
+      makeCaller(headUser, db).childLog.reviewSensitiveItem({
+        id: note.id,
+        kind: 'note',
+        comment: 'Thank you for flagging.',
+      }),
+    ).resolves.toMatchObject({ id: note.id, kind: 'note' });
+    await expect(
+      makeCaller(headUser, db).childLog.reviewSensitiveItem({
+        id: 'behaviour_supervisor_sensitive',
+        kind: 'mark',
+      }),
+    ).resolves.toMatchObject({ id: 'behaviour_supervisor_sensitive', kind: 'mark' });
+
+    expect(notes[0]).toMatchObject({
+      seenById: headUser.id,
+      headCommentEnc: 'enc:Thank you for flagging.',
+    });
+    expect(mark).toMatchObject({ seenById: headUser.id, headCommentEnc: null });
+  });
+
+  it('returns supervisor history with all authored notes and only sensitive authored marks', async () => {
+    const { behaviourEntries, db, students } = makeFakeDb();
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'General observation',
+      sensitive: false,
+    });
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Sensitive observation',
+      sensitive: true,
+    });
+    behaviourEntries.push({
+      id: 'behaviour_supervisor_sensitive_history',
+      studentId: 'student_1',
+      type: 'General',
+      category: 'Misc',
+      visibility: 'Sensitive',
+      meritDelta: 0,
+      recordedById: supervisorUser.id,
+      createdAt: day('2026-04-30'),
+      deletedAt: null,
+      headCommentEnc: 'enc:Reviewed.',
+      noteEnc: 'enc:Sensitive mark',
+      recordedBy: { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: 'Supervisor' },
+      seenAt: day('2026-04-30'),
+      seenBy: { id: headUser.id, fullNameEnc: 'enc:Head User', role: 'Head' },
+      seenById: headUser.id,
+      student: students[0],
+    });
+    behaviourEntries.push({
+      id: 'behaviour_supervisor_sensitive_demerit_history',
+      studentId: 'student_1',
+      type: 'Demerit',
+      category: 'Pastoral',
+      visibility: 'Sensitive',
+      meritDelta: -5,
+      recordedById: supervisorUser.id,
+      createdAt: day('2026-04-30'),
+      deletedAt: null,
+      headCommentEnc: null,
+      noteEnc: 'enc:Sensitive demerit',
+      recordedBy: { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: 'Supervisor' },
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
+    });
+
+    const history = await makeCaller(supervisorUser, db).childLog.supervisorNotesHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0]?.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'note', body: 'General observation', sensitive: false }),
+        expect.objectContaining({ kind: 'note', body: 'Sensitive observation', sensitive: true }),
+        expect.objectContaining({
+          id: 'behaviour_supervisor_sensitive_history',
+          kind: 'mark',
+          body: 'Sensitive mark',
+          headComment: 'Reviewed.',
+        }),
+        expect.objectContaining({
+          id: 'behaviour_supervisor_sensitive_demerit_history',
+          kind: 'mark',
+          body: 'Sensitive demerit',
+          type: 'Demerit',
+          sensitive: true,
+        }),
+      ]),
+    );
+    expect(history[0]?.notes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ body: 'Focused well' })]),
+    );
+    const sensitiveMark = history[0]?.notes.find(
+      (item) => item.id === 'behaviour_supervisor_sensitive_history',
+    );
+    const sensitiveDemerit = history[0]?.notes.find(
+      (item) => item.id === 'behaviour_supervisor_sensitive_demerit_history',
+    );
+    expect(sensitiveMark?.author).toMatchObject({
+      fullName: 'Supervisor User',
+      role: 'Supervisor',
+    });
+    expect(sensitiveDemerit?.author).toMatchObject({
+      fullName: 'Supervisor User',
+      role: 'Supervisor',
+    });
+  });
+
+  it('lets Head see supervisor-authored notes history and Head-authored test entries', async () => {
+    const { behaviourEntries, db, students } = makeFakeDb();
+    await makeCaller(supervisorUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Supervisor note for Head review',
+      sensitive: false,
+    });
+    await makeCaller(headUser, db).childNotes.create({
+      studentId: 'student_1',
+      note: 'Head note for local check',
+      sensitive: false,
+    });
+    behaviourEntries.push({
+      id: 'behaviour_supervisor_sensitive_history_for_head',
+      studentId: 'student_1',
+      type: 'Demerit',
+      category: 'Pastoral',
+      visibility: 'Sensitive',
+      meritDelta: -5,
+      recordedById: supervisorUser.id,
+      createdAt: day('2026-04-30'),
+      deletedAt: null,
+      headCommentEnc: null,
+      noteEnc: 'enc:Supervisor sensitive demerit for Head',
+      recordedBy: { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: 'Supervisor' },
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
+    });
+
+    const history = await makeCaller(headUser, db).childLog.supervisorNotesHistory();
+    expect(history).toHaveLength(1);
+    expect(history[0]?.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          body: 'Supervisor note for Head review',
+        }),
+        expect.objectContaining({
+          body: 'Supervisor sensitive demerit for Head',
+          type: 'Demerit',
+        }),
+      ]),
+    );
+    expect(history[0]?.notes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ body: 'Head note for local check' })]),
+    );
+    const supervisorItems =
+      history[0]?.notes.filter((item) => item.author.role === 'Supervisor') ?? [];
+    expect(supervisorItems.length).toBeGreaterThanOrEqual(2);
+    for (const item of supervisorItems) {
+      expect(item.author).toMatchObject({ fullName: 'Supervisor User', role: 'Supervisor' });
+    }
   });
 });

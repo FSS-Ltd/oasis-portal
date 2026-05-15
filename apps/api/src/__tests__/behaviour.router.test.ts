@@ -29,6 +29,12 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const allStudentsSupervisorUser: SessionUser = {
+  id: 'ckusersupall00000000001',
+  role: 'Supervisor',
+  tags: ['supervisor-all-students'],
+  requires2fa: false,
+};
 const otherSupervisorUser: SessionUser = {
   id: 'ckusersupother000000001',
   role: 'Supervisor',
@@ -1444,6 +1450,41 @@ describe('behaviour.recentEntries', () => {
         amount: 1,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('allows tagged Supervisors to log and read all-student behaviour without a shift', async () => {
+    const { db } = makeFakeDb({ supervisorHasShift: false });
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: secondaryStudentId,
+      type: 'Demerit',
+      category: 'Safeguarding',
+      note: 'Sensitive head note',
+      visibility: 'Sensitive',
+    });
+
+    await expect(
+      makeCaller(allStudentsSupervisorUser, db).behaviour.log({
+        studentId: secondaryStudentId,
+        type: 'Merit',
+        category: 'Kindness',
+        amount: 1,
+      }),
+    ).resolves.toMatchObject({
+      studentId: secondaryStudentId,
+      type: 'Merit',
+      meritDelta: 1,
+    });
+
+    const result = await makeCaller(allStudentsSupervisorUser, db).behaviour.recentEntries({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    expect(result.entries).toEqual([
+      expect.objectContaining({
+        studentId: secondaryStudentId,
+        type: 'Merit',
+        visibility: 'General',
+      }),
+    ]);
   });
 
   it('allows ClubsAdmin users to log and read assigned-band behaviour like supervisors', async () => {

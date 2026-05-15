@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
+  canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
   canonicalSchoolYear,
   displaySchoolYearLabel,
@@ -66,6 +67,10 @@ function canUsePaceWorkflow(user: SessionUser): boolean {
 }
 
 function canUseFullPaceWorkflowAccess(user: SessionUser): boolean {
+  return canUseFullPaceAccess(user) || canUseAllStudentSupervisorWorkflow(user);
+}
+
+function canEditPaceWorkflowDate(user: SessionUser): boolean {
   return user.role === 'Supervisor' || canUseFullPaceAccess(user);
 }
 
@@ -189,6 +194,7 @@ type PaceBand = {
 
 type PaceScope = {
   assignedBands: PaceBand[];
+  canEditDate: boolean;
   dayKey: string;
   fullAccess: boolean;
   rowBands: PaceBand[];
@@ -496,9 +502,10 @@ async function loadPaceScope(
   }
 
   const fullAccess = canUseFullPaceWorkflowAccess(ctx.user);
+  const canEditDate = canEditPaceWorkflowDate(ctx.user);
   const today = normalizeDate(new Date());
-  const selectedDate = fullAccess ? normalizeDate(inputDate ?? today) : today;
-  if (!fullAccess && inputDate && dateKey(inputDate) !== dateKey(today)) {
+  const selectedDate = canEditDate ? normalizeDate(inputDate ?? today) : today;
+  if (!canEditDate && inputDate && dateKey(inputDate) !== dateKey(today)) {
     await denyPaceAccess(ctx, entity, 'PACE access is limited to today', {
       requestedDate: dateKey(inputDate),
       today: dateKey(today),
@@ -516,6 +523,7 @@ async function loadPaceScope(
   if (fullAccess) {
     return {
       assignedBands: [],
+      canEditDate,
       dayKey: dateKey(selectedDate),
       fullAccess,
       rowBands,
@@ -546,6 +554,7 @@ async function loadPaceScope(
 
   return {
     assignedBands,
+    canEditDate,
     dayKey: dateKey(selectedDate),
     fullAccess,
     rowBands,
@@ -630,6 +639,7 @@ export const paceRouter = router({
 
     return {
       fullAccess: scope.fullAccess,
+      canEditDate: scope.canEditDate,
       date: scope.dayKey,
       assignedBands: scope.assignedBands.map((band) => ({
         id: band.id,
@@ -1224,7 +1234,7 @@ export const paceRouter = router({
 
   updateRecord: authedProcedure.input(paceUpdateRecordInput).mutation(async ({ ctx, input }) => {
     const scope = await loadPaceScope(ctx, input.completedAt, 'pace.updateRecord');
-    if (!scope.fullAccess && dateKey(input.startedAt) !== scope.dayKey) {
+    if (!scope.canEditDate && dateKey(input.startedAt) !== scope.dayKey) {
       await denyPaceAccess(ctx, 'pace.updateRecord', 'PACE access is limited to today', {
         requestedStartedDate: dateKey(input.startedAt),
         today: scope.dayKey,
@@ -1255,7 +1265,10 @@ export const paceRouter = router({
     if (!existing.subject.active) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
     }
-    if (!scope.fullAccess && dateKey(existing.completedAt ?? existing.createdAt) !== scope.dayKey) {
+    if (
+      !scope.canEditDate &&
+      dateKey(existing.completedAt ?? existing.createdAt) !== scope.dayKey
+    ) {
       await denyPaceAccess(ctx, 'pace.updateRecord', 'PACE access is limited to today', {
         recordId: existing.id,
         existingDate: dateKey(existing.completedAt ?? existing.createdAt),

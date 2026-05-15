@@ -1222,6 +1222,14 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     await expect(
       blocked.caller.admin.updateUserTags({
         userId: 'u_sup',
+        tags: ['supervisor-all-students'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
+
+    await expect(
+      blocked.caller.admin.updateUserTags({
+        userId: 'u_sup',
         tags: ['calendar-manager'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -1236,14 +1244,20 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();
 
-    db.user.update.mockResolvedValue({ id: 'u_sup', tags: ['student-drillthrough-viewer'] });
+    db.user.update.mockResolvedValue({
+      id: 'u_sup',
+      tags: ['student-drillthrough-viewer', 'supervisor-all-students'],
+    });
     const allowed = makeCaller(headUser, { db });
     await expect(
       allowed.caller.admin.updateUserTags({
         userId: 'u_sup',
-        tags: ['student-drillthrough-viewer'],
+        tags: ['student-drillthrough-viewer', 'supervisor-all-students'],
       }),
-    ).resolves.toEqual({ id: 'u_sup', tags: ['student-drillthrough-viewer'] });
+    ).resolves.toEqual({
+      id: 'u_sup',
+      tags: ['student-drillthrough-viewer', 'supervisor-all-students'],
+    });
   });
 
   it('rejects tag management for non-full-admin callers', async () => {
@@ -1994,7 +2008,7 @@ describe('admin.inviteUser', () => {
     });
   });
 
-  it('limits student drill-through invite tags to Head', async () => {
+  it('limits broad supervisor workflow invite tags to Head', async () => {
     const { caller, createInvitation } = makeCaller(principalUser);
 
     await expect(
@@ -2002,6 +2016,15 @@ describe('admin.inviteUser', () => {
         email: 'viewer@example.com',
         role: 'Supervisor',
         tags: ['student-drillthrough-viewer'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(createInvitation).not.toHaveBeenCalled();
+
+    await expect(
+      caller.admin.inviteUser({
+        email: 'all-students@example.com',
+        role: 'Supervisor',
+        tags: ['supervisor-all-students'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(createInvitation).not.toHaveBeenCalled();

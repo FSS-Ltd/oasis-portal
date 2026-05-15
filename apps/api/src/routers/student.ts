@@ -1,7 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
-import { deriveEnglandWalesSchoolYear, standardSchoolYearSchema } from '@oasis/domain';
+import {
+  canUseAllStudentSupervisorWorkflow,
+  deriveEnglandWalesSchoolYear,
+  standardSchoolYearSchema,
+} from '@oasis/domain';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
 import { fullAdminProcedure, roleProcedure, router } from '../trpc.js';
 
@@ -140,7 +144,9 @@ export const studentRouter = router({
       const where: Prisma.StudentWhereInput = {};
       if (ctx.user.role === 'Supervisor' || !input?.includeInactive) where.active = true;
       if (input?.search) where.nameBidx = ctx.db.$enc.blindIndex(input.search);
-      Object.assign(where, studentWhereForDailyScope(scope));
+      if (!canUseAllStudentSupervisorWorkflow(ctx.user)) {
+        Object.assign(where, studentWhereForDailyScope(scope));
+      }
 
       const students = await ctx.db.student.findMany({
         where,

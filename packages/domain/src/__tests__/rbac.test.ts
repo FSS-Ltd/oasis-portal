@@ -10,6 +10,7 @@ import {
   canRecordStudentAttendance,
   canRespondToParentMessages,
   canCreateSensitiveBehaviour,
+  canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
@@ -339,6 +340,30 @@ describe('workflow tags', () => {
     expect(canUseFullPaceAccess(technicalSupport)).toBe(false);
   });
 
+  it('limits all-student supervisor workflow access to full admins or tagged Supervisors', () => {
+    expect(canUseAllStudentSupervisorWorkflow(head)).toBe(true);
+    expect(canUseAllStudentSupervisorWorkflow(hod)).toBe(true);
+    expect(canUseAllStudentSupervisorWorkflow(supervisor)).toBe(false);
+    expect(
+      canUseAllStudentSupervisorWorkflow({
+        ...supervisor,
+        tags: ['supervisor-all-students'],
+      }),
+    ).toBe(true);
+    expect(
+      canUseAllStudentSupervisorWorkflow({
+        ...clubsAdmin,
+        tags: ['supervisor-all-students'],
+      }),
+    ).toBe(false);
+    expect(
+      canUseAllStudentSupervisorWorkflow({
+        ...parent,
+        tags: ['supervisor-all-students'],
+      }),
+    ).toBe(false);
+  });
+
   it('limits calendar management to full-admin or tagged staff', () => {
     expect(canManageCalendar(head)).toBe(true);
     expect(canManageCalendar(principal)).toBe(true);
@@ -352,16 +377,16 @@ describe('workflow tags', () => {
     expect(canManageCalendar({ ...technicalSupport, tags: ['calendar-manager'] })).toBe(false);
   });
 
-  it('limits parent message response to full-admin users', () => {
+  it('allows parent message response for full-admin users or tagged users', () => {
     expect(canRespondToParentMessages(head)).toBe(true);
     expect(canRespondToParentMessages(principal)).toBe(true);
     expect(canRespondToParentMessages(pastor)).toBe(true);
     expect(canRespondToParentMessages(hod)).toBe(true);
     expect(canRespondToParentMessages({ ...supervisor, tags: ['parent-message-responder'] })).toBe(
-      false,
+      true,
     );
     expect(canRespondToParentMessages({ ...parent, tags: ['parent-message-responder'] })).toBe(
-      false,
+      true,
     );
   });
 });
