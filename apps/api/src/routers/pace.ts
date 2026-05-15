@@ -65,6 +65,10 @@ function canUsePaceWorkflow(user: SessionUser): boolean {
   return isStaff(user) || canUseFullPaceAccess(user);
 }
 
+function canUseFullPaceWorkflowAccess(user: SessionUser): boolean {
+  return user.role === 'Supervisor' || canUseFullPaceAccess(user);
+}
+
 function meritsForPaceScore(testType: PaceTestType, score: number): number {
   if (testType === 'FinalTest') {
     if (score === 100) return 10;
@@ -491,11 +495,11 @@ async function loadPaceScope(
     await denyPaceAccess(ctx, entity, 'PACE workflow requires staff or full PACE access', {});
   }
 
-  const fullAccess = canUseFullPaceAccess(ctx.user);
+  const fullAccess = canUseFullPaceWorkflowAccess(ctx.user);
   const today = normalizeDate(new Date());
   const selectedDate = fullAccess ? normalizeDate(inputDate ?? today) : today;
   if (!fullAccess && inputDate && dateKey(inputDate) !== dateKey(today)) {
-    await denyPaceAccess(ctx, entity, 'Supervisor PACE access is limited to today', {
+    await denyPaceAccess(ctx, entity, 'PACE access is limited to today', {
       requestedDate: dateKey(inputDate),
       today: dateKey(today),
     });
@@ -1221,7 +1225,7 @@ export const paceRouter = router({
   updateRecord: authedProcedure.input(paceUpdateRecordInput).mutation(async ({ ctx, input }) => {
     const scope = await loadPaceScope(ctx, input.completedAt, 'pace.updateRecord');
     if (!scope.fullAccess && dateKey(input.startedAt) !== scope.dayKey) {
-      await denyPaceAccess(ctx, 'pace.updateRecord', 'Supervisor PACE access is limited to today', {
+      await denyPaceAccess(ctx, 'pace.updateRecord', 'PACE access is limited to today', {
         requestedStartedDate: dateKey(input.startedAt),
         today: scope.dayKey,
       });
@@ -1252,7 +1256,7 @@ export const paceRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
     }
     if (!scope.fullAccess && dateKey(existing.completedAt ?? existing.createdAt) !== scope.dayKey) {
-      await denyPaceAccess(ctx, 'pace.updateRecord', 'Supervisor PACE access is limited to today', {
+      await denyPaceAccess(ctx, 'pace.updateRecord', 'PACE access is limited to today', {
         recordId: existing.id,
         existingDate: dateKey(existing.completedAt ?? existing.createdAt),
         today: scope.dayKey,
@@ -1616,7 +1620,7 @@ export const paceRouter = router({
         await denyPaceAccess(
           ctx,
           'pace.approveFailedFinalTestAdvance',
-          'Supervisor PACE access is limited to today',
+          'PACE access is limited to today',
           {
             recordId: existing.id,
             existingDate: dateKey(existing.completedAt ?? existing.createdAt),
