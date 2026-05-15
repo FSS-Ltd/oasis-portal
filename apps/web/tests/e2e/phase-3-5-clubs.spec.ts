@@ -124,4 +124,49 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
     await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /add club/i })).toHaveCount(0);
   });
+
+  parentTest(
+    'Parent can sign up for and withdraw from an available linked-child club',
+    async ({ page }) => {
+      await signIn(page, parentEmail!, parentPassword!);
+      await page.goto('/parent/clubs');
+      await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+
+      const noLinkedChildren = page.getByText(/No linked children found/i);
+      test.skip((await noLinkedChildren.count()) > 0, 'Parent account has no linked children.');
+
+      const signupCard = page
+        .locator('.linked-club-card')
+        .filter({ has: page.getByRole('button', { name: /^sign up$/i }) })
+        .first();
+      const signedUpCard = page
+        .locator('.linked-club-card')
+        .filter({ has: page.getByRole('button', { name: /^withdraw$/i }) })
+        .first();
+
+      if ((await signupCard.count()) > 0) {
+        await signupCard.getByRole('button', { name: /^sign up$/i }).click();
+        await expect(page.getByText(/signed up for/i)).toBeVisible();
+        await expect(signupCard.getByRole('button', { name: /^withdraw$/i })).toBeVisible();
+
+        await signupCard.getByRole('button', { name: /^withdraw$/i }).click();
+        await expect(page.getByText(/withdrawn from/i)).toBeVisible();
+        await expect(signupCard.getByRole('button', { name: /^sign up$/i })).toBeVisible();
+        return;
+      }
+
+      test.skip(
+        (await signedUpCard.count()) === 0,
+        'No available or signed-up club fixture exists.',
+      );
+
+      await signedUpCard.getByRole('button', { name: /^withdraw$/i }).click();
+      await expect(page.getByText(/withdrawn from/i)).toBeVisible();
+      await expect(signedUpCard.getByRole('button', { name: /^sign up$/i })).toBeVisible();
+
+      await signedUpCard.getByRole('button', { name: /^sign up$/i }).click();
+      await expect(page.getByText(/signed up for/i)).toBeVisible();
+      await expect(signedUpCard.getByRole('button', { name: /^withdraw$/i })).toBeVisible();
+    },
+  );
 });

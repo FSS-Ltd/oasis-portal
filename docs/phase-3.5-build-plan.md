@@ -1,7 +1,7 @@
 # Phase 3.5 - Clubs module: sprint & PR plan
 
-**Status:** PR-3.5.5 mobile clubs smoke in progress
-**Last updated:** 2026-05-13
+**Status:** PR-3.5.6 verification suite in progress
+**Last updated:** 2026-05-15
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -276,7 +276,9 @@ Verification:
 
 ## Sprint 4 - Mobile smoke and phase verification
 
-### PR-3.5.5 - `feat(mobile): clubs smoke` IN PROGRESS
+### PR-3.5.5 - `feat(mobile): clubs smoke` MERGED
+
+Merged via PR #121 on 2026-05-13.
 
 Scope:
 
@@ -308,8 +310,11 @@ Notes:
 
 - Manual live-account mobile smoke was not run because local Parent and
   ClubsAdmin mobile credentials were not configured in this environment.
+- Follow-up mobile admin visibility fix merged via PR #128 on 2026-05-14. It
+  surfaced club-manager access from the staff mobile dashboard while keeping
+  Supervisor dashboard data loading out of the club-manager path.
 
-### PR-3.5.6 - `test: Phase 3.5 verification suite` PLANNED
+### PR-3.5.6 - `test: Phase 3.5 verification suite` IN PROGRESS
 
 Scope:
 
@@ -322,13 +327,40 @@ Scope:
 
 Verification:
 
-- `pnpm lint`
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm --filter @oasis/web build`
-- `pnpm db:integration`
-- `pnpm api:smoke-context-rls`
-- `pnpm verify:encryption`
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` - pass
+  after sandbox escalation for the local web server bind; 6 credential-gated
+  tests skipped because local E2E account variables are not configured.
+- `pnpm --filter @oasis/api test -- club.router.test.ts profile.router.test.ts clerkWebhook.test.ts admin.router.test.ts email.router.test.ts` -
+  pass, ran all API tests because of Vitest argument handling: 18 files / 440
+  tests.
+- `pnpm --filter @oasis/domain test -- rbac.test.ts clubs.test.ts users.test.ts` -
+  pass, ran all domain tests because of package-script argument handling: 12
+  files / 148 tests.
+- `pnpm lint` - pass.
+- `pnpm typecheck` - pass.
+- `pnpm test` - pass: 18 API files / 440 tests, 5 DB files / 28 tests, and 12
+  domain files / 148 tests.
+- `pnpm --filter @oasis/web build` - pass.
+- `pnpm db:integration` - not completed in this environment. The first run
+  failed because sandboxing blocked `tsx` IPC pipe creation; escalation was
+  rejected because the smoke script truncates database tables and the configured
+  target could not be proven to be disposable.
+- `pnpm api:smoke-context-rls` - not completed in this environment. The first
+  run failed because sandboxing blocked `tsx` IPC pipe creation; the script also
+  truncates database tables during seeding, so it was not escalated.
+- `pnpm verify:encryption` - pass after sandbox escalation for read-only
+  `pg_dump`; 16 plaintext fixture values absent from dump data.
+- `git diff --check` - pass.
+- `graphify update .` - pass.
+
+Carry-forward:
+
+- Run credential-gated web club management, parent signup/withdrawal, and
+  notification paths in an environment with `E2E_HEAD_EMAIL`,
+  `E2E_HEAD_PASSWORD`, `E2E_CLUBS_ADMIN_EMAIL`,
+  `E2E_CLUBS_ADMIN_PASSWORD`, `E2E_SUPERVISOR_EMAIL`,
+  `E2E_SUPERVISOR_PASSWORD`, `E2E_PARENT_EMAIL`, and
+  `E2E_PARENT_PASSWORD` configured.
 
 ---
 
