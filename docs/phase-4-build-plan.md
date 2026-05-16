@@ -1,6 +1,6 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.7 in progress
+**Status:** PR-4.8 in progress
 **Last updated:** 2026-05-16
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -27,7 +27,8 @@ Important current state:
 - Shop purchase workflow is implemented through PR-4.4.
 - Shop web UI is implemented through PR-4.5.
 - Leaderboard workflows are implemented through PR-4.6.
-- Student mobile and report workflows still need production completion.
+- Student mobile workflows are implemented through PR-4.7.
+- Term report API workflows are in progress in PR-4.8.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -266,7 +267,10 @@ Tests:
 - Ties and zero-data states are deterministic.
 - Sensitive behaviour notes are never included.
 
-### PR-4.7 - `feat(mobile): student merit and results view` IN PROGRESS
+### PR-4.7 - `feat(mobile): student merit and results view` MERGED
+
+Merged via PR #143 on 2026-05-16; post-merge `main` CI/CD run 25948107960
+passed, including production deploy.
 
 Scope:
 
@@ -301,7 +305,7 @@ Verification for Sprint 4:
 Goal: compile the centre's termly report from the data captured throughout the
 portal.
 
-### PR-4.8 - `feat(api): term report draft/review/send` PLANNED
+### PR-4.8 - `feat(api): term report draft/review/send` IN PROGRESS
 
 Scope:
 
@@ -322,6 +326,19 @@ Tests:
 - Send freezes the snapshot and records sent timestamp.
 - Parent can read sent report for linked child only.
 - Report body/snapshot is encrypted at rest.
+
+Verification for Sprint 5 API:
+
+- `pnpm --filter @oasis/api test -- report.router.test.ts`
+- `pnpm --filter @oasis/domain test -- report.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm lint`
+- `pnpm typecheck`
+- `git diff --check`
+- `graphify update .`
 
 ### PR-4.9 - `feat(web): term report review and send UI` PLANNED
 
