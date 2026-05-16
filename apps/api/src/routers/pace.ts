@@ -1,6 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
+  AccessDeniedError,
   canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
   canonicalSchoolYear,
@@ -9,6 +10,7 @@ import {
   paceProgressStatusForYear,
   paceRecordInput,
   paceUpdateRecordInput,
+  requireSelfStudent,
   rowsForMerit,
   schoolYearStorageAliases,
   type SessionUser,
@@ -590,6 +592,46 @@ async function assertStudentInPaceScope(
   });
 }
 
+async function loadPaceScopeForStudentRead(
+  ctx: AuthedContext,
+  inputDate: Date | undefined,
+  student: { id: string; userId: string | null; yearGroup: string },
+  entity: string,
+): Promise<PaceScope> {
+  if (ctx.user.role !== 'Student') {
+    const scope = await loadPaceScope(ctx, inputDate, entity);
+    await assertStudentInPaceScope(ctx, scope, student, entity);
+    return scope;
+  }
+
+  const today = normalizeDate(new Date());
+  if (inputDate && dateKey(inputDate) !== dateKey(today)) {
+    await denyPaceAccess(ctx, entity, 'PACE access is limited to today', {
+      requestedDate: dateKey(inputDate),
+      today: dateKey(today),
+    });
+  }
+
+  try {
+    requireSelfStudent(ctx.user, student.id, student.userId);
+  } catch (err) {
+    if (err instanceof AccessDeniedError) {
+      await denyPaceAccess(ctx, entity, err.message, { studentId: student.id });
+    }
+    throw err;
+  }
+
+  return {
+    assignedBands: [],
+    canEditDate: false,
+    dayKey: dateKey(today),
+    fullAccess: false,
+    rowBands: [],
+    scopedYears: null,
+    selectedDate: today,
+  };
+}
+
 export const paceRouter = router({
   roster: authedProcedure.input(paceRosterInput).query(async ({ ctx, input }) => {
     const scope = await loadPaceScope(ctx, input?.date, 'pace.roster');
@@ -652,12 +694,11 @@ export const paceRouter = router({
   }),
 
   forStudent: authedProcedure.input(paceForStudentInput).query(async ({ ctx, input }) => {
-    const scope = await loadPaceScope(ctx, input.date, 'pace.forStudent');
-
     const student = await ctx.db.student.findUnique({
       where: { id: input.studentId },
       select: {
         id: true,
+        userId: true,
         active: true,
         fullNameEnc: true,
         yearGroup: true,
@@ -673,7 +714,7 @@ export const paceRouter = router({
     if (!student.active) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
     }
-    await assertStudentInPaceScope(ctx, scope, student, 'pace.forStudent');
+    const scope = await loadPaceScopeForStudentRead(ctx, input.date, student, 'pace.forStudent');
 
     const storedPolicy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
     const policy = storedPolicy ?? DEFAULT_POLICY;

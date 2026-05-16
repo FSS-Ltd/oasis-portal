@@ -2,6 +2,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { ParentPortalSmokeScreen } from './parent-portal-smoke-screen';
+import { StudentPortalSmokeScreen } from './student-portal-smoke-screen';
 import { SupervisorSmokeScreen } from './supervisor-smoke-screen';
 
 export function SignedInSmokeRouter() {
@@ -19,6 +20,10 @@ export function SignedInSmokeRouter() {
 
   if (user?.role === 'Parent') {
     return <ParentPortalSmokeScreen user={user} />;
+  }
+
+  if (user?.role === 'Student') {
+    return <StudentPortalSmokeScreen user={user} />;
   }
 
   return <SupervisorSmokeScreen />;

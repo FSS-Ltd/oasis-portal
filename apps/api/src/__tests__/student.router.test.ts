@@ -17,6 +17,12 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const studentUser: SessionUser = {
+  id: 'ckuserstudent00000000001',
+  role: 'Student',
+  tags: [],
+  requires2fa: false,
+};
 
 const studentId = 'ckstudent000000000000001';
 const subjectId = 'cksubject000000000000001';
@@ -52,6 +58,8 @@ interface StoredStudent {
 interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
+
+type StudentSelect = Partial<Record<keyof StoredStudent, boolean>>;
 
 interface StoredYearGroupBand {
   id: string;
@@ -112,6 +120,22 @@ function makeRow(
         return { ...assignment, subject };
       }),
   };
+}
+
+function selectedStudent(student: StoredStudent, select: StudentSelect): Partial<StoredStudent> {
+  const row: Partial<StoredStudent> = {};
+  if (select.id) row.id = student.id;
+  if (select.userId) row.userId = student.userId;
+  if (select.fullNameEnc) row.fullNameEnc = student.fullNameEnc;
+  if (select.nameBidx) row.nameBidx = student.nameBidx;
+  if (select.dobEnc) row.dobEnc = student.dobEnc;
+  if (select.addressEnc) row.addressEnc = student.addressEnc;
+  if (select.yearGroup) row.yearGroup = student.yearGroup;
+  if (select.enrolmentDate) row.enrolmentDate = student.enrolmentDate;
+  if (select.active) row.active = student.active;
+  if (select.createdAt) row.createdAt = student.createdAt;
+  if (select.updatedAt) row.updatedAt = student.updatedAt;
+  return row;
 }
 
 function makeFakeDb() {
@@ -197,10 +221,20 @@ function makeFakeDb() {
           ),
       ),
       findUnique: vi.fn(
-        ({ where, select }: { where: { id: string }; select?: { id?: boolean } }) => {
-          const student = students.find((candidate) => candidate.id === where.id);
+        ({
+          where,
+          select,
+        }: {
+          where: { id?: string; userId?: string };
+          select?: StudentSelect;
+        }) => {
+          const student = students.find(
+            (candidate) =>
+              (where.id !== undefined && candidate.id === where.id) ||
+              (where.userId !== undefined && candidate.userId === where.userId),
+          );
           if (!student) return Promise.resolve(null);
-          if (select?.id) return Promise.resolve({ id: student.id });
+          if (select) return Promise.resolve(selectedStudent(student, select));
           return Promise.resolve(makeRow(student, assignments, subjects));
         },
       ),
@@ -454,6 +488,49 @@ describe('student router CRUD', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('student.me', () => {
+  it('returns the active student profile linked to the signed-in Student user', async () => {
+    const { db, students } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await createStudent(headCaller);
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.userId = studentUser.id;
+
+    const studentCaller = makeCaller(studentUser, db);
+
+    await expect(studentCaller.student.me()).resolves.toEqual({
+      id: studentId,
+      userId: studentUser.id,
+      fullName: 'Jane Learner',
+      yearGroup: 'Year 6',
+      enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
+      active: true,
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: studentUser.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        entityId: studentId,
+        meta: { count: 1, source: 'student.me' },
+      },
+    });
+  });
+
+  it('does not let non-Student roles or unlinked Student accounts load a profile', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(makeCaller(supervisorUser, db).student.me()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(makeCaller(studentUser, db).student.me()).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'student profile not found',
+    });
   });
 });
 

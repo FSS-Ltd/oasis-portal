@@ -19,11 +19,14 @@ export type PortalMobileNavIconName =
   | 'behaviour'
   | 'clubs'
   | 'dashboard'
+  | 'leaderboard'
   | 'messages'
   | 'more'
   | 'notices'
   | 'pace'
-  | 'students';
+  | 'shop'
+  | 'students'
+  | 'wallet';
 
 export interface PortalMobileNavItem<T extends string> {
   id: T;
@@ -377,7 +380,10 @@ function navIconFromId(id: string): PortalMobileNavIconName {
     case 'more':
     case 'notices':
     case 'pace':
+    case 'leaderboard':
+    case 'shop':
     case 'students':
+    case 'wallet':
       return id;
     case 'home':
       return 'dashboard';
@@ -398,12 +404,18 @@ function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobil
       return <ClubsNavIcon color={color} />;
     case 'messages':
       return <MessagesNavIcon color={color} />;
+    case 'leaderboard':
+      return <LeaderboardNavIcon color={color} />;
     case 'more':
       return <MoreNavIcon color={color} />;
     case 'notices':
       return <NoticesNavIcon color={color} />;
     case 'pace':
       return <PaceNavIcon color={color} />;
+    case 'shop':
+      return <ShopNavIcon color={color} />;
+    case 'wallet':
+      return <WalletNavIcon color={color} />;
     case 'dashboard':
       return <DashboardNavIcon color={color} />;
   }
@@ -499,6 +511,39 @@ function PaceNavIcon({ color }: { color: string }) {
         <View style={[styles.pacePage, styles.pacePageLeft, { borderColor: color }]} />
         <View style={[styles.paceSpine, { backgroundColor: color }]} />
         <View style={[styles.pacePage, styles.pacePageRight, { borderColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function WalletNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={[styles.walletIconBody, { borderColor: color }]}>
+        <View style={[styles.walletIconFlap, { borderColor: color }]} />
+        <View style={[styles.walletIconDot, { backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function LeaderboardNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={styles.leaderboardBars}>
+        <View style={[styles.leaderboardBar, styles.leaderboardBarShort, { backgroundColor: color }]} />
+        <View style={[styles.leaderboardBar, styles.leaderboardBarTall, { backgroundColor: color }]} />
+        <View style={[styles.leaderboardBar, styles.leaderboardBarMid, { backgroundColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function ShopNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={[styles.shopBag, { borderColor: color }]}>
+        <View style={[styles.shopHandle, { borderColor: color }]} />
       </View>
     </View>
   );
@@ -647,6 +692,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 36,
   },
+  walletIconBody: {
+    borderRadius: 5,
+    borderWidth: 2.2,
+    height: 20,
+    justifyContent: 'center',
+    width: 27,
+  },
+  walletIconDot: {
+    borderRadius: 2,
+    height: 4,
+    position: 'absolute',
+    right: 5,
+    width: 4,
+  },
+  walletIconFlap: {
+    borderTopWidth: 2.2,
+    left: 4,
+    position: 'absolute',
+    right: 4,
+    top: 5,
+  },
   clipboard: {
     alignItems: 'center',
     borderRadius: 5,
@@ -747,6 +813,25 @@ const styles = StyleSheet.create({
     top: 3,
     transform: [{ rotate: '45deg' }],
     width: 17,
+  },
+  leaderboardBar: {
+    borderRadius: 2,
+    width: 5,
+  },
+  leaderboardBarMid: {
+    height: 17,
+  },
+  leaderboardBarShort: {
+    height: 12,
+  },
+  leaderboardBarTall: {
+    height: 24,
+  },
+  leaderboardBars: {
+    alignItems: 'flex-end',
+    flexDirection: 'row',
+    gap: 4,
+    height: 26,
   },
   drawerBackdrop: {
     flex: 1,
@@ -907,6 +992,22 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     height: 23,
     width: 2,
+  },
+  shopBag: {
+    borderRadius: 5,
+    borderWidth: 2.2,
+    height: 22,
+    marginTop: 4,
+    width: 24,
+  },
+  shopHandle: {
+    borderRadius: 7,
+    borderTopWidth: 2.2,
+    height: 9,
+    left: 5,
+    position: 'absolute',
+    top: -7,
+    width: 10,
   },
   starIcon: {
     fontSize: 33,

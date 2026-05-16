@@ -120,7 +120,7 @@ async function auditDecryptPii(
     db: { auditLog: { create: (args: Prisma.AuditLogCreateArgs) => Promise<unknown> } };
     user: { id: string };
   },
-  meta: { count: number; source: 'student.list' | 'student.byId' },
+  meta: { count: number; source: 'student.list' | 'student.byId' | 'student.me' },
   entityId?: string,
 ) {
   const data: Prisma.AuditLogUncheckedCreateInput = {
@@ -137,6 +137,40 @@ async function auditDecryptPii(
 }
 
 export const studentRouter = router({
+  me: roleProcedure('Student').query(async ({ ctx }) => {
+    const student = await ctx.db.student.findUnique({
+      where: { userId: ctx.user.id },
+      select: {
+        id: true,
+        userId: true,
+        fullNameEnc: true,
+        yearGroup: true,
+        enrolmentDate: true,
+        active: true,
+      },
+    });
+
+    if (!student?.active) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+    }
+
+    const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
+    if (!fullName) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
+    }
+
+    await auditDecryptPii(ctx, { count: 1, source: 'student.me' }, student.id);
+
+    return {
+      id: student.id,
+      userId: student.userId,
+      fullName,
+      yearGroup: student.yearGroup,
+      enrolmentDate: student.enrolmentDate,
+      active: student.active,
+    };
+  }),
+
   list: roleProcedure(...STUDENT_READ_ROLES)
     .input(listInput)
     .query(async ({ ctx, input }) => {

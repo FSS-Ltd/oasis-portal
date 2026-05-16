@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-15
+**Last updated:** 2026-05-16
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.6 merit leaderboards API.
+**Phase:** Phase 4 PR-4.7 student mobile merit and results view.
 
 ---
 
@@ -18,14 +18,14 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.6 Merit leaderboards API
+## Current status - PR-4.7 Student mobile merit and results view
 
-Working branch: `feat/merit-leaderboards`.
+Working branch: `feat/mobile-student-merit-results`.
 
-**PR scope:** Replace the `leaderboard.get` placeholder with live API
-aggregation for Top Tithers, Top Investors, Top Savers, and gated Highest
-Demerits. Keep mobile leaderboard UI, report workflows, and end-of-phase e2e
-coverage to later Phase 4 PRs.
+**PR scope:** Add a Student mobile shell for merit wallet balances, week/month
+activity, PACE results, self-service Spend/Saving transfers, positive
+leaderboards, and shop browsing. Keep shop purchasing in the shopkeeper flow
+and keep term-report workflows to later Phase 4 PRs.
 
 Merged Phase 4 status:
 
@@ -43,29 +43,32 @@ Merged Phase 4 status:
 - PR-4.5 `feat(web): shop admin and shopkeeper UI` merged via PR #141 on
   2026-05-15; post-merge `main` CI/CD run 25946785198 passed, including
   production deploy.
+- PR-4.6 `feat(api): merit leaderboards` merged via PR #142 on 2026-05-16;
+  post-merge `main` CI/CD run 25947421915 passed, including production deploy.
 
 Planned scope:
 
-- Implement `leaderboard.get` for `TopTithers`, `TopInvestors`, `TopSavers`,
-  and `HighestDemerits`.
-- Rank Top Tithers from `TithePaid` ledger totals and Top Savers from Saving
-  balances.
-- Rank Top Investors from latest NAV, investment units, and investment cost
-  basis.
-- Rank Highest Demerits from deleted-filtered Demerit entries without returning
-  notes or other sensitive behaviour content.
-- Gate Highest Demerits to full-admin or `leaderboard-admin`.
-- Return only student display name, year group, rank, and score, with PII
-  decrypt audit rows.
+- Add `student.me` so linked Student users can resolve their own active student
+  profile without accepting arbitrary student IDs.
+- Allow `pace.forStudent` Student self-reads only for the linked student and
+  keep PACE write routes staff-only.
+- Route signed-in Student users to a dedicated mobile shell after role
+  resolution.
+- Show Spend, Saving, and Investment balances, week/month merit activity,
+  current PACE results, positive leaderboards, and active shop items.
+- Allow Spend/Saving transfers through the existing `meritLedger.transfer`
+  policy.
+- Reflect the current tithe policy: tithe percentage changes remain linked
+  parent/full-admin controlled, so the Student mobile UI does not call tithe
+  mutations.
 
 Verification target:
 
-- `pnpm --filter @oasis/api test -- leaderboard.router.test.ts meritLedger.router.test.ts`
-- `pnpm --filter @oasis/domain test -- leaderboard.test.ts`
+- `pnpm --filter @oasis/api test -- student.router.test.ts pace.router.test.ts meritLedger.router.test.ts tithe.router.test.ts leaderboard.router.test.ts shop.router.test.ts`
 - `pnpm --filter @oasis/api typecheck`
-- `pnpm --filter @oasis/domain typecheck`
 - `pnpm --filter @oasis/api lint`
-- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/mobile lint`
 - `pnpm lint`
 - `pnpm typecheck`
 - `git diff --check`
