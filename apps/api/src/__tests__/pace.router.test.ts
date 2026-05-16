@@ -190,6 +190,7 @@ const defaultBands = [
 
 const defaultStudent = {
   id: STUDENT_ID,
+  userId: studentUser.id,
   active: true,
   fullNameEnc: 'enc:Jane Learner',
   yearGroup: 'Year 6',
@@ -723,9 +724,27 @@ describe('pace.forStudent RBAC', () => {
     });
   });
 
-  it('rejects Student as FORBIDDEN', async () => {
+  it('allows a linked Student to read their own PACE progress', async () => {
     const { caller } = makeCaller(studentUser);
-    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      studentId: STUDENT_ID,
+      studentName: 'Jane Learner',
+    });
+  });
+
+  it('rejects Student reads for another student', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      ...defaultStudent,
+      id: 'ckstudent0000000000000002',
+      userId: 'u_other_student',
+      fullNameEnc: 'enc:Other Learner',
+    });
+    const { caller } = makeCaller(studentUser, db);
+
+    await expect(
+      caller.pace.forStudent({ studentId: 'ckstudent0000000000000002' }),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });

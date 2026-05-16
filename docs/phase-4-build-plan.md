@@ -1,7 +1,7 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.6 in progress
-**Last updated:** 2026-05-15
+**Status:** PR-4.7 in progress
+**Last updated:** 2026-05-16
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -26,8 +26,8 @@ Important current state:
 - Shop item-management workflows are implemented through PR-4.3.
 - Shop purchase workflow is implemented through PR-4.4.
 - Shop web UI is implemented through PR-4.5.
-- Leaderboard, student mobile, and report workflows still need production
-  completion.
+- Leaderboard workflows are implemented through PR-4.6.
+- Student mobile and report workflows still need production completion.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -243,7 +243,10 @@ Verification for Sprint 3:
 
 ## Sprint 4 - Leaderboards and student mobile
 
-### PR-4.6 - `feat(api): merit leaderboards` IN PROGRESS
+### PR-4.6 - `feat(api): merit leaderboards` MERGED
+
+Merged via PR #142 on 2026-05-16. Post-merge `main` CI/CD run 25947421915
+passed, including production deploy.
 
 Scope:
 
@@ -263,7 +266,7 @@ Tests:
 - Ties and zero-data states are deterministic.
 - Sensitive behaviour notes are never included.
 
-### PR-4.7 - `feat(mobile): student merit and results view` PLANNED
+### PR-4.7 - `feat(mobile): student merit and results view` IN PROGRESS
 
 Scope:
 
