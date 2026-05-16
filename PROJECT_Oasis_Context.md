@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-16
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.7 student mobile merit and results view.
+**Phase:** Phase 4 PR-4.8 term report draft/review/send API.
 
 ---
 
@@ -18,14 +18,14 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.7 Student mobile merit and results view
+## Current status - PR-4.8 Term report draft/review/send API
 
-Working branch: `feat/mobile-student-merit-results`.
+Working branch: `feat/term-report-draft-review-send`.
 
-**PR scope:** Add a Student mobile shell for merit wallet balances, week/month
-activity, PACE results, self-service Spend/Saving transfers, positive
-leaderboards, and shop browsing. Keep shop purchasing in the shopkeeper flow
-and keep term-report workflows to later Phase 4 PRs.
+**PR scope:** Implement the API-only term report workflow: full-admin draft,
+review, and send mutations, linked-parent sent-report reads, encrypted compiled
+report snapshots, and audit coverage. Keep Head/admin report UI and parent UI
+to PR-4.9.
 
 Merged Phase 4 status:
 
@@ -45,30 +45,32 @@ Merged Phase 4 status:
   production deploy.
 - PR-4.6 `feat(api): merit leaderboards` merged via PR #142 on 2026-05-16;
   post-merge `main` CI/CD run 25947421915 passed, including production deploy.
+- PR-4.7 `feat(mobile): student merit and results view` merged via PR #143 on
+  2026-05-16; post-merge `main` CI/CD run 25948107960 passed, including
+  production deploy.
 
 Planned scope:
 
-- Add `student.me` so linked Student users can resolve their own active student
-  profile without accepting arbitrary student IDs.
-- Allow `pace.forStudent` Student self-reads only for the linked student and
-  keep PACE write routes staff-only.
-- Route signed-in Student users to a dedicated mobile shell after role
-  resolution.
-- Show Spend, Saving, and Investment balances, week/month merit activity,
-  current PACE results, positive leaderboards, and active shop items.
-- Allow Spend/Saving transfers through the existing `meritLedger.transfer`
-  policy.
-- Reflect the current tithe policy: tithe percentage changes remain linked
-  parent/full-admin controlled, so the Student mobile UI does not call tithe
-  mutations.
+- Replace placeholder report router procedures with production
+  `draft`, `review`, `send`, and `listForStudent` implementations.
+- Compile snapshots from active student identity, attendance, PACE results,
+  general behaviour entries, non-sensitive child notes, and merit ledger rows
+  through the term boundary.
+- Store compiled snapshots encrypted in `TermReport.compiledJsonEnc`; drafts can
+  be refreshed until sent, while sent reports reject re-drafting.
+- Gate write workflows to full-admin roles and restrict parent reads to sent
+  reports for linked children.
+- Audit draft/review/send actions, permission-denied reads, and PII decrypt
+  paths.
 
 Verification target:
 
-- `pnpm --filter @oasis/api test -- student.router.test.ts pace.router.test.ts meritLedger.router.test.ts tithe.router.test.ts leaderboard.router.test.ts shop.router.test.ts`
+- `pnpm --filter @oasis/api test -- report.router.test.ts`
+- `pnpm --filter @oasis/domain test -- report.test.ts`
 - `pnpm --filter @oasis/api typecheck`
 - `pnpm --filter @oasis/api lint`
-- `pnpm --filter @oasis/mobile typecheck`
-- `pnpm --filter @oasis/mobile lint`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/domain lint`
 - `pnpm lint`
 - `pnpm typecheck`
 - `git diff --check`

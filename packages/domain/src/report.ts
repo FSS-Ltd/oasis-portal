@@ -30,8 +30,24 @@ export interface CompileReportInput {
     demeritsMerits: number;
     generalEntries: readonly { createdAt: Date; category: string; note: string | null }[];
   };
-  ledgerRows: readonly Pick<LedgerRow, 'account' | 'delta'>[];
-  headSummary?: string;
+  notes: readonly { createdAt: Date; note: string }[];
+  ledgerRows: readonly (Pick<LedgerRow, 'account' | 'delta' | 'reason'> & {
+    createdAt: Date;
+  })[];
+  headSummary?: string | undefined;
+}
+
+export interface ReportTextEntrySnapshot {
+  createdAt: string;
+  category?: string | undefined;
+  note: string | null;
+}
+
+export interface MeritActivitySnapshot {
+  createdAt: string;
+  account: LedgerRow['account'];
+  delta: number;
+  reason: string;
 }
 
 export interface CompiledReport {
@@ -40,7 +56,11 @@ export interface CompiledReport {
   term: string;
   attendance: CompileReportInput['attendance'] & { attendancePct: number };
   paces: readonly PaceSnapshot[];
-  behaviour: CompileReportInput['behaviour'];
+  behaviour: Omit<CompileReportInput['behaviour'], 'generalEntries'> & {
+    generalEntries: readonly ReportTextEntrySnapshot[];
+  };
+  notes: readonly ReportTextEntrySnapshot[];
+  meritActivity: readonly MeritActivitySnapshot[];
   balances: Balances;
   headSummary: string;
   compiledAt: string; // ISO
@@ -59,7 +79,24 @@ export function compileTermReport(input: CompileReportInput): CompiledReport {
     term: input.term,
     attendance: { ...input.attendance, attendancePct },
     paces: input.paces,
-    behaviour: input.behaviour,
+    behaviour: {
+      ...input.behaviour,
+      generalEntries: input.behaviour.generalEntries.map((entry) => ({
+        createdAt: entry.createdAt.toISOString(),
+        category: entry.category,
+        note: entry.note,
+      })),
+    },
+    notes: input.notes.map((note) => ({
+      createdAt: note.createdAt.toISOString(),
+      note: note.note,
+    })),
+    meritActivity: input.ledgerRows.map((row) => ({
+      createdAt: row.createdAt.toISOString(),
+      account: row.account,
+      delta: row.delta,
+      reason: row.reason,
+    })),
     balances: applyRows(input.ledgerRows),
     headSummary: input.headSummary ?? '',
     compiledAt: new Date().toISOString(),
