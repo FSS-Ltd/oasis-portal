@@ -69,7 +69,7 @@ function isTransferAccount(account: WalletAccount): account is TransferAccount {
 }
 
 async function loadWalletBalances(store: Pick<AppContext['db'], 'meritLedger'>, studentId: string) {
-  const [spend, saving, investment] = await Promise.all([
+  const [spend, saving, investment, shopReserved] = await Promise.all([
     store.meritLedger.aggregate({
       where: { studentId, account: 'Spend' },
       _sum: { delta: true },
@@ -82,12 +82,17 @@ async function loadWalletBalances(store: Pick<AppContext['db'], 'meritLedger'>, 
       where: { studentId, account: 'Investment' },
       _sum: { delta: true },
     }),
+    store.meritLedger.aggregate({
+      where: { studentId, account: 'ShopReserved' },
+      _sum: { delta: true },
+    }),
   ]);
 
   return {
     Spend: spend._sum.delta ?? 0,
     Saving: saving._sum.delta ?? 0,
     Investment: investment._sum.delta ?? 0,
+    ShopReserved: shopReserved._sum.delta ?? 0,
   };
 }
 

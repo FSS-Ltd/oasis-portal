@@ -69,10 +69,10 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   const searchParams = useSearchParams();
   const utils = api.useUtils();
   const [selectedStudentId, setSelectedStudentId] = useState(
-    () => searchParams.get('studentId') ?? '',
+    () => searchParams?.get('studentId') ?? '',
   );
   const [selectedReportId, setSelectedReportId] = useState(
-    () => searchParams.get('reportId') ?? '',
+    () => searchParams?.get('reportId') ?? '',
   );
   const [term, setTerm] = useState<(typeof TERM_OPTIONS)[number]>(currentTerm);
   const [headSummary, setHeadSummary] = useState('');

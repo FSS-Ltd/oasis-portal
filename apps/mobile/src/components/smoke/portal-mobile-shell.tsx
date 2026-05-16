@@ -531,9 +531,15 @@ function LeaderboardNavIcon({ color }: { color: string }) {
   return (
     <View style={styles.navIconBox}>
       <View style={styles.leaderboardBars}>
-        <View style={[styles.leaderboardBar, styles.leaderboardBarShort, { backgroundColor: color }]} />
-        <View style={[styles.leaderboardBar, styles.leaderboardBarTall, { backgroundColor: color }]} />
-        <View style={[styles.leaderboardBar, styles.leaderboardBarMid, { backgroundColor: color }]} />
+        <View
+          style={[styles.leaderboardBar, styles.leaderboardBarShort, { backgroundColor: color }]}
+        />
+        <View
+          style={[styles.leaderboardBar, styles.leaderboardBarTall, { backgroundColor: color }]}
+        />
+        <View
+          style={[styles.leaderboardBar, styles.leaderboardBarMid, { backgroundColor: color }]}
+        />
       </View>
     </View>
   );
@@ -595,26 +601,26 @@ const styles = StyleSheet.create({
   bottomNav: {
     borderTopWidth: 1,
     flexDirection: 'row',
-    minHeight: 86,
-    paddingBottom: 9,
+    minHeight: 78,
+    paddingBottom: 7,
     paddingHorizontal: 4,
-    paddingTop: 10,
+    paddingTop: 8,
   },
   bottomNavBadge: {
     alignItems: 'center',
     backgroundColor: C.crimson,
-    borderRadius: 9,
+    borderRadius: 8,
     justifyContent: 'center',
-    minHeight: 18,
-    minWidth: 18,
-    paddingHorizontal: 5,
+    minHeight: 16,
+    minWidth: 16,
+    paddingHorizontal: 4,
     position: 'absolute',
-    right: 18,
-    top: 7,
+    right: 16,
+    top: 6,
   },
   bottomNavBadgeText: {
     color: C.surface,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
   },
   bottomNavDark: {
@@ -624,15 +630,15 @@ const styles = StyleSheet.create({
   bottomNavItem: {
     alignItems: 'center',
     flex: 1,
-    gap: 7,
+    gap: 5,
     justifyContent: 'center',
-    minHeight: 66,
+    minHeight: 58,
     position: 'relative',
   },
   bottomNavLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    lineHeight: 15,
+    lineHeight: 14,
   },
   bottomNavLight: {
     backgroundColor: C.surface,
@@ -839,11 +845,11 @@ const styles = StyleSheet.create({
   drawerBadge: {
     alignItems: 'center',
     backgroundColor: C.crimson,
-    borderRadius: 10,
+    borderRadius: 9,
     justifyContent: 'center',
-    minHeight: 20,
-    minWidth: 20,
-    paddingHorizontal: 6,
+    minHeight: 18,
+    minWidth: 18,
+    paddingHorizontal: 5,
   },
   drawerHandle: {
     alignSelf: 'center',
@@ -857,10 +863,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 8,
     flexDirection: 'row',
-    gap: 12,
-    minHeight: 56,
+    gap: 10,
+    minHeight: 50,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
   drawerItemActiveDark: {
     backgroundColor: 'rgba(255,255,255,0.12)',
@@ -949,9 +955,10 @@ const styles = StyleSheet.create({
   },
   navIconBox: {
     alignItems: 'center',
-    height: 30,
+    height: 27,
     justifyContent: 'center',
-    width: 34,
+    transform: [{ scale: 0.92 }],
+    width: 31,
   },
   noticeDocument: {
     borderRadius: 5,
@@ -1010,12 +1017,12 @@ const styles = StyleSheet.create({
     width: 10,
   },
   starIcon: {
-    fontSize: 33,
+    fontSize: 29,
     fontWeight: '500',
-    height: 30,
-    lineHeight: 31,
+    height: 27,
+    lineHeight: 28,
     textAlign: 'center',
-    width: 34,
+    width: 31,
   },
   studentHead: {
     borderRadius: 5,

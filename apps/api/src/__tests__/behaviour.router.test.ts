@@ -112,7 +112,8 @@ interface StoredLedgerRow {
     | 'InvestmentReturn'
     | 'TithePaid'
     | 'Given'
-    | 'FeeSink';
+    | 'FeeSink'
+    | 'ShopReserved';
   delta: number;
   reason: string;
   relatedEntryId?: string;

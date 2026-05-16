@@ -44,6 +44,15 @@ const navItems = [
   { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell },
 ] as const;
 
+const preferredMobileLabels = [
+  'Dashboard',
+  'Students',
+  'Attendance',
+  'Merit Shop',
+  'Messages',
+] as const;
+const navIconSize = 15;
+
 type AdminNavProps = {
   canViewAudit: boolean;
   canViewBehaviour: boolean;
@@ -74,6 +83,10 @@ function countBadge(count: number): string | null {
   return count > 99 ? '99+' : String(count);
 }
 
+function isPreferredMobileLabel(label: string): boolean {
+  return preferredMobileLabels.includes(label as (typeof preferredMobileLabels)[number]);
+}
+
 function visibleForUser(
   item: (typeof navItems)[number],
   access: Pick<
@@ -98,7 +111,7 @@ function visibleForUser(
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Clubs') return access.canManageClubs;
-  if (item.label === 'Merit Shop') return access.canUseShop;
+  if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;
   if (item.label === 'Calendar') return !access.clubsOnly;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
@@ -128,7 +141,7 @@ export function AdminSidebarNav({
   canUseMessages,
   unreadMessageCount,
 }: AdminNavProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const visibleNavItems = navItems.filter((item) =>
     visibleForUser(item, {
       canManageUserAccounts,
@@ -164,7 +177,7 @@ export function AdminSidebarNav({
             href={{ pathname: item.href }}
             key={`${item.label}-${String(index)}`}
           >
-            <Icon aria-hidden="true" size={18} />
+            <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
             {badge ? <b>{badge}</b> : null}
           </Link>
@@ -190,26 +203,30 @@ export function AdminBottomNav({
   canUseMessages,
   unreadMessageCount,
 }: AdminNavProps) {
-  const pathname = usePathname();
-  const mobileNavItems = navItems
-    .filter((item) =>
-      visibleForUser(item, {
-        canManageUserAccounts,
-        canManageCalendar,
-        canManageClubs,
-        canUseShop,
-        clubsOnly,
-        canViewAudit,
-        canViewBehaviour,
-        canExportAttendance,
-        canViewPace,
-        canViewStudents,
-        fullAdmin,
-        hasLinkedChildren,
-        canUseMessages,
-      }),
-    )
-    .slice(0, 5);
+  const pathname = usePathname() ?? '';
+  const visibleNavItems = navItems.filter((item) =>
+    visibleForUser(item, {
+      canManageUserAccounts,
+      canManageCalendar,
+      canManageClubs,
+      canUseShop,
+      clubsOnly,
+      canViewAudit,
+      canViewBehaviour,
+      canExportAttendance,
+      canViewPace,
+      canViewStudents,
+      fullAdmin,
+      hasLinkedChildren,
+      canUseMessages,
+    }),
+  );
+  const mobileNavItems = [
+    ...preferredMobileLabels.flatMap((label) =>
+      visibleNavItems.filter((item) => item.label === label),
+    ),
+    ...visibleNavItems.filter((item) => !isPreferredMobileLabel(item.label)),
+  ].slice(0, 5);
 
   return (
     <nav aria-label="Mobile admin sections" className="admin-shell__bottom-nav">
@@ -228,7 +245,7 @@ export function AdminBottomNav({
             href={{ pathname: item.href }}
             key={`${item.label}-${String(index)}`}
           >
-            <Icon aria-hidden="true" size={18} />
+            <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
             {badge ? <b>{badge}</b> : null}
           </Link>

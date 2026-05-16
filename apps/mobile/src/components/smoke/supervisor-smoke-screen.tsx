@@ -24,8 +24,11 @@ import {
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit';
 type PaceTestType = 'SelfTest' | 'FinalTest';
-type SessionRole = NonNullable<RouterOutputs['health']['me']['user']>['role'];
-type SupervisorMobileTab = 'dashboard' | 'attendance' | 'behaviour' | 'pace' | 'clubs';
+type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
+type SessionRole = SessionUser['role'];
+type ShopItem = RouterOutputs['shop']['listItems'][number];
+type ShopReservation = RouterOutputs['shop']['listReservations'][number];
+type SupervisorMobileTab = 'dashboard' | 'attendance' | 'behaviour' | 'shop' | 'pace' | 'clubs';
 
 const attendanceStatuses: AttendanceStatus[] = ['Present', 'Absent', 'Late'];
 const behaviourTypes: BehaviourType[] = ['Merit', 'Demerit'];
@@ -34,6 +37,7 @@ const supervisorTabs: Array<PortalMobileNavItem<SupervisorMobileTab>> = [
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'attendance', label: 'Attendance', icon: 'attendance' },
   { id: 'behaviour', label: 'Behaviour', icon: 'behaviour' },
+  { id: 'shop', label: 'Shop', icon: 'shop' },
   { id: 'pace', label: 'PACE', icon: 'pace' },
   { id: 'clubs', label: 'Clubs', icon: 'clubs' },
 ];
@@ -81,14 +85,41 @@ function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
 }
 
-function canUseMobileClubAdmin(role: SessionRole | undefined): boolean {
+function isMobileFullAdmin(role: SessionRole | undefined): boolean {
   return (
-    role === 'Head' ||
-    role === 'Principal' ||
-    role === 'Pastor' ||
-    role === 'HeadOfDiscipline' ||
-    role === 'ClubsAdmin'
+    role === 'Head' || role === 'Principal' || role === 'Pastor' || role === 'HeadOfDiscipline'
   );
+}
+
+function canUseMobileClubAdmin(role: SessionRole | undefined): boolean {
+  return isMobileFullAdmin(role) || role === 'ClubsAdmin';
+}
+
+function canUseMobileShopCounter(user: SessionUser | undefined): boolean {
+  return Boolean(
+    user &&
+    (isMobileFullAdmin(user.role) ||
+      user.tags.includes('shopadmin') ||
+      user.tags.includes('shopkeeper')),
+  );
+}
+
+function formatMerits(value: number): string {
+  return new Intl.NumberFormat('en-GB').format(value);
+}
+
+function stockVariant(item: ShopItem): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (item.stockStatus === 'Inactive') return 'neutral';
+  if (item.stockStatus === 'OutOfStock') return 'danger';
+  if (item.stockStatus === 'LowStock') return 'warning';
+  return 'success';
+}
+
+function stockLabel(item: ShopItem): string {
+  if (item.stockStatus === 'Inactive') return 'Paused';
+  if (item.stockStatus === 'OutOfStock') return 'Out';
+  if (item.stockStatus === 'LowStock') return `Low · ${String(item.stockCount)}`;
+  return `${String(item.stockCount)} left`;
 }
 
 export function SupervisorSmokeScreen() {
@@ -114,8 +145,10 @@ export function SupervisorSmokeScreen() {
   const [lastMessage, setLastMessage] = useState<string | null>(null);
 
   const health = api.health.me.useQuery();
-  const sessionRole = health.data?.user?.role;
+  const sessionUser = health.data?.user ?? undefined;
+  const sessionRole = sessionUser?.role;
   const canUseClubAdmin = canUseMobileClubAdmin(sessionRole);
+  const canUseShopCounter = canUseMobileShopCounter(sessionUser);
   const rota = api.rota.myRota.useQuery({ from: weekStart, to: weekEnd });
   const attendance = api.attendance.forDate.useQuery({ date: attendanceDate });
   const paceRoster = api.pace.roster.useQuery({ date: today });
@@ -128,6 +161,11 @@ export function SupervisorSmokeScreen() {
     enabled: activeTab === 'clubs' || canUseClubAdmin,
     retry: false,
   });
+  const shopItems = api.shop.listItems.useQuery(undefined, { retry: false });
+  const shopReservations = api.shop.listReservations.useQuery(
+    { status: 'Ready' },
+    { enabled: canUseShopCounter, retry: false },
+  );
 
   const activeStudentId = selectedStudentId || attendance.data?.[0]?.studentId || '';
   const clubs = clubList.data ?? [];
@@ -154,6 +192,16 @@ export function SupervisorSmokeScreen() {
     attendance.data?.find((row) => row.studentId === activeStudentId)?.studentName ?? 'None';
   const markedAttendance = (attendance.data ?? []).filter((row) => row.status).length;
   const paceWarnings = paceDetail.data?.warnings;
+  const readyReservationCount = shopReservations.data?.length ?? 0;
+  const navItems = useMemo(
+    () =>
+      supervisorTabs.map((tab) =>
+        tab.id === 'shop' && readyReservationCount > 0
+          ? { ...tab, badge: readyReservationCount }
+          : tab,
+      ),
+    [readyReservationCount],
+  );
 
   const markAttendance = api.attendance.mark.useMutation({
     onError: (error) => {
@@ -196,13 +244,17 @@ export function SupervisorSmokeScreen() {
     paceRoster.isFetching ||
     paceDetail.isFetching ||
     ((activeTab === 'clubs' || canUseClubAdmin) && clubList.isFetching) ||
-    (activeTab === 'clubs' && clubRoster.isFetching);
+    (activeTab === 'clubs' && clubRoster.isFetching) ||
+    (activeTab === 'shop' && shopItems.isFetching) ||
+    (activeTab === 'shop' && canUseShopCounter && shopReservations.isFetching);
   const queryError = firstError(
     health.error?.message,
     rota.error?.message,
     attendance.error?.message,
     paceRoster.error?.message,
     paceDetail.error?.message,
+    activeTab === 'shop' ? shopItems.error?.message : undefined,
+    activeTab === 'shop' && canUseShopCounter ? shopReservations.error?.message : undefined,
   );
   const attendanceRows = attendance.data ?? [];
   const rotaRows = rota.data ?? [];
@@ -230,6 +282,10 @@ export function SupervisorSmokeScreen() {
     }
     if (activeTab === 'clubs') {
       if (activeClubId) tasks.push(clubRoster.refetch());
+    }
+    if (activeTab === 'shop') {
+      tasks.push(shopItems.refetch());
+      if (canUseShopCounter) tasks.push(shopReservations.refetch());
     }
     await Promise.all(tasks);
   }
@@ -573,10 +629,22 @@ export function SupervisorSmokeScreen() {
             onSelectClub={setSelectedClubId}
           />
         ) : null}
+
+        {activeTab === 'shop' ? (
+          <SupervisorShopPanel
+            canUseCounter={canUseShopCounter}
+            items={shopItems.data ?? []}
+            itemsLoading={shopItems.isFetching}
+            reservations={shopReservations.data ?? []}
+            reservationsError={shopReservations.error?.message ?? null}
+            reservationsLoading={shopReservations.isFetching}
+          />
+        ) : null}
       </ScrollView>
       <PortalMobileBottomNav
         activeId={activeTab}
-        items={supervisorTabs}
+        items={navItems}
+        primaryItemLimit={5}
         onSelect={setActiveTab}
         variant="dark"
       />
@@ -601,6 +669,133 @@ function ScreenIntro({ subtitle, title }: { subtitle: string; title: string }) {
     <View style={styles.screenIntro}>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
+    </View>
+  );
+}
+
+function SupervisorShopPanel({
+  canUseCounter,
+  items,
+  itemsLoading,
+  reservations,
+  reservationsError,
+  reservationsLoading,
+}: {
+  canUseCounter: boolean;
+  items: ShopItem[];
+  itemsLoading: boolean;
+  reservations: ShopReservation[];
+  reservationsError: string | null;
+  reservationsLoading: boolean;
+}) {
+  const activeItems = items.filter((item) => item.active);
+  const lowStockCount = activeItems.filter((item) => item.stockStatus === 'LowStock').length;
+  const outOfStockCount = activeItems.filter((item) => item.stockStatus === 'OutOfStock').length;
+  const soldCount = items.reduce((total, item) => total + item.soldCount, 0);
+
+  return (
+    <View style={styles.panelStack}>
+      <ScreenIntro
+        subtitle={
+          canUseCounter
+            ? `${String(reservations.length)} pickup${reservations.length === 1 ? '' : 's'} ready`
+            : 'Active catalogue view'
+        }
+        title="Merit Shop"
+      />
+
+      <View style={styles.shopMetricGrid}>
+        <WorkflowMetric
+          accent={C.blue}
+          label="Items"
+          sub="active catalogue"
+          value={String(activeItems.length)}
+        />
+        <WorkflowMetric
+          accent={lowStockCount > 0 ? C.warning : C.success}
+          label="Low"
+          sub="stock warning"
+          value={String(lowStockCount)}
+        />
+        <WorkflowMetric
+          accent={outOfStockCount > 0 ? C.crimson : C.success}
+          label="Out"
+          sub="needs restock"
+          value={String(outOfStockCount)}
+        />
+        <WorkflowMetric
+          accent={C.crimson}
+          label="Sold"
+          sub="this term"
+          value={formatMerits(soldCount)}
+        />
+      </View>
+
+      {itemsLoading || (canUseCounter && reservationsLoading) ? (
+        <InlineSpinner label="Loading shop" />
+      ) : null}
+
+      {canUseCounter ? (
+        <Card style={styles.compactCard}>
+          <View style={styles.selectedRow}>
+            <View style={styles.rowBody}>
+              <SectionTitle>Pickup Queue</SectionTitle>
+              <MutedText>Ready reservations waiting at the counter.</MutedText>
+            </View>
+            <Badge variant={reservations.length > 0 ? 'crimson' : 'neutral'}>
+              {String(reservations.length)}
+            </Badge>
+          </View>
+          {reservationsError ? <ErrorText>{reservationsError}</ErrorText> : null}
+          {reservations.length === 0 && !reservationsLoading ? (
+            <MutedText>No ready pickups at the moment.</MutedText>
+          ) : null}
+          {reservations.slice(0, 4).map((reservation) => (
+            <View key={reservation.id} style={styles.shopReservationRow}>
+              <View style={styles.rowBody}>
+                <Text style={styles.rowTitle}>{reservation.studentName}</Text>
+                <MutedText>
+                  {reservation.lines
+                    .map((line) => `${String(line.unitsReserved)} x ${line.itemName}`)
+                    .join(', ')}
+                </MutedText>
+              </View>
+              <Badge variant="blue">{formatMerits(reservation.totalPriceMerits)}m</Badge>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
+      <Card style={styles.compactCard}>
+        <View style={styles.selectedRow}>
+          <View style={styles.rowBody}>
+            <SectionTitle>Catalogue</SectionTitle>
+            <MutedText>{String(activeItems.length)} active rewards on the shelf.</MutedText>
+          </View>
+          <Badge variant="blue">{String(items.length)}</Badge>
+        </View>
+        {activeItems.length === 0 && !itemsLoading ? (
+          <MutedText>No active shop items returned.</MutedText>
+        ) : null}
+        {activeItems.slice(0, 8).map((item) => (
+          <View key={item.id} style={styles.shopItemRow}>
+            <View style={[styles.shopItemSwatch, { backgroundColor: item.categoryTint }]}>
+              <Text style={[styles.shopItemSwatchText, { color: item.categoryInk }]}>
+                {item.name.slice(0, 2).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.rowBody}>
+              <Text numberOfLines={1} style={styles.rowTitle}>
+                {item.name}
+              </Text>
+              <MutedText>
+                {item.categoryLabel} · {formatMerits(item.priceIncVat)} merits
+              </MutedText>
+            </View>
+            <Badge variant={stockVariant(item)}>{stockLabel(item)}</Badge>
+          </View>
+        ))}
+      </Card>
     </View>
   );
 }
@@ -813,6 +1008,9 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between',
   },
+  panelStack: {
+    gap: 14,
+  },
   selectedRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -831,6 +1029,39 @@ const styles = StyleSheet.create({
   shell: {
     backgroundColor: C.navy,
     flex: 1,
+  },
+  shopItemRow: {
+    alignItems: 'center',
+    borderTopColor: C.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 10,
+  },
+  shopItemSwatch: {
+    alignItems: 'center',
+    borderRadius: 8,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  shopItemSwatchText: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  shopMetricGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  shopReservationRow: {
+    alignItems: 'center',
+    borderTopColor: C.border,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 10,
   },
   stackRow: {
     borderTopColor: C.border,

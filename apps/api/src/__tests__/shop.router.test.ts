@@ -28,9 +28,24 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const parentUser: SessionUser = {
+  id: 'ckshopparent000000001',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
+const studentUser: SessionUser = {
+  id: 'ckshopstudentuser001',
+  role: 'Student',
+  tags: [],
+  requires2fa: false,
+};
 
 const linkedStudentId = 'ckshopstudent000000001';
 const shopItemId = 'ckshopitem000000000001';
+
+type ShopCategory = 'Treats' | 'Privileges' | 'Stationery' | 'Vouchers' | 'Merch' | 'Recognition';
+type ShopReservationStatus = 'Ready' | 'Collected' | 'Cancelled';
 
 type AuditAction =
   | 'Create'
@@ -47,10 +62,14 @@ interface StoredShopItem {
   id: string;
   name: string;
   photoUrl: string | null;
+  category: ShopCategory;
+  blurb: string | null;
+  description: string | null;
   priceExVat: number;
   vatRatePct: number;
   priceIncVat: number;
   stockCount: number;
+  lowStockThreshold: number;
   active: boolean;
   createdById: string;
   createdAt: Date;
@@ -60,6 +79,7 @@ interface StoredShopItem {
 interface StoredStudent {
   id: string;
   active: boolean;
+  userId: string | null;
   fullNameEnc: string;
   yearGroup: string;
   createdAt: Date;
@@ -82,19 +102,47 @@ interface StoredShopPurchase {
   createdAt: Date;
 }
 
+interface StoredShopReservation {
+  id: string;
+  studentId: string;
+  reservedById: string;
+  status: ShopReservationStatus;
+  totalPriceMerits: number;
+  collectedAt: Date | null;
+  collectedById: string | null;
+  cancelledAt: Date | null;
+  cancelledById: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface StoredShopReservationLine {
+  id: string;
+  reservationId: string;
+  itemId: string;
+  unitsReserved: number;
+  unitPriceMerits: number;
+  totalPriceMerits: number;
+  createdAt: Date;
+}
+
 interface FakeShopItemFindManyArgs {
-  where: { active?: true } | Record<string, never>;
-  orderBy: [{ active: 'desc' }, { name: 'asc' }];
+  where: { active?: boolean; id?: { in: string[] } };
+  orderBy?: [{ active: 'desc' }, { category?: 'asc' }, { name: 'asc' }];
 }
 
 interface FakeShopItemCreateArgs {
   data: {
     name: string;
     photoUrl: string | null;
+    category: ShopCategory;
+    blurb: string | null;
+    description: string | null;
     priceExVat: number;
     vatRatePct: number;
     priceIncVat: number;
     stockCount: number;
+    lowStockThreshold: number;
     createdById: string;
   };
 }
@@ -103,17 +151,27 @@ interface FakeShopItemFindUniqueArgs {
   where: { id: string };
 }
 
+interface FakeShopItemScalarUpdate {
+  name: string;
+  photoUrl: string | null;
+  category: ShopCategory;
+  blurb: string | null;
+  description: string | null;
+  priceExVat: number;
+  vatRatePct: number;
+  priceIncVat: number;
+  stockCount: number;
+  lowStockThreshold: number;
+  active: boolean;
+}
+
+interface FakeShopItemStockIncrementUpdate {
+  stockCount: { increment: number };
+}
+
 interface FakeShopItemUpdateArgs {
   where: { id: string };
-  data: {
-    name: string;
-    photoUrl: string | null;
-    priceExVat: number;
-    vatRatePct: number;
-    priceIncVat: number;
-    stockCount: number;
-    active: boolean;
-  };
+  data: FakeShopItemScalarUpdate | FakeShopItemStockIncrementUpdate;
 }
 
 interface FakeShopItemUpdateManyArgs {
@@ -123,7 +181,7 @@ interface FakeShopItemUpdateManyArgs {
 
 interface FakeStudentFindUniqueArgs {
   where: { id: string };
-  select: { id: true; active: true };
+  select: { id: true; active: true; userId?: true };
 }
 
 interface FakeStudentFindManyArgs {
@@ -157,6 +215,60 @@ interface FakeShopPurchaseCreateArgs {
   };
 }
 
+interface FakeShopPurchaseCreateManyArgs {
+  data: Array<{
+    studentId: string;
+    itemId: string;
+    unitsBought: number;
+    totalPriceMerits: number;
+    shopkeeperId: string;
+  }>;
+}
+
+interface FakeShopPurchaseFindManyArgs {
+  where: { itemId: { in: string[] } };
+  select: { itemId: true; unitsBought: true };
+}
+
+interface FakeGuardianFindUniqueArgs {
+  where: { userId_studentId: { userId: string; studentId: string } };
+  select: { studentId: true };
+}
+
+interface FakeShopReservationFindManyArgs {
+  where: { status?: ShopReservationStatus; reservedById?: string };
+}
+
+interface FakeShopReservationFindUniqueArgs {
+  where: { id: string };
+}
+
+interface FakeShopReservationCreateArgs {
+  data: {
+    studentId: string;
+    reservedById: string;
+    totalPriceMerits: number;
+  };
+  select: { id: true };
+}
+
+interface FakeShopReservationUpdateManyArgs {
+  where: { id: string; status: ShopReservationStatus };
+  data:
+    | { status: 'Collected'; collectedAt: Date; collectedById: string }
+    | { status: 'Cancelled'; cancelledAt: Date; cancelledById: string };
+}
+
+interface FakeShopReservationLineCreateManyArgs {
+  data: Array<{
+    reservationId: string;
+    itemId: string;
+    unitsReserved: number;
+    unitPriceMerits: number;
+    totalPriceMerits: number;
+  }>;
+}
+
 interface FakeAuditCreateArgs {
   data: {
     userId: string | null;
@@ -171,10 +283,14 @@ function makeItem(input: Partial<StoredShopItem> & Pick<StoredShopItem, 'id'>): 
   return {
     name: 'Notebook',
     photoUrl: null,
+    category: 'Stationery',
+    blurb: null,
+    description: null,
     priceExVat: 100,
     vatRatePct: 20,
     priceIncVat: 120,
     stockCount: 5,
+    lowStockThreshold: 2,
     active: true,
     createdById: headUser.id,
     createdAt: new Date('2026-05-15T09:00:00.000Z'),
@@ -188,6 +304,7 @@ function makeStudent(
 ): StoredStudent {
   return {
     active: true,
+    userId: studentUser.id,
     fullNameEnc: 'Joshua Johnson',
     yearGroup: 'Y9',
     createdAt: new Date('2026-05-15T09:00:00.000Z'),
@@ -200,14 +317,54 @@ function selectItem(item: StoredShopItem) {
     id: item.id,
     name: item.name,
     photoUrl: item.photoUrl,
+    category: item.category,
+    blurb: item.blurb,
+    description: item.description,
     priceExVat: item.priceExVat,
     vatRatePct: item.vatRatePct,
     priceIncVat: item.priceIncVat,
     stockCount: item.stockCount,
+    lowStockThreshold: item.lowStockThreshold,
     active: item.active,
     createdAt: item.createdAt,
     updatedAt: item.updatedAt,
   };
+}
+
+function makeReservation(
+  input: Partial<StoredShopReservation> & Pick<StoredShopReservation, 'id' | 'studentId'>,
+): StoredShopReservation {
+  return {
+    reservedById: parentUser.id,
+    status: 'Ready',
+    totalPriceMerits: 20,
+    collectedAt: null,
+    collectedById: null,
+    cancelledAt: null,
+    cancelledById: null,
+    createdAt: new Date('2026-05-15T11:00:00.000Z'),
+    updatedAt: new Date('2026-05-15T11:00:00.000Z'),
+    ...input,
+  };
+}
+
+function makeReservationLine(
+  input: Partial<StoredShopReservationLine> &
+    Pick<StoredShopReservationLine, 'id' | 'reservationId' | 'itemId'>,
+): StoredShopReservationLine {
+  return {
+    unitsReserved: 1,
+    unitPriceMerits: 20,
+    totalPriceMerits: 20,
+    createdAt: new Date('2026-05-15T11:00:00.000Z'),
+    ...input,
+  };
+}
+
+function isStockIncrementUpdate(
+  data: FakeShopItemUpdateArgs['data'],
+): data is FakeShopItemStockIncrementUpdate {
+  return typeof data.stockCount === 'object';
 }
 
 function makeFakeDb(
@@ -216,6 +373,9 @@ function makeFakeDb(
     students?: Array<Partial<StoredStudent> & Pick<StoredStudent, 'id'>>;
     ledger?: StoredLedgerRow[];
     purchases?: StoredShopPurchase[];
+    reservations?: StoredShopReservation[];
+    reservationLines?: StoredShopReservationLine[];
+    guardians?: Array<{ userId: string; studentId: string }>;
     forceStockConflict?: boolean;
   } = {},
 ) {
@@ -223,9 +383,36 @@ function makeFakeDb(
   const students = (input.students ?? [{ id: linkedStudentId }]).map(makeStudent);
   const ledger = input.ledger ?? [];
   const purchases = input.purchases ?? [];
+  const reservations = input.reservations ?? [];
+  const reservationLines = input.reservationLines ?? [];
+  const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
   const forceStockConflict = input.forceStockConflict ?? false;
   let nextItem = items.length + 1;
   let nextPurchase = purchases.length + 1;
+  let nextReservation = reservations.length + 1;
+  let nextReservationLine = reservationLines.length + 1;
+
+  const selectReservation = (reservation: StoredShopReservation) => {
+    const student = students.find((row) => row.id === reservation.studentId);
+    if (!student) throw new Error('missing reservation student');
+    return {
+      ...reservation,
+      student: {
+        id: student.id,
+        userId: student.userId,
+        fullNameEnc: student.fullNameEnc,
+        yearGroup: student.yearGroup,
+      },
+      lines: reservationLines
+        .filter((line) => line.reservationId === reservation.id)
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((line) => {
+          const item = items.find((row) => row.id === line.itemId);
+          if (!item) throw new Error('missing reservation item');
+          return { ...line, item: selectItem(item) };
+        }),
+    };
+  };
 
   const db = {
     $transaction: vi.fn(),
@@ -250,6 +437,16 @@ function makeFakeDb(
               yearGroup: student.yearGroup,
             })),
         );
+      }),
+    },
+    guardian: {
+      findUnique: vi.fn((args: FakeGuardianFindUniqueArgs) => {
+        const match = guardians.find(
+          (guardian) =>
+            guardian.userId === args.where.userId_studentId.userId &&
+            guardian.studentId === args.where.userId_studentId.studentId,
+        );
+        return Promise.resolve(match ? { studentId: match.studentId } : null);
       }),
     },
     meritLedger: {
@@ -281,14 +478,21 @@ function makeFakeDb(
     },
     shopItem: {
       findMany: vi.fn((args: FakeShopItemFindManyArgs) => {
-        const filtered =
-          'active' in args.where
-            ? items.filter((item) => item.active === args.where.active)
-            : [...items];
+        const filtered = (() => {
+          if (args.where.active !== undefined) {
+            return items.filter((item) => item.active === args.where.active);
+          }
+          if (args.where.id) {
+            const ids = new Set(args.where.id.in);
+            return items.filter((item) => ids.has(item.id));
+          }
+          return [...items];
+        })();
         return Promise.resolve(
           filtered
             .sort((a, b) => {
               if (a.active !== b.active) return a.active ? -1 : 1;
+              if (a.category !== b.category) return a.category.localeCompare(b.category);
               return a.name.localeCompare(b.name);
             })
             .map(selectItem),
@@ -300,10 +504,14 @@ function makeFakeDb(
           id: `ckshopitem${String(nextItem++).padStart(13, '0')}`,
           name: args.data.name,
           photoUrl: args.data.photoUrl,
+          category: args.data.category,
+          blurb: args.data.blurb,
+          description: args.data.description,
           priceExVat: args.data.priceExVat,
           vatRatePct: args.data.vatRatePct,
           priceIncVat: args.data.priceIncVat,
           stockCount: args.data.stockCount,
+          lowStockThreshold: args.data.lowStockThreshold,
           createdById: args.data.createdById,
           createdAt: now,
           updatedAt: now,
@@ -318,13 +526,23 @@ function makeFakeDb(
       update: vi.fn((args: FakeShopItemUpdateArgs) => {
         const item = items.find((row) => row.id === args.where.id);
         if (!item) throw new Error('missing item');
-        item.name = args.data.name;
-        item.photoUrl = args.data.photoUrl ?? null;
-        item.priceExVat = args.data.priceExVat;
-        item.vatRatePct = args.data.vatRatePct;
-        item.priceIncVat = args.data.priceIncVat;
-        item.stockCount = args.data.stockCount;
-        item.active = args.data.active;
+        const data = args.data;
+        if (isStockIncrementUpdate(data)) {
+          item.stockCount += data.stockCount.increment;
+          item.updatedAt = new Date();
+          return Promise.resolve(selectItem(item));
+        }
+        item.name = data.name;
+        item.photoUrl = data.photoUrl ?? null;
+        item.category = data.category;
+        item.blurb = data.blurb;
+        item.description = data.description;
+        item.priceExVat = data.priceExVat;
+        item.vatRatePct = data.vatRatePct;
+        item.priceIncVat = data.priceIncVat;
+        item.stockCount = data.stockCount;
+        item.lowStockThreshold = data.lowStockThreshold;
+        item.active = data.active;
         item.updatedAt = new Date();
         return Promise.resolve(selectItem(item));
       }),
@@ -340,6 +558,17 @@ function makeFakeDb(
       }),
     },
     shopPurchase: {
+      findMany: vi.fn((args: FakeShopPurchaseFindManyArgs) => {
+        const itemIds = new Set(args.where.itemId.in);
+        return Promise.resolve(
+          purchases
+            .filter((purchase) => itemIds.has(purchase.itemId))
+            .map((purchase) => ({
+              itemId: purchase.itemId,
+              unitsBought: purchase.unitsBought,
+            })),
+        );
+      }),
       create: vi.fn((args: FakeShopPurchaseCreateArgs) => {
         const purchase: StoredShopPurchase = {
           id: `ckshoppurchase${String(nextPurchase++).padStart(10, '0')}`,
@@ -360,11 +589,95 @@ function makeFakeDb(
           createdAt: purchase.createdAt,
         });
       }),
+      createMany: vi.fn((args: FakeShopPurchaseCreateManyArgs) => {
+        for (const row of args.data) {
+          purchases.push({
+            id: `ckshoppurchase${String(nextPurchase++).padStart(10, '0')}`,
+            studentId: row.studentId,
+            itemId: row.itemId,
+            unitsBought: row.unitsBought,
+            totalPriceMerits: row.totalPriceMerits,
+            shopkeeperId: row.shopkeeperId,
+            createdAt: new Date(),
+          });
+        }
+        return Promise.resolve({ count: args.data.length });
+      }),
+    },
+    shopReservation: {
+      findMany: vi.fn((args: FakeShopReservationFindManyArgs) => {
+        const filtered = reservations.filter((reservation) => {
+          if (args.where.status && reservation.status !== args.where.status) return false;
+          if (args.where.reservedById && reservation.reservedById !== args.where.reservedById) {
+            return false;
+          }
+          return true;
+        });
+        return Promise.resolve(
+          filtered
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .map(selectReservation),
+        );
+      }),
+      findUnique: vi.fn((args: FakeShopReservationFindUniqueArgs) => {
+        const reservation = reservations.find((row) => row.id === args.where.id);
+        return Promise.resolve(reservation ? selectReservation(reservation) : null);
+      }),
+      create: vi.fn((args: FakeShopReservationCreateArgs) => {
+        const now = new Date();
+        const reservation = makeReservation({
+          id: `ckshopreservation${String(nextReservation++).padStart(7, '0')}`,
+          studentId: args.data.studentId,
+          reservedById: args.data.reservedById,
+          totalPriceMerits: args.data.totalPriceMerits,
+          createdAt: now,
+          updatedAt: now,
+        });
+        reservations.push(reservation);
+        return Promise.resolve({ id: reservation.id });
+      }),
+      updateMany: vi.fn((args: FakeShopReservationUpdateManyArgs) => {
+        const reservation = reservations.find(
+          (row) => row.id === args.where.id && row.status === args.where.status,
+        );
+        if (!reservation) return Promise.resolve({ count: 0 });
+        reservation.status = args.data.status;
+        reservation.updatedAt = new Date();
+        if (args.data.status === 'Collected') {
+          reservation.collectedAt = args.data.collectedAt;
+          reservation.collectedById = args.data.collectedById;
+        } else {
+          reservation.cancelledAt = args.data.cancelledAt;
+          reservation.cancelledById = args.data.cancelledById;
+        }
+        return Promise.resolve({ count: 1 });
+      }),
+    },
+    shopReservationLine: {
+      createMany: vi.fn((args: FakeShopReservationLineCreateManyArgs) => {
+        for (const row of args.data) {
+          reservationLines.push(
+            makeReservationLine({
+              id: `ckshopresline${String(nextReservationLine++).padStart(10, '0')}`,
+              reservationId: row.reservationId,
+              itemId: row.itemId,
+              unitsReserved: row.unitsReserved,
+              unitPriceMerits: row.unitPriceMerits,
+              totalPriceMerits: row.totalPriceMerits,
+              createdAt: new Date(),
+            }),
+          );
+        }
+        return Promise.resolve({ count: args.data.length });
+      }),
     },
     items,
     students,
     ledger,
     purchases,
+    reservations,
+    reservationLines,
+    guardians,
   };
 
   db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
@@ -435,6 +748,56 @@ describe('shop.listItems', () => {
         entity: 'shop.listItems',
       }),
     );
+  });
+
+  it('includes category metadata, stock status, and sold counts derived from purchases', async () => {
+    const db = makeFakeDb({
+      items: [
+        makeItem({
+          id: shopItemId,
+          name: 'Oasis Pencil',
+          category: 'Stationery',
+          blurb: 'For neat notes',
+          description: 'A useful pencil for learning center work.',
+          priceIncVat: 15,
+          stockCount: 2,
+          lowStockThreshold: 3,
+        }),
+      ],
+      purchases: [
+        {
+          id: 'ckshoppurchase000000001',
+          studentId: linkedStudentId,
+          itemId: shopItemId,
+          unitsBought: 2,
+          totalPriceMerits: 30,
+          shopkeeperId: shopkeeperUser.id,
+          createdAt: new Date('2026-05-15T10:00:00.000Z'),
+        },
+        {
+          id: 'ckshoppurchase000000002',
+          studentId: linkedStudentId,
+          itemId: shopItemId,
+          unitsBought: 1,
+          totalPriceMerits: 15,
+          shopkeeperId: shopkeeperUser.id,
+          createdAt: new Date('2026-05-15T10:30:00.000Z'),
+        },
+      ],
+    });
+
+    await expect(makeCaller(supervisorUser, db).caller.shop.listItems()).resolves.toMatchObject([
+      {
+        id: shopItemId,
+        category: 'Stationery',
+        categoryLabel: 'Stationery',
+        blurb: 'For neat notes',
+        description: 'A useful pencil for learning center work.',
+        lowStockThreshold: 3,
+        stockStatus: 'LowStock',
+        soldCount: 3,
+      },
+    ]);
   });
 });
 
@@ -514,16 +877,24 @@ describe('shop.createItem', () => {
     await expect(
       caller.shop.createItem({
         name: '  Pencil  ',
+        category: 'Stationery',
+        blurb: '  For careful work  ',
+        description: '  HB pencil with an Oasis wrap.  ',
         priceExVat: 25,
         vatRatePct: 20,
         stockCount: 12,
+        lowStockThreshold: 4,
       }),
     ).resolves.toMatchObject({
       name: 'Pencil',
+      category: 'Stationery',
+      blurb: 'For careful work',
+      description: 'HB pencil with an Oasis wrap.',
       priceExVat: 25,
       vatRatePct: 20,
       priceIncVat: 30,
       stockCount: 12,
+      lowStockThreshold: 4,
       active: true,
     });
 
@@ -617,6 +988,247 @@ describe('shop.updateItem', () => {
         active: false,
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('shop reservations', () => {
+  it('lets a parent reserve stock and Spend for a linked child', async () => {
+    const { caller, db } = makeCaller(
+      parentUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 2 }],
+      }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      reservedById: parentUser.id,
+      status: 'Ready',
+      totalPriceMerits: 40,
+      lines: [
+        {
+          itemId: shopItemId,
+          itemName: 'Notebook',
+          unitsReserved: 2,
+          unitPriceMerits: 20,
+          totalPriceMerits: 40,
+        },
+      ],
+    });
+
+    const reservationId = db.reservations[0]?.id;
+    expect(db.items[0]?.stockCount).toBe(2);
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'Spend',
+      delta: -40,
+      reason: `shop-reservation:${reservationId}:hold`,
+    });
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'ShopReserved',
+      delta: 40,
+      reason: `shop-reservation:${reservationId}:hold`,
+    });
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'Create',
+        entity: 'ShopReservation',
+        entityId: reservationId,
+      }),
+    );
+  });
+
+  it('limits parent and student reservation access to linked children or self', async () => {
+    const parentDb = makeFakeDb({
+      guardians: [],
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+      ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+    });
+
+    await expect(
+      makeCaller(parentUser, parentDb).caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(parentDb.reservations).toHaveLength(0);
+
+    const studentDb = makeFakeDb({
+      students: [{ id: linkedStudentId, userId: studentUser.id }],
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+      ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+    });
+
+    await expect(
+      makeCaller(studentUser, studentDb).caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+      }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      reservedById: studentUser.id,
+      totalPriceMerits: 20,
+    });
+
+    const otherStudentId = 'ckshopstudent000000002';
+    await expect(
+      makeCaller(
+        studentUser,
+        makeFakeDb({
+          students: [{ id: otherStudentId, userId: 'ckshopotheruser00001' }],
+          items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+          ledger: [{ studentId: otherStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+        }),
+      ).caller.shop.reserve({
+        studentId: otherStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets shop staff list, collect, and cancel reservations with balanced ledger rows', async () => {
+    const reservationId = 'ckshopreserve000000001';
+    const cancelReservationId = 'ckshopreserve000000002';
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 1 })],
+      ledger: [
+        { studentId: linkedStudentId, account: 'ShopReserved', delta: 40, reason: 'hold' },
+      ],
+      reservations: [
+        makeReservation({
+          id: reservationId,
+          studentId: linkedStudentId,
+          totalPriceMerits: 20,
+        }),
+        makeReservation({
+          id: cancelReservationId,
+          studentId: linkedStudentId,
+          totalPriceMerits: 20,
+        }),
+      ],
+      reservationLines: [
+        makeReservationLine({
+          id: 'ckshopresline000000001',
+          reservationId,
+          itemId: shopItemId,
+          unitsReserved: 1,
+          unitPriceMerits: 20,
+          totalPriceMerits: 20,
+        }),
+        makeReservationLine({
+          id: 'ckshopresline000000002',
+          reservationId: cancelReservationId,
+          itemId: shopItemId,
+          unitsReserved: 1,
+          unitPriceMerits: 20,
+          totalPriceMerits: 20,
+        }),
+      ],
+    });
+    const caller = makeCaller(shopkeeperUser, db).caller;
+
+    await expect(caller.shop.listReservations({ status: 'Ready' })).resolves.toHaveLength(2);
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { count: 2, source: 'shop.listReservations' },
+      }),
+    );
+
+    await expect(
+      caller.shop.collectReservation({ reservationId }),
+    ).resolves.toMatchObject({
+      id: reservationId,
+      status: 'Collected',
+      collectedById: shopkeeperUser.id,
+    });
+    expect(db.purchases).toMatchObject([
+      {
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+        totalPriceMerits: 20,
+        shopkeeperId: shopkeeperUser.id,
+      },
+    ]);
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'ShopReserved',
+      delta: -20,
+      reason: `shop-reservation:${reservationId}:collected`,
+    });
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'Given',
+      delta: 20,
+      reason: `shop-reservation:${reservationId}:collected`,
+    });
+
+    await expect(
+      caller.shop.cancelReservation({ reservationId: cancelReservationId }),
+    ).resolves.toMatchObject({
+      id: cancelReservationId,
+      status: 'Cancelled',
+      cancelledById: shopkeeperUser.id,
+    });
+    expect(db.items[0]?.stockCount).toBe(2);
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'ShopReserved',
+      delta: -20,
+      reason: `shop-reservation:${cancelReservationId}:cancelled`,
+    });
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'Spend',
+      delta: 20,
+      reason: `shop-reservation:${cancelReservationId}:cancelled`,
+    });
+  });
+
+  it('lets parents see their own reservations without exposing other parent holds', async () => {
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 1 })],
+      reservations: [
+        makeReservation({
+          id: 'ckshopreserve000000001',
+          studentId: linkedStudentId,
+          reservedById: parentUser.id,
+        }),
+        makeReservation({
+          id: 'ckshopreserve000000002',
+          studentId: linkedStudentId,
+          reservedById: 'ckshopparent000000002',
+        }),
+      ],
+      reservationLines: [
+        makeReservationLine({
+          id: 'ckshopresline000000001',
+          reservationId: 'ckshopreserve000000001',
+          itemId: shopItemId,
+        }),
+        makeReservationLine({
+          id: 'ckshopresline000000002',
+          reservationId: 'ckshopreserve000000002',
+          itemId: shopItemId,
+        }),
+      ],
+    });
+
+    await expect(makeCaller(parentUser, db).caller.shop.listReservations()).resolves.toMatchObject([
+      {
+        id: 'ckshopreserve000000001',
+        reservedById: parentUser.id,
+      },
+    ]);
   });
 });
 

@@ -6,6 +6,9 @@ import {
   canSellInShop,
   computePriceIncVat,
   prepareShopPurchase,
+  prepareShopReservation,
+  rowsForReservationCancellation,
+  rowsForReservationCollection,
   validateDraft,
 } from '../shop.js';
 import { AccessDeniedError, type SessionUser } from '../rbac.js';
@@ -52,6 +55,27 @@ describe('validateDraft', () => {
     });
     expect(out.name).toBe('Sticker');
     expect(out.priceIncVat).toBe(60);
+    expect(out.category).toBe('Treats');
+    expect(out.lowStockThreshold).toBe(5);
+  });
+  it('normalizes catalogue metadata', () => {
+    const out = validateDraft({
+      name: '  Hot Chocolate  ',
+      category: 'Treats',
+      blurb: '  Mug of cocoa  ',
+      description: '  Served at break  ',
+      priceExVat: 25,
+      vatRatePct: 0,
+      stockCount: 10,
+      lowStockThreshold: 3,
+    });
+    expect(out).toMatchObject({
+      name: 'Hot Chocolate',
+      category: 'Treats',
+      blurb: 'Mug of cocoa',
+      description: 'Served at break',
+      lowStockThreshold: 3,
+    });
   });
   it('rejects empty name', () => {
     expect(() =>
@@ -62,6 +86,17 @@ describe('validateDraft', () => {
     expect(() =>
       validateDraft({ name: 'x', priceExVat: 1, vatRatePct: 0, stockCount: -1 }),
     ).toThrow();
+  });
+  it('rejects invalid low stock thresholds', () => {
+    expect(() =>
+      validateDraft({
+        name: 'x',
+        priceExVat: 1,
+        vatRatePct: 0,
+        stockCount: 1,
+        lowStockThreshold: -1,
+      }),
+    ).toThrow(/lowStockThreshold/);
   });
 });
 
@@ -87,6 +122,129 @@ describe('assertCanManageShop / assertCanSellInShop', () => {
     expect(() => { assertCanSellInShop(nobody); }).toThrow(AccessDeniedError);
     expect(canManageShop(nobody)).toBe(false);
     expect(canSellInShop(nobody)).toBe(false);
+  });
+});
+
+describe('prepareShopReservation', () => {
+  const activeItem = { id: 'i1', priceIncVat: 20, stockCount: 3, active: true };
+  const secondItem = { id: 'i2', priceIncVat: 15, stockCount: 4, active: true };
+
+  it('holds Spend in ShopReserved and decrements planned stock', () => {
+    const r = prepareShopReservation({
+      studentId: 's1',
+      spendBalance: 100,
+      lines: [
+        { item: activeItem, unitsReserved: 2 },
+        { item: secondItem, unitsReserved: 1 },
+      ],
+    });
+    expect(r.totalPriceMerits).toBe(55);
+    expect(r.lines).toEqual([
+      {
+        itemId: 'i1',
+        unitsReserved: 2,
+        unitPriceMerits: 20,
+        totalPriceMerits: 40,
+        newStockCount: 1,
+      },
+      {
+        itemId: 'i2',
+        unitsReserved: 1,
+        unitPriceMerits: 15,
+        totalPriceMerits: 15,
+        newStockCount: 3,
+      },
+    ]);
+    expect(r.ledger).toEqual([
+      { studentId: 's1', account: 'Spend', delta: -55, reason: 'shop-reservation:hold' },
+      { studentId: 's1', account: 'ShopReserved', delta: 55, reason: 'shop-reservation:hold' },
+    ]);
+    expect(r.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
+  });
+
+  it('rejects invalid reservation lines', () => {
+    expect(() =>
+      prepareShopReservation({ studentId: 's1', spendBalance: 100, lines: [] }),
+    ).toThrow(/at least one/);
+    expect(() =>
+      prepareShopReservation({
+        studentId: 's1',
+        spendBalance: 100,
+        lines: [{ item: activeItem, unitsReserved: 0 }],
+      }),
+    ).toThrow(/positive/);
+    expect(() =>
+      prepareShopReservation({
+        studentId: 's1',
+        spendBalance: 100,
+        lines: [{ item: { ...activeItem, active: false }, unitsReserved: 1 }],
+      }),
+    ).toThrow(/inactive/);
+    expect(() =>
+      prepareShopReservation({
+        studentId: 's1',
+        spendBalance: 100,
+        lines: [{ item: activeItem, unitsReserved: 4 }],
+      }),
+    ).toThrow(/stock/);
+    expect(() =>
+      prepareShopReservation({
+        studentId: 's1',
+        spendBalance: 10,
+        lines: [{ item: activeItem, unitsReserved: 1 }],
+      }),
+    ).toThrow(/balance/);
+  });
+
+  it('rejects duplicate item lines before reservation writes', () => {
+    expect(() =>
+      prepareShopReservation({
+        studentId: 's1',
+        spendBalance: 100,
+        lines: [
+          { item: activeItem, unitsReserved: 1 },
+          { item: activeItem, unitsReserved: 1 },
+        ],
+      }),
+    ).toThrow(/unique/);
+  });
+});
+
+describe('reservation settlement rows', () => {
+  it('moves held merits to Given on collection', () => {
+    expect(
+      rowsForReservationCollection({
+        studentId: 's1',
+        reservationId: 'r1',
+        totalPriceMerits: 35,
+      }),
+    ).toEqual([
+      {
+        studentId: 's1',
+        account: 'ShopReserved',
+        delta: -35,
+        reason: 'shop-reservation:r1:collected',
+      },
+      { studentId: 's1', account: 'Given', delta: 35, reason: 'shop-reservation:r1:collected' },
+    ]);
+  });
+
+  it('returns held merits to Spend on cancellation', () => {
+    expect(
+      rowsForReservationCancellation({
+        studentId: 's1',
+        reservationId: 'r1',
+        totalPriceMerits: 35,
+      }),
+    ).toEqual([
+      {
+        studentId: 's1',
+        account: 'ShopReserved',
+        delta: -35,
+        reason: 'shop-reservation:r1:cancelled',
+      },
+      { studentId: 's1', account: 'Spend', delta: 35, reason: 'shop-reservation:r1:cancelled' },
+    ]);
   });
 });
 
