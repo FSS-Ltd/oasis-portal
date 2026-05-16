@@ -10,6 +10,7 @@ import {
   HELLO_WORLD_EMAIL_TO,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
+  REPORT_NOTIFICATION_EMAIL_SUBJECT,
   SMOKE_TEST_EMAIL_SUBJECT,
   SMOKE_TEST_EMAIL_TEXT,
   SMOKE_TEST_EMAIL_TO,
@@ -18,6 +19,7 @@ import {
   buildClubNotificationEmail,
   buildHelloWorldEmail,
   buildMessageNotificationEmail,
+  buildReportNotificationEmail,
   buildSmokeTestEmail,
   buildUserInviteEmail,
   readEmailConfig,
@@ -257,6 +259,32 @@ describe('email builders', () => {
     expect(html).toContain('Choir');
     expect(html).toContain('Jane Learner, John Learner');
     expect(html).toContain('Please bring a labelled water bottle.');
+  });
+
+  it('builds a report notification email without embedding report contents', async () => {
+    const email = buildReportNotificationEmail({
+      to: 'parent@example.com',
+      recipientName: 'Jane Parent',
+      childName: 'Jane Learner',
+      term: '2026-Summer',
+      reportPath: '/parent/reports?studentId=student1&reportId=report1',
+    });
+
+    expect(email.to).toBe('parent@example.com');
+    expect(email.subject).toBe(REPORT_NOTIFICATION_EMAIL_SUBJECT);
+    expect(email.text).toContain('Jane Learner');
+    expect(email.text).toContain('2026-Summer');
+    expect(email.text).not.toContain('attendance');
+    expect(email.text).not.toContain('Head summary');
+    expect('react' in email).toBe(true);
+    expect('html' in email).toBe(false);
+
+    if (!('react' in email)) throw new Error('expected react email payload');
+    const html = await render(email.react);
+    expect(html).toContain('Term report ready');
+    expect(html).toContain('Jane Learner');
+    expect(html).toContain('2026-Summer');
+    expect(html).not.toContain('Head summary');
   });
 });
 

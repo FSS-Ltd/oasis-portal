@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { reportRouter } from '../routers/report.js';
+import { REPORT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
+import { createReportRouter } from '../routers/report.js';
 import { router } from '../trpc.js';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
@@ -20,6 +21,12 @@ const parentUser: SessionUser = {
   role: 'Parent',
   tags: [],
   requires2fa: false,
+};
+const linkedGuardianUser = {
+  id: parentUser.id,
+  role: parentUser.role,
+  fullNameEnc: encrypt('Jane Parent') ?? '',
+  emailEnc: encrypt('jane.parent@example.com') ?? '',
 };
 const otherParentUser: SessionUser = {
   id: 'ckreportparent000000002',
@@ -117,7 +124,7 @@ interface FakeDb {
   attendance: { findMany: ReturnType<typeof vi.fn> };
   behaviourEntry: { findMany: ReturnType<typeof vi.fn> };
   childNote: { findMany: ReturnType<typeof vi.fn> };
-  guardian: { findUnique: ReturnType<typeof vi.fn> };
+  guardian: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   meritLedger: { findMany: ReturnType<typeof vi.fn> };
   paceRecord: { findMany: ReturnType<typeof vi.fn> };
   student: { findUnique: ReturnType<typeof vi.fn> };
@@ -357,6 +364,9 @@ function makeFakeDb() {
       ),
     },
     guardian: {
+      findMany: vi.fn(({ where }: { where: { studentId: string } }) =>
+        Promise.resolve(where.studentId === studentId ? [{ user: linkedGuardianUser }] : []),
+      ),
       findUnique: vi.fn(
         ({ where }: { where: { userId_studentId: { userId: string; studentId: string } } }) =>
           Promise.resolve(
@@ -478,6 +488,12 @@ function makeFakeDb() {
   return db;
 }
 
+function makeFakeEmailClient(result = { id: 'report_email_123' }) {
+  const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
+  const client: EmailClient = { send };
+  return { client, send };
+}
+
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   return {
     db: db as unknown as AppContext['db'],
@@ -487,8 +503,10 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
-  const appRouter = router({ report: reportRouter });
+function makeCaller(user: SessionUser | null, db = makeFakeDb(), emailClient?: EmailClient) {
+  const appRouter = router({
+    report: createReportRouter({ emailClient: emailClient ?? makeFakeEmailClient().client }),
+  });
   return { caller: appRouter.createCaller(makeCtx(user, db)), db };
 }
 
@@ -614,6 +632,41 @@ describe('report.review and report.send', () => {
     expect(sent.sentAt).toBeInstanceOf(Date);
     expect(sent.compiled.behaviour.meritsEarned).toBe(10);
     expect(db.reports[0]?.status).toBe('Sent');
+  });
+
+  it('notifies linked guardians when a report is sent', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db, email.client);
+
+    await caller.report.send({ reportId: draft.id });
+
+    expect(email.send).toHaveBeenCalledTimes(1);
+    const sentEmail = email.send.mock.calls[0]?.[0];
+    if (!sentEmail) throw new Error('expected report email send');
+    expect(sentEmail.to).toBe('jane.parent@example.com');
+    expect(sentEmail.subject).toBe(REPORT_NOTIFICATION_EMAIL_SUBJECT);
+    expect(sentEmail.text).toContain('Jane Learner');
+    expect(sentEmail.text).not.toContain('Reading has improved');
+
+    const emailAudit = auditData(db).find(
+      (entry) => entry.entity === 'Email' && entry.entityId === 'report_email_123',
+    );
+    expect(emailAudit).toMatchObject({
+      userId: headUser.id,
+      action: 'Create',
+      entity: 'Email',
+      meta: {
+        source: 'report.send.notification',
+        emailStatus: 'Sent',
+        reportId: draft.id,
+        studentId,
+        subject: REPORT_NOTIFICATION_EMAIL_SUBJECT,
+        term: '2026-Summer',
+        toUserId: parentUser.id,
+        toRole: parentUser.role,
+      },
+    });
   });
 
   it('rejects re-drafting a sent report before recompiling source data', async () => {

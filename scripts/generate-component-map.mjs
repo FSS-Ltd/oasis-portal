@@ -147,6 +147,7 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/calendar/',
       'apps/web/src/components/clubs/',
       'apps/web/src/components/noticeboard/',
+      'apps/web/src/components/reports/',
       'apps/web/src/components/shop/',
       'apps/web/src/components/ui/',
     ],

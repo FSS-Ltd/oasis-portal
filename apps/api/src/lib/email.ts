@@ -13,6 +13,10 @@ import {
   buildMessageNotificationEmailText,
   MessageNotificationEmail,
 } from '../emails/message-notification-email.js';
+import {
+  buildReportNotificationEmailText,
+  ReportNotificationEmail,
+} from '../emails/report-notification-email.js';
 import { buildSmokeTestEmailText, SmokeTestEmail } from '../emails/smoke-test-email.js';
 import { buildUserInviteEmailText, UserInviteEmail } from '../emails/user-invite-email.js';
 
@@ -28,6 +32,7 @@ export const USER_INVITE_EMAIL_SUBJECT = 'Your Oasis Portal invitation';
 export const MESSAGE_NOTIFICATION_EMAIL_SUBJECT = 'New Oasis Portal message';
 export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour update';
 export const CLUB_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal club notification';
+export const REPORT_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal term report ready';
 
 export interface EmailEnv {
   [key: string]: string | undefined;
@@ -304,5 +309,45 @@ export function buildClubNotificationEmail(input: ClubNotificationEmailInput): S
       ...logoProps(logoUrl),
     }),
     text: buildClubNotificationEmailText(commonProps),
+  };
+}
+
+export interface ReportNotificationEmailInput {
+  childName: string;
+  logoUrl?: string;
+  recipientName?: string;
+  reportPath?: string;
+  term: string;
+  to: string;
+}
+
+function buildReportUrl(reportPath: string | undefined, appUrl = process.env.APP_URL) {
+  const normalisedAppUrl = normaliseAppUrl(appUrl);
+  if (!normalisedAppUrl || !reportPath) return undefined;
+  return new URL(reportPath, normalisedAppUrl).toString();
+}
+
+export function buildReportNotificationEmail(
+  input: ReportNotificationEmailInput,
+): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const reportUrl = buildReportUrl(input.reportPath);
+  const reportUrlProps = reportUrl ? { reportUrl } : {};
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    childName: input.childName,
+    term: input.term,
+    ...reportUrlProps,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: REPORT_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(ReportNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildReportNotificationEmailText(commonProps),
   };
 }
