@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-15
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.5 shop admin and shopkeeper UI.
+**Phase:** Phase 4 PR-4.6 merit leaderboards API.
 
 ---
 
@@ -18,14 +18,14 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.5 Shop admin and shopkeeper UI
+## Current status - PR-4.6 Merit leaderboards API
 
-Working branch: `feat/shop-admin-shopkeeper-ui`.
+Working branch: `feat/merit-leaderboards`.
 
-**PR scope:** Add web Merit Shop surfaces for item management and shopkeeper
-purchase recording on top of merged PR-4.3 and PR-4.4 shop APIs. Keep
-parent/student receipt views, leaderboards, reports, and mobile shop browsing
-to later Phase 4 PRs.
+**PR scope:** Replace the `leaderboard.get` placeholder with live API
+aggregation for Top Tithers, Top Investors, Top Savers, and gated Highest
+Demerits. Keep mobile leaderboard UI, report workflows, and end-of-phase e2e
+coverage to later Phase 4 PRs.
 
 Merged Phase 4 status:
 
@@ -40,33 +40,36 @@ Merged Phase 4 status:
 - PR-4.4 `feat(api): shopkeeper purchase flow` merged via PR #140 on
   2026-05-15; post-merge `main` CI/CD run 25945758410 passed, including
   production deploy.
+- PR-4.5 `feat(web): shop admin and shopkeeper UI` merged via PR #141 on
+  2026-05-15; post-merge `main` CI/CD run 25946785198 passed, including
+  production deploy.
 
 Planned scope:
 
-- Add guarded admin and supervisor shop routes for full-admin, `shopadmin`, and
-  `shopkeeper` users.
-- Add shop admin item create/update/deactivate UI.
-- Add shopkeeper purchase UI with student, active item, quantity, stock,
-  insufficient balance, and success states.
-- Add the minimal shop API read needed by the UI to list active purchasers with
-  Spend balances, including permission gating and PII decrypt audit.
-- Wire permitted staff navigation to the shop route.
+- Implement `leaderboard.get` for `TopTithers`, `TopInvestors`, `TopSavers`,
+  and `HighestDemerits`.
+- Rank Top Tithers from `TithePaid` ledger totals and Top Savers from Saving
+  balances.
+- Rank Top Investors from latest NAV, investment units, and investment cost
+  basis.
+- Rank Highest Demerits from deleted-filtered Demerit entries without returning
+  notes or other sensitive behaviour content.
+- Gate Highest Demerits to full-admin or `leaderboard-admin`.
+- Return only student display name, year group, rank, and score, with PII
+  decrypt audit rows.
 
 Verification target:
 
-- `pnpm --filter @oasis/api test -- shop.router.test.ts`
-- `pnpm --filter @oasis/domain test -- shop.test.ts rbac.test.ts`
+- `pnpm --filter @oasis/api test -- leaderboard.router.test.ts meritLedger.router.test.ts`
+- `pnpm --filter @oasis/domain test -- leaderboard.test.ts`
 - `pnpm --filter @oasis/api typecheck`
-- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain typecheck`
 - `pnpm --filter @oasis/api lint`
-- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/domain lint`
 - `pnpm lint`
 - `pnpm typecheck`
-- `pnpm --filter @oasis/web build`
-- Browser smoke for `/admin/shop` and responsive layout
 - `git diff --check`
 - `graphify update .`
-- `pnpm docs:component-map`
 
 ## Previous status - PR-4.4 Shopkeeper purchase flow
 
