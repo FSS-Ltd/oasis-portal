@@ -9,11 +9,21 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import {
+  buildReportNotificationEmail,
+  createResendEmailClient,
+  REPORT_NOTIFICATION_EMAIL_SUBJECT,
+  type EmailClient,
+} from '../lib/email.js';
 import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type TermReportStatus = 'Draft' | 'UnderReview' | 'Sent';
+
+export interface ReportRouterDeps {
+  emailClient?: EmailClient;
+}
 
 interface ActiveReportStudent {
   id: string;
@@ -35,6 +45,15 @@ interface TermReportRow {
   sentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface ReportNotificationGuardian {
+  user: {
+    id: string;
+    role: SessionUser['role'];
+    fullNameEnc: string;
+    emailEnc: string;
+  };
 }
 
 const termSchema = z
@@ -446,133 +465,285 @@ async function loadReport(ctx: AuthedContext, reportId: string): Promise<TermRep
   return report;
 }
 
-export const reportRouter = router({
-  draft: fullAdminProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
-    const existing = await ctx.db.termReport.findUnique({
-      where: { studentId_term: { studentId: input.studentId, term: input.term } },
-    });
+function parentReportPath(report: TermReportRow): string {
+  const studentId = encodeURIComponent(report.studentId);
+  const reportId = encodeURIComponent(report.id);
+  return `/parent/reports?studentId=${studentId}&reportId=${reportId}`;
+}
 
-    if (existing?.status === 'Sent') {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be re-drafted' });
-    }
-
-    const compiled = await compileReportSnapshot(ctx, input);
-    const compiledJsonEnc = encryptCompiledReport(ctx, compiled);
-
-    const report = existing
-      ? await ctx.db.termReport.update({
-          where: { id: existing.id },
-          data: { compiledJsonEnc, status: 'Draft', sentAt: null },
-        })
-      : await ctx.db.termReport.create({
-          data: {
-            studentId: input.studentId,
-            term: input.term,
-            status: 'Draft',
-            compiledJsonEnc,
-          },
-        });
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: existing ? 'Update' : 'Create',
-        entity: 'TermReport',
-        entityId: report.id,
-        meta: { source: 'report.draft', studentId: input.studentId, term: input.term },
-      },
-    });
-
-    return mapReport(ctx, report);
-  }),
-
-  review: fullAdminProcedure.input(reviewInput).mutation(async ({ ctx, input }) => {
-    const existing = await loadReport(ctx, input.reportId);
-    if (existing.status === 'Sent') {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be reviewed' });
-    }
-
-    const compiled = decryptCompiledReport(ctx, existing);
-    const updatedCompiled: CompiledReport = {
-      ...compiled,
-      headSummary: input.headSummary ?? compiled.headSummary,
-      compiledAt: new Date().toISOString(),
-    };
-    const report = await ctx.db.termReport.update({
-      where: { id: existing.id },
-      data: {
-        status: 'UnderReview',
-        compiledJsonEnc: encryptCompiledReport(ctx, updatedCompiled),
-      },
-    });
-
+async function auditReportNotificationFailure(
+  ctx: AuthedContext,
+  report: TermReportRow,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  try {
     await ctx.db.auditLog.create({
       data: {
         userId: ctx.user.id,
         action: 'Update',
         entity: 'TermReport',
         entityId: report.id,
-        meta: { source: 'report.review', studentId: report.studentId, term: report.term },
-      },
-    });
-
-    return mapReport(ctx, report);
-  }),
-
-  send: fullAdminProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
-    const existing = await loadReport(ctx, input.reportId);
-    if (existing.status === 'Sent') {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'term report is already sent' });
-    }
-
-    const sentAt = new Date();
-    const report = await ctx.db.termReport.update({
-      where: { id: existing.id },
-      data: { status: 'Sent', sentAt },
-    });
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'Update',
-        entity: 'TermReport',
-        entityId: report.id,
-        meta: { source: 'report.send', studentId: report.studentId, term: report.term, sentAt },
-      },
-    });
-
-    return mapReport(ctx, report);
-  }),
-
-  listForStudent: authedProcedure.input(studentInput).query(async ({ ctx, input }) => {
-    await loadActiveStudent(ctx, input.studentId);
-    await assertCanReadReports(ctx, input.studentId, 'report.listForStudent');
-
-    const reports = await ctx.db.termReport.findMany({
-      where: {
-        studentId: input.studentId,
-        ...(isFullAdmin(ctx.user) ? {} : { status: 'Sent' as const }),
-      },
-      orderBy: [{ term: 'desc' }, { createdAt: 'desc' }],
-    });
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'DecryptPii',
-        entity: 'TermReport',
-        entityId: input.studentId,
         meta: {
-          source: 'report.listForStudent',
-          studentId: input.studentId,
-          count: reports.length,
+          source: 'report.send.notification',
+          emailStatus: 'Failed',
+          studentId: report.studentId,
+          term: report.term,
+          ...meta,
         },
       },
     });
+  } catch (auditErr) {
+    console.error('Report notification failure audit failed', {
+      error: auditErr instanceof Error ? auditErr.message : 'unknown error',
+      reportId: report.id,
+      studentId: report.studentId,
+    });
+  }
+}
 
-    return {
-      studentId: input.studentId,
-      reports: reports.map((report) => mapReport(ctx, report)),
-    };
-  }),
-});
+async function notifyReportGuardians({
+  ctx,
+  getEmailClient,
+  report,
+}: {
+  ctx: AuthedContext;
+  getEmailClient: () => EmailClient;
+  report: TermReportRow;
+}): Promise<void> {
+  let childName: string;
+  let guardians: ReportNotificationGuardian[];
+
+  try {
+    const [student, guardianRows] = await Promise.all([
+      ctx.db.student.findUnique({
+        where: { id: report.studentId },
+        select: { fullNameEnc: true },
+      }),
+      ctx.db.guardian.findMany({
+        where: { studentId: report.studentId, user: { active: true } },
+        select: {
+          user: {
+            select: {
+              id: true,
+              role: true,
+              fullNameEnc: true,
+              emailEnc: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    if (!student) {
+      throw new Error('report student not found');
+    }
+    childName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII');
+    guardians = guardianRows;
+  } catch (err) {
+    console.error('Report notification recipient resolution failed', {
+      error: err instanceof Error ? err.message : 'unknown error',
+      reportId: report.id,
+      studentId: report.studentId,
+    });
+    await auditReportNotificationFailure(ctx, report, { reason: 'recipient-resolution' });
+    return;
+  }
+
+  for (const guardian of guardians) {
+    try {
+      const recipientName = decryptRequired(
+        ctx.db.$enc.decrypt,
+        guardian.user.fullNameEnc,
+        'guardian name',
+      );
+      const recipientEmail = decryptRequired(
+        ctx.db.$enc.decrypt,
+        guardian.user.emailEnc,
+        'guardian email',
+      );
+      const email = buildReportNotificationEmail({
+        to: recipientEmail,
+        recipientName,
+        childName,
+        term: report.term,
+        reportPath: parentReportPath(report),
+      });
+      const result = await getEmailClient().send(email);
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'Email',
+          entityId: result.id,
+          meta: {
+            source: 'report.send.notification',
+            emailStatus: 'Sent',
+            reportId: report.id,
+            studentId: report.studentId,
+            subject: REPORT_NOTIFICATION_EMAIL_SUBJECT,
+            term: report.term,
+            toUserId: guardian.user.id,
+            toRole: guardian.user.role,
+          },
+        },
+      });
+    } catch (err) {
+      console.error('Report notification email delivery failed', {
+        error: err instanceof Error ? err.message : 'unknown error',
+        reportId: report.id,
+        studentId: report.studentId,
+        toUserId: guardian.user.id,
+      });
+      await auditReportNotificationFailure(ctx, report, {
+        toUserId: guardian.user.id,
+        toRole: guardian.user.role,
+      });
+    }
+  }
+}
+
+export function createReportRouter(deps: ReportRouterDeps = {}) {
+  let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
+  const getEmailClient = (): EmailClient => {
+    if (cachedEmailClient) return cachedEmailClient;
+    cachedEmailClient = createResendEmailClient();
+    return cachedEmailClient;
+  };
+
+  return router({
+    draft: fullAdminProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.termReport.findUnique({
+        where: { studentId_term: { studentId: input.studentId, term: input.term } },
+      });
+
+      if (existing?.status === 'Sent') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be re-drafted' });
+      }
+
+      const compiled = await compileReportSnapshot(ctx, input);
+      const compiledJsonEnc = encryptCompiledReport(ctx, compiled);
+
+      const report = existing
+        ? await ctx.db.termReport.update({
+            where: { id: existing.id },
+            data: { compiledJsonEnc, status: 'Draft', sentAt: null },
+          })
+        : await ctx.db.termReport.create({
+            data: {
+              studentId: input.studentId,
+              term: input.term,
+              status: 'Draft',
+              compiledJsonEnc,
+            },
+          });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: existing ? 'Update' : 'Create',
+          entity: 'TermReport',
+          entityId: report.id,
+          meta: { source: 'report.draft', studentId: input.studentId, term: input.term },
+        },
+      });
+
+      return mapReport(ctx, report);
+    }),
+
+    review: fullAdminProcedure.input(reviewInput).mutation(async ({ ctx, input }) => {
+      const existing = await loadReport(ctx, input.reportId);
+      if (existing.status === 'Sent') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be reviewed' });
+      }
+
+      const compiled = decryptCompiledReport(ctx, existing);
+      const updatedCompiled: CompiledReport = {
+        ...compiled,
+        headSummary: input.headSummary ?? compiled.headSummary,
+        compiledAt: new Date().toISOString(),
+      };
+      const report = await ctx.db.termReport.update({
+        where: { id: existing.id },
+        data: {
+          status: 'UnderReview',
+          compiledJsonEnc: encryptCompiledReport(ctx, updatedCompiled),
+        },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'TermReport',
+          entityId: report.id,
+          meta: { source: 'report.review', studentId: report.studentId, term: report.term },
+        },
+      });
+
+      return mapReport(ctx, report);
+    }),
+
+    send: fullAdminProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+      const existing = await loadReport(ctx, input.reportId);
+      if (existing.status === 'Sent') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'term report is already sent' });
+      }
+
+      const sentAt = new Date();
+      const report = await ctx.db.termReport.update({
+        where: { id: existing.id },
+        data: { status: 'Sent', sentAt },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'TermReport',
+          entityId: report.id,
+          meta: { source: 'report.send', studentId: report.studentId, term: report.term, sentAt },
+        },
+      });
+
+      await notifyReportGuardians({ ctx, getEmailClient, report });
+
+      return mapReport(ctx, report);
+    }),
+
+    listForStudent: authedProcedure.input(studentInput).query(async ({ ctx, input }) => {
+      await loadActiveStudent(ctx, input.studentId);
+      await assertCanReadReports(ctx, input.studentId, 'report.listForStudent');
+
+      const reports = await ctx.db.termReport.findMany({
+        where: {
+          studentId: input.studentId,
+          ...(isFullAdmin(ctx.user) ? {} : { status: 'Sent' as const }),
+        },
+        orderBy: [{ term: 'desc' }, { createdAt: 'desc' }],
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'TermReport',
+          entityId: input.studentId,
+          meta: {
+            source: 'report.listForStudent',
+            studentId: input.studentId,
+            count: reports.length,
+          },
+        },
+      });
+
+      return {
+        studentId: input.studentId,
+        reports: reports.map((report) => mapReport(ctx, report)),
+      };
+    }),
+  });
+}
+
+export const reportRouter = createReportRouter();

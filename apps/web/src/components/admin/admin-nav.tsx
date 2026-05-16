@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  BarChart3,
   Bell,
   BookOpenCheck,
   BookOpen,
@@ -11,6 +10,7 @@ import {
   CalendarCheck,
   ClipboardList,
   Club,
+  FileText,
   GraduationCap,
   Home,
   MessageSquare,
@@ -39,7 +39,7 @@ const navItems = [
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
   { href: '/admin/shop', label: 'Merit Shop', icon: ShoppingBag },
-  { href: '/admin', label: 'Reports', icon: BarChart3 },
+  { href: '/admin/reports', label: 'Reports', icon: FileText },
   { href: '/admin/messages', label: 'Messages', icon: MessageSquare },
   { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell },
 ] as const;
@@ -151,21 +151,15 @@ export function AdminSidebarNav({
     <nav className="admin-shell__nav">
       {visibleNavItems.map((item, index) => {
         const Icon = item.icon;
-        const enabled = item.label !== 'Reports';
-        const active = enabled && isActiveRoute(pathname, item.href, item.label);
+        const active = isActiveRoute(pathname, item.href, item.label);
         const badge = item.label === 'Messages' ? countBadge(unreadMessageCount) : null;
-        const className = [
-          'admin-shell__nav-item',
-          enabled ? undefined : 'is-disabled',
-          active ? 'is-active' : undefined,
-        ]
+        const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
 
         return (
           <Link
             aria-current={active ? 'page' : undefined}
-            aria-disabled={!enabled}
             className={className}
             href={{ pathname: item.href }}
             key={`${item.label}-${String(index)}`}

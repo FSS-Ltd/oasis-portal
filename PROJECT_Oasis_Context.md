@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-16
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.8 term report draft/review/send API.
+**Phase:** Phase 4 PR-4.9 term report review/send web UI.
 
 ---
 
@@ -18,14 +18,13 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.8 Term report draft/review/send API
+## Current status - PR-4.9 Term report review/send UI
 
-Working branch: `feat/term-report-draft-review-send`.
+Working branch: `feat/term-report-review-send-ui`.
 
-**PR scope:** Implement the API-only term report workflow: full-admin draft,
-review, and send mutations, linked-parent sent-report reads, encrypted compiled
-report snapshots, and audit coverage. Keep Head/admin report UI and parent UI
-to PR-4.9.
+**PR scope:** Add Head/admin term report dashboard, draft/review/send controls,
+linked-parent sent-report read views, and the privacy-safe sent-report email
+notification hook. Keep bulk PDF export out of scope.
 
 Merged Phase 4 status:
 
@@ -48,29 +47,29 @@ Merged Phase 4 status:
 - PR-4.7 `feat(mobile): student merit and results view` merged via PR #143 on
   2026-05-16; post-merge `main` CI/CD run 25948107960 passed, including
   production deploy.
+- PR-4.8 `feat(api): term report draft/review/send` merged via PR #144 on
+  2026-05-16; post-merge `main` CI/CD run 25948783221 passed, including
+  production deploy.
 
 Planned scope:
 
-- Replace placeholder report router procedures with production
-  `draft`, `review`, `send`, and `listForStudent` implementations.
-- Compile snapshots from active student identity, attendance, PACE results,
-  general behaviour entries, non-sensitive child notes, and merit ledger rows
-  through the term boundary.
-- Store compiled snapshots encrypted in `TermReport.compiledJsonEnc`; drafts can
-  be refreshed until sent, while sent reports reject re-drafting.
-- Gate write workflows to full-admin roles and restrict parent reads to sent
-  reports for linked children.
-- Audit draft/review/send actions, permission-denied reads, and PII decrypt
-  paths.
+- Add `/admin/reports` for full-admin draft generation, report review, Head
+  summary editing, send, and selected-student report history.
+- Add `/parent/reports` for linked parents to view sent reports only.
+- Add shared report UI components consistent with the Oasis design reference.
+- Send a privacy-safe parent email when a report transitions to `Sent`; the
+  email links back to the parent report page and does not embed report contents.
+- Update report UI navigation, component ownership map, and Phase 4 status docs.
 
 Verification target:
 
-- `pnpm --filter @oasis/api test -- report.router.test.ts`
-- `pnpm --filter @oasis/domain test -- report.test.ts`
+- `pnpm --filter @oasis/api test -- report.router.test.ts email.router.test.ts`
 - `pnpm --filter @oasis/api typecheck`
 - `pnpm --filter @oasis/api lint`
-- `pnpm --filter @oasis/domain typecheck`
-- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `pnpm docs:component-map`
 - `pnpm lint`
 - `pnpm typecheck`
 - `git diff --check`

@@ -1,6 +1,6 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.8 in progress
+**Status:** PR-4.9 in progress
 **Last updated:** 2026-05-16
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -28,7 +28,8 @@ Important current state:
 - Shop web UI is implemented through PR-4.5.
 - Leaderboard workflows are implemented through PR-4.6.
 - Student mobile workflows are implemented through PR-4.7.
-- Term report API workflows are in progress in PR-4.8.
+- Term report API workflows are implemented through PR-4.8.
+- Term report review/send UI is in progress in PR-4.9.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -305,7 +306,7 @@ Verification for Sprint 4:
 Goal: compile the centre's termly report from the data captured throughout the
 portal.
 
-### PR-4.8 - `feat(api): term report draft/review/send` IN PROGRESS
+### PR-4.8 - `feat(api): term report draft/review/send` MERGED
 
 Scope:
 
@@ -340,7 +341,10 @@ Verification for Sprint 5 API:
 - `git diff --check`
 - `graphify update .`
 
-### PR-4.9 - `feat(web): term report review and send UI` PLANNED
+Merged via PR #144 on 2026-05-16. Post-merge `main` CI/CD run 25948783221
+passed, including production deploy.
+
+### PR-4.9 - `feat(web): term report review and send UI` IN PROGRESS
 
 Scope:
 
@@ -357,6 +361,17 @@ Tests:
 - Parent can view sent report for linked child.
 - Parent cannot view draft report or another child's report.
 - Email notification path is covered by API/template tests.
+
+Verification for Sprint 5 UI:
+
+- `pnpm --filter @oasis/api test -- report.router.test.ts email.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `pnpm docs:component-map`
+- `graphify update .`
 
 ---
 
