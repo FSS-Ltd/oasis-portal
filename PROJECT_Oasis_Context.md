@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-16
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.10 verification suite.
+**Phase:** Phase 4 complete.
 
 ---
 
@@ -18,13 +18,15 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.10 Phase 4 verification suite
+## Current status - Phase 4 complete
 
-Working branch: `test/phase-4-verification-suite`.
+Repository head: `main` at `c9ccdf2`.
 
-**PR scope:** Add end-of-phase accounting invariant tests, credentials-gated
-Phase 4 Playwright smoke coverage, and status documentation. Do not change
-Phase 4 product behaviour.
+**Completed scope:** Phase 4 merit economy, shop, leaderboards, student mobile
+view, and term report workflows are merged. End-of-phase verification is in
+place with accounting invariant coverage, credentials-gated Phase 4 Playwright
+smoke coverage, mobile typecheck coverage, DB/RLS smoke, and encryption dump
+verification.
 
 Merged Phase 4 status:
 
@@ -53,35 +55,38 @@ Merged Phase 4 status:
 - PR-4.9 `feat(web): term report review and send UI` merged via PR #145 on
   2026-05-16; post-merge `main` CI/CD run 25949609647 passed, including
   production deploy.
+- PR-4.10 `test: Phase 4 verification suite` merged via PR #146 on
+  2026-05-16; post-merge `main` CI/CD run 25950126576 passed, including
+  production deploy.
 
-Planned scope:
+Completed verification:
 
-- Add a cross-domain accounting invariant test covering behaviour merit minting,
-  demerit burn, Spend/Saving transfers, tithe rows, investment buy rows, shop
-  purchase rows, and report ledger snapshot compilation.
-- Add Playwright Phase 4 smoke coverage for Head shop/report surfaces,
-  optional mutating report draft/review/send, shopkeeper purchase access, and
-  parent sent-report access.
-- Keep mobile smoke verification as typechecked PR-4.7 student portal coverage
-  for balances, PACE, transfers/tithe policy, leaderboards, and shop browsing.
-- Update Phase 4 plan status and carry-forward notes.
-
-Verification target:
-
+- `pnpm --filter @oasis/api test -- report.router.test.ts email.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
 - `pnpm --filter @oasis/domain test -- phase4AccountingInvariants.test.ts`
 - `pnpm --filter @oasis/domain typecheck`
 - `pnpm --filter @oasis/domain lint`
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm --filter @oasis/web lint`
-- `pnpm --filter @oasis/mobile typecheck`
 - `pnpm --filter @oasis/web build`
 - `pnpm --filter @oasis/web test:e2e -- phase-4-verification.spec.ts` when
   `E2E_*` credentials are configured.
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm docs:component-map`
 - `pnpm lint`
 - `pnpm typecheck`
 - `pnpm test`
+- `pnpm db:integration`
+- `pnpm api:smoke-context-rls`
+- `pnpm verify:encryption`
 - `git diff --check`
 - `graphify update .`
+
+Next phase:
+
+- Phase 5 remains the next planned workstream.
+- No Phase 4 blockers are being carried forward.
 
 ## Previous status - PR-4.4 Shopkeeper purchase flow
 
