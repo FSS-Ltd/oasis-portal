@@ -12,9 +12,27 @@ describe('rankLeaderboard', () => {
   it('ranks descending and applies a limit', () => {
     const rows = rankLeaderboard(
       [
-        { studentId: 's1', displayName: 'A', metric: 10, enrolmentDate: new Date('2025-01-01') },
-        { studentId: 's2', displayName: 'B', metric: 30, enrolmentDate: new Date('2025-01-01') },
-        { studentId: 's3', displayName: 'C', metric: 20, enrolmentDate: new Date('2025-01-01') },
+        {
+          studentId: 's1',
+          displayName: 'A',
+          yearGroup: 'Year 7',
+          metric: 10,
+          enrolmentDate: new Date('2025-01-01'),
+        },
+        {
+          studentId: 's2',
+          displayName: 'B',
+          yearGroup: 'Year 8',
+          metric: 30,
+          enrolmentDate: new Date('2025-01-01'),
+        },
+        {
+          studentId: 's3',
+          displayName: 'C',
+          yearGroup: 'Year 9',
+          metric: 20,
+          enrolmentDate: new Date('2025-01-01'),
+        },
       ],
       2,
     );
@@ -27,17 +45,39 @@ describe('rankLeaderboard', () => {
       {
         studentId: 'older',
         displayName: 'A',
+        yearGroup: 'Year 8',
         metric: 10,
         enrolmentDate: new Date('2024-09-01'),
       },
       {
         studentId: 'newer',
         displayName: 'B',
+        yearGroup: 'Year 9',
         metric: 10,
         enrolmentDate: new Date('2025-01-01'),
       },
     ]);
     expect(rows[0]?.studentId).toBe('older');
+  });
+
+  it('breaks equal-score and equal-date ties by student id', () => {
+    const rows = rankLeaderboard([
+      {
+        studentId: 'student-b',
+        displayName: 'B',
+        yearGroup: 'Year 8',
+        metric: 10,
+        enrolmentDate: new Date('2025-01-01'),
+      },
+      {
+        studentId: 'student-a',
+        displayName: 'A',
+        yearGroup: 'Year 8',
+        metric: 10,
+        enrolmentDate: new Date('2025-01-01'),
+      },
+    ]);
+    expect(rows.map((row) => row.studentId)).toEqual(['student-a', 'student-b']);
   });
 });
 
@@ -53,16 +93,18 @@ describe('defaults and access', () => {
     expect(isPublicLeaderboard('TopSavers')).toBe(true);
   });
 
-  it('demerit leaderboard is gated to leaderboard-admin tag', () => {
+  it('demerit leaderboard is gated to full-admin or leaderboard-admin tag', () => {
     const admin: SessionUser = {
       id: 'u1',
-      role: 'Head',
+      role: 'Supervisor',
       tags: ['leaderboard-admin'],
       requires2fa: false,
     };
     const head: SessionUser = { id: 'u2', role: 'Head', tags: [], requires2fa: false };
+    const supervisor: SessionUser = { id: 'u3', role: 'Supervisor', tags: [], requires2fa: false };
     expect(canViewDemeritLeaderboard(admin)).toBe(true);
-    expect(canViewDemeritLeaderboard(head)).toBe(false);
+    expect(canViewDemeritLeaderboard(head)).toBe(true);
+    expect(canViewDemeritLeaderboard(supervisor)).toBe(false);
   });
 });
 
