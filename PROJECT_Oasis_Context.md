@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-16
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 PR-4.9 term report review/send web UI.
+**Phase:** Phase 4 PR-4.10 verification suite.
 
 ---
 
@@ -18,13 +18,13 @@ with role-aware shells for staff, parents, and students. All hosting is
 UK/EU; all personal data is envelope-encrypted at the column level so a
 raw DB dump cannot re-identify anyone.
 
-## Current status - PR-4.9 Term report review/send UI
+## Current status - PR-4.10 Phase 4 verification suite
 
-Working branch: `feat/term-report-review-send-ui`.
+Working branch: `test/phase-4-verification-suite`.
 
-**PR scope:** Add Head/admin term report dashboard, draft/review/send controls,
-linked-parent sent-report read views, and the privacy-safe sent-report email
-notification hook. Keep bulk PDF export out of scope.
+**PR scope:** Add end-of-phase accounting invariant tests, credentials-gated
+Phase 4 Playwright smoke coverage, and status documentation. Do not change
+Phase 4 product behaviour.
 
 Merged Phase 4 status:
 
@@ -50,28 +50,36 @@ Merged Phase 4 status:
 - PR-4.8 `feat(api): term report draft/review/send` merged via PR #144 on
   2026-05-16; post-merge `main` CI/CD run 25948783221 passed, including
   production deploy.
+- PR-4.9 `feat(web): term report review and send UI` merged via PR #145 on
+  2026-05-16; post-merge `main` CI/CD run 25949609647 passed, including
+  production deploy.
 
 Planned scope:
 
-- Add `/admin/reports` for full-admin draft generation, report review, Head
-  summary editing, send, and selected-student report history.
-- Add `/parent/reports` for linked parents to view sent reports only.
-- Add shared report UI components consistent with the Oasis design reference.
-- Send a privacy-safe parent email when a report transitions to `Sent`; the
-  email links back to the parent report page and does not embed report contents.
-- Update report UI navigation, component ownership map, and Phase 4 status docs.
+- Add a cross-domain accounting invariant test covering behaviour merit minting,
+  demerit burn, Spend/Saving transfers, tithe rows, investment buy rows, shop
+  purchase rows, and report ledger snapshot compilation.
+- Add Playwright Phase 4 smoke coverage for Head shop/report surfaces,
+  optional mutating report draft/review/send, shopkeeper purchase access, and
+  parent sent-report access.
+- Keep mobile smoke verification as typechecked PR-4.7 student portal coverage
+  for balances, PACE, transfers/tithe policy, leaderboards, and shop browsing.
+- Update Phase 4 plan status and carry-forward notes.
 
 Verification target:
 
-- `pnpm --filter @oasis/api test -- report.router.test.ts email.router.test.ts`
-- `pnpm --filter @oasis/api typecheck`
-- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/domain test -- phase4AccountingInvariants.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/domain lint`
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/mobile typecheck`
 - `pnpm --filter @oasis/web build`
-- `pnpm docs:component-map`
+- `pnpm --filter @oasis/web test:e2e -- phase-4-verification.spec.ts` when
+  `E2E_*` credentials are configured.
 - `pnpm lint`
 - `pnpm typecheck`
+- `pnpm test`
 - `git diff --check`
 - `graphify update .`
 

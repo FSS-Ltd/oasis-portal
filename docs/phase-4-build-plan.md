@@ -1,6 +1,6 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.9 in progress
+**Status:** PR-4.10 in progress
 **Last updated:** 2026-05-16
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -29,7 +29,8 @@ Important current state:
 - Leaderboard workflows are implemented through PR-4.6.
 - Student mobile workflows are implemented through PR-4.7.
 - Term report API workflows are implemented through PR-4.8.
-- Term report review/send UI is in progress in PR-4.9.
+- Term report review/send UI is implemented through PR-4.9.
+- End-of-phase verification is in progress in PR-4.10.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -344,7 +345,7 @@ Verification for Sprint 5 API:
 Merged via PR #144 on 2026-05-16. Post-merge `main` CI/CD run 25948783221
 passed, including production deploy.
 
-### PR-4.9 - `feat(web): term report review and send UI` IN PROGRESS
+### PR-4.9 - `feat(web): term report review and send UI` MERGED
 
 Scope:
 
@@ -373,29 +374,43 @@ Verification for Sprint 5 UI:
 - `pnpm docs:component-map`
 - `graphify update .`
 
+Merged via PR #145 on 2026-05-16. Post-merge `main` CI/CD run 25949609647
+passed, including production deploy.
+
 ---
 
 ## Sprint 6 - Phase 4 verification
 
-### PR-4.10 - `test: Phase 4 verification suite` PLANNED
+### PR-4.10 - `test: Phase 4 verification suite` IN PROGRESS
 
 Scope:
 
 - Add accounting invariant tests across merit, tithe, investment, shop, and
   behaviour ledger writes.
 - Add e2e web coverage for shop admin/shopkeeper and report review/send.
-- Add mobile smoke for student balances, PACE results, transfers/tithe, and
-  leaderboards.
+- Verify the PR-4.7 mobile smoke surface for student balances, PACE results,
+  transfers/tithe policy, leaderboards, and shop browsing through mobile
+  typecheck.
 - Re-run DB/RLS smoke and encryption dump verification.
 - Update this plan with merged status and carry-forward items.
 
 Verification:
 
+- `pnpm --filter @oasis/domain test -- phase4AccountingInvariants.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/web test:e2e -- phase-4-verification.spec.ts` when
+  `E2E_*` credentials are configured.
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm docs:component-map`
 - `pnpm lint`
 - `pnpm typecheck`
 - `pnpm test`
-- `pnpm --filter @oasis/web build`
-- `pnpm --filter @oasis/mobile typecheck`
+- `git diff --check`
+- `graphify update .`
 - `pnpm db:integration`
 - `pnpm api:smoke-context-rls`
 - `pnpm verify:encryption`
