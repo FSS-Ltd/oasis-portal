@@ -1,6 +1,6 @@
 # Phase 4 - Merit economy, shop, leaderboards, and reports: sprint & PR plan
 
-**Status:** PR-4.10 in progress
+**Status:** Phase 4 complete
 **Last updated:** 2026-05-16
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
@@ -30,7 +30,7 @@ Important current state:
 - Student mobile workflows are implemented through PR-4.7.
 - Term report API workflows are implemented through PR-4.8.
 - Term report review/send UI is implemented through PR-4.9.
-- End-of-phase verification is in progress in PR-4.10.
+- End-of-phase verification is implemented through PR-4.10.
 
 Phase 4 is where those placeholders become production workflows.
 
@@ -381,7 +381,7 @@ passed, including production deploy.
 
 ## Sprint 6 - Phase 4 verification
 
-### PR-4.10 - `test: Phase 4 verification suite` IN PROGRESS
+### PR-4.10 - `test: Phase 4 verification suite` MERGED
 
 Scope:
 
@@ -415,6 +415,9 @@ Verification:
 - `pnpm api:smoke-context-rls`
 - `pnpm verify:encryption`
 - Credentialed Playwright/mobile checks where available.
+
+Merged via PR #146 on 2026-05-16. Post-merge `main` CI/CD run 25950126576
+passed, including production deploy.
 
 ---
 
