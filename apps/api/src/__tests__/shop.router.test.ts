@@ -1022,7 +1022,11 @@ describe('shop reservations', () => {
       ],
     });
 
-    const reservationId = db.reservations[0]?.id;
+    const reservation = db.reservations[0];
+    if (!reservation) {
+      throw new Error('expected shop reservation to be created');
+    }
+    const reservationId = reservation.id;
     expect(db.items[0]?.stockCount).toBe(2);
     expect(db.ledger).toContainEqual({
       studentId: linkedStudentId,

@@ -684,7 +684,7 @@ async function loadReservationById(
   if (!reservation) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
   }
-  return reservation as ReservationRow;
+  return reservation;
 }
 
 export const shopRouter = router({
@@ -759,7 +759,7 @@ export const shopRouter = router({
       toBadRequest(err);
     }
 
-    const item = (await ctx.db.shopItem.create({
+    const item = await ctx.db.shopItem.create({
       data: {
         name: draft.name,
         photoUrl: draft.photoUrl ?? null,
@@ -774,7 +774,7 @@ export const shopRouter = router({
         createdById: ctx.user.id,
       },
       select: itemSelect,
-    })) as ShopItemRow;
+    });
 
     await ctx.db.auditLog.create({
       data: {
@@ -799,10 +799,10 @@ export const shopRouter = router({
   updateItem: authedProcedure.input(updateItemInput).mutation(async ({ ctx, input }) => {
     await requireCanManageShop(ctx, 'shop.updateItem');
 
-    const existing = (await ctx.db.shopItem.findUnique({
+    const existing = await ctx.db.shopItem.findUnique({
       where: { id: input.id },
       select: itemSelect,
-    })) as ShopItemRow | null;
+    });
 
     if (!existing) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'shop item not found' });
@@ -831,7 +831,7 @@ export const shopRouter = router({
       toBadRequest(err);
     }
 
-    const item = (await ctx.db.shopItem.update({
+    const item = await ctx.db.shopItem.update({
       where: { id: input.id },
       data: {
         name: draft.name,
@@ -847,7 +847,7 @@ export const shopRouter = router({
         active: input.active ?? existing.active,
       },
       select: itemSelect,
-    })) as ShopItemRow;
+    });
     const soldCountByItemId = await loadSoldCountByItemId(ctx, [item.id]);
 
     await ctx.db.auditLog.create({

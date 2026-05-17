@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-16
+**Last updated:** 2026-05-17
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -21,6 +21,30 @@ raw DB dump cannot re-identify anyone.
 ## Current status - Phase 4 complete
 
 Repository head: `main` at `c9ccdf2`.
+
+## Current session - 2026-05-17 Merit shop reservations CI lint repair
+
+Working branch: `feat/merit-shop-reservations`.
+
+**PR scope:** Repair the GitHub lint failure in the shop reservation API scope
+without changing reservation behaviour.
+
+Completed:
+
+- Narrowed the created reservation in `shop.router.test.ts` before using its ID
+  in ledger reason template literals.
+- Removed redundant shop router type assertions now caught by
+  `@typescript-eslint/no-unnecessary-type-assertion`.
+
+Verification:
+
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/api test -- src/__tests__/shop.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm lint`
+- `graphify update .`
+
+No blockers.
 
 **Completed scope:** Phase 4 merit economy, shop, leaderboards, student mobile
 view, and term report workflows are merged. End-of-phase verification is in
