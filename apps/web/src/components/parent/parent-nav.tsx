@@ -14,8 +14,8 @@ import {
   UserRound,
 } from 'lucide-react';
 
-const navItems = [
-  { href: '/parent', label: 'Children', icon: Home },
+const parentNavItems = [
+  { href: '/parent', label: 'Home', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },
   { href: '/parent/shop', label: 'Shop', icon: ShoppingBag },
@@ -26,10 +26,19 @@ const navItems = [
   { href: '/parent/noticeboard', label: 'Noticeboard', icon: Bell },
 ] as const;
 
+const parentMobileNavHrefs = new Set([
+  '/parent',
+  '/parent/calendar',
+  '/parent/clubs',
+  '/parent/shop',
+  '/parent/messages',
+]);
+const parentTopNavItems = parentNavItems.filter((item) => item.href !== '/parent/profile');
+const parentMobileNavItems = parentNavItems.filter((item) => parentMobileNavHrefs.has(item.href));
 const navIconSize = 15;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
-  return label === 'Children'
+  return label === 'Home'
     ? pathname === href
     : pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -44,20 +53,25 @@ interface ParentNavProps {
   unreadNoticeCount: number;
 }
 
+function badgeForItem(
+  label: string,
+  unreadMessageCount: number,
+  unreadNoticeCount: number,
+): string | null {
+  if (label === 'Noticeboard') return countBadge(unreadNoticeCount);
+  if (label === 'Messages') return countBadge(unreadMessageCount);
+  return null;
+}
+
 export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
   const pathname = usePathname() ?? '';
 
   return (
     <nav className="admin-shell__nav">
-      {navItems.map((item) => {
+      {parentNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge =
-          item.label === 'Noticeboard'
-            ? countBadge(unreadNoticeCount)
-            : item.label === 'Messages'
-              ? countBadge(unreadMessageCount)
-              : null;
+        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
         const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -79,20 +93,40 @@ export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: Pare
   );
 }
 
+export function ParentTopNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+  const pathname = usePathname() ?? '';
+
+  return (
+    <nav aria-label="Parent portal sections" className="parent-top-nav">
+      {parentTopNavItems.map((item) => {
+        const active = isActiveRoute(pathname, item.href, item.label);
+        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
+
+        return (
+          <Link
+            aria-current={active ? 'page' : undefined}
+            className={active ? 'parent-top-nav__item is-active' : 'parent-top-nav__item'}
+            href={{ pathname: item.href }}
+            key={item.label}
+          >
+            <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
   const pathname = usePathname() ?? '';
 
   return (
     <nav aria-label="Mobile parent sections" className="admin-shell__bottom-nav">
-      {navItems.map((item) => {
+      {parentMobileNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge =
-          item.label === 'Noticeboard'
-            ? countBadge(unreadNoticeCount)
-            : item.label === 'Messages'
-              ? countBadge(unreadMessageCount)
-              : null;
+        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');

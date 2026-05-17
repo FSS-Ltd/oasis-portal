@@ -35,6 +35,15 @@ function formatDate(value: Date | string): string {
   }).format(new Date(value));
 }
 
+function formatLongDate(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    weekday: 'long',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
 function formatDateTime(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
@@ -57,6 +66,7 @@ function attendanceSub(child: DashboardChild): string {
 
 function ChildHero({ child }: { child: DashboardChild }) {
   const latestAttendance = child.attendance[0];
+  const totalMerits = child.metrics.totalMerits;
 
   return (
     <article className="parent-child-hero">
@@ -67,18 +77,22 @@ function ChildHero({ child }: { child: DashboardChild }) {
           <p>{displaySchoolYearLabel(child.student.yearGroup)}</p>
         </div>
       </div>
+      <div className="parent-child-hero__merits">
+        <strong>{String(totalMerits)}</strong>
+        <span>total merits</span>
+      </div>
       <div className="parent-child-hero__stats">
         <div>
-          <strong>{String(child.metrics.totalMerits)}</strong>
-          <span>Total merits</span>
-        </div>
-        <div>
           <strong>{attendanceLabel(latestAttendance?.status)}</strong>
-          <span>{latestAttendance ? formatDate(latestAttendance.date) : 'Today'}</span>
+          <span>Today</span>
         </div>
         <div>
           <strong>{String(child.metrics.pacesCompletedThisAcademicYear)}</strong>
-          <span>PACEs passed</span>
+          <span>PACEs</span>
+        </div>
+        <div>
+          <strong>{String(child.metrics.tithePercentage)}%</strong>
+          <span>Tithe rate</span>
         </div>
       </div>
       <Link
@@ -92,7 +106,33 @@ function ChildHero({ child }: { child: DashboardChild }) {
   );
 }
 
-function MetricGrid({ child }: { child: DashboardChild }) {
+function ParentHomeIntro({
+  childrenCount,
+  parentName,
+  rangeTo,
+  selectedChild,
+}: {
+  childrenCount: number;
+  parentName: string;
+  rangeTo: Date | string;
+  selectedChild: DashboardChild | undefined;
+}) {
+  return (
+    <div className="parent-home-intro">
+      <p>{formatLongDate(rangeTo)}</p>
+      <h1>Welcome, {parentName}</h1>
+      <span>
+        {selectedChild
+          ? childrenCount === 1
+            ? `Parent of ${selectedChild.student.fullName}`
+            : `${String(childrenCount)} linked children`
+          : 'Parent portal'}
+      </span>
+    </div>
+  );
+}
+
+function ParentHomeMetricGrid({ child }: { child: DashboardChild }) {
   return (
     <section
       className="dashboard-grid parent-dashboard-metrics"
@@ -132,7 +172,7 @@ function MetricGrid({ child }: { child: DashboardChild }) {
   );
 }
 
-function DashboardList({
+function DashboardSection({
   children,
   empty,
   icon,
@@ -154,14 +194,98 @@ function DashboardList({
   );
 }
 
+function MeritWalletPreview({ child }: { child: DashboardChild }) {
+  const balances = child.metrics.meritBalances;
+  const rows = [
+    { label: 'Spend', value: balances.Spend, colour: '#7d1c2c' },
+    { label: 'Saving', value: balances.Saving, colour: '#1b2b5e' },
+    { label: 'Investment', value: balances.Investment, colour: '#5b90c5' },
+  ] as const;
+
+  return (
+    <section className="panel panel__body parent-dashboard-card parent-wallet-card">
+      <h3>
+        <Star aria-hidden="true" size={16} />
+        Merit Wallet
+      </h3>
+      <div className="parent-wallet-list">
+        {rows.map((row) => (
+          <div className="parent-wallet-row" key={row.label}>
+            <span>
+              <i style={{ '--wallet-colour': row.colour } as CSSProperties} />
+              {row.label} Account
+            </span>
+            <strong style={{ '--wallet-colour': row.colour } as CSSProperties}>
+              {String(row.value)}
+            </strong>
+          </div>
+        ))}
+      </div>
+      <div className="parent-wallet-total">
+        <span>Total</span>
+        <strong>{String(child.metrics.totalMerits)}</strong>
+      </div>
+      <div className="parent-wallet-tithe">
+        <span>Weekly tithe rate</span>
+        <strong>{String(child.metrics.tithePercentage)}%</strong>
+      </div>
+    </section>
+  );
+}
+
+function RecentBehaviourPreview({ child }: { child: DashboardChild }) {
+  return (
+    <section className="panel panel__body parent-dashboard-card parent-behaviour-card">
+      <h3>
+        <Star aria-hidden="true" size={16} />
+        Recent Behaviour
+      </h3>
+      {child.behaviour.length === 0 ? (
+        <div className="dashboard-empty-state">No recent records.</div>
+      ) : (
+        <div className="parent-behaviour-list">
+          {child.behaviour.map((entry) => (
+            <div className="parent-behaviour-row" key={entry.id}>
+              <span className={entry.meritDelta >= 0 ? 'is-positive' : 'is-negative'} />
+              <div>
+                <p>
+                  <Badge tone={entry.meritDelta >= 0 ? 'green' : 'red'}>
+                    {entry.meritDelta > 0 ? '+' : ''}
+                    {String(entry.meritDelta)} merits
+                  </Badge>
+                  <small>{formatDateTime(entry.createdAt)}</small>
+                </p>
+                <strong>{entry.category}</strong>
+                <em>{entry.note ?? entry.type}</em>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <Link
+        className="button button--secondary button--sm parent-card-link"
+        href={`/parent/children/${child.student.id}`}
+      >
+        Open child view
+        <ArrowRight aria-hidden="true" size={14} />
+      </Link>
+    </section>
+  );
+}
+
 function ChildDashboard({ child }: { child: DashboardChild }) {
   return (
     <section className="parent-child-dashboard" aria-label={`${child.student.fullName} dashboard`}>
       <ChildHero child={child} />
-      <MetricGrid child={child} />
+      <ParentHomeMetricGrid child={child} />
+
+      <div className="parent-home-feature-grid">
+        <RecentBehaviourPreview child={child} />
+        <MeritWalletPreview child={child} />
+      </div>
 
       <div className="parent-dashboard-panels">
-        <DashboardList
+        <DashboardSection
           empty={child.attendance.length === 0}
           icon={<CalendarCheck aria-hidden="true" size={16} />}
           title="Recent Attendance"
@@ -174,9 +298,9 @@ function ChildDashboard({ child }: { child: DashboardChild }) {
               </div>
             ))}
           </div>
-        </DashboardList>
+        </DashboardSection>
 
-        <DashboardList
+        <DashboardSection
           empty={child.pace.length === 0}
           icon={<BookOpenCheck aria-hidden="true" size={16} />}
           title="PACE Progress"
@@ -193,28 +317,9 @@ function ChildDashboard({ child }: { child: DashboardChild }) {
               </div>
             ))}
           </div>
-        </DashboardList>
+        </DashboardSection>
 
-        <DashboardList
-          empty={child.behaviour.length === 0}
-          icon={<Star aria-hidden="true" size={16} />}
-          title="Recent Behaviour"
-        >
-          <div className="supervisor-dashboard-list">
-            {child.behaviour.map((entry) => (
-              <div className="dashboard-list-row" key={entry.id}>
-                <strong>
-                  {entry.category} · {entry.meritDelta > 0 ? '+' : ''}
-                  {String(entry.meritDelta)}
-                </strong>
-                <span>{entry.note ?? entry.type}</span>
-                <small>{formatDateTime(entry.createdAt)}</small>
-              </div>
-            ))}
-          </div>
-        </DashboardList>
-
-        <DashboardList
+        <DashboardSection
           empty={child.notes.length === 0}
           icon={<FileText aria-hidden="true" size={16} />}
           title="Visible Notes"
@@ -227,7 +332,7 @@ function ChildDashboard({ child }: { child: DashboardChild }) {
               </div>
             ))}
           </div>
-        </DashboardList>
+        </DashboardSection>
       </div>
     </section>
   );
@@ -318,8 +423,12 @@ export function ParentDashboardClient() {
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const dashboardQuery = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
-  const children = useMemo(() => dashboardQuery.data?.children ?? [], [dashboardQuery.data?.children]);
-  const selectedChild = children.find((child) => child.student.id === selectedChildId) ?? children[0];
+  const children = useMemo(
+    () => dashboardQuery.data?.children ?? [],
+    [dashboardQuery.data?.children],
+  );
+  const selectedChild =
+    children.find((child) => child.student.id === selectedChildId) ?? children[0];
 
   if (profileQuery.isLoading || dashboardQuery.isLoading) {
     return <div className="empty-state">Loading parent dashboard...</div>;
@@ -340,15 +449,12 @@ export function ParentDashboardClient() {
 
   return (
     <div className="parent-dashboard">
-      <div className="dashboard-hero parent-dashboard-hero">
-        <p>Parent portal</p>
-        <h1>Welcome, {profileQuery.data?.fullName ?? 'Parent'}</h1>
-        <span>
-          {children.length === 1
-            ? `Parent of ${children[0]?.student.fullName ?? 'linked child'}`
-            : `${String(children.length)} linked children`}
-        </span>
-      </div>
+      <ParentHomeIntro
+        childrenCount={children.length}
+        parentName={profileQuery.data?.fullName ?? 'Parent'}
+        rangeTo={dashboardQuery.data?.range.to ?? new Date()}
+        selectedChild={selectedChild}
+      />
 
       {selectedChild ? (
         <div className="parent-dashboard-stack">
