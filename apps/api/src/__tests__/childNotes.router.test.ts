@@ -1239,7 +1239,12 @@ describe('childLog.snapshot', () => {
     const headView = await makeCaller(headUser, db).childLog.drillThrough({
       studentId: 'student_1',
     });
-    expect(headView.metrics.meritBalances).toEqual({ Spend: 10, Saving: 5, Investment: 2 });
+    expect(headView.metrics.meritBalances).toEqual({
+      Spend: 10,
+      Saving: 5,
+      Investment: 2,
+      ShopReserved: 0,
+    });
     expect(headView.metrics.pacesCompletedThisAcademicYear).toBe(1);
     expect(headView.behaviour).toEqual(
       expect.arrayContaining([

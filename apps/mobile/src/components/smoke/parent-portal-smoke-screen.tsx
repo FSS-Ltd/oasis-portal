@@ -9,6 +9,7 @@ import { ParentChildOverview, ParentChildPicker } from './parent-smoke-children'
 import { ParentClubsPanel } from './parent-smoke-clubs';
 import { ParentMessagesPanel } from './parent-smoke-messages';
 import { ParentNoticesPanel } from './parent-smoke-notices';
+import { MobileShopReservationPanel } from './student-smoke-shop';
 import {
   PortalMobileBottomNav,
   PortalMobileHeader,
@@ -19,13 +20,14 @@ type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type SignupClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
 type SignupChild = RouterOutputs['club']['linkedChildSignupContext']['children'][number];
-type ParentMobileTab = 'home' | 'notices' | 'messages' | 'clubs';
+type ParentMobileTab = 'home' | 'notices' | 'messages' | 'clubs' | 'shop';
 
 const tabs: Array<PortalMobileNavItem<ParentMobileTab>> = [
   { id: 'home', label: 'Home', icon: 'dashboard' },
   { id: 'notices', label: 'Notices', icon: 'notices' },
   { id: 'messages', label: 'Messages', icon: 'messages' },
   { id: 'clubs', label: 'Clubs', icon: 'clubs' },
+  { id: 'shop', label: 'Shop', icon: 'shop' },
 ];
 
 function firstError(...messages: Array<string | undefined>): string | null {
@@ -69,6 +71,11 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
     { studentId: selectedChildId },
     { enabled: Boolean(selectedChildId), retry: false },
   );
+  const balances = api.meritLedger.balances.useQuery(
+    { studentId: selectedChildId },
+    { enabled: Boolean(selectedChildId), retry: false },
+  );
+  const shopItems = api.shop.listItems.useQuery(undefined, { retry: false });
   const signUpForClub = api.club.signUp.useMutation();
   const withdrawFromClub = api.club.withdraw.useMutation();
 
@@ -78,6 +85,8 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
     threads.isFetching ||
     recipients.isFetching ||
     childDetail.isFetching ||
+    balances.isFetching ||
+    shopItems.isFetching ||
     clubSignupContext.isFetching;
   const unreadNoticeCount = (notices.data ?? []).filter((notice) => !notice.read).length;
   const unreadMessageCount = (threads.data ?? []).reduce(
@@ -92,6 +101,8 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
     threads.error?.message,
     recipients.error?.message,
     childDetail.error?.message,
+    balances.error?.message,
+    shopItems.error?.message,
     clubSignupContext.error?.message,
   );
 
@@ -102,8 +113,9 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
       threads.refetch(),
       recipients.refetch(),
       clubSignupContext.refetch(),
+      shopItems.refetch(),
     ]);
-    if (selectedChildId) await childDetail.refetch();
+    if (selectedChildId) await Promise.all([childDetail.refetch(), balances.refetch()]);
   }
 
   async function signChildUp(club: SignupClub, child: SignupChild) {
@@ -162,6 +174,7 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
               ? unreadMessageCount
               : undefined,
       }))}
+      primaryItemLimit={5}
       onSelect={setActiveTab}
     />
   );
@@ -242,6 +255,26 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
               void withdrawChild(club, child);
             }}
           />
+        ) : null}
+
+        {activeTab === 'shop' ? (
+          selectedChild ? (
+            <MobileShopReservationPanel
+              heldMerits={balances.data?.balances.ShopReserved ?? 0}
+              items={shopItems.data ?? []}
+              loading={shopItems.isFetching || balances.isFetching}
+              ownerName={selectedChild.student.fullName}
+              spendBalance={
+                balances.data?.balances.Spend ?? selectedChild.metrics.meritBalances.Spend
+              }
+              studentId={selectedChild.student.id}
+            />
+          ) : (
+            <Card>
+              <SectionTitle>No linked child</SectionTitle>
+              <MutedText>Link a child before reserving shop items.</MutedText>
+            </Card>
+          )
         ) : null}
       </ScrollView>
       {bottomNav}

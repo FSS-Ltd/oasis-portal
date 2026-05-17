@@ -22,7 +22,7 @@ import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
-const DRILLTHROUGH_MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment'] as const;
+const DRILLTHROUGH_MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
 const PARENT_DASHBOARD_RECENT_LIMIT = 3;
 
 const studentListInclude = {
@@ -819,10 +819,15 @@ export const childLogRouter = router({
 
     return {
       children: students.map((student) => {
-        const balances = { Spend: 0, Saving: 0, Investment: 0 };
+        const balances = { Spend: 0, Saving: 0, Investment: 0, ShopReserved: 0 };
         for (const row of meritBalances) {
           if (row.studentId !== student.id) continue;
-          if (row.account === 'Spend' || row.account === 'Saving' || row.account === 'Investment') {
+          if (
+            row.account === 'Spend' ||
+            row.account === 'Saving' ||
+            row.account === 'Investment' ||
+            row.account === 'ShopReserved'
+          ) {
             balances[row.account] = row._sum.delta ?? 0;
           }
         }
@@ -838,7 +843,8 @@ export const childLogRouter = router({
           student: mapStudentSummary(ctx, student),
           metrics: {
             meritBalances: balances,
-            totalMerits: balances.Spend + balances.Saving + balances.Investment,
+            totalMerits:
+              balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved,
             pacesCompletedThisAcademicYear,
             attendanceRate: percentage(presentDays, studentAttendance.length),
             presentDays,
@@ -983,9 +989,15 @@ export const childLogRouter = router({
         Spend: 0,
         Saving: 0,
         Investment: 0,
+        ShopReserved: 0,
       };
       for (const row of meritBalances) {
-        if (row.account === 'Spend' || row.account === 'Saving' || row.account === 'Investment') {
+        if (
+          row.account === 'Spend' ||
+          row.account === 'Saving' ||
+          row.account === 'Investment' ||
+          row.account === 'ShopReserved'
+        ) {
           balances[row.account] = row._sum.delta ?? 0;
         }
       }
@@ -1060,7 +1072,8 @@ export const childLogRouter = router({
         },
         metrics: {
           meritBalances: balances,
-          totalMerits: balances.Spend + balances.Saving + balances.Investment,
+          totalMerits:
+            balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved,
           pacesCompletedThisAcademicYear,
           attendanceRate: percentage(presentDays, recordedAttendanceDays),
           presentDays,

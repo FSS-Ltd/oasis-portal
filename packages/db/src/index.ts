@@ -8,6 +8,8 @@ export {
   CalendarEventAudience,
   ChildRegistrationPromptStatus,
   Prisma,
+  ShopCategory,
+  ShopReservationStatus,
   StaffNoticeAudience,
   StudentRegistrationConsentType,
   UserInvitationEmailStatus,

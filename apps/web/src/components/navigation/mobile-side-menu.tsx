@@ -119,7 +119,7 @@ export function MobileSideMenu({
         ref={triggerRef}
         type="button"
       >
-        <Menu aria-hidden="true" size={20} />
+        <Menu aria-hidden="true" size={17} />
       </button>
 
       {open ? (
@@ -152,7 +152,7 @@ export function MobileSideMenu({
                 ref={closeButtonRef}
                 type="button"
               >
-                <X aria-hidden="true" size={18} />
+                <X aria-hidden="true" size={15} />
               </button>
             </header>
             <div className="mobile-side-menu__body" onClickCapture={handleNavigationClick}>

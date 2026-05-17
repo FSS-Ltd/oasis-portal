@@ -10,6 +10,7 @@ import {
   FileText,
   Home,
   MessageSquare,
+  ShoppingBag,
   UserRound,
 } from 'lucide-react';
 
@@ -17,12 +18,15 @@ const navItems = [
   { href: '/parent', label: 'Children', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },
+  { href: '/parent/shop', label: 'Shop', icon: ShoppingBag },
   { href: '/parent/reports', label: 'Reports', icon: FileText },
   { href: '/parent/profile', label: 'My Profile', icon: UserRound },
   { href: '/parent/registration', label: 'Registration', icon: ClipboardList },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },
   { href: '/parent/noticeboard', label: 'Noticeboard', icon: Bell },
 ] as const;
+
+const navIconSize = 15;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
   return label === 'Children'
@@ -41,7 +45,7 @@ interface ParentNavProps {
 }
 
 export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
 
   return (
     <nav className="admin-shell__nav">
@@ -65,7 +69,7 @@ export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: Pare
             href={{ pathname: item.href }}
             key={item.label}
           >
-            <Icon aria-hidden="true" size={18} />
+            <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
             {badge ? <b>{badge}</b> : null}
           </Link>
@@ -76,7 +80,7 @@ export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: Pare
 }
 
 export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
 
   return (
     <nav aria-label="Mobile parent sections" className="admin-shell__bottom-nav">
@@ -100,7 +104,7 @@ export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: Paren
             href={{ pathname: item.href }}
             key={item.label}
           >
-            <Icon aria-hidden="true" size={18} />
+            <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
             {badge ? <b>{badge}</b> : null}
           </Link>

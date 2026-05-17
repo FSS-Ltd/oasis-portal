@@ -344,7 +344,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
     },
   );
   const threads = threadsQuery.data ?? [];
-  const queryThreadId = searchParams.get('threadId');
+  const queryThreadId = searchParams?.get('threadId') ?? null;
   const selectedThreadId = useMemo(() => {
     if (selectedOverrideId && threads.some((thread) => thread.id === selectedOverrideId)) {
       return selectedOverrideId;

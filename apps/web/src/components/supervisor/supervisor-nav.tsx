@@ -34,6 +34,15 @@ const navItems = [
   { href: '/supervisor/notes-history', label: 'Notes History', icon: FileText, enabled: true },
 ] as const;
 
+const preferredMobileLabels = [
+  'Dashboard',
+  'Attendance',
+  'Behaviour',
+  'Merit Shop',
+  'Messages',
+] as const;
+const navIconSize = 15;
+
 type SupervisorNavProps = {
   canManageClubs: boolean;
   canUseShop: boolean;
@@ -53,6 +62,10 @@ function countBadge(count: number): string | null {
   return count > 99 ? '99+' : String(count);
 }
 
+function isPreferredMobileLabel(label: string): boolean {
+  return preferredMobileLabels.includes(label as (typeof preferredMobileLabels)[number]);
+}
+
 function badgeForItem(
   item: (typeof navItems)[number],
   unreadMessageCount: number,
@@ -70,7 +83,7 @@ export function SupervisorSidebarNav({
   unreadMessageCount,
   unreadNoticeCount,
 }: SupervisorNavProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
@@ -95,7 +108,7 @@ export function SupervisorSidebarNav({
             href={{ pathname: item.href }}
             key={item.label}
           >
-            <Icon aria-hidden="true" size={18} />
+            <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
             {badge ? <b>{badge}</b> : null}
           </Link>
@@ -112,7 +125,7 @@ export function SupervisorBottomNav({
   unreadMessageCount,
   unreadNoticeCount,
 }: SupervisorNavProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
@@ -122,28 +135,35 @@ export function SupervisorBottomNav({
 
   return (
     <nav aria-label="Mobile supervisor sections" className="admin-shell__bottom-nav">
-      {visibleNavItems.slice(0, 5).map((item) => {
-        const Icon = item.icon;
-        const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item, unreadMessageCount, unreadNoticeCount);
-        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
-          .filter(Boolean)
-          .join(' ');
+      {[
+        ...preferredMobileLabels.flatMap((label) =>
+          visibleNavItems.filter((item) => item.label === label),
+        ),
+        ...visibleNavItems.filter((item) => !isPreferredMobileLabel(item.label)),
+      ]
+        .slice(0, 5)
+        .map((item) => {
+          const Icon = item.icon;
+          const active = isActiveRoute(pathname, item.href, item.label);
+          const badge = badgeForItem(item, unreadMessageCount, unreadNoticeCount);
+          const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
+            .filter(Boolean)
+            .join(' ');
 
-        return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            aria-disabled={!item.enabled}
-            className={className}
-            href={{ pathname: item.href }}
-            key={item.label}
-          >
-            <Icon aria-hidden="true" size={18} />
-            <span>{item.label}</span>
-            {badge ? <b>{badge}</b> : null}
-          </Link>
-        );
-      })}
+          return (
+            <Link
+              aria-current={active ? 'page' : undefined}
+              aria-disabled={!item.enabled}
+              className={className}
+              href={{ pathname: item.href }}
+              key={item.label}
+            >
+              <Icon aria-hidden="true" size={navIconSize} />
+              <span>{item.label}</span>
+              {badge ? <b>{badge}</b> : null}
+            </Link>
+          );
+        })}
     </nav>
   );
 }

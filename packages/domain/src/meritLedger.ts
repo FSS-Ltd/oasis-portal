@@ -14,6 +14,7 @@ export const MERIT_ACCOUNTS = [
   'TithePaid',
   'Given',
   'FeeSink',
+  'ShopReserved',
 ] as const;
 export type MeritAccount = (typeof MERIT_ACCOUNTS)[number];
 
@@ -35,6 +36,7 @@ export interface Balances {
   TithePaid: number;
   Given: number;
   FeeSink: number;
+  ShopReserved: number;
 }
 
 export function emptyBalances(): Balances {
@@ -46,6 +48,7 @@ export function emptyBalances(): Balances {
     TithePaid: 0,
     Given: 0,
     FeeSink: 0,
+    ShopReserved: 0,
   };
 }
 

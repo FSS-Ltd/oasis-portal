@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-16
+**Last updated:** 2026-05-17
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -21,6 +21,30 @@ raw DB dump cannot re-identify anyone.
 ## Current status - Phase 4 complete
 
 Repository head: `main` at `c9ccdf2`.
+
+## Current session - 2026-05-17 Merit shop reservations CI lint repair
+
+Working branch: `feat/merit-shop-reservations`.
+
+**PR scope:** Repair the GitHub lint failure in the shop reservation API scope
+without changing reservation behaviour.
+
+Completed:
+
+- Narrowed the created reservation in `shop.router.test.ts` before using its ID
+  in ledger reason template literals.
+- Removed redundant shop router type assertions now caught by
+  `@typescript-eslint/no-unnecessary-type-assertion`.
+
+Verification:
+
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/api test -- src/__tests__/shop.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm lint`
+- `graphify update .`
+
+No blockers.
 
 **Completed scope:** Phase 4 merit economy, shop, leaderboards, student mobile
 view, and term report workflows are merged. End-of-phase verification is in
@@ -3479,6 +3503,37 @@ typecheck` now passes locally.
 - 2026-04-28 Phase 1 closeout verification: `pnpm lint`, `pnpm typecheck`,
   `pnpm test`, `pnpm --filter @oasis/web build`, `pnpm db:integration`,
   `pnpm api:smoke-context-rls`, and `pnpm verify:encryption` pass locally.
+- 2026-05-16 merit shop reservation workflow: branch
+  `feat/merit-shop-reservations` adds parent/student reservations,
+  `ShopReserved` ledger holds, pickup collection/cancellation, updated
+  parent/admin web shop screens, and mobile parent/student shop flows
+  against `design/Oasis Learning Center.zip`.
+- 2026-05-16 verification for the merit shop branch: API router tests,
+  domain shop/accounting tests, API/web/mobile typecheck, web/mobile lint,
+  web production build, `pnpm docs:component-map`, `git diff --check`,
+  and `graphify update .` pass locally. Browser smoke verified
+  `/admin/shop` on desktop and narrow viewports; `/parent/shop` is present
+  but unauthenticated local browser access is blocked by the parent guard.
+- 2026-05-16 admin shop visual correction: the admin catalogue was reshaped
+  to match the provided shop screenshots with the reference-style table,
+  stats, item modal, mobile shop nav entry, and smaller menu icons. Current
+  session verification: `pnpm --filter @oasis/web typecheck`,
+  `pnpm --filter @oasis/web lint`, `pnpm --filter @oasis/web build`,
+  `git diff --check`, and `graphify update .` pass. Browser verification
+  reached the Clerk sign-in guard for `/admin/shop` on `localhost:3002`, so
+  authenticated visual verification was not repeated in this session.
+- 2026-05-16 admin nav follow-up: Merit Shop is now explicitly visible for
+  full-admin users even if the shop-specific permission flag is false, and
+  admin nav rows, mobile bottom nav buttons, and menu trigger icons were
+  reduced in size. Verification: `pnpm --filter @oasis/web typecheck`,
+  `pnpm --filter @oasis/web lint`, `pnpm --filter @oasis/web build`,
+  `git diff --check`, and `graphify update .` pass.
+- 2026-05-16 mobile admin shop follow-up: the Expo supervisor/admin bottom
+  nav now surfaces the Shop icon directly, includes a staff-facing Merit Shop
+  catalogue/pickup panel, and uses smaller shared mobile nav icons/buttons.
+  Verification in this session: `pnpm --filter @oasis/mobile typecheck`,
+  `pnpm --filter @oasis/mobile lint`, `git diff --check`, and
+  `graphify update .` pass.
 
 ## Design decisions made (see ADRs for full rationale)
 
@@ -3517,6 +3572,9 @@ No product blockers currently. Phase 1 is code-complete and merged through PR-1.
 - Shop VAT rate default (currently configurable per item).
 - Whether parents can view non-sensitive behaviour entries for their
   own child (currently yes in RBAC).
+- Operational policy for expiring uncollected shop reservations. The
+  current implementation keeps holds until collected or cancelled by
+  an authorized user.
 
 ## Next steps — Phase 2 daily workflow
 

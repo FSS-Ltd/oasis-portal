@@ -58,7 +58,12 @@ function initials(name: string): string {
 
 function totalBalance(balances: MeritBalances | undefined): number {
   if (!balances) return 0;
-  return balances.balances.Spend + balances.balances.Saving + balances.balances.Investment;
+  return (
+    balances.balances.Spend +
+    balances.balances.Saving +
+    balances.balances.Investment +
+    balances.balances.ShopReserved
+  );
 }
 
 function completedPaces(pace: PaceDetail | undefined): number {
@@ -296,7 +301,14 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
         ) : null}
 
         {activeTab === 'shop' ? (
-          <StudentShopPanel items={shopItems.data ?? []} loading={shopItems.isFetching} />
+          <StudentShopPanel
+            heldMerits={balances.data?.balances.ShopReserved ?? 0}
+            items={shopItems.data ?? []}
+            loading={shopItems.isFetching}
+            ownerName={student.data?.fullName ?? 'Student'}
+            spendBalance={balances.data?.balances.Spend ?? 0}
+            studentId={studentId}
+          />
         ) : null}
       </ScrollView>
       <PortalMobileBottomNav

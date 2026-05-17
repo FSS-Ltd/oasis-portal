@@ -16,7 +16,7 @@ interface ProfileBadgeLinkProps {
 }
 
 export function ProfileBadgeLink({ className, href, variant = 'sidebar' }: ProfileBadgeLinkProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
   const profile = profileQuery.data;
   const active = pathname === href;

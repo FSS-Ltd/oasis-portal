@@ -264,6 +264,12 @@ describe('meritLedger.balances', () => {
             reason: 'transfer',
           }),
           makeLedgerRow({
+            studentId: linkedStudentId,
+            account: 'ShopReserved',
+            delta: 8,
+            reason: 'shop-reservation:hold',
+          }),
+          makeLedgerRow({
             studentId: otherStudentId,
             account: 'Spend',
             delta: 99,
@@ -275,7 +281,7 @@ describe('meritLedger.balances', () => {
 
     await expect(caller.meritLedger.balances({ studentId: linkedStudentId })).resolves.toEqual({
       studentId: linkedStudentId,
-      balances: { Spend: 10, Saving: 4, Investment: 0 },
+      balances: { Spend: 10, Saving: 4, Investment: 0, ShopReserved: 8 },
     });
   });
 
@@ -286,7 +292,7 @@ describe('meritLedger.balances', () => {
       linked.caller.meritLedger.balances({ studentId: linkedStudentId }),
     ).resolves.toMatchObject({
       studentId: linkedStudentId,
-      balances: { Spend: 0, Saving: 0, Investment: 0 },
+      balances: { Spend: 0, Saving: 0, Investment: 0, ShopReserved: 0 },
     });
 
     const unlinked = makeCaller(parentUser);
@@ -443,7 +449,7 @@ describe('meritLedger.transfer', () => {
       }),
     ).resolves.toEqual({
       studentId: linkedStudentId,
-      balances: { Spend: 6, Saving: 4, Investment: 0 },
+      balances: { Spend: 6, Saving: 4, Investment: 0, ShopReserved: 0 },
     });
 
     expect(db.meritLedger.createMany).toHaveBeenCalledWith({
@@ -499,7 +505,7 @@ describe('meritLedger.transfer', () => {
         amount: 3,
       }),
     ).resolves.toMatchObject({
-      balances: { Spend: 3, Saving: 5, Investment: 0 },
+      balances: { Spend: 3, Saving: 5, Investment: 0, ShopReserved: 0 },
     });
     expect(db.meritLedger.createMany).toHaveBeenCalledTimes(1);
   });

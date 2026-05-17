@@ -33,6 +33,7 @@ interface StudentWalletPanelProps {
 
 const walletRows: Array<{ account: WalletAccount; label: string; color: string }> = [
   { account: 'Spend', label: 'Spend Account', color: C.crimson },
+  { account: 'ShopReserved', label: 'Shop Holds', color: C.warning },
   { account: 'Saving', label: 'Saving Account', color: C.navy },
   { account: 'Investment', label: 'Investment Account', color: C.blue },
 ];
@@ -52,7 +53,12 @@ function balanceValue(balances: MeritBalances | undefined, account: WalletAccoun
 
 function totalBalance(balances: MeritBalances | undefined): number {
   if (!balances) return 0;
-  return balances.balances.Spend + balances.balances.Saving + balances.balances.Investment;
+  return (
+    balances.balances.Spend +
+    balances.balances.ShopReserved +
+    balances.balances.Saving +
+    balances.balances.Investment
+  );
 }
 
 function ActivitySummaryCard({
