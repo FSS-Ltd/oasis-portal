@@ -12,7 +12,7 @@ import { Avatar } from '@/components/ui/avatar';
 interface ProfileBadgeLinkProps {
   className?: string;
   href: Route;
-  variant?: 'mobile' | 'sidebar';
+  variant?: 'mobile' | 'sidebar' | 'topbar';
 }
 
 export function ProfileBadgeLink({ className, href, variant = 'sidebar' }: ProfileBadgeLinkProps) {
@@ -31,6 +31,7 @@ export function ProfileBadgeLink({ className, href, variant = 'sidebar' }: Profi
         'profile-badge',
         active ? 'is-active' : undefined,
         variant === 'mobile' ? 'profile-badge--mobile' : undefined,
+        variant === 'topbar' ? 'profile-badge--topbar' : undefined,
         className,
       )}
       href={href}
@@ -38,9 +39,9 @@ export function ProfileBadgeLink({ className, href, variant = 'sidebar' }: Profi
       <Avatar className="profile-badge__avatar" name={name} />
       <span className="profile-badge__text">
         <strong>{name}</strong>
-        {variant === 'sidebar' ? <small>{subtitle}</small> : null}
+        {variant !== 'mobile' ? <small>{subtitle}</small> : null}
       </span>
-      {variant === 'sidebar' ? <ChevronRight aria-hidden="true" size={14} /> : null}
+      {variant === 'mobile' ? null : <ChevronRight aria-hidden="true" size={14} />}
     </Link>
   );
 }

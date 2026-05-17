@@ -496,6 +496,9 @@ function makeFakeDb() {
         ]),
       ),
     },
+    titheConfig: {
+      findMany: vi.fn(() => Promise.resolve([{ studentId: 'student_1', percentage: 15 }])),
+    },
     paceRecord: {
       findMany: vi.fn(
         ({
@@ -1146,6 +1149,7 @@ describe('childLog.snapshot', () => {
       metrics: {
         attendanceRate: 0,
         pacesCompletedThisAcademicYear: 1,
+        tithePercentage: 15,
         totalMerits: 17,
       },
       attendance: [{ status: 'Late', date: '2026-04-29' }],

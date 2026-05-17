@@ -7,10 +7,12 @@ import {
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
   canViewStudentDrillThrough,
+  isValidTithePercentage,
   isFullAdmin,
   isStaff,
   type Role,
   type SessionUser,
+  type TithePercentage,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
@@ -24,6 +26,7 @@ type AuthedContext = AppContext & { user: SessionUser };
 
 const DRILLTHROUGH_MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
 const PARENT_DASHBOARD_RECENT_LIMIT = 3;
+const DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE = 10 satisfies TithePercentage;
 
 const studentListInclude = {
   subjects: {
@@ -101,6 +104,11 @@ function academicYearStart(referenceDate = new Date()): Date {
 function percentage(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
   return Math.round((numerator / denominator) * 100);
+}
+
+function tithePercentage(value: number | null | undefined): TithePercentage {
+  if (value === undefined || value === null) return DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE;
+  return isValidTithePercentage(value) ? value : DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE;
 }
 
 function paceProgressKey(record: {
@@ -750,8 +758,16 @@ export const childLogRouter = router({
       return { children: [], range: { from: dateKey(from), to: dateKey(new Date()) } };
     }
 
-    const [attendance, paceTests, paceProgress, behaviour, notes, meritBalances, policy] =
-      await Promise.all([
+    const [
+      attendance,
+      paceTests,
+      paceProgress,
+      behaviour,
+      notes,
+      meritBalances,
+      titheConfigs,
+      policy,
+    ] = await Promise.all([
         ctx.db.attendance.findMany({
           where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
           select: { id: true, studentId: true, date: true, status: true, createdAt: true },
@@ -811,11 +827,18 @@ export const childLogRouter = router({
           },
           _sum: { delta: true },
         }),
+        ctx.db.titheConfig.findMany({
+          where: { studentId: { in: studentIds } },
+          select: { studentId: true, percentage: true },
+        }),
         ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
       ]);
 
     const passThreshold = policy?.passThreshold ?? 80;
     const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
+    const tithePercentageByStudent = new Map(
+      titheConfigs.map((config) => [config.studentId, tithePercentage(config.percentage)]),
+    );
 
     return {
       children: students.map((student) => {
@@ -845,6 +868,8 @@ export const childLogRouter = router({
             meritBalances: balances,
             totalMerits:
               balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved,
+            tithePercentage:
+              tithePercentageByStudent.get(student.id) ?? DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE,
             pacesCompletedThisAcademicYear,
             attendanceRate: percentage(presentDays, studentAttendance.length),
             presentDays,
