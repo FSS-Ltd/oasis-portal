@@ -1,7 +1,8 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
-import { Filter, RotateCcw } from 'lucide-react';
+import { Clock3, Database, Filter, RotateCcw, ShieldCheck, UserRound } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,11 +14,6 @@ const ACTIONS = [
   'Create',
   'Update',
   'Delete',
-  'DecryptSensitive',
-  'DecryptPii',
-  'ReadSensitive',
-  'Login',
-  'Login2FA',
   'PermissionDenied',
 ] as const;
 
@@ -33,11 +29,15 @@ type AuditRow = RouterOutputs['audit']['list']['rows'][number];
 
 const ENTITIES = [
   '',
+  'Attendance',
+  'AttendanceExport',
+  'BehaviourEntry',
+  'ChildNote',
+  'PaceAdvancementApproval',
+  'PaceRecord',
+  'StaffAttendance',
   'Student',
   'StudentSubject',
-  'Guardian',
-  'Invitation',
-  'ParentRegistration',
   'User',
 ] as const;
 
@@ -46,6 +46,19 @@ function formatDate(value: string | Date) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
+}
+
+function formatShortDate(value: string | Date) {
+  return new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'medium',
+  }).format(new Date(value));
+}
+
+function actionTone(action: AuditRow['action']): 'amber' | 'blue' | 'green' | 'red' {
+  if (action === 'Create') return 'green';
+  if (action === 'Update') return 'blue';
+  if (action === 'Delete' || action === 'PermissionDenied') return 'red';
+  return 'amber';
 }
 
 function labelForMetaKey(key: string): string {
@@ -93,10 +106,20 @@ function formatSource(value: unknown): string {
     'admin.listUsers': 'User list',
     'admin.searchParents': 'Parent search',
     'admin.searchGuardianAccounts': 'Guardian account search',
+    'admin.updateUserProfile': 'Profile update',
     'admin.updateUserTags': 'Permission tag update',
     'attendance.exportStudentsCsv': 'Student attendance export',
+    'attendance.exportStaffCsv': 'Staff attendance export',
     'attendance.forDate': 'Attendance register',
     'audit.list': 'Audit log',
+    'behaviour.log': 'Behaviour input',
+    'behaviour.logMany': 'Behaviour batch input',
+    'childNotes.create': 'Note input',
+    'childNotes.listForStudent': 'Student notes',
+    'pace.deleteRecord': 'PACE delete',
+    'pace.record': 'PACE input',
+    'pace.updateRecord': 'PACE update',
+    'profile.updateMe': 'Profile update',
     'registration.answerChildRegistrationPrompt': 'Child registration prompt',
     'registration.byStudent': 'Registration form read',
     'registration.submitInitial': 'Parent registration submit',
@@ -124,6 +147,26 @@ function MetaDetails({ meta }: { meta: unknown }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function AuditSummaryCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="audit-summary-card">
+      <span aria-hidden="true">{icon}</span>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+      </div>
+    </div>
   );
 }
 
@@ -159,18 +202,29 @@ export function AuditLogViewer() {
 
   const auditQuery = api.audit.list.useQuery(queryInput, { retry: false });
   const rows = auditQuery.data?.rows ?? [];
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+  const latestRow = rows[0];
   const columns: DataTableColumn<AuditRow>[] = [
-    { id: 'date', header: 'Date', render: (row) => formatDate(row.createdAt) },
+    {
+      id: 'date',
+      header: 'Date',
+      render: (row) => (
+        <span className="audit-date">
+          <strong>{formatShortDate(row.createdAt)}</strong>
+          <span>{formatDate(row.createdAt).replace(`${formatShortDate(row.createdAt)}, `, '')}</span>
+        </span>
+      ),
+    },
     {
       id: 'action',
       header: 'Action',
-      render: (row) => <Badge>{row.action}</Badge>,
+      render: (row) => <Badge tone={actionTone(row.action)}>{row.action}</Badge>,
     },
     {
       id: 'entity',
       header: 'Entity',
       render: (row) => (
-        <span className="student-row__text">
+        <span className="audit-entity">
           <strong>{row.entity}</strong>
           <span>{row.entityId ?? row.id}</span>
         </span>
@@ -181,12 +235,25 @@ export function AuditLogViewer() {
       header: 'Actor',
       render: (row) =>
         row.actor ? (
-          <span className="student-row__text">
-            <strong>{row.actor.fullName}</strong>
-            <span>{row.actor.email}</span>
+          <span className="audit-actor">
+            <span aria-hidden="true" className="audit-actor__icon">
+              <UserRound size={15} />
+            </span>
+            <span>
+              <strong>{row.actor.fullName}</strong>
+              <span>{row.actor.email}</span>
+            </span>
           </span>
         ) : (
-          <span className="muted">System</span>
+          <span className="audit-actor audit-actor--system">
+            <span aria-hidden="true" className="audit-actor__icon">
+              <Database size={15} />
+            </span>
+            <span>
+              <strong>System</strong>
+              <span>Automated event</span>
+            </span>
+          </span>
         ),
     },
     {
@@ -197,90 +264,126 @@ export function AuditLogViewer() {
   ];
 
   return (
-    <section className="grid">
+    <section className="audit-page">
+      <div className="audit-summary-grid" aria-label="Audit log summary">
+        <AuditSummaryCard
+          icon={<ShieldCheck size={20} />}
+          label="Loaded rows"
+          value={auditQuery.isLoading ? '...' : String(rows.length)}
+        />
+        <AuditSummaryCard
+          icon={<Clock3 size={20} />}
+          label="Latest event"
+          value={latestRow ? formatShortDate(latestRow.createdAt) : 'None'}
+        />
+        <AuditSummaryCard
+          icon={<Filter size={20} />}
+          label="Active filters"
+          value={String(activeFilterCount)}
+        />
+      </div>
+
       <form
-        className="panel"
+        className="panel audit-filter-panel"
         onSubmit={(event) => {
           event.preventDefault();
           setCursor(undefined);
           setFilters(draft);
         }}
       >
+        <div className="audit-filter-panel__header">
+          <div>
+            <h2>Filters</h2>
+            <p>Operational rows for inspection review</p>
+          </div>
+          <div className="audit-filter-panel__actions">
+            <Button type="submit" variant="secondary">
+              <Filter aria-hidden="true" size={16} />
+              Apply
+            </Button>
+            <Button
+              onClick={() => {
+                const empty: AuditFilters = { action: '', entity: '', userId: '', from: '', to: '' };
+                setDraft(empty);
+                setFilters(empty);
+                setCursor(undefined);
+              }}
+              type="button"
+              variant="ghost"
+            >
+              <RotateCcw aria-hidden="true" size={16} />
+              Reset
+            </Button>
+          </div>
+        </div>
         <div className="panel__body audit-filters">
-          <SelectInput
-            aria-label="Filter by action"
-            onChange={(event) => {
-              setDraft((value) => ({
-                ...value,
-                action: event.target.value as AuditActionFilter,
-              }));
-            }}
-            value={draft.action}
-          >
-            {(['', ...ACTIONS] as const).map((action) => (
-              <option key={action || 'all-actions'} value={action}>
-                {action || 'All actions'}
-              </option>
-            ))}
-          </SelectInput>
-          <SelectInput
-            aria-label="Filter by entity"
-            onChange={(event) => {
-              setDraft((value) => ({ ...value, entity: event.target.value }));
-            }}
-            value={draft.entity}
-          >
-            {ENTITIES.map((entity) => (
-              <option key={entity || 'all-entities'} value={entity}>
-                {entity || 'All entities'}
-              </option>
-            ))}
-          </SelectInput>
-          <TextInput
-            aria-label="Filter by user id"
-            onChange={(event) => {
-              setDraft((value) => ({ ...value, userId: event.target.value }));
-            }}
-            placeholder="Actor user id"
-            value={draft.userId}
-          />
-          <TextInput
-            aria-label="From date"
-            onChange={(event) => {
-              setDraft((value) => ({ ...value, from: event.target.value }));
-            }}
-            type="date"
-            value={draft.from}
-          />
-          <TextInput
-            aria-label="To date"
-            onChange={(event) => {
-              setDraft((value) => ({ ...value, to: event.target.value }));
-            }}
-            type="date"
-            value={draft.to}
-          />
-          <Button type="submit" variant="secondary">
-            <Filter aria-hidden="true" size={16} />
-            Filter
-          </Button>
-          <Button
-            onClick={() => {
-              const empty: AuditFilters = { action: '', entity: '', userId: '', from: '', to: '' };
-              setDraft(empty);
-              setFilters(empty);
-              setCursor(undefined);
-            }}
-            type="button"
-            variant="ghost"
-          >
-            <RotateCcw aria-hidden="true" size={16} />
-            Reset
-          </Button>
+          <label className="field">
+            <span className="field__label">Action</span>
+            <SelectInput
+              onChange={(event) => {
+                setDraft((value) => ({
+                  ...value,
+                  action: event.target.value as AuditActionFilter,
+                }));
+              }}
+              value={draft.action}
+            >
+              {(['', ...ACTIONS] as const).map((action) => (
+                <option key={action || 'all-actions'} value={action}>
+                  {action || 'All actions'}
+                </option>
+              ))}
+            </SelectInput>
+          </label>
+          <label className="field">
+            <span className="field__label">Entity</span>
+            <SelectInput
+              onChange={(event) => {
+                setDraft((value) => ({ ...value, entity: event.target.value }));
+              }}
+              value={draft.entity}
+            >
+              {ENTITIES.map((entity) => (
+                <option key={entity || 'all-entities'} value={entity}>
+                  {entity || 'All entities'}
+                </option>
+              ))}
+            </SelectInput>
+          </label>
+          <label className="field">
+            <span className="field__label">Actor</span>
+            <TextInput
+              onChange={(event) => {
+                setDraft((value) => ({ ...value, userId: event.target.value }));
+              }}
+              placeholder="User ID"
+              value={draft.userId}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">From</span>
+            <TextInput
+              onChange={(event) => {
+                setDraft((value) => ({ ...value, from: event.target.value }));
+              }}
+              type="date"
+              value={draft.from}
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">To</span>
+            <TextInput
+              onChange={(event) => {
+                setDraft((value) => ({ ...value, to: event.target.value }));
+              }}
+              type="date"
+              value={draft.to}
+            />
+          </label>
         </div>
       </form>
 
-      <div className="panel panel--scroll">
+      <div className="panel panel--scroll audit-table-panel">
         <DataTable
           columns={columns}
           empty={
@@ -298,7 +401,7 @@ export function AuditLogViewer() {
         />
       </div>
 
-      <div className="toolbar">
+      <div className="audit-pagination">
         <Button
           disabled={!auditQuery.data?.nextCursor || auditQuery.isFetching}
           onClick={() => {

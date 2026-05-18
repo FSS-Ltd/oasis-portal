@@ -15,12 +15,12 @@ import {
   canViewBehaviourReports,
   canUseLinkedChildClubSignup,
   canUseFullPaceAccess,
+  canViewAuditLog,
   canManageUserAccounts,
   isFullAdmin,
   requireClubsAdminOrFullAdmin,
   requireFullAdmin,
   requireStaff,
-  requireTag,
   type SessionUser,
 } from '@oasis/domain';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
@@ -73,6 +73,7 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canManageUserAccounts(user) &&
     !canExportAttendance(user) &&
     !canManageCalendar(user) &&
+    !canViewAuditLog(user) &&
     !canRespondToParentMessages(user) &&
     !canManageClubs(user) &&
     !canManageShop(user) &&
@@ -144,12 +145,9 @@ export async function assertStaffUser() {
 }
 
 export async function assertAuditViewer() {
-  const user = await getFullAdminUser();
-
-  try {
-    requireTag(user, 'audit-viewer');
-  } catch (error) {
-    notFoundOnAccessDenied(error);
+  const user = await getAdminShellUser();
+  if (!canViewAuditLog(user)) {
+    notFound();
   }
 }
 

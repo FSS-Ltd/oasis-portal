@@ -9,9 +9,9 @@ export default async function AuditPage() {
     <MotionPage>
       <div className="page-header">
         <div>
-          <p>Audit trail</p>
+          <p>Inspection trail</p>
           <h1>Audit log</h1>
-          <p>Review admin actions, PII decrypts, and permission events across the portal.</p>
+          <p>Review attendance, PACE, behaviour, notes, and profile changes across the portal.</p>
         </div>
       </div>
       <AuditLogViewer />

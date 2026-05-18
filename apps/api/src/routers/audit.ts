@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { AuditAction, Prisma } from '@oasis/db';
-import { AccessDeniedError, requireTag } from '@oasis/domain';
-import { fullAdminProcedure, router } from '../trpc.js';
+import { AccessDeniedError, canViewAuditLog } from '@oasis/domain';
+import { authedProcedure, router } from '../trpc.js';
 
 const auditInclude = Prisma.validator<Prisma.AuditLogInclude>()({
   user: {
@@ -16,14 +16,35 @@ const auditInclude = Prisma.validator<Prisma.AuditLogInclude>()({
 
 type AuditLogWithUser = Prisma.AuditLogGetPayload<{ include: typeof auditInclude }>;
 
-function requireAuditViewer(user: Parameters<typeof requireTag>[0]): void {
-  try {
-    requireTag(user, 'audit-viewer');
-  } catch (err) {
-    if (err instanceof AccessDeniedError) {
-      throw new TRPCError({ code: 'FORBIDDEN', message: err.message, cause: err });
-    }
-    throw err;
+const inspectionAuditActions = [
+  'Create',
+  'Update',
+  'Delete',
+  'PermissionDenied',
+] as const satisfies readonly AuditAction[];
+
+const inspectionAuditEntities = [
+  'Attendance',
+  'AttendanceExport',
+  'BehaviourEntry',
+  'ChildNote',
+  'PaceAdvancementApproval',
+  'PaceRecord',
+  'StaffAttendance',
+  'Student',
+  'StudentSubject',
+  'User',
+] as const;
+
+const inspectionAuditWhere = Prisma.validator<Prisma.AuditLogWhereInput>()({
+  action: { in: [...inspectionAuditActions] },
+  entity: { in: [...inspectionAuditEntities] },
+});
+
+function requireAuditViewer(user: Parameters<typeof canViewAuditLog>[0]): void {
+  if (!canViewAuditLog(user)) {
+    const err = new AccessDeniedError('audit log requires Head role or audit-viewer staff tag');
+    throw new TRPCError({ code: 'FORBIDDEN', message: err.message, cause: err });
   }
 }
 
@@ -40,21 +61,25 @@ const listInput = z
   .optional();
 
 export const auditRouter = router({
-  list: fullAdminProcedure.input(listInput).query(async ({ ctx, input }) => {
+  list: authedProcedure.input(listInput).query(async ({ ctx, input }) => {
     requireAuditViewer(ctx.user);
 
     const limit = input?.limit ?? 25;
-    const where: Prisma.AuditLogWhereInput = {};
+    const filters: Prisma.AuditLogWhereInput = {};
 
-    if (input?.action) where.action = input.action;
-    if (input?.entity) where.entity = input.entity;
-    if (input?.userId) where.userId = input.userId;
+    if (input?.action) filters.action = input.action;
+    if (input?.entity) filters.entity = input.entity;
+    if (input?.userId) filters.userId = input.userId;
     if (input?.from || input?.to) {
       const createdAt: Prisma.DateTimeFilter<'AuditLog'> = {};
       if (input.from) createdAt.gte = input.from;
       if (input.to) createdAt.lte = input.to;
-      where.createdAt = createdAt;
+      filters.createdAt = createdAt;
     }
+
+    const where: Prisma.AuditLogWhereInput = {
+      AND: Object.keys(filters).length > 0 ? [inspectionAuditWhere, filters] : [inspectionAuditWhere],
+    };
 
     const queryArgs: Prisma.AuditLogFindManyArgs = {
       where,

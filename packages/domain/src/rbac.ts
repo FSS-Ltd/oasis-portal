@@ -213,6 +213,12 @@ export function canViewBehaviourReports(user: SessionUser): boolean {
   return isFullAdmin(user) || hasTag(user, 'behaviour-viewer');
 }
 
+export function canViewAuditLog(user: SessionUser): boolean {
+  if (user.role === 'Head') return true;
+  if (user.role === 'Parent' || user.role === 'Student') return false;
+  return hasTag(user, 'audit-viewer');
+}
+
 export function canViewSensitiveBehaviour(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user);
 }
