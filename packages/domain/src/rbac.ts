@@ -106,6 +106,10 @@ export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user) || user.role === 'ClubsAdmin' || user.role === 'Supervisor';
 }
 
+export function canUseStaffMessaging(user: Pick<SessionUser, 'role'>): boolean {
+  return isStaff(user) || user.role === 'TechnicalSupport';
+}
+
 export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
   return user.role === 'ClubsAdmin' || isFullAdmin(user);
 }

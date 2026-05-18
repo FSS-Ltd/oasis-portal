@@ -14,6 +14,7 @@ import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canUseLinkedChildClubSignup,
+  canUseStaffMessaging,
   canUseFullPaceAccess,
   canViewAuditLog,
   canManageUserAccounts,
@@ -75,6 +76,7 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canManageCalendar(user) &&
     !canViewAuditLog(user) &&
     !canRespondToParentMessages(user) &&
+    !canUseStaffMessaging(user) &&
     !canManageClubs(user) &&
     !canManageShop(user) &&
     !canSellInShop(user)
@@ -109,7 +111,7 @@ export async function getUserAccountAdminUser(): Promise<SessionUser> {
 
 export async function getParentMessageResponderUser(): Promise<SessionUser> {
   const user = await getAdminShellUser();
-  if (!canRespondToParentMessages(user)) {
+  if (!canRespondToParentMessages(user) && !canUseStaffMessaging(user)) {
     notFound();
   }
 

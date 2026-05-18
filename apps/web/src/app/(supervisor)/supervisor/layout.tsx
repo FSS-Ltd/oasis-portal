@@ -22,7 +22,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
     prisma.message.count({
       where: {
         senderId: { not: user.id },
-        thread: { kind: 'SupervisorHead', supervisorId: user.id },
+        thread: { participants: { some: { userId: user.id } } },
         reads: {
           none: { userId: user.id },
         },

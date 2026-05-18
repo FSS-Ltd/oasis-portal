@@ -29,7 +29,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
     prisma.message.count({
       where: {
         senderId: { not: user.id },
-        thread: { parentId: user.id },
+        thread: { kind: 'ParentStaff', parentId: user.id, participants: { some: { userId: user.id } } },
         reads: {
           none: { userId: user.id },
         },

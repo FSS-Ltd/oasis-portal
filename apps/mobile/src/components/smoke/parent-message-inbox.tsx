@@ -88,21 +88,22 @@ function EmptyInbox({ onCompose }: { onCompose: () => void }) {
 function ThreadRow({ onPress, thread }: { onPress: () => void; thread: ThreadSummary }) {
   const latestTime = thread.latestMessage?.createdAt ?? thread.updatedAt;
   const unread = thread.unreadCount > 0;
+  const adminName = thread.admin?.fullName ?? 'Centre team';
 
   return (
     <Pressable
-      accessibilityLabel={`${thread.subject}, ${thread.admin.fullName}`}
+      accessibilityLabel={`${thread.subject}, ${adminName}`}
       accessibilityRole="button"
       onPress={onPress}
       style={[styles.threadRow, unread ? styles.threadRowUnread : null]}
     >
       <View style={styles.threadAvatar}>
-        <Text style={styles.threadAvatarText}>{thread.admin.fullName.slice(0, 1)}</Text>
+        <Text style={styles.threadAvatarText}>{adminName.slice(0, 1)}</Text>
       </View>
       <View style={styles.threadBody}>
         <View style={styles.threadTopLine}>
           <Text numberOfLines={1} style={styles.threadName}>
-            {thread.admin.fullName}
+            {adminName}
           </Text>
           <Text style={styles.threadTime}>{formatThreadTime(latestTime)}</Text>
         </View>

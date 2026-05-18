@@ -9,6 +9,7 @@ import {
   canManageClubs,
   canManageShop,
   canRespondToParentMessages,
+  canUseStaffMessaging,
   canUseFullPaceAccess,
   canManageUserAccounts,
   canSellInShop,
@@ -38,14 +39,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManageCalendarDates = canManageCalendar(user);
   const canManageClubModule = canManageClubs(user);
   const canUseShop = canManageShop(user) || canSellInShop(user);
-  const canUseMessages = canRespondToParentMessages(user);
+  const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
   const [linkedChildren, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
     canUseMessages
       ? prisma.message.count({
           where: {
             senderId: { not: user.id },
-            ...(fullAdmin ? {} : { thread: { adminId: user.id } }),
+            thread: { participants: { some: { userId: user.id } } },
             reads: {
               none: { userId: user.id },
             },
