@@ -10,10 +10,11 @@ import {
   canManageInvoices,
   canManageShop,
   canRespondToParentMessages,
+  canUseStaffMessaging,
   canUseFullPaceAccess,
   canManageUserAccounts,
   canSellInShop,
-  hasTag,
+  canViewAuditLog,
   isFullAdmin,
 } from '@oasis/domain';
 import { prisma } from '@oasis/db';
@@ -29,7 +30,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await getAdminShellUser();
-  const canViewAudit = hasTag(user, 'audit-viewer');
+  const canViewAudit = canViewAuditLog(user);
   const canViewBehaviour = canViewBehaviourReports(user);
   const fullAdmin = isFullAdmin(user);
   const canViewStudents = canViewAnyStudentDrillThrough(user);
@@ -40,14 +41,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManageClubModule = canManageClubs(user);
   const canManageInvoiceModule = canManageInvoices(user);
   const canUseShop = canManageShop(user) || canSellInShop(user);
-  const canUseMessages = canRespondToParentMessages(user);
+  const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
   const [linkedChildren, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
     canUseMessages
       ? prisma.message.count({
           where: {
             senderId: { not: user.id },
-            ...(fullAdmin ? {} : { thread: { adminId: user.id } }),
+            thread: { participants: { some: { userId: user.id } } },
             reads: {
               none: { userId: user.id },
             },

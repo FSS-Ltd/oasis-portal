@@ -15,13 +15,14 @@ import {
   canViewAnyStudentDrillThrough,
   canViewBehaviourReports,
   canUseLinkedChildClubSignup,
+  canUseStaffMessaging,
   canUseFullPaceAccess,
+  canViewAuditLog,
   canManageUserAccounts,
   isFullAdmin,
   requireClubsAdminOrFullAdmin,
   requireFullAdmin,
   requireStaff,
-  requireTag,
   type SessionUser,
 } from '@oasis/domain';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
@@ -74,7 +75,9 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canManageUserAccounts(user) &&
     !canExportAttendance(user) &&
     !canManageCalendar(user) &&
+    !canViewAuditLog(user) &&
     !canRespondToParentMessages(user) &&
+    !canUseStaffMessaging(user) &&
     !canManageClubs(user) &&
     !canManageInvoices(user) &&
     !canManageShop(user) &&
@@ -119,7 +122,7 @@ export async function getUserAccountAdminUser(): Promise<SessionUser> {
 
 export async function getParentMessageResponderUser(): Promise<SessionUser> {
   const user = await getAdminShellUser();
-  if (!canRespondToParentMessages(user)) {
+  if (!canRespondToParentMessages(user) && !canUseStaffMessaging(user)) {
     notFound();
   }
 
@@ -155,12 +158,9 @@ export async function assertStaffUser() {
 }
 
 export async function assertAuditViewer() {
-  const user = await getFullAdminUser();
-
-  try {
-    requireTag(user, 'audit-viewer');
-  } catch (error) {
-    notFoundOnAccessDenied(error);
+  const user = await getAdminShellUser();
+  if (!canViewAuditLog(user)) {
+    notFound();
   }
 }
 

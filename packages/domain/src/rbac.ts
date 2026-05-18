@@ -107,6 +107,10 @@ export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user) || user.role === 'ClubsAdmin' || user.role === 'Supervisor';
 }
 
+export function canUseStaffMessaging(user: Pick<SessionUser, 'role'>): boolean {
+  return isStaff(user) || user.role === 'TechnicalSupport';
+}
+
 export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
   return user.role === 'ClubsAdmin' || isFullAdmin(user);
 }
@@ -224,6 +228,12 @@ export function canViewSensitiveChildNotes(user: SessionUser): boolean {
 
 export function canViewBehaviourReports(user: SessionUser): boolean {
   return isFullAdmin(user) || hasTag(user, 'behaviour-viewer');
+}
+
+export function canViewAuditLog(user: SessionUser): boolean {
+  if (user.role === 'Head') return true;
+  if (user.role === 'Parent' || user.role === 'Student') return false;
+  return hasTag(user, 'audit-viewer');
 }
 
 export function canViewSensitiveBehaviour(user: Pick<SessionUser, 'role'>): boolean {

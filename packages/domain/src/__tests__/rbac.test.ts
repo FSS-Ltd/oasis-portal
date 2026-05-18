@@ -13,7 +13,9 @@ import {
   canCreateSensitiveBehaviour,
   canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
+  canUseStaffMessaging,
   canViewAnyStudentDrillThrough,
+  canViewAuditLog,
   canViewBehaviourReports,
   canViewSensitiveBehaviour,
   canViewSensitiveChildNotes,
@@ -130,6 +132,16 @@ describe('invoice finance administration', () => {
   });
 });
 
+describe('canUseStaffMessaging', () => {
+  it('allows all staffroom roles and blocks parent/student users', () => {
+    for (const user of [head, principal, pastor, hod, technicalSupport, clubsAdmin, supervisor]) {
+      expect(canUseStaffMessaging(user)).toBe(true);
+    }
+    expect(canUseStaffMessaging(parent)).toBe(false);
+    expect(canUseStaffMessaging(student)).toBe(false);
+  });
+});
+
 describe('child registration prompt roles', () => {
   it('includes adult non-parent roles and excludes clubs-only, Parent, and Student', () => {
     expect(canAnswerChildRegistrationPrompt(head)).toBe(true);
@@ -179,6 +191,31 @@ describe('resolvePostSignInPortal', () => {
 
   it('sends missing local users to not-ready', () => {
     expect(resolvePostSignInPortal(null)).toBe('not-ready');
+  });
+});
+
+describe('canViewAuditLog', () => {
+  it('allows Head without the audit-viewer tag', () => {
+    expect(canViewAuditLog(head)).toBe(true);
+  });
+
+  it('allows tagged staff roles to view delegated audit access', () => {
+    expect(canViewAuditLog({ ...principal, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...pastor, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...hod, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...technicalSupport, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...clubsAdmin, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...supervisor, tags: ['audit-viewer'] })).toBe(true);
+  });
+
+  it('rejects untagged non-Head roles and non-staff tagged roles', () => {
+    expect(canViewAuditLog(principal)).toBe(false);
+    expect(canViewAuditLog(pastor)).toBe(false);
+    expect(canViewAuditLog(hod)).toBe(false);
+    expect(canViewAuditLog(supervisor)).toBe(false);
+    expect(canViewAuditLog(technicalSupport)).toBe(false);
+    expect(canViewAuditLog({ ...parent, tags: ['audit-viewer'] })).toBe(false);
+    expect(canViewAuditLog({ ...student, tags: ['audit-viewer'] })).toBe(false);
   });
 });
 

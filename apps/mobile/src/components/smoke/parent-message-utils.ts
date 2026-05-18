@@ -35,7 +35,7 @@ export function latestSenderLabel(thread: ThreadSummary): string {
   if (!latest) return 'No messages yet';
   return latest.senderId === thread.parentId
     ? 'You sent the latest message'
-    : `${thread.admin.fullName} replied`;
+    : `${thread.admin?.fullName ?? 'Centre team'} replied`;
 }
 
 export function unreadLabel(count: number): string {

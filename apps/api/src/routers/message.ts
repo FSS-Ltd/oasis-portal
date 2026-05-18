@@ -4,8 +4,7 @@ import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canRespondToParentMessages,
-  isFullAdmin,
-  isStaff,
+  canUseStaffMessaging,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -25,11 +24,24 @@ export interface MessageRouterDeps {
 
 interface ThreadAccessRow {
   id: string;
-  kind: 'ParentStaff' | 'SupervisorHead';
+  kind: MessageThreadKind;
   parentId: string | null;
   supervisorId: string | null;
-  adminId: string;
+  adminId: string | null;
+  participants: { userId: string }[];
 }
+
+type MessageThreadKind = 'ParentStaff' | 'SupervisorHead' | 'StaffDirect' | 'Staffroom';
+
+const STAFF_MESSAGE_ROLES = [
+  'Head',
+  'Principal',
+  'Pastor',
+  'HeadOfDiscipline',
+  'TechnicalSupport',
+  'ClubsAdmin',
+  'Supervisor',
+] as const;
 
 const userDisplaySelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
@@ -45,6 +57,10 @@ const threadSummaryInclude = Prisma.validator<Prisma.MessageThreadInclude>()({
   parent: { select: userDisplaySelect },
   supervisor: { select: userDisplaySelect },
   admin: { select: userDisplaySelect },
+  participants: {
+    orderBy: { createdAt: 'asc' },
+    select: { userId: true, user: { select: userDisplaySelect } },
+  },
   messages: {
     orderBy: { createdAt: 'desc' },
     select: {
@@ -59,6 +75,10 @@ const threadMessageInclude = Prisma.validator<Prisma.MessageThreadInclude>()({
   parent: { select: userDisplaySelect },
   supervisor: { select: userDisplaySelect },
   admin: { select: userDisplaySelect },
+  participants: {
+    orderBy: { createdAt: 'asc' },
+    select: { userId: true, user: { select: userDisplaySelect } },
+  },
   messages: {
     orderBy: { createdAt: 'asc' },
     include: {
@@ -78,6 +98,10 @@ const threadNotificationSelect = Prisma.validator<Prisma.MessageThreadSelect>()(
   parent: { select: userDisplaySelect },
   supervisor: { select: userDisplaySelect },
   admin: { select: userDisplaySelect },
+  participants: {
+    orderBy: { createdAt: 'asc' },
+    select: { userId: true, user: { select: userDisplaySelect } },
+  },
 });
 
 type UserDisplayRow = Prisma.UserGetPayload<{ select: typeof userDisplaySelect }>;
@@ -88,14 +112,14 @@ type ThreadForNotification = Prisma.MessageThreadGetPayload<{
 }>;
 
 const openThreadInput = z.object({
-  adminId: z.string().cuid(),
-  kind: z.enum(['ParentStaff', 'SupervisorHead']).default('ParentStaff'),
+  adminId: z.string().cuid().optional(),
+  kind: z.enum(['ParentStaff', 'SupervisorHead', 'StaffDirect']).default('ParentStaff'),
   subject: z.string().trim().min(1),
 });
 
 const listRecipientsInput = z
   .object({
-    kind: z.enum(['ParentStaff', 'SupervisorHead']).default('ParentStaff'),
+    kind: z.enum(['ParentStaff', 'SupervisorHead', 'StaffDirect']).default('ParentStaff'),
   })
   .optional();
 
@@ -118,34 +142,35 @@ function requireParent(user: SessionUser): void {
 }
 
 function requireSupervisorMessageAuthor(user: SessionUser): void {
-  if (isStaff(user)) return;
+  if (canUseStaffMessaging(user)) return;
   throw toForbidden(new AccessDeniedError('supervisor messaging requires staff access'));
 }
 
 function requireMessageReader(user: SessionUser): void {
-  if (user.role === 'Parent' || isStaff(user) || canRespondToParentMessages(user)) return;
+  if (user.role === 'Parent' || canUseStaffMessaging(user) || canRespondToParentMessages(user)) {
+    return;
+  }
   throw toForbidden(
     new AccessDeniedError('messaging requires Parent, staff, or message responder'),
   );
 }
 
 function canAccessThread(user: SessionUser, thread: ThreadAccessRow): boolean {
-  if (user.role === 'Parent') return thread.kind === 'ParentStaff' && thread.parentId === user.id;
-  if (isStaff(user) && !isFullAdmin(user)) {
-    return thread.kind === 'SupervisorHead' && thread.supervisorId === user.id;
+  const isParticipant = thread.participants.some((participant) => participant.userId === user.id);
+  if (!isParticipant) return false;
+  if (user.role === 'Parent') {
+    return thread.kind === 'ParentStaff' && thread.parentId === user.id;
   }
-  if (isFullAdmin(user)) return true;
-  if (canRespondToParentMessages(user)) return thread.adminId === user.id;
-  return false;
+  return canUseStaffMessaging(user) || canRespondToParentMessages(user);
 }
 
-function scopedThreadWhere(user: SessionUser): Prisma.MessageThreadWhereInput | null {
+function scopedThreadWhere(user: SessionUser): Prisma.MessageThreadWhereInput {
   requireMessageReader(user);
 
-  if (user.role === 'Parent') return { parentId: user.id };
-  if (isStaff(user) && !isFullAdmin(user)) return { kind: 'SupervisorHead', supervisorId: user.id };
-  if (isFullAdmin(user)) return null;
-  return { adminId: user.id };
+  if (user.role === 'Parent') {
+    return { kind: 'ParentStaff', parentId: user.id, participants: { some: { userId: user.id } } };
+  }
+  return { participants: { some: { userId: user.id } } };
 }
 
 function assertThreadAccess<T extends ThreadAccessRow>(user: SessionUser, thread: T | null): T {
@@ -179,6 +204,13 @@ function displayRecipient(ctx: AuthedContext, user: UserDisplayRow) {
   return displayUser(ctx, user);
 }
 
+function displayParticipants(
+  ctx: AuthedContext,
+  participants: { user: UserDisplayRow; userId: string }[],
+) {
+  return participants.map((participant) => displayUser(ctx, participant.user));
+}
+
 function mapThreadSummary(ctx: AuthedContext, thread: ThreadSummaryRow) {
   const latestMessage = thread.messages[0] ?? null;
   const unreadCount = thread.messages.filter(
@@ -193,9 +225,11 @@ function mapThreadSummary(ctx: AuthedContext, thread: ThreadSummaryRow) {
     subject: thread.subject,
     parentId: thread.parentId,
     adminId: thread.adminId,
+    currentUserId: ctx.user.id,
     parent: thread.parent ? displayUser(ctx, thread.parent) : null,
     supervisor: thread.supervisor ? displayUser(ctx, thread.supervisor) : null,
-    admin: displayUser(ctx, thread.admin),
+    admin: thread.admin ? displayUser(ctx, thread.admin) : null,
+    participants: displayParticipants(ctx, thread.participants),
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     messageCount: thread._count.messages,
@@ -220,7 +254,8 @@ function mapThreadMessages(ctx: AuthedContext, thread: ThreadWithMessages) {
     currentUserId: ctx.user.id,
     parent: thread.parent ? displayUser(ctx, thread.parent) : null,
     supervisor: thread.supervisor ? displayUser(ctx, thread.supervisor) : null,
-    admin: displayUser(ctx, thread.admin),
+    admin: thread.admin ? displayUser(ctx, thread.admin) : null,
+    participants: displayParticipants(ctx, thread.participants),
     createdAt: thread.createdAt,
     updatedAt: thread.updatedAt,
     messages: thread.messages.map((message) => ({
@@ -277,7 +312,10 @@ async function markThreadRead(ctx: AuthedContext, thread: ThreadWithMessages): P
   return result.count;
 }
 
-async function assertAdminAssignee(ctx: AuthedContext, adminId: string): Promise<void> {
+async function loadParentMessageAssignee(
+  ctx: AuthedContext,
+  adminId: string,
+): Promise<UserDisplayRow> {
   const admin = await ctx.db.user.findUnique({
     where: { id: adminId },
     select: userDisplaySelect,
@@ -289,6 +327,27 @@ async function assertAdminAssignee(ctx: AuthedContext, adminId: string): Promise
       message: 'admin must be an active parent message responder',
     });
   }
+
+  return admin;
+}
+
+async function loadStaffMessageRecipient(
+  ctx: AuthedContext,
+  userId: string,
+): Promise<UserDisplayRow> {
+  const user = await ctx.db.user.findUnique({
+    where: { id: userId },
+    select: userDisplaySelect,
+  });
+
+  if (!user || !user.active || !canUseStaffMessaging(user) || user.id === ctx.user.id) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'recipient must be another active staff user',
+    });
+  }
+
+  return user;
 }
 
 function messagePathForRecipient(threadId: string, recipient: UserDisplayRow): string {
@@ -301,11 +360,75 @@ function messagePathForRecipient(threadId: string, recipient: UserDisplayRow): s
 }
 
 function targetForMessage(thread: ThreadForNotification, senderId: string): UserDisplayRow {
+  if (thread.kind === 'StaffDirect') {
+    const recipient = thread.participants.find((participant) => participant.userId !== senderId);
+    if (!recipient) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'message recipient not found',
+      });
+    }
+    return recipient.user;
+  }
+
   const initiator = thread.kind === 'ParentStaff' ? thread.parent : thread.supervisor;
   if (!initiator) {
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'message initiator not found' });
   }
+  if (!thread.admin) {
+    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'message assignee not found' });
+  }
   return senderId === initiator.id ? thread.admin : initiator;
+}
+
+async function ensureStaffroomThread(ctx: AuthedContext): Promise<{ id: string }> {
+  if (!canUseStaffMessaging(ctx.user)) {
+    throw toForbidden(new AccessDeniedError('staffroom requires staff access'));
+  }
+
+  const activeStaff = await ctx.db.user.findMany({
+    where: { active: true, role: { in: [...STAFF_MESSAGE_ROLES] } },
+    select: { id: true },
+  });
+
+  const existing = await ctx.db.messageThread.findFirst({
+    where: { kind: 'Staffroom' },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await ctx.db.messageThreadParticipant.createMany({
+      data: activeStaff.map((user) => ({ threadId: existing.id, userId: user.id })),
+      skipDuplicates: true,
+    });
+    return existing;
+  }
+
+  const thread = await ctx.db.messageThread.create({
+    data: {
+      kind: 'Staffroom',
+      parentId: null,
+      supervisorId: null,
+      adminId: null,
+      subject: 'Staffroom',
+      participants: {
+        create: activeStaff.map((user) => ({ userId: user.id })),
+      },
+    },
+    select: { id: true },
+  });
+
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'Create',
+      entity: 'MessageThread',
+      entityId: thread.id,
+      meta: { source: 'message.openStaffroom', kind: 'Staffroom' },
+    },
+  });
+
+  return thread;
 }
 
 async function notifyMessageRecipient({
@@ -408,15 +531,22 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       const kind = input?.kind ?? 'ParentStaff';
       if (kind === 'ParentStaff') {
         requireParent(ctx.user);
+      } else if (kind === 'StaffDirect') {
+        if (!canUseStaffMessaging(ctx.user)) {
+          throw toForbidden(new AccessDeniedError('staff direct messaging requires staff access'));
+        }
       } else {
         requireSupervisorMessageAuthor(ctx.user);
       }
 
       const users = await ctx.db.user.findMany({
-        where: {
-          active: true,
-          OR: [{ role: 'Head' }, { tags: { has: 'parent-message-responder' } }],
-        },
+        where:
+          kind === 'StaffDirect'
+            ? { active: true, role: { in: [...STAFF_MESSAGE_ROLES] } }
+            : {
+                active: true,
+                OR: [{ role: 'Head' }, { tags: { has: 'parent-message-responder' } }],
+              },
         select: userDisplaySelect,
         orderBy: { createdAt: 'asc' },
       });
@@ -424,7 +554,12 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       return users
         .filter(
           (user) =>
-            canRespondToParentMessages(user) && user.role !== 'Parent' && user.role !== 'Student',
+            user.id !== ctx.user.id &&
+            (kind === 'StaffDirect'
+              ? canUseStaffMessaging(user)
+              : canRespondToParentMessages(user) &&
+                user.role !== 'Parent' &&
+                user.role !== 'Student'),
         )
         .map((user) => displayRecipient(ctx, user));
     }),
@@ -433,7 +568,7 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       const where = scopedThreadWhere(ctx.user);
       const orderBy = { updatedAt: 'desc' as const };
       const threads = await ctx.db.messageThread.findMany({
-        ...(where ? { where } : {}),
+        where,
         include: threadSummaryInclude,
         orderBy,
       });
@@ -441,21 +576,50 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       return threads.map((thread) => mapThreadSummary(ctx, thread));
     }),
 
+    openStaffroom: authedProcedure.mutation(async ({ ctx }) => {
+      const thread = await ensureStaffroomThread(ctx);
+      return thread;
+    }),
+
     openThread: authedProcedure.input(openThreadInput).mutation(async ({ ctx, input }) => {
+      if (!input.adminId) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'recipient is required' });
+      }
+
+      let participantIds: string[];
+      let adminId: string | null = input.adminId;
+      let parentId: string | null = null;
+      let supervisorId: string | null = null;
+
       if (input.kind === 'ParentStaff') {
         requireParent(ctx.user);
+        await loadParentMessageAssignee(ctx, input.adminId);
+        parentId = ctx.user.id;
+        participantIds = [ctx.user.id, input.adminId];
+      } else if (input.kind === 'StaffDirect') {
+        if (!canUseStaffMessaging(ctx.user)) {
+          throw toForbidden(new AccessDeniedError('staff direct messaging requires staff access'));
+        }
+        await loadStaffMessageRecipient(ctx, input.adminId);
+        adminId = null;
+        participantIds = [ctx.user.id, input.adminId];
       } else {
         requireSupervisorMessageAuthor(ctx.user);
+        await loadParentMessageAssignee(ctx, input.adminId);
+        supervisorId = ctx.user.id;
+        participantIds = [ctx.user.id, input.adminId];
       }
-      await assertAdminAssignee(ctx, input.adminId);
 
       const thread = await ctx.db.messageThread.create({
         data: {
           kind: input.kind,
-          parentId: input.kind === 'ParentStaff' ? ctx.user.id : null,
-          supervisorId: input.kind === 'SupervisorHead' ? ctx.user.id : null,
-          adminId: input.adminId,
+          parentId,
+          supervisorId,
+          adminId,
           subject: input.subject,
+          participants: {
+            create: [...new Set(participantIds)].map((userId) => ({ userId })),
+          },
         },
       });
 
@@ -465,7 +629,7 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
           action: 'Create',
           entity: 'MessageThread',
           entityId: thread.id,
-          meta: { source: 'message.openThread', adminId: input.adminId, kind: input.kind },
+          meta: { source: 'message.openThread', recipientId: input.adminId, kind: input.kind },
         },
       });
 
@@ -523,13 +687,15 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       if (!sender) {
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'sender not found' });
       }
-      await notifyMessageRecipient({
-        ctx,
-        getEmailClient,
-        messageId: message.id,
-        sender,
-        thread,
-      });
+      if (thread.kind === 'ParentStaff') {
+        await notifyMessageRecipient({
+          ctx,
+          getEmailClient,
+          messageId: message.id,
+          sender,
+          thread,
+        });
+      }
 
       return {
         id: message.id,

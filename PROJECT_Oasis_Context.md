@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-18
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -22,7 +22,44 @@ raw DB dump cannot re-identify anyone.
 
 Repository head: `main` at `c9ccdf2`.
 
-## Current session - 2026-05-17 Merit shop reservations CI lint repair
+## Current session - 2026-05-18 Audit log Head access and inspection scope
+
+Working branch: `feat/audit-log-head-ui`.
+
+**PR scope:** Refresh `/admin/audit` for Head-facing inspection review and
+delegate access through `audit-viewer`, without removing lower-level security
+audit rows from storage.
+
+Completed:
+
+- Added shared `canViewAuditLog` RBAC so `Head` can always access the audit log
+  and non-parent/non-student users require the `audit-viewer` tag.
+- Changed `audit.list` to apply an inspection audit scope before user filters:
+  attendance, attendance exports, PACE records/advancement, behaviour entries,
+  child notes, student records, student subjects, staff attendance, and user
+  profile changes.
+- Refreshed the `/admin/audit` UI against the Oasis design reference with
+  compact summary cards, labelled filters, clearer entity/action/actor display,
+  and mobile-friendly table behaviour.
+- Updated the audit page copy so it describes inspection-relevant operational
+  rows instead of technical decrypt/login events.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts`
+- `pnpm --filter @oasis/api test -- audit.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `pnpm lint`
+- `git diff --check`
+- `graphify update .`
+
+No blockers.
+
+## Previous session - 2026-05-17 Merit shop reservations CI lint repair
 
 Working branch: `feat/merit-shop-reservations`.
 

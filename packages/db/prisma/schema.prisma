@@ -92,10 +92,11 @@ model User {
   requiredCalendarEvents   CalendarEventRequiredPerson[] @relation("CalendarEventRequiredUser")
   calendarEventTagsCreated CalendarEventRequiredPerson[] @relation("CalendarEventRequiredTaggedBy")
   messagesSent             Message[]                     @relation("MessagesSent")
-  messageReads             MessageRead[]
-  threadsAsParent          MessageThread[]               @relation("ThreadParent")
-  threadsAsSupervisor      MessageThread[]               @relation("ThreadSupervisor")
-  threadsAsAdmin           MessageThread[]               @relation("ThreadAdmin")
+  messageReads              MessageRead[]
+  messageThreadParticipants MessageThreadParticipant[]
+  threadsAsParent           MessageThread[]               @relation("ThreadParent")
+  threadsAsSupervisor       MessageThread[]               @relation("ThreadSupervisor")
+  threadsAsAdmin            MessageThread[]               @relation("ThreadAdmin")
   shopPurchases            ShopPurchase[]                @relation("Shopkeeper")
   shopItemsCreated         ShopItem[]                    @relation("ShopItemsCreated")
   shopReservationsMade      ShopReservation[]             @relation("ShopReservationCreator")
@@ -566,6 +567,8 @@ enum BehaviourVisibility {
 enum MessageThreadKind {
   ParentStaff
   SupervisorHead
+  StaffDirect
+  Staffroom
 }
 
 model BehaviourEntry {
@@ -1076,20 +1079,33 @@ model MessageThread {
   kind         MessageThreadKind @default(ParentStaff)
   parentId     String?
   supervisorId String?
-  adminId      String
+  adminId      String?
   subject      String
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
   parent     User?     @relation("ThreadParent", fields: [parentId], references: [id])
   supervisor User?     @relation("ThreadSupervisor", fields: [supervisorId], references: [id])
-  admin      User      @relation("ThreadAdmin", fields: [adminId], references: [id])
+  admin      User?     @relation("ThreadAdmin", fields: [adminId], references: [id])
   messages   Message[]
+  participants MessageThreadParticipant[]
 
   @@index([kind])
   @@index([parentId])
   @@index([supervisorId])
   @@index([adminId])
+}
+
+model MessageThreadParticipant {
+  threadId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id])
+
+  @@id([threadId, userId])
+  @@index([userId, threadId])
 }
 
 model Message {

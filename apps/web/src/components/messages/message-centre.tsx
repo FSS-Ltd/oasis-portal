@@ -9,7 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
 type MessageMode = 'admin' | 'parent' | 'supervisor';
-type ThreadKind = 'ParentStaff' | 'SupervisorHead';
+type ThreadKind = 'ParentStaff' | 'SupervisorHead' | 'StaffDirect';
 type ThreadSummary = RouterOutputs['message']['listThreads'][number];
 type ThreadDetail = RouterOutputs['message']['listInThread'];
 type Recipient = RouterOutputs['message']['listRecipients'][number];
@@ -20,13 +20,13 @@ interface MessageCentreProps {
 
 const copy = {
   admin: {
-    eyebrow: 'Family communications',
+    eyebrow: 'Staff communications',
     heading: 'Messages',
-    sub: 'Parent conversations assigned to you.',
-    emptyTitle: 'No parent messages',
-    emptyDetail: 'New parent conversations will appear here.',
+    sub: 'Private staff conversations and staffroom updates.',
+    emptyTitle: 'No staff messages',
+    emptyDetail: 'Start a staff thread or open the staffroom.',
     replyPlaceholder: 'Type your reply...',
-    threadListLabel: 'Parent message threads',
+    threadListLabel: 'Staff message threads',
   },
   parent: {
     eyebrow: 'Centre communications',
@@ -38,20 +38,20 @@ const copy = {
     threadListLabel: 'Your message threads',
   },
   supervisor: {
-    eyebrow: 'Head communications',
+    eyebrow: 'Staff communications',
     heading: 'Messages',
-    sub: 'Message the Head team from your supervisor portal.',
+    sub: 'Message colleagues privately or use the staffroom.',
     emptyTitle: 'No messages yet',
-    emptyDetail: 'Start a message thread with the Head team.',
+    emptyDetail: 'Start a staff thread or open the staffroom.',
     replyPlaceholder: 'Type your message...',
     threadListLabel: 'Your message threads',
   },
 } as const;
 
 const threadKindByMode: Record<MessageMode, ThreadKind | null> = {
-  admin: null,
+  admin: 'StaffDirect',
   parent: 'ParentStaff',
-  supervisor: 'SupervisorHead',
+  supervisor: 'StaffDirect',
 };
 
 function formatDateTime(value: Date | string): string {
@@ -64,14 +64,28 @@ function formatDateTime(value: Date | string): string {
 }
 
 function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
-  if (mode === 'parent' || mode === 'supervisor') return thread.admin.fullName;
+  if (thread.kind === 'Staffroom') return 'Staffroom';
+  if (thread.kind === 'StaffDirect') {
+    return (
+      thread.participants.find((participant) => participant.id !== thread.currentUserId)
+        ?.fullName ?? 'Staff member'
+    );
+  }
+  if (mode === 'parent' || mode === 'supervisor') return thread.admin?.fullName ?? 'Staff member';
   return thread.kind === 'SupervisorHead'
     ? (thread.supervisor?.fullName ?? 'Supervisor')
     : (thread.parent?.fullName ?? 'Parent');
 }
 
 function counterpartRole(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
-  if (mode === 'parent' || mode === 'supervisor') return thread.admin.role;
+  if (thread.kind === 'Staffroom') return 'Group chat';
+  if (thread.kind === 'StaffDirect') {
+    return (
+      thread.participants.find((participant) => participant.id !== thread.currentUserId)?.role ??
+      'Staff'
+    );
+  }
+  if (mode === 'parent' || mode === 'supervisor') return thread.admin?.role ?? 'Staff';
   return thread.kind === 'SupervisorHead' ? 'Supervisor' : 'Parent';
 }
 
@@ -201,7 +215,11 @@ function NewThreadComposer({
           <h2 id="new-message-title">New Message</h2>
           <p className="muted">
             Start a private thread with{' '}
-            {kind === 'ParentStaff' ? 'the centre team' : 'the Head team'}.
+            {kind === 'ParentStaff'
+              ? 'the centre team'
+              : kind === 'SupervisorHead'
+                ? 'the Head team'
+                : 'another staff member'}
           </p>
         </div>
       </div>
@@ -335,11 +353,13 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const utils = api.useUtils();
   const threadKind = threadKindByMode[mode];
   const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
+  const [staffroomRequested, setStaffroomRequested] = useState(false);
   const threadsQuery = api.message.listThreads.useQuery(undefined, { retry: false });
+  const openStaffroom = api.message.openStaffroom.useMutation();
   const recipientsQuery = api.message.listRecipients.useQuery(
     threadKind ? { kind: threadKind } : undefined,
     {
-      enabled: mode === 'parent' || mode === 'supervisor',
+      enabled: Boolean(threadKind),
       retry: false,
     },
   );
@@ -363,6 +383,18 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const currentUserId = selectedThread?.currentUserId ?? null;
   const pageCopy = copy[mode];
   const unreadTotal = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+
+  useEffect(() => {
+    if (mode === 'parent' || staffroomRequested || threadsQuery.isLoading) return;
+    if (threads.some((thread) => thread.kind === 'Staffroom')) return;
+
+    setStaffroomRequested(true);
+    openStaffroom.mutate(undefined, {
+      onSuccess: () => {
+        void utils.message.listThreads.invalidate();
+      },
+    });
+  }, [mode, openStaffroom, staffroomRequested, threads, threadsQuery.isLoading, utils.message.listThreads]);
 
   useEffect(() => {
     if (!selectedThread) return;
