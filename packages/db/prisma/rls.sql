@@ -111,3 +111,170 @@ CREATE POLICY behaviour_full_admin_update ON "BehaviourEntry"
   WITH CHECK (
     current_setting('app.full_admin', true) = 'true'
   );
+
+ALTER TABLE "SchoolFeeInvoice" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoice" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoiceLineItem" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoiceLineItem" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS invoice_staff_select ON "SchoolFeeInvoice";
+DROP POLICY IF EXISTS invoice_parent_own_child_select ON "SchoolFeeInvoice";
+DROP POLICY IF EXISTS invoice_staff_insert ON "SchoolFeeInvoice";
+DROP POLICY IF EXISTS invoice_staff_update ON "SchoolFeeInvoice";
+DROP POLICY IF EXISTS invoice_staff_delete ON "SchoolFeeInvoice";
+DROP POLICY IF EXISTS invoice_line_accessible_select ON "SchoolFeeInvoiceLineItem";
+DROP POLICY IF EXISTS invoice_line_staff_insert ON "SchoolFeeInvoiceLineItem";
+DROP POLICY IF EXISTS invoice_line_staff_update ON "SchoolFeeInvoiceLineItem";
+DROP POLICY IF EXISTS invoice_line_staff_delete ON "SchoolFeeInvoiceLineItem";
+
+-- API RBAC applies the stricter finance-admin tag check before these policies.
+-- RLS remains a second boundary between staff, parents, students, and anonymous sessions.
+CREATE POLICY invoice_staff_select ON "SchoolFeeInvoice"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_parent_own_child_select ON "SchoolFeeInvoice"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "status" <> 'Draft'
+    AND EXISTS (
+      SELECT 1 FROM "Guardian" g
+      WHERE g."studentId" = "SchoolFeeInvoice"."studentId"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY invoice_staff_insert ON "SchoolFeeInvoice"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_staff_update ON "SchoolFeeInvoice"
+  FOR UPDATE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_staff_delete ON "SchoolFeeInvoice"
+  FOR DELETE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_line_accessible_select ON "SchoolFeeInvoiceLineItem"
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM "SchoolFeeInvoice" i
+      WHERE i."id" = "SchoolFeeInvoiceLineItem"."invoiceId"
+    )
+  );
+
+CREATE POLICY invoice_line_staff_insert ON "SchoolFeeInvoiceLineItem"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_line_staff_update ON "SchoolFeeInvoiceLineItem"
+  FOR UPDATE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_line_staff_delete ON "SchoolFeeInvoiceLineItem"
+  FOR DELETE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );

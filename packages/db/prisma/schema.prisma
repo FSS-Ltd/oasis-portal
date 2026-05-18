@@ -109,6 +109,7 @@ model User {
   clubRotaParticipants     ClubRotaParticipant[]         @relation("ClubRotaParticipants")
   clubRotaShifts           ClubRotaShift[]               @relation("ClubRotaShifts")
   clubAvailabilityWindows  ClubAvailabilityWindow[]      @relation("ClubAvailability")
+  schoolFeeInvoicesCreated SchoolFeeInvoice[]            @relation("SchoolFeeInvoicesCreated")
   auditEvents              AuditLog[]
   invitationsSent          UserInvitation[]              @relation("InvitedUserInvitations")
   acceptedInvitations      UserInvitation[]              @relation("AcceptedUserInvitations")
@@ -185,6 +186,7 @@ model Student {
   clubSignups              ClubSignup[]
   clubAttendance           ClubAttendance[]
   termReports              TermReport[]
+  schoolFeeInvoices        SchoolFeeInvoice[]
   registrationProfile      StudentRegistrationProfile?
 
   @@index([yearGroup])
@@ -1140,6 +1142,60 @@ model TermReport {
   student Student @relation(fields: [studentId], references: [id])
 
   @@unique([studentId, term])
+}
+
+// ---------------------------------------------------------------------------
+// School fee invoices
+// ---------------------------------------------------------------------------
+
+enum SchoolFeeInvoiceStatus {
+  Draft
+  Unpaid
+  Paid
+}
+
+model SchoolFeeInvoice {
+  id                  String                 @id @default(cuid())
+  invoiceNumber       String?                @unique
+  studentId           String?
+  status              SchoolFeeInvoiceStatus @default(Draft)
+  term                String?
+  issuedOn            DateTime?              @db.Date
+  dueOn               DateTime?              @db.Date
+  paidAt              DateTime?
+  totalAmountPence    Int                    @default(0)
+  originalFileNameEnc String
+  fileMimeType        String                 @default("application/pdf")
+  fileSizeBytes       Int
+  pdfBytesEnc         String
+  extractedTextEnc    String?
+  createdById         String
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  student   Student?                   @relation(fields: [studentId], references: [id])
+  createdBy User                       @relation("SchoolFeeInvoicesCreated", fields: [createdById], references: [id])
+  lineItems SchoolFeeInvoiceLineItem[]
+
+  @@index([studentId, status, dueOn])
+  @@index([status, dueOn])
+  @@index([createdById, createdAt])
+}
+
+model SchoolFeeInvoiceLineItem {
+  id               String   @id @default(cuid())
+  invoiceId        String
+  position         Int
+  descriptionEnc   String
+  quantity         Int
+  unitAmountPence  Int
+  totalAmountPence Int
+  createdAt        DateTime @default(now())
+
+  invoice SchoolFeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, position])
+  @@index([invoiceId])
 }
 
 // ---------------------------------------------------------------------------

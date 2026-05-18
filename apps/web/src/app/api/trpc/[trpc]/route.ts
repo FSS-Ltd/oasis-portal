@@ -7,19 +7,8 @@
  * In CI / dev without Clerk secrets, auth resolution falls back to anonymous.
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { auth } from '@clerk/nextjs/server';
-import { appRouter, createContext, resolveClerkUserIdFromBearerToken } from '@oasis/api';
-
-async function resolveClerkUserId(headers: Headers): Promise<string | null> {
-  try {
-    const { userId } = await auth();
-    if (userId) return userId;
-  } catch {
-    // Continue to bearer-token resolution for mobile requests.
-  }
-
-  return resolveClerkUserIdFromBearerToken(headers);
-}
+import { appRouter, createContext } from '@oasis/api';
+import { resolveClerkUserId } from '../../auth-context';
 
 const handler = (req: Request): Promise<Response> =>
   fetchRequestHandler({

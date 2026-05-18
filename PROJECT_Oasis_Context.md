@@ -3534,6 +3534,17 @@ typecheck` now passes locally.
   Verification in this session: `pnpm --filter @oasis/mobile typecheck`,
   `pnpm --filter @oasis/mobile lint`, `git diff --check`, and
   `graphify update .` pass.
+- 2026-05-18 school fee invoices: branch `feat/school-fee-invoices` adds
+  persisted encrypted school fee invoices, finance-admin RBAC, PDF upload
+  parsing via `pdfjs-dist`, parent `/parent/fees`, admin `/admin/invoices`,
+  PDF upload/download route handlers, invoice domain helpers, API tests, and
+  component-map ownership updates. v1 keeps online payment/reminder workflows
+  out of scope.
+- 2026-05-18 invoice verification: domain invoice/RBAC tests, API invoice
+  router tests, DB tests, web typecheck/lint/build, root lint, component-map
+  regeneration, `git diff --check`, and `graphify update .` pass locally.
+  Browser smoke reached the Clerk sign-in guard for `/admin/invoices` and
+  `/parent/fees`; authenticated UI flow verification remains a follow-up.
 
 ## Design decisions made (see ADRs for full rationale)
 

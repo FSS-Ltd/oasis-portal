@@ -5,6 +5,7 @@ import {
   canExportAttendance,
   canManageCalendar,
   canManageClubs,
+  canManageInvoices,
   canManageUserAccountRole,
   canManageUserAccounts,
   canRecordStudentAttendance,
@@ -23,6 +24,7 @@ import {
   isFullAdmin,
   isStaff,
   requireCanViewSensitive,
+  requireCanManageInvoices,
   requireClubsAdminOrFullAdmin,
   requireUserAccountAdmin,
   requireFullAdmin,
@@ -106,6 +108,25 @@ describe('TechnicalSupport account administration', () => {
     expect(canManageUserAccountRole(technicalSupport, 'Student')).toBe(false);
     expect(canManageUserAccountRole(technicalSupport, 'Head')).toBe(false);
     expect(canManageUserAccountRole(head, 'Supervisor')).toBe(true);
+  });
+});
+
+describe('invoice finance administration', () => {
+  it('allows full admins and finance tagged non-parent staff to manage invoices', () => {
+    expect(canManageInvoices(head)).toBe(true);
+    expect(canManageInvoices(principal)).toBe(true);
+    expect(canManageInvoices({ ...supervisor, tags: ['finance-admin'] })).toBe(true);
+    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(true);
+    expect(canManageInvoices(supervisor)).toBe(false);
+    expect(canManageInvoices({ ...parent, tags: ['finance-admin'] })).toBe(false);
+    expect(canManageInvoices({ ...student, tags: ['finance-admin'] })).toBe(false);
+
+    expect(() => {
+      requireCanManageInvoices({ ...supervisor, tags: ['finance-admin'] });
+    }).not.toThrow();
+    expect(() => {
+      requireCanManageInvoices(parent);
+    }).toThrow(AccessDeniedError);
   });
 });
 

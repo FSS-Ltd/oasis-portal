@@ -11,3 +11,4 @@ export * from './clubs.js';
 export * from './report.js';
 export * from './schoolYears.js';
 export * from './registration.js';
+export * from './invoice.js';

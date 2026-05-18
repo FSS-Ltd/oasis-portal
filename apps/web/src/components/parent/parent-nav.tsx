@@ -10,6 +10,7 @@ import {
   FileText,
   Home,
   MessageSquare,
+  ReceiptText,
   ShoppingBag,
   UserRound,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ const parentNavItems = [
   { href: '/parent', label: 'Home', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },
+  { href: '/parent/fees', label: 'Fees', icon: ReceiptText },
   { href: '/parent/shop', label: 'Shop', icon: ShoppingBag },
   { href: '/parent/reports', label: 'Reports', icon: FileText },
   { href: '/parent/profile', label: 'My Profile', icon: UserRound },
