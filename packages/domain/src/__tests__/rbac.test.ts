@@ -12,6 +12,7 @@ import {
   canCreateSensitiveBehaviour,
   canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
+  canUseStaffMessaging,
   canViewAnyStudentDrillThrough,
   canViewAuditLog,
   canViewBehaviourReports,
@@ -107,6 +108,16 @@ describe('TechnicalSupport account administration', () => {
     expect(canManageUserAccountRole(technicalSupport, 'Student')).toBe(false);
     expect(canManageUserAccountRole(technicalSupport, 'Head')).toBe(false);
     expect(canManageUserAccountRole(head, 'Supervisor')).toBe(true);
+  });
+});
+
+describe('canUseStaffMessaging', () => {
+  it('allows all staffroom roles and blocks parent/student users', () => {
+    for (const user of [head, principal, pastor, hod, technicalSupport, clubsAdmin, supervisor]) {
+      expect(canUseStaffMessaging(user)).toBe(true);
+    }
+    expect(canUseStaffMessaging(parent)).toBe(false);
+    expect(canUseStaffMessaging(student)).toBe(false);
   });
 });
 

@@ -45,7 +45,7 @@ export function ConversationView({
   setReplyBody,
   unreadTotal,
 }: ConversationViewProps) {
-  const title = detail?.admin.fullName ?? selectedSummary?.admin.fullName ?? 'Centre team';
+  const title = detail?.admin?.fullName ?? selectedSummary?.admin?.fullName ?? 'Centre team';
   const subject = detail?.subject ?? selectedSummary?.subject ?? 'Message thread';
   const currentUserId = detail?.currentUserId ?? null;
   const unreadBackLabel =
