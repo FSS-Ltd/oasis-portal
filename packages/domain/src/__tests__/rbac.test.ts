@@ -13,6 +13,7 @@ import {
   canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
   canViewAnyStudentDrillThrough,
+  canViewAuditLog,
   canViewBehaviourReports,
   canViewSensitiveBehaviour,
   canViewSensitiveChildNotes,
@@ -158,6 +159,31 @@ describe('resolvePostSignInPortal', () => {
 
   it('sends missing local users to not-ready', () => {
     expect(resolvePostSignInPortal(null)).toBe('not-ready');
+  });
+});
+
+describe('canViewAuditLog', () => {
+  it('allows Head without the audit-viewer tag', () => {
+    expect(canViewAuditLog(head)).toBe(true);
+  });
+
+  it('allows tagged staff roles to view delegated audit access', () => {
+    expect(canViewAuditLog({ ...principal, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...pastor, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...hod, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...technicalSupport, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...clubsAdmin, tags: ['audit-viewer'] })).toBe(true);
+    expect(canViewAuditLog({ ...supervisor, tags: ['audit-viewer'] })).toBe(true);
+  });
+
+  it('rejects untagged non-Head roles and non-staff tagged roles', () => {
+    expect(canViewAuditLog(principal)).toBe(false);
+    expect(canViewAuditLog(pastor)).toBe(false);
+    expect(canViewAuditLog(hod)).toBe(false);
+    expect(canViewAuditLog(supervisor)).toBe(false);
+    expect(canViewAuditLog(technicalSupport)).toBe(false);
+    expect(canViewAuditLog({ ...parent, tags: ['audit-viewer'] })).toBe(false);
+    expect(canViewAuditLog({ ...student, tags: ['audit-viewer'] })).toBe(false);
   });
 });
 

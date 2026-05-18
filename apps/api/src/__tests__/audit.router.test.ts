@@ -4,13 +4,42 @@ import type { AppContext, RlsTx } from '../context.js';
 import { auditRouter } from '../routers/audit.js';
 import { router } from '../trpc.js';
 
-const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: ['audit-viewer'], requires2fa: false };
+const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
 const headWithoutAuditTag: SessionUser = { id: 'u_head_no_tag', role: 'Head', tags: [], requires2fa: false };
+const principalWithoutAuditTag: SessionUser = {
+  id: 'u_principal',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
+const taggedSupervisorUser: SessionUser = {
+  id: 'u_tagged_sup',
+  role: 'Supervisor',
+  tags: ['audit-viewer'],
+  requires2fa: false,
+};
 const supervisorUser: SessionUser = {
   id: 'u_sup',
   role: 'Supervisor',
   tags: [],
   requires2fa: false,
+};
+const expectedInspectionAuditWhere = {
+  action: { in: ['Create', 'Update', 'Delete', 'PermissionDenied'] },
+  entity: {
+    in: [
+      'Attendance',
+      'AttendanceExport',
+      'BehaviourEntry',
+      'ChildNote',
+      'PaceAdvancementApproval',
+      'PaceRecord',
+      'StaffAttendance',
+      'Student',
+      'StudentSubject',
+      'User',
+    ],
+  },
 };
 
 interface FakeAuditRow {
@@ -63,14 +92,36 @@ function makeCaller(user: SessionUser | null, db: FakeDb) {
 }
 
 describe('audit.list', () => {
-  it('rejects callers without the audit-viewer tag as FORBIDDEN', async () => {
+  it('allows Head without the audit-viewer tag', async () => {
+    const db = makeFakeDb();
+
+    await expect(makeCaller(headWithoutAuditTag, db).audit.list()).resolves.toEqual({
+      rows: [],
+      nextCursor: undefined,
+    });
+    expect(db.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { AND: [expectedInspectionAuditWhere] } }),
+    );
+  });
+
+  it('allows delegated staff users with the audit-viewer tag', async () => {
+    const db = makeFakeDb();
+
+    await expect(makeCaller(taggedSupervisorUser, db).audit.list()).resolves.toEqual({
+      rows: [],
+      nextCursor: undefined,
+    });
+    expect(db.auditLog.findMany).toHaveBeenCalled();
+  });
+
+  it('rejects callers without Head role or delegated staff access as FORBIDDEN', async () => {
     const db = makeFakeDb();
     const caller = makeCaller(supervisorUser, db);
 
     await expect(caller.audit.list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.auditLog.findMany).not.toHaveBeenCalled();
 
-    await expect(makeCaller(headWithoutAuditTag, db).audit.list()).rejects.toMatchObject({
+    await expect(makeCaller(principalWithoutAuditTag, db).audit.list()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
     expect(db.auditLog.findMany).not.toHaveBeenCalled();
@@ -129,13 +180,18 @@ describe('audit.list', () => {
 
     expect(db.auditLog.findMany).toHaveBeenCalledWith({
       where: {
-        action: 'Create',
-        entity: 'Student',
-        userId: 'u_actor',
-        createdAt: {
-          gte: new Date('2026-04-27T00:00:00.000Z'),
-          lte: new Date('2026-04-28T00:00:00.000Z'),
-        },
+        AND: [
+          expectedInspectionAuditWhere,
+          {
+            action: 'Create',
+            entity: 'Student',
+            userId: 'u_actor',
+            createdAt: {
+              gte: new Date('2026-04-27T00:00:00.000Z'),
+              lte: new Date('2026-04-28T00:00:00.000Z'),
+            },
+          },
+        ],
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,

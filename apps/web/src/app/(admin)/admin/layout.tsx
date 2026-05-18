@@ -12,7 +12,7 @@ import {
   canUseFullPaceAccess,
   canManageUserAccounts,
   canSellInShop,
-  hasTag,
+  canViewAuditLog,
   isFullAdmin,
 } from '@oasis/domain';
 import { prisma } from '@oasis/db';
@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await getAdminShellUser();
-  const canViewAudit = hasTag(user, 'audit-viewer');
+  const canViewAudit = canViewAuditLog(user);
   const canViewBehaviour = canViewBehaviourReports(user);
   const fullAdmin = isFullAdmin(user);
   const canViewStudents = canViewAnyStudentDrillThrough(user);
