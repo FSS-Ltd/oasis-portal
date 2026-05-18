@@ -25,12 +25,14 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
+  height: 60px;
   margin-right: 20px;
 }
 
 .parent-topbar__brand img {
   width: 128px;
-  height: auto;
+  max-height: 32px;
+  height: 100%;
   object-fit: contain;
 }
 
