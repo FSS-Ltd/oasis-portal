@@ -359,7 +359,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const recipientsQuery = api.message.listRecipients.useQuery(
     threadKind ? { kind: threadKind } : undefined,
     {
-      enabled: mode === 'parent' || mode === 'supervisor',
+      enabled: Boolean(threadKind),
       retry: false,
     },
   );
