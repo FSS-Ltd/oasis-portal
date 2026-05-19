@@ -1,5 +1,5 @@
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
-import { prisma } from '@oasis/db';
+import { Prisma, prisma } from '@oasis/db';
 import { resolveInviteMetadata, type PermissionTag, type Role } from '@oasis/domain';
 
 type ClerkWebhookEventType = 'user.created' | 'user.updated' | 'user.deleted';
@@ -48,6 +48,16 @@ export interface ClerkUserStore {
 type PrismaUserDelegate = Pick<typeof prisma.user, 'create' | 'findUnique' | 'update'>;
 type PrismaUserInvitationDelegate = Pick<typeof prisma.userInvitation, 'findMany' | 'updateMany'>;
 type PrismaGuardianDelegate = Pick<typeof prisma.guardian, 'createMany'>;
+
+const pendingInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()({
+  role: true,
+  tags: true,
+  guardianLinkStudentIds: true,
+});
+
+type PendingInvitation = Prisma.UserInvitationGetPayload<{
+  select: typeof pendingInvitationSelect;
+}>;
 
 export interface PrismaClerkUserStoreDb {
   $enc: {
@@ -129,13 +139,34 @@ export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUser
 }
 
 export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma): ClerkUserStore {
-  async function acceptPendingInvitations(emailBidx: string, userId: string): Promise<void> {
-    const pendingInvitations = await db.userInvitation.findMany({
+  async function loadPendingInvitations(emailBidx: string): Promise<PendingInvitation[]> {
+    return db.userInvitation.findMany({
       where: { emailBidx, status: 'Pending' },
-      select: { guardianLinkStudentIds: true },
+      select: pendingInvitationSelect,
     });
+  }
+
+  function resolveCreateMetadata(
+    input: Pick<ClerkUserUpsertInput, 'role' | 'tags'>,
+    pendingInvitations: readonly PendingInvitation[],
+  ): Pick<ClerkUserUpsertInput, 'role' | 'tags'> {
+    const pendingInvitation = pendingInvitations[0];
+    if (!pendingInvitation) return { role: input.role, tags: [...input.tags] };
+
+    return resolveInviteMetadata(
+      { role: pendingInvitation.role, tags: pendingInvitation.tags },
+      { role: input.role, tags: [...input.tags] },
+    );
+  }
+
+  async function acceptPendingInvitations(
+    emailBidx: string,
+    userId: string,
+    pendingInvitations?: readonly PendingInvitation[],
+  ): Promise<void> {
+    const invitations = pendingInvitations ?? (await loadPendingInvitations(emailBidx));
     const guardianLinkStudentIds = [
-      ...new Set(pendingInvitations.flatMap((invitation) => invitation.guardianLinkStudentIds)),
+      ...new Set(invitations.flatMap((invitation) => invitation.guardianLinkStudentIds)),
     ];
 
     const accepted = await db.userInvitation.updateMany({
@@ -195,11 +226,13 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
         return;
       }
 
+      const pendingInvitations = await loadPendingInvitations(emailBidx);
+      const createMetadata = resolveCreateMetadata(input, pendingInvitations);
       const created = await db.user.create({
         data: {
           clerkId: input.clerkUserId,
-          role: input.role,
-          tags: [...input.tags],
+          role: createMetadata.role,
+          tags: createMetadata.tags,
           fullNameEnc,
           emailEnc,
           emailBidx,
@@ -208,7 +241,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
         },
         select: { id: true },
       });
-      await acceptPendingInvitations(emailBidx, created.id);
+      await acceptPendingInvitations(emailBidx, created.id, pendingInvitations);
     },
     async deactivateUser(clerkUserId) {
       await db.user.update({

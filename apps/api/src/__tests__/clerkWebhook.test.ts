@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WebhookEvent } from '@clerk/backend/webhooks';
 import { Webhook } from 'standardwebhooks';
+import type { PermissionTag, Role } from '@oasis/domain';
 import {
   createPrismaClerkUserStore,
   handleClerkWebhookRequest,
@@ -40,6 +41,24 @@ function fakeEncrypt(value: string | null | undefined): string | null;
 function fakeEncrypt(value: string | null | undefined): string | null {
   return value === null || value === undefined ? null : `enc:${value}`;
 }
+
+interface PendingInvitationRow {
+  role: Role;
+  tags: PermissionTag[];
+  guardianLinkStudentIds: string[];
+}
+
+type FakeInvitationFindMany = (args: {
+  select: {
+    role: true;
+    tags: true;
+    guardianLinkStudentIds: true;
+  };
+  where: {
+    emailBidx: string;
+    status: 'Pending';
+  };
+}) => Promise<PendingInvitationRow[]>;
 
 type FakeInvitationUpdateMany = (args: {
   data: {
@@ -169,7 +188,7 @@ describe('createPrismaClerkUserStore', () => {
     });
     const create = vi.fn().mockResolvedValue(undefined);
     const update = vi.fn().mockResolvedValue(undefined);
-    const findMany = vi.fn().mockResolvedValue([]);
+    const findMany = vi.fn<FakeInvitationFindMany>().mockResolvedValue([]);
     const updateMany = vi.fn<FakeInvitationUpdateMany>().mockResolvedValue({ count: 1 });
     const createMany = vi.fn().mockResolvedValue({ count: 0 });
     const db = {
@@ -235,11 +254,51 @@ describe('createPrismaClerkUserStore', () => {
     expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
   });
 
+  it('uses a pending invitation role when Clerk omits invitation metadata on first sync', async () => {
+    const { db, create, findMany } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_new' });
+    findMany.mockResolvedValue([
+      { role: 'Pastor', tags: [], guardianLinkStudentIds: [] },
+    ]);
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Jean Ntagengwa',
+      email: 'Jean@Example.com',
+      phone: '+447700900123',
+      role: 'Parent',
+      tags: [],
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { emailBidx: 'bidx:jean@example.com', status: 'Pending' },
+      select: { role: true, tags: true, guardianLinkStudentIds: true },
+    });
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        clerkId: 'user_123',
+        role: 'Pastor',
+        tags: [],
+        fullNameEnc: 'enc:Jean Ntagengwa',
+        emailEnc: 'enc:Jean@Example.com',
+        emailBidx: 'bidx:jean@example.com',
+        phoneEnc: 'enc:+447700900123',
+        active: true,
+      },
+      select: { id: true },
+    });
+  });
+
   it('creates guardian links when accepting a spouse invitation', async () => {
     const { db, create, findMany, createMany } = makeDb(null);
     create.mockResolvedValue({ id: 'cuid_new' });
     findMany.mockResolvedValue([
-      { guardianLinkStudentIds: ['s_child_1', 's_child_2', 's_child_1'] },
+      {
+        role: 'Parent',
+        tags: [],
+        guardianLinkStudentIds: ['s_child_1', 's_child_2', 's_child_1'],
+      },
     ]);
     const store = createPrismaClerkUserStore(db);
 
