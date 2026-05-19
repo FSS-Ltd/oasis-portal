@@ -65,6 +65,8 @@ export type PaceRecordInput = z.infer<typeof paceRecordInput>;
 
 export const paceUpdateRecordInput = z.object({
   recordId: z.string().trim().min(1),
+  subjectId: z.string().trim().min(1).optional(),
+  paceNumber: z.number().int().positive().optional(),
   score: z.number().min(0).max(100),
   completedAt: z.coerce.date(),
   startedAt: z.coerce.date(),

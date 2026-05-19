@@ -142,11 +142,10 @@ export function PaceScoreModal({
             <Field label="Subject">
               <SelectInput
                 aria-label="PACE subject"
-                disabled={isUpdateMode}
                 onChange={(event) => {
                   const next = subjects.find((item) => item.subjectId === event.target.value);
                   setSubjectId(event.target.value);
-                  if (next) setPaceNumber(String(next.currentPaceNumber));
+                  if (!isUpdateMode && next) setPaceNumber(String(next.currentPaceNumber));
                 }}
                 value={subjectId}
               >
@@ -160,7 +159,6 @@ export function PaceScoreModal({
             <Field label="PACE number">
               <TextInput
                 aria-label="PACE number"
-                disabled={isUpdateMode}
                 min={1}
                 onChange={(event) => {
                   setPaceNumber(event.target.value);
@@ -252,7 +250,7 @@ export function PaceScoreModal({
             <div className="pace-modal__summary">
               <span>Existing record</span>
               <strong>
-                {selectedSubject.code} #{String(initialRecord.paceNumber)} ·{' '}
+                {subject.code} #{String(initialRecord.paceNumber)} ·{' '}
                 {initialRecord.testType === 'SelfTest' ? 'Self-Test' : 'PACE Test'}
               </strong>
             </div>

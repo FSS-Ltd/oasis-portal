@@ -768,71 +768,71 @@ export const childLogRouter = router({
       titheConfigs,
       policy,
     ] = await Promise.all([
-        ctx.db.attendance.findMany({
-          where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
-          select: { id: true, studentId: true, date: true, status: true, createdAt: true },
-          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        }),
-        ctx.db.paceRecord.findMany({
-          where: {
-            studentId: { in: studentIds },
-            completedAt: { gte: from, lt: to },
-            OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
-          },
-          include: { subject: { select: { id: true, code: true, name: true } } },
-          orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-        }),
-        ctx.db.paceProgress.findMany({
-          where: {
-            studentId: { in: studentIds },
-            completedAt: { gte: from, lt: to },
-          },
-          select: { id: true, studentId: true },
-        }),
-        ctx.withRls((tx) =>
-          tx.behaviourEntry.findMany({
-            where: {
-              studentId: { in: studentIds },
-              createdAt: { gte: from, lt: to },
-              deletedAt: null,
-              visibility: 'General',
-            },
-            select: {
-              id: true,
-              studentId: true,
-              type: true,
-              category: true,
-              noteEnc: true,
-              meritDelta: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-          }),
-        ),
-        ctx.db.childNote.findMany({
+      ctx.db.attendance.findMany({
+        where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
+        select: { id: true, studentId: true, date: true, status: true, createdAt: true },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      }),
+      ctx.db.paceRecord.findMany({
+        where: {
+          studentId: { in: studentIds },
+          completedAt: { gte: from, lt: to },
+          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+        },
+        include: { subject: { select: { id: true, code: true, name: true } } },
+        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+      }),
+      ctx.db.paceProgress.findMany({
+        where: {
+          studentId: { in: studentIds },
+          completedAt: { gte: from, lt: to },
+        },
+        select: { id: true, studentId: true },
+      }),
+      ctx.withRls((tx) =>
+        tx.behaviourEntry.findMany({
           where: {
             studentId: { in: studentIds },
             createdAt: { gte: from, lt: to },
             deletedAt: null,
-            sensitive: false,
+            visibility: 'General',
           },
-          select: { id: true, studentId: true, noteEnc: true, createdAt: true },
+          select: {
+            id: true,
+            studentId: true,
+            type: true,
+            category: true,
+            noteEnc: true,
+            meritDelta: true,
+            createdAt: true,
+          },
           orderBy: { createdAt: 'desc' },
         }),
-        ctx.db.meritLedger.groupBy({
-          by: ['studentId', 'account'],
-          where: {
-            studentId: { in: studentIds },
-            account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
-          },
-          _sum: { delta: true },
-        }),
-        ctx.db.titheConfig.findMany({
-          where: { studentId: { in: studentIds } },
-          select: { studentId: true, percentage: true },
-        }),
-        ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
-      ]);
+      ),
+      ctx.db.childNote.findMany({
+        where: {
+          studentId: { in: studentIds },
+          createdAt: { gte: from, lt: to },
+          deletedAt: null,
+          sensitive: false,
+        },
+        select: { id: true, studentId: true, noteEnc: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+      ctx.db.meritLedger.groupBy({
+        by: ['studentId', 'account'],
+        where: {
+          studentId: { in: studentIds },
+          account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+        },
+        _sum: { delta: true },
+      }),
+      ctx.db.titheConfig.findMany({
+        where: { studentId: { in: studentIds } },
+        select: { studentId: true, percentage: true },
+      }),
+      ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+    ]);
 
     const passThreshold = policy?.passThreshold ?? 80;
     const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
@@ -1176,7 +1176,16 @@ export const childLogRouter = router({
     const to = dayEnd(input.to);
     const student = await ctx.db.student.findUnique({
       where: { id: input.studentId },
-      select: { id: true, active: true, fullNameEnc: true, yearGroup: true },
+      select: {
+        id: true,
+        active: true,
+        fullNameEnc: true,
+        yearGroup: true,
+        subjects: {
+          include: { subject: true },
+          orderBy: { subject: { code: 'asc' } },
+        },
+      },
     });
     if (!student) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
@@ -1316,6 +1325,12 @@ export const childLogRouter = router({
                 )
               : null,
         totalMerits: meritBalance._sum.delta ?? 0,
+        subjects: student.subjects.map((assignment) => ({
+          subjectId: assignment.subjectId,
+          code: assignment.subject.code,
+          name: assignment.subject.name,
+          currentPaceNumber: assignment.currentPaceNumber,
+        })),
       },
       range: {
         from: dateKey(from),

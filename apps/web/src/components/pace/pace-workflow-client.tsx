@@ -153,6 +153,8 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     if (input.recordId) {
       await updatePace.mutateAsync({
         recordId: input.recordId,
+        subjectId: input.subjectId,
+        paceNumber: input.paceNumber,
         score: input.score,
         completedAt: asDate(input.completedAt),
         startedAt: asDate(input.startedAt ?? input.completedAt),

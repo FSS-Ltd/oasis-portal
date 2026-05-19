@@ -636,15 +636,19 @@ export function StudentDrillThroughContent({
 
   async function savePaceCorrection(input: {
     completedAt: string;
+    paceNumber: number;
     recordId: string;
     score: number;
     startedAt: string;
+    subjectId: string;
   }): Promise<void> {
     await updatePace.mutateAsync({
       completedAt: asDate(input.completedAt),
+      paceNumber: input.paceNumber,
       recordId: input.recordId,
       score: input.score,
       startedAt: asDate(input.startedAt),
+      subjectId: input.subjectId,
     });
   }
 
@@ -846,6 +850,7 @@ export function StudentDrillThroughContent({
           onSave={savePaceCorrection}
           pending={updatePace.isPending}
           record={drillThroughPaceToEditable(data.student.fullName, paceDraft)}
+          subjects={data.student.subjects}
         />
       ) : null}
       <ConfirmationDialog
@@ -906,6 +911,8 @@ function drillThroughPaceToEditable(studentName: string, entry: PaceEntry): Edit
     score: entry.score,
     startedAt: entry.startedAt,
     studentName,
+    subjectId: entry.subjectId,
+    subjectCode: entry.subjectCode,
     subjectName: entry.subjectName,
     testType: entry.testType,
   };
