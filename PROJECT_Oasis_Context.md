@@ -23,6 +23,33 @@ raw DB dump cannot re-identify anyone.
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
 
+## Current session - 2026-05-19 Invite email role preservation
+
+Working branch: `fix/invite-email-role`.
+
+**PR scope:** Preserve the selected admin invitation role when the invited user
+accepts the email link, even if Clerk does not copy invitation metadata onto the
+created user webhook payload.
+
+Completed:
+
+- Changed the Clerk webhook store to use the pending `UserInvitation` row for
+  the accepting email as the source of truth for first-time account role/tags.
+- Kept existing-user sync behaviour unchanged so webhook updates still do not
+  overwrite admin-managed roles or tags.
+- Added a regression test for a Pastor invite where Clerk sends the webhook
+  without invitation metadata.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- src/__tests__/clerkWebhook.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `git diff --check`
+- `graphify update .`
+
+No blockers.
+
 ## Current session - 2026-05-19 Clubs Lead portal and club assignments
 
 Working branch: `feat/clubs-lead-portal`.
