@@ -23,6 +23,30 @@ raw DB dump cannot re-identify anyone.
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
 
+## Current session - 2026-05-19 Clubs assignment action colours
+
+Working branch: `fix/clubs-assign-remove-colours`.
+
+**PR scope:** Make the admin clubs Assign action visually distinct from Remove
+without changing assignment behaviour.
+
+Completed:
+
+- Scoped the student assignment row's Assign button to the existing Oasis
+  success green, leaving Remove on the existing danger treatment.
+- Referenced `design/Oasis Learning Center.zip` and reused the established
+  success/danger colour tokens from the Oasis palette.
+
+Verification:
+
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+No blockers.
+
 ## Current session - 2026-05-19 Clubs Lead portal and club assignments
 
 Working branch: `feat/clubs-lead-portal`.
