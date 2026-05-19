@@ -41,7 +41,34 @@ Verification:
 
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm --filter @oasis/web lint`
-- `pnpm --filter @oasis/web build`
+- `NEXT_PRIVATE_BUILD_WORKER=0 pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+No blockers.
+
+## Current session - 2026-05-19 Invite email role preservation
+
+Working branch: `fix/invite-email-role`.
+
+**PR scope:** Preserve the selected admin invitation role when the invited user
+accepts the email link, even if Clerk does not copy invitation metadata onto the
+created user webhook payload.
+
+Completed:
+
+- Changed the Clerk webhook store to use the pending `UserInvitation` row for
+  the accepting email as the source of truth for first-time account role/tags.
+- Kept existing-user sync behaviour unchanged so webhook updates still do not
+  overwrite admin-managed roles or tags.
+- Added a regression test for a Pastor invite where Clerk sends the webhook
+  without invitation metadata.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- src/__tests__/clerkWebhook.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
 - `git diff --check`
 - `graphify update .`
 
