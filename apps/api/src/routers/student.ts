@@ -14,6 +14,7 @@ const STUDENT_READ_ROLES = [
   'Principal',
   'Pastor',
   'HeadOfDiscipline',
+  'ClubsAdmin',
   'Supervisor',
 ] as const;
 
@@ -176,7 +177,13 @@ export const studentRouter = router({
     .query(async ({ ctx, input }) => {
       const scope = await loadDailyYearBandScope(ctx, input?.date ?? new Date());
       const where: Prisma.StudentWhereInput = {};
-      if (ctx.user.role === 'Supervisor' || !input?.includeInactive) where.active = true;
+      if (
+        ctx.user.role === 'Supervisor' ||
+        ctx.user.role === 'ClubsAdmin' ||
+        !input?.includeInactive
+      ) {
+        where.active = true;
+      }
       if (input?.search) where.nameBidx = ctx.db.$enc.blindIndex(input.search);
       if (!canUseAllStudentSupervisorWorkflow(ctx.user)) {
         Object.assign(where, studentWhereForDailyScope(scope));

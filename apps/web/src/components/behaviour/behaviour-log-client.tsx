@@ -18,6 +18,7 @@ export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 type EntryMode = 'single' | 'batch';
 type RecentBehaviourEntry = RouterOutputs['behaviour']['recentEntries']['entries'][number];
+const SELECT_ALL_STUDENTS = '__all_students__';
 
 interface BatchEntryForm {
   id: string;
@@ -102,7 +103,7 @@ export function BehaviourLogClient({
   const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [
     newBatchEntry('Merit'),
   ]);
-  const [studentId, setStudentId] = useState('');
+  const [studentIds, setStudentIds] = useState<string[]>([]);
   const [category, setCategory] = useState<string>(meritCategories[0]);
   const [note, setNote] = useState('');
   const [visibility, setVisibility] = useState<BehaviourVisibility>('General');
@@ -118,14 +119,14 @@ export function BehaviourLogClient({
     { retry: false },
   );
   const utils = api.useUtils();
-  const logBehaviour = api.behaviour.log.useMutation({
+  const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
       setStatus(
         input.type === 'Merit'
-          ? 'Merit recorded.'
+          ? `Merit recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
           : input.type === 'Demerit'
-            ? 'Demerit recorded.'
-            : 'General mark recorded.',
+            ? `Demerit recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
+            : `General mark recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
       );
       setNote('');
       setVisibility(
@@ -141,9 +142,11 @@ export function BehaviourLogClient({
       ]);
     },
   });
-  const logManyBehaviour = api.behaviour.logMany.useMutation({
+  const logManyBehaviour = api.behaviour.logManyForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      setStatus(`${String(input.entries.length)} ${input.type.toLowerCase()} entries recorded.`);
+      setStatus(
+        `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
+      );
       setBatchEntries([newBatchEntry(input.type)]);
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
@@ -176,11 +179,19 @@ export function BehaviourLogClient({
   const categories = categoriesFor(type);
   const batchCategories = categoriesFor(batchType);
   const entries = recentQuery.data?.entries ?? [];
+  const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
+  const allStudentIds = useMemo(() => students.map((student) => student.id), [students]);
+  const selectedStudentCount = studentIds.length;
+  const batchEntryCount = totalBatchEntries(batchEntries);
 
   useEffect(() => {
     const firstStudent = studentsQuery.data?.[0];
-    if (!studentId && firstStudent) setStudentId(firstStudent.id);
-  }, [studentId, studentsQuery.data]);
+    if (studentIds.length === 0 && firstStudent) setStudentIds([firstStudent.id]);
+  }, [studentIds.length, studentsQuery.data]);
+
+  useEffect(() => {
+    setStudentIds((current) => current.filter((studentId) => allStudentIds.includes(studentId)));
+  }, [allStudentIds]);
 
   useEffect(() => {
     setCategory((current) => (categories.includes(current) ? current : (categories[0] ?? 'Misc')));
@@ -197,12 +208,20 @@ export function BehaviourLogClient({
     setVisibility(next);
   }
 
+  function chooseStudents(values: readonly string[]): void {
+    if (values.includes(SELECT_ALL_STUDENTS)) {
+      setStudentIds(allStudentIds);
+      return;
+    }
+    setStudentIds(values.filter((value) => allStudentIds.includes(value)));
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canLogBehaviour || !studentId) return;
+    if (!canLogBehaviour || studentIds.length === 0) return;
     setStatus(null);
     await logBehaviour.mutateAsync({
-      studentId,
+      studentIds,
       type,
       category,
       note: note.trim() ? note : undefined,
@@ -213,10 +232,10 @@ export function BehaviourLogClient({
 
   async function submitBatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canLogBehaviour || !studentId) return;
+    if (!canLogBehaviour || studentIds.length === 0) return;
     setStatus(null);
     await logManyBehaviour.mutateAsync({
-      studentId,
+      studentIds,
       type: batchType,
       entries: batchEntries.map((entry) => ({
         category: entry.category,
@@ -324,17 +343,23 @@ export function BehaviourLogClient({
                 ))}
               </div>
 
-              <Field label="Student">
+              <Field
+                hint={`${String(selectedStudentCount)} of ${String(students.length)} selected`}
+                label="Students"
+              >
                 <SelectInput
-                  aria-label="Student"
+                  aria-label="Students"
                   disabled={!canLogBehaviour || studentsQuery.isLoading}
+                  multiple
                   onChange={(event) => {
-                    setStudentId(event.target.value);
+                    chooseStudents(
+                      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+                    );
                   }}
-                  value={studentId}
+                  value={studentIds}
                 >
-                  <option value="">Select a student</option>
-                  {(studentsQuery.data ?? []).map((student) => (
+                  <option value={SELECT_ALL_STUDENTS}>Select all</option>
+                  {students.map((student) => (
                     <option key={student.id} value={student.id}>
                       {student.fullName}
                     </option>
@@ -435,7 +460,7 @@ export function BehaviourLogClient({
               ) : null}
 
               <Button
-                disabled={!canLogBehaviour || !studentId}
+                disabled={!canLogBehaviour || selectedStudentCount === 0}
                 pending={logBehaviour.isPending}
                 type="submit"
               >
@@ -479,17 +504,23 @@ export function BehaviourLogClient({
                 ))}
               </div>
 
-              <Field label="Student">
+              <Field
+                hint={`${String(selectedStudentCount)} of ${String(students.length)} selected`}
+                label="Students"
+              >
                 <SelectInput
-                  aria-label="Student"
+                  aria-label="Students"
                   disabled={!canLogBehaviour || studentsQuery.isLoading}
+                  multiple
                   onChange={(event) => {
-                    setStudentId(event.target.value);
+                    chooseStudents(
+                      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+                    );
                   }}
-                  value={studentId}
+                  value={studentIds}
                 >
-                  <option value="">Select a student</option>
-                  {(studentsQuery.data ?? []).map((student) => (
+                  <option value={SELECT_ALL_STUDENTS}>Select all</option>
+                  {students.map((student) => (
                     <option key={student.id} value={student.id}>
                       {student.fullName}
                     </option>
@@ -583,12 +614,13 @@ export function BehaviourLogClient({
                 Add entry
               </Button>
               <Button
-                disabled={!canLogBehaviour || !studentId}
+                disabled={!canLogBehaviour || selectedStudentCount === 0}
                 pending={logManyBehaviour.isPending}
                 type="submit"
               >
-                Record {String(totalBatchEntries(batchEntries))} {batchType.toLowerCase()}{' '}
-                {totalBatchEntries(batchEntries) === 1 ? 'entry' : 'entries'}
+                Record {String(batchEntryCount * Math.max(selectedStudentCount, 1))}{' '}
+                {batchType.toLowerCase()}{' '}
+                {batchEntryCount * Math.max(selectedStudentCount, 1) === 1 ? 'entry' : 'entries'}
               </Button>
               {status ? <p className="status--success">{status}</p> : null}
               {studentsQuery.error ? (

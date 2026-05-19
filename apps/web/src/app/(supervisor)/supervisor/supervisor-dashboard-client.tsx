@@ -31,6 +31,7 @@ type SupervisorDashboardClientProps = {
 };
 
 type EntryMode = 'single' | 'batch';
+const SELECT_ALL_STUDENTS = '__all_students__';
 
 interface BatchEntryForm {
   id: string;
@@ -60,7 +61,7 @@ export function SupervisorDashboardClient({
   view = 'dashboard',
 }: SupervisorDashboardClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
-  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [entryMode, setEntryMode] = useState<EntryMode>('single');
   const [batchType, setBatchType] = useState<BatchBehaviourType>('Merit');
   const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [
@@ -118,12 +119,13 @@ export function SupervisorDashboardClient({
     retry: false,
   });
   const behaviourQuery = api.behaviour.listForStudent.useQuery(
-    { studentId: selectedStudentId, includeSensitive: false, date },
-    { enabled: view === 'behaviour' && selectedStudentId.length > 0, retry: false },
+    { studentId: selectedStudentIds[0] ?? '', includeSensitive: false, date },
+    { enabled: view === 'behaviour' && selectedStudentIds.length > 0, retry: false },
   );
 
   const selectedStudent =
-    attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentId) ?? null;
+    attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentIds[0]) ??
+    null;
 
   const requestSwap = api.rota.requestSwap.useMutation({
     onSuccess: async () => {
@@ -135,16 +137,16 @@ export function SupervisorDashboardClient({
       ]);
     },
   });
-  const logBehaviour = api.behaviour.log.useMutation({
+  const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
       setBehaviourStatus(
         input.type === 'General'
           ? input.visibility === 'General'
-            ? 'Parent-visible general mark saved.'
-            : 'General mark saved. Heads and you can view it.'
+            ? `Parent-visible general mark saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
+            : `General mark saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}. Heads and you can view it.`
           : input.visibility === 'Sensitive'
-            ? 'Sensitive demerit saved. Heads and you can view it.'
-            : 'Behaviour saved.',
+            ? `Sensitive demerit saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}. Heads and you can view it.`
+            : `Behaviour saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
       );
       setBehaviourForm((current) => ({
         ...current,
@@ -154,27 +156,31 @@ export function SupervisorDashboardClient({
         visibility: current.type === 'General' ? 'Sensitive' : current.visibility,
       }));
       await Promise.all([
-        utils.behaviour.listForStudent.invalidate({
-          studentId: input.studentId,
-          includeSensitive: false,
-          date,
-        }),
+        ...input.studentIds.map((studentId) =>
+          utils.behaviour.listForStudent.invalidate({
+            studentId,
+            includeSensitive: false,
+            date,
+          }),
+        ),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
   });
-  const logManyBehaviour = api.behaviour.logMany.useMutation({
+  const logManyBehaviour = api.behaviour.logManyForStudents.useMutation({
     onSuccess: async (_result, input) => {
       setBehaviourStatus(
-        `${String(input.entries.length)} ${input.type.toLowerCase()} entries saved.`,
+        `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
       );
       setBatchEntries([newBatchEntry(input.type)]);
       await Promise.all([
-        utils.behaviour.listForStudent.invalidate({
-          studentId: input.studentId,
-          includeSensitive: false,
-          date,
-        }),
+        ...input.studentIds.map((studentId) =>
+          utils.behaviour.listForStudent.invalidate({
+            studentId,
+            includeSensitive: false,
+            date,
+          }),
+        ),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
@@ -182,9 +188,9 @@ export function SupervisorDashboardClient({
 
   useEffect(() => {
     const rows = attendanceRosterQuery.data ?? [];
-    if (selectedStudentId || rows.length === 0) return;
-    setSelectedStudentId(rows[0]?.studentId ?? '');
-  }, [attendanceRosterQuery.data, selectedStudentId]);
+    if (selectedStudentIds.length > 0 || rows.length === 0) return;
+    setSelectedStudentIds(rows[0] ? [rows[0].studentId] : []);
+  }, [attendanceRosterQuery.data, selectedStudentIds.length]);
 
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
@@ -192,7 +198,13 @@ export function SupervisorDashboardClient({
   const swapCandidates = swapCandidatesQuery.data ?? [];
   const mySwapRequests = mySwapRequestsQuery.data ?? [];
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
-  const rosterRows = attendanceRosterQuery.data ?? [];
+  const rosterRows = useMemo(() => attendanceRosterQuery.data ?? [], [attendanceRosterQuery.data]);
+  const rosterStudentIds = useMemo(
+    () => rosterRows.map((student) => student.studentId),
+    [rosterRows],
+  );
+  const selectedStudentCount = selectedStudentIds.length;
+  const batchEntryCount = totalBatchEntries(batchEntries);
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart],
@@ -217,18 +229,28 @@ export function SupervisorDashboardClient({
   const openItems = dashboardMessages.length + mySwapRequests.length;
   const unreadNotices = dashboardNotices.filter((notice) => !notice.read).length;
 
-  function handleStudentChange(studentId: string): void {
-    setSelectedStudentId(studentId);
+  useEffect(() => {
+    setSelectedStudentIds((current) =>
+      current.filter((studentId) => rosterStudentIds.includes(studentId)),
+    );
+  }, [rosterStudentIds]);
+
+  function handleStudentChange(studentIds: readonly string[]): void {
+    if (studentIds.includes(SELECT_ALL_STUDENTS)) {
+      setSelectedStudentIds(rosterStudentIds);
+    } else {
+      setSelectedStudentIds(studentIds.filter((studentId) => rosterStudentIds.includes(studentId)));
+    }
     setBehaviourStatus(null);
   }
 
   async function submitBehaviour(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedStudentId) return;
+    if (selectedStudentIds.length === 0) return;
 
     setBehaviourStatus(null);
     await logBehaviour.mutateAsync({
-      studentId: selectedStudentId,
+      studentIds: selectedStudentIds,
       type: behaviourForm.type,
       visibility: behaviourForm.visibility,
       category: behaviourForm.category,
@@ -239,11 +261,11 @@ export function SupervisorDashboardClient({
 
   async function submitBatchBehaviour(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedStudentId) return;
+    if (selectedStudentIds.length === 0) return;
 
     setBehaviourStatus(null);
     await logManyBehaviour.mutateAsync({
-      studentId: selectedStudentId,
+      studentIds: selectedStudentIds,
       type: batchType,
       entries: batchEntries.map((entry) => ({
         category: entry.category,
@@ -329,19 +351,25 @@ export function SupervisorDashboardClient({
             </div>
 
             <div className="supervisor-selected-student">
-              <Field label="Selected student">
+              <Field
+                hint={`${String(selectedStudentCount)} of ${String(rosterRows.length)} selected. Behaviour activity shows the first selected student.`}
+                label="Selected students"
+              >
                 <SelectInput
-                  aria-label="Selected student for behaviour"
+                  aria-label="Selected students for behaviour"
                   disabled={
                     attendanceRosterQuery.isLoading ||
                     (attendanceRosterQuery.data ?? []).length === 0
                   }
+                  multiple
                   onChange={(event) => {
-                    handleStudentChange(event.target.value);
+                    handleStudentChange(
+                      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+                    );
                   }}
-                  value={selectedStudentId}
+                  value={selectedStudentIds}
                 >
-                  <option value="">Choose a student</option>
+                  <option value={SELECT_ALL_STUDENTS}>Select all</option>
                   {(attendanceRosterQuery.data ?? []).map((student) => (
                     <option key={student.studentId} value={student.studentId}>
                       {student.studentName} · {displaySchoolYearLabel(student.yearGroup)}
@@ -491,7 +519,7 @@ export function SupervisorDashboardClient({
                       />
                     </Field>
                     <Button
-                      disabled={!selectedStudentId}
+                      disabled={selectedStudentCount === 0}
                       pending={logBehaviour.isPending}
                       type="submit"
                     >
@@ -600,12 +628,12 @@ export function SupervisorDashboardClient({
                       Add entry
                     </Button>
                     <Button
-                      disabled={!selectedStudentId}
+                      disabled={selectedStudentCount === 0}
                       pending={logManyBehaviour.isPending}
                       type="submit"
                     >
                       <Save aria-hidden="true" size={16} />
-                      Save {String(totalBatchEntries(batchEntries))} entries
+                      Save {String(batchEntryCount * Math.max(selectedStudentCount, 1))} entries
                     </Button>
                     {logManyBehaviour.error ? (
                       <p className="status--error">{logManyBehaviour.error.message}</p>
@@ -623,7 +651,9 @@ export function SupervisorDashboardClient({
                 {behaviourQuery.error ? (
                   <p className="status--error">{behaviourQuery.error.message}</p>
                 ) : null}
-                {!behaviourQuery.isLoading && selectedStudentId && behaviourEntries.length === 0 ? (
+                {!behaviourQuery.isLoading &&
+                selectedStudentIds.length > 0 &&
+                behaviourEntries.length === 0 ? (
                   <div className="empty-state">No General behaviour entries yet.</div>
                 ) : null}
                 {behaviourEntries.map((entry) => (

@@ -143,13 +143,13 @@ describe('canUseStaffMessaging', () => {
 });
 
 describe('child registration prompt roles', () => {
-  it('includes adult non-parent roles and excludes clubs-only, Parent, and Student', () => {
+  it('includes adult non-parent roles and excludes Parent and Student', () => {
     expect(canAnswerChildRegistrationPrompt(head)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(principal)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(pastor)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(hod)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(technicalSupport)).toBe(true);
-    expect(canAnswerChildRegistrationPrompt(clubsAdmin)).toBe(false);
+    expect(canAnswerChildRegistrationPrompt(clubsAdmin)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(supervisor)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(parent)).toBe(false);
     expect(canAnswerChildRegistrationPrompt(student)).toBe(false);
@@ -159,7 +159,7 @@ describe('child registration prompt roles', () => {
     expect(canSubmitInitialRegistration(parent, 'Unanswered')).toBe(true);
     expect(canSubmitInitialRegistration(supervisor, 'HasChildren')).toBe(true);
     expect(canSubmitInitialRegistration(technicalSupport, 'HasChildren')).toBe(true);
-    expect(canSubmitInitialRegistration(clubsAdmin, 'HasChildren')).toBe(false);
+    expect(canSubmitInitialRegistration(clubsAdmin, 'HasChildren')).toBe(true);
     expect(canSubmitInitialRegistration(supervisor, 'Unanswered')).toBe(false);
     expect(canSubmitInitialRegistration(supervisor, 'NoChildren')).toBe(false);
     expect(canSubmitInitialRegistration(student, 'HasChildren')).toBe(false);
@@ -398,7 +398,7 @@ describe('workflow tags', () => {
     expect(canUseFullPaceAccess(technicalSupport)).toBe(false);
   });
 
-  it('limits all-student supervisor workflow access to full admins or tagged Supervisors', () => {
+  it('limits all-student supervisor workflow access to full admins or tagged staff operators', () => {
     expect(canUseAllStudentSupervisorWorkflow(head)).toBe(true);
     expect(canUseAllStudentSupervisorWorkflow(hod)).toBe(true);
     expect(canUseAllStudentSupervisorWorkflow(supervisor)).toBe(false);
@@ -413,7 +413,7 @@ describe('workflow tags', () => {
         ...clubsAdmin,
         tags: ['supervisor-all-students'],
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       canUseAllStudentSupervisorWorkflow({
         ...parent,

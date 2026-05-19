@@ -118,7 +118,7 @@ function visibleForUser(
   if (item.label === 'Clubs') return access.canManageClubs;
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;
   if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;
-  if (item.label === 'Calendar') return !access.clubsOnly;
+  if (item.label === 'Calendar') return true;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;

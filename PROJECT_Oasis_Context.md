@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-18
+**Last updated:** 2026-05-19
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -20,7 +20,47 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status - Phase 4 complete
 
-Repository head: `main` at `c9ccdf2`.
+Repository head: `main` fast-forwarded to `357944f` before starting the current
+feature branch.
+
+## Current session - 2026-05-19 Multi-child behaviour and ClubsAdmin parity
+
+Working branch: `feat/multi-child-behaviour`.
+
+**PR scope:** Allow behaviour entries to target multiple children at once and
+make ClubsAdmin match Supervisor site-wide, with club management as the only
+extra capability.
+
+Completed:
+
+- Added multi-student behaviour mutations for single Merit/Demerit/General
+  entries and batch Merit/Demerit entries, preserving the existing single-student
+  mutation contracts.
+- Updated admin and supervisor behaviour forms to use multi-select child
+  selectors with a Select all option.
+- Expanded ClubsAdmin parity in RBAC and route gates for child-registration,
+  all-student supervisor workflow tags, student reads, PACE workflow date
+  editing, attendance register access, and admin calendar visibility.
+- Updated behaviour, RBAC, admin-router, and ClubsAdmin e2e expectations for
+  the new access model.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- rbac.test.ts`
+- `pnpm --filter @oasis/api test -- behaviour.router.test.ts admin.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `pnpm lint`
+- `git diff --check`
+
+Known blocker:
+
+- `graphify update .` failed because the local graphify Python environment is
+  missing `networkx`; no graph files were updated.
 
 ## Current session - 2026-05-18 Audit log Head access and inspection scope
 

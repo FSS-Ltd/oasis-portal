@@ -77,6 +77,19 @@ const logEntrySchema = z.object({
   amount: behaviourAmountSchema.optional(),
   count: z.number().int().positive().max(50).default(1),
 });
+const studentIdsSchema = z.array(z.string().min(1)).min(1).max(50);
+
+type CreatedBehaviourEntry = {
+  id: string;
+  studentId: string;
+  type: BehaviourType;
+  category: string;
+  noteEnc: string | null;
+  visibility: BehaviourVisibility;
+  meritDelta: number;
+  recordedById: string;
+  createdAt: Date;
+};
 
 function canUseBehaviourWorkflow(user: SessionUser): boolean {
   return isFullAdmin(user) || isStaff(user);
@@ -254,7 +267,7 @@ function visibleBehaviourWhere(user: SessionUser) {
 
 async function loadActiveScopedStudent(
   ctx: AuthedContext,
-  input: { studentId: string; entity: string; date?: Date },
+  input: { studentId: string; entity: string; date?: Date | undefined },
 ): Promise<ActiveStudent> {
   const student = await ctx.db.student.findUnique({
     where: { id: input.studentId },
@@ -276,6 +289,77 @@ async function loadActiveScopedStudent(
     });
   }
   return student;
+}
+
+async function loadActiveScopedStudents(
+  ctx: AuthedContext,
+  input: { studentIds: readonly string[]; entity: string; date?: Date | undefined },
+): Promise<Map<string, ActiveStudent>> {
+  const students = new Map<string, ActiveStudent>();
+  for (const studentId of input.studentIds) {
+    students.set(
+      studentId,
+      await loadActiveScopedStudent(ctx, {
+        studentId,
+        entity: input.entity,
+        date: input.date,
+      }),
+    );
+  }
+  return students;
+}
+
+function requireUniqueStudentIds(studentIds: readonly string[]): void {
+  if (new Set(studentIds).size !== studentIds.length) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'studentIds must be unique' });
+  }
+}
+
+function validateSingleBehaviourInput(input: {
+  type: BehaviourType;
+  category?: string | undefined;
+  note?: string | undefined;
+  amount?: number | undefined;
+}): void {
+  if (input.type === 'Merit' && input.amount === undefined) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'merit amount is required' });
+  }
+  if (input.type !== 'General' && input.category === undefined) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'category is required' });
+  }
+  if (input.type === 'General' && input.note === undefined) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'general mark note is required' });
+  }
+  if (input.type === 'General' && input.amount !== undefined) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'general marks have no merit value',
+    });
+  }
+}
+
+function validateBatchBehaviourInput(input: {
+  type: 'Merit' | 'Demerit';
+  entries: readonly z.infer<typeof logEntrySchema>[];
+}): number {
+  for (const [index, entry] of input.entries.entries()) {
+    if (input.type === 'Merit' && entry.amount === undefined) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `merit amount is required for entry ${String(index + 1)}`,
+      });
+    }
+  }
+  return input.entries.reduce((sum, entry) => sum + entry.count, 0);
+}
+
+function assertBatchEntryLimit(totalEntries: number): void {
+  if (totalEntries > 50) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'batch cannot create more than 50 entries',
+    });
+  }
 }
 
 function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser) {
@@ -822,21 +906,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       )
       .mutation(async ({ ctx, input }) => {
         await requireBehaviourWorkflow(ctx, 'behaviour.log');
-        if (input.type === 'Merit' && input.amount === undefined) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'merit amount is required' });
-        }
-        if (input.type !== 'General' && input.category === undefined) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'category is required' });
-        }
-        if (input.type === 'General' && input.note === undefined) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'general mark note is required' });
-        }
-        if (input.type === 'General' && input.amount !== undefined) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'general marks have no merit value',
-          });
-        }
+        validateSingleBehaviourInput(input);
 
         const visibility = input.visibility ?? (input.type === 'General' ? 'Sensitive' : 'General');
         if (visibility === 'Sensitive') {
@@ -944,6 +1014,158 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           meritDelta: result.behaviour.meritDelta,
           recordedById: result.behaviour.recordedById,
           createdAt: result.behaviour.createdAt,
+        };
+      }),
+
+    logForStudents: authedProcedure
+      .input(
+        z.object({
+          studentIds: studentIdsSchema,
+          type: behaviourTypeSchema,
+          category: behaviourCategorySchema.optional(),
+          note: behaviourNoteSchema.optional(),
+          visibility: behaviourVisibilitySchema.optional(),
+          amount: behaviourAmountSchema.optional(),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        await requireBehaviourWorkflow(ctx, 'behaviour.logForStudents');
+        requireUniqueStudentIds(input.studentIds);
+        validateSingleBehaviourInput(input);
+
+        const visibility = input.visibility ?? (input.type === 'General' ? 'Sensitive' : 'General');
+        if (visibility === 'Sensitive') {
+          await Promise.all(
+            input.studentIds.map((studentId) =>
+              requireCanCreateSensitive(ctx, { studentId, type: input.type }),
+            ),
+          );
+        }
+
+        const students = await loadActiveScopedStudents(ctx, {
+          studentIds: input.studentIds,
+          entity: 'behaviour.logForStudents',
+        });
+        const category =
+          input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
+        const noteEnc = input.note ? ctx.db.$enc.encrypt(input.note) : null;
+        const meritDelta =
+          input.type === 'Merit'
+            ? (input.amount ?? 0)
+            : input.type === 'Demerit'
+              ? -(input.amount ?? DEMERIT_COST)
+              : 0;
+
+        const result = await ctx.withRls(async (tx) => {
+          const behaviourEntries: CreatedBehaviourEntry[] = [];
+          let ledgerRowCount = 0;
+
+          for (const studentId of input.studentIds) {
+            const behaviour = await tx.behaviourEntry.create({
+              data: {
+                studentId,
+                type: input.type,
+                category,
+                noteEnc,
+                visibility,
+                meritDelta,
+                recordedById: ctx.user.id,
+              },
+            });
+            const ledgerRows =
+              input.type === 'Merit'
+                ? rowsForMerit({
+                    studentId,
+                    amount: meritDelta,
+                    reason: category,
+                    behaviourEntryId: behaviour.id,
+                  })
+                : input.type === 'Demerit'
+                  ? rowsForDemerit({
+                      studentId,
+                      amount: Math.abs(meritDelta),
+                      reason: category,
+                      behaviourEntryId: behaviour.id,
+                    })
+                  : [];
+
+            if (ledgerRows.length > 0) {
+              await tx.meritLedger.createMany({ data: ledgerRows });
+            }
+            ledgerRowCount += ledgerRows.length;
+            behaviourEntries.push(behaviour);
+          }
+
+          return { behaviourEntries, ledgerRowCount };
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'BehaviourEntry',
+            meta: {
+              studentIds: input.studentIds,
+              type: input.type,
+              visibility,
+              meritDelta,
+              entryCount: result.behaviourEntries.length,
+              behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
+            },
+          },
+        });
+        if (result.ledgerRowCount > 0) {
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'MeritLedger',
+              meta: {
+                studentIds: input.studentIds,
+                behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
+                rowCount: result.ledgerRowCount,
+              },
+            },
+          });
+        }
+
+        await Promise.all(
+          result.behaviourEntries.map((entry) => {
+            const student = students.get(entry.studentId);
+            if (!student) {
+              throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'student scope lookup failed',
+              });
+            }
+            return notifyBehaviourGuardians({
+              ctx,
+              getEmailClient,
+              entry: {
+                id: entry.id,
+                studentId: entry.studentId,
+                studentNameEnc: student.fullNameEnc,
+                type: entry.type,
+                category: entry.category,
+                note: input.note ?? null,
+                visibility: entry.visibility,
+              },
+            });
+          }),
+        );
+
+        return {
+          entries: result.behaviourEntries.map((entry) => ({
+            id: entry.id,
+            studentId: entry.studentId,
+            type: entry.type,
+            category: entry.category,
+            visibility: entry.visibility,
+            meritDelta: entry.meritDelta,
+            recordedById: entry.recordedById,
+            createdAt: entry.createdAt,
+          })),
+          ledgerRowCount: result.ledgerRowCount,
         };
       }),
 
@@ -1135,22 +1357,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       )
       .mutation(async ({ ctx, input }) => {
         await requireBehaviourWorkflow(ctx, 'behaviour.logMany');
-
-        for (const [index, entry] of input.entries.entries()) {
-          if (input.type === 'Merit' && entry.amount === undefined) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: `merit amount is required for entry ${String(index + 1)}`,
-            });
-          }
-        }
-        const totalEntries = input.entries.reduce((sum, entry) => sum + entry.count, 0);
-        if (totalEntries > 50) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'batch cannot create more than 50 entries',
-          });
-        }
+        assertBatchEntryLimit(validateBatchBehaviourInput(input));
 
         const student = await loadActiveScopedStudent(ctx, {
           studentId: input.studentId,
@@ -1256,6 +1463,141 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               },
             }),
           ),
+        );
+
+        return {
+          entries: result.behaviourEntries.map((entry) => ({
+            id: entry.id,
+            studentId: entry.studentId,
+            type: entry.type,
+            category: entry.category,
+            visibility: entry.visibility,
+            meritDelta: entry.meritDelta,
+            recordedById: entry.recordedById,
+            createdAt: entry.createdAt,
+          })),
+          ledgerRowCount: result.ledgerRowCount,
+        };
+      }),
+
+    logManyForStudents: authedProcedure
+      .input(
+        z.object({
+          studentIds: studentIdsSchema,
+          type: z.enum(['Merit', 'Demerit']),
+          entries: z.array(logEntrySchema).min(1).max(50),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        await requireBehaviourWorkflow(ctx, 'behaviour.logManyForStudents');
+        requireUniqueStudentIds(input.studentIds);
+        const entriesPerStudent = validateBatchBehaviourInput(input);
+        assertBatchEntryLimit(entriesPerStudent * input.studentIds.length);
+
+        const students = await loadActiveScopedStudents(ctx, {
+          studentIds: input.studentIds,
+          entity: 'behaviour.logManyForStudents',
+        });
+        const preparedEntries = input.entries.flatMap((entry) =>
+          Array.from({ length: entry.count }, () => ({
+            category: entry.category,
+            note: entry.note ?? null,
+            noteEnc: entry.note ? ctx.db.$enc.encrypt(entry.note) : null,
+            meritDelta:
+              input.type === 'Merit' ? (entry.amount ?? 0) : -(entry.amount ?? DEMERIT_COST),
+          })),
+        );
+
+        const result = await ctx.withRls(async (tx) => {
+          const behaviourEntries: Array<CreatedBehaviourEntry & { note: string | null }> = [];
+          let ledgerRowCount = 0;
+
+          for (const studentId of input.studentIds) {
+            for (const entry of preparedEntries) {
+              const behaviour = await tx.behaviourEntry.create({
+                data: {
+                  studentId,
+                  type: input.type,
+                  category: entry.category,
+                  noteEnc: entry.noteEnc,
+                  visibility: 'General',
+                  meritDelta: entry.meritDelta,
+                  recordedById: ctx.user.id,
+                },
+              });
+              const ledgerRows =
+                input.type === 'Merit'
+                  ? rowsForMerit({
+                      studentId,
+                      amount: entry.meritDelta,
+                      reason: entry.category,
+                      behaviourEntryId: behaviour.id,
+                    })
+                  : rowsForDemerit({
+                      studentId,
+                      amount: Math.abs(entry.meritDelta),
+                      reason: entry.category,
+                      behaviourEntryId: behaviour.id,
+                    });
+              await tx.meritLedger.createMany({ data: ledgerRows });
+              ledgerRowCount += ledgerRows.length;
+              behaviourEntries.push({ ...behaviour, note: entry.note });
+            }
+          }
+
+          return { behaviourEntries, ledgerRowCount };
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'BehaviourEntry',
+            meta: {
+              studentIds: input.studentIds,
+              type: input.type,
+              visibility: 'General',
+              entryCount: result.behaviourEntries.length,
+              behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
+            },
+          },
+        });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'MeritLedger',
+            meta: {
+              studentIds: input.studentIds,
+              behaviourEntryIds: result.behaviourEntries.map((entry) => entry.id),
+              rowCount: result.ledgerRowCount,
+            },
+          },
+        });
+
+        await Promise.all(
+          result.behaviourEntries.map((entry) => {
+            const student = students.get(entry.studentId);
+            if (!student) {
+              throw new TRPCError({
+                code: 'INTERNAL_SERVER_ERROR',
+                message: 'student scope lookup failed',
+              });
+            }
+            return notifyBehaviourGuardians({
+              ctx,
+              getEmailClient,
+              entry: {
+                id: entry.id,
+                studentId: entry.studentId,
+                studentNameEnc: student.fullNameEnc,
+                type: entry.type,
+                category: entry.category,
+                note: entry.note,
+                visibility: entry.visibility,
+              },
+            });
+          }),
         );
 
         return {
