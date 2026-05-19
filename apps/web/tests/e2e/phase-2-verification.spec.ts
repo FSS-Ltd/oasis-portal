@@ -92,9 +92,11 @@ test.describe('Phase 2 verification suite', () => {
 
       await page.goto('/supervisor/behaviour');
       await expect(page.getByRole('heading', { name: /behaviour/i })).toBeVisible();
-      const selectedStudent = page.getByLabel('Selected student for behaviour');
+      const selectedStudent = page.getByRole('button', { name: /students selector/i });
+      await selectedStudent.click();
+      const selectedStudentOptions = page.locator('.behaviour-student-option input');
       test.skip(
-        (await selectedStudent.locator('option').count()) < 2,
+        (await selectedStudentOptions.count()) === 0,
         'At least one active student is required for behaviour verification',
       );
 
@@ -113,7 +115,8 @@ test.describe('Phase 2 verification suite', () => {
       await expect(firstAttendanceRow.getByText('Present').first()).toBeVisible();
 
       await page.goto('/supervisor/behaviour');
-      await selectedStudent.selectOption({ index: 1 });
+      await page.getByRole('button', { name: /students selector/i }).click();
+      await page.locator('.behaviour-student-option input').first().check();
       await page.getByLabel('Behaviour type').selectOption('Merit');
       await page.getByLabel('Behaviour visibility').selectOption('General');
       await page.getByLabel('Behaviour category').fill(behaviourCategory);

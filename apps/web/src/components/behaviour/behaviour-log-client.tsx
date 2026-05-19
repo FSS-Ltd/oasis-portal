@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { BarChart3, Edit3, Lock, Plus, Trash2 } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { BehaviourStudentSelector } from '@/components/behaviour/behaviour-student-selector';
 import {
   categoriesFor,
   meritCategories,
@@ -18,7 +20,6 @@ export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 type EntryMode = 'single' | 'batch';
 type RecentBehaviourEntry = RouterOutputs['behaviour']['recentEntries']['entries'][number];
-const SELECT_ALL_STUDENTS = '__all_students__';
 
 interface BatchEntryForm {
   id: string;
@@ -180,7 +181,19 @@ export function BehaviourLogClient({
   const batchCategories = categoriesFor(batchType);
   const entries = recentQuery.data?.entries ?? [];
   const students = useMemo(() => studentsQuery.data ?? [], [studentsQuery.data]);
-  const allStudentIds = useMemo(() => students.map((student) => student.id), [students]);
+  const studentOptions = useMemo(
+    () =>
+      students.map((student) => ({
+        id: student.id,
+        label: student.fullName,
+        description: displaySchoolYearLabel(student.yearGroup),
+      })),
+    [students],
+  );
+  const allStudentIds = useMemo(
+    () => studentOptions.map((student) => student.id),
+    [studentOptions],
+  );
   const selectedStudentCount = studentIds.length;
   const batchEntryCount = totalBatchEntries(batchEntries);
 
@@ -209,10 +222,6 @@ export function BehaviourLogClient({
   }
 
   function chooseStudents(values: readonly string[]): void {
-    if (values.includes(SELECT_ALL_STUDENTS)) {
-      setStudentIds(allStudentIds);
-      return;
-    }
     setStudentIds(values.filter((value) => allStudentIds.includes(value)));
   }
 
@@ -343,29 +352,15 @@ export function BehaviourLogClient({
                 ))}
               </div>
 
-              <Field
+              <BehaviourStudentSelector
+                disabled={!canLogBehaviour}
                 hint={`${String(selectedStudentCount)} of ${String(students.length)} selected`}
                 label="Students"
-              >
-                <SelectInput
-                  aria-label="Students"
-                  disabled={!canLogBehaviour || studentsQuery.isLoading}
-                  multiple
-                  onChange={(event) => {
-                    chooseStudents(
-                      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-                    );
-                  }}
-                  value={studentIds}
-                >
-                  <option value={SELECT_ALL_STUDENTS}>Select all</option>
-                  {students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.fullName}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
+                loading={studentsQuery.isLoading}
+                onChange={chooseStudents}
+                options={studentOptions}
+                selectedIds={studentIds}
+              />
 
               <Field label="Category">
                 <SelectInput
@@ -504,29 +499,15 @@ export function BehaviourLogClient({
                 ))}
               </div>
 
-              <Field
+              <BehaviourStudentSelector
+                disabled={!canLogBehaviour}
                 hint={`${String(selectedStudentCount)} of ${String(students.length)} selected`}
                 label="Students"
-              >
-                <SelectInput
-                  aria-label="Students"
-                  disabled={!canLogBehaviour || studentsQuery.isLoading}
-                  multiple
-                  onChange={(event) => {
-                    chooseStudents(
-                      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-                    );
-                  }}
-                  value={studentIds}
-                >
-                  <option value={SELECT_ALL_STUDENTS}>Select all</option>
-                  {students.map((student) => (
-                    <option key={student.id} value={student.id}>
-                      {student.fullName}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
+                loading={studentsQuery.isLoading}
+                onChange={chooseStudents}
+                options={studentOptions}
+                selectedIds={studentIds}
+              />
 
               {batchEntries.map((entry, index) => (
                 <div className="form-grid" key={entry.id}>
