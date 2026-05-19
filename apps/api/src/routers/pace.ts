@@ -73,7 +73,7 @@ function canUseFullPaceWorkflowAccess(user: SessionUser): boolean {
 }
 
 function canEditPaceWorkflowDate(user: SessionUser): boolean {
-  return user.role === 'Supervisor' || canUseFullPaceAccess(user);
+  return isStaff(user) || canUseFullPaceAccess(user);
 }
 
 function meritsForPaceScore(testType: PaceTestType, score: number): number {

@@ -66,7 +66,7 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
   });
 
   clubsAdminTest(
-    'ClubsAdmin lands on clubs, sends an empty-recipient notification, and keeps unrelated admin navigation hidden',
+    'ClubsAdmin lands on clubs, sends an empty-recipient notification, and keeps non-supervisor admin navigation hidden',
     async ({ page }) => {
       const unique = Date.now();
       const clubName = `Notification Club ${unique}`;
@@ -82,7 +82,7 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
       }
       await expect(
         page.getByRole('link', {
-          name: /Attendance|Behaviour|PACE|Calendar|Messages|Noticeboard|User Access|People & Profiles/i,
+          name: /Attendance|Behaviour|PACE|Noticeboard|User Access|People & Profiles/i,
         }),
       ).toHaveCount(0);
 

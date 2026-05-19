@@ -35,6 +35,7 @@ export const CHILD_REGISTRATION_PROMPT_ROLES = [
   'Pastor',
   'HeadOfDiscipline',
   'TechnicalSupport',
+  'ClubsAdmin',
   'Supervisor',
 ] as const satisfies readonly Role[];
 const CHILD_REGISTRATION_PROMPT_ROLE_SET: ReadonlySet<Role> = new Set(
@@ -279,7 +280,8 @@ export function canUseFullPaceAccess(user: SessionUser): boolean {
 export function canUseAllStudentSupervisorWorkflow(user: SessionUser): boolean {
   return (
     isFullAdmin(user) ||
-    (user.role === 'Supervisor' && hasTag(user, 'supervisor-all-students'))
+    ((user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
+      hasTag(user, 'supervisor-all-students'))
   );
 }
 

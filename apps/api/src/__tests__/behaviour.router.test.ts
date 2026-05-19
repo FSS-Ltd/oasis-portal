@@ -888,6 +888,123 @@ describe('behaviour.log', () => {
     expect(ledger).toEqual([]);
   });
 
+  it('creates one Merit, Demerit, or General entry for each selected student', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    const merit = await caller.behaviour.logForStudents({
+      studentIds: [activeStudentId, secondaryStudentId],
+      type: 'Merit',
+      category: 'Kindness',
+      note: 'Shared resources',
+      visibility: 'General',
+      amount: 2,
+    });
+    const demerit = await caller.behaviour.logForStudents({
+      studentIds: [activeStudentId, secondaryStudentId],
+      type: 'Demerit',
+      category: 'Conduct',
+      visibility: 'General',
+      amount: 1,
+    });
+    const general = await caller.behaviour.logForStudents({
+      studentIds: [activeStudentId, secondaryStudentId],
+      type: 'General',
+      note: 'Pastoral update',
+      visibility: 'General',
+    });
+
+    expect(merit).toMatchObject({
+      entries: [{ meritDelta: 2 }, { meritDelta: 2 }],
+      ledgerRowCount: 2,
+    });
+    expect(demerit).toMatchObject({
+      entries: [{ meritDelta: -1 }, { meritDelta: -1 }],
+      ledgerRowCount: 2,
+    });
+    expect(general).toMatchObject({
+      entries: [{ meritDelta: 0 }, { meritDelta: 0 }],
+      ledgerRowCount: 0,
+    });
+    expect(behaviour).toHaveLength(6);
+    expect(ledger).toEqual([
+      expect.objectContaining({ studentId: activeStudentId, delta: 2, reason: 'Kindness' }),
+      expect.objectContaining({ studentId: secondaryStudentId, delta: 2, reason: 'Kindness' }),
+      expect.objectContaining({ studentId: activeStudentId, delta: -1, reason: 'Conduct' }),
+      expect.objectContaining({ studentId: secondaryStudentId, delta: -1, reason: 'Conduct' }),
+    ]);
+  });
+
+  it('creates batch Merit or Demerit rows for each selected student', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    const result = await makeCaller(headUser, db).behaviour.logManyForStudents({
+      studentIds: [activeStudentId, secondaryStudentId],
+      type: 'Merit',
+      entries: [
+        { category: 'Kindness', amount: 1, count: 2 },
+        { category: 'Leadership', amount: 3 },
+      ],
+    });
+
+    expect(result.entries).toHaveLength(6);
+    expect(result.ledgerRowCount).toBe(6);
+    expect(behaviour).toHaveLength(6);
+    expect(ledger).toHaveLength(6);
+    expect(ledger.filter((row) => row.studentId === activeStudentId)).toHaveLength(3);
+    expect(ledger.filter((row) => row.studentId === secondaryStudentId)).toHaveLength(3);
+  });
+
+  it('rejects multi-student batches that would create more than 50 total rows', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).behaviour.logManyForStudents({
+        studentIds: [activeStudentId, secondaryStudentId],
+        type: 'Merit',
+        entries: [{ category: 'Kindness', amount: 1, count: 26 }],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'batch cannot create more than 50 entries',
+    });
+
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
+  });
+
+  it('rejects duplicate, inactive, and out-of-scope multi-student submissions before writing', async () => {
+    const { db, behaviour, ledger } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).behaviour.logForStudents({
+        studentIds: [activeStudentId, activeStudentId],
+        type: 'Merit',
+        category: 'Kindness',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'studentIds must be unique' });
+    await expect(
+      makeCaller(headUser, db).behaviour.logForStudents({
+        studentIds: [activeStudentId, inactiveStudentId],
+        type: 'Merit',
+        category: 'Kindness',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'student is inactive' });
+    await expect(
+      makeCaller(supervisorUser, db).behaviour.logForStudents({
+        studentIds: [activeStudentId, secondaryStudentId],
+        type: 'Merit',
+        category: 'Kindness',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
+  });
+
   it('keeps saved General behaviour and audits notification failure when email delivery fails', async () => {
     const { db, behaviour, ledger } = makeFakeDb({ guardians: [makeGuardian(parentUser.id)] });
     const email = makeFakeEmailClient();
@@ -1460,8 +1577,12 @@ describe('behaviour.recentEntries', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('allows tagged Supervisors to log and read all-student behaviour without a shift', async () => {
+  it('allows tagged Supervisors and ClubsAdmin users to log all-student behaviour without a shift', async () => {
     const { db } = makeFakeDb({ supervisorHasShift: false });
+    const allStudentsClubsUser: SessionUser = {
+      ...clubsUser,
+      tags: ['supervisor-all-students'],
+    };
     await makeCaller(headUser, db).behaviour.log({
       studentId: secondaryStudentId,
       type: 'Demerit',
@@ -1482,11 +1603,28 @@ describe('behaviour.recentEntries', () => {
       type: 'Merit',
       meritDelta: 1,
     });
+    await expect(
+      makeCaller(allStudentsClubsUser, db).behaviour.log({
+        studentId: secondaryStudentId,
+        type: 'Merit',
+        category: 'Service',
+        amount: 1,
+      }),
+    ).resolves.toMatchObject({
+      studentId: secondaryStudentId,
+      type: 'Merit',
+      meritDelta: 1,
+    });
 
     const result = await makeCaller(allStudentsSupervisorUser, db).behaviour.recentEntries({
       date: new Date('2026-04-29T00:00:00.000Z'),
     });
     expect(result.entries).toEqual([
+      expect.objectContaining({
+        studentId: secondaryStudentId,
+        type: 'Merit',
+        visibility: 'General',
+      }),
       expect.objectContaining({
         studentId: secondaryStudentId,
         type: 'Merit',

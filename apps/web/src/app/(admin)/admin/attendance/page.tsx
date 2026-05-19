@@ -1,7 +1,12 @@
 import { BarChart3, CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { canExportAttendance, canRecordStudentAttendance, isFullAdmin } from '@oasis/domain';
+import {
+  canExportAttendance,
+  canRecordStudentAttendance,
+  isFullAdmin,
+  isStaff,
+} from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminShellUser } from '@/components/admin/require-full-admin';
 import { AttendanceRoster } from './attendance-roster';
@@ -9,7 +14,7 @@ import { AttendanceRoster } from './attendance-roster';
 export default async function AttendancePage() {
   const user = await getAdminShellUser();
   const canExport = canExportAttendance(user);
-  const canReadRegister = isFullAdmin(user) || user.role === 'Supervisor';
+  const canReadRegister = isStaff(user);
   const canRecord = canRecordStudentAttendance(user);
   if (!canReadRegister && !canExport) notFound();
 
