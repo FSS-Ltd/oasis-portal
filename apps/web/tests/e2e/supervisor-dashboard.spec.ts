@@ -138,10 +138,11 @@ test.describe('Supervisor dashboard shell', () => {
 
       await page.goto('/supervisor/behaviour');
       await expect(page.getByRole('heading', { name: /behaviour/i })).toBeVisible();
-      const selectedStudent = page.getByLabel('Selected student for behaviour');
-      const selectedStudentOptions = await selectedStudent.locator('option').count();
-      if (selectedStudentOptions > 1) {
-        await selectedStudent.selectOption({ index: 1 });
+      const selectedStudent = page.getByRole('button', { name: /students selector/i });
+      await selectedStudent.click();
+      const selectedStudentOptions = await page.locator('.behaviour-student-option input').count();
+      if (selectedStudentOptions > 0) {
+        await page.locator('.behaviour-student-option input').first().check();
 
         const generalCategory = `General conduct ${Date.now()}`;
         await page.getByLabel('Behaviour type').selectOption('Merit');

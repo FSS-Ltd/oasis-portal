@@ -5,6 +5,7 @@ import { Plus, Save, Send, Trash2 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
+import { BehaviourStudentSelector } from '@/components/behaviour/behaviour-student-selector';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -31,7 +32,6 @@ type SupervisorDashboardClientProps = {
 };
 
 type EntryMode = 'single' | 'batch';
-const SELECT_ALL_STUDENTS = '__all_students__';
 
 interface BatchEntryForm {
   id: string;
@@ -203,6 +203,15 @@ export function SupervisorDashboardClient({
     () => rosterRows.map((student) => student.studentId),
     [rosterRows],
   );
+  const rosterStudentOptions = useMemo(
+    () =>
+      rosterRows.map((student) => ({
+        id: student.studentId,
+        label: student.studentName,
+        description: displaySchoolYearLabel(student.yearGroup),
+      })),
+    [rosterRows],
+  );
   const selectedStudentCount = selectedStudentIds.length;
   const batchEntryCount = totalBatchEntries(batchEntries);
   const weekDays = useMemo(
@@ -236,11 +245,7 @@ export function SupervisorDashboardClient({
   }, [rosterStudentIds]);
 
   function handleStudentChange(studentIds: readonly string[]): void {
-    if (studentIds.includes(SELECT_ALL_STUDENTS)) {
-      setSelectedStudentIds(rosterStudentIds);
-    } else {
-      setSelectedStudentIds(studentIds.filter((studentId) => rosterStudentIds.includes(studentId)));
-    }
+    setSelectedStudentIds(studentIds.filter((studentId) => rosterStudentIds.includes(studentId)));
     setBehaviourStatus(null);
   }
 
@@ -351,32 +356,17 @@ export function SupervisorDashboardClient({
             </div>
 
             <div className="supervisor-selected-student">
-              <Field
+              <BehaviourStudentSelector
+                disabled={
+                  attendanceRosterQuery.isLoading || (attendanceRosterQuery.data ?? []).length === 0
+                }
                 hint={`${String(selectedStudentCount)} of ${String(rosterRows.length)} selected. Behaviour activity shows the first selected student.`}
                 label="Selected students"
-              >
-                <SelectInput
-                  aria-label="Selected students for behaviour"
-                  disabled={
-                    attendanceRosterQuery.isLoading ||
-                    (attendanceRosterQuery.data ?? []).length === 0
-                  }
-                  multiple
-                  onChange={(event) => {
-                    handleStudentChange(
-                      Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-                    );
-                  }}
-                  value={selectedStudentIds}
-                >
-                  <option value={SELECT_ALL_STUDENTS}>Select all</option>
-                  {(attendanceRosterQuery.data ?? []).map((student) => (
-                    <option key={student.studentId} value={student.studentId}>
-                      {student.studentName} · {displaySchoolYearLabel(student.yearGroup)}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
+                loading={attendanceRosterQuery.isLoading}
+                onChange={handleStudentChange}
+                options={rosterStudentOptions}
+                selectedIds={selectedStudentIds}
+              />
               {selectedStudent ? (
                 <div className="student-context-card">
                   <strong>{selectedStudent.studentName}</strong>
