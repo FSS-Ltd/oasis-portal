@@ -138,6 +138,7 @@ export function StudentAssignmentPanel({ club }: { club: ManagedClub }) {
                 </Button>
               ) : (
                 <Button
+                  className="club-assignment-button--assign"
                   disabled={!club.active}
                   onClick={() => {
                     void assignStudent(candidate);

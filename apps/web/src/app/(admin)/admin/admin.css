@@ -3713,6 +3713,18 @@ button.club-assignment-row {
   color: #0e5c3a;
 }
 
+.club-assignment-row .club-assignment-button--assign {
+  border-color: var(--oasis-success);
+  background: var(--oasis-success);
+  color: #ffffff;
+}
+
+.club-assignment-row .club-assignment-button--assign:hover,
+.club-assignment-row .club-assignment-button--assign:focus-visible {
+  border-color: #15803d;
+  background: #15803d;
+}
+
 .clubs-lead-shell {
   --clubs-lead-green: #0e5c3a;
   --clubs-lead-green-dark: #0a3d29;
