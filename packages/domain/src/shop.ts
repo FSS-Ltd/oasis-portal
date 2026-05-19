@@ -7,7 +7,13 @@
  * - Reservation: hold stock and Spend until shopkeeper collection or cancellation.
  * - Price stored as merits. VAT rounded half-up to nearest integer merit.
  */
-import { AccessDeniedError, hasTag, isFullAdmin, type SessionUser } from './rbac.js';
+import {
+  AccessDeniedError,
+  canUseClubsLeadPortal,
+  hasTag,
+  isFullAdmin,
+  type SessionUser,
+} from './rbac.js';
 import type { LedgerRow } from './meritLedger.js';
 
 export const SHOP_CATEGORIES = [
@@ -117,10 +123,12 @@ export function assertCanSellInShop(user: SessionUser): void {
 }
 
 export function canManageShop(user: SessionUser): boolean {
+  if (canUseClubsLeadPortal(user)) return false;
   return isFullAdmin(user) || hasTag(user, 'shopadmin');
 }
 
 export function canSellInShop(user: SessionUser): boolean {
+  if (canUseClubsLeadPortal(user)) return false;
   return isFullAdmin(user) || hasTag(user, 'shopkeeper');
 }
 

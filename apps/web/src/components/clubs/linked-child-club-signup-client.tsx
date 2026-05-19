@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Club, UsersRound, XCircle } from 'lucide-react';
+import { Bell, CheckCircle2, Club, UsersRound, XCircle } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
@@ -13,6 +13,7 @@ import { MyClubRotaPanel } from './my-club-rota-panel';
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupClub = SignupContext['clubs'][number];
 type SignupChild = SignupContext['children'][number];
+type ClubNotice = RouterOutputs['club']['myClubNotices'][number];
 type ClubSignupVariant = 'admin' | 'parent' | 'supervisor';
 
 interface LinkedChildClubSignupClientProps {
@@ -53,6 +54,68 @@ function statusTone(club: SignupClub, selectedChildId: string | null): 'amber' |
   if (selectedChildId && club.signedUpStudentIds.includes(selectedChildId)) return 'green';
   if (isClubFull(club)) return 'grey';
   return 'amber';
+}
+
+function formatNoticeDate(value: Date | string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(new Date(value));
+}
+
+function ParentClubNotices({
+  error,
+  loading,
+  notices,
+}: {
+  error: string | null;
+  loading: boolean;
+  notices: readonly ClubNotice[];
+}) {
+  return (
+    <section
+      className="panel panel__body parent-club-notices"
+      aria-labelledby="parent-club-notices-title"
+    >
+      <div className="section-title">
+        <div>
+          <p className="muted">Club notices</p>
+          <h2 id="parent-club-notices-title">Latest Updates</h2>
+        </div>
+        <span className="badge badge--green">
+          <Bell aria-hidden="true" size={14} />
+          {String(notices.length)}
+        </span>
+      </div>
+
+      {loading ? <div className="empty-state">Loading club notices...</div> : null}
+      {error ? <p className="status--error">{error}</p> : null}
+      {!loading && !error && notices.length === 0 ? (
+        <EmptyState detail="Club updates will appear here." title="No notices yet" />
+      ) : null}
+
+      {notices.length > 0 ? (
+        <div className="parent-club-notice-list">
+          {notices.map((notice) => (
+            <article className="parent-club-notice" key={notice.id}>
+              <div className="parent-club-notice__head">
+                <span>
+                  <strong>{notice.title}</strong>
+                  <small>
+                    {notice.clubName} - {notice.studentName} - {formatNoticeDate(notice.sentAt)}
+                  </small>
+                </span>
+                <Badge tone="green">Club</Badge>
+              </div>
+              <p>{notice.body}</p>
+            </article>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function ChildPicker({
@@ -170,6 +233,10 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
   const copy = VARIANT_COPY[variant];
   const utils = api.useUtils();
   const contextQuery = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
+  const noticesQuery = api.club.myClubNotices.useQuery(undefined, {
+    enabled: variant === 'parent',
+    retry: false,
+  });
   const signUp = api.club.signUp.useMutation();
   const withdraw = api.club.withdraw.useMutation();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
@@ -243,6 +310,14 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
         <h1>{copy.title}</h1>
         <span>{clubs.length === 1 ? '1 active club' : `${String(clubs.length)} active clubs`}</span>
       </div>
+
+      {variant === 'parent' ? (
+        <ParentClubNotices
+          error={noticesQuery.error?.message ?? null}
+          loading={noticesQuery.isLoading}
+          notices={noticesQuery.data ?? []}
+        />
+      ) : null}
 
       {children.length === 0 ? (
         <EmptyState

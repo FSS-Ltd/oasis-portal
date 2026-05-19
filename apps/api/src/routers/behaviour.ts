@@ -4,6 +4,7 @@ import {
   AccessDeniedError,
   DEMERIT_COST,
   canCreateSensitiveBehaviour,
+  canUseClubsLeadPortal,
   canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
   canViewBehaviourReports,
@@ -92,7 +93,7 @@ type CreatedBehaviourEntry = {
 };
 
 function canUseBehaviourWorkflow(user: SessionUser): boolean {
-  return isFullAdmin(user) || isStaff(user);
+  return isFullAdmin(user) || isStaff(user) || canUseClubsLeadPortal(user);
 }
 
 async function auditPermissionDenied(
@@ -101,7 +102,7 @@ async function auditPermissionDenied(
   meta: Record<string, unknown>,
 ): Promise<never> {
   const denied = new AccessDeniedError(
-    'behaviour workflow requires full-admin, ClubsAdmin, or Supervisor',
+    'behaviour workflow requires full-admin, ClubsAdmin, Supervisor, or ClubsLead',
   );
   await ctx.db.auditLog.create({
     data: {
@@ -244,6 +245,24 @@ async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string):
 
 function visibleBehaviourWhere(user: SessionUser) {
   if (canViewSensitiveBehaviour(user)) return { deletedAt: null };
+  if (canUseClubsLeadPortal(user)) {
+    return {
+      deletedAt: null,
+      visibility: 'General' as const,
+      student: {
+        active: true,
+        clubSignups: {
+          some: {
+            status: 'Active' as const,
+            club: {
+              active: true,
+              leadAssignments: { some: { userId: user.id } },
+            },
+          },
+        },
+      },
+    };
+  }
   if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
     return {
       deletedAt: null,
@@ -265,6 +284,40 @@ function visibleBehaviourWhere(user: SessionUser) {
   return { deletedAt: null, visibility: 'General' as const };
 }
 
+async function assertAssignedClubLeadStudent(
+  ctx: AuthedContext,
+  input: { studentId: string; entity: string },
+): Promise<void> {
+  const signup = await ctx.db.clubSignup.findFirst({
+    where: {
+      studentId: input.studentId,
+      status: 'Active',
+      student: { active: true },
+      club: {
+        active: true,
+        leadAssignments: { some: { userId: ctx.user.id } },
+      },
+    },
+    select: { clubId: true },
+  });
+  if (signup) return;
+
+  const denied = new AccessDeniedError('student is outside assigned clubs');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: input.entity,
+      meta: {
+        studentId: input.studentId,
+        role: ctx.user.role,
+        reason: denied.message,
+      },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
+}
+
 async function loadActiveScopedStudent(
   ctx: AuthedContext,
   input: { studentId: string; entity: string; date?: Date | undefined },
@@ -278,6 +331,13 @@ async function loadActiveScopedStudent(
   }
   if (!student.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+  }
+  if (canUseClubsLeadPortal(ctx.user)) {
+    await assertAssignedClubLeadStudent(ctx, {
+      studentId: input.studentId,
+      entity: input.entity,
+    });
+    return student;
   }
   const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
   if (!canUseAllStudentSupervisorWorkflow(ctx.user) && !studentMatchesDailyScope(scope, student)) {
@@ -363,6 +423,7 @@ function assertBatchEntryLimit(totalEntries: number): void {
 }
 
 function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser) {
+  if (canUseClubsLeadPortal(user)) return {};
   if (canUseAllStudentSupervisorWorkflow(user) || scope.scopedYears === null) return {};
   return { student: studentWhereForDailyScope(scope) };
 }
@@ -795,17 +856,24 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         if (!student.active) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
         }
-        const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
-        if (
-          !canUseAllStudentSupervisorWorkflow(ctx.user) &&
-          !studentMatchesDailyScope(scope, student)
-        ) {
-          await denyOutOfDailyScope(ctx, 'behaviour.listForStudent', {
+        if (canUseClubsLeadPortal(ctx.user)) {
+          await assertAssignedClubLeadStudent(ctx, {
             studentId: input.studentId,
-            studentYearGroup: student.yearGroup,
-            date: scope.dayKey,
-            assignedBands: scope.assignedBands.map((band) => band.id),
+            entity: 'behaviour.listForStudent',
           });
+        } else {
+          const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
+          if (
+            !canUseAllStudentSupervisorWorkflow(ctx.user) &&
+            !studentMatchesDailyScope(scope, student)
+          ) {
+            await denyOutOfDailyScope(ctx, 'behaviour.listForStudent', {
+              studentId: input.studentId,
+              studentYearGroup: student.yearGroup,
+              date: scope.dayKey,
+              assignedBands: scope.assignedBands.map((band) => band.id),
+            });
+          }
         }
 
         const entries = await ctx.withRls((tx) =>

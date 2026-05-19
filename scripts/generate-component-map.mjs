@@ -109,6 +109,7 @@ const PRODUCT_MODULES = [
     ],
     webSurfaces: [
       'apps/web/src/app/(admin)/',
+      'apps/web/src/app/(clubs-lead)/',
       'apps/web/src/app/(parent)/',
       'apps/web/src/app/(supervisor)/',
       'apps/web/src/app/registration/',
@@ -144,6 +145,7 @@ const PRODUCT_MODULES = [
     ],
     webSurfaces: [
       'apps/web/src/app/(admin)/',
+      'apps/web/src/app/(clubs-lead)/',
       'apps/web/src/app/(supervisor)/supervisor/shop/',
       'apps/web/src/app/(parent)/',
       'apps/web/src/components/calendar/',

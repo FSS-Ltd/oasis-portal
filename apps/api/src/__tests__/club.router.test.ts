@@ -18,6 +18,12 @@ const clubsAdminUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const clubsLeadUser: SessionUser = {
+  id: 'cclubslead0000000001',
+  role: 'ClubsLead',
+  tags: [],
+  requires2fa: false,
+};
 const parentUser: SessionUser = {
   id: 'cparent000000000000001',
   role: 'Parent',
@@ -106,6 +112,24 @@ interface StoredClubNotification {
   sentAt: Date;
 }
 
+interface StoredLeadAssignment {
+  id: string;
+  clubId: string;
+  userId: string;
+  assignedById: string;
+  createdAt: Date;
+}
+
+interface StoredClubAttendance {
+  id: string;
+  clubId: string;
+  studentId: string;
+  sessionDate: Date;
+  status: 'Present' | 'Absent' | 'Late';
+  recordedById: string;
+  updatedAt: Date;
+}
+
 interface FakeClubFindManyArgs {
   where?: { active?: boolean };
   include?: FakeClubInclude;
@@ -114,12 +138,18 @@ interface FakeClubFindManyArgs {
 interface FakeClubFindUniqueArgs {
   where: { id: string };
   include?: FakeClubInclude;
-  select?: { id?: true; signups?: object };
+  select?: {
+    active?: true;
+    id?: true;
+    leadAssignments?: object;
+    name?: true;
+    signups?: object;
+  };
 }
 
 interface FakeClubInclude {
   signups?: {
-    where?: { status?: ClubSignupStatus };
+    where?: { status?: ClubSignupStatus; student?: { active?: boolean } };
     select?: { studentId?: true };
     include?: { student?: { select: { id: true; fullNameEnc: true; yearGroup: true } } };
     orderBy?: { createdAt: 'desc' };
@@ -175,7 +205,9 @@ interface FakeSignupFindFirstArgs {
     clubId: string;
     studentId: string;
     status: ClubSignupStatus;
+    student?: { active?: boolean };
   };
+  select?: { id?: true };
 }
 
 interface FakeSignupUpdateArgs {
@@ -185,6 +217,18 @@ interface FakeSignupUpdateArgs {
 
 interface FakeStudentFindUniqueArgs {
   where: { id: string };
+}
+
+interface FakeStudentFindManyArgs {
+  where?: { active?: boolean };
+}
+
+interface FakeUserFindManyArgs {
+  where?: {
+    active?: boolean;
+    id?: { in: string[] };
+    role?: Role;
+  };
 }
 
 interface FakeGuardianFindManyArgs {
@@ -204,7 +248,15 @@ interface FakeAuditCreateArgs {
   data: {
     userId: string;
     action: 'Create' | 'Update' | 'DecryptPii';
-    entity: 'Club' | 'ClubSignup' | 'Student' | 'User' | 'ClubNotification' | 'Email';
+    entity:
+      | 'Club'
+      | 'ClubAttendance'
+      | 'ClubLeadAssignment'
+      | 'ClubSignup'
+      | 'Student'
+      | 'User'
+      | 'ClubNotification'
+      | 'Email';
     entityId?: string | null;
     meta?: Record<string, unknown>;
   };
@@ -220,9 +272,56 @@ interface FakeClubNotificationCreateArgs {
 }
 
 interface FakeClubNotificationFindManyArgs {
-  where: { clubId: string };
+  where: {
+    club?: {
+      active?: boolean;
+      signups?: {
+        some: {
+          status: ClubSignupStatus;
+          studentId: { in: string[] };
+          student?: { active?: boolean };
+        };
+      };
+    };
+    clubId?: string;
+  };
   orderBy?: { sentAt: 'desc' };
   take?: number;
+}
+
+interface FakeClubLeadAssignmentFindUniqueArgs {
+  where: { clubId_userId: { clubId: string; userId: string } };
+}
+
+interface FakeClubLeadAssignmentFindManyArgs {
+  where?: { club?: { active?: boolean }; userId?: string };
+}
+
+interface FakeClubLeadAssignmentDeleteManyArgs {
+  where: { clubId: string; userId: { notIn: string[] } };
+}
+
+interface FakeClubLeadAssignmentCreateManyArgs {
+  data: Array<{ assignedById: string; clubId: string; userId: string }>;
+  skipDuplicates?: boolean;
+}
+
+interface FakeClubAttendanceFindManyArgs {
+  where: { clubId: string; sessionDate: Date };
+}
+
+interface FakeClubAttendanceUpsertArgs {
+  where: {
+    clubId_studentId_sessionDate: { clubId: string; sessionDate: Date; studentId: string };
+  };
+  update: { recordedById: string; status: StoredClubAttendance['status'] };
+  create: {
+    clubId: string;
+    recordedById: string;
+    sessionDate: Date;
+    status: StoredClubAttendance['status'];
+    studentId: string;
+  };
 }
 
 interface FakeDb {
@@ -243,11 +342,25 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  clubLeadAssignment: {
+    createMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  clubAttendance: {
+    findMany: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+  };
   clubNotification: {
     create: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
   };
-  student: { findUnique: ReturnType<typeof vi.fn> };
+  student: {
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  user: { findMany: ReturnType<typeof vi.fn> };
   guardian: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -257,6 +370,8 @@ interface FakeDb {
   guardians: StoredGuardian[];
   users: StoredUser[];
   signups: StoredSignup[];
+  leadAssignments: StoredLeadAssignment[];
+  attendance: StoredClubAttendance[];
   notifications: StoredClubNotification[];
 }
 
@@ -341,6 +456,11 @@ const defaultUsers = [
     role: clubsAdminUser.role,
     fullNameEnc: encrypt('Clubs Admin'),
   }),
+  makeUser({
+    id: clubsLeadUser.id,
+    role: clubsLeadUser.role,
+    fullNameEnc: encrypt('Clubs Lead'),
+  }),
   makeUser({ id: parentUser.id, role: parentUser.role, fullNameEnc: encrypt('Jane Parent') }),
   makeUser({
     id: otherParentUser.id,
@@ -361,6 +481,8 @@ function makeFakeDb(
     guardians?: StoredGuardian[];
     users?: StoredUser[];
     signups?: StoredSignup[];
+    leadAssignments?: StoredLeadAssignment[];
+    attendance?: StoredClubAttendance[];
     notifications?: StoredClubNotification[];
   } = {},
 ): FakeDb {
@@ -375,6 +497,8 @@ function makeFakeDb(
   const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
   const users = input.users ?? defaultUsers;
   const signups = input.signups ?? [];
+  const leadAssignments = input.leadAssignments ?? [];
+  const attendance = input.attendance ?? [];
   const notifications = input.notifications ?? [];
 
   const db = {
@@ -395,11 +519,32 @@ function makeFakeDb(
       findUnique: vi.fn((args: FakeClubFindUniqueArgs) => {
         const club = clubs.find((candidate) => candidate.id === args.where.id);
         if (!club) return Promise.resolve(null);
-        if (args.select?.id && !args.select.signups) return Promise.resolve({ id: club.id });
+        if (args.select?.leadAssignments) {
+          return Promise.resolve({
+            id: club.id,
+            leadAssignments: leadAssignments
+              .filter((assignment) => assignment.clubId === club.id)
+              .map((assignment) => ({ userId: assignment.userId })),
+          });
+        }
+        if (args.select?.id && !args.select.signups) {
+          return Promise.resolve({
+            id: club.id,
+            ...(args.select.active ? { active: club.active } : {}),
+          });
+        }
         if (args.select?.signups) {
-          return Promise.resolve(
-            withNotificationRecipients(club, signups, students, guardians, users),
-          );
+          if (args.select.name) {
+            return Promise.resolve(
+              withNotificationRecipients(club, signups, students, guardians, users),
+            );
+          }
+          return Promise.resolve({
+            id: club.id,
+            signups: signups
+              .filter((signup) => signup.clubId === club.id && signup.status === 'Active')
+              .map((signup) => ({ studentId: signup.studentId })),
+          });
         }
         return Promise.resolve(withIncludedSignups(club, args.include, signups, students));
       }),
@@ -456,7 +601,10 @@ function makeFakeDb(
             (signup) =>
               signup.clubId === args.where.clubId &&
               signup.studentId === args.where.studentId &&
-              signup.status === args.where.status,
+              signup.status === args.where.status &&
+              (args.where.student?.active === undefined ||
+                students.find((student) => student.id === signup.studentId)?.active ===
+                  args.where.student.active),
           ) ?? null,
         ),
       ),
@@ -466,6 +614,114 @@ function makeFakeDb(
         signup.status = args.data.status;
         signup.withdrawnAt = args.data.withdrawnAt;
         return Promise.resolve(signup);
+      }),
+    },
+    clubLeadAssignment: {
+      findUnique: vi.fn((args: FakeClubLeadAssignmentFindUniqueArgs) => {
+        const assignment = leadAssignments.find(
+          (candidate) =>
+            candidate.clubId === args.where.clubId_userId.clubId &&
+            candidate.userId === args.where.clubId_userId.userId,
+        );
+        if (!assignment) return Promise.resolve(null);
+        const club = clubs.find((candidate) => candidate.id === assignment.clubId);
+        return Promise.resolve({ club: { active: club?.active ?? false } });
+      }),
+      findMany: vi.fn((args: FakeClubLeadAssignmentFindManyArgs = {}) =>
+        Promise.resolve(
+          leadAssignments
+            .filter(
+              (assignment) =>
+                args.where?.userId === undefined || assignment.userId === args.where.userId,
+            )
+            .filter((assignment) => {
+              const club = clubs.find((candidate) => candidate.id === assignment.clubId);
+              return (
+                args.where?.club?.active === undefined || club?.active === args.where.club.active
+              );
+            })
+            .map((assignment) => {
+              const club = clubs.find((candidate) => candidate.id === assignment.clubId);
+              if (!club) throw new Error('club not found');
+              return {
+                club: withIncludedSignups(
+                  club,
+                  {
+                    signups: {
+                      where: { status: 'Active', student: { active: true } },
+                      select: { studentId: true },
+                    },
+                  },
+                  signups,
+                  students,
+                ),
+              };
+            }),
+        ),
+      ),
+      deleteMany: vi.fn((args: FakeClubLeadAssignmentDeleteManyArgs) => {
+        for (let index = leadAssignments.length - 1; index >= 0; index -= 1) {
+          const assignment = leadAssignments[index];
+          if (
+            assignment &&
+            assignment.clubId === args.where.clubId &&
+            !args.where.userId.notIn.includes(assignment.userId)
+          ) {
+            leadAssignments.splice(index, 1);
+          }
+        }
+        return Promise.resolve({ count: 0 });
+      }),
+      createMany: vi.fn((args: FakeClubLeadAssignmentCreateManyArgs) => {
+        for (const row of args.data) {
+          if (
+            args.skipDuplicates &&
+            leadAssignments.some(
+              (assignment) => assignment.clubId === row.clubId && assignment.userId === row.userId,
+            )
+          ) {
+            continue;
+          }
+          leadAssignments.push({
+            id: `cleadassign000000${String(leadAssignments.length + 1).padStart(6, '0')}`,
+            createdAt: new Date('2026-05-11T12:30:00.000Z'),
+            ...row,
+          });
+        }
+        return Promise.resolve({ count: args.data.length });
+      }),
+    },
+    clubAttendance: {
+      findMany: vi.fn((args: FakeClubAttendanceFindManyArgs) =>
+        Promise.resolve(
+          attendance.filter(
+            (row) =>
+              row.clubId === args.where.clubId &&
+              row.sessionDate.getTime() === args.where.sessionDate.getTime(),
+          ),
+        ),
+      ),
+      upsert: vi.fn((args: FakeClubAttendanceUpsertArgs) => {
+        const existing = attendance.find(
+          (row) =>
+            row.clubId === args.where.clubId_studentId_sessionDate.clubId &&
+            row.studentId === args.where.clubId_studentId_sessionDate.studentId &&
+            row.sessionDate.getTime() ===
+              args.where.clubId_studentId_sessionDate.sessionDate.getTime(),
+        );
+        if (existing) {
+          existing.status = args.update.status;
+          existing.recordedById = args.update.recordedById;
+          existing.updatedAt = new Date('2026-05-11T15:00:00.000Z');
+          return Promise.resolve(existing);
+        }
+        const row: StoredClubAttendance = {
+          id: `cattendance000000${String(attendance.length + 1).padStart(6, '0')}`,
+          updatedAt: new Date('2026-05-11T15:00:00.000Z'),
+          ...args.create,
+        };
+        attendance.push(row);
+        return Promise.resolve(row);
       }),
     },
     clubNotification: {
@@ -484,21 +740,73 @@ function makeFakeDb(
         });
       }),
       findMany: vi.fn((args: FakeClubNotificationFindManyArgs) => {
+        const allowedClubIds =
+          args.where.club === undefined
+            ? null
+            : new Set(
+                clubs
+                  .filter(
+                    (club) =>
+                      args.where.club?.active === undefined ||
+                      club.active === args.where.club.active,
+                  )
+                  .filter((club) =>
+                    signups.some((signup) => {
+                      const student = students.find(
+                        (candidate) => candidate.id === signup.studentId,
+                      );
+                      const some = args.where.club?.signups?.some;
+                      return (
+                        signup.clubId === club.id &&
+                        (!some ||
+                          (signup.status === some.status &&
+                            some.studentId.in.includes(signup.studentId) &&
+                            (some.student?.active === undefined ||
+                              student?.active === some.student.active)))
+                      );
+                    }),
+                  )
+                  .map((club) => club.id),
+              );
         const rows = notifications
-          .filter((notification) => notification.clubId === args.where.clubId)
+          .filter(
+            (notification) =>
+              (args.where.clubId === undefined || notification.clubId === args.where.clubId) &&
+              (allowedClubIds === null || allowedClubIds.has(notification.clubId)),
+          )
           .sort((a, b) => b.sentAt.getTime() - a.sentAt.getTime())
           .slice(0, args.take);
 
         return Promise.resolve(
           rows.map((notification) => {
             const sentBy = users.find((user) => user.id === notification.sentById);
+            const club = clubs.find((candidate) => candidate.id === notification.clubId);
+            const linkedStudentIds = args.where.club?.signups?.some.studentId.in;
             if (!sentBy) throw new Error('sender not found');
+            if (!club) throw new Error('club not found');
 
             return {
               id: notification.id,
               clubId: notification.clubId,
               title: notification.title,
+              bodyEnc: notification.bodyEnc,
               sentAt: notification.sentAt,
+              club: {
+                name: club.name,
+                signups: signups
+                  .filter(
+                    (signup) =>
+                      signup.clubId === club.id &&
+                      signup.status === 'Active' &&
+                      (linkedStudentIds === undefined ||
+                        linkedStudentIds.includes(signup.studentId)),
+                  )
+                  .map((signup) => {
+                    const student = students.find((candidate) => candidate.id === signup.studentId);
+                    if (!student) throw new Error('student not found');
+                    return { student: { fullNameEnc: student.fullNameEnc } };
+                  }),
+              },
               sentBy: { fullNameEnc: sentBy.fullNameEnc },
             };
           }),
@@ -506,8 +814,40 @@ function makeFakeDb(
       }),
     },
     student: {
+      findMany: vi.fn((args: FakeStudentFindManyArgs = {}) =>
+        Promise.resolve(
+          students
+            .filter(
+              (student) => args.where?.active === undefined || student.active === args.where.active,
+            )
+            .sort((a, b) => a.yearGroup.localeCompare(b.yearGroup))
+            .map((student) => ({
+              id: student.id,
+              fullNameEnc: student.fullNameEnc,
+              yearGroup: student.yearGroup,
+            })),
+        ),
+      ),
       findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
         Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
+      ),
+    },
+    user: {
+      findMany: vi.fn((args: FakeUserFindManyArgs = {}) =>
+        Promise.resolve(
+          users
+            .filter((user) => args.where?.active === undefined || user.active === args.where.active)
+            .filter((user) => args.where?.role === undefined || user.role === args.where.role)
+            .filter(
+              (user) => args.where?.id?.in === undefined || args.where.id.in.includes(user.id),
+            )
+            .map((user) => ({
+              id: user.id,
+              role: user.role,
+              fullNameEnc: user.fullNameEnc,
+              emailEnc: user.emailEnc,
+            })),
+        ),
       ),
     },
     guardian: {
@@ -555,6 +895,8 @@ function makeFakeDb(
     guardians,
     users,
     signups,
+    leadAssignments,
+    attendance,
     notifications,
   } satisfies FakeDb;
 
@@ -571,8 +913,13 @@ function withIncludedSignups(
 ) {
   if (!include?.signups) return club;
   const status = include.signups.where?.status;
+  const active = include.signups.where?.student?.active;
   const clubSignups = signups
     .filter((signup) => signup.clubId === club.id && (!status || signup.status === status))
+    .filter((signup) => {
+      const student = students.find((candidate) => candidate.id === signup.studentId);
+      return active === undefined || student?.active === active;
+    })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .map((signup) => ({
       ...signup,
@@ -594,7 +941,10 @@ function withNotificationRecipients(
     name: club.name,
     active: club.active,
     signups: signups
-      .filter((signup) => signup.clubId === club.id && signup.status === 'Active')
+      .filter((signup) => {
+        const student = students.find((candidate) => candidate.id === signup.studentId);
+        return signup.clubId === club.id && signup.status === 'Active' && student?.active === true;
+      })
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((signup) => {
         const student = students.find((candidate) => candidate.id === signup.studentId);
@@ -971,7 +1321,7 @@ describe('club.signUp', () => {
     });
   });
 
-  it('blocks ClubsAdmin signup for an unrelated child', async () => {
+  it('allows ClubsAdmin signup for an unrelated active child', async () => {
     const db = makeFakeDb({
       guardians: [{ userId: clubsAdminUser.id, studentId: linkedStudentId }],
     });
@@ -981,7 +1331,11 @@ describe('club.signUp', () => {
         clubId: defaultClubId,
         studentId: otherStudentId,
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toMatchObject({
+      studentId: otherStudentId,
+      signedUpByUserId: clubsAdminUser.id,
+      status: 'Active',
+    });
   });
 
   it('rejects duplicate active signups and full clubs', async () => {
@@ -1134,6 +1488,142 @@ describe('club.withdraw', () => {
       withdrawn: true,
     });
   });
+
+  it('allows ClubsAdmin users to withdraw any active club signup', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: clubsAdminUser.id, studentId: linkedStudentId }],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(clubsAdminUser, db).caller.club.withdraw({
+        clubId: defaultClubId,
+        studentId: otherStudentId,
+      }),
+    ).resolves.toMatchObject({
+      id: 'csignup000000000000001',
+      status: 'Withdrawn',
+      withdrawn: true,
+    });
+  });
+});
+
+describe('club manager assignments', () => {
+  it('lists student assignment candidates and lead candidates for club managers', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+    const caller = makeCaller(clubsAdminUser, db).caller;
+
+    await expect(caller.club.studentCandidates({ clubId: defaultClubId })).resolves.toEqual([
+      expect.objectContaining({
+        id: linkedStudentId,
+        fullName: 'Linked Learner',
+        signedUp: true,
+      }),
+      expect.objectContaining({
+        id: otherStudentId,
+        fullName: 'Other Learner',
+        signedUp: false,
+      }),
+    ]);
+
+    await expect(caller.club.leadCandidates({ clubId: defaultClubId })).resolves.toEqual([
+      expect.objectContaining({
+        id: clubsLeadUser.id,
+        fullName: 'Clubs Lead',
+        role: 'ClubsLead',
+        selected: true,
+      }),
+    ]);
+  });
+
+  it('sets club lead assignments only for active ClubsLead users', async () => {
+    const inactiveLead = makeUser({
+      id: 'cclubslead0000000002',
+      active: false,
+      role: 'ClubsLead',
+    });
+    const supervisorLead = makeUser({
+      id: 'csupervisor00000000002',
+      role: 'Supervisor',
+    });
+    const db = makeFakeDb({
+      users: [...defaultUsers, inactiveLead, supervisorLead],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: inactiveLead.id,
+        },
+      ],
+    });
+    const caller = makeCaller(clubsAdminUser, db).caller;
+
+    await expect(
+      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [clubsLeadUser.id] }),
+    ).resolves.toEqual({ clubId: defaultClubId, userIds: [clubsLeadUser.id] });
+    expect(db.leadAssignments).toEqual([
+      expect.objectContaining({ clubId: defaultClubId, userId: clubsLeadUser.id }),
+    ]);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: clubsAdminUser.id,
+        action: 'Update',
+        entity: 'ClubLeadAssignment',
+        entityId: defaultClubId,
+        meta: {
+          source: 'club.setLeadAssignments',
+          clubId: defaultClubId,
+          leadCount: 1,
+        },
+      },
+    });
+
+    await expect(
+      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [inactiveLead.id] }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [supervisorLead.id] }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('blocks parents from assignment candidate and lead assignment procedures', async () => {
+    const caller = makeCaller(parentUser).caller;
+
+    await expect(caller.club.studentCandidates({ clubId: defaultClubId })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.club.leadCandidates({ clubId: defaultClubId })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [clubsLeadUser.id] }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
 });
 
 describe('club.roster', () => {
@@ -1202,6 +1692,44 @@ describe('club.roster', () => {
     });
   });
 
+  it('allows ClubsLead users to read only assigned active club rosters', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+
+    await expect(makeCaller(clubsLeadUser, db).caller.club.leadClubs()).resolves.toEqual([
+      expect.objectContaining({
+        id: defaultClubId,
+        active: true,
+        activeSignupCount: 1,
+      }),
+    ]);
+    await expect(
+      makeCaller(clubsLeadUser, db).caller.club.roster({ clubId: defaultClubId }),
+    ).resolves.toEqual({
+      clubId: defaultClubId,
+      signups: [expect.objectContaining({ studentId: linkedStudentId })],
+    });
+    await expect(
+      makeCaller(clubsLeadUser, db).caller.club.roster({ clubId: inactiveClubId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it.each([parentUser, supervisorUser, studentUser, technicalSupportUser])(
     'blocks %s from roster reads',
     async (user) => {
@@ -1212,6 +1740,59 @@ describe('club.roster', () => {
       });
     },
   );
+});
+
+describe('club attendance for leads', () => {
+  it('allows assigned ClubsLead users to mark attendance for active club signups only', async () => {
+    const sessionDate = new Date('2026-05-12T00:00:00.000Z');
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+    const caller = makeCaller(clubsLeadUser, db).caller;
+
+    await expect(
+      caller.club.markAttendance({
+        clubId: defaultClubId,
+        date: sessionDate,
+        studentId: linkedStudentId,
+        status: 'Present',
+      }),
+    ).resolves.toMatchObject({
+      clubId: defaultClubId,
+      studentId: linkedStudentId,
+      status: 'Present',
+      recordedById: clubsLeadUser.id,
+    });
+    await expect(
+      caller.club.attendanceForSession({ clubId: defaultClubId, date: sessionDate }),
+    ).resolves.toMatchObject({
+      clubId: defaultClubId,
+      students: [expect.objectContaining({ studentId: linkedStudentId, status: 'Present' })],
+    });
+    await expect(
+      caller.club.markAttendance({
+        clubId: defaultClubId,
+        date: sessionDate,
+        studentId: otherStudentId,
+        status: 'Present',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
 });
 
 describe('club.notifications', () => {
@@ -1291,10 +1872,84 @@ describe('club.notifications', () => {
     ).resolves.toMatchObject([{ title: 'Head visible update', sentByName: 'Clubs Admin' }]);
   });
 
+  it('allows assigned ClubsLead users to read assigned club notification history', async () => {
+    const db = makeFakeDb({
+      notifications: [
+        makeNotification({
+          id: 'cnotification000000000001',
+          clubId: defaultClubId,
+          title: 'Lead visible update',
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+
+    await expect(
+      makeCaller(clubsLeadUser, db).caller.club.notifications({ clubId: defaultClubId }),
+    ).resolves.toMatchObject([{ title: 'Lead visible update', sentByName: 'Clubs Admin' }]);
+    await expect(
+      makeCaller(clubsLeadUser, db).caller.club.notifications({ clubId: inactiveClubId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it.each([parentUser, supervisorUser])('blocks %s from notification history', async (user) => {
     await expect(
       makeCaller(user).caller.club.notifications({ clubId: defaultClubId }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('club.myClubNotices', () => {
+  it('shows parent notices only for active clubs their active children are signed up to', async () => {
+    const db = makeFakeDb({
+      notifications: [
+        makeNotification({
+          id: 'cnotification000000000001',
+          bodyEnc: encrypt('Choir starts at 4pm.'),
+          clubId: defaultClubId,
+          title: 'Choir update',
+        }),
+        makeNotification({
+          id: 'cnotification000000000002',
+          bodyEnc: encrypt('Chess private update.'),
+          clubId: inactiveClubId,
+          title: 'Inactive update',
+        }),
+      ],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: inactiveClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+    });
+
+    await expect(makeCaller(parentUser, db).caller.club.myClubNotices()).resolves.toEqual([
+      {
+        id: 'cnotification000000000001',
+        body: 'Choir starts at 4pm.',
+        clubId: defaultClubId,
+        clubName: 'Choir',
+        sentAt: new Date('2026-05-11T14:00:00.000Z'),
+        sentByName: 'Clubs Admin',
+        studentName: 'Linked Learner',
+        title: 'Choir update',
+      },
+    ]);
   });
 });
 
@@ -1391,6 +2046,46 @@ describe('club.notify', () => {
       sentCount: 1,
       failedCount: 0,
     });
+  });
+
+  it('allows assigned ClubsLead users to send club notifications', async () => {
+    const db = makeFakeDb({
+      guardians: [{ userId: parentUser.id, studentId: linkedStudentId }],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+
+    await expect(
+      makeCaller(clubsLeadUser, db).caller.club.notify({
+        clubId: defaultClubId,
+        title: 'Club lead update',
+        body: 'Practice starts at 4pm.',
+      }),
+    ).resolves.toMatchObject({
+      recipientCount: 1,
+      sentCount: 1,
+      failedCount: 0,
+    });
+    expect(db.notifications).toEqual([
+      expect.objectContaining({
+        sentById: clubsLeadUser.id,
+        title: 'Club lead update',
+      }),
+    ]);
   });
 
   it('rejects inactive clubs before storing or sending notification email', async () => {

@@ -4,6 +4,7 @@ export type PostSignInDestination =
   | '/admin'
   | '/admin/access'
   | '/admin/clubs'
+  | '/clubs-lead'
   | '/children-check'
   | '/supervisor'
   | '/parent'
@@ -16,6 +17,7 @@ const DESTINATION_BY_PORTAL = {
   'full-admin': '/admin',
   'account-admin': '/admin/access',
   'clubs-admin': '/admin/clubs',
+  'clubs-lead': '/clubs-lead',
   supervisor: '/supervisor',
   parent: '/parent',
   'not-ready': '/not-ready',

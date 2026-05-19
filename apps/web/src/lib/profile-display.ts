@@ -8,6 +8,7 @@ export function roleLabel(role: Role): string {
     HeadOfDiscipline: 'Head of Discipline',
     TechnicalSupport: 'Technical Support',
     ClubsAdmin: 'Clubs Admin',
+    ClubsLead: 'Clubs Lead',
     Supervisor: 'Supervisor',
     Parent: 'Parent',
     Student: 'Student',

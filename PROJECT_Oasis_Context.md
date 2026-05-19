@@ -23,6 +23,58 @@ raw DB dump cannot re-identify anyone.
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
 
+## Current session - 2026-05-19 Clubs Lead portal and club assignments
+
+Working branch: `feat/clubs-lead-portal`.
+
+**PR scope:** Add a ClubsLead role and portal, allow club managers to assign
+children and ClubsLead users to clubs, and scope ClubsLead behaviour,
+attendance, and notices to assigned active clubs and active students.
+
+Completed:
+
+- Added the `ClubsLead` role, post-sign-in routing to `/clubs-lead`, RBAC
+  exclusions from unrelated staff/admin/tag workflows, and invite/profile labels.
+- Added `ClubLeadAssignment` in Prisma with assignment indexes and RLS policies
+  that only allow ClubsLead users to select/insert General behaviour for active
+  students in assigned active clubs.
+- Extended the club API for manager-side student assignment, ClubsLead
+  assignment, assigned club lookup, scoped roster/attendance/notification access,
+  and parent-visible club notices.
+- Extended behaviour API scoping so ClubsLead users can record only
+  General-visible Merit/Demerit/General entries for active assigned-club
+  students.
+- Added `/clubs-lead` with the Oasis clubs lead design reference: assigned club
+  switcher, overview, behaviour entry, club attendance, and noticeboard tabs.
+- Added admin club assignment panels and parent My Clubs notice rendering.
+- Updated component relationship coverage and graphify output.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate`
+- `pnpm --filter @oasis/domain test -- src/__tests__/rbac.test.ts src/__tests__/clubs.test.ts src/__tests__/shop.test.ts`
+- `pnpm --filter @oasis/api test -- src/__tests__/club.router.test.ts src/__tests__/behaviour.router.test.ts`
+- `pnpm --filter @oasis/db test`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `pnpm docs:component-map`
+- `graphify update .`
+- `git diff --check`
+
+Known blocker:
+
+- `pnpm --filter @oasis/db db:integration` first hit sandbox IPC restrictions.
+  The env-wrapped rerun was rejected by the approval reviewer because the RLS
+  smoke truncates and repopulates tables against the configured database. Run it
+  only against an explicitly approved disposable/local database.
+
 ## Current session - 2026-05-19 Multi-child behaviour and ClubsAdmin parity
 
 Working branch: `feat/multi-child-behaviour`.
