@@ -58,6 +58,7 @@ export {
 } from './routers/behaviour.js';
 export { clubRouter, createClubRouter, type ClubRouterDeps } from './routers/club.js';
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
+export { invoiceRouter, createInvoiceRouter } from './routers/invoice.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {
   handleClerkWebhookRequest,

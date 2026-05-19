@@ -34,6 +34,7 @@ export function permissionTagLabel(tag: string): string {
   const labels: Partial<Record<PermissionTag, string>> = {
     shopkeeper: 'Shopkeeper',
     shopadmin: 'Shop Admin',
+    'finance-admin': 'Finance Admin',
     'leaderboard-admin': 'Leaderboard Admin',
     'attendance-exporter': 'Attendance Exporter',
     'attendance-recorder': 'Attendance Recorder',

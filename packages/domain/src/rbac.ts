@@ -8,7 +8,7 @@
  * - Parent: own children only.
  * - Student: self only.
  *
- * Permission tags layered on top: `shopkeeper`, `shopadmin`, `leaderboard-admin`,
+ * Permission tags layered on top: `shopkeeper`, `shopadmin`, `finance-admin`, `leaderboard-admin`,
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
  * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`,
  * `pace-full-access`, `supervisor-all-students`, `calendar-manager`,
@@ -62,6 +62,7 @@ export type ChildRegistrationPromptStatus = (typeof CHILD_REGISTRATION_PROMPT_ST
 export const PERMISSION_TAGS = [
   'shopkeeper',
   'shopadmin',
+  'finance-admin',
   'leaderboard-admin',
   'attendance-exporter',
   'attendance-recorder',
@@ -112,6 +113,12 @@ export function canUseStaffMessaging(user: Pick<SessionUser, 'role'>): boolean {
 
 export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
   return user.role === 'ClubsAdmin' || isFullAdmin(user);
+}
+
+export function canManageInvoices(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
+  if (isFullAdmin(user)) return true;
+  if (user.role === 'Parent' || user.role === 'Student') return false;
+  return hasTag(user, 'finance-admin');
 }
 
 export function canAnswerChildRegistrationPrompt(user: Pick<SessionUser, 'role'>): boolean {
@@ -198,6 +205,12 @@ export function requireRole(user: SessionUser, ...allowed: readonly Role[]): voi
 export function requireTag(user: SessionUser, tag: PermissionTag): void {
   if (!hasTag(user, tag)) {
     throw new AccessDeniedError(`missing tag "${tag}"`);
+  }
+}
+
+export function requireCanManageInvoices(user: SessionUser): void {
+  if (!canManageInvoices(user)) {
+    throw new AccessDeniedError(`role ${user.role} cannot manage invoices`);
   }
 }
 

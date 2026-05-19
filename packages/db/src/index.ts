@@ -8,6 +8,7 @@ export {
   CalendarEventAudience,
   ChildRegistrationPromptStatus,
   Prisma,
+  SchoolFeeInvoiceStatus,
   ShopCategory,
   ShopReservationStatus,
   StaffNoticeAudience,

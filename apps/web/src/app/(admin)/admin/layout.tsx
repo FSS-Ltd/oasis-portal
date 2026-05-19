@@ -7,6 +7,7 @@ import {
   canExportAttendance,
   canManageCalendar,
   canManageClubs,
+  canManageInvoices,
   canManageShop,
   canRespondToParentMessages,
   canUseStaffMessaging,
@@ -38,6 +39,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canExportAttendanceCsv = canExportAttendance(user);
   const canManageCalendarDates = canManageCalendar(user);
   const canManageClubModule = canManageClubs(user);
+  const canManageInvoiceModule = canManageInvoices(user);
   const canUseShop = canManageShop(user) || canSellInShop(user);
   const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
   const [linkedChildren, unreadMessageCount] = await Promise.all([
@@ -70,12 +72,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               ? '/admin/calendar'
               : canManageClubModule
                 ? '/admin/clubs'
-                : canUseShop
-                  ? '/admin/shop'
-                  : '/admin/profile';
+                : canManageInvoiceModule
+                  ? '/admin/invoices'
+                  : canUseShop
+                    ? '/admin/shop'
+                    : '/admin/profile';
   const adminNavProps = {
     canManageCalendar: canManageCalendarDates,
     canManageClubs: canManageClubModule,
+    canManageInvoices: canManageInvoiceModule,
     canUseShop,
     canManageUserAccounts: canManageAccounts,
     canUseMessages,
