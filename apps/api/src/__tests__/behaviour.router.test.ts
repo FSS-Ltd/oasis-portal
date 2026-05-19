@@ -59,10 +59,17 @@ const clubsUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const clubsLeadUser: SessionUser = {
+  id: 'ckuserclubslead00000001',
+  role: 'ClubsLead',
+  tags: [],
+  requires2fa: false,
+};
 
 const activeStudentId = 'ckstudent000000000000001';
 const secondaryStudentId = 'ckstudent000000000000003';
 const inactiveStudentId = 'ckstudent000000000000002';
+const assignedClubId = 'ckclubassigned000000001';
 
 type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BehaviourVisibility = 'General' | 'Sensitive';
@@ -119,6 +126,18 @@ interface StoredLedgerRow {
   relatedEntryId?: string;
 }
 
+interface StoredClubSignup {
+  clubActive: boolean;
+  clubId: string;
+  status: 'Active' | 'Withdrawn';
+  studentId: string;
+}
+
+interface StoredClubLeadAssignment {
+  clubId: string;
+  userId: string;
+}
+
 interface AuditCreateArgs {
   data: {
     action: string;
@@ -138,6 +157,7 @@ interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
   student: { findUnique: ReturnType<typeof vi.fn> };
   guardian: { findMany: ReturnType<typeof vi.fn> };
+  clubSignup: { findFirst: ReturnType<typeof vi.fn> };
   behaviourEntry: {
     create: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -190,6 +210,11 @@ const defaultUsers: StoredUser[] = [
     role: clubsUser.role,
   }),
   makeStoredUser({
+    id: clubsLeadUser.id,
+    fullNameEnc: 'enc:Clubs Lead User',
+    role: clubsLeadUser.role,
+  }),
+  makeStoredUser({
     id: parentUser.id,
     emailEnc: 'enc:jane.parent@example.com',
     fullNameEnc: 'enc:Jane Parent',
@@ -199,6 +224,8 @@ const defaultUsers: StoredUser[] = [
 
 function makeFakeDb(
   options: {
+    clubLeadAssignments?: StoredClubLeadAssignment[];
+    clubSignups?: StoredClubSignup[];
     guardians?: StoredGuardian[];
     supervisorHasShift?: boolean;
     users?: StoredUser[];
@@ -231,6 +258,8 @@ function makeFakeDb(
   ];
   const users = [...defaultUsers, ...(options.users ?? [])];
   const guardians = [...(options.guardians ?? [])];
+  const clubSignups = [...(options.clubSignups ?? [])];
+  const clubLeadAssignments = [...(options.clubLeadAssignments ?? [])];
   const behaviour: StoredBehaviour[] = [];
   const ledger: StoredLedgerRow[] = [];
 
@@ -264,6 +293,44 @@ function makeFakeDb(
                 (where.user?.active === undefined || guardian.user.active === where.user.active),
             ),
         ),
+      ),
+    },
+    clubSignup: {
+      findFirst: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            club?: {
+              active?: boolean;
+              leadAssignments?: { some: { userId: string } };
+            };
+            status?: 'Active' | 'Withdrawn';
+            student?: { active?: boolean };
+            studentId?: string;
+          };
+        }) => {
+          const signup =
+            clubSignups.find((candidate) => {
+              const student = students.find((row) => row.id === candidate.studentId);
+              const hasLeadAssignment =
+                where.club?.leadAssignments === undefined ||
+                clubLeadAssignments.some(
+                  (assignment) =>
+                    assignment.clubId === candidate.clubId &&
+                    assignment.userId === where.club?.leadAssignments?.some.userId,
+                );
+
+              return (
+                (where.studentId === undefined || candidate.studentId === where.studentId) &&
+                (where.status === undefined || candidate.status === where.status) &&
+                (where.student?.active === undefined || student?.active === where.student.active) &&
+                (where.club?.active === undefined || candidate.clubActive === where.club.active) &&
+                hasLeadAssignment
+              );
+            }) ?? null;
+          return Promise.resolve(signup ? { clubId: signup.clubId } : null);
+        },
       ),
     },
     behaviourEntry: {
@@ -308,7 +375,20 @@ function makeFakeDb(
               type?: BehaviourType;
               visibility?: BehaviourVisibility;
             }>;
-            student?: { id?: { in: string[] }; yearGroup?: { in: string[] } };
+            student?: {
+              active?: boolean;
+              clubSignups?: {
+                some: {
+                  club: {
+                    active?: boolean;
+                    leadAssignments: { some: { userId: string } };
+                  };
+                  status?: 'Active' | 'Withdrawn';
+                };
+              };
+              id?: { in: string[] };
+              yearGroup?: { in: string[] };
+            };
             studentId?: string;
             deletedAt?: null;
             type?: BehaviourType;
@@ -340,6 +420,28 @@ function makeFakeDb(
               if (where.student === undefined) return true;
               const student = students.find((candidate) => candidate.id === row.studentId);
               if (!student) return false;
+              if (where.student.active !== undefined && student.active !== where.student.active) {
+                return false;
+              }
+              if (where.student.clubSignups) {
+                const signupWhere = where.student.clubSignups.some;
+                const hasAssignedClubSignup = clubSignups.some((signup) => {
+                  const hasLeadAssignment = clubLeadAssignments.some(
+                    (assignment) =>
+                      assignment.clubId === signup.clubId &&
+                      assignment.userId === signupWhere.club.leadAssignments.some.userId,
+                  );
+
+                  return (
+                    signup.studentId === student.id &&
+                    (signupWhere.status === undefined || signup.status === signupWhere.status) &&
+                    (signupWhere.club.active === undefined ||
+                      signup.clubActive === signupWhere.club.active) &&
+                    hasLeadAssignment
+                  );
+                });
+                if (!hasAssignedClubSignup) return false;
+              }
               return (
                 (where.student.id?.in === undefined || where.student.id.in.includes(student.id)) &&
                 (where.student.yearGroup?.in === undefined ||
@@ -402,7 +504,7 @@ function makeFakeDb(
     },
   };
 
-  return { db, students, behaviour, ledger, guardians, users };
+  return { db, students, behaviour, ledger, guardians, users, clubSignups, clubLeadAssignments };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -1118,10 +1220,98 @@ describe('behaviour.log', () => {
         meta: {
           role: 'Parent',
           reason:
-            'Access denied: behaviour workflow requires full-admin, ClubsAdmin, or Supervisor',
+            'Access denied: behaviour workflow requires full-admin, ClubsAdmin, Supervisor, or ClubsLead',
         },
       },
     });
+  });
+
+  it('allows ClubsLead users to log General behaviour for active students in assigned clubs only', async () => {
+    const { db, behaviour, ledger } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: clubsLeadUser.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+    const caller = makeCaller(clubsLeadUser, db);
+
+    await expect(
+      caller.behaviour.log({
+        studentId: activeStudentId,
+        type: 'Merit',
+        category: 'Service',
+        note: 'Helped set up club',
+        visibility: 'General',
+        amount: 2,
+      }),
+    ).resolves.toMatchObject({
+      studentId: activeStudentId,
+      type: 'Merit',
+      visibility: 'General',
+      meritDelta: 2,
+      recordedById: clubsLeadUser.id,
+    });
+
+    await expect(
+      caller.behaviour.log({
+        studentId: activeStudentId,
+        type: 'General',
+        note: 'Good club participation',
+        visibility: 'General',
+      }),
+    ).resolves.toMatchObject({
+      studentId: activeStudentId,
+      type: 'General',
+      visibility: 'General',
+      meritDelta: 0,
+      recordedById: clubsLeadUser.id,
+    });
+
+    expect(behaviour).toHaveLength(2);
+    expect(ledger).toEqual([
+      expect.objectContaining({ studentId: activeStudentId, delta: 2, reason: 'Service' }),
+    ]);
+  });
+
+  it('blocks ClubsLead users from Sensitive or unassigned-student behaviour writes', async () => {
+    const { db, behaviour, ledger } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: clubsLeadUser.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+    const caller = makeCaller(clubsLeadUser, db);
+
+    await expect(
+      caller.behaviour.log({
+        studentId: activeStudentId,
+        type: 'Demerit',
+        category: 'Conduct',
+        note: 'Sensitive club note',
+        visibility: 'Sensitive',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.behaviour.log({
+        studentId: secondaryStudentId,
+        type: 'Merit',
+        category: 'Service',
+        visibility: 'General',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(behaviour).toEqual([]);
+    expect(ledger).toEqual([]);
   });
 });
 
@@ -1658,5 +1848,57 @@ describe('behaviour.recentEntries', () => {
         recordedByName: 'Clubs Admin User',
       }),
     ]);
+  });
+
+  it('scopes ClubsLead recent entries to General rows for assigned club students', async () => {
+    const { db } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: clubsLeadUser.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Visible',
+      note: 'Assigned club row',
+      visibility: 'General',
+      amount: 1,
+    });
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Hidden sensitive',
+      note: 'Sensitive row',
+      visibility: 'Sensitive',
+    });
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: secondaryStudentId,
+      type: 'Merit',
+      category: 'Hidden unassigned',
+      note: 'Unassigned row',
+      visibility: 'General',
+      amount: 1,
+    });
+
+    await expect(
+      makeCaller(clubsLeadUser, db).behaviour.recentEntries({
+        date: new Date('2026-04-29T00:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({
+      entries: [
+        expect.objectContaining({
+          studentId: activeStudentId,
+          category: 'Visible',
+          visibility: 'General',
+        }),
+      ],
+    });
   });
 });

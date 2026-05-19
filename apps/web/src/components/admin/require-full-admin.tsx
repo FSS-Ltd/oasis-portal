@@ -17,6 +17,7 @@ import {
   canUseLinkedChildClubSignup,
   canUseStaffMessaging,
   canUseFullPaceAccess,
+  canUseClubsLeadPortal,
   canViewAuditLog,
   canManageUserAccounts,
   isFullAdmin,
@@ -136,6 +137,15 @@ export async function getClubManagerUser(): Promise<SessionUser> {
     requireClubsAdminOrFullAdmin(user);
   } catch (error) {
     notFoundOnAccessDenied(error);
+  }
+
+  return user;
+}
+
+export async function getClubsLeadUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+  if (!canUseClubsLeadPortal(user)) {
+    notFound();
   }
 
   return user;

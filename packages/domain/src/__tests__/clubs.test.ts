@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   assertCanManageClub,
+  canOperateAssignedClub,
   canSignUpForClub,
   canUseLinkedChildClubSignup,
   validateClubDraft,
@@ -73,5 +74,26 @@ describe('canUseLinkedChildClubSignup', () => {
 
   it('blocks Student accounts', () => {
     expect(canUseLinkedChildClubSignup({ role: 'Student' })).toBe(false);
+  });
+});
+
+describe('canOperateAssignedClub', () => {
+  it('allows ClubsLead users only for clubs they are assigned to', () => {
+    const clubsLead: SessionUser = {
+      id: 'u10',
+      role: 'ClubsLead',
+      tags: [],
+      requires2fa: false,
+    };
+    const clubsAdmin: SessionUser = {
+      id: 'u11',
+      role: 'ClubsAdmin',
+      tags: [],
+      requires2fa: false,
+    };
+
+    expect(canOperateAssignedClub(clubsLead, ['club-a', 'club-b'], 'club-a')).toBe(true);
+    expect(canOperateAssignedClub(clubsLead, ['club-a', 'club-b'], 'club-c')).toBe(false);
+    expect(canOperateAssignedClub(clubsAdmin, ['club-a'], 'club-a')).toBe(false);
   });
 });

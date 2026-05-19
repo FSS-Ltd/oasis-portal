@@ -23,8 +23,10 @@ import {
   canViewSensitiveStudentDrillThrough,
   canViewStudentDrillThrough,
   canSubmitInitialRegistration,
+  canUseClubsLeadPortal,
   isFullAdmin,
   isStaff,
+  requireClubsLead,
   requireCanViewSensitive,
   requireCanManageInvoices,
   requireClubsAdminOrFullAdmin,
@@ -48,6 +50,7 @@ const technicalSupport: SessionUser = {
   requires2fa: false,
 };
 const clubsAdmin: SessionUser = { id: 'u6', role: 'ClubsAdmin', tags: [], requires2fa: false };
+const clubsLead: SessionUser = { id: 'u10', role: 'ClubsLead', tags: [], requires2fa: false };
 const supervisor: SessionUser = { id: 'u7', role: 'Supervisor', tags: [], requires2fa: false };
 const parent: SessionUser = { id: 'u8', role: 'Parent', tags: [], requires2fa: false };
 const student: SessionUser = { id: 'u9', role: 'Student', tags: [], requires2fa: false };
@@ -62,6 +65,7 @@ describe('isFullAdmin', () => {
   it('rejects non-admin roles', () => {
     expect(isFullAdmin(technicalSupport)).toBe(false);
     expect(isFullAdmin(clubsAdmin)).toBe(false);
+    expect(isFullAdmin(clubsLead)).toBe(false);
     expect(isFullAdmin(supervisor)).toBe(false);
     expect(isFullAdmin(parent)).toBe(false);
     expect(isFullAdmin(student)).toBe(false);
@@ -137,6 +141,7 @@ describe('canUseStaffMessaging', () => {
     for (const user of [head, principal, pastor, hod, technicalSupport, clubsAdmin, supervisor]) {
       expect(canUseStaffMessaging(user)).toBe(true);
     }
+    expect(canUseStaffMessaging(clubsLead)).toBe(false);
     expect(canUseStaffMessaging(parent)).toBe(false);
     expect(canUseStaffMessaging(student)).toBe(false);
   });
@@ -150,6 +155,7 @@ describe('child registration prompt roles', () => {
     expect(canAnswerChildRegistrationPrompt(hod)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(technicalSupport)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(clubsAdmin)).toBe(true);
+    expect(canAnswerChildRegistrationPrompt(clubsLead)).toBe(false);
     expect(canAnswerChildRegistrationPrompt(supervisor)).toBe(true);
     expect(canAnswerChildRegistrationPrompt(parent)).toBe(false);
     expect(canAnswerChildRegistrationPrompt(student)).toBe(false);
@@ -185,6 +191,10 @@ describe('resolvePostSignInPortal', () => {
     expect(resolvePostSignInPortal(clubsAdmin)).toBe('clubs-admin');
   });
 
+  it('sends clubs leads to the clubs lead portal', () => {
+    expect(resolvePostSignInPortal(clubsLead)).toBe('clubs-lead');
+  });
+
   it('sends signed-in users without a ready local portal to not-ready', () => {
     expect(resolvePostSignInPortal(student)).toBe('not-ready');
   });
@@ -214,6 +224,7 @@ describe('canViewAuditLog', () => {
     expect(canViewAuditLog(hod)).toBe(false);
     expect(canViewAuditLog(supervisor)).toBe(false);
     expect(canViewAuditLog(technicalSupport)).toBe(false);
+    expect(canViewAuditLog({ ...clubsLead, tags: ['audit-viewer'] })).toBe(false);
     expect(canViewAuditLog({ ...parent, tags: ['audit-viewer'] })).toBe(false);
     expect(canViewAuditLog({ ...student, tags: ['audit-viewer'] })).toBe(false);
   });
@@ -248,6 +259,7 @@ describe('requireCanViewSensitive', () => {
     expect(canViewSensitiveBehaviour(pastor)).toBe(true);
     expect(canViewSensitiveBehaviour(supervisor)).toBe(false);
     expect(canViewSensitiveBehaviour(clubsAdmin)).toBe(false);
+    expect(canViewSensitiveBehaviour(clubsLead)).toBe(false);
 
     expect(
       canViewSensitiveBehaviourEntry(supervisor, {
@@ -304,6 +316,9 @@ describe('requireCanViewSensitive', () => {
     expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Demerit' })).toBe(true);
     expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'General' })).toBe(true);
     expect(canCreateSensitiveBehaviour(clubsAdmin, { type: 'Merit' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(clubsLead, { type: 'Demerit' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(clubsLead, { type: 'General' })).toBe(false);
+    expect(canCreateSensitiveBehaviour(clubsLead, { type: 'Merit' })).toBe(false);
   });
 });
 
@@ -327,6 +342,41 @@ describe('requireTag', () => {
 });
 
 describe('workflow tags', () => {
+  it('keeps ClubsLead outside full-admin, staff, and unrelated tag workflows', () => {
+    const taggedClubsLead: SessionUser = {
+      ...clubsLead,
+      tags: [
+        'attendance-recorder',
+        'attendance-exporter',
+        'sensitive-note-viewer',
+        'behaviour-viewer',
+        'student-drillthrough-viewer',
+        'pace-full-access',
+        'supervisor-all-students',
+        'calendar-manager',
+        'parent-message-responder',
+      ],
+    };
+
+    expect(isStaff(taggedClubsLead)).toBe(false);
+    expect(canUseClubsLeadPortal(taggedClubsLead)).toBe(true);
+    expect(canRecordStudentAttendance(taggedClubsLead)).toBe(false);
+    expect(canExportAttendance(taggedClubsLead)).toBe(false);
+    expect(canViewSensitiveChildNotes(taggedClubsLead)).toBe(false);
+    expect(canViewBehaviourReports(taggedClubsLead)).toBe(false);
+    expect(canViewAnyStudentDrillThrough(taggedClubsLead)).toBe(false);
+    expect(canUseFullPaceAccess(taggedClubsLead)).toBe(false);
+    expect(canUseAllStudentSupervisorWorkflow(taggedClubsLead)).toBe(false);
+    expect(canManageCalendar(taggedClubsLead)).toBe(false);
+    expect(canRespondToParentMessages(taggedClubsLead)).toBe(false);
+    expect(() => {
+      requireClubsLead(taggedClubsLead);
+    }).not.toThrow();
+    expect(() => {
+      requireClubsLead(supervisor);
+    }).toThrow(AccessDeniedError);
+  });
+
   it('limits attendance recording to full-admin or attendance-recorder', () => {
     expect(canRecordStudentAttendance(head)).toBe(true);
     expect(canRecordStudentAttendance(principal)).toBe(true);

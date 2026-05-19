@@ -15,8 +15,10 @@ DROP POLICY IF EXISTS behaviour_full_admin_select ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_supervisor_general ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_parent_own_child ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_guardian_own_child ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_clubs_lead_assigned_select ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_student_self ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_write ON "BehaviourEntry";
+DROP POLICY IF EXISTS behaviour_clubs_lead_assigned_insert ON "BehaviourEntry";
 DROP POLICY IF EXISTS behaviour_full_admin_update ON "BehaviourEntry";
 
 -- Full admins see everything.
@@ -66,6 +68,27 @@ CREATE POLICY behaviour_guardian_own_child ON "BehaviourEntry"
     )
   );
 
+-- ClubsLead users see General entries only for active students in clubs they lead.
+CREATE POLICY behaviour_clubs_lead_assigned_select ON "BehaviourEntry"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'ClubsLead'
+    AND "deletedAt" IS NULL
+    AND "visibility" = 'General'
+    AND EXISTS (
+      SELECT 1
+      FROM "ClubLeadAssignment" cla
+      JOIN "Club" c ON c."id" = cla."clubId"
+      JOIN "ClubSignup" cs ON cs."clubId" = cla."clubId"
+      JOIN "Student" s ON s."id" = cs."studentId"
+      WHERE cla."userId" = current_setting('app.user_id', true)
+        AND c."active" = true
+        AND cs."status" = 'Active'
+        AND s."active" = true
+        AND cs."studentId" = "BehaviourEntry"."studentId"
+    )
+  );
+
 -- Students see General entries only about themselves.
 CREATE POLICY behaviour_student_self ON "BehaviourEntry"
   FOR SELECT
@@ -98,6 +121,27 @@ CREATE POLICY behaviour_write ON "BehaviourEntry"
       AND "visibility" = 'Sensitive'
       AND "type" IN ('Demerit', 'General')
       AND "recordedById" = current_setting('app.user_id', true)
+    )
+  );
+
+-- ClubsLead users can create General entries only for students in active assigned clubs.
+CREATE POLICY behaviour_clubs_lead_assigned_insert ON "BehaviourEntry"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'ClubsLead'
+    AND "recordedById" = current_setting('app.user_id', true)
+    AND "visibility" = 'General'
+    AND EXISTS (
+      SELECT 1
+      FROM "ClubLeadAssignment" cla
+      JOIN "Club" c ON c."id" = cla."clubId"
+      JOIN "ClubSignup" cs ON cs."clubId" = cla."clubId"
+      JOIN "Student" s ON s."id" = cs."studentId"
+      WHERE cla."userId" = current_setting('app.user_id', true)
+        AND c."active" = true
+        AND cs."status" = 'Active'
+        AND s."active" = true
+        AND cs."studentId" = "BehaviourEntry"."studentId"
     )
   );
 

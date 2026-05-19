@@ -16,6 +16,7 @@ export const ROLE_LABELS = {
   HeadOfDiscipline: 'Head of Discipline',
   TechnicalSupport: 'Technical Support',
   ClubsAdmin: 'Clubs Admin',
+  ClubsLead: 'Clubs Lead',
   Supervisor: 'Supervisor',
   Parent: 'Parent / Guardian',
   Student: 'Student',
@@ -30,6 +31,7 @@ export interface UserInviteEmailProps {
 export function portalLabelForRole(role: Role): string {
   if (role === 'Parent') return 'Parent Portal';
   if (role === 'Student') return 'Student Portal';
+  if (role === 'ClubsLead') return 'Clubs Lead Portal';
   if (role === 'Supervisor' || role === 'ClubsAdmin') return 'Staff Portal';
   return 'Admin Portal';
 }

@@ -6,9 +6,9 @@ import {
   assertCanManageClub,
   canManageClubs,
   canSignUpForClub,
+  canUseClubsLeadPortal,
   canUseLinkedChildClubSignup,
   formatClubSchedule,
-  isFullAdmin,
   type ClubScheduleDraft,
   type SessionUser,
   validateClubDraft,
@@ -131,6 +131,11 @@ const rotaParticipantsInput = z.object({
   userIds: z.array(z.string().min(1)).max(100),
 });
 
+const clubLeadAssignmentsInput = z.object({
+  clubId: z.string().cuid(),
+  userIds: z.array(z.string().min(1)).max(100),
+});
+
 const availabilityWindowInput = z
   .object({
     dayOfWeek: z.number().int().min(0).max(6),
@@ -197,7 +202,7 @@ const clubNotifyInput = z.object({
 
 const clubListInclude = Prisma.validator<Prisma.ClubInclude>()({
   signups: {
-    where: { status: 'Active' },
+    where: { status: 'Active', student: { active: true } },
     select: { studentId: true },
   },
 });
@@ -213,7 +218,7 @@ const clubNotificationSelect = Prisma.validator<Prisma.ClubSelect>()({
   name: true,
   active: true,
   signups: {
-    where: { status: 'Active' },
+    where: { status: 'Active', student: { active: true } },
     select: {
       student: {
         select: {
@@ -258,6 +263,25 @@ type ClubNotificationHistoryRow = Prisma.ClubNotificationGetPayload<{
   select: typeof clubNotificationHistorySelect;
 }>;
 
+interface ClubNotificationNoticeRow {
+  id: string;
+  clubId: string;
+  title: string;
+  bodyEnc: string;
+  sentAt: Date;
+  club: {
+    name: string;
+    signups: {
+      student: {
+        fullNameEnc: string;
+      };
+    }[];
+  };
+  sentBy: {
+    fullNameEnc: string;
+  };
+}
+
 function toForbidden(error: AccessDeniedError): TRPCError {
   return new TRPCError({ code: 'FORBIDDEN', message: error.message, cause: error });
 }
@@ -269,6 +293,26 @@ function requireClubManager(user: SessionUser): void {
     if (error instanceof AccessDeniedError) throw toForbidden(error);
     throw error;
   }
+}
+
+async function requireClubManagerOrAssignedLead(
+  ctx: AuthedContext,
+  clubId: string,
+): Promise<'manager' | 'lead'> {
+  if (canManageClubs(ctx.user)) return 'manager';
+  if (!canUseClubsLeadPortal(ctx.user)) {
+    throw toForbidden(new AccessDeniedError('club access requires club manager or assigned lead'));
+  }
+
+  const assignment = await ctx.db.clubLeadAssignment.findUnique({
+    where: { clubId_userId: { clubId, userId: ctx.user.id } },
+    select: { club: { select: { active: true } } },
+  });
+  if (!assignment || !assignment.club.active) {
+    throw toForbidden(new AccessDeniedError('user is not assigned to this active club'));
+  }
+
+  return 'lead';
 }
 
 function requireClubListAccess(user: SessionUser): void {
@@ -283,8 +327,8 @@ function requireLinkedChildSignupAccess(user: SessionUser): void {
   );
 }
 
-function requireSignupActor(user: SessionUser): 'full-admin' | 'linked-child-guardian' {
-  if (isFullAdmin(user)) return 'full-admin';
+function requireSignupActor(user: SessionUser): 'club-manager' | 'linked-child-guardian' {
+  if (canManageClubs(user)) return 'club-manager';
   if (canUseLinkedChildClubSignup(user)) return 'linked-child-guardian';
   throw toForbidden(
     new AccessDeniedError(
@@ -451,6 +495,25 @@ function mapClubNotificationHistoryRow(
     id: row.id,
     clubId: row.clubId,
     title: row.title,
+    sentAt: row.sentAt,
+    sentByName: decryptRequired(decrypt, row.sentBy.fullNameEnc, 'user PII'),
+  };
+}
+
+function mapClubNoticeRow(
+  decrypt: (value: string | null | undefined) => string | null,
+  row: ClubNotificationNoticeRow,
+) {
+  const studentNames = row.club.signups.map((signup) =>
+    decryptRequired(decrypt, signup.student.fullNameEnc, 'student PII'),
+  );
+  return {
+    id: row.id,
+    clubId: row.clubId,
+    clubName: row.club.name,
+    studentName: studentNames.join(', '),
+    title: row.title,
+    body: decryptRequired(decrypt, row.bodyEnc, 'club notification'),
     sentAt: row.sentAt,
     sentByName: decryptRequired(decrypt, row.sentBy.fullNameEnc, 'user PII'),
   };
@@ -849,6 +912,42 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       };
     }),
 
+    leadClubs: authedProcedure.query(async ({ ctx }) => {
+      if (!canUseClubsLeadPortal(ctx.user)) {
+        throw toForbidden(new AccessDeniedError('club lead portal requires ClubsLead'));
+      }
+
+      const rows = await ctx.db.clubLeadAssignment.findMany({
+        where: { userId: ctx.user.id, club: { active: true } },
+        orderBy: [{ createdAt: 'desc' }],
+        select: {
+          club: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              schedule: true,
+              scheduleStartDate: true,
+              scheduleStartMinute: true,
+              scheduleEndMinute: true,
+              scheduleFrequency: true,
+              capacity: true,
+              active: true,
+              createdById: true,
+              createdAt: true,
+              updatedAt: true,
+              signups: {
+                where: { status: 'Active', student: { active: true } },
+                select: { studentId: true },
+              },
+            },
+          },
+        },
+      });
+
+      return rows.map((row) => mapClub(ctx.user, row.club));
+    }),
+
     create: authedProcedure.input(clubCreateInput).mutation(async ({ ctx, input }) => {
       requireClubManager(ctx.user);
 
@@ -871,7 +970,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         },
         include: {
           signups: {
-            where: { status: 'Active' },
+            where: { status: 'Active', student: { active: true } },
             select: { studentId: true },
           },
         },
@@ -897,7 +996,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         where: { id: input.id },
         include: {
           signups: {
-            where: { status: 'Active' },
+            where: { status: 'Active', student: { active: true } },
             select: { studentId: true },
           },
         },
@@ -937,7 +1036,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         data,
         include: {
           signups: {
-            where: { status: 'Active' },
+            where: { status: 'Active', student: { active: true } },
             select: { studentId: true },
           },
         },
@@ -960,13 +1059,13 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
     }),
 
     roster: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
-      requireClubManager(ctx.user);
+      await requireClubManagerOrAssignedLead(ctx, input.clubId);
 
       const club = await ctx.db.club.findUnique({
         where: { id: input.clubId },
         include: {
           signups: {
-            where: { status: 'Active' },
+            where: { status: 'Active', student: { active: true } },
             include: {
               student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
             },
@@ -1003,15 +1102,149 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       };
     }),
 
-    attendanceForSession: authedProcedure.input(clubSessionInput).query(async ({ ctx, input }) => {
+    studentCandidates: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
       requireClubManager(ctx.user);
+
+      const club = await ctx.db.club.findUnique({
+        where: { id: input.clubId },
+        select: {
+          id: true,
+          signups: {
+            where: { status: 'Active', student: { active: true } },
+            select: { studentId: true },
+          },
+        },
+      });
+      if (!club) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+      }
+
+      const signedUpStudentIds = new Set(club.signups.map((signup) => signup.studentId));
+      const students = await ctx.db.student.findMany({
+        where: { active: true },
+        orderBy: [{ yearGroup: 'asc' }, { createdAt: 'desc' }],
+        select: { id: true, fullNameEnc: true, yearGroup: true },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'Student',
+          meta: { source: 'club.studentCandidates', clubId: club.id, count: students.length },
+        },
+      });
+
+      return students.map((student) => ({
+        id: student.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII'),
+        yearGroup: student.yearGroup,
+        signedUp: signedUpStudentIds.has(student.id),
+      }));
+    }),
+
+    leadCandidates: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
+      requireClubManager(ctx.user);
+
+      const club = await ctx.db.club.findUnique({
+        where: { id: input.clubId },
+        select: {
+          id: true,
+          leadAssignments: { select: { userId: true } },
+        },
+      });
+      if (!club) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+      }
+
+      const selectedUserIds = new Set(club.leadAssignments.map((assignment) => assignment.userId));
+      const users = await ctx.db.user.findMany({
+        where: { active: true, role: 'ClubsLead' },
+        orderBy: [{ createdAt: 'desc' }],
+        select: { id: true, role: true, fullNameEnc: true, emailEnc: true },
+      });
+      const rows = users.map((user) => ({
+        ...mapClubUser(ctx.db.$enc.decrypt, user),
+        selected: selectedUserIds.has(user.id),
+      }));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'User',
+          meta: { source: 'club.leadCandidates', clubId: club.id, count: rows.length },
+        },
+      });
+
+      return rows;
+    }),
+
+    setLeadAssignments: authedProcedure
+      .input(clubLeadAssignmentsInput)
+      .mutation(async ({ ctx, input }) => {
+        requireClubManager(ctx.user);
+        await assertActiveClub(ctx, input.clubId);
+
+        const uniqueUserIds = [...new Set(input.userIds)];
+        const eligibleUsers =
+          uniqueUserIds.length === 0
+            ? []
+            : await ctx.db.user.findMany({
+                where: { id: { in: uniqueUserIds }, active: true, role: 'ClubsLead' },
+                select: { id: true },
+              });
+        const eligibleUserIds = new Set(eligibleUsers.map((user) => user.id));
+        const invalidUserId = uniqueUserIds.find((userId) => !eligibleUserIds.has(userId));
+        if (invalidUserId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'club leads must be active ClubsLead users',
+          });
+        }
+
+        await ctx.db.$transaction(async (tx) => {
+          await tx.clubLeadAssignment.deleteMany({
+            where: { clubId: input.clubId, userId: { notIn: uniqueUserIds } },
+          });
+          if (uniqueUserIds.length > 0) {
+            await tx.clubLeadAssignment.createMany({
+              data: uniqueUserIds.map((userId) => ({
+                clubId: input.clubId,
+                userId,
+                assignedById: ctx.user.id,
+              })),
+              skipDuplicates: true,
+            });
+          }
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'ClubLeadAssignment',
+            entityId: input.clubId,
+            meta: {
+              source: 'club.setLeadAssignments',
+              clubId: input.clubId,
+              leadCount: uniqueUserIds.length,
+            },
+          },
+        });
+
+        return { clubId: input.clubId, userIds: uniqueUserIds };
+      }),
+
+    attendanceForSession: authedProcedure.input(clubSessionInput).query(async ({ ctx, input }) => {
+      await requireClubManagerOrAssignedLead(ctx, input.clubId);
       const sessionDate = normalizeDate(input.date);
 
       const club = await ctx.db.club.findUnique({
         where: { id: input.clubId },
         include: {
           signups: {
-            where: { status: 'Active' },
+            where: { status: 'Active', student: { active: true } },
             include: { student: { select: { id: true, fullNameEnc: true, yearGroup: true } } },
             orderBy: { createdAt: 'desc' },
           },
@@ -1072,7 +1305,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
     markAttendance: authedProcedure
       .input(clubAttendanceMarkInput)
       .mutation(async ({ ctx, input }) => {
-        requireClubManager(ctx.user);
+        await requireClubManagerOrAssignedLead(ctx, input.clubId);
         await assertActiveClub(ctx, input.clubId);
         const sessionDate = normalizeDate(input.date);
 
@@ -1556,7 +1789,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       }),
 
     notifications: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
-      requireClubManager(ctx.user);
+      await requireClubManagerOrAssignedLead(ctx, input.clubId);
 
       const club = await ctx.db.club.findUnique({
         where: { id: input.clubId },
@@ -1587,6 +1820,71 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       );
     }),
 
+    myClubNotices: authedProcedure.query(async ({ ctx }) => {
+      requireLinkedChildSignupAccess(ctx.user);
+
+      const linkedStudentIds = await loadLinkedActiveStudentIds(ctx);
+      if (linkedStudentIds.size === 0) return [];
+
+      const notifications = await ctx.db.clubNotification.findMany({
+        where: {
+          club: {
+            active: true,
+            signups: {
+              some: {
+                status: 'Active',
+                studentId: { in: [...linkedStudentIds] },
+                student: { active: true },
+              },
+            },
+          },
+        },
+        select: {
+          id: true,
+          clubId: true,
+          title: true,
+          bodyEnc: true,
+          sentAt: true,
+          club: {
+            select: {
+              name: true,
+              signups: {
+                where: {
+                  status: 'Active',
+                  studentId: { in: [...linkedStudentIds] },
+                  student: { active: true },
+                },
+                select: {
+                  student: {
+                    select: { fullNameEnc: true },
+                  },
+                },
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          },
+          sentBy: {
+            select: { fullNameEnc: true },
+          },
+        },
+        orderBy: { sentAt: 'desc' },
+        take: 30,
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'ClubNotification',
+          meta: { source: 'club.myClubNotices', count: notifications.length },
+        },
+      });
+
+      return notifications.map((notification) =>
+        mapClubNoticeRow(ctx.db.$enc.decrypt, notification),
+      );
+    }),
+
     signUp: authedProcedure.input(clubStudentInput).mutation(async ({ ctx, input }) => {
       const actor = requireSignupActor(ctx.user);
 
@@ -1597,7 +1895,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
               where: { id: input.clubId },
               include: {
                 signups: {
-                  where: { status: 'Active' },
+                  where: { status: 'Active', student: { active: true } },
                   select: { studentId: true },
                 },
               },
@@ -1724,7 +2022,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
     }),
 
     notify: authedProcedure.input(clubNotifyInput).mutation(async ({ ctx, input }) => {
-      requireClubManager(ctx.user);
+      await requireClubManagerOrAssignedLead(ctx, input.clubId);
 
       const club = await ctx.db.club.findUnique({
         where: { id: input.clubId },

@@ -18,6 +18,7 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
+import { LeadAssignmentPanel, StudentAssignmentPanel } from './club-assignment-panels';
 import { ClubAttendancePanel } from './club-attendance-panel';
 import { ClubRotaPanel } from './club-rota-panel';
 import { fromTimeValue, todayKey, toTimeValue, type ManagedClub } from './club-schedule-utils';
@@ -276,7 +277,7 @@ function NotificationHistory({
   );
 }
 
-type ClubModalTab = 'roster' | 'attendance' | 'rota' | 'notifications';
+type ClubModalTab = 'roster' | 'students' | 'leads' | 'attendance' | 'rota' | 'notifications';
 
 function ClubDetailsModal({
   activeTab,
@@ -345,6 +346,8 @@ function ClubDetailsModal({
             {(
               [
                 ['roster', 'Roster'],
+                ['students', 'Students'],
+                ['leads', 'Leads'],
                 ['attendance', 'Attendance'],
                 ['rota', 'Rota'],
                 ['notifications', 'Notifications'],
@@ -380,6 +383,8 @@ function ClubDetailsModal({
             </section>
           ) : null}
 
+          {activeTab === 'students' ? <StudentAssignmentPanel club={club} /> : null}
+          {activeTab === 'leads' ? <LeadAssignmentPanel club={club} /> : null}
           {activeTab === 'attendance' ? <ClubAttendancePanel club={club} /> : null}
           {activeTab === 'rota' ? <ClubRotaPanel club={club} /> : null}
 
@@ -820,6 +825,8 @@ export function ClubsManagementClient() {
                   </span>
                 </div>
                 <RosterTable signups={rosterQuery.data.signups} />
+                <StudentAssignmentPanel club={selectedClub} />
+                <LeadAssignmentPanel club={selectedClub} />
                 <div className="club-notification-panel" aria-labelledby="club-notification-title">
                   <div className="section-title">
                     <div>

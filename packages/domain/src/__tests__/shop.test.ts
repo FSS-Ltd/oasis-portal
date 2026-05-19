@@ -32,6 +32,12 @@ const head: SessionUser = {
   requires2fa: false,
 };
 const nobody: SessionUser = { id: 'u3', role: 'Supervisor', tags: [], requires2fa: false };
+const clubsLeadWithShopTags: SessionUser = {
+  id: 'u5',
+  role: 'ClubsLead',
+  tags: ['shopadmin', 'shopkeeper'],
+  requires2fa: false,
+};
 
 describe('computePriceIncVat', () => {
   it('adds VAT and rounds half-up', () => {
@@ -102,26 +108,48 @@ describe('validateDraft', () => {
 
 describe('assertCanManageShop / assertCanSellInShop', () => {
   it('shopadmin can manage', () => {
-    expect(() => { assertCanManageShop(shopadmin); }).not.toThrow();
+    expect(() => {
+      assertCanManageShop(shopadmin);
+    }).not.toThrow();
     expect(canManageShop(shopadmin)).toBe(true);
     expect(canSellInShop(shopadmin)).toBe(false);
   });
   it('full-admin can manage and sell without shop tags', () => {
-    expect(() => { assertCanManageShop(head); }).not.toThrow();
-    expect(() => { assertCanSellInShop(head); }).not.toThrow();
+    expect(() => {
+      assertCanManageShop(head);
+    }).not.toThrow();
+    expect(() => {
+      assertCanSellInShop(head);
+    }).not.toThrow();
     expect(canManageShop(head)).toBe(true);
     expect(canSellInShop(head)).toBe(true);
   });
   it('shopkeeper can sell', () => {
-    expect(() => { assertCanSellInShop(shopkeeper); }).not.toThrow();
+    expect(() => {
+      assertCanSellInShop(shopkeeper);
+    }).not.toThrow();
     expect(canSellInShop(shopkeeper)).toBe(true);
     expect(canManageShop(shopkeeper)).toBe(false);
   });
   it('untagged users blocked', () => {
-    expect(() => { assertCanManageShop(nobody); }).toThrow(AccessDeniedError);
-    expect(() => { assertCanSellInShop(nobody); }).toThrow(AccessDeniedError);
+    expect(() => {
+      assertCanManageShop(nobody);
+    }).toThrow(AccessDeniedError);
+    expect(() => {
+      assertCanSellInShop(nobody);
+    }).toThrow(AccessDeniedError);
     expect(canManageShop(nobody)).toBe(false);
     expect(canSellInShop(nobody)).toBe(false);
+  });
+  it('blocks ClubsLead users from inherited shop tag access', () => {
+    expect(() => {
+      assertCanManageShop(clubsLeadWithShopTags);
+    }).toThrow(AccessDeniedError);
+    expect(() => {
+      assertCanSellInShop(clubsLeadWithShopTags);
+    }).toThrow(AccessDeniedError);
+    expect(canManageShop(clubsLeadWithShopTags)).toBe(false);
+    expect(canSellInShop(clubsLeadWithShopTags)).toBe(false);
   });
 });
 
@@ -163,9 +191,9 @@ describe('prepareShopReservation', () => {
   });
 
   it('rejects invalid reservation lines', () => {
-    expect(() =>
-      prepareShopReservation({ studentId: 's1', spendBalance: 100, lines: [] }),
-    ).toThrow(/at least one/);
+    expect(() => prepareShopReservation({ studentId: 's1', spendBalance: 100, lines: [] })).toThrow(
+      /at least one/,
+    );
     expect(() =>
       prepareShopReservation({
         studentId: 's1',
