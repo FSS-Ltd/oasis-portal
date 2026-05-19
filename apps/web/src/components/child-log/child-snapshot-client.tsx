@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { categoriesFor } from '@/components/behaviour/behaviour-categories';
 import {
+  type EditablePaceSubject,
   type EditablePaceRecord,
   PaceRecordEditModal,
 } from '@/components/pace/pace-record-edit-modal';
@@ -48,7 +49,7 @@ type SnapshotBehaviourEntry = SnapshotResult['behaviour'][number];
 type SnapshotNoteEntry = SnapshotResult['notes'][number];
 type SnapshotPaceEntry = SnapshotResult['passedTests'][number];
 type SnapshotViewMode = 'centre' | 'student';
-type SnapshotStudentIdentity = { student: { fullName: string } };
+type SnapshotStudentIdentity = { student: { fullName: string; subjects?: EditablePaceSubject[] } };
 
 interface EditingBehaviourForm {
   id: string;
@@ -230,12 +231,16 @@ export function ChildSnapshotClient({
 
   async function savePaceEdit(input: {
     completedAt: string;
+    paceNumber: number;
     recordId: string;
     score: number;
     startedAt: string;
+    subjectId: string;
   }): Promise<void> {
     await updatePace.mutateAsync({
       recordId: input.recordId,
+      subjectId: input.subjectId,
+      paceNumber: input.paceNumber,
       score: input.score,
       completedAt: asDate(input.completedAt),
       startedAt: asDate(input.startedAt),
@@ -1037,6 +1042,7 @@ export function ChildSnapshotClient({
           onSave={savePaceEdit}
           pending={updatePace.isPending}
           record={snapshotPaceToEditable(editingPace)}
+          subjects={subjectsForSnapshotPace(editingPace, snapshot)}
         />
       ) : null}
       <ConfirmationDialog
@@ -1067,9 +1073,19 @@ function snapshotPaceToEditable(entry: SnapshotPaceEntry): EditablePaceRecord {
     score: entry.score,
     startedAt: entry.startedAt,
     studentName: hasSnapshotStudent(entry) ? entry.student.fullName : undefined,
+    subjectId: entry.subjectId,
+    subjectCode: entry.subjectCode,
     subjectName: entry.subjectName,
     testType: entry.testType,
   };
+}
+
+function subjectsForSnapshotPace(
+  entry: SnapshotPaceEntry,
+  snapshot: SnapshotResult | undefined,
+): EditablePaceSubject[] {
+  if (hasSnapshotStudent(entry)) return entry.student.subjects ?? [];
+  return snapshot?.student.subjects ?? [];
 }
 
 function CorrectionModal({

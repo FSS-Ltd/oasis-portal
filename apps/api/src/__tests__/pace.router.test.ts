@@ -352,6 +352,8 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       data: {
         selfTestScore: number | null;
         paceTestScore: number | null;
+        subjectId?: string;
+        paceNumber?: number;
         completedAt: Date;
       };
     }) => {
@@ -359,6 +361,8 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       if (!record) throw new Error('pace record not found');
       record.selfTestScore = data.selfTestScore;
       record.paceTestScore = data.paceTestScore;
+      if (data.subjectId !== undefined) record.subjectId = data.subjectId;
+      if (data.paceNumber !== undefined) record.paceNumber = data.paceNumber;
       record.completedAt = data.completedAt;
       return Promise.resolve(record);
     },
@@ -1351,9 +1355,7 @@ describe('pace.record policy — final test prerequisite', () => {
 
   it('allows FinalTest when a matching SelfTest exists for the same subject PACE number', async () => {
     const db = makeFakeDb();
-    db.paceRecord.findFirst
-      .mockResolvedValueOnce({ id: 'pace_self' })
-      .mockResolvedValueOnce(null);
+    db.paceRecord.findFirst.mockResolvedValueOnce({ id: 'pace_self' }).mockResolvedValueOnce(null);
     const { caller } = makeCaller(headUser, db);
 
     await expect(
@@ -1959,6 +1961,8 @@ describe('pace.updateRecord', () => {
       data: {
         selfTestScore: null,
         paceTestScore: 95,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
         completedAt: new Date('2026-04-21T00:00:00.000Z'),
       },
       select: {
@@ -1971,6 +1975,178 @@ describe('pace.updateRecord', () => {
         completedAt: true,
         createdAt: true,
       },
+    });
+  });
+
+  it('updates the subject and PACE number on an existing PACE score', async () => {
+    const db = makeFakeDb();
+    db.subject.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, active: true }),
+    );
+    db.studentSubject.findUnique.mockImplementation(
+      ({ where }: { where: { studentId_subjectId: { subjectId: string } } }) =>
+        Promise.resolve(
+          where.studentId_subjectId.subjectId === SUBJECT_2_ID
+            ? { id: 'ckassign000000000000000002', currentPaceNumber: 1008 }
+            : { id: ASSIGNMENT_ID, currentPaceNumber: 1001 },
+        ),
+    );
+    const { caller } = makeCaller(headUser, db);
+    await caller.pace.record({
+      ...validInput,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1008,
+      testType: 'SelfTest',
+      score: 85,
+      completedAt: new Date('2026-04-18T10:00:00.000Z'),
+    });
+    const created = await caller.pace.record({
+      ...validInput,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+
+    const result = await caller.pace.updateRecord({
+      recordId: created.id,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1008,
+      score: 92,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-19T00:00:00.000Z'),
+    });
+
+    expect(result).toMatchObject({
+      id: created.id,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1008,
+      paceTestScore: 92,
+    });
+    expect(db.paceRecord.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { id: created.id },
+        data: expect.objectContaining({
+          subjectId: SUBJECT_2_ID,
+          paceNumber: 1008,
+          paceTestScore: 92,
+        }) as Record<string, unknown>,
+      }),
+    );
+  });
+
+  it('rejects subject changes to inactive subjects', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record(validInput);
+    db.subject.findUnique.mockResolvedValueOnce({ id: SUBJECT_2_ID, active: false });
+
+    await expect(
+      caller.pace.updateRecord({
+        recordId: created.id,
+        subjectId: SUBJECT_2_ID,
+        paceNumber: 1008,
+        score: 95,
+        completedAt: new Date('2026-04-21T00:00:00.000Z'),
+        startedAt: new Date('2026-04-19T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('rejects subject changes when the student is not assigned to the target subject', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record(validInput);
+    db.subject.findUnique.mockResolvedValueOnce({ id: SUBJECT_2_ID, active: true });
+    db.studentSubject.findUnique
+      .mockResolvedValueOnce({ id: ASSIGNMENT_ID, currentPaceNumber: 1001 })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      caller.pace.updateRecord({
+        recordId: created.id,
+        subjectId: SUBJECT_2_ID,
+        paceNumber: 1008,
+        score: 95,
+        completedAt: new Date('2026-04-21T00:00:00.000Z'),
+        startedAt: new Date('2026-04-19T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('rejects moving a PACE Test without a matching target Self-Test', async () => {
+    const db = makeFakeDb();
+    db.subject.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, active: true }),
+    );
+    db.studentSubject.findUnique.mockImplementation(
+      ({ where }: { where: { studentId_subjectId: { subjectId: string } } }) =>
+        Promise.resolve(
+          where.studentId_subjectId.subjectId === SUBJECT_2_ID
+            ? { id: 'ckassign000000000000000002', currentPaceNumber: 1008 }
+            : { id: ASSIGNMENT_ID, currentPaceNumber: 1001 },
+        ),
+    );
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record(validInput);
+
+    await expect(
+      caller.pace.updateRecord({
+        recordId: created.id,
+        subjectId: SUBJECT_2_ID,
+        paceNumber: 1008,
+        score: 95,
+        completedAt: new Date('2026-04-21T00:00:00.000Z'),
+        startedAt: new Date('2026-04-19T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('recalculates old and target subject progress when a record moves', async () => {
+    const db = makeFakeDb();
+    let originalCurrentPaceNumber = 1001;
+    db.subject.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve({ id: where.id, active: true }),
+    );
+    db.studentSubject.findUnique.mockImplementation(
+      ({ where }: { where: { studentId_subjectId: { subjectId: string } } }) =>
+        Promise.resolve(
+          where.studentId_subjectId.subjectId === SUBJECT_2_ID
+            ? { id: 'ckassign000000000000000002', currentPaceNumber: 1008 }
+            : { id: ASSIGNMENT_ID, currentPaceNumber: originalCurrentPaceNumber },
+        ),
+    );
+    const { caller } = makeCaller(headUser, db);
+    await caller.pace.record({
+      ...validInput,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1008,
+      testType: 'SelfTest',
+      score: 85,
+      completedAt: new Date('2026-04-18T10:00:00.000Z'),
+    });
+    const created = await caller.pace.record({
+      ...validInput,
+      score: 90,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+    originalCurrentPaceNumber = 1002;
+    db.studentSubject.update.mockClear();
+
+    const result = await caller.pace.updateRecord({
+      recordId: created.id,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1008,
+      score: 90,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-19T00:00:00.000Z'),
+    });
+
+    expect(result.newPaceNumber).toBe(1009);
+    expect(db.studentSubject.update).toHaveBeenCalledWith({
+      where: { studentId_subjectId: { studentId: STUDENT_ID, subjectId: SUBJECT_ID } },
+      data: { currentPaceNumber: 1001 },
+    });
+    expect(db.studentSubject.update).toHaveBeenCalledWith({
+      where: { studentId_subjectId: { studentId: STUDENT_ID, subjectId: SUBJECT_2_ID } },
+      data: { currentPaceNumber: 1009 },
     });
   });
 

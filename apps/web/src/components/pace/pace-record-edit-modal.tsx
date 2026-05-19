@@ -3,8 +3,15 @@
 import { type CSSProperties, type FormEvent, useMemo, useState } from 'react';
 import { Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Field, TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { dateInputValue, scoreLabel, scoreTone } from './pace-workflow-utils';
+
+export interface EditablePaceSubject {
+  subjectId: string;
+  code: string;
+  name: string;
+  active?: boolean | undefined;
+}
 
 export interface EditablePaceRecord {
   id: string;
@@ -14,6 +21,8 @@ export interface EditablePaceRecord {
   score: number;
   startedAt: Date | string | null;
   studentName?: string | undefined;
+  subjectId: string;
+  subjectCode: string;
   subjectName: string;
   testType: string;
 }
@@ -23,12 +32,15 @@ interface PaceRecordEditModalProps {
   onClose: () => void;
   onSave: (input: {
     completedAt: string;
+    paceNumber: number;
     recordId: string;
     score: number;
     startedAt: string;
+    subjectId: string;
   }) => Promise<void>;
   pending: boolean;
   record: EditablePaceRecord;
+  subjects: readonly EditablePaceSubject[];
 }
 
 export function PaceRecordEditModal({
@@ -37,7 +49,10 @@ export function PaceRecordEditModal({
   onSave,
   pending,
   record,
+  subjects,
 }: PaceRecordEditModalProps) {
+  const [subjectId, setSubjectId] = useState(record.subjectId);
+  const [paceNumber, setPaceNumber] = useState(String(record.paceNumber));
   const [score, setScore] = useState(String(record.score));
   const [completedAt, setCompletedAt] = useState(
     dateInputValue(record.completedAt ?? record.createdAt),
@@ -48,6 +63,18 @@ export function PaceRecordEditModal({
   const scoreNumber = score.trim() === '' ? null : Number(score);
   const validScore =
     scoreNumber !== null && Number.isFinite(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
+  const validPaceNumber = Number.isInteger(Number(paceNumber)) && Number(paceNumber) > 0;
+  const subjectOptions =
+    subjects.length > 0
+      ? subjects
+      : [
+          {
+            subjectId: record.subjectId,
+            code: record.subjectCode,
+            name: record.subjectName,
+            active: true,
+          },
+        ];
   const tone = scoreTone(scoreNumber);
   const ringStyle = useMemo(
     () =>
@@ -59,12 +86,14 @@ export function PaceRecordEditModal({
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!validScore) return;
+    if (!validScore || !validPaceNumber) return;
     await onSave({
       completedAt,
+      paceNumber: Number(paceNumber),
       recordId: record.id,
       score: scoreNumber,
       startedAt,
+      subjectId,
     });
   }
 
@@ -91,6 +120,40 @@ export function PaceRecordEditModal({
         </header>
 
         <div className="pace-modal__body">
+          <div className="form-grid form-grid--two">
+            <Field label="Subject">
+              <SelectInput
+                aria-label="PACE subject"
+                onChange={(event) => {
+                  setSubjectId(event.target.value);
+                }}
+                value={subjectId}
+              >
+                {subjectOptions.map((subject) => (
+                  <option
+                    disabled={subject.active === false}
+                    key={subject.subjectId}
+                    value={subject.subjectId}
+                  >
+                    {subject.code} · {subject.name}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+            <Field label="PACE number">
+              <TextInput
+                aria-label="PACE number"
+                min={1}
+                onChange={(event) => {
+                  setPaceNumber(event.target.value);
+                }}
+                required
+                type="number"
+                value={paceNumber}
+              />
+            </Field>
+          </div>
+
           <div className="pace-score-entry">
             <div className={`pace-score-ring pace-score-ring--${tone}`} style={ringStyle}>
               <strong>{validScore ? String(scoreNumber) : '-'}</strong>
@@ -137,6 +200,13 @@ export function PaceRecordEditModal({
             </Field>
           </div>
 
+          <div className="pace-modal__summary">
+            <span>Existing record</span>
+            <strong>
+              {record.subjectCode} #{String(record.paceNumber)} · {record.testType}
+            </strong>
+          </div>
+
           {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
         </div>
 
@@ -144,7 +214,7 @@ export function PaceRecordEditModal({
           <Button disabled={pending} onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>
-          <Button disabled={!validScore} pending={pending} type="submit">
+          <Button disabled={!validScore || !validPaceNumber} pending={pending} type="submit">
             <Save aria-hidden="true" size={16} />
             Update Score
           </Button>

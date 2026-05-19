@@ -1318,13 +1318,46 @@ export const paceRouter = router({
     }
     await assertStudentInPaceScope(ctx, scope, existing.student, 'pace.updateRecord');
 
-    const assignment = await ctx.db.studentSubject.findUnique({
+    const subjectId = input.subjectId ?? existing.subjectId;
+    const paceNumber = input.paceNumber ?? existing.paceNumber;
+    const movedRecord = subjectId !== existing.subjectId || paceNumber !== existing.paceNumber;
+
+    const targetSubject =
+      subjectId === existing.subjectId
+        ? existing.subject
+        : await ctx.db.subject.findUnique({
+            where: { id: subjectId },
+            select: { id: true, active: true },
+          });
+    if (!targetSubject) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'subject not found' });
+    }
+    if (!targetSubject.active) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
+    }
+
+    const originalAssignment = await ctx.db.studentSubject.findUnique({
       where: {
         studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
       },
       select: { id: true, currentPaceNumber: true },
     });
-    if (!assignment) {
+    if (!originalAssignment) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'student is not assigned to this subject',
+      });
+    }
+    const targetAssignment =
+      subjectId === existing.subjectId
+        ? originalAssignment
+        : await ctx.db.studentSubject.findUnique({
+            where: {
+              studentId_subjectId: { studentId: existing.studentId, subjectId },
+            },
+            select: { id: true, currentPaceNumber: true },
+          });
+    if (!targetAssignment) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message: 'student is not assigned to this subject',
@@ -1336,6 +1369,55 @@ export const paceRouter = router({
     const testType = testTypeForRecord(existing);
     const previousScore = scoreForRecord(existing);
     const { dayStart, dayEnd } = utcDayBounds(input.completedAt);
+    const existingProgress = movedRecord
+      ? await ctx.db.paceProgress.findUnique({
+          where: {
+            studentId_subjectId_paceNumber: {
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              paceNumber: existing.paceNumber,
+            },
+          },
+          select: { startedAt: true },
+        })
+      : null;
+    const previousStartedAt =
+      existingProgress?.startedAt ?? existing.completedAt ?? existing.createdAt;
+
+    if (testType === 'FinalTest') {
+      const prerequisiteSelfTest = await ctx.db.paceRecord.findFirst({
+        where: {
+          id: { not: existing.id },
+          studentId: existing.studentId,
+          subjectId,
+          paceNumber,
+          selfTestScore: { not: null },
+        },
+        select: { id: true },
+      });
+      if (!prerequisiteSelfTest) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'PermissionDenied',
+            entity: 'PaceRecord',
+            meta: {
+              reason: 'missing-self-test-prerequisite',
+              studentId: existing.studentId,
+              subjectId,
+              paceNumber,
+              testType,
+              recordId: existing.id,
+              source: 'pace.updateRecord',
+            },
+          },
+        });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'cannot update PACE Test without a Self-Test for the same subject PACE number',
+        });
+      }
+    }
 
     if (policy.samePaceSameDayBlockEnabled) {
       const oppositeScore =
@@ -1346,8 +1428,8 @@ export const paceRouter = router({
         where: {
           id: { not: existing.id },
           studentId: existing.studentId,
-          subjectId: existing.subjectId,
-          paceNumber: existing.paceNumber,
+          subjectId,
+          paceNumber,
           completedAt: { gte: dayStart, lt: dayEnd },
           ...oppositeScore,
         },
@@ -1362,8 +1444,8 @@ export const paceRouter = router({
             meta: {
               reason: 'same-pace-same-day-block',
               studentId: existing.studentId,
-              subjectId: existing.subjectId,
-              paceNumber: existing.paceNumber,
+              subjectId,
+              paceNumber,
               testType,
               blockedBy: testType === 'SelfTest' ? 'FinalTest' : 'SelfTest',
               recordId: existing.id,
@@ -1377,43 +1459,76 @@ export const paceRouter = router({
       }
     }
 
-    const [record, meritResult, lifecycle] = await ctx.withRls(async (tx) => {
-      const updated = await tx.paceRecord.update({
-        where: { id: existing.id },
-        data: {
-          ...scoreDataForTestType(testType, input.score),
-          completedAt: input.completedAt,
-        },
-        select: {
-          id: true,
-          studentId: true,
-          subjectId: true,
-          paceNumber: true,
-          selfTestScore: true,
-          paceTestScore: true,
-          completedAt: true,
-          createdAt: true,
-        },
-      });
+    const [record, meritResult, targetLifecycle, lifecycleAuditRows] = await ctx.withRls(
+      async (tx) => {
+        const updated = await tx.paceRecord.update({
+          where: { id: existing.id },
+          data: {
+            ...scoreDataForTestType(testType, input.score),
+            subjectId,
+            paceNumber,
+            completedAt: input.completedAt,
+          },
+          select: {
+            id: true,
+            studentId: true,
+            subjectId: true,
+            paceNumber: true,
+            selfTestScore: true,
+            paceTestScore: true,
+            completedAt: true,
+            createdAt: true,
+          },
+        });
 
-      const nextLifecycle = await recalculatePaceLifecycle(tx, {
-        assignmentCurrentPaceNumber: assignment.currentPaceNumber,
-        passThreshold: policy.passThreshold,
-        paceNumber: existing.paceNumber,
-        startedAt: input.startedAt,
-        studentId: existing.studentId,
-        subjectId: existing.subjectId,
-      });
-      const nextMeritResult = await syncAutomaticPaceMerit(tx, {
-        studentId: existing.studentId,
-        paceRecordId: existing.id,
-        testType,
-        score: input.score,
-        recordedById: ctx.user.id,
-      });
+        const auditRows: Array<{
+          assignmentId: string;
+          lifecycle: { advanced: boolean; newPaceNumber: number | undefined };
+          previousPaceNumber: number;
+          subjectId: string;
+        }> = [];
+        if (movedRecord) {
+          const originalLifecycle = await recalculatePaceLifecycle(tx, {
+            assignmentCurrentPaceNumber: originalAssignment.currentPaceNumber,
+            passThreshold: policy.passThreshold,
+            paceNumber: existing.paceNumber,
+            startedAt: previousStartedAt,
+            studentId: existing.studentId,
+            subjectId: existing.subjectId,
+          });
+          auditRows.push({
+            assignmentId: originalAssignment.id,
+            lifecycle: originalLifecycle,
+            previousPaceNumber: originalAssignment.currentPaceNumber,
+            subjectId: existing.subjectId,
+          });
+        }
 
-      return [updated, nextMeritResult, nextLifecycle] as const;
-    });
+        const nextLifecycle = await recalculatePaceLifecycle(tx, {
+          assignmentCurrentPaceNumber: targetAssignment.currentPaceNumber,
+          passThreshold: policy.passThreshold,
+          paceNumber,
+          startedAt: input.startedAt,
+          studentId: existing.studentId,
+          subjectId,
+        });
+        auditRows.push({
+          assignmentId: targetAssignment.id,
+          lifecycle: nextLifecycle,
+          previousPaceNumber: targetAssignment.currentPaceNumber,
+          subjectId,
+        });
+        const nextMeritResult = await syncAutomaticPaceMerit(tx, {
+          studentId: existing.studentId,
+          paceRecordId: existing.id,
+          testType,
+          score: input.score,
+          recordedById: ctx.user.id,
+        });
+
+        return [updated, nextMeritResult, nextLifecycle, auditRows] as const;
+      },
+    );
 
     const awardedMerits = meritsForPaceScore(testType, input.score);
     await ctx.db.auditLog.create({
@@ -1424,8 +1539,10 @@ export const paceRouter = router({
         entityId: record.id,
         meta: {
           studentId: existing.studentId,
-          subjectId: existing.subjectId,
-          paceNumber: existing.paceNumber,
+          subjectId,
+          paceNumber,
+          previousSubjectId: existing.subjectId,
+          previousPaceNumber: existing.paceNumber,
           testType,
           previousScore,
           score: input.score,
@@ -1458,18 +1575,19 @@ export const paceRouter = router({
       });
     }
 
-    if (lifecycle.newPaceNumber !== undefined) {
+    for (const row of lifecycleAuditRows) {
+      if (row.lifecycle.newPaceNumber === undefined) continue;
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
           action: 'Update',
           entity: 'StudentSubject',
-          entityId: assignment.id,
+          entityId: row.assignmentId,
           meta: {
             studentId: existing.studentId,
-            subjectId: existing.subjectId,
-            previousPaceNumber: assignment.currentPaceNumber,
-            newPaceNumber: lifecycle.newPaceNumber,
+            subjectId: row.subjectId,
+            previousPaceNumber: row.previousPaceNumber,
+            newPaceNumber: row.lifecycle.newPaceNumber,
             triggeredBy: record.id,
             source: 'pace.updateRecord',
           },
@@ -1479,9 +1597,9 @@ export const paceRouter = router({
 
     return {
       ...record,
-      advanced: lifecycle.advanced,
+      advanced: targetLifecycle.advanced,
       awardedMerits,
-      newPaceNumber: lifecycle.newPaceNumber,
+      newPaceNumber: targetLifecycle.newPaceNumber,
     };
   }),
 
