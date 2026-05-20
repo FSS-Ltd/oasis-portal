@@ -10,13 +10,9 @@ const supervisorPassword = process.env.E2E_SUPERVISOR_PASSWORD;
 const parentEmail = process.env.E2E_PARENT_EMAIL;
 const parentPassword = process.env.E2E_PARENT_PASSWORD;
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 async function expectNoClubManagement(page: Page) {
   await expect(page.getByRole('heading', { name: /^clubs$/i })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /add club/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /create club/i })).toHaveCount(0);
 }
 
 test.describe('Phase 3.5 ClubsAdmin club management', () => {
@@ -33,36 +29,39 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
     await signIn(page, headEmail!, headPassword!);
     await page.goto('/admin/clubs');
     await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /add club/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /create club/i }).first()).toBeVisible();
 
+    await page
+      .getByRole('button', { name: /create club/i })
+      .first()
+      .click();
     await page.getByLabel('Club name').fill(clubName);
     await page.getByLabel('Description').fill('E2E club management verification.');
     await page.getByLabel('First club date').fill('2026-05-15');
     await page.getByLabel('Start time').fill('15:30');
     await page.getByLabel('End time').fill('16:30');
     await page.getByLabel('Capacity').fill('12');
-    await page.getByRole('button', { name: /add club/i }).click();
+    await page
+      .locator('.admin-club-form-modal')
+      .getByRole('button', { name: /create club/i })
+      .click();
 
     await expect(page.getByText('Club created.')).toBeVisible();
-    const clubCard = page.locator('.club-card').filter({ hasText: clubName }).first();
-    await expect(clubCard).toBeVisible();
     await expect(page.getByRole('heading', { name: clubName })).toBeVisible();
-    await expect(page.getByText(/0\/12 places/i)).toBeVisible();
+    await expect(page.getByText(/0 \/ 12 members/i)).toBeVisible();
 
-    await clubCard
-      .getByRole('button', { name: new RegExp(`Edit ${escapeRegExp(clubName)}`, 'i') })
-      .click();
+    await page.getByRole('button', { name: /edit club/i }).click();
     await page.getByLabel('Club name').fill(updatedClubName);
-    await page.getByRole('button', { name: /save club/i }).click();
+    await page
+      .locator('.admin-club-form-modal')
+      .getByRole('button', { name: /^save club$/i })
+      .click();
     await expect(page.getByText('Club updated.')).toBeVisible();
 
-    const updatedClubCard = page.locator('.club-card').filter({ hasText: updatedClubName }).first();
-    await expect(updatedClubCard).toBeVisible();
-    await updatedClubCard
-      .getByRole('button', { name: new RegExp(`Deactivate ${escapeRegExp(updatedClubName)}`, 'i') })
-      .click();
+    await expect(page.getByRole('heading', { name: updatedClubName })).toBeVisible();
+    await page.getByRole('button', { name: /^deactivate$/i }).click();
     await expect(page.getByText('Club deactivated.')).toBeVisible();
-    await expect(updatedClubCard.getByText('Inactive')).toBeVisible();
+    await expect(page.getByText('Inactive')).toBeVisible();
   });
 
   clubsAdminTest(
@@ -86,21 +85,29 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
         }),
       ).toHaveCount(0);
 
+      await page
+        .getByRole('button', { name: /create club/i })
+        .first()
+        .click();
       await page.getByLabel('Club name').fill(clubName);
       await page.getByLabel('Description').fill('E2E club notification verification.');
-      await page.getByRole('button', { name: /add club/i }).click();
+      await page
+        .locator('.admin-club-form-modal')
+        .getByRole('button', { name: /create club/i })
+        .click();
       await expect(page.getByText('Club created.')).toBeVisible();
       await expect(page.getByRole('heading', { name: clubName })).toBeVisible();
-      await expect(page.getByText(/0 estimated recipients/i)).toBeVisible();
+      await page.getByRole('tab', { name: /^notices$/i }).click();
+      await expect(page.getByText(/0 recipients/i)).toBeVisible();
       await expect(page.getByText(/No active signups yet/i)).toBeVisible();
-      await expect(page.getByText(/No notifications have been sent for this club/i)).toBeVisible();
+      await expect(page.getByText(/No notices/i)).toBeVisible();
 
-      await page.getByLabel('Notification title').fill(notificationTitle);
+      await page.getByLabel('Notice title').fill(notificationTitle);
       await page.getByLabel('Message').fill('This notification should save without recipients.');
-      await page.getByRole('button', { name: /send notification/i }).click();
+      await page.getByRole('button', { name: /post notice/i }).click();
 
       await expect(
-        page.getByText('Notification saved. No active signup guardians were found.'),
+        page.getByText('Notice saved. No active signup guardians were found.'),
       ).toBeVisible();
       await expect(page.getByText(notificationTitle)).toBeVisible();
     },
@@ -122,7 +129,7 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
     await signIn(page, parentEmail!, parentPassword!);
     await page.goto('/parent/clubs');
     await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /add club/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /create club/i })).toHaveCount(0);
   });
 
   parentTest(

@@ -67,6 +67,8 @@ interface StoredClub {
   scheduleEndMinute: number | null;
   scheduleFrequency: 'Weekly' | null;
   capacity: number | null;
+  iconKey: string | null;
+  accentColor: string | null;
   active: boolean;
   createdById: string;
   createdAt: Date;
@@ -154,6 +156,19 @@ interface FakeClubInclude {
     include?: { student?: { select: { id: true; fullNameEnc: true; yearGroup: true } } };
     orderBy?: { createdAt: 'desc' };
   };
+  leadAssignments?: {
+    orderBy?: { createdAt: 'asc' };
+    select?: {
+      user?: {
+        select: {
+          active?: true;
+          emailEnc?: true;
+          fullNameEnc?: true;
+          id?: true;
+        };
+      };
+    };
+  };
 }
 
 interface FakeClubCreateArgs {
@@ -166,6 +181,8 @@ interface FakeClubCreateArgs {
     scheduleEndMinute: number | null;
     scheduleFrequency: 'Weekly' | null;
     capacity: number | null;
+    iconKey: string | null;
+    accentColor: string | null;
     active: boolean;
     createdById: string;
   };
@@ -185,6 +202,8 @@ interface FakeClubUpdateArgs {
       | 'scheduleEndMinute'
       | 'scheduleFrequency'
       | 'capacity'
+      | 'iconKey'
+      | 'accentColor'
       | 'active'
     >
   >;
@@ -228,6 +247,9 @@ interface FakeUserFindManyArgs {
     active?: boolean;
     id?: { in: string[] };
     role?: Role;
+  };
+  select?: {
+    clubLeadAssignments?: unknown;
   };
 }
 
@@ -393,6 +415,8 @@ function makeClub(input: Partial<StoredClub> & Pick<StoredClub, 'id' | 'name'>):
     scheduleEndMinute: null,
     scheduleFrequency: null,
     capacity: null,
+    iconKey: null,
+    accentColor: null,
     active: true,
     createdById: headUser.id,
     createdAt: new Date('2026-05-11T08:00:00.000Z'),
@@ -513,7 +537,9 @@ function makeFakeDb(
           clubs
             .filter((club) => args.where?.active === undefined || club.active === args.where.active)
             .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
-            .map((club) => withIncludedSignups(club, args.include, signups, students)),
+            .map((club) =>
+              withIncludedSignups(club, args.include, signups, students, leadAssignments, users),
+            ),
         ),
       ),
       findUnique: vi.fn((args: FakeClubFindUniqueArgs) => {
@@ -846,6 +872,22 @@ function makeFakeDb(
               role: user.role,
               fullNameEnc: user.fullNameEnc,
               emailEnc: user.emailEnc,
+              clubLeadAssignments:
+                args.select?.clubLeadAssignments === undefined
+                  ? undefined
+                  : leadAssignments
+                      .filter((assignment) => assignment.userId === user.id)
+                      .map((assignment) => {
+                        const club = clubs.find((candidate) => candidate.id === assignment.clubId);
+                        if (!club) throw new Error('lead club not found');
+                        return {
+                          club: {
+                            id: club.id,
+                            active: club.active,
+                            name: club.name,
+                          },
+                        };
+                      }),
             })),
         ),
       ),
@@ -910,23 +952,42 @@ function withIncludedSignups(
   include: FakeClubInclude | undefined,
   signups: StoredSignup[],
   students: StoredStudent[],
+  leadAssignments: StoredLeadAssignment[] = [],
+  users: StoredUser[] = [],
 ) {
-  if (!include?.signups) return club;
-  const status = include.signups.where?.status;
-  const active = include.signups.where?.student?.active;
-  const clubSignups = signups
-    .filter((signup) => signup.clubId === club.id && (!status || signup.status === status))
-    .filter((signup) => {
-      const student = students.find((candidate) => candidate.id === signup.studentId);
-      return active === undefined || student?.active === active;
-    })
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .map((signup) => ({
-      ...signup,
-      student: students.find((student) => student.id === signup.studentId),
-    }));
+  const included: StoredClub & {
+    leadAssignments?: Array<{ user: StoredUser }>;
+    signups?: Array<StoredSignup & { student?: StoredStudent }>;
+  } = { ...club };
 
-  return { ...club, signups: clubSignups };
+  if (include?.signups) {
+    const status = include.signups.where?.status;
+    const active = include.signups.where?.student?.active;
+    included.signups = signups
+      .filter((signup) => signup.clubId === club.id && (!status || signup.status === status))
+      .filter((signup) => {
+        const student = students.find((candidate) => candidate.id === signup.studentId);
+        return active === undefined || student?.active === active;
+      })
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((signup) => {
+        const student = students.find((candidate) => candidate.id === signup.studentId);
+        return student ? { ...signup, student } : signup;
+      });
+  }
+
+  if (include?.leadAssignments) {
+    included.leadAssignments = leadAssignments
+      .filter((assignment) => assignment.clubId === club.id)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((assignment) => {
+        const user = users.find((candidate) => candidate.id === assignment.userId);
+        if (!user) throw new Error('lead user not found');
+        return { user };
+      });
+  }
+
+  return included;
 }
 
 function withNotificationRecipients(
@@ -1108,6 +1169,62 @@ describe('club management', () => {
   });
 });
 
+describe('club.managementList', () => {
+  it('returns club manager rows with assigned lead summaries and audits lead PII decrypt', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+
+    await expect(makeCaller(headUser, db).caller.club.managementList()).resolves.toEqual([
+      expect.objectContaining({
+        id: defaultClubId,
+        activeSignupCount: 1,
+        assignedLeads: [
+          {
+            id: clubsLeadUser.id,
+            active: true,
+            fullName: 'Clubs Lead',
+            email: `${clubsLeadUser.id}@example.com`,
+          },
+        ],
+      }),
+      expect.objectContaining({
+        id: inactiveClubId,
+        assignedLeads: [],
+      }),
+    ]);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        meta: { source: 'club.managementList', count: 1 },
+      },
+    });
+  });
+
+  it.each([parentUser, supervisorUser])('blocks %s from manager club rows', async (user) => {
+    await expect(makeCaller(user).caller.club.managementList()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+});
+
 describe('club.list', () => {
   it('returns all clubs for club managers and active clubs with own signup state for parents', async () => {
     const db = makeFakeDb({
@@ -1225,6 +1342,27 @@ describe('club.signUp', () => {
     expect(auditEntities(db)).toEqual([
       expect.objectContaining({ action: 'Create', entity: 'ClubSignup', entityId: signup.id }),
     ]);
+  });
+
+  it('accepts valid linked student ids that are not CUID-shaped', async () => {
+    const externalStudentId = 'student_2026_alpha';
+    const db = makeFakeDb({
+      guardians: [{ userId: parentUser.id, studentId: externalStudentId }],
+      students: [
+        makeStudent({ id: externalStudentId, fullNameEnc: encrypt('External Id Learner') }),
+      ],
+    });
+
+    await expect(
+      makeCaller(parentUser, db).caller.club.signUp({
+        clubId: defaultClubId,
+        studentId: externalStudentId,
+      }),
+    ).resolves.toMatchObject({
+      clubId: defaultClubId,
+      studentId: externalStudentId,
+      status: 'Active',
+    });
   });
 
   it('blocks parent signup for an unrelated child', async () => {
@@ -1551,6 +1689,7 @@ describe('club manager assignments', () => {
 
     await expect(caller.club.leadCandidates({ clubId: defaultClubId })).resolves.toEqual([
       expect.objectContaining({
+        assignedClubNames: [],
         id: clubsLeadUser.id,
         fullName: 'Clubs Lead',
         role: 'ClubsLead',

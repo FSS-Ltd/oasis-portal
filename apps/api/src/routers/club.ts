@@ -43,6 +43,8 @@ interface ClubRow {
   scheduleEndMinute: number | null;
   scheduleFrequency: 'Weekly' | null;
   capacity: number | null;
+  iconKey: string | null;
+  accentColor: string | null;
   active: boolean;
   createdById: string;
   createdAt: Date;
@@ -78,28 +80,62 @@ const clubScheduleInput = z
     path: ['endMinute'],
   });
 
+const stringIdInput = z.string().trim().min(1);
+const clubIconKeyInput = z.enum([
+  'achievement',
+  'art',
+  'book',
+  'chess',
+  'coding',
+  'drama',
+  'games',
+  'general',
+  'music',
+  'scripture',
+  'sports',
+  'stem',
+]);
+const clubAccentColorInput = z.enum([
+  '#7D3C98',
+  '#1B2B5E',
+  '#B45309',
+  '#0E7490',
+  '#0E5C3A',
+  '#BE185D',
+  '#4338CA',
+  '#7D1C2C',
+  '#9A3412',
+  '#0F766E',
+  '#2563EB',
+  '#64748B',
+]);
+
 const clubCreateInput = z.object({
   name: z.string().trim().min(1),
   description: z.string().trim().nullable().optional(),
   schedule: z.union([clubScheduleInput, z.string().trim()]).nullable().optional(),
   capacity: z.number().int().positive().nullable().optional(),
+  iconKey: clubIconKeyInput.nullable().optional(),
+  accentColor: clubAccentColorInput.nullable().optional(),
 });
 
 const clubUpdateInput = z.object({
-  id: z.string().cuid(),
+  id: stringIdInput,
   name: z.string().trim().min(1).optional(),
   description: z.string().trim().nullable().optional(),
   schedule: z.union([clubScheduleInput, z.string().trim()]).nullable().optional(),
   capacity: z.number().int().positive().nullable().optional(),
+  iconKey: clubIconKeyInput.nullable().optional(),
+  accentColor: clubAccentColorInput.nullable().optional(),
   active: z.boolean().optional(),
 });
 
 const clubStudentInput = z.object({
-  clubId: z.string().cuid(),
-  studentId: z.string().cuid(),
+  clubId: stringIdInput,
+  studentId: stringIdInput,
 });
 
-const clubIdInput = z.object({ clubId: z.string().cuid() });
+const clubIdInput = z.object({ clubId: stringIdInput });
 
 const dateRangeFields = z.object({
   from: z.coerce.date(),
@@ -115,24 +151,24 @@ const dateRangeInput = dateRangeFields.refine(
 );
 
 const clubSessionInput = z.object({
-  clubId: z.string().cuid(),
+  clubId: stringIdInput,
   date: z.coerce.date(),
 });
 
 const clubAttendanceStatusInput = z.enum(['Present', 'Absent', 'Late']);
 
 const clubAttendanceMarkInput = clubSessionInput.extend({
-  studentId: z.string().cuid(),
+  studentId: stringIdInput,
   status: clubAttendanceStatusInput,
 });
 
 const rotaParticipantsInput = z.object({
-  clubId: z.string().cuid(),
+  clubId: stringIdInput,
   userIds: z.array(z.string().min(1)).max(100),
 });
 
 const clubLeadAssignmentsInput = z.object({
-  clubId: z.string().cuid(),
+  clubId: stringIdInput,
   userIds: z.array(z.string().min(1)).max(100),
 });
 
@@ -148,13 +184,13 @@ const availabilityWindowInput = z
   });
 
 const setClubAvailabilityInput = z.object({
-  clubId: z.string().cuid(),
+  clubId: stringIdInput,
   windows: z.array(availabilityWindowInput).max(42).default([]),
 });
 
 const clubRotaScheduleInput = dateRangeFields
   .extend({
-    clubId: z.string().cuid(),
+    clubId: stringIdInput,
   })
   .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
     message: 'from must be on or before to',
@@ -162,7 +198,7 @@ const clubRotaScheduleInput = dateRangeFields
   });
 
 const clubRotaShiftBaseInput = z.object({
-  clubId: z.string().cuid(),
+  clubId: stringIdInput,
   participantUserId: z.string().min(1),
   date: z.coerce.date(),
   startsAt: z.coerce.date(),
@@ -180,7 +216,7 @@ const clubRotaShiftInput = clubRotaShiftBaseInput.refine(
 
 const updateClubRotaShiftInput = clubRotaShiftBaseInput
   .partial()
-  .extend({ id: z.string().cuid() })
+  .extend({ id: stringIdInput })
   .refine(
     (input) =>
       input.clubId !== undefined ||
@@ -192,10 +228,10 @@ const updateClubRotaShiftInput = clubRotaShiftBaseInput
     { message: 'at least one field must be provided' },
   );
 
-const deleteClubRotaShiftInput = z.object({ id: z.string().cuid() });
+const deleteClubRotaShiftInput = z.object({ id: stringIdInput });
 
 const clubNotifyInput = z.object({
-  clubId: z.string().cuid(),
+  clubId: stringIdInput,
   title: z.string().trim().min(1),
   body: z.string().trim().min(1),
 });
@@ -204,6 +240,26 @@ const clubListInclude = Prisma.validator<Prisma.ClubInclude>()({
   signups: {
     where: { status: 'Active', student: { active: true } },
     select: { studentId: true },
+  },
+});
+
+const clubManagementInclude = Prisma.validator<Prisma.ClubInclude>()({
+  signups: {
+    where: { status: 'Active', student: { active: true } },
+    select: { studentId: true },
+  },
+  leadAssignments: {
+    orderBy: { createdAt: 'asc' },
+    select: {
+      user: {
+        select: {
+          id: true,
+          active: true,
+          fullNameEnc: true,
+          emailEnc: true,
+        },
+      },
+    },
   },
 });
 
@@ -467,12 +523,30 @@ function mapClub(
     scheduleLabel,
     legacySchedule: club.schedule,
     capacity: club.capacity,
+    iconKey: club.iconKey,
+    accentColor: club.accentColor,
     active: club.active,
     createdById: club.createdById,
     createdAt: club.createdAt,
     updatedAt: club.updatedAt,
     activeSignupCount: club.signups.length,
     signedUpStudentIds,
+  };
+}
+
+function mapClubManagementRow(
+  decrypt: (value: string | null | undefined) => string | null,
+  user: SessionUser,
+  club: Prisma.ClubGetPayload<{ include: typeof clubManagementInclude }>,
+) {
+  return {
+    ...mapClub(user, club),
+    assignedLeads: club.leadAssignments.map((assignment) => ({
+      id: assignment.user.id,
+      active: assignment.user.active,
+      fullName: decryptRequired(decrypt, assignment.user.fullNameEnc, 'user PII'),
+      email: decryptRequired(decrypt, assignment.user.emailEnc, 'user PII'),
+    })),
   };
 }
 
@@ -893,6 +967,27 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       return clubs.map((club) => mapClub(ctx.user, club, linkedStudentIds));
     }),
 
+    managementList: authedProcedure.query(async ({ ctx }) => {
+      requireClubManager(ctx.user);
+
+      const clubs = await ctx.db.club.findMany({
+        include: clubManagementInclude,
+        orderBy: clubListOrderBy,
+      });
+      const leadCount = clubs.reduce((total, club) => total + club.leadAssignments.length, 0);
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'User',
+          meta: { source: 'club.managementList', count: leadCount },
+        },
+      });
+
+      return clubs.map((club) => mapClubManagementRow(ctx.db.$enc.decrypt, ctx.user, club));
+    }),
+
     linkedChildSignupContext: authedProcedure.query(async ({ ctx }) => {
       requireLinkedChildSignupAccess(ctx.user);
 
@@ -932,6 +1027,8 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
               scheduleEndMinute: true,
               scheduleFrequency: true,
               capacity: true,
+              iconKey: true,
+              accentColor: true,
               active: true,
               createdById: true,
               createdAt: true,
@@ -965,6 +1062,8 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
           description: normalizeOptionalText(input.description),
           ...nextSchedule,
           capacity: input.capacity ?? null,
+          iconKey: input.iconKey ?? null,
+          accentColor: input.accentColor ?? null,
           active: true,
           createdById: ctx.user.id,
         },
@@ -1026,6 +1125,12 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       }
       if (input.capacity !== undefined) {
         data.capacity = input.capacity;
+      }
+      if (input.iconKey !== undefined) {
+        data.iconKey = input.iconKey;
+      }
+      if (input.accentColor !== undefined) {
+        data.accentColor = input.accentColor;
       }
       if (input.active !== undefined) {
         data.active = input.active;
@@ -1161,10 +1266,30 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       const users = await ctx.db.user.findMany({
         where: { active: true, role: 'ClubsLead' },
         orderBy: [{ createdAt: 'desc' }],
-        select: { id: true, role: true, fullNameEnc: true, emailEnc: true },
+        select: {
+          id: true,
+          role: true,
+          fullNameEnc: true,
+          emailEnc: true,
+          clubLeadAssignments: {
+            select: {
+              club: {
+                select: {
+                  id: true,
+                  active: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
       });
       const rows = users.map((user) => ({
         ...mapClubUser(ctx.db.$enc.decrypt, user),
+        assignedClubNames: user.clubLeadAssignments
+          .filter((assignment) => assignment.club.active && assignment.club.id !== club.id)
+          .map((assignment) => assignment.club.name)
+          .sort((a, b) => a.localeCompare(b)),
         selected: selectedUserIds.has(user.id),
       }));
 
