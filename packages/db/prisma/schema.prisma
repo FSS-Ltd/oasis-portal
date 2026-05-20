@@ -865,6 +865,8 @@ model Club {
   scheduleEndMinute   Int?
   scheduleFrequency   ClubScheduleFrequency?
   capacity            Int?
+  iconKey             String?
+  accentColor         String?
   active              Boolean                @default(true)
   createdById         String
   createdAt           DateTime               @default(now())

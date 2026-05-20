@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-19
+**Last updated:** 2026-05-20
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -22,6 +22,54 @@ raw DB dump cannot re-identify anyone.
 
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
+
+## Current session - 2026-05-20 Admin clubs UI refresh
+
+Working branch: `feat/admin-clubs-ui`.
+
+**PR scope:** Refresh `/admin/clubs` to match the new admin clubs design:
+card-grid landing, drill-in club detail, lead assignment, student assignment,
+club attendance, rota, and notices.
+
+Completed:
+
+- Added manager-only `club.managementList` so club admin UI can show assigned
+  lead names/emails without widening parent-facing `club.list`.
+- Rebuilt admin clubs UI into focused components for cards, detail tabs, create
+  and edit modal, visual helpers, and state orchestration.
+- Reworked the Club Lead tab to match the provided card-based assignment
+  screenshot, including the no-lead banner, candidate cards, per-card
+  assign/remove actions, and "already leads" context.
+- Added persisted club visual settings with nullable `Club.iconKey` and
+  `Club.accentColor`, a create/edit icon picker, random colour defaulting, and
+  deterministic fallback visuals for existing clubs.
+- Preserved existing club create/update/deactivate, student assignment,
+  multi-lead assignment, attendance, rota, and notice behaviours.
+- Added attendance summary counts and a Mark all present action.
+- Updated clubs E2E selectors for the new flow.
+- Relaxed club-router ID inputs from CUID-only validation to non-empty string
+  validation so valid linked student IDs from existing environments can be
+  assigned without failing at the tRPC boundary.
+- Added API regression coverage for non-CUID linked student IDs during club
+  signup.
+- Referenced the updated `design/Oasis Learning Center.zip` as the UI source of
+  truth; the zip remains user-provided dirty context.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- src/__tests__/club.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Not run:
+
+- `pnpm --filter @oasis/web test:e2e -- phase-3-5-clubs.spec.ts` because no
+  `E2E_*` credentials are configured in this environment.
 
 ## Current session - 2026-05-19 Clubs assignment action colours
 

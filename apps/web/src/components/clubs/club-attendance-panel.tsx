@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
-import { CheckCircle2, Clock3, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, Save, XCircle } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +37,9 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
   const utils = api.useUtils();
   const [selectedDate, setSelectedDate] = useState(() => nextScheduledDate(club));
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  const [pendingAll, setPendingAll] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const date = useMemo(() => new Date(`${selectedDate}T00:00:00.000Z`), [selectedDate]);
   const attendanceQuery = api.club.attendanceForSession.useQuery(
     { clubId: club.id, date },
@@ -45,8 +47,19 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
   );
   const markAttendance = api.club.markAttendance.useMutation();
   const rows = attendanceQuery.data?.students ?? [];
+  const counts = rows.reduce(
+    (totals, row) => {
+      if (row.status === 'Present') totals.present += 1;
+      else if (row.status === 'Late') totals.late += 1;
+      else if (row.status === 'Absent') totals.absent += 1;
+      else totals.unmarked += 1;
+      return totals;
+    },
+    { absent: 0, late: 0, present: 0, unmarked: 0 },
+  );
 
   async function mark(row: ClubAttendanceRow, status: ClubAttendanceStatus) {
+    setStatusMessage(null);
     setPendingStudentId(row.studentId);
     setRowErrors((current) => {
       const { [row.studentId]: _removed, ...next } = current;
@@ -60,6 +73,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
         studentId: row.studentId,
         status,
       });
+      setStatusMessage(`${row.studentName} marked ${status.toLowerCase()}.`);
       await utils.club.attendanceForSession.invalidate({ clubId: club.id, date });
     } catch (error) {
       setRowErrors((current) => ({
@@ -72,6 +86,30 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
     }
   }
 
+  async function markAllPresent() {
+    setStatusMessage(null);
+    setPendingAll(true);
+    setRowErrors({});
+    try {
+      for (const row of rows) {
+        await markAttendance.mutateAsync({
+          clubId: club.id,
+          date,
+          studentId: row.studentId,
+          status: 'Present',
+        });
+      }
+      setStatusMessage('Register saved. All students marked present.');
+      await utils.club.attendanceForSession.invalidate({ clubId: club.id, date });
+    } catch (error) {
+      setRowErrors({
+        all: error instanceof Error ? error.message : 'Club attendance could not be saved.',
+      });
+    } finally {
+      setPendingAll(false);
+    }
+  }
+
   return (
     <section className="club-modal-section" aria-labelledby="club-attendance-title">
       <div className="section-title">
@@ -79,15 +117,50 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
           <p className="muted">Club-only register</p>
           <h3 id="club-attendance-title">Attendance</h3>
         </div>
-        <Field label="Session date">
-          <TextInput
-            onChange={(event) => {
-              setSelectedDate(event.target.value);
+        <div className="club-attendance-toolbar">
+          <Field label="Session date">
+            <TextInput
+              onChange={(event) => {
+                setSelectedDate(event.target.value);
+                setStatusMessage(null);
+              }}
+              type="date"
+              value={selectedDate}
+            />
+          </Field>
+          <Button
+            disabled={rows.length === 0 || pendingAll}
+            onClick={() => {
+              void markAllPresent();
             }}
-            type="date"
-            value={selectedDate}
-          />
-        </Field>
+            pending={pendingAll}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Save aria-hidden="true" size={14} />
+            Mark all present
+          </Button>
+        </div>
+      </div>
+
+      <div className="club-attendance-summary" aria-label="Attendance summary">
+        <span className="club-attendance-summary__item club-attendance-summary__item--present">
+          <strong>{String(counts.present)}</strong>
+          <small>Present</small>
+        </span>
+        <span className="club-attendance-summary__item club-attendance-summary__item--late">
+          <strong>{String(counts.late)}</strong>
+          <small>Late</small>
+        </span>
+        <span className="club-attendance-summary__item club-attendance-summary__item--absent">
+          <strong>{String(counts.absent)}</strong>
+          <small>Absent</small>
+        </span>
+        <span className="club-attendance-summary__item">
+          <strong>{String(counts.unmarked)}</strong>
+          <small>Unmarked</small>
+        </span>
       </div>
 
       {attendanceQuery.isLoading ? <div className="empty-state">Loading attendance...</div> : null}
@@ -97,6 +170,8 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
       {!attendanceQuery.isLoading && rows.length === 0 ? (
         <div className="empty-state">No signed-up students for this club.</div>
       ) : null}
+      {statusMessage ? <p className="status--success">{statusMessage}</p> : null}
+      {rowErrors.all ? <p className="status--error">{rowErrors.all}</p> : null}
 
       <div className="club-attendance-list">
         {rows.map((row) => {
@@ -114,7 +189,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
               <div className="club-attendance-actions">
                 {statuses.map(({ icon: Icon, label, value }) => (
                   <Button
-                    disabled={pending}
+                    disabled={pending || pendingAll}
                     key={value}
                     onClick={() => {
                       void mark(row, value);
