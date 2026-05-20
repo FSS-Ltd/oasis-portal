@@ -65,7 +65,7 @@ function formatNoticeDate(value: Date | string): string {
   }).format(new Date(value));
 }
 
-function ParentClubNotices({
+function LinkedChildClubNotices({
   error,
   loading,
   notices,
@@ -76,13 +76,13 @@ function ParentClubNotices({
 }) {
   return (
     <section
-      className="panel panel__body parent-club-notices"
-      aria-labelledby="parent-club-notices-title"
+      className="panel panel__body linked-child-club-notices"
+      aria-labelledby="linked-child-club-notices-title"
     >
       <div className="section-title">
         <div>
-          <p className="muted">Club notices</p>
-          <h2 id="parent-club-notices-title">Latest Updates</h2>
+          <p className="muted">Linked child club notices</p>
+          <h2 id="linked-child-club-notices-title">Latest Club Updates</h2>
         </div>
         <span className="badge badge--green">
           <Bell aria-hidden="true" size={14} />
@@ -93,14 +93,17 @@ function ParentClubNotices({
       {loading ? <div className="empty-state">Loading club notices...</div> : null}
       {error ? <p className="status--error">{error}</p> : null}
       {!loading && !error && notices.length === 0 ? (
-        <EmptyState detail="Club updates will appear here." title="No notices yet" />
+        <EmptyState
+          detail="Club updates for linked children will appear here."
+          title="No notices yet"
+        />
       ) : null}
 
       {notices.length > 0 ? (
-        <div className="parent-club-notice-list">
+        <div className="linked-child-club-notice-list">
           {notices.map((notice) => (
-            <article className="parent-club-notice" key={notice.id}>
-              <div className="parent-club-notice__head">
+            <article className="linked-child-club-notice" key={notice.id}>
+              <div className="linked-child-club-notice__head">
                 <span>
                   <strong>{notice.title}</strong>
                   <small>
@@ -233,10 +236,7 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
   const copy = VARIANT_COPY[variant];
   const utils = api.useUtils();
   const contextQuery = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
-  const noticesQuery = api.club.myClubNotices.useQuery(undefined, {
-    enabled: variant === 'parent',
-    retry: false,
-  });
+  const noticesQuery = api.club.myClubNotices.useQuery(undefined, { retry: false });
   const signUp = api.club.signUp.useMutation();
   const withdraw = api.club.withdraw.useMutation();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
@@ -311,13 +311,11 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
         <span>{clubs.length === 1 ? '1 active club' : `${String(clubs.length)} active clubs`}</span>
       </div>
 
-      {variant === 'parent' ? (
-        <ParentClubNotices
-          error={noticesQuery.error?.message ?? null}
-          loading={noticesQuery.isLoading}
-          notices={noticesQuery.data ?? []}
-        />
-      ) : null}
+      <LinkedChildClubNotices
+        error={noticesQuery.error?.message ?? null}
+        loading={noticesQuery.isLoading}
+        notices={noticesQuery.data ?? []}
+      />
 
       {children.length === 0 ? (
         <EmptyState

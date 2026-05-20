@@ -173,7 +173,7 @@ function OverviewTab({
           <Bell aria-hidden="true" size={18} />
           <span>Notices</span>
           <strong>{String(notificationsCount)}</strong>
-          <small>Visible to parents</small>
+          <small>Visible to linked guardians</small>
         </article>
       </section>
 
@@ -509,7 +509,7 @@ function NoticeboardTab({
             <p className="muted">{club.name}</p>
             <h2>Post a Notice</h2>
           </div>
-          <Badge tone="green">{String(club.activeSignupCount)} parents</Badge>
+          <Badge tone="green">{String(club.activeSignupCount)} active signups</Badge>
         </div>
         <form
           className="clubs-form"
@@ -537,7 +537,7 @@ function NoticeboardTab({
               onChange={(event) => {
                 setBody(event.target.value);
               }}
-              placeholder="What do parents need to know?"
+              placeholder="What do linked guardians need to know?"
               required
               rows={5}
               value={body}
@@ -547,7 +547,7 @@ function NoticeboardTab({
             <UsersRound aria-hidden="true" size={18} />
             <span>
               <strong>{club.activeSignupCount} active signups</strong>
-              <small>Saved notices appear in parents' My Clubs tab</small>
+              <small>Saved notices appear in linked guardians' My Clubs tab</small>
             </span>
           </div>
           <Button disabled={!title.trim() || !body.trim()} pending={notify.isPending} type="submit">

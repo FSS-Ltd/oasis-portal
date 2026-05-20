@@ -1951,6 +1951,47 @@ describe('club.myClubNotices', () => {
       },
     ]);
   });
+
+  it.each([
+    ['Supervisor', supervisorUser],
+    ['ClubsAdmin', clubsAdminUser],
+  ] as const)(
+    'shows club notices to %s users with linked signed-up children',
+    async (_role, user) => {
+      const db = makeFakeDb({
+        guardians: [{ userId: user.id, studentId: linkedStudentId }],
+        notifications: [
+          makeNotification({
+            id: 'cnotification000000000003',
+            bodyEnc: encrypt('Drama rehearsal moves to room 2.'),
+            clubId: defaultClubId,
+            sentById: clubsLeadUser.id,
+            title: 'Room update',
+          }),
+        ],
+        signups: [
+          makeSignup({
+            id: 'csignup000000000000003',
+            clubId: defaultClubId,
+            studentId: linkedStudentId,
+          }),
+        ],
+      });
+
+      await expect(makeCaller(user, db).caller.club.myClubNotices()).resolves.toEqual([
+        {
+          id: 'cnotification000000000003',
+          body: 'Drama rehearsal moves to room 2.',
+          clubId: defaultClubId,
+          clubName: 'Choir',
+          sentAt: new Date('2026-05-11T14:00:00.000Z'),
+          sentByName: 'Clubs Lead',
+          studentName: 'Linked Learner',
+          title: 'Room update',
+        },
+      ]);
+    },
+  );
 });
 
 describe('club.notify', () => {
