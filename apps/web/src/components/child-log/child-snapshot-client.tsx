@@ -17,6 +17,7 @@ import {
 } from '@/components/pace/pace-record-edit-modal';
 import { asDate } from '@/components/pace/pace-workflow-utils';
 import { avatarColour, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import {
   SnapshotCentrePickerCard,
@@ -97,7 +98,6 @@ export function ChildSnapshotClient({
   const [activeTab, setActiveTab] = useState<SnapshotTab>('overview');
   const [note, setNote] = useState('');
   const [sensitive, setSensitive] = useState(false);
-  const [noteStatus, setNoteStatus] = useState<string | null>(null);
   const [editingBehaviour, setEditingBehaviour] = useState<EditingBehaviourForm | null>(null);
   const [deletingBehaviour, setDeletingBehaviour] = useState<SnapshotBehaviourEntry | null>(null);
   const [editingNote, setEditingNote] = useState<EditingNoteForm | null>(null);
@@ -131,58 +131,85 @@ export function ChildSnapshotClient({
     onSuccess: async () => {
       setNote('');
       setSensitive(false);
-      setNoteStatus('Child note saved.');
+      showSuccessToast('Child note saved.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Child note could not be saved.');
     },
   });
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
       setEditingBehaviour(null);
+      showSuccessToast('Behaviour entry updated.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
       await utils.behaviour.dailyDemeritStatuses.invalidate({ date: demeritDate });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entry could not be updated.');
     },
   });
   const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
     onSuccess: async () => {
       setDeletingBehaviour(null);
+      showSuccessToast('Behaviour entry deleted.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
       await utils.behaviour.dailyDemeritStatuses.invalidate({ date: demeritDate });
     },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entry could not be deleted.');
+    },
   });
   const updateNote = api.childNotes.update.useMutation({
     onSuccess: async () => {
       setEditingNote(null);
+      showSuccessToast('Note updated.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Note could not be updated.');
     },
   });
   const deleteNote = api.childNotes.delete.useMutation({
     onSuccess: async () => {
       setDeletingNote(null);
+      showSuccessToast('Note deleted.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Note could not be deleted.');
     },
   });
   const updatePace = api.pace.updateRecord.useMutation({
     onSuccess: async () => {
       setEditingPace(null);
+      showSuccessToast('PACE test updated.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast(error, 'PACE test could not be updated.');
     },
   });
   const deletePace = api.pace.deleteRecord.useMutation({
     onSuccess: async () => {
       setDeletingPace(null);
+      showSuccessToast('PACE test deleted.');
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast(error, 'PACE test could not be deleted.');
     },
   });
 
@@ -213,31 +240,42 @@ export function ChildSnapshotClient({
 
   async function submitNote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setNoteStatus(null);
     if (!selectedStudentId || !note.trim()) return;
-    await createNote.mutateAsync({ studentId: selectedStudentId, note, sensitive });
+    try {
+      await createNote.mutateAsync({ studentId: selectedStudentId, note, sensitive });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function submitBehaviourEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editingBehaviour) return;
-    await updateBehaviour.mutateAsync({
-      id: editingBehaviour.id,
-      category: editingBehaviour.category,
-      note: editingBehaviour.note.trim() ? editingBehaviour.note : null,
-      visibility: editingBehaviour.visibility,
-      ...(editingBehaviour.type === 'Merit' ? { amount: Number(editingBehaviour.amount) } : {}),
-    });
+    try {
+      await updateBehaviour.mutateAsync({
+        id: editingBehaviour.id,
+        category: editingBehaviour.category,
+        note: editingBehaviour.note.trim() ? editingBehaviour.note : null,
+        visibility: editingBehaviour.visibility,
+        ...(editingBehaviour.type === 'Merit' ? { amount: Number(editingBehaviour.amount) } : {}),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function submitNoteEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editingNote) return;
-    await updateNote.mutateAsync({
-      id: editingNote.id,
-      note: editingNote.note,
-      sensitive: editingNote.sensitive,
-    });
+    try {
+      await updateNote.mutateAsync({
+        id: editingNote.id,
+        note: editingNote.note,
+        sensitive: editingNote.sensitive,
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function savePaceEdit(input: {
@@ -248,14 +286,18 @@ export function ChildSnapshotClient({
     startedAt: string;
     subjectId: string;
   }): Promise<void> {
-    await updatePace.mutateAsync({
-      recordId: input.recordId,
-      subjectId: input.subjectId,
-      paceNumber: input.paceNumber,
-      score: input.score,
-      completedAt: asDate(input.completedAt),
-      startedAt: asDate(input.startedAt),
-    });
+    try {
+      await updatePace.mutateAsync({
+        recordId: input.recordId,
+        subjectId: input.subjectId,
+        paceNumber: input.paceNumber,
+        score: input.score,
+        completedAt: asDate(input.completedAt),
+        startedAt: asDate(input.startedAt),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   const students = useMemo(
@@ -330,7 +372,7 @@ export function ChildSnapshotClient({
       <section className="panel panel__body snapshot-picker-panel">
         <h2>{enableCentreOverview ? 'Select view' : 'Select student'}</h2>
         {studentsQuery.error ? (
-          <p className="status--error">{studentsQuery.error.message}</p>
+          <p className="status--error">{friendlyErrorMessage(studentsQuery.error)}</p>
         ) : null}
         {!studentsQuery.isLoading && students.length === 0 ? (
           <div className="empty-state">No active students found.</div>
@@ -385,9 +427,11 @@ export function ChildSnapshotClient({
       {snapshotQuery.isLoading || centreSnapshotQuery.isLoading ? (
         <div className="empty-state">Loading snapshot...</div>
       ) : null}
-      {snapshotQuery.error ? <p className="status--error">{snapshotQuery.error.message}</p> : null}
+      {snapshotQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(snapshotQuery.error)}</p>
+      ) : null}
       {centreSnapshotQuery.error ? (
-        <p className="status--error">{centreSnapshotQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(centreSnapshotQuery.error)}</p>
       ) : null}
 
       <SnapshotTabs activeTab={activeTab} onSelect={setActiveTab} tabs={tabs} />
@@ -843,9 +887,8 @@ export function ChildSnapshotClient({
               >
                 Save note
               </Button>
-              {noteStatus ? <p className="status--success">{noteStatus}</p> : null}
               {createNote.error ? (
-                <p className="status--error">{createNote.error.message}</p>
+                <p className="status--error">{friendlyErrorMessage(createNote.error)}</p>
               ) : null}
             </form>
           ) : null}
@@ -853,7 +896,9 @@ export function ChildSnapshotClient({
       ) : null}
       {editingBehaviour ? (
         <CorrectionModal
-          errorMessage={updateBehaviour.error?.message}
+          errorMessage={
+            updateBehaviour.error ? friendlyErrorMessage(updateBehaviour.error) : undefined
+          }
           onClose={() => {
             setEditingBehaviour(null);
           }}
@@ -954,7 +999,7 @@ export function ChildSnapshotClient({
       ) : null}
       {editingNote ? (
         <CorrectionModal
-          errorMessage={updateNote.error?.message}
+          errorMessage={updateNote.error ? friendlyErrorMessage(updateNote.error) : undefined}
           onClose={() => {
             setEditingNote(null);
           }}
@@ -1025,12 +1070,14 @@ export function ChildSnapshotClient({
       ) : null}
       <ConfirmationDialog
         confirmLabel="Delete entry"
-        errorMessage={deleteBehaviour.error?.message}
+        errorMessage={
+          deleteBehaviour.error ? friendlyErrorMessage(deleteBehaviour.error) : undefined
+        }
         onCancel={() => {
           if (!deleteBehaviour.isPending) setDeletingBehaviour(null);
         }}
         onConfirm={() => {
-          if (deletingBehaviour) void deleteBehaviour.mutateAsync({ id: deletingBehaviour.id });
+          if (deletingBehaviour) deleteBehaviour.mutate({ id: deletingBehaviour.id });
         }}
         open={deletingBehaviour !== null}
         pending={deleteBehaviour.isPending}
@@ -1040,12 +1087,12 @@ export function ChildSnapshotClient({
       </ConfirmationDialog>
       <ConfirmationDialog
         confirmLabel="Delete note"
-        errorMessage={deleteNote.error?.message}
+        errorMessage={deleteNote.error ? friendlyErrorMessage(deleteNote.error) : undefined}
         onCancel={() => {
           if (!deleteNote.isPending) setDeletingNote(null);
         }}
         onConfirm={() => {
-          if (deletingNote) void deleteNote.mutateAsync({ id: deletingNote.id });
+          if (deletingNote) deleteNote.mutate({ id: deletingNote.id });
         }}
         open={deletingNote !== null}
         pending={deleteNote.isPending}
@@ -1055,7 +1102,7 @@ export function ChildSnapshotClient({
       </ConfirmationDialog>
       {editingPace ? (
         <PaceRecordEditModal
-          errorMessage={updatePace.error?.message}
+          errorMessage={updatePace.error ? friendlyErrorMessage(updatePace.error) : undefined}
           onClose={() => {
             if (!updatePace.isPending) setEditingPace(null);
           }}
@@ -1067,12 +1114,12 @@ export function ChildSnapshotClient({
       ) : null}
       <ConfirmationDialog
         confirmLabel="Delete test"
-        errorMessage={deletePace.error?.message}
+        errorMessage={deletePace.error ? friendlyErrorMessage(deletePace.error) : undefined}
         onCancel={() => {
           if (!deletePace.isPending) setDeletingPace(null);
         }}
         onConfirm={() => {
-          if (deletingPace) void deletePace.mutateAsync({ recordId: deletingPace.id });
+          if (deletingPace) deletePace.mutate({ recordId: deletingPace.id });
         }}
         open={deletingPace !== null}
         pending={deletePace.isPending}

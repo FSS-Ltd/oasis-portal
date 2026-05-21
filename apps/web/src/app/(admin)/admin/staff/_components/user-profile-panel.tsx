@@ -11,6 +11,7 @@ import {
   type Role,
 } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { permissionTagLabel, personTypeLabel, roleLabel } from '@/lib/profile-display';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
@@ -61,16 +62,28 @@ export function UserProfilePanel({
     async onSuccess() {
       await utils.admin.listUsers.invalidate();
       setEditing(false);
+      showSuccessToast('Profile saved.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Profile could not be saved.');
     },
   });
   const updateTags = api.admin.updateUserTags.useMutation({
     async onSuccess() {
       await utils.admin.listUsers.invalidate();
+      showSuccessToast('Permission tags updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Permission tags could not be updated.');
     },
   });
   const updateRole = api.admin.updateUserRole.useMutation({
     async onSuccess() {
       await utils.admin.listUsers.invalidate();
+      showSuccessToast('Role updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Role could not be updated.');
     },
   });
   const updateStatus = api.admin.updateUserAccountStatus.useMutation({
@@ -80,6 +93,10 @@ export function UserProfilePanel({
         utils.admin.listUserAccounts.invalidate(),
       ]);
       setStatusAction(null);
+      showSuccessToast('Account status updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Account status could not be updated.');
     },
   });
   const isSelf = user.id === currentUserId;
@@ -245,7 +262,7 @@ export function UserProfilePanel({
                 </div>
                 {updateRole.error ? (
                   <p className="status--error" role="alert">
-                    {updateRole.error.message}
+                    {friendlyErrorMessage(updateRole.error)}
                   </p>
                 ) : null}
               </div>
@@ -308,12 +325,12 @@ export function UserProfilePanel({
               </div>
               {updateTags.error ? (
                 <p className="status--error" role="alert">
-                  {updateTags.error.message}
+                  {friendlyErrorMessage(updateTags.error)}
                 </p>
               ) : null}
               {updateRole.error ? (
                 <p className="status--error" role="alert">
-                  {updateRole.error.message}
+                  {friendlyErrorMessage(updateRole.error)}
                 </p>
               ) : null}
             </div>
@@ -360,7 +377,7 @@ export function UserProfilePanel({
               </div>
               {updateUser.error ? (
                 <p className="status--error" role="alert">
-                  {updateUser.error.message}
+                  {friendlyErrorMessage(updateUser.error)}
                 </p>
               ) : null}
             </div>
@@ -453,7 +470,7 @@ export function UserProfilePanel({
       </form>
       <ConfirmationDialog
         confirmLabel={statusAction === 'deactivate' ? 'Deactivate account' : 'Reactivate account'}
-        errorMessage={updateStatus.error?.message}
+        errorMessage={updateStatus.error ? friendlyErrorMessage(updateStatus.error) : undefined}
         onCancel={() => {
           if (!updateStatus.isPending) setStatusAction(null);
         }}

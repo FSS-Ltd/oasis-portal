@@ -9,6 +9,7 @@ import { api } from '@/lib/trpc';
 import { permissionTagLabel } from '@/lib/profile-display';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { showErrorToast, showSuccessToast } from '@/lib/notifications';
 
 const schema = z.object({
   email: z.string().trim().email('Enter a valid email address'),
@@ -26,6 +27,10 @@ export function InviteUserForm() {
         utils.admin.listUsers.invalidate(),
         utils.admin.listUserInvitations.invalidate(),
       ]);
+      showSuccessToast('Invitation email sent.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Invitation email could not be sent.');
     },
   });
   const {
@@ -89,11 +94,6 @@ export function InviteUserForm() {
             </SelectInput>
           </Field>
         </div>
-        {inviteUser.error ? (
-          <p className="status--error" role="alert">
-            {inviteUser.error.message}
-          </p>
-        ) : null}
         {inviteUser.data ? (
           <div className="invite-result" role="status">
             <div className="invite-result__summary">

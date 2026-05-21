@@ -3,6 +3,7 @@
 import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MessageSquarePlus, Send } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -177,8 +178,16 @@ function NewThreadComposer({
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const openThread = api.message.openThread.useMutation();
-  const sendMessage = api.message.send.useMutation();
+  const openThread = api.message.openThread.useMutation({
+    onError(error) {
+      showErrorToast(error, 'Message thread could not be started.');
+    },
+  });
+  const sendMessage = api.message.send.useMutation({
+    onError(error) {
+      showErrorToast(error, 'Message could not be sent.');
+    },
+  });
 
   useEffect(() => {
     if (!adminId && recipients[0]) setAdminId(recipients[0].id);
@@ -201,8 +210,9 @@ function NewThreadComposer({
       setBody('');
       await utils.message.listThreads.invalidate();
       onCreated(thread.id);
+      showSuccessToast('Message sent.');
     } catch {
-      // The mutation error is rendered below the form.
+      // The mutation error is shown in a toast and inline below the form.
     }
   }
 
@@ -279,8 +289,12 @@ function NewThreadComposer({
           <p className="status--error">No message recipients are currently available.</p>
         ) : null}
         {error ? <p className="status--error">{error}</p> : null}
-        {openThread.error ? <p className="status--error">{openThread.error.message}</p> : null}
-        {sendMessage.error ? <p className="status--error">{sendMessage.error.message}</p> : null}
+        {openThread.error ? (
+          <p className="status--error">{friendlyErrorMessage(openThread.error)}</p>
+        ) : null}
+        {sendMessage.error ? (
+          <p className="status--error">{friendlyErrorMessage(sendMessage.error)}</p>
+        ) : null}
       </form>
     </section>
   );
@@ -298,7 +312,11 @@ function ReplyComposer({
   threadId: string;
 }) {
   const [body, setBody] = useState('');
-  const sendMessage = api.message.send.useMutation();
+  const sendMessage = api.message.send.useMutation({
+    onError(error) {
+      showErrorToast(error, 'Message could not be sent.');
+    },
+  });
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -309,8 +327,9 @@ function ReplyComposer({
       await sendMessage.mutateAsync({ threadId, body: trimmedBody });
       setBody('');
       onSent();
+      showSuccessToast('Message sent.');
     } catch {
-      // The mutation error is rendered below the form.
+      // The mutation error is shown in a toast and inline below the form.
     }
   }
 
@@ -342,7 +361,9 @@ function ReplyComposer({
         <Send aria-hidden="true" size={16} />
         Send
       </Button>
-      {sendMessage.error ? <p className="status--error">{sendMessage.error.message}</p> : null}
+      {sendMessage.error ? (
+        <p className="status--error">{friendlyErrorMessage(sendMessage.error)}</p>
+      ) : null}
     </form>
   );
 }
@@ -456,7 +477,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
         />
       ) : null}
       {recipientsQuery.error ? (
-        <p className="status--error">{recipientsQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(recipientsQuery.error)}</p>
       ) : null}
 
       <div className="messages-layout">
@@ -469,7 +490,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
           </div>
           {threadsQuery.isLoading ? <EmptyState>Loading messages...</EmptyState> : null}
           {threadsQuery.error ? (
-            <p className="status--error">{threadsQuery.error.message}</p>
+            <p className="status--error">{friendlyErrorMessage(threadsQuery.error)}</p>
           ) : null}
           {!threadsQuery.isLoading && threads.length === 0 ? (
             <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
@@ -499,7 +520,9 @@ export function MessageCentre({ mode }: MessageCentreProps) {
           ) : null}
 
           {threadQuery.isLoading ? <EmptyState>Loading thread...</EmptyState> : null}
-          {threadQuery.error ? <p className="status--error">{threadQuery.error.message}</p> : null}
+          {threadQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(threadQuery.error)}</p>
+          ) : null}
           {!selectedThreadId && !threadsQuery.isLoading ? (
             <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
           ) : null}

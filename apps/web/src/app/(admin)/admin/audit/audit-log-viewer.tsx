@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { Clock3, Database, Filter, RotateCcw, ShieldCheck, UserRound } from 'lucide-react';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -392,7 +393,7 @@ export function AuditLogViewer() {
               title="No audit rows found"
             />
           }
-          errorMessage={auditQuery.error?.message}
+          errorMessage={auditQuery.error ? friendlyErrorMessage(auditQuery.error) : undefined}
           getRowKey={(row) => row.id}
           loading={auditQuery.isLoading}
           loadingLabel="Loading audit log..."

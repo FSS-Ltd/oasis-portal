@@ -17,6 +17,7 @@ import {
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import {
   blankRegistrationValues,
@@ -158,11 +159,12 @@ function uniqueSections(issues: ZodIssue[], mode: RegistrationFormMode): string[
   return [...new Set(issues.map((issue) => sectionForIssue(issue, mode)))];
 }
 
-function cleanSubmitErrorMessage(message: string): string {
+function cleanSubmitErrorMessage(error: unknown): string {
+  const message = friendlyErrorMessage(error, '');
   if (message.includes('invalid_enum_value') || message.includes('String must contain')) {
     return 'Registration could not be saved. Please finish the required fields and try again.';
   }
-  return message;
+  return friendlyErrorMessage(error, 'Registration could not be saved. Please try again.');
 }
 
 function setValidationIssues({
@@ -213,7 +215,6 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   const router = useRouter();
   const utils = api.useUtils();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [incompleteSections, setIncompleteSections] = useState<string[]>([]);
   const statusQuery = api.registration.status.useQuery(undefined, {
     enabled: mode === 'initial',
@@ -230,17 +231,24 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
         utils.registration.status.invalidate(),
         utils.childLog.listAccessibleStudents.invalidate(),
       ]);
+      showSuccessToast('Registration submitted.');
       router.replace('/parent');
+    },
+    onError(error) {
+      showErrorToast(error, 'Registration could not be submitted.');
     },
   });
   const updateRegistration = api.registration.updateMine.useMutation({
     async onSuccess() {
-      setSuccessMessage('Registration saved.');
+      showSuccessToast('Registration saved.');
       await Promise.all([
         utils.registration.mine.invalidate(),
         utils.childLog.parentDashboard.invalidate(),
         utils.childLog.listAccessibleStudents.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Registration could not be saved.');
     },
   });
   const addSibling = api.registration.addSibling.useMutation({
@@ -250,7 +258,11 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
         utils.childLog.parentDashboard.invalidate(),
         utils.childLog.listAccessibleStudents.invalidate(),
       ]);
+      showSuccessToast('Sibling added.');
       router.replace('/parent');
+    },
+    onError(error) {
+      showErrorToast(error, 'Sibling could not be added.');
     },
   });
 
@@ -274,8 +286,7 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   const activeMutation =
     mode === 'edit' ? updateRegistration : mode === 'sibling' ? addSibling : submitRegistration;
   const submissionErrorMessage =
-    submitError ??
-    (activeMutation.error ? cleanSubmitErrorMessage(activeMutation.error.message) : null);
+    submitError ?? (activeMutation.error ? cleanSubmitErrorMessage(activeMutation.error) : null);
 
   useEffect(() => {
     if (mode === 'initial' && statusQuery.data && !statusQuery.data.requiresRegistration) {
@@ -307,7 +318,7 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   }
 
   if (mode === 'initial' && statusQuery.error) {
-    return <div className="empty-state status--error">{statusQuery.error.message}</div>;
+    return <div className="empty-state status--error">{friendlyErrorMessage(statusQuery.error)}</div>;
   }
 
   if (mode !== 'initial' && mineQuery.isLoading) {
@@ -315,7 +326,7 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   }
 
   if (mode !== 'initial' && mineQuery.error) {
-    return <div className="empty-state status--error">{mineQuery.error.message}</div>;
+    return <div className="empty-state status--error">{friendlyErrorMessage(mineQuery.error)}</div>;
   }
 
   if (mode !== 'initial' && mineQuery.data === null) {
@@ -328,7 +339,6 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
       onSubmit={(event) => {
         void handleSubmit((values) => {
           setSubmitError(null);
-          setSuccessMessage(null);
           setIncompleteSections([]);
           clearErrors();
           activeMutation.reset();
@@ -898,11 +908,6 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
           {submissionErrorMessage ? (
             <p className="status--error" role="alert">
               {submissionErrorMessage}
-            </p>
-          ) : null}
-          {successMessage ? (
-            <p className="status--success" role="status">
-              {successMessage}
             </p>
           ) : null}
           <div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, CheckCircle2, Club, UsersRound, XCircle } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -241,7 +242,6 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
   const withdraw = api.club.withdraw.useMutation();
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [pendingClubId, setPendingClubId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
 
   const children = useMemo(() => contextQuery.data?.children ?? [], [contextQuery.data?.children]);
@@ -265,15 +265,15 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
 
   async function signChildUp(club: SignupClub) {
     if (!selectedChild) return;
-    setStatus(null);
     setOperationError(null);
     setPendingClubId(club.id);
     try {
       await signUp.mutateAsync({ clubId: club.id, studentId: selectedChild.id });
-      setStatus(`${selectedChild.fullName} signed up for ${club.name}.`);
+      showSuccessToast(`${selectedChild.fullName} signed up for ${club.name}.`);
       await refreshSignupContext();
     } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Club signup failed.');
+      setOperationError(friendlyErrorMessage(error, 'Club signup failed.'));
+      showErrorToast(error, 'Club signup failed.');
     } finally {
       setPendingClubId(null);
     }
@@ -281,15 +281,15 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
 
   async function withdrawChild(club: SignupClub) {
     if (!selectedChild) return;
-    setStatus(null);
     setOperationError(null);
     setPendingClubId(club.id);
     try {
       await withdraw.mutateAsync({ clubId: club.id, studentId: selectedChild.id });
-      setStatus(`${selectedChild.fullName} withdrawn from ${club.name}.`);
+      showSuccessToast(`${selectedChild.fullName} withdrawn from ${club.name}.`);
       await refreshSignupContext();
     } catch (error) {
-      setOperationError(error instanceof Error ? error.message : 'Club withdrawal failed.');
+      setOperationError(friendlyErrorMessage(error, 'Club withdrawal failed.'));
+      showErrorToast(error, 'Club withdrawal failed.');
     } finally {
       setPendingClubId(null);
     }
@@ -300,7 +300,12 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
   }
 
   if (contextQuery.error) {
-    return <EmptyState detail={contextQuery.error.message} title="Club signups unavailable" />;
+    return (
+      <EmptyState
+        detail={friendlyErrorMessage(contextQuery.error)}
+        title="Club signups unavailable"
+      />
+    );
   }
 
   return (
@@ -312,7 +317,7 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
       </div>
 
       <LinkedChildClubNotices
-        error={noticesQuery.error?.message ?? null}
+        error={noticesQuery.error ? friendlyErrorMessage(noticesQuery.error) : null}
         loading={noticesQuery.isLoading}
         notices={noticesQuery.data ?? []}
       />
@@ -379,7 +384,6 @@ export function LinkedChildClubSignupClient({ variant }: LinkedChildClubSignupCl
               </span>
             </div>
 
-            {status ? <p className="status--success">{status}</p> : null}
             {operationError ? <p className="status--error">{operationError}</p> : null}
           </section>
         </div>

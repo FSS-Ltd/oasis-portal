@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { ArrowLeft, Edit3, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
@@ -564,37 +565,61 @@ export function StudentDrillThroughContent({
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
       setBehaviourDraft(null);
+      showSuccessToast('Behaviour entry updated.');
       await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entry could not be updated.');
     },
   });
   const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
     onSuccess: async () => {
       setBehaviourDelete(null);
+      showSuccessToast('Behaviour entry deleted.');
       await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entry could not be deleted.');
     },
   });
   const updateNote = api.childNotes.update.useMutation({
     onSuccess: async () => {
       setNoteDraft(null);
+      showSuccessToast('Note updated.');
       await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Note could not be updated.');
     },
   });
   const deleteNote = api.childNotes.delete.useMutation({
     onSuccess: async () => {
       setNoteDelete(null);
+      showSuccessToast('Note deleted.');
       await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Note could not be deleted.');
     },
   });
   const updatePace = api.pace.updateRecord.useMutation({
     onSuccess: async () => {
       setPaceDraft(null);
+      showSuccessToast('PACE test updated.');
       await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'PACE test could not be updated.');
     },
   });
   const deletePace = api.pace.deleteRecord.useMutation({
     onSuccess: async () => {
       setPaceDelete(null);
+      showSuccessToast('PACE test deleted.');
       await utils.childLog.drillThrough.invalidate({ studentId });
+    },
+    onError: (error) => {
+      showErrorToast(error, 'PACE test could not be deleted.');
     },
   });
   const data = drillThroughQuery.data;
@@ -615,23 +640,31 @@ export function StudentDrillThroughContent({
   async function submitBehaviourCorrection(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!behaviourDraft) return;
-    await updateBehaviour.mutateAsync({
-      id: behaviourDraft.id,
-      category: behaviourDraft.category,
-      note: behaviourDraft.note.trim() ? behaviourDraft.note : null,
-      visibility: behaviourDraft.visibility,
-      ...(behaviourDraft.type !== 'General' ? { amount: Number(behaviourDraft.amount) } : {}),
-    });
+    try {
+      await updateBehaviour.mutateAsync({
+        id: behaviourDraft.id,
+        category: behaviourDraft.category,
+        note: behaviourDraft.note.trim() ? behaviourDraft.note : null,
+        visibility: behaviourDraft.visibility,
+        ...(behaviourDraft.type !== 'General' ? { amount: Number(behaviourDraft.amount) } : {}),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function submitNoteCorrection(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!noteDraft) return;
-    await updateNote.mutateAsync({
-      id: noteDraft.id,
-      note: noteDraft.note,
-      sensitive: noteDraft.sensitive,
-    });
+    try {
+      await updateNote.mutateAsync({
+        id: noteDraft.id,
+        note: noteDraft.note,
+        sensitive: noteDraft.sensitive,
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function savePaceCorrection(input: {
@@ -642,14 +675,18 @@ export function StudentDrillThroughContent({
     startedAt: string;
     subjectId: string;
   }): Promise<void> {
-    await updatePace.mutateAsync({
-      completedAt: asDate(input.completedAt),
-      paceNumber: input.paceNumber,
-      recordId: input.recordId,
-      score: input.score,
-      startedAt: asDate(input.startedAt),
-      subjectId: input.subjectId,
-    });
+    try {
+      await updatePace.mutateAsync({
+        completedAt: asDate(input.completedAt),
+        paceNumber: input.paceNumber,
+        recordId: input.recordId,
+        score: input.score,
+        startedAt: asDate(input.startedAt),
+        subjectId: input.subjectId,
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   if (drillThroughQuery.isLoading) {
@@ -659,7 +696,9 @@ export function StudentDrillThroughContent({
   if (drillThroughQuery.error || !data) {
     return (
       <div className="empty-state status--error">
-        {drillThroughQuery.error?.message ?? 'Student record not found'}
+        {drillThroughQuery.error
+          ? friendlyErrorMessage(drillThroughQuery.error)
+          : 'Student record not found'}
       </div>
     );
   }
@@ -706,7 +745,7 @@ export function StudentDrillThroughContent({
       ) : null}
       {behaviourDraft ? (
         <CorrectionModal
-          errorMessage={updateBehaviour.error?.message}
+          errorMessage={updateBehaviour.error ? friendlyErrorMessage(updateBehaviour.error) : undefined}
           onClose={() => {
             if (!updateBehaviour.isPending) setBehaviourDraft(null);
           }}
@@ -797,7 +836,7 @@ export function StudentDrillThroughContent({
       ) : null}
       {noteDraft ? (
         <CorrectionModal
-          errorMessage={updateNote.error?.message}
+          errorMessage={updateNote.error ? friendlyErrorMessage(updateNote.error) : undefined}
           onClose={() => {
             if (!updateNote.isPending) setNoteDraft(null);
           }}
@@ -843,7 +882,7 @@ export function StudentDrillThroughContent({
       ) : null}
       {paceDraft ? (
         <PaceRecordEditModal
-          errorMessage={updatePace.error?.message}
+          errorMessage={updatePace.error ? friendlyErrorMessage(updatePace.error) : undefined}
           onClose={() => {
             if (!updatePace.isPending) setPaceDraft(null);
           }}
@@ -855,12 +894,12 @@ export function StudentDrillThroughContent({
       ) : null}
       <ConfirmationDialog
         confirmLabel="Delete entry"
-        errorMessage={deleteBehaviour.error?.message}
+        errorMessage={deleteBehaviour.error ? friendlyErrorMessage(deleteBehaviour.error) : undefined}
         onCancel={() => {
           if (!deleteBehaviour.isPending) setBehaviourDelete(null);
         }}
         onConfirm={() => {
-          if (behaviourDelete) void deleteBehaviour.mutateAsync({ id: behaviourDelete.id });
+          if (behaviourDelete) deleteBehaviour.mutate({ id: behaviourDelete.id });
         }}
         open={behaviourDelete !== null}
         pending={deleteBehaviour.isPending}
@@ -870,12 +909,12 @@ export function StudentDrillThroughContent({
       </ConfirmationDialog>
       <ConfirmationDialog
         confirmLabel="Delete note"
-        errorMessage={deleteNote.error?.message}
+        errorMessage={deleteNote.error ? friendlyErrorMessage(deleteNote.error) : undefined}
         onCancel={() => {
           if (!deleteNote.isPending) setNoteDelete(null);
         }}
         onConfirm={() => {
-          if (noteDelete) void deleteNote.mutateAsync({ id: noteDelete.id });
+          if (noteDelete) deleteNote.mutate({ id: noteDelete.id });
         }}
         open={noteDelete !== null}
         pending={deleteNote.isPending}
@@ -885,12 +924,12 @@ export function StudentDrillThroughContent({
       </ConfirmationDialog>
       <ConfirmationDialog
         confirmLabel="Delete test"
-        errorMessage={deletePace.error?.message}
+        errorMessage={deletePace.error ? friendlyErrorMessage(deletePace.error) : undefined}
         onCancel={() => {
           if (!deletePace.isPending) setPaceDelete(null);
         }}
         onConfirm={() => {
-          if (paceDelete) void deletePace.mutateAsync({ recordId: paceDelete.id });
+          if (paceDelete) deletePace.mutate({ recordId: paceDelete.id });
         }}
         open={paceDelete !== null}
         pending={deletePace.isPending}

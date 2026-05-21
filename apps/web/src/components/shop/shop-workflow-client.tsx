@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterInputs, type RouterOutputs } from '@/lib/trpc';
 import { downloadCsv } from '@/components/attendance/download-csv';
 import { Badge } from '@/components/ui/badge';
@@ -277,7 +278,6 @@ function ItemEditorModal({
   onCancel,
   onChange,
   onSubmit,
-  status,
 }: {
   editingItemId: string | null;
   error: string | null;
@@ -286,7 +286,6 @@ function ItemEditorModal({
   onCancel: () => void;
   onChange: (next: ItemFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  status: string | null;
 }) {
   const previewItem = previewItemFromForm(form);
 
@@ -479,7 +478,6 @@ function ItemEditorModal({
           </label>
 
           <div aria-live="polite">
-            {status ? <p className="status--success">{status}</p> : null}
             {error ? <p className="status--error">{error}</p> : null}
           </div>
         </div>
@@ -825,7 +823,6 @@ function CounterSalePanel({
   purchasers,
   selectedItem,
   selectedStudent,
-  status,
   validPurchaseUnits,
 }: {
   activeItems: readonly ShopItem[];
@@ -840,7 +837,6 @@ function CounterSalePanel({
   purchasers: readonly ShopPurchaser[];
   selectedItem: ShopItem | null;
   selectedStudent: ShopPurchaser | null;
-  status: string | null;
   validPurchaseUnits: number | null;
 }) {
   return (
@@ -928,7 +924,6 @@ function CounterSalePanel({
           Confirm Sale
         </Button>
         <div aria-live="polite">
-          {status ? <p className="status--success">{status}</p> : null}
           {error ? <p className="status--error">{error}</p> : null}
         </div>
       </form>
@@ -1129,11 +1124,7 @@ export function ShopWorkflowClient({
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [pendingReservationId, setPendingReservationId] = useState<string | null>(null);
   const [itemFormError, setItemFormError] = useState<string | null>(null);
-  const [itemFormStatus, setItemFormStatus] = useState<string | null>(null);
   const [purchaseFormError, setPurchaseFormError] = useState<string | null>(null);
-  const [purchaseFormStatus, setPurchaseFormStatus] = useState<string | null>(null);
-  const [reservationStatus, setReservationStatus] = useState<string | null>(null);
-  const [reservationError, setReservationError] = useState<string | null>(null);
 
   const itemsQuery = api.shop.listItems.useQuery(
     { includeInactive: canManageItems },
@@ -1152,8 +1143,11 @@ export function ShopWorkflowClient({
       setItemForm(emptyItemForm());
       setEditingItemId(null);
       setItemEditorOpen(false);
-      setItemFormStatus('Item created.');
+      showSuccessToast('Item created.');
       await utils.shop.listItems.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Item could not be created.');
     },
   });
   const updateItem = api.shop.updateItem.useMutation({
@@ -1166,21 +1160,25 @@ export function ShopWorkflowClient({
         setEditingItemId(null);
         setItemEditorOpen(false);
       }
-      setItemFormStatus(item.active ? 'Item updated.' : 'Item paused.');
+      showSuccessToast(item.active ? 'Item updated.' : 'Item paused.');
       await utils.shop.listItems.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Item could not be updated.');
     },
   });
   const purchase = api.shop.purchase.useMutation({
     onSuccess: async (result) => {
       setPurchaseForm((current) => ({ ...current, unitsBought: '1' }));
-      setPurchaseFormStatus(
-        `Counter sale recorded for ${formatMerits(result.totalPriceMerits)} merits.`,
-      );
+      showSuccessToast(`Counter sale recorded for ${formatMerits(result.totalPriceMerits)} merits.`);
       await Promise.all([
         utils.shop.listItems.invalidate(),
         utils.shop.listPurchasers.invalidate(),
         utils.shop.listReservations.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Counter sale could not be recorded.');
     },
   });
   const collectReservation = api.shop.collectReservation.useMutation({
@@ -1188,12 +1186,15 @@ export function ShopWorkflowClient({
       setPendingReservationId(null);
     },
     onSuccess: async (reservation) => {
-      setReservationStatus(`Collected reservation for ${reservation.studentName}.`);
+      showSuccessToast(`Collected reservation for ${reservation.studentName}.`);
       await Promise.all([
         utils.shop.listItems.invalidate(),
         utils.shop.listReservations.invalidate(),
         utils.shop.listPurchasers.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Reservation could not be collected.');
     },
   });
   const cancelReservation = api.shop.cancelReservation.useMutation({
@@ -1201,12 +1202,15 @@ export function ShopWorkflowClient({
       setPendingReservationId(null);
     },
     onSuccess: async (reservation) => {
-      setReservationStatus(`Cancelled reservation for ${reservation.studentName}.`);
+      showSuccessToast(`Cancelled reservation for ${reservation.studentName}.`);
       await Promise.all([
         utils.shop.listItems.invalidate(),
         utils.shop.listReservations.invalidate(),
         utils.shop.listPurchasers.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Reservation could not be cancelled.');
     },
   });
 
@@ -1254,7 +1258,6 @@ export function ShopWorkflowClient({
     setItemForm(formFromItem(item));
     setItemEditorOpen(true);
     setItemFormError(null);
-    setItemFormStatus(null);
   }
 
   function beginCreateItem(): void {
@@ -1262,7 +1265,6 @@ export function ShopWorkflowClient({
     setItemForm(emptyItemForm());
     setItemEditorOpen(true);
     setItemFormError(null);
-    setItemFormStatus(null);
   }
 
   function cancelEdit(): void {
@@ -1274,7 +1276,6 @@ export function ShopWorkflowClient({
 
   async function submitItem(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    setItemFormStatus(null);
     setItemFormError(null);
 
     const payload = buildItemPayload(itemForm);
@@ -1303,26 +1304,23 @@ export function ShopWorkflowClient({
         await updateItem.mutateAsync({ id: createdItem.id, active: false });
       }
     } catch {
-      // React Query exposes the mutation error below the form.
+      // The mutation error is shown in a toast and inline below the form.
     }
   }
 
   function toggleItemActive(item: ShopItem): void {
-    setItemFormStatus(null);
     setItemFormError(null);
     setPendingItemId(item.id);
     updateItem.mutate({ id: item.id, active: !item.active });
   }
 
   function changeItemStock(item: ShopItem, nextStockCount: number): void {
-    setItemFormStatus(null);
     setItemFormError(null);
     setPendingItemId(item.id);
     updateItem.mutate({ id: item.id, stockCount: Math.max(0, nextStockCount) });
   }
 
   function changeItemPrice(item: ShopItem, nextPriceExVat: number): void {
-    setItemFormStatus(null);
     setItemFormError(null);
     setPendingItemId(item.id);
     updateItem.mutate({ id: item.id, priceExVat: Math.max(0, nextPriceExVat) });
@@ -1334,7 +1332,6 @@ export function ShopWorkflowClient({
 
   async function submitPurchase(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    setPurchaseFormStatus(null);
     setPurchaseFormError(null);
 
     if (purchaseWarning) {
@@ -1350,20 +1347,16 @@ export function ShopWorkflowClient({
         unitsBought: validPurchaseUnits,
       });
     } catch {
-      // React Query exposes the mutation error below the form.
+      // The mutation error is shown in a toast and inline below the form.
     }
   }
 
   function collect(reservation: ShopReservation): void {
-    setReservationStatus(null);
-    setReservationError(null);
     setPendingReservationId(reservation.id);
     collectReservation.mutate({ reservationId: reservation.id });
   }
 
   function cancel(reservation: ShopReservation): void {
-    setReservationStatus(null);
-    setReservationError(null);
     setPendingReservationId(reservation.id);
     cancelReservation.mutate({ reservationId: reservation.id });
   }
@@ -1371,7 +1364,14 @@ export function ShopWorkflowClient({
   const counterSale = (
     <CounterSalePanel
       activeItems={activeItems}
-      error={purchaseFormError ?? purchase.error?.message ?? purchasersQuery.error?.message ?? null}
+      error={
+        purchaseFormError ??
+        (purchase.error
+          ? friendlyErrorMessage(purchase.error)
+          : purchasersQuery.error
+            ? friendlyErrorMessage(purchasersQuery.error)
+            : null)
+      }
       form={purchaseForm}
       loading={purchaseQueriesLoading}
       onChange={setPurchaseForm}
@@ -1384,7 +1384,6 @@ export function ShopWorkflowClient({
       purchasers={purchasers}
       selectedItem={selectedItem}
       selectedStudent={selectedStudent}
-      status={purchaseFormStatus}
       validPurchaseUnits={validPurchaseUnits}
     />
   );
@@ -1423,7 +1422,7 @@ export function ShopWorkflowClient({
       {itemEditorOpen && canManageItems ? (
         <ItemEditorModal
           editingItemId={editingItemId}
-          error={itemFormError ?? itemMutationError?.message ?? null}
+          error={itemFormError ?? (itemMutationError ? friendlyErrorMessage(itemMutationError) : null)}
           form={itemForm}
           mutationPending={itemMutationPending}
           onCancel={cancelEdit}
@@ -1431,7 +1430,6 @@ export function ShopWorkflowClient({
           onSubmit={(event) => {
             void submitItem(event);
           }}
-          status={itemFormStatus}
         />
       ) : null}
 
@@ -1457,14 +1455,14 @@ export function ShopWorkflowClient({
         ))}
       </div>
 
-      {itemsQuery.error ? <p className="status--error">{itemsQuery.error.message}</p> : null}
-      {reservationsQuery.error ? (
-        <p className="status--error">{reservationsQuery.error.message}</p>
+      {itemsQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(itemsQuery.error)}</p>
       ) : null}
-      {reservationStatus ? <p className="status--success">{reservationStatus}</p> : null}
-      {reservationError ? <p className="status--error">{reservationError}</p> : null}
+      {reservationsQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(reservationsQuery.error)}</p>
+      ) : null}
       {reservationMutationError ? (
-        <p className="status--error">{reservationMutationError.message}</p>
+        <p className="status--error">{friendlyErrorMessage(reservationMutationError)}</p>
       ) : null}
 
       {tab === 'catalogue' ? (

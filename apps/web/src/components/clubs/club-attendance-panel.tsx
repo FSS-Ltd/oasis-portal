@@ -7,6 +7,7 @@ import {
   DailyDemeritBadge,
   useDailyDemeritStatusMap,
 } from '@/components/behaviour/daily-demerit-badge';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -43,7 +44,6 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const [pendingAll, setPendingAll] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const date = useMemo(() => new Date(`${selectedDate}T00:00:00.000Z`), [selectedDate]);
   const attendanceQuery = api.club.attendanceForSession.useQuery(
     { clubId: club.id, date },
@@ -64,7 +64,6 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
   );
 
   async function mark(row: ClubAttendanceRow, status: ClubAttendanceStatus) {
-    setStatusMessage(null);
     setPendingStudentId(row.studentId);
     setRowErrors((current) => {
       const { [row.studentId]: _removed, ...next } = current;
@@ -78,21 +77,20 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
         studentId: row.studentId,
         status,
       });
-      setStatusMessage(`${row.studentName} marked ${status.toLowerCase()}.`);
+      showSuccessToast(`${row.studentName} marked ${status.toLowerCase()}.`);
       await utils.club.attendanceForSession.invalidate({ clubId: club.id, date });
     } catch (error) {
       setRowErrors((current) => ({
         ...current,
-        [row.studentId]:
-          error instanceof Error ? error.message : 'Club attendance could not be saved.',
+        [row.studentId]: friendlyErrorMessage(error, 'Club attendance could not be saved.'),
       }));
+      showErrorToast(error, 'Club attendance could not be saved.');
     } finally {
       setPendingStudentId(null);
     }
   }
 
   async function markAllPresent() {
-    setStatusMessage(null);
     setPendingAll(true);
     setRowErrors({});
     try {
@@ -104,12 +102,13 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
           status: 'Present',
         });
       }
-      setStatusMessage('Register saved. All students marked present.');
+      showSuccessToast('Register saved. All students marked present.');
       await utils.club.attendanceForSession.invalidate({ clubId: club.id, date });
     } catch (error) {
       setRowErrors({
-        all: error instanceof Error ? error.message : 'Club attendance could not be saved.',
+        all: friendlyErrorMessage(error, 'Club attendance could not be saved.'),
       });
+      showErrorToast(error, 'Club attendance could not be saved.');
     } finally {
       setPendingAll(false);
     }
@@ -127,7 +126,6 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
             <TextInput
               onChange={(event) => {
                 setSelectedDate(event.target.value);
-                setStatusMessage(null);
               }}
               type="date"
               value={selectedDate}
@@ -170,12 +168,11 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
 
       {attendanceQuery.isLoading ? <div className="empty-state">Loading attendance...</div> : null}
       {attendanceQuery.error ? (
-        <p className="status--error">{attendanceQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(attendanceQuery.error)}</p>
       ) : null}
       {!attendanceQuery.isLoading && rows.length === 0 ? (
         <div className="empty-state">No signed-up students for this club.</div>
       ) : null}
-      {statusMessage ? <p className="status--success">{statusMessage}</p> : null}
       {rowErrors.all ? <p className="status--error">{rowErrors.all}</p> : null}
 
       <div className="club-attendance-list">

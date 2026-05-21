@@ -13,6 +13,7 @@ import {
 } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 
@@ -41,7 +42,11 @@ export function NewStudentForm() {
   const createStudent = api.student.create.useMutation({
     async onSuccess(result) {
       await utils.student.list.invalidate();
+      showSuccessToast('Student created.');
       router.push(`/admin/students/${result.id}`);
+    },
+    onError(error) {
+      showErrorToast(error, 'Student could not be created.');
     },
   });
   const {
@@ -115,7 +120,7 @@ export function NewStudentForm() {
         </Field>
         {createStudent.error ? (
           <p className="status--error" role="alert">
-            {createStudent.error.message}
+            {friendlyErrorMessage(createStudent.error)}
           </p>
         ) : null}
         <div>

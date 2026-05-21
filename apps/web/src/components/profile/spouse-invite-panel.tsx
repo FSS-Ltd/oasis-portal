@@ -7,24 +7,26 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 
 export function SpouseInvitePanel() {
   const utils = api.useUtils();
   const [email, setEmail] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
   const inviteStatus = api.profile.spouseInviteStatus.useQuery(undefined, { retry: false });
   const inviteSpouse = api.profile.inviteSpouse.useMutation({
     async onSuccess() {
       setEmail('');
       setFormError(null);
-      setSent(true);
+      showSuccessToast('Spouse invite sent.');
       await utils.profile.spouseInviteStatus.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Spouse invite could not be sent.');
     },
   });
 
   function sendInvite() {
-    setSent(false);
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
       setFormError('Enter an email address.');
@@ -39,7 +41,9 @@ export function SpouseInvitePanel() {
   }
 
   if (inviteStatus.error) {
-    return <EmptyState detail={inviteStatus.error.message} title="Spouse invite unavailable" />;
+    return (
+      <EmptyState detail={friendlyErrorMessage(inviteStatus.error)} title="Spouse invite unavailable" />
+    );
   }
 
   const status = inviteStatus.data;
@@ -98,9 +102,7 @@ export function SpouseInvitePanel() {
           Send Invite
         </Button>
       </div>
-      {sent ? <p className="status--success">Spouse invite sent.</p> : null}
       {formError ? <p className="status--error">{formError}</p> : null}
-      {inviteSpouse.error ? <p className="status--error">{inviteSpouse.error.message}</p> : null}
     </section>
   );
 }

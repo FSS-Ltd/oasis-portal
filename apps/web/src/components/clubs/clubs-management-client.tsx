@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -29,13 +30,10 @@ export function ClubsManagementClient() {
   const [formClub, setFormClub] = useState<Club | null>(null);
   const [form, setForm] = useState<ClubFormState>(emptyClubForm);
   const [formError, setFormError] = useState<string | null>(null);
-  const [formStatus, setFormStatus] = useState<string | null>(null);
-  const [pageStatus, setPageStatus] = useState<string | null>(null);
   const [pendingActiveId, setPendingActiveId] = useState<string | null>(null);
   const [notificationForm, setNotificationForm] =
     useState<NotificationFormState>(emptyNotificationForm);
   const [notificationError, setNotificationError] = useState<string | null>(null);
-  const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
 
   const clubsQuery = api.club.managementList.useQuery(undefined, { retry: false });
   const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
@@ -76,7 +74,6 @@ export function ClubsManagementClient() {
     setFormClub(null);
     setForm(emptyClubForm());
     setFormError(null);
-    setFormStatus(null);
   }
 
   function beginEdit(club: Club): void {
@@ -84,7 +81,6 @@ export function ClubsManagementClient() {
     setFormClub(club);
     setForm(formFromClub(club));
     setFormError(null);
-    setFormStatus(null);
   }
 
   function closeForm(): void {
@@ -92,12 +88,10 @@ export function ClubsManagementClient() {
     setFormClub(null);
     setForm(emptyClubForm());
     setFormError(null);
-    setFormStatus(null);
   }
 
   async function submitClub(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFormStatus(null);
 
     const payload = buildClubPayload(form);
     if (typeof payload === 'string') {
@@ -111,11 +105,12 @@ export function ClubsManagementClient() {
         ? await updateClub.mutateAsync({ id: formClub.id, ...payload })
         : await createClub.mutateAsync(payload);
       setSelectedClubId(club.id);
-      setPageStatus(formClub ? 'Club updated.' : 'Club created.');
+      showSuccessToast(formClub ? 'Club updated.' : 'Club created.');
       await refreshClubs();
       closeForm();
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Club could not be saved.');
+      setFormError(friendlyErrorMessage(error, 'Club could not be saved.'));
+      showErrorToast(error, 'Club could not be saved.');
     }
   }
 
@@ -123,10 +118,10 @@ export function ClubsManagementClient() {
     setPendingActiveId(club.id);
     try {
       await updateClub.mutateAsync({ id: club.id, active: !club.active });
-      setPageStatus(club.active ? 'Club deactivated.' : 'Club reactivated.');
+      showSuccessToast(club.active ? 'Club deactivated.' : 'Club reactivated.');
       await refreshClubs();
-    } catch {
-      // React Query exposes the mutation error in the detail panel.
+    } catch (error) {
+      showErrorToast(error, 'Club status could not be changed.');
     }
   }
 
@@ -135,13 +130,11 @@ export function ClubsManagementClient() {
     setActiveTab('attendance');
     setNotificationForm(emptyNotificationForm());
     setNotificationError(null);
-    setNotificationStatus(null);
   }
 
   async function submitNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedClub) return;
-    setNotificationStatus(null);
 
     const payload = buildNotificationPayload(selectedClub, notificationForm);
     if (typeof payload === 'string') {
@@ -153,17 +146,24 @@ export function ClubsManagementClient() {
     try {
       const result = await sendNotification.mutateAsync(payload);
       setNotificationForm(emptyNotificationForm());
-      setNotificationStatus(notificationStatusText(result));
+      showSuccessToast(notificationStatusText(result));
       await utils.club.notifications.invalidate({ clubId: selectedClub.id });
-    } catch {
-      // React Query exposes the mutation error in the notices tab.
+    } catch (error) {
+      showErrorToast(error, 'Club notice could not be posted.');
     }
   }
 
   const formModal = formOpen ? (
     <ClubFormModal
       club={formClub}
-      error={formError ?? createClub.error?.message ?? updateClub.error?.message ?? null}
+      error={
+        formError ??
+        (createClub.error
+          ? friendlyErrorMessage(createClub.error)
+          : updateClub.error
+            ? friendlyErrorMessage(updateClub.error)
+            : null)
+      }
       form={form}
       onClose={closeForm}
       onFormChange={setForm}
@@ -171,22 +171,21 @@ export function ClubsManagementClient() {
         void submitClub(event);
       }}
       pending={formPending}
-      status={formStatus}
     />
   ) : null;
 
   if (selectedClub) {
     return (
       <>
-        {pageStatus ? <p className="status--success">{pageStatus}</p> : null}
         <ClubDetail
           activeTab={activeTab}
           club={selectedClub}
           notificationError={notificationError}
           notificationForm={notificationForm}
-          notificationHistoryError={notificationsQuery.error?.message ?? null}
+          notificationHistoryError={
+            notificationsQuery.error ? friendlyErrorMessage(notificationsQuery.error) : null
+          }
           notificationHistoryLoading={notificationsQuery.isLoading}
-          notificationStatus={notificationStatus}
           notifications={notificationsQuery.data ?? []}
           onBack={() => {
             setSelectedClubId(null);
@@ -201,10 +200,12 @@ export function ClubsManagementClient() {
             void toggleClubActive(club);
           }}
           pendingToggle={pendingActiveId === selectedClub.id && updateClub.isPending}
-          rosterError={rosterQuery.error?.message ?? null}
+          rosterError={rosterQuery.error ? friendlyErrorMessage(rosterQuery.error) : null}
           rosterLoading={rosterQuery.isLoading}
           rosterSignups={rosterQuery.data?.signups ?? []}
-          sendNotificationError={sendNotification.error?.message ?? null}
+          sendNotificationError={
+            sendNotification.error ? friendlyErrorMessage(sendNotification.error) : null
+          }
           sendNotificationPending={sendNotification.isPending}
         />
         {formModal}
@@ -229,10 +230,11 @@ export function ClubsManagementClient() {
       </div>
 
       <ClubStats clubs={clubs} />
-      {pageStatus ? <p className="status--success">{pageStatus}</p> : null}
 
       {clubsQuery.isLoading ? <div className="empty-state">Loading clubs...</div> : null}
-      {clubsQuery.error ? <p className="status--error">{clubsQuery.error.message}</p> : null}
+      {clubsQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(clubsQuery.error)}</p>
+      ) : null}
       {!clubsQuery.isLoading && clubs.length === 0 ? (
         <EmptyState
           detail="Create the first club to start assigning students and leads."
@@ -248,7 +250,9 @@ export function ClubsManagementClient() {
       </section>
 
       {formModal}
-      {updateClub.error ? <p className="status--error">{updateClub.error.message}</p> : null}
+      {updateClub.error ? (
+        <p className="status--error">{friendlyErrorMessage(updateClub.error)}</p>
+      ) : null}
     </div>
   );
 }

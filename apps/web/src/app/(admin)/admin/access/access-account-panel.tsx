@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import {
@@ -31,6 +32,10 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
     async onSuccess() {
       await utils.admin.listUserAccounts.invalidate();
       setEditing(false);
+      showSuccessToast('Profile saved.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Profile could not be saved.');
     },
   });
   const updateStatus = api.admin.updateUserAccountStatus.useMutation({
@@ -40,6 +45,10 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
         utils.admin.listUsers.invalidate(),
       ]);
       setStatusAction(null);
+      showSuccessToast('Account status updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Account status could not be updated.');
     },
   });
   const isSelf = account.id === currentUserId;
@@ -178,7 +187,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
             </div>
             {updateProfile.error ? (
               <p className="status--error" role="alert">
-                {updateProfile.error.message}
+                {friendlyErrorMessage(updateProfile.error)}
               </p>
             ) : null}
           </div>
@@ -225,7 +234,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
             ) : null}
             {updateStatus.error ? (
               <p className="status--error" role="alert">
-                {updateStatus.error.message}
+                {friendlyErrorMessage(updateStatus.error)}
               </p>
             ) : null}
           </div>
@@ -233,7 +242,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
       </form>
       <ConfirmationDialog
         confirmLabel={statusAction === 'deactivate' ? 'Deactivate account' : 'Reactivate account'}
-        errorMessage={updateStatus.error?.message}
+        errorMessage={updateStatus.error ? friendlyErrorMessage(updateStatus.error) : undefined}
         onCancel={() => {
           if (!updateStatus.isPending) setStatusAction(null);
         }}

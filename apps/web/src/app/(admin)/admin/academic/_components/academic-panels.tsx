@@ -41,7 +41,6 @@ interface PacePolicyPanelProps {
   policyError?: string | undefined;
   saveError?: string | undefined;
   savePending: boolean;
-  saveSuccess: boolean;
 }
 
 export function PacePolicyPanel({
@@ -51,7 +50,6 @@ export function PacePolicyPanel({
   policyError,
   saveError,
   savePending,
-  saveSuccess,
 }: PacePolicyPanelProps) {
   return (
     <section className="panel settings-wide">
@@ -123,7 +121,6 @@ export function PacePolicyPanel({
               {saveError}
             </p>
           ) : null}
-          {saveSuccess ? <p className="status--success">PACE policy saved</p> : null}
           <div>
             <Button pending={savePending} type="submit">
               <Save aria-hidden="true" size={16} />

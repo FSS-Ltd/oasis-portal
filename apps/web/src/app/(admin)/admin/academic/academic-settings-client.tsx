@@ -4,6 +4,7 @@ import { Save, Trash2 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import type { StandardSchoolYear } from '@oasis/domain';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
@@ -102,51 +103,79 @@ export function AcademicSettingsClient() {
   const createBand = api.admin.createYearGroupBand.useMutation({
     async onSuccess() {
       setBandForm(emptyBandForm);
+      showSuccessToast('Band saved.');
       await utils.admin.listYearGroupBands.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Band could not be saved.');
     },
   });
   const updateBand = api.admin.updateYearGroupBand.useMutation({
     async onSuccess() {
       setEditingBandId(null);
+      showSuccessToast('Band updated.');
       await utils.admin.listYearGroupBands.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Band could not be updated.');
     },
   });
   const deactivateBand = api.admin.deactivateYearGroupBand.useMutation({
     async onSuccess() {
+      showSuccessToast('Band deactivated.');
       await utils.admin.listYearGroupBands.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Band could not be deactivated.');
     },
   });
   const createSubject = api.admin.createSubject.useMutation({
     async onSuccess() {
       setSubjectCode('');
       setSubjectName('');
+      showSuccessToast('Subject saved.');
       await Promise.all([
         utils.admin.listSubjects.invalidate(),
         utils.admin.listActiveSubjects.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Subject could not be saved.');
     },
   });
   const updateSubject = api.admin.updateSubject.useMutation({
     async onSuccess() {
       setEditingSubjectId(null);
       setEditingSubjectName('');
+      showSuccessToast('Subject updated.');
       await Promise.all([
         utils.admin.listSubjects.invalidate(),
         utils.admin.listActiveSubjects.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Subject could not be updated.');
     },
   });
   const deactivateSubject = api.admin.deactivateSubject.useMutation({
     async onSuccess() {
+      showSuccessToast('Subject deactivated.');
       await Promise.all([
         utils.admin.listSubjects.invalidate(),
         utils.admin.listActiveSubjects.invalidate(),
       ]);
     },
+    onError(error) {
+      showErrorToast(error, 'Subject could not be deactivated.');
+    },
   });
   const updatePolicy = api.admin.updatePacePolicy.useMutation({
     async onSuccess() {
+      showSuccessToast('PACE policy saved.');
       await utils.admin.getPacePolicy.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'PACE policy could not be saved.');
     },
   });
 
@@ -240,10 +269,9 @@ export function AcademicSettingsClient() {
             </div>
             {createBand.error ? (
               <p className="status--error" role="alert">
-                {createBand.error.message}
+                {friendlyErrorMessage(createBand.error)}
               </p>
             ) : null}
-            {createBand.isSuccess ? <p className="status--success">Band saved</p> : null}
             <div>
               <Button pending={createBand.isPending} type="submit">
                 <Save aria-hidden="true" size={16} />
@@ -256,7 +284,7 @@ export function AcademicSettingsClient() {
           {bandsQuery.isLoading ? <div className="empty-state">Loading bands...</div> : null}
           {bandsQuery.error ? (
             <p className="status--error" role="alert">
-              {bandsQuery.error.message}
+              {friendlyErrorMessage(bandsQuery.error)}
             </p>
           ) : null}
           <div className="academic-list">
@@ -341,7 +369,7 @@ export function AcademicSettingsClient() {
                       ))}
                     </div>
                     {updateBand.error ? (
-                      <p className="status--error">{updateBand.error.message}</p>
+                      <p className="status--error">{friendlyErrorMessage(updateBand.error)}</p>
                     ) : null}
                     <div className="row-actions">
                       <Button pending={updateBand.isPending} size="sm" type="submit">
@@ -445,10 +473,9 @@ export function AcademicSettingsClient() {
             </div>
             {createSubject.error ? (
               <p className="status--error" role="alert">
-                {createSubject.error.message}
+                {friendlyErrorMessage(createSubject.error)}
               </p>
             ) : null}
-            {createSubject.isSuccess ? <p className="status--success">Subject saved</p> : null}
             <div>
               <Button pending={createSubject.isPending} type="submit">
                 <Save aria-hidden="true" size={16} />
@@ -461,7 +488,7 @@ export function AcademicSettingsClient() {
           {subjectsQuery.isLoading ? <div className="empty-state">Loading subjects...</div> : null}
           {subjectsQuery.error ? (
             <p className="status--error" role="alert">
-              {subjectsQuery.error.message}
+              {friendlyErrorMessage(subjectsQuery.error)}
             </p>
           ) : null}
           <div className="academic-list">
@@ -530,14 +557,10 @@ export function AcademicSettingsClient() {
             ))}
           </div>
           {updateSubject.error ? (
-            <p className="status--error">{updateSubject.error.message}</p>
+            <p className="status--error">{friendlyErrorMessage(updateSubject.error)}</p>
           ) : null}
-          {updateSubject.isSuccess ? <p className="status--success">Subject updated</p> : null}
           {deactivateSubject.error ? (
-            <p className="status--error">{deactivateSubject.error.message}</p>
-          ) : null}
-          {deactivateSubject.isSuccess ? (
-            <p className="status--success">Subject deactivated</p>
+            <p className="status--error">{friendlyErrorMessage(deactivateSubject.error)}</p>
           ) : null}
         </div>
       </section>
@@ -553,10 +576,9 @@ export function AcademicSettingsClient() {
             passThreshold: Number(policyForm.passThreshold),
           });
         }}
-        policyError={policyQuery.error?.message}
-        saveError={updatePolicy.error?.message}
+        policyError={policyQuery.error ? friendlyErrorMessage(policyQuery.error) : undefined}
+        saveError={updatePolicy.error ? friendlyErrorMessage(updatePolicy.error) : undefined}
         savePending={updatePolicy.isPending}
-        saveSuccess={updatePolicy.isSuccess}
       />
     </div>
   );

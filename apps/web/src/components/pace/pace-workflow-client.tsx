@@ -7,6 +7,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { PaceApprovalModal } from './pace-approval-modal';
 import { PaceProgressTable } from './pace-progress-table';
 import { PaceScoreModal } from './pace-score-modal';
@@ -72,7 +73,6 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     record: PaceApprovalRecord;
     subject: PaceSubject;
   } | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const utils = api.useUtils();
 
@@ -90,17 +90,20 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   const subjects = paceQuery.data?.subjects ?? [];
   const recordPace = api.pace.record.useMutation({
     async onSuccess(result) {
-      setStatus(paceRecordStatus(result));
+      showSuccessToast(paceRecordStatus(result));
       setScoreModal(null);
       await Promise.all([
         utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
         utils.pace.roster.invalidate({ date }),
       ]);
     },
+    onError(error) {
+      showErrorToast(error, 'PACE score could not be saved.');
+    },
   });
   const updatePace = api.pace.updateRecord.useMutation({
     async onSuccess(result) {
-      setStatus(paceUpdateStatus(result));
+      showSuccessToast(paceUpdateStatus(result));
       setScoreModal(null);
       const completedDate = asDate(dateInputValue(result.completedAt));
       await Promise.all([
@@ -110,15 +113,21 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
         utils.pace.roster.invalidate({ date: completedDate }),
       ]);
     },
+    onError(error) {
+      showErrorToast(error, 'PACE score could not be updated.');
+    },
   });
   const approveAdvance = api.pace.approveFailedFinalTestAdvance.useMutation({
     async onSuccess(result) {
-      setStatus(`Advance approved. Current PACE is ${String(result.newPaceNumber)}.`);
+      showSuccessToast(`Advance approved. Current PACE is ${String(result.newPaceNumber)}.`);
       setApprovalModal(null);
       await Promise.all([
         utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
         utils.pace.roster.invalidate({ date }),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'PACE advance could not be approved.');
     },
   });
 
@@ -136,7 +145,6 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     setSelectedStudentId(studentId);
     setScoreModal(null);
     setApprovalModal(null);
-    setStatus(null);
   }
 
   async function saveScore(input: {
@@ -149,7 +157,6 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     testType: PaceTestType;
   }): Promise<void> {
     if (!selectedStudentId) return;
-    setStatus(null);
     if (input.recordId) {
       await updatePace.mutateAsync({
         recordId: input.recordId,
@@ -172,7 +179,6 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   }
 
   async function approveFailedFinalTest(input: { notes: string; recordId: string }): Promise<void> {
-    setStatus(null);
     await approveAdvance.mutateAsync(input);
   }
 
@@ -218,7 +224,6 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
               aria-label="PACE roster date"
               onChange={(event) => {
                 setSelectedDate(event.target.value);
-                setStatus(null);
               }}
               type="date"
               value={selectedDate}
@@ -239,7 +244,9 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
         </div>
       </header>
 
-      {rosterQuery.error ? <p className="status--error">{rosterQuery.error.message}</p> : null}
+      {rosterQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(rosterQuery.error)}</p>
+      ) : null}
 
       {!rosterQuery.isLoading && students.length === 0 ? (
         <EmptyState
@@ -288,7 +295,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
 
           <PaceProgressTable
             canManageProgress={canManageProgress}
-            errorMessage={paceQuery.error?.message}
+            errorMessage={paceQuery.error ? friendlyErrorMessage(paceQuery.error) : undefined}
             loading={paceQuery.isLoading}
             onApproveAdvance={(subject, record) => {
               setApprovalModal({ record, subject });
@@ -308,13 +315,17 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
         </>
       ) : null}
 
-      {status ? <p className="status--success">{status}</p> : null}
-
       {canManageProgress && scoreModal && selectedStudent ? (
         <PaceScoreModal
           canEditDate={canEditDate}
           completedDate={roster?.date ?? selectedDate}
-          errorMessage={recordPace.error?.message ?? updatePace.error?.message}
+          errorMessage={
+            recordPace.error
+              ? friendlyErrorMessage(recordPace.error)
+              : updatePace.error
+                ? friendlyErrorMessage(updatePace.error)
+                : undefined
+          }
           initialRecord={scoreModal.mode === 'update' ? scoreModal.record : undefined}
           initialTestType={scoreModal.mode === 'create' ? scoreModal.initialTestType : undefined}
           mode={scoreModal.mode}
@@ -331,7 +342,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
       ) : null}
       {canManageProgress && approvalModal ? (
         <PaceApprovalModal
-          errorMessage={approveAdvance.error?.message}
+          errorMessage={approveAdvance.error ? friendlyErrorMessage(approveAdvance.error) : undefined}
           onClose={() => {
             if (!approveAdvance.isPending) setApprovalModal(null);
           }}

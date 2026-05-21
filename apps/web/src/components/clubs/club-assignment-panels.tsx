@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { CheckCircle2, UserRound, XCircle } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +31,6 @@ export function StudentAssignmentPanel({ club }: { club: ManagedClub }) {
   const utils = api.useUtils();
   const [search, setSearch] = useState('');
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const candidatesQuery = api.club.studentCandidates.useQuery(
     { clubId: club.id },
@@ -53,30 +53,30 @@ export function StudentAssignmentPanel({ club }: { club: ManagedClub }) {
   }
 
   async function assignStudent(candidate: StudentCandidate) {
-    setStatus(null);
     setError(null);
     setPendingStudentId(candidate.id);
     try {
       await signUp.mutateAsync({ clubId: club.id, studentId: candidate.id });
-      setStatus(`${candidate.fullName} assigned to ${club.name}.`);
+      showSuccessToast(`${candidate.fullName} assigned to ${club.name}.`);
       await refreshAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Student assignment failed.');
+      setError(friendlyErrorMessage(err, 'Student assignment failed.'));
+      showErrorToast(err, 'Student assignment failed.');
     } finally {
       setPendingStudentId(null);
     }
   }
 
   async function removeStudent(candidate: StudentCandidate) {
-    setStatus(null);
     setError(null);
     setPendingStudentId(candidate.id);
     try {
       await withdraw.mutateAsync({ clubId: club.id, studentId: candidate.id });
-      setStatus(`${candidate.fullName} removed from ${club.name}.`);
+      showSuccessToast(`${candidate.fullName} removed from ${club.name}.`);
       await refreshAssignments();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Student removal failed.');
+      setError(friendlyErrorMessage(err, 'Student removal failed.'));
+      showErrorToast(err, 'Student removal failed.');
     } finally {
       setPendingStudentId(null);
     }
@@ -103,7 +103,7 @@ export function StudentAssignmentPanel({ club }: { club: ManagedClub }) {
 
       {candidatesQuery.isLoading ? <div className="empty-state">Loading students...</div> : null}
       {candidatesQuery.error ? (
-        <p className="status--error">{candidatesQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(candidatesQuery.error)}</p>
       ) : null}
       {!candidatesQuery.isLoading && candidates.length === 0 ? (
         <EmptyState detail="No active students match this search." title="No students found" />
@@ -156,7 +156,6 @@ export function StudentAssignmentPanel({ club }: { club: ManagedClub }) {
           );
         })}
       </div>
-      {status ? <p className="status--success">{status}</p> : null}
       {error ? <p className="status--error">{error}</p> : null}
     </section>
   );
@@ -166,7 +165,6 @@ export function LeadAssignmentPanel({ club }: { club: ManagedClub }) {
   const utils = api.useUtils();
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(() => new Set());
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const candidatesQuery = api.club.leadCandidates.useQuery({ clubId: club.id }, { retry: false });
   const setAssignments = api.club.setLeadAssignments.useMutation();
@@ -191,7 +189,6 @@ export function LeadAssignmentPanel({ club }: { club: ManagedClub }) {
   }
 
   async function updateLead(candidate: LeadCandidate, selected: boolean) {
-    setStatus(null);
     setError(null);
     setPendingUserId(candidate.id);
 
@@ -208,14 +205,15 @@ export function LeadAssignmentPanel({ club }: { club: ManagedClub }) {
         userIds: [...next],
       });
       setSelectedUserIds(next);
-      setStatus(
+      showSuccessToast(
         selected
           ? `${candidate.fullName} assigned to ${club.name}.`
           : `${candidate.fullName} removed from ${club.name}.`,
       );
       await refreshLeads();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Club lead assignment failed.');
+      setError(friendlyErrorMessage(err, 'Club lead assignment failed.'));
+      showErrorToast(err, 'Club lead assignment failed.');
     } finally {
       setPendingUserId(null);
     }
@@ -259,7 +257,7 @@ export function LeadAssignmentPanel({ club }: { club: ManagedClub }) {
 
       {candidatesQuery.isLoading ? <div className="empty-state">Loading club leads...</div> : null}
       {candidatesQuery.error ? (
-        <p className="status--error">{candidatesQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(candidatesQuery.error)}</p>
       ) : null}
       {!candidatesQuery.isLoading && candidates.length === 0 ? (
         <EmptyState
@@ -331,10 +329,9 @@ export function LeadAssignmentPanel({ club }: { club: ManagedClub }) {
         })}
       </div>
 
-      {status ? <p className="status--success">{status}</p> : null}
       {error ? <p className="status--error">{error}</p> : null}
       {setAssignments.error ? (
-        <p className="status--error">{setAssignments.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(setAssignments.error)}</p>
       ) : null}
     </section>
   );

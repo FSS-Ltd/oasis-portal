@@ -7,7 +7,7 @@ export async function POST(req: Request): Promise<Response> {
     const formData = await req.formData();
     const file = formData.get('file');
     if (!(file instanceof File)) {
-      return Response.json({ error: 'invoice PDF file is required' }, { status: 400 });
+      return Response.json({ error: 'Choose a PDF invoice before uploading.' }, { status: 400 });
     }
 
     const bytes = Buffer.from(await file.arrayBuffer());

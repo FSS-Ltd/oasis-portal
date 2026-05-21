@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Save, Trash2, UsersRound, X } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
@@ -113,7 +114,6 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   const [shiftForm, setShiftForm] = useState<ShiftForm>(() =>
     emptyShiftForm(club, dateKey(initialWeek)),
   );
-  const [status, setStatus] = useState<string | null>(null);
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
@@ -174,14 +174,16 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
   }
 
   async function saveParticipants() {
-    setStatus(null);
-    await setParticipants.mutateAsync({ clubId: club.id, userIds: [...selectedUserIds] });
-    setStatus('Rota access saved.');
-    await refreshRota();
+    try {
+      await setParticipants.mutateAsync({ clubId: club.id, userIds: [...selectedUserIds] });
+      showSuccessToast('Rota access saved.');
+      await refreshRota();
+    } catch (error) {
+      showErrorToast(error, 'Rota access could not be saved.');
+    }
   }
 
   async function saveShift() {
-    setStatus(null);
     const payload = {
       clubId: club.id,
       participantUserId: shiftForm.participantUserId,
@@ -190,24 +192,31 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
       endsAt: asDateTime(shiftForm.date, shiftForm.endsAt),
       notes: shiftForm.notes || undefined,
     };
-    if (shiftForm.id) {
-      await updateShift.mutateAsync({ id: shiftForm.id, ...payload });
-      setStatus('Club cover updated.');
-    } else {
-      await createShift.mutateAsync(payload);
-      setStatus('Club cover scheduled.');
+    try {
+      if (shiftForm.id) {
+        await updateShift.mutateAsync({ id: shiftForm.id, ...payload });
+        showSuccessToast('Club cover updated.');
+      } else {
+        await createShift.mutateAsync(payload);
+        showSuccessToast('Club cover scheduled.');
+      }
+      setShiftForm(emptyShiftForm(club, shiftForm.date));
+      await refreshRota();
+    } catch (error) {
+      showErrorToast(error, 'Club cover could not be saved.');
     }
-    setShiftForm(emptyShiftForm(club, shiftForm.date));
-    await refreshRota();
   }
 
   async function removeShift() {
     if (!shiftForm.id) return;
-    setStatus(null);
-    await deleteShift.mutateAsync({ id: shiftForm.id });
-    setStatus('Club cover removed.');
-    setShiftForm(emptyShiftForm(club, shiftForm.date));
-    await refreshRota();
+    try {
+      await deleteShift.mutateAsync({ id: shiftForm.id });
+      showSuccessToast('Club cover removed.');
+      setShiftForm(emptyShiftForm(club, shiftForm.date));
+      await refreshRota();
+    } catch (error) {
+      showErrorToast(error, 'Club cover could not be removed.');
+    }
   }
 
   return (
@@ -241,7 +250,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
           </div>
           {candidatesQuery.isLoading ? <div className="empty-state">Loading people...</div> : null}
           {candidatesQuery.error ? (
-            <p className="status--error">{candidatesQuery.error.message}</p>
+            <p className="status--error">{friendlyErrorMessage(candidatesQuery.error)}</p>
           ) : null}
           <CandidatePicker
             candidates={candidates}
@@ -403,7 +412,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
         </div>
         {scheduleQuery.isLoading ? <div className="empty-state">Loading club rota...</div> : null}
         {scheduleQuery.error ? (
-          <p className="status--error">{scheduleQuery.error.message}</p>
+          <p className="status--error">{friendlyErrorMessage(scheduleQuery.error)}</p>
         ) : null}
         <div className="rota-week-grid club-rota-week-grid">
           {weekDays.map((day) => {
@@ -443,8 +452,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
         </div>
       </section>
 
-      {status ? <p className="status--success">{status}</p> : null}
-      {mutationError ? <p className="status--error">{mutationError.message}</p> : null}
+      {mutationError ? <p className="status--error">{friendlyErrorMessage(mutationError)}</p> : null}
     </section>
   );
 }

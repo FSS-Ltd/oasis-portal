@@ -12,6 +12,7 @@ import {
   type StandardSchoolYear,
 } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { deriveSchoolYearFromDateInput } from '@/lib/school-year-form';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
@@ -63,10 +64,14 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
         utils.student.byId.invalidate({ id: studentId }),
         utils.student.list.invalidate(),
       ]);
+      showSuccessToast('Student saved.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Student could not be saved.');
     },
   });
   const updateStudentStatus = api.student.update.useMutation({
-    async onSuccess() {
+    async onSuccess(_, variables) {
       await Promise.all([
         utils.student.byId.invalidate({ id: studentId }),
         utils.student.list.invalidate(),
@@ -74,16 +79,28 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
         utils.childLog.drillThrough.invalidate({ studentId }),
       ]);
       setStatusAction(null);
+      showSuccessToast(variables.active ? 'Student restored.' : 'Student archived.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Student status could not be updated.');
     },
   });
   const assignSubject = api.student.assignSubject.useMutation({
     async onSuccess() {
       await utils.student.byId.invalidate({ id: studentId });
+      showSuccessToast('Subject assignment updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Subject assignment could not be updated.');
     },
   });
   const setCurrentPace = api.student.setCurrentPace.useMutation({
     async onSuccess() {
       await utils.student.byId.invalidate({ id: studentId });
+      showSuccessToast('Current PACE updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Current PACE could not be updated.');
     },
   });
   const unassignSubject = api.student.unassignSubject.useMutation({
@@ -93,9 +110,21 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
         utils.childLog.drillThrough.invalidate({ studentId }),
       ]);
       setSubjectToUnassign(null);
+      showSuccessToast('Subject unassigned.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Subject could not be unassigned.');
     },
   });
-  const linkGuardian = api.admin.linkGuardian.useMutation();
+  const linkGuardian = api.admin.linkGuardian.useMutation({
+    async onSuccess(result) {
+      await utils.student.byId.invalidate({ id: studentId });
+      showSuccessToast(result.created ? 'Guardian linked.' : 'Guardian already linked.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Guardian could not be linked.');
+    },
+  });
   const [subjectId, setSubjectId] = useState('');
   const [paceNumber, setPaceNumber] = useState('1001');
   const [paceDrafts, setPaceDrafts] = useState<Record<string, string>>({});
@@ -169,7 +198,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
   if (studentQuery.error || !studentQuery.data) {
     return (
       <div className="empty-state status--error">
-        {studentQuery.error?.message ?? 'Student not found'}
+        {studentQuery.error ? friendlyErrorMessage(studentQuery.error) : 'Student not found'}
       </div>
     );
   }
@@ -216,7 +245,6 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
               <div className="panel__body form-grid">
                 <div className="section-title">
                   <h2>Student details</h2>
-                  {updateStudent.isSuccess ? <span className="status--success">Saved</span> : null}
                 </div>
                 <div className="form-grid form-grid--two">
                   <Field error={errors.fullName?.message} label="Full name">
@@ -244,7 +272,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                 </Field>
                 {updateStudent.error ? (
                   <p className="status--error" role="alert">
-                    {updateStudent.error.message}
+                    {friendlyErrorMessage(updateStudent.error)}
                   </p>
                 ) : null}
                 <div>
@@ -340,10 +368,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                   </div>
                 ) : null}
                 {setCurrentPace.error ? (
-                  <p className="status--error">{setCurrentPace.error.message}</p>
-                ) : null}
-                {setCurrentPace.isSuccess ? (
-                  <p className="status--success">Current PACE updated</p>
+                  <p className="status--error">{friendlyErrorMessage(setCurrentPace.error)}</p>
                 ) : null}
                 <div className="divider" />
                 <form
@@ -384,10 +409,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                     />
                   </Field>
                   {assignSubject.error ? (
-                    <p className="status--error">{assignSubject.error.message}</p>
-                  ) : null}
-                  {assignSubject.isSuccess ? (
-                    <p className="status--success">Subject assignment updated</p>
+                    <p className="status--error">{friendlyErrorMessage(assignSubject.error)}</p>
                   ) : null}
                   <Button pending={assignSubject.isPending} type="submit">
                     Assign subject
@@ -426,7 +448,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                   </Button>
                 </form>
                 {guardianLookup.error ? (
-                  <p className="status--error">{guardianLookup.error.message}</p>
+                  <p className="status--error">{friendlyErrorMessage(guardianLookup.error)}</p>
                 ) : null}
                 {guardianRows.length > 0 ? (
                   <form
@@ -454,12 +476,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                       </SelectInput>
                     </Field>
                     {linkGuardian.error ? (
-                      <p className="status--error">{linkGuardian.error.message}</p>
-                    ) : null}
-                    {linkGuardian.isSuccess ? (
-                      <p className="status--success">
-                        {linkGuardian.data.created ? 'Guardian linked' : 'Guardian already linked'}
-                      </p>
+                      <p className="status--error">{friendlyErrorMessage(linkGuardian.error)}</p>
                     ) : null}
                     <Button pending={linkGuardian.isPending} type="submit">
                       <Link2 aria-hidden="true" size={16} />
@@ -522,7 +539,9 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       </div>
       <ConfirmationDialog
         confirmLabel={statusAction === 'archive' ? 'Archive student' : 'Restore student'}
-        errorMessage={updateStudentStatus.error?.message}
+        errorMessage={
+          updateStudentStatus.error ? friendlyErrorMessage(updateStudentStatus.error) : undefined
+        }
         onCancel={() => {
           if (!updateStudentStatus.isPending) setStatusAction(null);
         }}
@@ -547,7 +566,7 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       </ConfirmationDialog>
       <ConfirmationDialog
         confirmLabel="Unassign subject"
-        errorMessage={unassignSubject.error?.message}
+        errorMessage={unassignSubject.error ? friendlyErrorMessage(unassignSubject.error) : undefined}
         onCancel={() => {
           if (!unassignSubject.isPending) setSubjectToUnassign(null);
         }}

@@ -5,6 +5,7 @@ import { Plus, Save, Trash2 } from 'lucide-react';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 
 const weekdays = [
   { value: 0, label: 'Sunday' },
@@ -48,15 +49,17 @@ function fromTimeValue(value: string): number {
 export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvailabilityEditorProps) {
   const utils = api.useUtils();
   const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
-  const [availabilityStatus, setAvailabilityStatus] = useState<string | null>(null);
   const availabilityQuery = api.rota.myAvailability.useQuery(undefined, { retry: false });
   const saveAvailability = api.rota.setMyAvailability.useMutation({
     onSuccess: async () => {
-      setAvailabilityStatus('Availability saved.');
+      showSuccessToast('Availability saved.');
       await Promise.all([
         utils.rota.myAvailability.invalidate(),
         utils.rota.staffAvailability.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Availability could not be saved.');
     },
   });
 
@@ -93,7 +96,7 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
         <div className="empty-state">Loading availability...</div>
       ) : null}
       {availabilityQuery.error ? (
-        <p className="status--error">{availabilityQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(availabilityQuery.error)}</p>
       ) : null}
 
       <div className="availability-editor">
@@ -174,7 +177,6 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
       <Button
         className="supervisor-submit"
         onClick={() => {
-          setAvailabilityStatus(null);
           saveAvailability.mutate({
             windows: availabilityDraft.map(({ dayOfWeek, startMinute, endMinute }) => ({
               dayOfWeek,
@@ -189,10 +191,6 @@ export function MyAvailabilityEditor({ title = 'Weekly availability' }: MyAvaila
         <Save aria-hidden="true" size={16} />
         Save availability
       </Button>
-      {availabilityStatus ? <p className="status--success">{availabilityStatus}</p> : null}
-      {saveAvailability.error ? (
-        <p className="status--error">{saveAvailability.error.message}</p>
-      ) : null}
     </section>
   );
 }

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
 import { hasClerkPublishableKey } from './(auth)/clerk-config';
 import { TrpcProvider } from '@/components/providers/trpc-provider';
+import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 
 export const metadata = {
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <html lang="en">
         <body>
           <TrpcProvider>{children}</TrpcProvider>
+          <Toaster />
         </body>
       </html>
     );
@@ -29,6 +31,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <html lang="en">
         <body>
           <TrpcProvider>{children}</TrpcProvider>
+          <Toaster />
         </body>
       </html>
     </ClerkProvider>

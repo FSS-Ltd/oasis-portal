@@ -15,7 +15,6 @@ export function ClubFormModal({
   onFormChange,
   onSubmit,
   pending,
-  status,
 }: {
   club: Club | null;
   error: string | null;
@@ -24,7 +23,6 @@ export function ClubFormModal({
   onFormChange: (form: ClubFormState) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   pending: boolean;
-  status: string | null;
 }) {
   const visual = clubVisual({
     accentColor: form.accentColor,
@@ -208,7 +206,6 @@ export function ClubFormModal({
               Cancel
             </Button>
           </div>
-          {status ? <p className="status--success">{status}</p> : null}
           {error ? <p className="status--error">{error}</p> : null}
         </form>
       </section>

@@ -6,6 +6,7 @@ import { Check, CheckCircle2, Send } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 
 type Notice = RouterOutputs['notice']['listForAdmin'][number];
 type NoticeAudience = Notice['audience'];
@@ -164,7 +165,6 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
   const [audience, setAudience] = useState<NoticeAudience>('Supervisors');
   const [expiresAt, setExpiresAt] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const [formStatus, setFormStatus] = useState<string | null>(null);
   const [pendingReadId, setPendingReadId] = useState<string | null>(null);
 
   const copy = pageCopy[mode];
@@ -194,14 +194,20 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
       setAudience('Supervisors');
       setExpiresAt('');
       setFormError(null);
-      setFormStatus('Notice posted.');
+      showSuccessToast('Notice posted.');
       await utils.notice.listForAdmin.invalidate();
       await utils.notice.listForStaff.invalidate();
       await utils.notice.listForParents.invalidate();
       router.refresh();
     },
+    onError(error) {
+      showErrorToast(error, 'Notice could not be posted.');
+    },
   });
   const markRead = api.notice.markRead.useMutation({
+    onError(error) {
+      showErrorToast(error, 'Notice could not be marked as read.');
+    },
     onSettled: () => {
       setPendingReadId(null);
     },
@@ -221,7 +227,6 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
 
-    setFormStatus(null);
     if (!trimmedTitle || !trimmedBody) {
       setFormError('Title and message are required.');
       return;
@@ -242,7 +247,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
         ...(expiry ? { expiresAt: expiry } : {}),
       });
     } catch {
-      // The mutation error is rendered from React Query state below the form.
+      // The mutation error is shown by the notification layer.
     }
   }
 
@@ -335,11 +340,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
                 <Send aria-hidden="true" size={16} />
                 Post to Noticeboard
               </Button>
-              {formStatus ? <p className="status--success">{formStatus}</p> : null}
               {formError ? <p className="status--error">{formError}</p> : null}
-              {postNotice.error ? (
-                <p className="status--error">{postNotice.error.message}</p>
-              ) : null}
             </form>
           </section>
         ) : null}
@@ -358,9 +359,8 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
 
           {noticesQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
           {noticesQuery.error ? (
-            <p className="status--error">{noticesQuery.error.message}</p>
+            <p className="status--error">{friendlyErrorMessage(noticesQuery.error)}</p>
           ) : null}
-          {markRead.error ? <p className="status--error">{markRead.error.message}</p> : null}
           {!noticesQuery.isLoading && notices.length === 0 ? (
             <div className="empty-state">{copy.empty}</div>
           ) : null}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CheckCircle2, Search, ShoppingCart } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -126,7 +127,6 @@ export function ParentShopClient() {
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('All');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const children = dashboard.data?.children ?? [];
@@ -141,7 +141,7 @@ export function ParentShopClient() {
     onSuccess: async (reservation) => {
       setCart([]);
       setLocalError(null);
-      setStatusMessage(
+      showSuccessToast(
         `${firstName(reservation.studentName)} has ${formatMerits(
           reservation.totalPriceMerits,
         )} merits on hold for pickup.`,
@@ -152,6 +152,9 @@ export function ParentShopClient() {
         utils.meritLedger.balances.invalidate(),
         utils.childLog.parentDashboard.invalidate(),
       ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Reservation could not be created.');
     },
   });
 
@@ -187,7 +190,6 @@ export function ParentShopClient() {
   );
 
   function addToCart(item: ShopItem): void {
-    setStatusMessage(null);
     setLocalError(null);
     if (item.stockStatus === 'OutOfStock') {
       setLocalError(`${item.name} is out of stock.`);
@@ -215,7 +217,6 @@ export function ParentShopClient() {
   }
 
   async function reserveCart(): Promise<void> {
-    setStatusMessage(null);
     setLocalError(null);
     if (!selectedChildId) {
       setLocalError('Select a child before reserving.');
@@ -234,7 +235,7 @@ export function ParentShopClient() {
         })),
       });
     } catch {
-      // Mutation errors are rendered below the cart.
+      // The mutation error is shown in a toast and inline below the cart.
     }
   }
 
@@ -263,7 +264,6 @@ export function ParentShopClient() {
                 onChange={(event) => {
                   setSelectedStudentId(event.target.value);
                   setCart([]);
-                  setStatusMessage(null);
                   setLocalError(null);
                 }}
                 value={selectedChildId}
@@ -328,8 +328,12 @@ export function ParentShopClient() {
             Merit shop catalogue
           </h2>
           {itemsQuery.isLoading ? <div className="empty-state">Loading shop items...</div> : null}
-          {itemsQuery.error ? <p className="status--error">{itemsQuery.error.message}</p> : null}
-          {dashboard.error ? <p className="status--error">{dashboard.error.message}</p> : null}
+          {itemsQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(itemsQuery.error)}</p>
+          ) : null}
+          {dashboard.error ? (
+            <p className="status--error">{friendlyErrorMessage(dashboard.error)}</p>
+          ) : null}
           {!itemsQuery.isLoading && visibleItems.length === 0 ? (
             <div className="empty-state">No shop items match this view.</div>
           ) : null}
@@ -417,10 +421,13 @@ export function ParentShopClient() {
             Merits are held immediately, then moved to Given when the shopkeeper marks pickup
             collected.
           </p>
-          {statusMessage ? <p className="status--success">{statusMessage}</p> : null}
           {localError ? <p className="status--error">{localError}</p> : null}
-          {reserve.error ? <p className="status--error">{reserve.error.message}</p> : null}
-          {balancesQuery.error ? <p className="status--error">{balancesQuery.error.message}</p> : null}
+          {reserve.error ? (
+            <p className="status--error">{friendlyErrorMessage(reserve.error)}</p>
+          ) : null}
+          {balancesQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(balancesQuery.error)}</p>
+          ) : null}
         </aside>
       </div>
     </div>

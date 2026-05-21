@@ -3,6 +3,7 @@
 import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import { ShieldCheck } from 'lucide-react';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { permissionTagLabel } from '@/lib/profile-display';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -25,6 +26,10 @@ export function UserTagManager() {
   const updateTags = api.admin.updateUserTags.useMutation({
     onSuccess: async () => {
       await utils.admin.listUsers.invalidate();
+      showSuccessToast('Permission tags updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Permission tags could not be updated.');
     },
   });
   const users = usersQuery.data ?? [];
@@ -89,7 +94,7 @@ export function UserTagManager() {
               title="No active users found"
             />
           }
-          errorMessage={usersQuery.error?.message}
+          errorMessage={usersQuery.error ? friendlyErrorMessage(usersQuery.error) : undefined}
           getRowKey={(user) => user.id}
           loading={usersQuery.isLoading}
           loadingLabel="Loading users..."
@@ -99,7 +104,7 @@ export function UserTagManager() {
       </div>
       {updateTags.error ? (
         <p className="status--error" role="alert">
-          {updateTags.error.message}
+          {friendlyErrorMessage(updateTags.error)}
         </p>
       ) : null}
     </section>

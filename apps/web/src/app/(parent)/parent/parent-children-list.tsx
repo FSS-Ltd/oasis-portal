@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -98,7 +99,7 @@ export function ParentChildrenList({ variant = 'parent' }: ParentChildrenListPro
       <DataTable
         columns={linkedChildColumns(config.routePrefix)}
         empty={<EmptyState detail={config.emptyDetail} title="No linked children found" />}
-        errorMessage={childrenQuery.error?.message}
+        errorMessage={childrenQuery.error ? friendlyErrorMessage(childrenQuery.error) : undefined}
         getRowKey={(student) => student.id}
         loading={childrenQuery.isLoading}
         loadingLabel="Loading linked children..."

@@ -13,6 +13,7 @@ import {
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { SupervisorDashboardOverview } from './_components/supervisor-dashboard-overview';
 import {
   addDays,
@@ -77,8 +78,6 @@ export function SupervisorDashboardClient({
     note: '',
     amount: '1',
   });
-  const [swapStatus, setSwapStatus] = useState<string | null>(null);
-  const [behaviourStatus, setBehaviourStatus] = useState<string | null>(null);
 
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const weekStart = useMemo(() => mondayFor(date), [date]);
@@ -132,17 +131,20 @@ export function SupervisorDashboardClient({
 
   const requestSwap = api.rota.requestSwap.useMutation({
     onSuccess: async () => {
-      setSwapStatus('Shift swap request sent for Head review.');
+      showSuccessToast('Shift swap request sent for Head review.');
       setSwapForm({ fromShiftId: '', toShiftId: '' });
       await Promise.all([
         utils.rota.myRota.invalidate({ from: weekStart, to: weekEnd }),
         utils.rota.swapCandidates.invalidate({ from: weekStart, to: weekEnd }),
       ]);
     },
+    onError: (error) => {
+      showErrorToast(error, 'Shift swap request could not be sent.');
+    },
   });
   const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      setBehaviourStatus(
+      showSuccessToast(
         input.type === 'General'
           ? input.visibility === 'General'
             ? `Parent-visible general mark saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
@@ -170,10 +172,13 @@ export function SupervisorDashboardClient({
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour could not be saved.');
+    },
   });
   const logManyBehaviour = api.behaviour.logManyForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      setBehaviourStatus(
+      showSuccessToast(
         `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
       );
       setBatchEntries([newBatchEntry()]);
@@ -188,6 +193,9 @@ export function SupervisorDashboardClient({
         utils.behaviour.dailyDemeritStatuses.invalidate({ date }),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entries could not be saved.');
     },
   });
 
@@ -252,39 +260,44 @@ export function SupervisorDashboardClient({
 
   function handleStudentChange(studentIds: readonly string[]): void {
     setSelectedStudentIds(studentIds.filter((studentId) => rosterStudentIds.includes(studentId)));
-    setBehaviourStatus(null);
   }
 
   async function submitBehaviour(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (selectedStudentIds.length === 0) return;
 
-    setBehaviourStatus(null);
-    await logBehaviour.mutateAsync({
-      studentIds: selectedStudentIds,
-      type: behaviourForm.type,
-      visibility: behaviourForm.visibility,
-      category: behaviourForm.category,
-      note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
-      ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
-    });
+    try {
+      await logBehaviour.mutateAsync({
+        studentIds: selectedStudentIds,
+        type: behaviourForm.type,
+        visibility: behaviourForm.visibility,
+        category: behaviourForm.category,
+        note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
+        ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function submitBatchBehaviour(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (selectedStudentIds.length === 0) return;
 
-    setBehaviourStatus(null);
-    await logManyBehaviour.mutateAsync({
-      studentIds: selectedStudentIds,
-      type: batchType,
-      entries: batchEntries.map((entry) => ({
-        category: entry.category,
-        note: entry.note.trim() ? entry.note : undefined,
-        count: Number(entry.count),
-        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
-      })),
-    });
+    try {
+      await logManyBehaviour.mutateAsync({
+        studentIds: selectedStudentIds,
+        type: batchType,
+        entries: batchEntries.map((entry) => ({
+          category: entry.category,
+          note: entry.note.trim() ? entry.note : undefined,
+          count: Number(entry.count),
+          ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+        })),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   function setBatchEntry(id: string, patch: Partial<Omit<BatchEntryForm, 'id'>>): void {
@@ -297,18 +310,28 @@ export function SupervisorDashboardClient({
     return (
       <SupervisorDashboardOverview
         absentCount={absentCount}
-        attendanceError={attendanceRosterQuery.error?.message}
+        attendanceError={
+          attendanceRosterQuery.error ? friendlyErrorMessage(attendanceRosterQuery.error) : undefined
+        }
         dashboardActivity={dashboardActivity}
-        dashboardActivityError={dashboardActivityQuery.error?.message}
+        dashboardActivityError={
+          dashboardActivityQuery.error
+            ? friendlyErrorMessage(dashboardActivityQuery.error)
+            : undefined
+        }
         dashboardActivityLoading={dashboardActivityQuery.isLoading}
         dashboardMessages={dashboardMessages}
         dashboardNotices={dashboardNotices}
-        dashboardNoticesError={noticesQuery.error?.message}
+        dashboardNoticesError={
+          noticesQuery.error ? friendlyErrorMessage(noticesQuery.error) : undefined
+        }
         dashboardNoticesLoading={noticesQuery.isLoading}
         date={date}
         lateCount={lateCount}
         mySwapRequests={mySwapRequests}
-        mySwapRequestsError={mySwapRequestsQuery.error?.message}
+        mySwapRequestsError={
+          mySwapRequestsQuery.error ? friendlyErrorMessage(mySwapRequestsQuery.error) : undefined
+        }
         mySwapRequestsLoading={mySwapRequestsQuery.isLoading}
         onTimeCount={onTimeCount}
         openItems={openItems}
@@ -317,7 +340,7 @@ export function SupervisorDashboardClient({
         unreadNotices={unreadNotices}
         weekDays={weekDays}
         weekEnd={weekEnd}
-        weekRotaError={weekRotaQuery.error?.message}
+        weekRotaError={weekRotaQuery.error ? friendlyErrorMessage(weekRotaQuery.error) : undefined}
         weekShifts={weekShifts}
         weekStart={weekStart}
       />
@@ -385,19 +408,18 @@ export function SupervisorDashboardClient({
               ) : null}
             </div>
             {attendanceRosterQuery.error ? (
-              <p className="status--error">{attendanceRosterQuery.error.message}</p>
+              <p className="status--error">{friendlyErrorMessage(attendanceRosterQuery.error)}</p>
             ) : null}
 
             <div className="supervisor-workflow-grid">
               <div className="form-grid">
                 <div className="form-grid form-grid--two">
                   <Field label="Entry mode">
-                    <SelectInput
-                      aria-label="Behaviour entry mode"
-                      onChange={(event) => {
-                        setEntryMode(event.target.value as EntryMode);
-                        setBehaviourStatus(null);
-                      }}
+                        <SelectInput
+                          aria-label="Behaviour entry mode"
+                          onChange={(event) => {
+                            setEntryMode(event.target.value as EntryMode);
+                          }}
                       value={entryMode}
                     >
                       <option value="single">Single</option>
@@ -522,7 +544,7 @@ export function SupervisorDashboardClient({
                         : 'Save behaviour'}
                     </Button>
                     {logBehaviour.error ? (
-                      <p className="status--error">{logBehaviour.error.message}</p>
+                      <p className="status--error">{friendlyErrorMessage(logBehaviour.error)}</p>
                     ) : null}
                   </form>
                 ) : (
@@ -633,11 +655,10 @@ export function SupervisorDashboardClient({
                       Save {String(batchEntryCount * Math.max(selectedStudentCount, 1))} entries
                     </Button>
                     {logManyBehaviour.error ? (
-                      <p className="status--error">{logManyBehaviour.error.message}</p>
+                      <p className="status--error">{friendlyErrorMessage(logManyBehaviour.error)}</p>
                     ) : null}
                   </form>
                 )}
-                {behaviourStatus ? <p className="status--success">{behaviourStatus}</p> : null}
               </div>
 
               <div className="activity-list" aria-label="Student behaviour activity">
@@ -646,7 +667,7 @@ export function SupervisorDashboardClient({
                   <div className="empty-state">Loading behaviour...</div>
                 ) : null}
                 {behaviourQuery.error ? (
-                  <p className="status--error">{behaviourQuery.error.message}</p>
+                  <p className="status--error">{friendlyErrorMessage(behaviourQuery.error)}</p>
                 ) : null}
                 {!behaviourQuery.isLoading &&
                 selectedStudentIds.length > 0 &&
@@ -704,7 +725,7 @@ export function SupervisorDashboardClient({
                   <div className="empty-state">Loading today&apos;s rota...</div>
                 ) : null}
                 {todayRotaQuery.error ? (
-                  <p className="status--error">{todayRotaQuery.error.message}</p>
+                  <p className="status--error">{friendlyErrorMessage(todayRotaQuery.error)}</p>
                 ) : null}
                 {!todayRotaQuery.isLoading && todayShifts.length === 0 ? (
                   <div className="empty-state">No shift scheduled for today.</div>
@@ -733,7 +754,7 @@ export function SupervisorDashboardClient({
                   <div className="empty-state">Loading team rota...</div>
                 ) : null}
                 {teamScheduleQuery.error ? (
-                  <p className="status--error">{teamScheduleQuery.error.message}</p>
+                  <p className="status--error">{friendlyErrorMessage(teamScheduleQuery.error)}</p>
                 ) : null}
                 {!teamScheduleQuery.isLoading && teamShifts.length === 0 ? (
                   <div className="empty-state">No team shifts scheduled this week.</div>
@@ -806,7 +827,7 @@ export function SupervisorDashboardClient({
             </div>
 
             {swapCandidatesQuery.error ? (
-              <p className="status--error">{swapCandidatesQuery.error.message}</p>
+              <p className="status--error">{friendlyErrorMessage(swapCandidatesQuery.error)}</p>
             ) : null}
             {!swapCandidatesQuery.isLoading && swapCandidates.length === 0 ? (
               <p className="muted">No other supervisor shifts are available in this week.</p>
@@ -816,7 +837,6 @@ export function SupervisorDashboardClient({
               className="supervisor-submit"
               disabled={!swapForm.fromShiftId || !swapForm.toShiftId}
               onClick={() => {
-                setSwapStatus(null);
                 requestSwap.mutate(swapForm);
               }}
               pending={requestSwap.isPending}
@@ -825,9 +845,8 @@ export function SupervisorDashboardClient({
               <Send aria-hidden="true" size={16} />
               Send request
             </Button>
-            {swapStatus ? <p className="status--success">{swapStatus}</p> : null}
             {requestSwap.error ? (
-              <p className="status--error">{requestSwap.error.message}</p>
+              <p className="status--error">{friendlyErrorMessage(requestSwap.error)}</p>
             ) : null}
           </section>
         </aside>
