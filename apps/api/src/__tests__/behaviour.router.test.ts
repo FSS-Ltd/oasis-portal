@@ -1082,6 +1082,49 @@ describe('behaviour.log', () => {
     expect(ledger).toEqual([]);
   });
 
+  it('requires a demerit note when the next demerit reaches Stage 3', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+    try {
+      const { db, behaviour } = makeFakeDb();
+      const caller = makeCaller(headUser, db);
+
+      for (const category of ['Conduct', 'Diligence', 'Respect', 'Property']) {
+        await caller.behaviour.log({
+          studentId: activeStudentId,
+          type: 'Demerit',
+          category,
+          visibility: 'General',
+        });
+      }
+
+      await expect(
+        caller.behaviour.log({
+          studentId: activeStudentId,
+          type: 'Demerit',
+          category: 'Conduct',
+          visibility: 'General',
+        }),
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'demerit note is required for Stage 3 - Privileges',
+      });
+
+      await expect(
+        caller.behaviour.log({
+          studentId: activeStudentId,
+          type: 'Demerit',
+          category: 'Conduct',
+          note: 'Escalated after repeated disruption',
+          visibility: 'General',
+        }),
+      ).resolves.toMatchObject({ category: 'Conduct', type: 'Demerit' });
+      expect(behaviour).toHaveLength(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('creates one Merit, Demerit, or General entry for each selected student', async () => {
     const { db, behaviour, ledger } = makeFakeDb();
     const caller = makeCaller(headUser, db);
@@ -1128,6 +1171,38 @@ describe('behaviour.log', () => {
     ]);
   });
 
+  it('requires a demerit note when any selected student would move past Stage 2', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+    try {
+      const { db } = makeFakeDb();
+      const caller = makeCaller(headUser, db);
+
+      for (const category of ['Conduct', 'Diligence', 'Respect', 'Property']) {
+        await caller.behaviour.log({
+          studentId: activeStudentId,
+          type: 'Demerit',
+          category,
+          visibility: 'General',
+        });
+      }
+
+      await expect(
+        caller.behaviour.logForStudents({
+          studentIds: [activeStudentId, secondaryStudentId],
+          type: 'Demerit',
+          category: 'Conduct',
+          visibility: 'General',
+        }),
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'demerit note is required for Stage 3 - Privileges',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('creates batch Merit or Demerit rows for each selected student', async () => {
     const { db, behaviour, ledger } = makeFakeDb();
 
@@ -1146,6 +1221,36 @@ describe('behaviour.log', () => {
     expect(ledger).toHaveLength(6);
     expect(ledger.filter((row) => row.studentId === activeStudentId)).toHaveLength(3);
     expect(ledger.filter((row) => row.studentId === secondaryStudentId)).toHaveLength(3);
+  });
+
+  it('requires notes for batch demerits that move a student past Stage 2', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-29T12:00:00.000Z'));
+    try {
+      const { db } = makeFakeDb();
+      const caller = makeCaller(headUser, db);
+
+      await expect(
+        caller.behaviour.logMany({
+          studentId: activeStudentId,
+          type: 'Demerit',
+          entries: [{ category: 'Conduct', count: 5 }],
+        }),
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'demerit note is required for Stage 3 - Privileges',
+      });
+
+      const result = await caller.behaviour.logMany({
+        studentId: activeStudentId,
+        type: 'Demerit',
+        entries: [{ category: 'Conduct', count: 5, note: 'Repeated disruption' }],
+      });
+      expect(result.entries).toHaveLength(5);
+      expect(result.entries.every((entry) => entry.type === 'Demerit')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('rejects multi-student batches that would create more than 50 total rows', async () => {
@@ -1830,6 +1935,47 @@ describe('behaviour.dailyDemeritStatuses', () => {
       stage: 2,
       badgeTone: 'amber',
       requiresHeadReview: false,
+    });
+  });
+
+  it('uses the UK calendar day for daily reset boundaries', async () => {
+    const { behaviour, db } = makeFakeDb();
+    behaviour.push(
+      {
+        id: 'ckbehaviourlocalday0001',
+        studentId: activeStudentId,
+        type: 'Demerit',
+        category: 'Conduct',
+        noteEnc: null,
+        visibility: 'General',
+        meritDelta: -1,
+        recordedById: headUser.id,
+        deletedAt: null,
+        deletedById: null,
+        createdAt: new Date('2026-04-29T23:30:00.000Z'),
+      },
+      {
+        id: 'ckbehaviourpreviousday1',
+        studentId: activeStudentId,
+        type: 'Demerit',
+        category: 'Conduct',
+        noteEnc: null,
+        visibility: 'General',
+        meritDelta: -1,
+        recordedById: headUser.id,
+        deletedAt: null,
+        deletedById: null,
+        createdAt: new Date('2026-04-29T22:30:00.000Z'),
+      },
+    );
+
+    const result = await makeCaller(headUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-30T12:00:00.000Z'),
+    });
+
+    expect(result.statuses.find((status) => status.studentId === activeStudentId)).toMatchObject({
+      demeritUnits: 1,
+      stage: 1,
     });
   });
 

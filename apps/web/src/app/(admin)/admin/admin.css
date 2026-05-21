@@ -7068,6 +7068,44 @@ button.club-assignment-row {
   font-weight: 700;
 }
 
+.behaviour-stage-preview {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(91, 144, 197, 0.22);
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.behaviour-stage-preview.is-escalation {
+  border-color: rgba(146, 64, 14, 0.28);
+  background: var(--oasis-warning-bg);
+}
+
+.behaviour-stage-preview span,
+.behaviour-stage-preview small,
+.behaviour-stage-preview em {
+  margin: 0;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 750;
+}
+
+.behaviour-stage-preview span,
+.behaviour-stage-preview small {
+  color: var(--oasis-text-secondary);
+}
+
+.behaviour-stage-preview strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.behaviour-stage-preview em {
+  color: var(--oasis-warning);
+}
+
 .behaviour-recent-panel {
   display: grid;
   gap: 12px;
@@ -8119,6 +8157,107 @@ button.club-assignment-row {
 
 .snapshot-behaviour-row time {
   color: var(--oasis-text-muted);
+  font-size: 0.78rem;
+}
+
+.discipline-tab-panel,
+.discipline-demerit-list {
+  display: grid;
+  gap: 12px;
+}
+
+.discipline-stage-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-left: 4px solid var(--oasis-success);
+}
+
+.discipline-stage-card.is-blue {
+  border-left-color: var(--oasis-blue);
+}
+
+.discipline-stage-card.is-amber {
+  border-left-color: var(--oasis-warning);
+}
+
+.discipline-stage-card.is-red {
+  border-left-color: var(--oasis-danger);
+}
+
+.discipline-stage-card__icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.discipline-stage-card.is-amber .discipline-stage-card__icon {
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+}
+
+.discipline-stage-card.is-red .discipline-stage-card__icon {
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.discipline-stage-card h3,
+.discipline-stage-card p,
+.discipline-stage-card span,
+.discipline-demerit-list h3 {
+  margin: 0;
+}
+
+.discipline-stage-card h3 {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+}
+
+.discipline-stage-card p,
+.discipline-stage-card span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+}
+
+.discipline-demerit-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  padding: 12px 0;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.discipline-demerit-row > span {
+  display: grid;
+  min-width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+  font-weight: 850;
+}
+
+.discipline-demerit-row div div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.discipline-demerit-row p {
+  margin: 8px 0;
+  color: var(--oasis-text);
+  line-height: 1.55;
+}
+
+.discipline-demerit-row small,
+.discipline-demerit-row time {
+  color: var(--oasis-text-secondary);
   font-size: 0.78rem;
 }
 

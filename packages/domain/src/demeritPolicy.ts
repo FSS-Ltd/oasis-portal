@@ -26,6 +26,13 @@ export interface DemeritPolicyStatus {
   stageLabel: string;
 }
 
+export interface DemeritPolicyTransition {
+  escalated: boolean;
+  nextStatus: DemeritPolicyStatus;
+  noteRequired: boolean;
+  previousStatus: DemeritPolicyStatus;
+}
+
 const STAGE_LABELS = {
   0: 'No demerits',
   1: 'Stage 1 - Reminder',
@@ -104,6 +111,22 @@ export function demeritPolicyStageLabel(stage: DemeritPolicyStage): string {
   return STAGE_LABELS[stage];
 }
 
+export function demeritPolicyTransitionForEntries(
+  currentEntries: readonly DemeritPolicyEntry[],
+  proposedEntries: readonly DemeritPolicyEntry[],
+): DemeritPolicyTransition {
+  const previousStatus = demeritPolicyStatusForEntries(currentEntries);
+  const nextStatus = demeritPolicyStatusForEntries([...currentEntries, ...proposedEntries]);
+
+  return {
+    escalated: nextStatus.stage > previousStatus.stage,
+    nextStatus,
+    noteRequired:
+      proposedEntries.some((entry) => entry.type === 'Demerit') && nextStatus.stage >= 3,
+    previousStatus,
+  };
+}
+
 export function demeritPolicyEscalationEntryIds(
   entries: readonly DemeritPolicyDatedEntry[],
 ): Set<string> {
@@ -128,10 +151,7 @@ export function demeritPolicyEscalationEntryIds(
 
     for (const row of sortedRows) {
       const seriousMisconduct = isSeriousMisconductCategory(row.category);
-      const previousStage = demeritPolicyStageForUnits(
-        previousUnits,
-        previousHasSeriousMisconduct,
-      );
+      const previousStage = demeritPolicyStageForUnits(previousUnits, previousHasSeriousMisconduct);
       const nextUnits = previousUnits + demeritPolicyUnitsForEntry(row);
       const nextHasSeriousMisconduct: boolean = previousHasSeriousMisconduct || seriousMisconduct;
       const nextStage = demeritPolicyStageForUnits(nextUnits, nextHasSeriousMisconduct);

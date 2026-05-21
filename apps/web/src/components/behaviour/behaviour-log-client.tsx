@@ -15,6 +15,11 @@ import {
   meritCategories,
   type BehaviourType,
 } from '@/components/behaviour/behaviour-categories';
+import {
+  DemeritStagePreviewPanel,
+  previewBatchDemeritStage,
+  previewSingleDemeritStage,
+} from '@/components/behaviour/demerit-stage-preview';
 
 type BatchBehaviourType = Exclude<BehaviourType, 'General'>;
 type BehaviourVisibility = 'General' | 'Sensitive';
@@ -216,6 +221,20 @@ export function BehaviourLogClient({
   );
   const selectedStudentCount = studentIds.length;
   const batchEntryCount = totalBatchEntries(batchEntries);
+  const singleDemeritPreview = useMemo(
+    () =>
+      type === 'Demerit'
+        ? previewSingleDemeritStage(studentIds, demeritStatusQuery.statusByStudentId, category)
+        : null,
+    [category, demeritStatusQuery.statusByStudentId, studentIds, type],
+  );
+  const batchDemeritPreview = useMemo(
+    () =>
+      batchType === 'Demerit'
+        ? previewBatchDemeritStage(studentIds, demeritStatusQuery.statusByStudentId, batchEntries)
+        : null,
+    [batchEntries, batchType, demeritStatusQuery.statusByStudentId, studentIds],
+  );
 
   useEffect(() => {
     const firstStudent = studentsQuery.data?.[0];
@@ -416,11 +435,14 @@ export function BehaviourLogClient({
                     setNote(event.target.value);
                   }}
                   placeholder="Describe the behaviour..."
-                  required={type === 'General'}
+                  required={type === 'General' || Boolean(singleDemeritPreview?.noteRequired)}
                   rows={4}
                   value={note}
                 />
               </Field>
+              {type === 'Demerit' ? (
+                <DemeritStagePreviewPanel preview={singleDemeritPreview} />
+              ) : null}
 
               <Field label="Visibility">
                 <div aria-label="Visibility" className="behaviour-visibility-toggle" role="group">
@@ -591,6 +613,7 @@ export function BehaviourLogClient({
                       onChange={(event) => {
                         setBatchEntry(entry.id, { note: event.target.value });
                       }}
+                      required={Boolean(batchDemeritPreview?.noteRequired)}
                       rows={3}
                       value={entry.note}
                     />
@@ -622,6 +645,9 @@ export function BehaviourLogClient({
                 <Plus aria-hidden="true" size={16} />
                 Add entry
               </Button>
+              {batchType === 'Demerit' ? (
+                <DemeritStagePreviewPanel preview={batchDemeritPreview} />
+              ) : null}
               <Button
                 disabled={!canLogBehaviour || selectedStudentCount === 0}
                 pending={logManyBehaviour.isPending}
