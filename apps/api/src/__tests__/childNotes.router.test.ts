@@ -1470,12 +1470,11 @@ describe('childLog.snapshot', () => {
     ).resolves.toMatchObject({ id: 'behaviour_policy_7', kind: 'mark' });
 
     const reviewedQueue = await makeCaller(headUser, db).childLog.sensitiveReviewQueue();
-    expect(
-      reviewedQueue.find((item) => item.kind === 'mark' && item.id === 'behaviour_policy_7'),
-    ).toMatchObject({
-      seenAt: expect.any(Date),
-      headComment: 'Seen by Head.',
-    });
+    const reviewedEscalation = reviewedQueue.find(
+      (item) => item.kind === 'mark' && item.id === 'behaviour_policy_7',
+    );
+    expect(reviewedEscalation?.seenAt).toBeInstanceOf(Date);
+    expect(reviewedEscalation?.headComment).toBe('Seen by Head.');
     expect(
       reviewedQueue
         .filter(
