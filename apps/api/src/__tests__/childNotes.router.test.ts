@@ -1342,6 +1342,95 @@ describe('childLog.snapshot', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('returns a parent-safe daily discipline tracker that resets by the current day', async () => {
+    const { behaviourEntries, db } = makeFakeDb();
+    behaviourEntries.push(
+      {
+        id: 'behaviour_today_1',
+        studentId: 'student_1',
+        type: 'Demerit',
+        category: 'Conduct',
+        visibility: 'General',
+        meritDelta: -1,
+        recordedById: supervisorUser.id,
+        createdAt: day('2026-04-30'),
+        deletedAt: null,
+        headCommentEnc: null,
+        noteEnc: 'enc:Talking during study time',
+        recordedBy: {
+          id: supervisorUser.id,
+          fullNameEnc: 'enc:Supervisor User',
+          role: 'Supervisor',
+        },
+        seenAt: null,
+        seenBy: null,
+        seenById: null,
+        student: undefined,
+      },
+      {
+        id: 'behaviour_today_2',
+        studentId: 'student_1',
+        type: 'Demerit',
+        category: 'Honesty',
+        visibility: 'General',
+        meritDelta: -2,
+        recordedById: supervisorUser.id,
+        createdAt: day('2026-04-30'),
+        deletedAt: null,
+        headCommentEnc: null,
+        noteEnc: 'enc:Misleading answer corrected',
+        recordedBy: {
+          id: supervisorUser.id,
+          fullNameEnc: 'enc:Supervisor User',
+          role: 'Supervisor',
+        },
+        seenAt: null,
+        seenBy: null,
+        seenById: null,
+        student: undefined,
+      },
+      {
+        id: 'behaviour_today_sensitive',
+        studentId: 'student_1',
+        type: 'Demerit',
+        category: 'Pastoral',
+        visibility: 'Sensitive',
+        meritDelta: -1,
+        recordedById: headUser.id,
+        createdAt: day('2026-04-30'),
+        deletedAt: null,
+        headCommentEnc: null,
+        noteEnc: 'enc:Parent-hidden context',
+        recordedBy: { id: headUser.id, fullNameEnc: 'enc:Head User', role: 'Head' },
+        seenAt: null,
+        seenBy: null,
+        seenById: null,
+        student: undefined,
+      },
+    );
+
+    const parentView = await makeCaller(parentUser, db).childLog.drillThrough({
+      studentId: 'student_1',
+    });
+
+    expect(parentView.discipline).toMatchObject({
+      date: '2026-04-30',
+      status: {
+        demeritUnits: 3,
+        stage: 2,
+        stageLabel: 'Stage 2 - Reflection',
+      },
+    });
+    expect(parentView.discipline.demerits).toEqual([
+      expect.objectContaining({ id: 'behaviour_today_1', note: 'Talking during study time' }),
+      expect.objectContaining({ id: 'behaviour_today_2', note: 'Misleading answer corrected' }),
+    ]);
+    expect(parentView.discipline.demerits.map((entry) => entry.id)).not.toContain(
+      'behaviour_today_sensitive',
+    );
+    expect(parentView.discipline.demerits.map((entry) => entry.id)).not.toContain('behaviour_2');
+  });
+
   it('lets Head review supervisor sensitive notes and marks with optional comments', async () => {
     const { behaviourEntries, db, notes, students } = makeFakeDb();
     const note = await makeCaller(supervisorUser, db).childNotes.create({

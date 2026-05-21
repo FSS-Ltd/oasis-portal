@@ -4,6 +4,7 @@ import {
   demeritPolicyEscalationEntryIds,
   demeritPolicyStageForUnits,
   demeritPolicyStatusForEntries,
+  demeritPolicyTransitionForEntries,
   demeritPolicyUnitsFromDelta,
   demeritPolicyUnitsForEntry,
 } from '../demeritPolicy.js';
@@ -80,6 +81,58 @@ describe('demeritPolicyStatusForEntries', () => {
     ).toMatchObject({
       demeritUnits: 3,
       stage: 2,
+    });
+  });
+});
+
+describe('demeritPolicyTransitionForEntries', () => {
+  it('does not require a note while the proposed demerit remains in Stage 2', () => {
+    expect(
+      demeritPolicyTransitionForEntries(
+        [
+          { category: 'Conduct', meritDelta: -1, type: 'Demerit' },
+          { category: 'Diligence', meritDelta: -1, type: 'Demerit' },
+        ],
+        [{ category: 'Respect', meritDelta: -1, type: 'Demerit' }],
+      ),
+    ).toMatchObject({
+      escalated: true,
+      noteRequired: false,
+      previousStatus: { stage: 1 },
+      nextStatus: { stage: 2 },
+    });
+  });
+
+  it('requires a note when the proposed demerit reaches Stage 3', () => {
+    expect(
+      demeritPolicyTransitionForEntries(
+        [
+          { category: 'Conduct', meritDelta: -1, type: 'Demerit' },
+          { category: 'Diligence', meritDelta: -1, type: 'Demerit' },
+          { category: 'Respect', meritDelta: -1, type: 'Demerit' },
+          { category: 'Property', meritDelta: -1, type: 'Demerit' },
+        ],
+        [{ category: 'Conduct', meritDelta: -1, type: 'Demerit' }],
+      ),
+    ).toMatchObject({
+      escalated: true,
+      noteRequired: true,
+      previousStatus: { stage: 2 },
+      nextStatus: { stage: 3 },
+    });
+  });
+
+  it('requires a note when serious misconduct forces Stage 4', () => {
+    expect(
+      demeritPolicyTransitionForEntries(
+        [],
+        [{ category: 'Serious Misconduct', meritDelta: -1, type: 'Demerit' }],
+      ),
+    ).toMatchObject({
+      escalated: true,
+      noteRequired: true,
+      previousStatus: { stage: 0 },
+      nextStatus: { stage: 4 },
     });
   });
 });

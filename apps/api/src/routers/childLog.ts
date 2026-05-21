@@ -8,6 +8,7 @@ import {
   canViewSensitiveChildNotes,
   canViewStudentDrillThrough,
   demeritPolicyEscalationEntryIds,
+  demeritPolicyStatusForEntries,
   isValidTithePercentage,
   isFullAdmin,
   isStaff,
@@ -21,6 +22,7 @@ import {
   studentMatchesDailyScope,
   studentWhereForDailyScope,
 } from '../lib/daily-year-band-scope.js';
+import { localDayBounds } from '../lib/local-day.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -1066,6 +1068,13 @@ export const childLogRouter = router({
       const pacesCompletedThisAcademicYear = paceProgress.length;
       const presentDays = attendance.filter((row) => row.status === 'Present').length;
       const recordedAttendanceDays = attendance.length;
+      const disciplineDay = localDayBounds(new Date());
+      const disciplineDemerits = behaviour.filter(
+        (entry) =>
+          entry.type === 'Demerit' &&
+          entry.createdAt >= disciplineDay.from &&
+          entry.createdAt < disciplineDay.to,
+      );
       const sensitiveBehaviourCount = behaviour.filter(
         (entry) => entry.visibility === 'Sensitive',
       ).length;
@@ -1137,6 +1146,27 @@ export const childLogRouter = router({
           attendanceRate: percentage(presentDays, recordedAttendanceDays),
           presentDays,
           recordedAttendanceDays,
+        },
+        discipline: {
+          date: disciplineDay.key,
+          status: demeritPolicyStatusForEntries(disciplineDemerits),
+          demerits: disciplineDemerits.map((entry) => ({
+            id: entry.id,
+            category: entry.category,
+            note: entry.noteEnc
+              ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
+              : null,
+            visibility: entry.visibility,
+            meritDelta: entry.meritDelta,
+            recordedById: entry.recordedById,
+            recordedByName: decryptRequired(
+              ctx.db.$enc.decrypt,
+              entry.recordedBy.fullNameEnc,
+              'user PII',
+            ),
+            recordedByRole: entry.recordedBy.role,
+            createdAt: entry.createdAt,
+          })),
         },
         attendance: attendance.map((row) => ({
           id: row.id,

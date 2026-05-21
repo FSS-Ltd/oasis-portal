@@ -9,6 +9,7 @@ import {
   canViewBehaviourReports,
   demeritMeritDeltaForCategory,
   demeritPolicyStatusForEntries,
+  demeritPolicyTransitionForEntries,
   isFullAdmin,
   isStaff,
   rowsForDemerit,
@@ -28,6 +29,7 @@ import {
   createResendEmailClient,
   type EmailClient,
 } from '../lib/email.js';
+import { localDayBounds } from '../lib/local-day.js';
 import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -35,6 +37,13 @@ type AuthedContext = AppContext & { user: SessionUser };
 type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BehaviourVisibility = 'General' | 'Sensitive';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
+
+interface ProposedDemeritEntry {
+  category: string;
+  meritDelta: number;
+  note?: string | null | undefined;
+  type: 'Demerit';
+}
 
 export interface BehaviourRouterDeps {
   emailClient?: EmailClient;
@@ -214,6 +223,10 @@ function dayEnd(date: Date): Date {
 
 function dateKey(date: Date): string {
   return normalizeDate(date).toISOString().slice(0, 10);
+}
+
+function isBlankNote(note: string | null | undefined): boolean {
+  return note === undefined || note === null || note.trim() === '';
 }
 
 function trendKey(date: Date, bucket: TrendBucket): string {
@@ -442,6 +455,66 @@ function assertBatchEntryLimit(totalEntries: number): void {
       code: 'BAD_REQUEST',
       message: 'batch cannot create more than 50 entries',
     });
+  }
+}
+
+async function assertDemeritStageNotes(
+  ctx: AuthedContext,
+  input: {
+    date?: Date | undefined;
+    proposedEntries: readonly ProposedDemeritEntry[];
+    studentIds: readonly string[];
+  },
+): Promise<void> {
+  if (input.proposedEntries.length === 0 || input.studentIds.length === 0) return;
+
+  const day = localDayBounds(input.date ?? new Date());
+  const rows = await ctx.withRls((tx) =>
+    tx.behaviourEntry.findMany({
+      where: {
+        type: 'Demerit',
+        studentId: { in: [...input.studentIds] },
+        createdAt: { gte: day.from, lt: day.to },
+        ...visibleBehaviourWhere(ctx.user),
+      },
+      select: {
+        category: true,
+        meritDelta: true,
+        studentId: true,
+        type: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
+  );
+
+  const entriesByStudent = new Map<
+    string,
+    Array<{ category: string; meritDelta: number; type: 'Demerit' }>
+  >();
+  for (const row of rows) {
+    if (row.type !== 'Demerit') continue;
+    entriesByStudent.set(row.studentId, [
+      ...(entriesByStudent.get(row.studentId) ?? []),
+      { category: row.category, meritDelta: row.meritDelta, type: 'Demerit' },
+    ]);
+  }
+
+  for (const studentId of input.studentIds) {
+    const currentEntries = [...(entriesByStudent.get(studentId) ?? [])];
+    for (const entry of input.proposedEntries) {
+      const transition = demeritPolicyTransitionForEntries(currentEntries, [entry]);
+      if (transition.noteRequired && isBlankNote(entry.note)) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `demerit note is required for ${transition.nextStatus.stageLabel}`,
+        });
+      }
+      currentEntries.push({
+        category: entry.category,
+        meritDelta: entry.meritDelta,
+        type: 'Demerit',
+      });
+    }
   }
 }
 
@@ -787,9 +860,8 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       .input(z.object({ date: z.coerce.date() }))
       .query(async ({ ctx, input }) => {
         await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses');
-        const from = normalizeDate(input.date);
-        const to = dayEnd(input.date);
-        const scope = await loadDailyYearBandScope(ctx, from);
+        const day = localDayBounds(input.date);
+        const scope = await loadDailyYearBandScope(ctx, input.date);
         const scopedStudentWhere = canUseClubsLeadPortal(ctx.user)
           ? {
               active: true,
@@ -821,7 +893,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 tx.behaviourEntry.findMany({
                   where: {
                     type: 'Demerit',
-                    createdAt: { gte: from, lt: to },
+                    createdAt: { gte: day.from, lt: day.to },
                     studentId: { in: studentIds },
                     ...visibleBehaviourWhere(ctx.user),
                   },
@@ -849,11 +921,14 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
 
         const entriesByStudent = new Map<string, typeof rows>();
         for (const row of rows) {
-          entriesByStudent.set(row.studentId, [...(entriesByStudent.get(row.studentId) ?? []), row]);
+          entriesByStudent.set(row.studentId, [
+            ...(entriesByStudent.get(row.studentId) ?? []),
+            row,
+          ]);
         }
 
         return {
-          date: dateKey(from),
+          date: day.key,
           statuses: students.map((student) => ({
             studentId: student.id,
             ...demeritPolicyStatusForEntries(entriesByStudent.get(student.id) ?? []),
@@ -1094,6 +1169,13 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           category,
           type: input.type,
         });
+        await assertDemeritStageNotes(ctx, {
+          proposedEntries:
+            input.type === 'Demerit'
+              ? [{ category, meritDelta, note: input.note, type: 'Demerit' }]
+              : [],
+          studentIds: [input.studentId],
+        });
 
         const result = await ctx.withRls(async (tx) => {
           const behaviour = await tx.behaviourEntry.create({
@@ -1221,6 +1303,13 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           amount: input.amount,
           category,
           type: input.type,
+        });
+        await assertDemeritStageNotes(ctx, {
+          proposedEntries:
+            input.type === 'Demerit'
+              ? [{ category, meritDelta, note: input.note, type: 'Demerit' }]
+              : [],
+          studentIds: input.studentIds,
         });
 
         const result = await ctx.withRls(async (tx) => {
@@ -1547,6 +1636,18 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 : demeritMeritDeltaForCategory(entry.category),
           })),
         );
+        await assertDemeritStageNotes(ctx, {
+          proposedEntries:
+            input.type === 'Demerit'
+              ? preparedEntries.map((entry) => ({
+                  category: entry.category,
+                  meritDelta: entry.meritDelta,
+                  note: entry.note,
+                  type: 'Demerit' as const,
+                }))
+              : [],
+          studentIds: [input.studentId],
+        });
 
         const result = await ctx.withRls(async (tx) => {
           const behaviourEntries: Array<{
@@ -1684,6 +1785,18 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 : demeritMeritDeltaForCategory(entry.category),
           })),
         );
+        await assertDemeritStageNotes(ctx, {
+          proposedEntries:
+            input.type === 'Demerit'
+              ? preparedEntries.map((entry) => ({
+                  category: entry.category,
+                  meritDelta: entry.meritDelta,
+                  note: entry.note,
+                  type: 'Demerit' as const,
+                }))
+              : [],
+          studentIds: input.studentIds,
+        });
 
         const result = await ctx.withRls(async (tx) => {
           const behaviourEntries: Array<CreatedBehaviourEntry & { note: string | null }> = [];

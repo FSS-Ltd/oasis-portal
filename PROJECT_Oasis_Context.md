@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-20
+**Last updated:** 2026-05-21
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -22,6 +22,51 @@ raw DB dump cannot re-identify anyone.
 
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
+
+## Current session - 2026-05-21 Discipline stage tracker
+
+Working branch: `feat/discipline-stage-tracker`.
+
+**PR scope:** Add demerit stage escalation awareness to behaviour entry and a
+parent-safe daily discipline tracker in the linked child view.
+
+Completed:
+
+- Added a reusable demerit policy transition helper for previous/next stage,
+  escalation, and Stage 3+ note requirement.
+- Added Europe/London day-boundary helpers for daily demerit status and
+  discipline reset calculations.
+- Enforced demerit notes in behaviour API writes when a single or batch entry
+  would put any affected child on Stage 3 or higher.
+- Added stage previews to the behaviour form for single and batch demerits,
+  including stage-change messaging and required note controls.
+- Added `discipline` data to `childLog.drillThrough` and a Discipline tab in
+  the child drill-through/parent child view showing today’s stage and the
+  demerits contributing to it.
+- Preserved existing Sensitive behaviour visibility boundaries; parent
+  discipline data only uses rows already visible to the parent.
+- Left the pre-existing dirty `design/Oasis Learning Center.zip` change
+  untouched.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- demeritPolicy.test.ts`
+- `pnpm --filter @oasis/api test -- behaviour.router.test.ts childNotes.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- The targeted package test commands currently run the full package suites
+  because of the repo’s Vitest argument handling.
+- API tests pass with the existing invoice PDF standard font warning.
 
 ## Current session - 2026-05-20 Admin clubs UI refresh
 

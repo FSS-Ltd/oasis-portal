@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { ArrowLeft, Edit3, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Edit3, ShieldAlert, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -33,8 +33,16 @@ import { AttendanceCalendar } from './attendance-calendar';
 import { NotesList } from './notes-list';
 
 type DrillThrough = RouterOutputs['childLog']['drillThrough'];
-type DrillThroughTab = 'overview' | 'attendance' | 'behaviour' | 'pace' | 'merits' | 'notes';
+type DrillThroughTab =
+  | 'overview'
+  | 'attendance'
+  | 'behaviour'
+  | 'discipline'
+  | 'pace'
+  | 'merits'
+  | 'notes';
 type BehaviourEntry = DrillThrough['behaviour'][number];
+type DisciplineDemerit = DrillThrough['discipline']['demerits'][number];
 type NoteEntry = DrillThrough['notes'][number];
 type PaceEntry = DrillThrough['pace'][number];
 
@@ -42,6 +50,7 @@ const DRILL_THROUGH_TABS = [
   ['overview', 'Overview'],
   ['attendance', 'Attendance'],
   ['behaviour', 'Behaviour'],
+  ['discipline', 'Discipline'],
   ['pace', 'Pace'],
   ['merits', 'Merits'],
   ['notes', 'Notes'],
@@ -421,6 +430,62 @@ function BehaviourTab({
   );
 }
 
+function DisciplineTab({ data }: { data: DrillThrough }) {
+  const { discipline } = data;
+
+  return (
+    <div className="snapshot-tab-panel discipline-tab-panel">
+      <section
+        className={`panel panel__body discipline-stage-card is-${discipline.status.badgeTone}`}
+      >
+        <div className="discipline-stage-card__icon">
+          <ShieldAlert aria-hidden="true" size={18} />
+        </div>
+        <div>
+          <span>Today · {formatShortDate(discipline.date)}</span>
+          <h3>{discipline.status.stageLabel}</h3>
+          <p>
+            {String(discipline.status.demeritUnits)} demerit{' '}
+            {discipline.status.demeritUnits === 1 ? 'unit' : 'units'} recorded today.
+          </p>
+        </div>
+      </section>
+
+      <section className="panel panel__body discipline-demerit-list">
+        <h3>Demerits contributing to this stage</h3>
+        {discipline.demerits.length === 0 ? (
+          <EmptyCard>No demerits recorded today.</EmptyCard>
+        ) : null}
+        {discipline.demerits.map((entry) => (
+          <DisciplineDemeritRow entry={entry} key={entry.id} />
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function DisciplineDemeritRow({ entry }: { entry: DisciplineDemerit }) {
+  return (
+    <article className="discipline-demerit-row">
+      <span>{behaviourValue({ type: 'Demerit', meritDelta: entry.meritDelta })}</span>
+      <div>
+        <div>
+          <SnapshotBadge tone="red">Demerit</SnapshotBadge>
+          <SnapshotBadge tone="blue">{entry.category}</SnapshotBadge>
+          {entry.visibility === 'Sensitive' ? (
+            <SnapshotBadge tone="amber">Sensitive</SnapshotBadge>
+          ) : null}
+        </div>
+        {entry.note ? <p>{entry.note}</p> : null}
+        <small>
+          Recorded by <strong>{entry.recordedByName}</strong>
+        </small>
+      </div>
+      <time>{formatShortDate(entry.createdAt)}</time>
+    </article>
+  );
+}
+
 function PaceTab({
   canManageCorrections,
   data,
@@ -724,6 +789,7 @@ export function StudentDrillThroughContent({
           onEdit={editBehaviour}
         />
       ) : null}
+      {activeTab === 'discipline' ? <DisciplineTab data={data} /> : null}
       {activeTab === 'pace' ? (
         <PaceTab
           canManageCorrections={canManageCorrections}
@@ -745,7 +811,9 @@ export function StudentDrillThroughContent({
       ) : null}
       {behaviourDraft ? (
         <CorrectionModal
-          errorMessage={updateBehaviour.error ? friendlyErrorMessage(updateBehaviour.error) : undefined}
+          errorMessage={
+            updateBehaviour.error ? friendlyErrorMessage(updateBehaviour.error) : undefined
+          }
           onClose={() => {
             if (!updateBehaviour.isPending) setBehaviourDraft(null);
           }}
@@ -894,7 +962,9 @@ export function StudentDrillThroughContent({
       ) : null}
       <ConfirmationDialog
         confirmLabel="Delete entry"
-        errorMessage={deleteBehaviour.error ? friendlyErrorMessage(deleteBehaviour.error) : undefined}
+        errorMessage={
+          deleteBehaviour.error ? friendlyErrorMessage(deleteBehaviour.error) : undefined
+        }
         onCancel={() => {
           if (!deleteBehaviour.isPending) setBehaviourDelete(null);
         }}
