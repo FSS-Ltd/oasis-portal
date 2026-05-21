@@ -5,6 +5,10 @@ import { Edit3, Trash2, X } from 'lucide-react';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import {
+  DailyDemeritBadge,
+  useDailyDemeritStatusMap,
+} from '@/components/behaviour/daily-demerit-badge';
 import { categoriesFor } from '@/components/behaviour/behaviour-categories';
 import {
   type EditablePaceSubject,
@@ -117,6 +121,11 @@ export function ChildSnapshotClient({
     },
     { enabled: enableCentreOverview && viewMode === 'centre', retry: false },
   );
+  const demeritDate = useMemo(() => new Date(`${to}T00:00:00.000Z`), [to]);
+  const demeritStatusQuery = useDailyDemeritStatusMap(
+    demeritDate,
+    (studentsQuery.data?.length ?? 0) > 0,
+  );
   const utils = api.useUtils();
   const createNote = api.childNotes.create.useMutation({
     onSuccess: async () => {
@@ -134,6 +143,7 @@ export function ChildSnapshotClient({
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
+      await utils.behaviour.dailyDemeritStatuses.invalidate({ date: demeritDate });
     },
   });
   const deleteBehaviour = api.behaviour.deleteEntry.useMutation({
@@ -142,6 +152,7 @@ export function ChildSnapshotClient({
       await utils.childLog.snapshot.invalidate();
       await utils.childLog.centreSnapshot.invalidate();
       await utils.childLog.supervisorNotesHistory.invalidate();
+      await utils.behaviour.dailyDemeritStatuses.invalidate({ date: demeritDate });
     },
   });
   const updateNote = api.childNotes.update.useMutation({
@@ -215,7 +226,7 @@ export function ChildSnapshotClient({
       category: editingBehaviour.category,
       note: editingBehaviour.note.trim() ? editingBehaviour.note : null,
       visibility: editingBehaviour.visibility,
-      ...(editingBehaviour.type !== 'General' ? { amount: Number(editingBehaviour.amount) } : {}),
+      ...(editingBehaviour.type === 'Merit' ? { amount: Number(editingBehaviour.amount) } : {}),
     });
   }
 
@@ -247,7 +258,14 @@ export function ChildSnapshotClient({
     });
   }
 
-  const students = studentsQuery.data ?? [];
+  const students = useMemo(
+    () =>
+      (studentsQuery.data ?? []).map((student) => ({
+        ...student,
+        demeritStatus: demeritStatusQuery.statusByStudentId.get(student.id) ?? null,
+      })),
+    [demeritStatusQuery.statusByStudentId, studentsQuery.data],
+  );
   const selectedStudent = students.find((student) => student.id === selectedStudentId) ?? null;
   const isCentreMode = enableCentreOverview && viewMode === 'centre';
   const snapshot = snapshotQuery.data;
@@ -349,6 +367,7 @@ export function ChildSnapshotClient({
         ) : (
           <SnapshotHeroStudent
             colour={selectedColour}
+            demeritStatus={selectedStudent?.demeritStatus ?? null}
             selectedStudent={selectedStudent}
             snapshotStudent={snapshot?.student}
           />
@@ -469,7 +488,12 @@ export function ChildSnapshotClient({
                       {centreSnapshot.students.map((row) => (
                         <tr key={row.student.id}>
                           <td>
-                            <strong>{row.student.fullName}</strong>
+                            <span className="student-row__text">
+                              <strong>{row.student.fullName}</strong>
+                              <DailyDemeritBadge
+                                status={demeritStatusQuery.statusByStudentId.get(row.student.id)}
+                              />
+                            </span>
                           </td>
                           <td>{row.student.yearGroup}</td>
                           <td>
@@ -893,14 +917,10 @@ export function ChildSnapshotClient({
                 ))}
               </div>
             </Field>
-            {editingBehaviour.type !== 'General' ? (
-              <Field
-                label={editingBehaviour.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}
-              >
+            {editingBehaviour.type === 'Merit' ? (
+              <Field label="Merit amount">
                 <TextInput
-                  aria-label={
-                    editingBehaviour.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
-                  }
+                  aria-label="Merit amount"
                   min={1}
                   onChange={(event) => {
                     setEditingBehaviour((current) =>

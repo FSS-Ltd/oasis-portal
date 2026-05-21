@@ -7,6 +7,7 @@ import {
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
   canViewStudentDrillThrough,
+  demeritPolicyEscalationEntryIds,
   isValidTithePercentage,
   isFullAdmin,
   isStaff,
@@ -46,6 +47,10 @@ const supervisorNotesHistoryMarkInclude = {
   seenBy: { select: { id: true, fullNameEnc: true, role: true } },
   student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
 } satisfies Prisma.BehaviourEntryInclude;
+
+type SensitiveReviewMarkRow = Prisma.BehaviourEntryGetPayload<{
+  include: typeof supervisorNotesHistoryMarkInclude;
+}>;
 
 const listAccessibleStudentsInput = z.object({ linkedOnly: z.boolean().default(false) }).optional();
 
@@ -337,6 +342,35 @@ function visibleBehaviourWhere(user: SessionUser): Prisma.BehaviourEntryWhereInp
     };
   }
   return { deletedAt: null, visibility: 'General' as const };
+}
+
+function sensitiveSupervisorMarkWhere(): Prisma.BehaviourEntryWhereInput {
+  return {
+    visibility: 'Sensitive',
+    recordedBy: { role: { in: ['Supervisor', 'ClubsAdmin'] } },
+  };
+}
+
+function policyEscalationMarkIds(rows: readonly SensitiveReviewMarkRow[]): Set<string> {
+  return demeritPolicyEscalationEntryIds(
+    rows.map((row) => ({
+      category: row.category,
+      createdAt: row.createdAt,
+      id: row.id,
+      meritDelta: row.meritDelta,
+      studentId: row.studentId,
+      type: row.type,
+    })),
+  );
+}
+
+function shouldIncludeSensitiveReviewMark(
+  row: SensitiveReviewMarkRow,
+  escalationIds: ReadonlySet<string>,
+): boolean {
+  const sensitiveSupervisor =
+    row.visibility === 'Sensitive' && ['Supervisor', 'ClubsAdmin'].includes(row.recordedBy.role);
+  return sensitiveSupervisor || escalationIds.has(row.id);
 }
 
 export const childLogRouter = router({
@@ -1424,8 +1458,7 @@ export const childLogRouter = router({
         tx.behaviourEntry.findMany({
           where: {
             ...visibleBehaviourWhere(ctx.user),
-            visibility: 'Sensitive',
-            recordedBy: { role: { in: ['Supervisor', 'ClubsAdmin'] } },
+            OR: [sensitiveSupervisorMarkWhere(), { type: 'Demerit' }],
           },
           include: {
             recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
@@ -1436,6 +1469,10 @@ export const childLogRouter = router({
         }),
       ),
     ]);
+    const escalationIds = policyEscalationMarkIds(marks);
+    const reviewMarks = marks.filter((mark) =>
+      shouldIncludeSensitiveReviewMark(mark, escalationIds),
+    );
 
     await ctx.db.auditLog.create({
       data: {
@@ -1445,7 +1482,7 @@ export const childLogRouter = router({
         meta: {
           source: 'childLog.sensitiveReviewQueue',
           noteCount: notes.length,
-          markCount: marks.length,
+          markCount: reviewMarks.length,
         },
       },
     });
@@ -1474,7 +1511,7 @@ export const childLogRouter = router({
         : null,
       headComment: decryptOptional(ctx.db.$enc.decrypt, note.headCommentEnc),
     }));
-    const markItems = marks.map((mark) => ({
+    const markItems = reviewMarks.map((mark) => ({
       id: mark.id,
       kind: 'mark' as const,
       student: {
@@ -1497,6 +1534,7 @@ export const childLogRouter = router({
         ? decryptRequired(ctx.db.$enc.decrypt, mark.seenBy.fullNameEnc, 'user PII')
         : null,
       headComment: decryptOptional(ctx.db.$enc.decrypt, mark.headCommentEnc),
+      reviewReason: escalationIds.has(mark.id) ? 'Policy escalation' : 'Sensitive',
     }));
 
     return [...noteItems, ...markItems].sort(
@@ -1561,17 +1599,47 @@ export const childLogRouter = router({
         where: { id: input.id },
         select: {
           id: true,
+          category: true,
+          createdAt: true,
+          meritDelta: true,
           studentId: true,
+          type: true,
           visibility: true,
           deletedAt: true,
           recordedBy: { select: { role: true } },
         },
       });
+      let isPolicyEscalation = false;
+      if (existing?.type === 'Demerit') {
+        const from = normalizeDate(existing.createdAt);
+        const to = dayEnd(existing.createdAt);
+        const dayDemerits = await ctx.db.behaviourEntry.findMany({
+          where: {
+            studentId: existing.studentId,
+            type: 'Demerit',
+            deletedAt: null,
+            createdAt: { gte: from, lt: to },
+          },
+          select: {
+            category: true,
+            createdAt: true,
+            id: true,
+            meritDelta: true,
+            studentId: true,
+            type: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        isPolicyEscalation = demeritPolicyEscalationEntryIds(dayDemerits).has(existing.id);
+      }
       if (
         !existing ||
         existing.deletedAt !== null ||
-        existing.visibility !== 'Sensitive' ||
-        !['Supervisor', 'ClubsAdmin'].includes(existing.recordedBy.role)
+        (!(
+          existing.visibility === 'Sensitive' &&
+          ['Supervisor', 'ClubsAdmin'].includes(existing.recordedBy.role)
+        ) &&
+          !isPolicyEscalation)
       ) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'sensitive mark not found' });
       }

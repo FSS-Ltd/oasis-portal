@@ -2,8 +2,10 @@
 
 import { useEffect, useId, useMemo, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
+import { DailyDemeritBadge, type DailyDemeritStatus } from './daily-demerit-badge';
 
 export interface BehaviourStudentOption {
+  demeritStatus?: DailyDemeritStatus | null | undefined;
   id: string;
   label: string;
   description?: string | undefined;
@@ -75,6 +77,7 @@ export function BehaviourStudentSelector({
           selectedOptions.map((student) => (
             <span className="behaviour-student-tag" key={student.id}>
               <span>{student.label}</span>
+              <DailyDemeritBadge status={student.demeritStatus} />
               <button
                 aria-label={`Remove ${student.label}`}
                 disabled={unavailable}
@@ -148,6 +151,7 @@ export function BehaviourStudentSelector({
                     <strong>{student.label}</strong>
                     {student.description ? <small>{student.description}</small> : null}
                   </span>
+                  <DailyDemeritBadge status={student.demeritStatus} />
                 </label>
               ))}
             </div>

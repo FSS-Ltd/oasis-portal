@@ -2,12 +2,13 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import {
   AccessDeniedError,
-  DEMERIT_COST,
   canCreateSensitiveBehaviour,
   canUseClubsLeadPortal,
   canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
   canViewBehaviourReports,
+  demeritMeritDeltaForCategory,
+  demeritPolicyStatusForEntries,
   isFullAdmin,
   isStaff,
   rowsForDemerit,
@@ -396,6 +397,12 @@ function validateSingleBehaviourInput(input: {
       message: 'general marks have no merit value',
     });
   }
+  if (input.type === 'Demerit' && input.amount !== undefined) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'demerit amount is fixed by category',
+    });
+  }
 }
 
 function validateBatchBehaviourInput(input: {
@@ -409,8 +416,24 @@ function validateBatchBehaviourInput(input: {
         message: `merit amount is required for entry ${String(index + 1)}`,
       });
     }
+    if (input.type === 'Demerit' && entry.amount !== undefined) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: `demerit amount is fixed by category for entry ${String(index + 1)}`,
+      });
+    }
   }
   return input.entries.reduce((sum, entry) => sum + entry.count, 0);
+}
+
+function meritDeltaForBehaviour(input: {
+  amount?: number | undefined;
+  category: string;
+  type: BehaviourType;
+}): number {
+  if (input.type === 'Merit') return input.amount ?? 0;
+  if (input.type === 'Demerit') return demeritMeritDeltaForCategory(input.category);
+  return 0;
 }
 
 function assertBatchEntryLimit(totalEntries: number): void {
@@ -760,6 +783,84 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         };
       }),
 
+    dailyDemeritStatuses: authedProcedure
+      .input(z.object({ date: z.coerce.date() }))
+      .query(async ({ ctx, input }) => {
+        await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses');
+        const from = normalizeDate(input.date);
+        const to = dayEnd(input.date);
+        const scope = await loadDailyYearBandScope(ctx, from);
+        const scopedStudentWhere = canUseClubsLeadPortal(ctx.user)
+          ? {
+              active: true,
+              clubSignups: {
+                some: {
+                  status: 'Active' as const,
+                  club: {
+                    active: true,
+                    leadAssignments: { some: { userId: ctx.user.id } },
+                  },
+                },
+              },
+            }
+          : { active: true, ...studentWhereForDailyScope(scope) };
+
+        const students = await ctx.withRls((tx) =>
+          tx.student.findMany({
+            where: scopedStudentWhere,
+            select: { id: true },
+            orderBy: { createdAt: 'desc' },
+          }),
+        );
+        const studentIds = students.map((student) => student.id);
+
+        const rows =
+          studentIds.length === 0
+            ? []
+            : await ctx.withRls((tx) =>
+                tx.behaviourEntry.findMany({
+                  where: {
+                    type: 'Demerit',
+                    createdAt: { gte: from, lt: to },
+                    studentId: { in: studentIds },
+                    ...visibleBehaviourWhere(ctx.user),
+                  },
+                  select: {
+                    category: true,
+                    meritDelta: true,
+                    studentId: true,
+                    type: true,
+                    visibility: true,
+                  },
+                }),
+              );
+
+        const sensitiveCount = rows.filter((row) => row.visibility === 'Sensitive').length;
+        if (sensitiveCount > 0) {
+          await ctx.db.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'ReadSensitive',
+              entity: 'BehaviourEntry',
+              meta: { source: 'behaviour.dailyDemeritStatuses', count: sensitiveCount },
+            },
+          });
+        }
+
+        const entriesByStudent = new Map<string, typeof rows>();
+        for (const row of rows) {
+          entriesByStudent.set(row.studentId, [...(entriesByStudent.get(row.studentId) ?? []), row]);
+        }
+
+        return {
+          date: dateKey(from),
+          statuses: students.map((student) => ({
+            studentId: student.id,
+            ...demeritPolicyStatusForEntries(entriesByStudent.get(student.id) ?? []),
+          })),
+        };
+      }),
+
     recentEntries: authedProcedure
       .input(z.object({ date: z.coerce.date() }))
       .query(async ({ ctx, input }) => {
@@ -968,7 +1069,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           category: behaviourCategorySchema.optional(),
           note: behaviourNoteSchema.optional(),
           visibility: behaviourVisibilitySchema.optional(),
-          // Merit/Demerit: positive integer; Demerit defaults to DEMERIT_COST.
+          // Merit: positive integer. Demerit value is fixed by category.
           amount: behaviourAmountSchema.optional(),
         }),
       )
@@ -988,12 +1089,11 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const category =
           input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
         const noteEnc = input.note ? ctx.db.$enc.encrypt(input.note) : null;
-        const meritDelta =
-          input.type === 'Merit'
-            ? (input.amount ?? 0)
-            : input.type === 'Demerit'
-              ? -(input.amount ?? DEMERIT_COST)
-              : 0;
+        const meritDelta = meritDeltaForBehaviour({
+          amount: input.amount,
+          category,
+          type: input.type,
+        });
 
         const result = await ctx.withRls(async (tx) => {
           const behaviour = await tx.behaviourEntry.create({
@@ -1117,12 +1217,11 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const category =
           input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
         const noteEnc = input.note ? ctx.db.$enc.encrypt(input.note) : null;
-        const meritDelta =
-          input.type === 'Merit'
-            ? (input.amount ?? 0)
-            : input.type === 'Demerit'
-              ? -(input.amount ?? DEMERIT_COST)
-              : 0;
+        const meritDelta = meritDeltaForBehaviour({
+          amount: input.amount,
+          category,
+          type: input.type,
+        });
 
         const result = await ctx.withRls(async (tx) => {
           const behaviourEntries: CreatedBehaviourEntry[] = [];
@@ -1263,6 +1362,12 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               message: 'general marks have no merit value',
             });
           }
+          if (existing.type === 'Demerit' && input.amount !== undefined) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'demerit amount is fixed by category',
+            });
+          }
 
           const nextCategory = input.category ?? existing.category;
           const nextVisibility = input.visibility ?? existing.visibility;
@@ -1279,9 +1384,9 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             existing.type === 'Merit'
               ? (input.amount ?? existing.meritDelta)
               : existing.type === 'Demerit'
-                ? input.amount === undefined
+                ? input.category === undefined
                   ? existing.meritDelta
-                  : -input.amount
+                  : demeritMeritDeltaForCategory(nextCategory)
                 : existing.meritDelta;
           const ledgerDelta = nextMeritDelta - existing.meritDelta;
 
@@ -1437,7 +1542,9 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             note: entry.note,
             noteEnc: entry.note ? ctx.db.$enc.encrypt(entry.note) : null,
             meritDelta:
-              input.type === 'Merit' ? (entry.amount ?? 0) : -(entry.amount ?? DEMERIT_COST),
+              input.type === 'Merit'
+                ? (entry.amount ?? 0)
+                : demeritMeritDeltaForCategory(entry.category),
           })),
         );
 
@@ -1572,7 +1679,9 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             note: entry.note ?? null,
             noteEnc: entry.note ? ctx.db.$enc.encrypt(entry.note) : null,
             meritDelta:
-              input.type === 'Merit' ? (entry.amount ?? 0) : -(entry.amount ?? DEMERIT_COST),
+              input.type === 'Merit'
+                ? (entry.amount ?? 0)
+                : demeritMeritDeltaForCategory(entry.category),
           })),
         );
 

@@ -4,6 +4,10 @@ import { useMemo, useState } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
 import { canonicalSchoolYear, displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
+import {
+  DailyDemeritBadge,
+  useDailyDemeritStatusMap,
+} from '@/components/behaviour/daily-demerit-badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,6 +100,7 @@ export function AttendanceCapture({
   const utils = api.useUtils();
 
   const attendanceQuery = api.attendance.forDate.useQuery({ date }, { retry: false });
+  const demeritStatusQuery = useDailyDemeritStatusMap(date);
   const bandsQuery = api.attendance.listYearGroupBands.useQuery(undefined, {
     enabled: showBandFilter,
     retry: false,
@@ -161,6 +166,7 @@ export function AttendanceCapture({
             <strong>{row.studentName}</strong>
             <span>{row.studentId}</span>
           </span>
+          <DailyDemeritBadge status={demeritStatusQuery.statusByStudentId.get(row.studentId)} />
         </div>
       ),
     },

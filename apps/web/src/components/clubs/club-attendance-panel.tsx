@@ -3,6 +3,10 @@
 import { useMemo, useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { CheckCircle2, Clock3, Save, XCircle } from 'lucide-react';
+import {
+  DailyDemeritBadge,
+  useDailyDemeritStatusMap,
+} from '@/components/behaviour/daily-demerit-badge';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +49,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
     { clubId: club.id, date },
     { retry: false },
   );
+  const demeritStatusQuery = useDailyDemeritStatusMap(date);
   const markAttendance = api.club.markAttendance.useMutation();
   const rows = attendanceQuery.data?.students ?? [];
   const counts = rows.reduce(
@@ -184,6 +189,9 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
                   <strong>{row.studentName}</strong>
                   <span>{displaySchoolYearLabel(row.yearGroup)}</span>
                 </span>
+                <DailyDemeritBadge
+                  status={demeritStatusQuery.statusByStudentId.get(row.studentId)}
+                />
               </div>
               <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge>
               <div className="club-attendance-actions">

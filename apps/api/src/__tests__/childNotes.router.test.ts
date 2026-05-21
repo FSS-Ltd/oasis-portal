@@ -6,6 +6,12 @@ import { childNotesRouter } from '../routers/childNotes.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
+const hodUser: SessionUser = {
+  id: 'u_hod',
+  role: 'HeadOfDiscipline',
+  tags: [],
+  requires2fa: false,
+};
 const principalUser: SessionUser = {
   id: 'u_principal',
   role: 'Principal',
@@ -168,6 +174,15 @@ function matchesStudentId(where: string | { in: string[] }, studentId: string): 
   return where.in.includes(studentId);
 }
 
+function matchesBehaviourType(
+  where: string | { in: readonly string[] } | undefined,
+  type: string,
+): boolean {
+  if (where === undefined) return true;
+  if (typeof where === 'string') return where === type;
+  return where.in.includes(type);
+}
+
 function sameDay(left: Date, right: Date): boolean {
   return left.toISOString().slice(0, 10) === right.toISOString().slice(0, 10);
 }
@@ -253,6 +268,7 @@ function makeFakeDb() {
   ];
   const users = [
     { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
+    { id: hodUser.id, fullNameEnc: 'enc:HOD User', role: hodUser.role },
     { id: principalUser.id, fullNameEnc: 'enc:Principal User', role: principalUser.role },
     { id: supervisorUser.id, fullNameEnc: 'enc:Supervisor User', role: supervisorUser.role },
     {
@@ -605,12 +621,13 @@ function makeFakeDb() {
             OR?: Array<{
               recordedBy?: { role: { in: readonly string[] } };
               recordedById?: string;
-              type?: { in: readonly string[] };
+              type?: string | { in: readonly string[] };
               visibility?: 'General' | 'Sensitive';
             }>;
             deletedAt?: null;
             recordedBy?: { role: { in: readonly string[] } };
             recordedById?: string;
+            type?: string | { in: readonly string[] };
             visibility?: 'General' | 'Sensitive';
             createdAt?: { gte: Date; lt: Date };
             studentId?: string | { in: string[] };
@@ -626,6 +643,7 @@ function makeFakeDb() {
               .filter(
                 (row) => where?.visibility === undefined || row.visibility === where.visibility,
               )
+              .filter((row) => matchesBehaviourType(where?.type, row.type))
               .filter((row) => where?.deletedAt === undefined || row.deletedAt === where.deletedAt)
               .filter(
                 (row) =>
@@ -647,7 +665,7 @@ function makeFakeDb() {
                         condition.recordedBy.role.in.includes(row.recordedBy?.role ?? '')) &&
                       (condition.visibility === undefined ||
                         row.visibility === condition.visibility) &&
-                      (condition.type === undefined || condition.type.in.includes(row.type)),
+                      matchesBehaviourType(condition.type, row.type),
                   ),
               )
               .filter(
@@ -1383,6 +1401,91 @@ describe('childLog.snapshot', () => {
       headCommentEnc: 'enc:Thank you for flagging.',
     });
     expect(mark).toMatchObject({ seenById: headUser.id, headCommentEnc: null });
+  });
+
+  it('includes Stage 4, Stage 5, and Serious Misconduct demerits in Head/HOD review', async () => {
+    const { behaviourEntries, db, students } = makeFakeDb();
+    const makePolicyDemerit = (
+      index: number,
+      input: Partial<StoredBehaviourEntry> = {},
+    ): StoredBehaviourEntry => ({
+      id: `behaviour_policy_${String(index)}`,
+      studentId: 'student_1',
+      type: 'Demerit',
+      category: 'Conduct',
+      visibility: 'General',
+      meritDelta: -5,
+      recordedById: headUser.id,
+      createdAt: new Date(`2026-04-30T10:${String(index).padStart(2, '0')}:00.000Z`),
+      deletedAt: null,
+      headCommentEnc: null,
+      noteEnc: null,
+      recordedBy: { id: headUser.id, fullNameEnc: 'enc:Head User', role: headUser.role },
+      seenAt: null,
+      seenBy: null,
+      seenById: null,
+      student: students[0],
+      ...input,
+    });
+    behaviourEntries.push(
+      ...Array.from({ length: 9 }, (_, index) => makePolicyDemerit(index + 1)),
+      makePolicyDemerit(30, {
+        id: 'behaviour_policy_serious',
+        category: 'Serious Misconduct',
+      }),
+    );
+
+    const queue = await makeCaller(hodUser, db).childLog.sensitiveReviewQueue();
+
+    expect(queue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'behaviour_policy_7',
+          kind: 'mark',
+          reviewReason: 'Policy escalation',
+        }),
+        expect.objectContaining({
+          id: 'behaviour_policy_9',
+          kind: 'mark',
+          reviewReason: 'Policy escalation',
+        }),
+        expect.objectContaining({
+          id: 'behaviour_policy_serious',
+          kind: 'mark',
+          category: 'Serious Misconduct',
+          reviewReason: 'Policy escalation',
+        }),
+      ]),
+    );
+    expect(queue).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'behaviour_policy_6' })]),
+    );
+
+    await expect(
+      makeCaller(headUser, db).childLog.reviewSensitiveItem({
+        id: 'behaviour_policy_7',
+        kind: 'mark',
+        comment: 'Seen by Head.',
+      }),
+    ).resolves.toMatchObject({ id: 'behaviour_policy_7', kind: 'mark' });
+
+    const reviewedQueue = await makeCaller(headUser, db).childLog.sensitiveReviewQueue();
+    expect(
+      reviewedQueue.find((item) => item.kind === 'mark' && item.id === 'behaviour_policy_7'),
+    ).toMatchObject({
+      seenAt: expect.any(Date),
+      headComment: 'Seen by Head.',
+    });
+    expect(
+      reviewedQueue
+        .filter(
+          (item) =>
+            item.kind === 'mark' &&
+            item.reviewReason === 'Policy escalation' &&
+            item.seenAt === null,
+        )
+        .map((item) => item.id),
+    ).not.toContain('behaviour_policy_7');
   });
 
   it('returns supervisor history with all authored notes and only sensitive authored marks', async () => {

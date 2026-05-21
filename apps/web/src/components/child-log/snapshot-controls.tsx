@@ -1,9 +1,14 @@
 import type { CSSProperties } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import {
+  DailyDemeritBadge,
+  type DailyDemeritStatus,
+} from '@/components/behaviour/daily-demerit-badge';
 import { avatarColour, firstName, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { formatRange, type RangePreset, type SnapshotTab } from './snapshot-utils';
 
 type StudentOption = {
+  demeritStatus?: DailyDemeritStatus | null;
   fullName: string;
   id: string;
   yearGroup: string;
@@ -75,6 +80,7 @@ export function SnapshotStudentPicker({
             <span>{getInitials(student.fullName)}</span>
             <strong>{firstName(student.fullName)}</strong>
             <small>{displaySchoolYearLabel(student.yearGroup)}</small>
+            <DailyDemeritBadge status={student.demeritStatus} />
           </button>
         );
       })}
@@ -84,12 +90,14 @@ export function SnapshotStudentPicker({
 
 interface SnapshotHeroProps {
   colour: string;
+  demeritStatus?: DailyDemeritStatus | null;
   selectedStudent: StudentOption | null;
   snapshotStudent: SnapshotStudentSummary | undefined;
 }
 
 export function SnapshotHeroStudent({
   colour,
+  demeritStatus,
   selectedStudent,
   snapshotStudent,
 }: SnapshotHeroProps) {
@@ -111,6 +119,7 @@ export function SnapshotHeroStudent({
           {yearGroup ? displaySchoolYearLabel(yearGroup) : 'Year group'} · Supervisor:{' '}
           {snapshotStudent?.supervisorName ?? 'Not assigned'}
         </p>
+        <DailyDemeritBadge status={demeritStatus} />
       </div>
       <div className="snapshot-hero__merits">
         <strong>{snapshotStudent?.totalMerits ?? 0}</strong>
