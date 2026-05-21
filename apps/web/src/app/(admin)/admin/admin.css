@@ -6933,7 +6933,7 @@ button.club-assignment-row {
 
 .behaviour-student-option {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 9px;
   align-items: center;
   padding: 8px;
@@ -6972,6 +6972,52 @@ button.club-assignment-row {
 .behaviour-student-option small {
   color: var(--oasis-text-muted);
   font-size: 0.7rem;
+}
+
+.daily-demerit-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 40px;
+  min-height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.daily-demerit-badge > span {
+  font-size: 0.62rem;
+  font-weight: 900;
+  opacity: 0.82;
+}
+
+.daily-demerit-badge.is-green {
+  border-color: rgba(22, 101, 52, 0.22);
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+
+.daily-demerit-badge.is-blue {
+  border-color: rgba(91, 144, 197, 0.28);
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.daily-demerit-badge.is-amber {
+  border-color: rgba(146, 64, 14, 0.24);
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+}
+
+.daily-demerit-badge.is-red {
+  border-color: rgba(153, 27, 27, 0.24);
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
 }
 
 .behaviour-toggle,
@@ -7535,7 +7581,7 @@ button.club-assignment-row {
   color: var(--student-colour);
 }
 
-.snapshot-student-card span:first-child,
+.snapshot-student-card > span:first-child,
 .snapshot-hero__avatar,
 .snapshot-note-avatar {
   display: grid;
@@ -7545,7 +7591,7 @@ button.club-assignment-row {
   font-weight: 850;
 }
 
-.snapshot-student-card span:first-child {
+.snapshot-student-card > span:first-child {
   width: 38px;
   height: 38px;
   background: var(--student-colour);

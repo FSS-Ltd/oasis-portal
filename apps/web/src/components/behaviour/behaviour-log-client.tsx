@@ -7,6 +7,7 @@ import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import { useDailyDemeritStatusMap } from '@/components/behaviour/daily-demerit-badge';
 import { BehaviourStudentSelector } from '@/components/behaviour/behaviour-student-selector';
 import {
   categoriesFor,
@@ -78,7 +79,7 @@ function newBatchEntry(type: BatchBehaviourType): BatchEntryForm {
     id: crypto.randomUUID(),
     category: categories[0] ?? 'Misc',
     note: '',
-    amount: type === 'Demerit' ? '5' : '1',
+    amount: '1',
     count: '1',
   };
 }
@@ -113,12 +114,14 @@ export function BehaviourLogClient({
   const [date, setDate] = useState(dateKey(new Date()));
   const [editingEntry, setEditingEntry] = useState<EditingEntryForm | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<RecentBehaviourEntry | null>(null);
+  const selectedDateValue = useMemo(() => new Date(`${date}T00:00:00.000Z`), [date]);
 
   const studentsQuery = api.student.list.useQuery(undefined, { retry: false });
   const recentQuery = api.behaviour.recentEntries.useQuery(
-    { date: new Date(`${date}T00:00:00.000Z`) },
+    { date: selectedDateValue },
     { retry: false },
   );
+  const demeritStatusQuery = useDailyDemeritStatusMap(selectedDateValue);
   const utils = api.useUtils();
   const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
@@ -139,6 +142,7 @@ export function BehaviourLogClient({
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
@@ -152,6 +156,7 @@ export function BehaviourLogClient({
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
@@ -163,6 +168,7 @@ export function BehaviourLogClient({
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
       ]);
     },
   });
@@ -173,6 +179,7 @@ export function BehaviourLogClient({
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
       ]);
     },
   });
@@ -187,8 +194,9 @@ export function BehaviourLogClient({
         id: student.id,
         label: student.fullName,
         description: displaySchoolYearLabel(student.yearGroup),
+        demeritStatus: demeritStatusQuery.statusByStudentId.get(student.id),
       })),
-    [students],
+    [demeritStatusQuery.statusByStudentId, students],
   );
   const allStudentIds = useMemo(
     () => studentOptions.map((student) => student.id),
@@ -235,7 +243,7 @@ export function BehaviourLogClient({
       category,
       note: note.trim() ? note : undefined,
       visibility,
-      ...(type !== 'General' ? { amount: Number(amount) } : {}),
+      ...(type === 'Merit' ? { amount: Number(amount) } : {}),
     });
   }
 
@@ -250,7 +258,7 @@ export function BehaviourLogClient({
         category: entry.category,
         note: entry.note.trim() ? entry.note : undefined,
         count: Number(entry.count),
-        amount: Number(entry.amount),
+        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
       })),
     });
   }
@@ -284,7 +292,7 @@ export function BehaviourLogClient({
       category: editingEntry.category,
       note: editingEntry.note.trim() ? editingEntry.note : null,
       visibility: editingEntry.visibility,
-      ...(editingEntry.type !== 'General' ? { amount: Number(editingEntry.amount) } : {}),
+      ...(editingEntry.type === 'Merit' ? { amount: Number(editingEntry.amount) } : {}),
     });
   }
 
@@ -433,10 +441,10 @@ export function BehaviourLogClient({
                 </p>
               ) : null}
 
-              {type !== 'General' ? (
-                <Field label={type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}>
+              {type === 'Merit' ? (
+                <Field label="Merit amount">
                   <TextInput
-                    aria-label={type === 'Merit' ? 'Merit amount' : 'Demerit deduction'}
+                    aria-label="Merit amount"
                     disabled={!canLogBehaviour}
                     min={1}
                     onChange={(event) => {
@@ -462,7 +470,7 @@ export function BehaviourLogClient({
                 {type === 'Merit'
                   ? `Record +${amount || '0'} Merit`
                   : type === 'Demerit'
-                    ? `Record -${amount || '0'} Demerit`
+                    ? 'Record Demerit'
                     : 'Record General mark'}
               </Button>
               {status ? <p className="status--success">{status}</p> : null}
@@ -527,19 +535,21 @@ export function BehaviourLogClient({
                       ))}
                     </SelectInput>
                   </Field>
-                  <Field label={`Entry ${String(index + 1)} amount`}>
-                    <TextInput
-                      aria-label={`Entry ${String(index + 1)} ${batchType.toLowerCase()} amount`}
-                      disabled={!canLogBehaviour}
-                      min={1}
-                      onChange={(event) => {
-                        setBatchEntry(entry.id, { amount: event.target.value });
-                      }}
-                      required
-                      type="number"
-                      value={entry.amount}
-                    />
-                  </Field>
+                  {batchType === 'Merit' ? (
+                    <Field label={`Entry ${String(index + 1)} amount`}>
+                      <TextInput
+                        aria-label={`Entry ${String(index + 1)} merit amount`}
+                        disabled={!canLogBehaviour}
+                        min={1}
+                        onChange={(event) => {
+                          setBatchEntry(entry.id, { amount: event.target.value });
+                        }}
+                        required
+                        type="number"
+                        value={entry.amount}
+                      />
+                    </Field>
+                  ) : null}
                   <Field label={`Entry ${String(index + 1)} quantity`}>
                     <TextInput
                       aria-label={`Entry ${String(index + 1)} quantity`}
@@ -751,13 +761,10 @@ export function BehaviourLogClient({
                           ))}
                         </div>
                       </Field>
-                      {editingEntry.type !== 'General' ? (
-                        <Field
-                          label={
-                            editingEntry.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
-                          }
-                        >
+                      {editingEntry.type === 'Merit' ? (
+                        <Field label="Merit amount">
                           <TextInput
+                            aria-label="Merit amount"
                             min={1}
                             onChange={(event) => {
                               setEditingEntry((current) =>

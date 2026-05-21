@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api, type RouterOutputs } from '@/lib/trpc';
+import {
+  DailyDemeritBadge,
+  useDailyDemeritStatusMap,
+} from '@/components/behaviour/daily-demerit-badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,6 +58,8 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
     { includeInactive: true },
     { enabled: canManageStudents, retry: false },
   );
+  const [today] = useState(() => new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`));
+  const demeritStatusQuery = useDailyDemeritStatusMap(today);
   const rows = (canManageStudents ? managedStudentsQuery.data : activeStudentsQuery.data) as
     | readonly StudentDirectoryRow[]
     | undefined;
@@ -89,6 +95,7 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
               <strong>{student.fullName}</strong>
               <span>Enrolled {formatStudentDate(student.enrolmentDate)}</span>
             </span>
+            <DailyDemeritBadge status={demeritStatusQuery.statusByStudentId.get(student.id)} />
           </div>
         ),
       },
@@ -134,7 +141,7 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
         ),
       },
     ],
-    [],
+    [demeritStatusQuery.statusByStudentId],
   );
 
   return (

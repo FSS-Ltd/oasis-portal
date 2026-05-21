@@ -11,12 +11,13 @@ export const meritCategories = [
 ] as const;
 
 export const demeritCategories = [
-  'Misc',
-  'Punctuality',
   'Conduct',
-  'Disrespect',
-  'Negligence',
-  'Dishonesty',
+  'Diligence',
+  'Respect',
+  'Property',
+  'Honesty',
+  'Serious Misconduct',
+  'Misc',
 ] as const;
 
 export const generalCategories = ['Misc'] as const;

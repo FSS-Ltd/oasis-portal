@@ -20,6 +20,7 @@ function formatDateTime(value: Date | string): string {
 
 function itemTitle(item: ReviewItem): string {
   if (item.kind === 'note') return 'Sensitive Note';
+  if (item.reviewReason === 'Policy escalation') return 'Policy Escalation Demerit';
   if (item.type === 'General') return 'Sensitive General Mark';
   if (item.type === 'Demerit') return 'Sensitive Demerit';
   return `Sensitive ${item.type}`;

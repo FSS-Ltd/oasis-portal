@@ -6,6 +6,10 @@ import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
 import { BehaviourStudentSelector } from '@/components/behaviour/behaviour-student-selector';
+import {
+  DailyDemeritBadge,
+  useDailyDemeritStatusMap,
+} from '@/components/behaviour/daily-demerit-badge';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -41,12 +45,12 @@ interface BatchEntryForm {
   count: string;
 }
 
-function newBatchEntry(type: BatchBehaviourType): BatchEntryForm {
+function newBatchEntry(): BatchEntryForm {
   return {
     id: crypto.randomUUID(),
     category: '',
     note: '',
-    amount: type === 'Demerit' ? '5' : '1',
+    amount: '1',
     count: '1',
   };
 }
@@ -64,9 +68,7 @@ export function SupervisorDashboardClient({
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [entryMode, setEntryMode] = useState<EntryMode>('single');
   const [batchType, setBatchType] = useState<BatchBehaviourType>('Merit');
-  const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [
-    newBatchEntry('Merit'),
-  ]);
+  const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [newBatchEntry()]);
   const [swapForm, setSwapForm] = useState({ fromShiftId: '', toShiftId: '' });
   const [behaviourForm, setBehaviourForm] = useState({
     type: 'Merit' as BehaviourType,
@@ -85,6 +87,7 @@ export function SupervisorDashboardClient({
 
   const usesStudentRoster = view === 'dashboard' || view === 'attendance' || view === 'behaviour';
   const usesRota = view === 'dashboard' || view === 'rota';
+  const demeritStatusQuery = useDailyDemeritStatusMap(date, usesStudentRoster);
 
   const attendanceRosterQuery = api.attendance.forDate.useQuery(
     { date },
@@ -152,7 +155,7 @@ export function SupervisorDashboardClient({
         ...current,
         category: '',
         note: '',
-        amount: current.type === 'Demerit' ? '5' : current.amount,
+        amount: current.type === 'Demerit' ? '1' : current.amount,
         visibility: current.type === 'General' ? 'Sensitive' : current.visibility,
       }));
       await Promise.all([
@@ -163,6 +166,7 @@ export function SupervisorDashboardClient({
             date,
           }),
         ),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date }),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
@@ -172,7 +176,7 @@ export function SupervisorDashboardClient({
       setBehaviourStatus(
         `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
       );
-      setBatchEntries([newBatchEntry(input.type)]);
+      setBatchEntries([newBatchEntry()]);
       await Promise.all([
         ...input.studentIds.map((studentId) =>
           utils.behaviour.listForStudent.invalidate({
@@ -181,6 +185,7 @@ export function SupervisorDashboardClient({
             date,
           }),
         ),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date }),
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
@@ -209,8 +214,9 @@ export function SupervisorDashboardClient({
         id: student.studentId,
         label: student.studentName,
         description: displaySchoolYearLabel(student.yearGroup),
+        demeritStatus: demeritStatusQuery.statusByStudentId.get(student.studentId),
       })),
-    [rosterRows],
+    [demeritStatusQuery.statusByStudentId, rosterRows],
   );
   const selectedStudentCount = selectedStudentIds.length;
   const batchEntryCount = totalBatchEntries(batchEntries);
@@ -260,7 +266,7 @@ export function SupervisorDashboardClient({
       visibility: behaviourForm.visibility,
       category: behaviourForm.category,
       note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
-      ...(behaviourForm.type !== 'General' ? { amount: Number(behaviourForm.amount) } : {}),
+      ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
     });
   }
 
@@ -276,7 +282,7 @@ export function SupervisorDashboardClient({
         category: entry.category,
         note: entry.note.trim() ? entry.note : undefined,
         count: Number(entry.count),
-        amount: Number(entry.amount),
+        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
       })),
     });
   }
@@ -372,6 +378,9 @@ export function SupervisorDashboardClient({
                   <strong>{selectedStudent.studentName}</strong>
                   <span>{displaySchoolYearLabel(selectedStudent.yearGroup)}</span>
                   <span>{selectedStudent.status ?? 'Attendance unmarked'}</span>
+                  <DailyDemeritBadge
+                    status={demeritStatusQuery.statusByStudentId.get(selectedStudent.studentId)}
+                  />
                 </div>
               ) : null}
             </div>
@@ -424,7 +433,7 @@ export function SupervisorDashboardClient({
                                       : form.visibility,
                               amount:
                                 nextType === 'Demerit'
-                                  ? '5'
+                                  ? '1'
                                   : nextType === 'Merit' && form.type !== 'Merit'
                                     ? '1'
                                     : form.amount,
@@ -466,16 +475,10 @@ export function SupervisorDashboardClient({
                         value={behaviourForm.category}
                       />
                     </Field>
-                    {behaviourForm.type !== 'General' ? (
-                      <Field
-                        label={
-                          behaviourForm.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
-                        }
-                      >
+                    {behaviourForm.type === 'Merit' ? (
+                      <Field label="Merit amount">
                         <TextInput
-                          aria-label={
-                            behaviourForm.type === 'Merit' ? 'Merit amount' : 'Demerit deduction'
-                          }
+                          aria-label="Merit amount"
                           min={1}
                           onChange={(event) => {
                             setBehaviourForm((form) => ({ ...form, amount: event.target.value }));
@@ -514,7 +517,9 @@ export function SupervisorDashboardClient({
                       type="submit"
                     >
                       <Save aria-hidden="true" size={16} />
-                      Save behaviour
+                      {behaviourForm.type === 'Demerit'
+                        ? 'Save demerit'
+                        : 'Save behaviour'}
                     </Button>
                     {logBehaviour.error ? (
                       <p className="status--error">{logBehaviour.error.message}</p>
@@ -533,7 +538,7 @@ export function SupervisorDashboardClient({
                         onChange={(event) => {
                           const nextType = event.target.value as BatchBehaviourType;
                           setBatchType(nextType);
-                          setBatchEntries([newBatchEntry(nextType)]);
+                          setBatchEntries([newBatchEntry()]);
                         }}
                         value={batchType}
                       >
@@ -554,18 +559,20 @@ export function SupervisorDashboardClient({
                             value={entry.category}
                           />
                         </Field>
-                        <Field label={`Entry ${String(index + 1)} amount`}>
-                          <TextInput
-                            aria-label={`Entry ${String(index + 1)} ${batchType.toLowerCase()} amount`}
-                            min={1}
-                            onChange={(event) => {
-                              setBatchEntry(entry.id, { amount: event.target.value });
-                            }}
-                            required
-                            type="number"
-                            value={entry.amount}
-                          />
-                        </Field>
+                        {batchType === 'Merit' ? (
+                          <Field label={`Entry ${String(index + 1)} amount`}>
+                            <TextInput
+                              aria-label={`Entry ${String(index + 1)} merit amount`}
+                              min={1}
+                              onChange={(event) => {
+                                setBatchEntry(entry.id, { amount: event.target.value });
+                              }}
+                              required
+                              type="number"
+                              value={entry.amount}
+                            />
+                          </Field>
+                        ) : null}
                         <Field label={`Entry ${String(index + 1)} quantity`}>
                           <TextInput
                             aria-label={`Entry ${String(index + 1)} quantity`}
@@ -609,7 +616,7 @@ export function SupervisorDashboardClient({
                     ))}
                     <Button
                       onClick={() => {
-                        setBatchEntries((current) => [...current, newBatchEntry(batchType)]);
+                        setBatchEntries((current) => [...current, newBatchEntry()]);
                       }}
                       type="button"
                       variant="secondary"

@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { ArrowRight, Bell, ClipboardList, Send, Star, UsersRound } from 'lucide-react';
 import { categoriesFor, type BehaviourType } from '@/components/behaviour/behaviour-categories';
+import {
+  DailyDemeritBadge,
+  type DailyDemeritStatus,
+  useDailyDemeritStatusMap,
+} from '@/components/behaviour/daily-demerit-badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -110,11 +115,13 @@ function OverviewTab({
   club,
   clubIndex,
   entries,
+  demeritStatuses,
   notificationsCount,
   onTabChange,
   roster,
 }: {
   club: LeadClub;
+  demeritStatuses: ReadonlyMap<string, DailyDemeritStatus>;
   clubIndex: number;
   entries: readonly BehaviourEntry[];
   notificationsCount: number;
@@ -201,6 +208,7 @@ function OverviewTab({
                       <strong>{student.studentName}</strong>
                       <span>{displaySchoolYearLabel(student.yearGroup)}</span>
                     </span>
+                    <DailyDemeritBadge status={demeritStatuses.get(student.studentId)} />
                   </div>
                   <Badge tone="green">In club</Badge>
                 </article>
@@ -273,10 +281,12 @@ function OverviewTab({
 
 function BehaviourTab({
   club,
+  demeritStatuses,
   entries,
   roster,
 }: {
   club: LeadClub;
+  demeritStatuses: ReadonlyMap<string, DailyDemeritStatus>;
   entries: readonly BehaviourEntry[];
   roster: readonly RosterStudent[];
 }) {
@@ -302,7 +312,7 @@ function BehaviourTab({
     const nextCategory = categoriesFor(type)[0] ?? 'Misc';
     setCategory(nextCategory);
     if (type === 'General') setAmount('0');
-    if (type === 'Demerit') setAmount('5');
+    if (type === 'Demerit') setAmount('1');
     if (type === 'Merit') {
       setAmount((current) => (current === '0' ? '5' : current));
     }
@@ -318,11 +328,14 @@ function BehaviourTab({
       category,
       note: note.trim() ? note.trim() : undefined,
       visibility: 'General',
-      ...(type !== 'General' ? { amount: Number(amount) } : {}),
+      ...(type === 'Merit' ? { amount: Number(amount) } : {}),
     });
     setNote('');
     setStatus('Entry recorded.');
-    await utils.behaviour.recentEntries.invalidate();
+    await Promise.all([
+      utils.behaviour.recentEntries.invalidate(),
+      utils.behaviour.dailyDemeritStatuses.invalidate(),
+    ]);
   }
 
   return (
@@ -387,8 +400,8 @@ function BehaviourTab({
               ))}
             </SelectInput>
           </Field>
-          {type !== 'General' ? (
-            <Field label={type === 'Merit' ? 'Merit amount' : 'Demerit deduction'} required>
+          {type === 'Merit' ? (
+            <Field label="Merit amount" required>
               <TextInput
                 disabled={logBehaviour.isPending}
                 min={1}
@@ -420,7 +433,7 @@ function BehaviourTab({
             {type === 'Merit'
               ? `Record +${amount || '0'} Merit`
               : type === 'Demerit'
-                ? `Record -${amount || '0'} Demerit`
+                ? 'Record Demerit'
                 : 'Record General Mark'}
           </Button>
           {status ? <p className="status--success">{status}</p> : null}
@@ -453,6 +466,7 @@ function BehaviourTab({
                 <div>
                   <div className="behaviour-entry-card__head">
                     <strong>{entry.studentName}</strong>
+                    <DailyDemeritBadge status={demeritStatuses.get(entry.studentId)} />
                     <Badge tone={entryTone(entry)}>{entryLabel(entry)}</Badge>
                   </div>
                   <span className="behaviour-category-pill">{entry.category}</span>
@@ -601,6 +615,7 @@ export function ClubsLeadPortalClient() {
   const [today] = useState(todayDate);
   const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? clubs[0] ?? null;
+  const demeritStatusQuery = useDailyDemeritStatusMap(today, selectedClub !== null);
   const selectedClubIndex = Math.max(
     clubs.findIndex((club) => club.id === selectedClub?.id),
     0,
@@ -692,6 +707,7 @@ export function ClubsLeadPortalClient() {
         <OverviewTab
           club={selectedClub}
           clubIndex={selectedClubIndex}
+          demeritStatuses={demeritStatusQuery.statusByStudentId}
           entries={clubEntries}
           notificationsCount={notifications.length}
           onTabChange={setActiveTab}
@@ -699,7 +715,12 @@ export function ClubsLeadPortalClient() {
         />
       ) : null}
       {activeTab === 'behaviour' ? (
-        <BehaviourTab club={selectedClub} entries={clubEntries} roster={roster} />
+        <BehaviourTab
+          club={selectedClub}
+          demeritStatuses={demeritStatusQuery.statusByStudentId}
+          entries={clubEntries}
+          roster={roster}
+        />
       ) : null}
       {activeTab === 'attendance' ? <ClubAttendancePanel club={selectedClub} /> : null}
       {activeTab === 'noticeboard' ? (

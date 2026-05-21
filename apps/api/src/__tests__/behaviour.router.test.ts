@@ -155,7 +155,7 @@ interface FakeDb {
     decrypt: ReturnType<typeof vi.fn>;
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
-  student: { findUnique: ReturnType<typeof vi.fn> };
+  student: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   guardian: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { findFirst: ReturnType<typeof vi.fn> };
   behaviourEntry: {
@@ -175,6 +175,11 @@ function encrypt(value: string | null | undefined): string | null {
 function decrypt(value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   return value.replace(/^enc:/u, '');
+}
+
+function matchesStudentId(where: string | { in: string[] }, studentId: string): boolean {
+  if (typeof where === 'string') return where === studentId;
+  return where.in.includes(studentId);
 }
 
 function makeStoredUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>): StoredUser {
@@ -271,6 +276,58 @@ function makeFakeDb(
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     student: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            active?: boolean;
+            clubSignups?: {
+              some: {
+                club: {
+                  active?: boolean;
+                  leadAssignments: { some: { userId: string } };
+                };
+                status?: 'Active' | 'Withdrawn';
+              };
+            };
+            id?: { in: string[] };
+            yearGroup?: { in: string[] };
+          };
+        } = {}) =>
+          Promise.resolve(
+            students.filter((student) => {
+              if (where?.active !== undefined && student.active !== where.active) return false;
+              if (where?.id?.in !== undefined && !where.id.in.includes(student.id)) return false;
+              if (
+                where?.yearGroup?.in !== undefined &&
+                !where.yearGroup.in.includes(student.yearGroup)
+              ) {
+                return false;
+              }
+              if (where?.clubSignups) {
+                const signupWhere = where.clubSignups.some;
+                const hasAssignedClubSignup = clubSignups.some((signup) => {
+                  const hasLeadAssignment = clubLeadAssignments.some(
+                    (assignment) =>
+                      assignment.clubId === signup.clubId &&
+                      assignment.userId === signupWhere.club.leadAssignments.some.userId,
+                  );
+
+                  return (
+                    signup.studentId === student.id &&
+                    (signupWhere.status === undefined || signup.status === signupWhere.status) &&
+                    (signupWhere.club.active === undefined ||
+                      signup.clubActive === signupWhere.club.active) &&
+                    hasLeadAssignment
+                  );
+                });
+                if (!hasAssignedClubSignup) return false;
+              }
+              return true;
+            }),
+          ),
+      ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
         const student = students.find((candidate) => candidate.id === where.id);
         if (!student) return Promise.resolve(null);
@@ -389,7 +446,7 @@ function makeFakeDb(
               id?: { in: string[] };
               yearGroup?: { in: string[] };
             };
-            studentId?: string;
+            studentId?: string | { in: string[] };
             deletedAt?: null;
             type?: BehaviourType;
             visibility?: BehaviourVisibility;
@@ -407,7 +464,10 @@ function makeFakeDb(
             (condition.type === undefined || row.type === condition.type) &&
             (condition.visibility === undefined || row.visibility === condition.visibility);
           const rows = behaviour
-            .filter((row) => where.studentId === undefined || row.studentId === where.studentId)
+            .filter(
+              (row) =>
+                where.studentId === undefined || matchesStudentId(where.studentId, row.studentId),
+            )
             .filter((row) => where.deletedAt === undefined || row.deletedAt === where.deletedAt)
             .filter((row) => where.type === undefined || row.type === where.type)
             .filter((row) => where.visibility === undefined || row.visibility === where.visibility)
@@ -564,7 +624,6 @@ describe('behaviour.log', () => {
       category: 'Disruption',
       note: 'Repeated interruption',
       visibility: 'Sensitive',
-      amount: 3,
     });
 
     expect(merit).toMatchObject({
@@ -578,7 +637,7 @@ describe('behaviour.log', () => {
       id: 'ckbehaviour000000000002',
       type: 'Demerit',
       visibility: 'Sensitive',
-      meritDelta: -3,
+      meritDelta: -1,
       recordedById: headUser.id,
     });
     expect(behaviour.map((row) => row.noteEnc)).toEqual([
@@ -596,7 +655,7 @@ describe('behaviour.log', () => {
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -3,
+        delta: -1,
         reason: 'Disruption',
         relatedEntryId: 'ckbehaviour000000000002',
       },
@@ -629,7 +688,7 @@ describe('behaviour.log', () => {
     });
   });
 
-  it('defaults a demerit to DEMERIT_COST when no amount is provided', async () => {
+  it('uses fixed demerit deductions by category', async () => {
     const { db, ledger } = makeFakeDb();
 
     const demerit = await makeCaller(headUser, db).behaviour.log({
@@ -641,17 +700,50 @@ describe('behaviour.log', () => {
 
     expect(demerit).toMatchObject({
       type: 'Demerit',
-      meritDelta: -5,
+      meritDelta: -1,
+    });
+    const honesty = await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Honesty',
+      visibility: 'General',
+    });
+    expect(honesty).toMatchObject({
+      type: 'Demerit',
+      meritDelta: -2,
     });
     expect(ledger).toEqual([
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -5,
+        delta: -1,
         reason: 'Disruption',
         relatedEntryId: 'ckbehaviour000000000001',
       },
+      {
+        studentId: activeStudentId,
+        account: 'Spend',
+        delta: -2,
+        reason: 'Honesty',
+        relatedEntryId: 'ckbehaviour000000000002',
+      },
     ]);
+  });
+
+  it('rejects caller-provided demerit amounts', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(headUser, db).behaviour.log({
+        studentId: activeStudentId,
+        type: 'Demerit',
+        category: 'Conduct',
+        amount: 3,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'demerit amount is fixed by category',
+    });
   });
 
   it('emails General merits to every active linked guardian and skips inactive accounts', async () => {
@@ -851,8 +943,8 @@ describe('behaviour.log', () => {
       studentId: activeStudentId,
       type: 'Demerit',
       entries: [
-        { category: 'Conduct', amount: 2, count: 2 },
-        { category: 'Punctuality', note: 'Late to line up' },
+        { category: 'Conduct', count: 2 },
+        { category: 'Honesty', note: 'Dishonest answer' },
       ],
     });
 
@@ -865,9 +957,9 @@ describe('behaviour.log', () => {
     });
     expect(demeritResult).toMatchObject({
       entries: [
-        { type: 'Demerit', category: 'Conduct', meritDelta: -2 },
-        { type: 'Demerit', category: 'Conduct', meritDelta: -2 },
-        { type: 'Demerit', category: 'Punctuality', meritDelta: -5 },
+        { type: 'Demerit', category: 'Conduct', meritDelta: -1 },
+        { type: 'Demerit', category: 'Conduct', meritDelta: -1 },
+        { type: 'Demerit', category: 'Honesty', meritDelta: -2 },
       ],
       ledgerRowCount: 3,
     });
@@ -890,22 +982,22 @@ describe('behaviour.log', () => {
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -2,
+        delta: -1,
         reason: 'Conduct',
         relatedEntryId: 'ckbehaviour000000000003',
       },
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -2,
+        delta: -1,
         reason: 'Conduct',
         relatedEntryId: 'ckbehaviour000000000004',
       },
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -5,
-        reason: 'Punctuality',
+        delta: -2,
+        reason: 'Honesty',
         relatedEntryId: 'ckbehaviour000000000005',
       },
     ]);
@@ -1007,7 +1099,6 @@ describe('behaviour.log', () => {
       type: 'Demerit',
       category: 'Conduct',
       visibility: 'General',
-      amount: 1,
     });
     const general = await caller.behaviour.logForStudents({
       studentIds: [activeStudentId, secondaryStudentId],
@@ -1342,7 +1433,7 @@ describe('behaviour.listForStudent', () => {
     expect(result.entries[0]).toMatchObject({
       category: 'Safeguarding',
       note: 'Sensitive staff note',
-      meritDelta: -5,
+      meritDelta: -1,
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -1544,7 +1635,7 @@ describe('behaviour corrections', () => {
     });
   });
 
-  it('lets full-admin edit a Demerit deduction and writes a ledger delta correction', async () => {
+  it('lets full-admin change a Demerit category and writes the fixed ledger correction', async () => {
     const { db, ledger } = makeFakeDb();
     const caller = makeCaller(headUser, db);
     const created = await caller.behaviour.log({
@@ -1552,27 +1643,46 @@ describe('behaviour corrections', () => {
       type: 'Demerit',
       category: 'Conduct',
       note: 'Original note',
-      amount: 5,
     });
 
     await expect(
       caller.behaviour.updateEntry({
         id: created.id,
-        category: 'Conduct',
+        category: 'Honesty',
         note: 'Updated demerit note',
         visibility: 'General',
-        amount: 2,
       }),
-    ).resolves.toMatchObject({ id: created.id, category: 'Conduct', meritDelta: -2 });
+    ).resolves.toMatchObject({ id: created.id, category: 'Honesty', meritDelta: -2 });
 
     expect(ledger).toEqual([
-      expect.objectContaining({ delta: -5, relatedEntryId: created.id }),
+      expect.objectContaining({ delta: -1, relatedEntryId: created.id }),
       expect.objectContaining({
-        delta: 3,
-        reason: 'correction:Conduct',
+        delta: -1,
+        reason: 'correction:Honesty',
         relatedEntryId: created.id,
       }),
     ]);
+  });
+
+  it('rejects amount edits for Demerits', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+    const created = await caller.behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      note: 'Original note',
+    });
+
+    await expect(
+      caller.behaviour.updateEntry({
+        id: created.id,
+        amount: 2,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'demerit amount is fixed by category',
+    });
   });
 
   it('rejects amount edits for General marks', async () => {
@@ -1613,9 +1723,9 @@ describe('behaviour corrections', () => {
 
     expect(behaviour[0]?.deletedById).toBe(headUser.id);
     expect(ledger).toEqual([
-      expect.objectContaining({ delta: -5, relatedEntryId: created.id }),
+      expect.objectContaining({ delta: -1, relatedEntryId: created.id }),
       expect.objectContaining({
-        delta: 5,
+        delta: 1,
         reason: 'correction:delete:Conduct',
         relatedEntryId: created.id,
       }),
@@ -1655,6 +1765,105 @@ describe('behaviour corrections', () => {
     await expect(
       makeCaller(clubsUser, db).behaviour.deleteEntry({ id: created.id }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('behaviour.dailyDemeritStatuses', () => {
+  it('returns green zeroes for active in-scope students', async () => {
+    const { db } = makeFakeDb();
+
+    const result = await makeCaller(headUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+
+    expect(result).toMatchObject({ date: '2026-04-29' });
+    expect(result.statuses).toEqual([
+      expect.objectContaining({
+        studentId: activeStudentId,
+        demeritUnits: 0,
+        stage: 0,
+        stageLabel: 'No demerits',
+        badgeTone: 'green',
+        requiresHeadReview: false,
+      }),
+      expect.objectContaining({
+        studentId: secondaryStudentId,
+        demeritUnits: 0,
+        badgeTone: 'green',
+      }),
+    ]);
+    expect(result.statuses.map((status) => status.studentId)).not.toContain(inactiveStudentId);
+  });
+
+  it('totals policy units for the selected day only', async () => {
+    const { behaviour, db } = makeFakeDb();
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+    });
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Honesty',
+    });
+    behaviour.push({
+      id: 'ckbehaviourprevious000001',
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      noteEnc: null,
+      visibility: 'General',
+      meritDelta: -15,
+      recordedById: headUser.id,
+      deletedAt: null,
+      deletedById: null,
+      createdAt: new Date('2026-04-28T10:00:00.000Z'),
+    });
+
+    const result = await makeCaller(headUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+
+    expect(result.statuses.find((status) => status.studentId === activeStudentId)).toMatchObject({
+      demeritUnits: 3,
+      stage: 2,
+      badgeTone: 'amber',
+      requiresHeadReview: false,
+    });
+  });
+
+  it('respects Supervisor daily scope while Head and HOD see all active students', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+    });
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: secondaryStudentId,
+      type: 'Demerit',
+      category: 'Diligence',
+    });
+
+    const supervisorResult = await makeCaller(supervisorUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    expect(supervisorResult.statuses).toEqual([
+      expect.objectContaining({ studentId: activeStudentId, demeritUnits: 1 }),
+    ]);
+
+    const headResult = await makeCaller(headUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    const hodResult = await makeCaller(hodUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+    expect(headResult.statuses.map((status) => status.studentId).sort()).toEqual([
+      activeStudentId,
+      secondaryStudentId,
+    ]);
+    expect(hodResult.statuses).toEqual(headResult.statuses);
   });
 });
 
