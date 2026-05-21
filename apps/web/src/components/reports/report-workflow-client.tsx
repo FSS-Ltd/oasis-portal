@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FileText, RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { api, type RouterInputs, type RouterOutputs } from '@/lib/trpc';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput } from '@/components/ui/field';
@@ -53,10 +54,6 @@ function mapParentStudent(student: ParentStudent): ReportStudent {
   };
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'The report action failed.';
-}
-
 function latestReportForTerm(reports: readonly TermReport[], term: string): TermReport | null {
   return reports.find((report) => report.term === term) ?? reports[0] ?? null;
 }
@@ -76,8 +73,6 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   );
   const [term, setTerm] = useState<(typeof TERM_OPTIONS)[number]>(currentTerm);
   const [headSummary, setHeadSummary] = useState('');
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const adminStudentsQuery = api.student.list.useQuery(
     { includeInactive: false },
@@ -110,23 +105,32 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
     onSuccess: async (report) => {
       setSelectedReportId(report.id);
       setHeadSummary(report.compiled.headSummary);
-      setStatusMessage('Draft generated.');
+      showSuccessToast('Draft generated.');
       await utils.report.listForStudent.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Draft could not be generated.');
     },
   });
   const reviewReport = api.report.review.useMutation({
     onSuccess: async (report) => {
       setSelectedReportId(report.id);
       setHeadSummary(report.compiled.headSummary);
-      setStatusMessage('Report reviewed.');
+      showSuccessToast('Report reviewed.');
       await utils.report.listForStudent.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Report could not be reviewed.');
     },
   });
   const sendReport = api.report.send.useMutation({
     onSuccess: async (report) => {
       setSelectedReportId(report.id);
-      setStatusMessage('Report sent.');
+      showSuccessToast('Report sent.');
       await utils.report.listForStudent.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Report could not be sent.');
     },
   });
 
@@ -152,50 +156,48 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   function selectStudent(studentId: string): void {
     setSelectedStudentId(studentId);
     setSelectedReportId('');
-    setStatusMessage(null);
-    setActionError(null);
   }
 
   async function handleDraft(): Promise<void> {
     if (!selectedStudent) return;
-    setStatusMessage(null);
-    setActionError(null);
     try {
       await draftReport.mutateAsync({ studentId: selectedStudent.id, term });
-    } catch (error) {
-      setActionError(errorMessage(error));
+    } catch {
+      // Toast is handled by the mutation onError callback.
     }
   }
 
   async function handleReview(): Promise<void> {
     if (!selectedReport) return;
-    setStatusMessage(null);
-    setActionError(null);
     const trimmedSummary = headSummary.trim();
     const payload: ReviewReportInput = trimmedSummary
       ? { reportId: selectedReport.id, headSummary: trimmedSummary }
       : { reportId: selectedReport.id };
     try {
       await reviewReport.mutateAsync(payload);
-    } catch (error) {
-      setActionError(errorMessage(error));
+    } catch {
+      // Toast is handled by the mutation onError callback.
     }
   }
 
   async function handleSend(): Promise<void> {
     if (!selectedReport) return;
-    setStatusMessage(null);
-    setActionError(null);
     try {
       await sendReport.mutateAsync({ reportId: selectedReport.id });
-    } catch (error) {
-      setActionError(errorMessage(error));
+    } catch {
+      // Toast is handled by the mutation onError callback.
     }
   }
 
   const studentQueryError =
-    mode === 'admin' ? adminStudentsQuery.error?.message : parentStudentsQuery.error?.message;
-  const reportsError = reportsQuery.error?.message;
+    mode === 'admin'
+      ? adminStudentsQuery.error
+        ? friendlyErrorMessage(adminStudentsQuery.error)
+        : null
+      : parentStudentsQuery.error
+        ? friendlyErrorMessage(parentStudentsQuery.error)
+        : null;
+  const reportsError = reportsQuery.error ? friendlyErrorMessage(reportsQuery.error) : null;
   const loadingStudents =
     mode === 'admin' ? adminStudentsQuery.isLoading : parentStudentsQuery.isLoading;
   const reportsLoading = reportsQuery.isLoading || reportsQuery.isFetching;
@@ -311,7 +313,6 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
 
           <ReportDetail
             canEdit={mode === 'admin'}
-            errorMessage={actionError}
             headSummary={headSummary}
             onHeadSummaryChange={setHeadSummary}
             onReview={() => {
@@ -323,7 +324,6 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
             report={selectedReport}
             reviewPending={reviewReport.isPending}
             sendPending={sendReport.isPending}
-            statusMessage={statusMessage}
           />
         </div>
       </div>

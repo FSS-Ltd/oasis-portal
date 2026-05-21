@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage } from '@/lib/notifications';
 
 const ALL_RECORDS = '__all';
 const insightTabs = [
@@ -214,7 +215,7 @@ export function AttendanceExportCentre() {
 
       {insightsQuery.error ? (
         <p className="status--error attendance-export-centre__error">
-          {insightsQuery.error.message}
+          {friendlyErrorMessage(insightsQuery.error)}
         </p>
       ) : null}
       {insightsQuery.isLoading ? (

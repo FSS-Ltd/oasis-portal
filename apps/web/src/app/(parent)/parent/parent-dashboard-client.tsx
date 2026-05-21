@@ -11,6 +11,7 @@ import {
   Star,
 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -438,8 +439,8 @@ export function ParentDashboardClient() {
     return (
       <EmptyState
         detail={
-          profileQuery.error?.message ??
-          dashboardQuery.error?.message ??
+          (profileQuery.error ? friendlyErrorMessage(profileQuery.error) : null) ??
+          (dashboardQuery.error ? friendlyErrorMessage(dashboardQuery.error) : null) ??
           'Dashboard data could not be loaded.'
         }
         title="Parent dashboard unavailable"

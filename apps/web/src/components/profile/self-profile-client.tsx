@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { SpouseInvitePanel } from './spouse-invite-panel';
 
 type Profile = RouterOutputs['profile']['me'];
@@ -64,7 +65,6 @@ export function SelfProfileClient({
 }: SelfProfileClientProps) {
   const [activeTab, setActiveTab] = useState<ProfileTab>('account');
   const [editing, setEditing] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', address: '' });
   const utils = api.useUtils();
   const profileQuery = api.profile.me.useQuery(undefined, { retry: false });
@@ -72,10 +72,10 @@ export function SelfProfileClient({
     async onSuccess() {
       await utils.profile.me.invalidate();
       setEditing(false);
-      setSaved(true);
-      window.setTimeout(() => {
-        setSaved(false);
-      }, 2500);
+      showSuccessToast('Profile saved.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Profile could not be saved.');
     },
   });
 
@@ -91,7 +91,7 @@ export function SelfProfileClient({
   if (profileQuery.error || !profileQuery.data) {
     return (
       <EmptyState
-        detail={profileQuery.error?.message ?? 'Your profile could not be loaded.'}
+        detail={profileQuery.error ? friendlyErrorMessage(profileQuery.error) : 'Your profile could not be loaded.'}
         title="Profile unavailable"
       />
     );
@@ -159,7 +159,6 @@ export function SelfProfileClient({
               Edit Profile
             </Button>
           )}
-          {saved ? <Badge tone="green">Saved</Badge> : null}
         </div>
       </section>
 
@@ -225,7 +224,7 @@ export function SelfProfileClient({
             </div>
             {updateProfile.error ? (
               <p className="status--error" role="alert">
-                {updateProfile.error.message}
+                {friendlyErrorMessage(updateProfile.error)}
               </p>
             ) : null}
             {profile.children.length > 0 ? <SpouseInvitePanel /> : null}

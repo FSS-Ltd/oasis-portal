@@ -2,6 +2,7 @@
 
 import { Check, Pencil, Save, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
@@ -63,23 +64,39 @@ export function RotaSchedulerClient() {
   const createShift = api.rota.createShift.useMutation({
     async onSuccess() {
       setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
+      showSuccessToast('Shift saved.');
       await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Shift could not be saved.');
     },
   });
   const updateShift = api.rota.updateShift.useMutation({
     async onSuccess() {
       setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
+      showSuccessToast('Shift saved.');
       await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Shift could not be saved.');
     },
   });
   const approveSwap = api.rota.approveSwap.useMutation({
     async onSuccess() {
+      showSuccessToast('Shift swap approved.');
       await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Shift swap could not be approved.');
     },
   });
   const rejectSwap = api.rota.rejectSwap.useMutation({
     async onSuccess() {
+      showSuccessToast('Shift swap rejected.');
       await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Shift swap could not be rejected.');
     },
   });
 
@@ -92,7 +109,7 @@ export function RotaSchedulerClient() {
   return (
     <div className="rota-layout">
       <RotaWeekSchedule
-        errorMessage={scheduleQuery.error?.message}
+        errorMessage={scheduleQuery.error ? friendlyErrorMessage(scheduleQuery.error) : undefined}
         isFetching={scheduleQuery.isFetching}
         isLoading={scheduleQuery.isLoading}
         onNextWeek={() => {
@@ -216,9 +233,8 @@ export function RotaSchedulerClient() {
                   value={shiftForm.notes}
                 />
               </Field>
-              {mutationError ? <p className="status--error">{mutationError.message}</p> : null}
-              {createShift.isSuccess || updateShift.isSuccess ? (
-                <p className="status--success">Shift saved</p>
+              {mutationError ? (
+                <p className="status--error">{friendlyErrorMessage(mutationError)}</p>
               ) : null}
               <div className="row-actions">
                 {shiftForm.id ? (
@@ -257,7 +273,7 @@ export function RotaSchedulerClient() {
               <div className="empty-state">Loading availability...</div>
             ) : null}
             {availabilityQuery.error ? (
-              <p className="status--error">{availabilityQuery.error.message}</p>
+              <p className="status--error">{friendlyErrorMessage(availabilityQuery.error)}</p>
             ) : null}
             {selectedStaffAvailability ? (
               <div className="availability-list">
@@ -299,7 +315,9 @@ export function RotaSchedulerClient() {
               <span className="badge">{swapsQuery.data?.length ?? 0} pending</span>
             </div>
             {swapsQuery.isLoading ? <div className="empty-state">Loading swaps...</div> : null}
-            {swapsQuery.error ? <p className="status--error">{swapsQuery.error.message}</p> : null}
+            {swapsQuery.error ? (
+              <p className="status--error">{friendlyErrorMessage(swapsQuery.error)}</p>
+            ) : null}
             {(swapsQuery.data ?? []).length === 0 ? (
               <div className="empty-state">No pending shift swaps</div>
             ) : (

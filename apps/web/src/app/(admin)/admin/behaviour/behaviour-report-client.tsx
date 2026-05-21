@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart3, Medal } from 'lucide-react';
 import { SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
@@ -68,7 +69,9 @@ export function BehaviourReportClient() {
           />
         </div>
         {meritsQuery.isLoading ? <div className="empty-state">Loading merits...</div> : null}
-        {meritsQuery.error ? <p className="status--error">{meritsQuery.error.message}</p> : null}
+        {meritsQuery.error ? (
+          <p className="status--error">{friendlyErrorMessage(meritsQuery.error)}</p>
+        ) : null}
         {!meritsQuery.isLoading && (meritsQuery.data?.merits ?? []).length === 0 ? (
           <div className="empty-state">No merits recorded for this day.</div>
         ) : null}
@@ -128,7 +131,9 @@ export function BehaviourReportClient() {
           />
         </div>
         {trendsQuery.isLoading ? <div className="empty-state">Loading trends...</div> : null}
-        {trendsQuery.error ? <p className="status--error">{trendsQuery.error.message}</p> : null}
+        {trendsQuery.error ? (
+          <p className="status--error">{friendlyErrorMessage(trendsQuery.error)}</p>
+        ) : null}
         <div className="behaviour-chart" aria-label="Behaviour trend chart">
           {(trendsQuery.data?.points ?? []).map((point) => {
             const total = point.meritTotal + point.demeritTotal;

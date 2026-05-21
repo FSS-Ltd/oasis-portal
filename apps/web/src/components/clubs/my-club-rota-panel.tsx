@@ -6,6 +6,7 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import {
   addDays,
   dateFromKey,
@@ -65,7 +66,6 @@ export function MyClubRotaPanel() {
   const [weekStart, setWeekStart] = useState(() => mondayFor(dateFromKey(dateKey(new Date()))));
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
   const accessQuery = api.club.myClubRotaAccess.useQuery(undefined, { retry: false });
   const clubs = accessQuery.data ?? [];
   const selectedClub: AccessClub | null =
@@ -97,22 +97,27 @@ export function MyClubRotaPanel() {
   }, [availabilityQuery.data]);
 
   if (accessQuery.isLoading) return <div className="empty-state">Loading club rota...</div>;
-  if (accessQuery.error) return <p className="status--error">{accessQuery.error.message}</p>;
+  if (accessQuery.error) {
+    return <p className="status--error">{friendlyErrorMessage(accessQuery.error)}</p>;
+  }
   if (clubs.length === 0) return null;
 
   async function save() {
     if (!selectedClub) return;
-    setStatus(null);
-    await saveAvailability.mutateAsync({
-      clubId: selectedClub.id,
-      windows: availabilityDraft.map(({ dayOfWeek, startMinute, endMinute }) => ({
-        dayOfWeek,
-        startMinute,
-        endMinute,
-      })),
-    });
-    setStatus('Volunteer availability saved.');
-    await utils.club.myClubAvailability.invalidate({ clubId: selectedClub.id });
+    try {
+      await saveAvailability.mutateAsync({
+        clubId: selectedClub.id,
+        windows: availabilityDraft.map(({ dayOfWeek, startMinute, endMinute }) => ({
+          dayOfWeek,
+          startMinute,
+          endMinute,
+        })),
+      });
+      showSuccessToast('Volunteer availability saved.');
+      await utils.club.myClubAvailability.invalidate({ clubId: selectedClub.id });
+    } catch (error) {
+      showErrorToast(error, 'Availability could not be saved.');
+    }
   }
 
   return (
@@ -159,7 +164,9 @@ export function MyClubRotaPanel() {
             {formatDateLabel(weekStart)} - {formatDateLabel(weekEnd)}
           </p>
           {rotaQuery.isLoading ? <div className="empty-state">Loading rota...</div> : null}
-          {rotaQuery.error ? <p className="status--error">{rotaQuery.error.message}</p> : null}
+          {rotaQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(rotaQuery.error)}</p>
+          ) : null}
           <div className="linked-clubs-list">
             {(rotaQuery.data ?? []).length === 0 ? (
               <div className="empty-state">No cover scheduled for this week.</div>
@@ -215,7 +222,7 @@ export function MyClubRotaPanel() {
             <div className="empty-state">Loading availability...</div>
           ) : null}
           {availabilityQuery.error ? (
-            <p className="status--error">{availabilityQuery.error.message}</p>
+            <p className="status--error">{friendlyErrorMessage(availabilityQuery.error)}</p>
           ) : null}
           <div className="availability-editor">
             {availabilityDraft.length === 0 ? (
@@ -298,10 +305,6 @@ export function MyClubRotaPanel() {
             <Save aria-hidden="true" size={16} />
             Save availability
           </Button>
-          {status ? <p className="status--success">{status}</p> : null}
-          {saveAvailability.error ? (
-            <p className="status--error">{saveAvailability.error.message}</p>
-          ) : null}
         </section>
       </div>
     </section>

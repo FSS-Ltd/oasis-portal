@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { EmptyState } from '@/components/ui/empty-state';
+import { friendlyErrorMessage } from '@/lib/user-facing-errors';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { SnapshotCentrePickerCard, SnapshotStudentPicker } from './snapshot-controls';
 import { SnapshotBadge } from './snapshot-widgets';
@@ -135,7 +136,9 @@ export function SupervisorNotesHistoryClient() {
 
       <section className="panel panel__body snapshot-picker-panel">
         <h2>Select view</h2>
-        {historyQuery.error ? <p className="status--error">{historyQuery.error.message}</p> : null}
+        {historyQuery.error ? (
+          <p className="status--error">{friendlyErrorMessage(historyQuery.error)}</p>
+        ) : null}
         {historyQuery.isLoading ? <EmptyState>Loading notes history...</EmptyState> : null}
         {!historyQuery.isLoading && students.length === 0 ? (
           <EmptyState>No notes or sensitive marks recorded yet.</EmptyState>

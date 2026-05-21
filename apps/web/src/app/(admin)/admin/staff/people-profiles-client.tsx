@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GraduationCap, UserPlus, UsersRound } from 'lucide-react';
 import { displaySchoolYearLabel, type Role } from '@oasis/domain';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { roleLabel } from '@/lib/profile-display';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -104,7 +105,9 @@ export function PeopleProfilesClient({
   const selectedItem = filteredItems.find((item) => item.key === selectedKey) ?? filteredItems[0];
   const loading = usersQuery.isLoading || studentsQuery.isLoading || invitationsQuery.isLoading;
   const error =
-    usersQuery.error?.message ?? studentsQuery.error?.message ?? invitationsQuery.error?.message;
+    (usersQuery.error ? friendlyErrorMessage(usersQuery.error) : null) ??
+    (studentsQuery.error ? friendlyErrorMessage(studentsQuery.error) : null) ??
+    (invitationsQuery.error ? friendlyErrorMessage(invitationsQuery.error) : null);
   const accountCount =
     (usersQuery.data?.filter((user) => user.role !== 'Student').length ?? 0) +
     (invitationsQuery.data?.length ?? 0);

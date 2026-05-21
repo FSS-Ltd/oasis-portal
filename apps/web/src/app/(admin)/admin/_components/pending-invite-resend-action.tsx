@@ -2,6 +2,7 @@
 
 import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 
 interface PendingInviteResendActionProps {
@@ -13,6 +14,10 @@ export function PendingInviteResendAction({ invitationId }: PendingInviteResendA
   const resendInvitation = api.admin.resendUserInvitation.useMutation<undefined>({
     async onSuccess() {
       await utils.admin.listUserInvitations.invalidate();
+      showSuccessToast('Invitation email resent.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Invitation email could not be resent.');
     },
   });
 
@@ -30,16 +35,6 @@ export function PendingInviteResendAction({ invitationId }: PendingInviteResendA
         <Send aria-hidden="true" size={15} />
         Resend invitation
       </Button>
-      {resendInvitation.error ? (
-        <p className="status--error" role="alert">
-          {resendInvitation.error.message}
-        </p>
-      ) : null}
-      {resendInvitation.data ? (
-        <p className="status--success" role="status">
-          Invitation email resent.
-        </p>
-      ) : null}
     </div>
   );
 }

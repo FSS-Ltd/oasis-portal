@@ -6,6 +6,7 @@ import { displaySchoolYearLabel } from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { useDailyDemeritStatusMap } from '@/components/behaviour/daily-demerit-badge';
 import { BehaviourStudentSelector } from '@/components/behaviour/behaviour-student-selector';
@@ -110,7 +111,6 @@ export function BehaviourLogClient({
   const [note, setNote] = useState('');
   const [visibility, setVisibility] = useState<BehaviourVisibility>('General');
   const [amount, setAmount] = useState('5');
-  const [status, setStatus] = useState<string | null>(null);
   const [date, setDate] = useState(dateKey(new Date()));
   const [editingEntry, setEditingEntry] = useState<EditingEntryForm | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<RecentBehaviourEntry | null>(null);
@@ -125,7 +125,7 @@ export function BehaviourLogClient({
   const utils = api.useUtils();
   const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      setStatus(
+      showSuccessToast(
         input.type === 'Merit'
           ? `Merit recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
           : input.type === 'Demerit'
@@ -146,10 +146,13 @@ export function BehaviourLogClient({
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour could not be saved.');
+    },
   });
   const logManyBehaviour = api.behaviour.logManyForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      setStatus(
+      showSuccessToast(
         `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
       );
       setBatchEntries([newBatchEntry(input.type)]);
@@ -160,10 +163,13 @@ export function BehaviourLogClient({
         utils.childLog.supervisorNotesHistory.invalidate(),
       ]);
     },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entries could not be saved.');
+    },
   });
   const updateEntry = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
-      setStatus('Behaviour entry updated.');
+      showSuccessToast('Behaviour entry updated.');
       setEditingEntry(null);
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
@@ -171,16 +177,22 @@ export function BehaviourLogClient({
         utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
       ]);
     },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entry could not be updated.');
+    },
   });
   const deleteEntryMutation = api.behaviour.deleteEntry.useMutation({
     onSuccess: async () => {
-      setStatus('Behaviour entry deleted.');
+      showSuccessToast('Behaviour entry deleted.');
       setDeleteEntry(null);
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: new Date(`${date}T00:00:00.000Z`) }),
         utils.behaviour.trends.invalidate(),
         utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
       ]);
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Behaviour entry could not be deleted.');
     },
   });
 
@@ -236,31 +248,37 @@ export function BehaviourLogClient({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canLogBehaviour || studentIds.length === 0) return;
-    setStatus(null);
-    await logBehaviour.mutateAsync({
-      studentIds,
-      type,
-      category,
-      note: note.trim() ? note : undefined,
-      visibility,
-      ...(type === 'Merit' ? { amount: Number(amount) } : {}),
-    });
+    try {
+      await logBehaviour.mutateAsync({
+        studentIds,
+        type,
+        category,
+        note: note.trim() ? note : undefined,
+        visibility,
+        ...(type === 'Merit' ? { amount: Number(amount) } : {}),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   async function submitBatch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canLogBehaviour || studentIds.length === 0) return;
-    setStatus(null);
-    await logManyBehaviour.mutateAsync({
-      studentIds,
-      type: batchType,
-      entries: batchEntries.map((entry) => ({
-        category: entry.category,
-        note: entry.note.trim() ? entry.note : undefined,
-        count: Number(entry.count),
-        ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
-      })),
-    });
+    try {
+      await logManyBehaviour.mutateAsync({
+        studentIds,
+        type: batchType,
+        entries: batchEntries.map((entry) => ({
+          category: entry.category,
+          note: entry.note.trim() ? entry.note : undefined,
+          count: Number(entry.count),
+          ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+        })),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   function setBatchEntry(id: string, patch: Partial<Omit<BatchEntryForm, 'id'>>): void {
@@ -280,20 +298,22 @@ export function BehaviourLogClient({
         entry.type === 'Demerit' ? Math.abs(entry.meritDelta) : Math.max(entry.meritDelta, 1),
       ),
     });
-    setStatus(null);
   }
 
   async function submitEntryEdit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (!editingEntry) return;
-    setStatus(null);
-    await updateEntry.mutateAsync({
-      id: editingEntry.id,
-      category: editingEntry.category,
-      note: editingEntry.note.trim() ? editingEntry.note : null,
-      visibility: editingEntry.visibility,
-      ...(editingEntry.type === 'Merit' ? { amount: Number(editingEntry.amount) } : {}),
-    });
+    try {
+      await updateEntry.mutateAsync({
+        id: editingEntry.id,
+        category: editingEntry.category,
+        note: editingEntry.note.trim() ? editingEntry.note : null,
+        visibility: editingEntry.visibility,
+        ...(editingEntry.type === 'Merit' ? { amount: Number(editingEntry.amount) } : {}),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
   }
 
   return (
@@ -317,7 +337,6 @@ export function BehaviourLogClient({
                 key={mode}
                 onClick={() => {
                   setEntryMode(mode);
-                  setStatus(null);
                 }}
                 type="button"
               >
@@ -473,12 +492,11 @@ export function BehaviourLogClient({
                     ? 'Record Demerit'
                     : 'Record General mark'}
               </Button>
-              {status ? <p className="status--success">{status}</p> : null}
               {studentsQuery.error ? (
-                <p className="status--error">{studentsQuery.error.message}</p>
+                <p className="status--error">{friendlyErrorMessage(studentsQuery.error)}</p>
               ) : null}
               {logBehaviour.error ? (
-                <p className="status--error">{logBehaviour.error.message}</p>
+                <p className="status--error">{friendlyErrorMessage(logBehaviour.error)}</p>
               ) : null}
             </form>
           ) : (
@@ -613,12 +631,11 @@ export function BehaviourLogClient({
                 {batchType.toLowerCase()}{' '}
                 {batchEntryCount * Math.max(selectedStudentCount, 1) === 1 ? 'entry' : 'entries'}
               </Button>
-              {status ? <p className="status--success">{status}</p> : null}
               {studentsQuery.error ? (
-                <p className="status--error">{studentsQuery.error.message}</p>
+                <p className="status--error">{friendlyErrorMessage(studentsQuery.error)}</p>
               ) : null}
               {logManyBehaviour.error ? (
-                <p className="status--error">{logManyBehaviour.error.message}</p>
+                <p className="status--error">{friendlyErrorMessage(logManyBehaviour.error)}</p>
               ) : null}
             </form>
           )}
@@ -639,7 +656,9 @@ export function BehaviourLogClient({
           {recentQuery.isLoading ? (
             <div className="empty-state">Loading recent entries...</div>
           ) : null}
-          {recentQuery.error ? <p className="status--error">{recentQuery.error.message}</p> : null}
+          {recentQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(recentQuery.error)}</p>
+          ) : null}
           {!recentQuery.isLoading && entries.length === 0 ? (
             <div className="empty-state">No behaviour entries today.</div>
           ) : null}
@@ -779,7 +798,7 @@ export function BehaviourLogClient({
                       ) : null}
                       {updateEntry.error ? (
                         <p className="status--error" role="alert">
-                          {updateEntry.error.message}
+                          {friendlyErrorMessage(updateEntry.error)}
                         </p>
                       ) : null}
                       <div className="lifecycle-actions">
@@ -810,12 +829,14 @@ export function BehaviourLogClient({
       {showTrends ? <BehaviourTrendsPanel /> : null}
       <ConfirmationDialog
         confirmLabel="Delete entry"
-        errorMessage={deleteEntryMutation.error?.message}
+        errorMessage={
+          deleteEntryMutation.error ? friendlyErrorMessage(deleteEntryMutation.error) : undefined
+        }
         onCancel={() => {
           if (!deleteEntryMutation.isPending) setDeleteEntry(null);
         }}
         onConfirm={() => {
-          if (deleteEntry) void deleteEntryMutation.mutateAsync({ id: deleteEntry.id });
+          if (deleteEntry) deleteEntryMutation.mutate({ id: deleteEntry.id });
         }}
         open={deleteEntry !== null}
         pending={deleteEntryMutation.isPending}
@@ -890,7 +911,9 @@ function BehaviourTrendsPanel() {
         />
       </div>
       {trendsQuery.isLoading ? <div className="empty-state">Loading trends...</div> : null}
-      {trendsQuery.error ? <p className="status--error">{trendsQuery.error.message}</p> : null}
+      {trendsQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(trendsQuery.error)}</p>
+      ) : null}
       <div className="behaviour-chart" aria-label="Behaviour trend chart">
         {(trendsQuery.data?.points ?? []).map((point) => {
           const total = point.meritTotal + point.demeritTotal;

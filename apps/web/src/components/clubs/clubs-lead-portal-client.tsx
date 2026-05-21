@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { ClubAttendancePanel } from './club-attendance-panel';
 import { nextScheduledDate } from './club-schedule-utils';
@@ -296,7 +297,6 @@ function BehaviourTab({
   const [category, setCategory] = useState('Leadership');
   const [note, setNote] = useState('');
   const [amount, setAmount] = useState('5');
-  const [status, setStatus] = useState<string | null>(null);
   const logBehaviour = api.behaviour.log.useMutation();
   const categories = categoriesFor(type);
 
@@ -321,21 +321,24 @@ function BehaviourTab({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!studentId) return;
-    setStatus(null);
-    await logBehaviour.mutateAsync({
-      studentId,
-      type,
-      category,
-      note: note.trim() ? note.trim() : undefined,
-      visibility: 'General',
-      ...(type === 'Merit' ? { amount: Number(amount) } : {}),
-    });
-    setNote('');
-    setStatus('Entry recorded.');
-    await Promise.all([
-      utils.behaviour.recentEntries.invalidate(),
-      utils.behaviour.dailyDemeritStatuses.invalidate(),
-    ]);
+    try {
+      await logBehaviour.mutateAsync({
+        studentId,
+        type,
+        category,
+        note: note.trim() ? note.trim() : undefined,
+        visibility: 'General',
+        ...(type === 'Merit' ? { amount: Number(amount) } : {}),
+      });
+      setNote('');
+      showSuccessToast('Entry recorded.');
+      await Promise.all([
+        utils.behaviour.recentEntries.invalidate(),
+        utils.behaviour.dailyDemeritStatuses.invalidate(),
+      ]);
+    } catch (error) {
+      showErrorToast(error, 'Behaviour entry could not be saved.');
+    }
   }
 
   return (
@@ -436,9 +439,8 @@ function BehaviourTab({
                 ? 'Record Demerit'
                 : 'Record General Mark'}
           </Button>
-          {status ? <p className="status--success">{status}</p> : null}
           {logBehaviour.error ? (
-            <p className="status--error">{logBehaviour.error.message}</p>
+            <p className="status--error">{friendlyErrorMessage(logBehaviour.error)}</p>
           ) : null}
         </form>
       </section>
@@ -494,25 +496,27 @@ function NoticeboardTab({
   const utils = api.useUtils();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [status, setStatus] = useState<string | null>(null);
   const notify = api.club.notify.useMutation();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus(null);
-    const result = await notify.mutateAsync({
-      clubId: club.id,
-      title: title.trim(),
-      body: body.trim(),
-    });
-    setTitle('');
-    setBody('');
-    setStatus(
-      result.recipientCount === 0
-        ? 'Notice posted. No active signup guardians were found.'
-        : `Notice posted to ${String(result.sentCount)} guardian${result.sentCount === 1 ? '' : 's'}.`,
-    );
-    await utils.club.notifications.invalidate({ clubId: club.id });
+    try {
+      const result = await notify.mutateAsync({
+        clubId: club.id,
+        title: title.trim(),
+        body: body.trim(),
+      });
+      setTitle('');
+      setBody('');
+      showSuccessToast(
+        result.recipientCount === 0
+          ? 'Notice posted. No active signup guardians were found.'
+          : `Notice posted to ${String(result.sentCount)} guardian${result.sentCount === 1 ? '' : 's'}.`,
+      );
+      await utils.club.notifications.invalidate({ clubId: club.id });
+    } catch (error) {
+      showErrorToast(error, 'Notice could not be posted.');
+    }
   }
 
   return (
@@ -568,8 +572,9 @@ function NoticeboardTab({
             <Send aria-hidden="true" size={16} />
             Post Notice
           </Button>
-          {status ? <p className="status--success">{status}</p> : null}
-          {notify.error ? <p className="status--error">{notify.error.message}</p> : null}
+          {notify.error ? (
+            <p className="status--error">{friendlyErrorMessage(notify.error)}</p>
+          ) : null}
         </form>
       </section>
 
@@ -656,7 +661,12 @@ export function ClubsLeadPortalClient() {
     return <div className="empty-state">Loading assigned clubs...</div>;
   }
   if (clubsQuery.error) {
-    return <EmptyState detail={clubsQuery.error.message} title="Assigned clubs unavailable" />;
+    return (
+      <EmptyState
+        detail={friendlyErrorMessage(clubsQuery.error)}
+        title="Assigned clubs unavailable"
+      />
+    );
   }
   if (!selectedClub) {
     return (
@@ -697,10 +707,14 @@ export function ClubsLeadPortalClient() {
         ))}
       </div>
 
-      {rosterQuery.error ? <p className="status--error">{rosterQuery.error.message}</p> : null}
-      {recentQuery.error ? <p className="status--error">{recentQuery.error.message}</p> : null}
+      {rosterQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(rosterQuery.error)}</p>
+      ) : null}
+      {recentQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(recentQuery.error)}</p>
+      ) : null}
       {notificationsQuery.error ? (
-        <p className="status--error">{notificationsQuery.error.message}</p>
+        <p className="status--error">{friendlyErrorMessage(notificationsQuery.error)}</p>
       ) : null}
 
       {activeTab === 'overview' ? (

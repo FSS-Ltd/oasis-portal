@@ -100,7 +100,6 @@ function NoticesTab({
   onSubmit,
   pending,
   sendError,
-  status,
 }: {
   club: Club;
   error: string | null;
@@ -112,7 +111,6 @@ function NoticesTab({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   pending: boolean;
   sendError: string | null;
-  status: string | null;
 }) {
   return (
     <div className="clubs-lead-work-grid">
@@ -175,7 +173,6 @@ function NoticesTab({
             <Send aria-hidden="true" size={16} />
             Post notice
           </Button>
-          {status ? <p className="status--success">{status}</p> : null}
           {error ? <p className="status--error">{error}</p> : null}
           {sendError ? <p className="status--error">{sendError}</p> : null}
         </form>
@@ -206,7 +203,6 @@ export function ClubDetail({
   notificationForm,
   notificationHistoryError,
   notificationHistoryLoading,
-  notificationStatus,
   notifications,
   onBack,
   onEdit,
@@ -227,7 +223,6 @@ export function ClubDetail({
   notificationForm: NotificationFormState;
   notificationHistoryError: string | null;
   notificationHistoryLoading: boolean;
-  notificationStatus: string | null;
   notifications: readonly ClubNotification[];
   onBack: () => void;
   onEdit: (club: Club) => void;
@@ -346,7 +341,6 @@ export function ClubDetail({
           onSubmit={onSubmitNotification}
           pending={sendNotificationPending}
           sendError={sendNotificationError}
-          status={notificationStatus}
         />
       ) : null}
     </div>

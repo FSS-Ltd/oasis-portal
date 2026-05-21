@@ -5,6 +5,7 @@ import { Download, Eye, FileUp, Loader2, Search, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import {
   adminInvoiceStatusFilters,
@@ -405,6 +406,10 @@ export function AdminInvoicesClient() {
       setReviewForm(null);
       setSelectedInvoiceId(invoice.id);
       await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Invoice published.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Invoice could not be published.');
     },
   });
   const markPaid = api.invoice.markPaid.useMutation({
@@ -413,6 +418,10 @@ export function AdminInvoicesClient() {
     },
     onSuccess: async () => {
       await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Invoice marked paid.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Invoice could not be marked paid.');
     },
   });
   const markUnpaid = api.invoice.markUnpaid.useMutation({
@@ -421,6 +430,10 @@ export function AdminInvoicesClient() {
     },
     onSuccess: async () => {
       await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Invoice marked unpaid.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Invoice could not be marked unpaid.');
     },
   });
   const deleteInvoice = api.invoice.delete.useMutation({
@@ -430,6 +443,10 @@ export function AdminInvoicesClient() {
     onSuccess: async () => {
       setSelectedInvoiceId(null);
       await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Invoice deleted.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Invoice could not be deleted.');
     },
   });
 
@@ -452,14 +469,19 @@ export function AdminInvoicesClient() {
       const response = await fetch('/api/invoices/upload', { method: 'POST', body: formData });
       const payload = (await response.json()) as UploadDraftResult | { error?: string };
       if (!response.ok || !isUploadDraftResult(payload)) {
-        setUploadError('error' in payload && payload.error ? payload.error : 'Upload failed.');
+        setUploadError(
+          'error' in payload && payload.error
+            ? friendlyErrorMessage(payload.error, 'Invoice upload failed.')
+            : 'Invoice upload failed.',
+        );
         return;
       }
       setUploadedDraft(payload);
       setReviewForm(reviewFormFromUpload(payload));
       await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Invoice uploaded for review.');
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Upload failed.');
+      setUploadError(friendlyErrorMessage(error, 'Invoice upload failed.'));
     } finally {
       setUploading(false);
       event.target.value = '';
@@ -556,7 +578,7 @@ export function AdminInvoicesClient() {
       {invoicesQuery.isLoading ? (
         <InvoiceEmptyState body="Loading invoice records." title="Loading invoices" />
       ) : invoicesQuery.error ? (
-        <InvoiceEmptyState body={invoicesQuery.error.message} title="Invoices unavailable" />
+        <InvoiceEmptyState body={friendlyErrorMessage(invoicesQuery.error)} title="Invoices unavailable" />
       ) : invoices.length === 0 ? (
         <InvoiceEmptyState
           action={
@@ -654,7 +676,11 @@ export function AdminInvoicesClient() {
 
       {uploadOpen ? (
         <UploadReviewModal
-          error={uploadError ?? publishDraft.error?.message ?? studentsQuery.error?.message ?? null}
+          error={
+            uploadError ??
+            (publishDraft.error ? friendlyErrorMessage(publishDraft.error) : null) ??
+            (studentsQuery.error ? friendlyErrorMessage(studentsQuery.error) : null)
+          }
           form={reviewForm}
           invoiceFileName={uploadedDraft?.invoice.originalFileName ?? null}
           onAddLine={() => {

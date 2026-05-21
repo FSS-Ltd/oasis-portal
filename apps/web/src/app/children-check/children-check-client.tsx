@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { UserRoundCheck, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { showErrorToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 
 export function ChildrenCheckClient() {
@@ -14,6 +15,9 @@ export function ChildrenCheckClient() {
           ? '/registration'
           : '/post-sign-in/resolve',
       );
+    },
+    onError(error) {
+      showErrorToast(error, 'Account setup could not be updated.');
     },
   });
   const pendingYes = answerPrompt.isPending && answerPrompt.variables.hasChildren;
@@ -32,7 +36,6 @@ export function ChildrenCheckClient() {
           This lets Oasis prepare child records and show linked children from your account when
           needed.
         </p>
-        {answerPrompt.error ? <p className="status--error">{answerPrompt.error.message}</p> : null}
         <div className="profile-actions">
           <Button
             disabled={answerPrompt.isPending}

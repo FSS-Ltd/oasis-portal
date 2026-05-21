@@ -4213,13 +4213,6 @@
   align-items: center;
 }
 
-.report-actions .status--success {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-}
-
 .club-notification-history__item span {
   display: grid;
   min-width: 0;
@@ -6544,12 +6537,6 @@ button.club-assignment-row {
   font-weight: 650;
 }
 
-.status--success {
-  color: var(--oasis-success);
-  font-size: 0.86rem;
-  font-weight: 650;
-}
-
 .pending-invite-actions {
   display: flex;
   flex-wrap: wrap;
@@ -6557,8 +6544,7 @@ button.club-assignment-row {
   align-items: center;
 }
 
-.pending-invite-actions .status--error,
-.pending-invite-actions .status--success {
+.pending-invite-actions .status--error {
   margin: 0;
 }
 

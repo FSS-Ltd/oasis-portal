@@ -2,6 +2,7 @@
 
 import { type FormEvent, useState } from 'react';
 import { Plus, Save, X } from 'lucide-react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
@@ -41,7 +42,6 @@ export function SharedCalendar({
   const [form, setForm] = useState<CalendarFormState>(emptyCalendarForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [formStatus, setFormStatus] = useState<string | null>(null);
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -74,16 +74,22 @@ export function SharedCalendar({
     onSuccess: async () => {
       setForm(emptyCalendarForm());
       setEditingId(null);
-      setFormStatus('Calendar date published.');
+      showSuccessToast('Calendar date published.');
       await invalidateCalendar();
+    },
+    onError(error) {
+      showErrorToast(error, 'Calendar date could not be published.');
     },
   });
   const updateEvent = api.calendar.update.useMutation({
     onSuccess: async () => {
       setForm(emptyCalendarForm());
       setEditingId(null);
-      setFormStatus('Calendar date updated.');
+      showSuccessToast('Calendar date updated.');
       await invalidateCalendar();
+    },
+    onError(error) {
+      showErrorToast(error, 'Calendar date could not be updated.');
     },
   });
   const archiveEvent = api.calendar.archive.useMutation({
@@ -91,8 +97,11 @@ export function SharedCalendar({
       setPendingArchiveId(null);
     },
     onSuccess: async () => {
-      setFormStatus('Calendar date archived.');
+      showSuccessToast('Calendar date archived.');
       await invalidateCalendar();
+    },
+    onError(error) {
+      showErrorToast(error, 'Calendar date could not be archived.');
     },
   });
 
@@ -111,7 +120,6 @@ export function SharedCalendar({
     const description = form.description.trim();
     const endDate = form.endDate || form.startDate;
 
-    setFormStatus(null);
     if (!title || !form.startDate) {
       setFormError('Title and start date are required.');
       return;
@@ -167,7 +175,7 @@ export function SharedCalendar({
 
       await createEvent.mutateAsync(payload);
     } catch {
-      // React Query exposes the mutation error below the form.
+      // Toast is handled by the mutation onError callback.
     }
   }
 
@@ -186,7 +194,6 @@ export function SharedCalendar({
     });
     setEditingId(event.id);
     setFormError(null);
-    setFormStatus(null);
   }
 
   function toggleRequiredPerson(userId: string): void {
@@ -200,7 +207,6 @@ export function SharedCalendar({
       return { ...current, requiredPersonIds: [...next] };
     });
     setFormError(null);
-    setFormStatus(null);
   }
 
   function cancelEdit(): void {
@@ -221,7 +227,6 @@ export function SharedCalendar({
       ...selectedDateFormPatch(current, date),
     }));
     setFormError(null);
-    setFormStatus(null);
   }
 
   function updateEndDate(endDate: string): void {
@@ -242,7 +247,6 @@ export function SharedCalendar({
       endTime: selectionMode === 'range' ? '' : current.endTime,
     }));
     setFormError(null);
-    setFormStatus(null);
   }
 
   return (
@@ -415,7 +419,7 @@ export function SharedCalendar({
                     <div className="empty-state">Loading staff...</div>
                   ) : null}
                   {requiredPeopleQuery.error ? (
-                    <p className="status--error">{requiredPeopleQuery.error.message}</p>
+                    <p className="status--error">{friendlyErrorMessage(requiredPeopleQuery.error)}</p>
                   ) : null}
                   {!requiredPeopleQuery.isLoading &&
                   !requiredPeopleQuery.error &&
@@ -471,9 +475,8 @@ export function SharedCalendar({
                   </Button>
                 ) : null}
               </div>
-              {formStatus ? <p className="status--success">{formStatus}</p> : null}
               {formError ? <p className="status--error">{formError}</p> : null}
-              {mutationError ? <p className="status--error">{mutationError.message}</p> : null}
+              {mutationError ? <p className="status--error">{friendlyErrorMessage(mutationError)}</p> : null}
             </form>
           </section>
         ) : null}
@@ -535,7 +538,7 @@ export function SharedCalendar({
 
             {eventsQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
             {eventsQuery.error ? (
-              <p className="status--error">{eventsQuery.error.message}</p>
+              <p className="status--error">{friendlyErrorMessage(eventsQuery.error)}</p>
             ) : null}
             {!eventsQuery.isLoading && events.length === 0 ? (
               <div className="empty-state">{copy.empty}</div>

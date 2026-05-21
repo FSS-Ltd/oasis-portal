@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { CalendarCheck, Download, RefreshCw } from 'lucide-react';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { downloadCsv } from '@/components/attendance/download-csv';
 import { Badge } from '@/components/ui/badge';
@@ -173,8 +174,8 @@ export function StudentAttendanceHistoryPanel({ studentId }: { studentId: string
 
   return (
     <AttendanceHistoryCard
-      error={historyQuery.error?.message}
-      exportError={exportQuery.error?.message}
+      error={historyQuery.error ? friendlyErrorMessage(historyQuery.error) : undefined}
+      exportError={exportQuery.error ? friendlyErrorMessage(exportQuery.error) : undefined}
       exportPending={exportQuery.isFetching}
       from={from}
       loading={historyQuery.isFetching}
@@ -214,8 +215,8 @@ export function StaffAttendanceHistoryPanel({ staffUserId }: { staffUserId: stri
 
   return (
     <AttendanceHistoryCard
-      error={historyQuery.error?.message}
-      exportError={exportQuery.error?.message}
+      error={historyQuery.error ? friendlyErrorMessage(historyQuery.error) : undefined}
+      exportError={exportQuery.error ? friendlyErrorMessage(exportQuery.error) : undefined}
       exportPending={exportQuery.isFetching}
       from={from}
       loading={historyQuery.isFetching}

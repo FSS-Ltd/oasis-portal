@@ -4,6 +4,7 @@ import { type ReactNode } from 'react';
 import { REGISTRATION_CONSENT_COPY, REGISTRATION_CONSENT_TYPES } from '@oasis/domain';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 
 type RegistrationRecord = NonNullable<RouterOutputs['registration']['byStudent']>;
@@ -117,7 +118,12 @@ export function StudentRegistrationPanel({ studentId }: StudentRegistrationPanel
   }
 
   if (registrationQuery.error) {
-    return <EmptyState detail={registrationQuery.error.message} title="Registration unavailable" />;
+    return (
+      <EmptyState
+        detail={friendlyErrorMessage(registrationQuery.error)}
+        title="Registration unavailable"
+      />
+    );
   }
 
   if (!registration) {

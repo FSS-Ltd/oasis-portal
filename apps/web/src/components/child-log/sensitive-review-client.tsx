@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { Check, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { SnapshotBadge } from './snapshot-widgets';
 
@@ -32,6 +33,10 @@ function ReviewRow({ item }: { item: ReviewItem }) {
   const reviewItem = api.childLog.reviewSensitiveItem.useMutation({
     onSuccess: async () => {
       await utils.childLog.sensitiveReviewQueue.invalidate();
+      showSuccessToast('Sensitive item marked reviewed.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Sensitive item could not be reviewed.');
     },
   });
 
@@ -109,7 +114,9 @@ function ReviewRow({ item }: { item: ReviewItem }) {
             Mark seen
           </Button>
         </div>
-        {reviewItem.error ? <p className="status--error">{reviewItem.error.message}</p> : null}
+        {reviewItem.error ? (
+          <p className="status--error">{friendlyErrorMessage(reviewItem.error)}</p>
+        ) : null}
       </form>
     </article>
   );
@@ -129,7 +136,9 @@ export function SensitiveReviewClient() {
       </div>
 
       {reviewQuery.isLoading ? <EmptyState>Loading sensitive review...</EmptyState> : null}
-      {reviewQuery.error ? <p className="status--error">{reviewQuery.error.message}</p> : null}
+      {reviewQuery.error ? (
+        <p className="status--error">{friendlyErrorMessage(reviewQuery.error)}</p>
+      ) : null}
 
       <section className="snapshot-tab-panel snapshot-list-panel">
         <h2>Needs review</h2>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
+import { friendlyErrorMessage } from '@/lib/user-facing-errors';
 import { api } from '@/lib/trpc';
 import {
   filterCountLabel,
@@ -130,7 +131,7 @@ export function ParentFeesClient() {
       {invoicesQuery.isLoading ? (
         <InvoiceEmptyState body="Loading school fee invoices." title="Loading fees" />
       ) : invoicesQuery.error ? (
-        <InvoiceEmptyState body={invoicesQuery.error.message} title="Fees unavailable" />
+        <InvoiceEmptyState body={friendlyErrorMessage(invoicesQuery.error)} title="Fees unavailable" />
       ) : invoices.length === 0 ? (
         <InvoiceEmptyState body="No invoices match this view." title="No invoices" />
       ) : (

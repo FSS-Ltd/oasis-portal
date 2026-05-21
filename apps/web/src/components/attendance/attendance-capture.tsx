@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
 import { canonicalSchoolYear, displaySchoolYearLabel } from '@oasis/domain';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import {
   DailyDemeritBadge,
@@ -134,11 +135,13 @@ export function AttendanceCapture({
 
     try {
       await markMutation.mutateAsync({ studentId: row.studentId, date, status, absenceReason });
+      showSuccessToast(`${row.studentName} marked ${status}.`);
       await utils.attendance.forDate.invalidate({ date });
     } catch (err) {
+      showErrorToast(err, 'Attendance could not be saved.');
       setRowErrors((current) => ({
         ...current,
-        [row.studentId]: err instanceof Error ? err.message : 'Attendance could not be saved.',
+        [row.studentId]: friendlyErrorMessage(err, 'Attendance could not be saved.'),
       }));
     } finally {
       setPendingRows((current) => withoutRecordKey(current, row.studentId));
@@ -350,14 +353,16 @@ export function AttendanceCapture({
       </div>
 
       {showBandFilter && bandsQuery.error ? (
-        <p className="status--error attendance-error">{bandsQuery.error.message}</p>
+        <p className="status--error attendance-error">{friendlyErrorMessage(bandsQuery.error)}</p>
       ) : null}
 
       <div className="panel panel--scroll">
         <DataTable
           columns={columns}
           empty={tableEmpty}
-          errorMessage={attendanceQuery.error?.message}
+          errorMessage={
+            attendanceQuery.error ? friendlyErrorMessage(attendanceQuery.error) : undefined
+          }
           getRowKey={(row) => row.studentId}
           loading={attendanceQuery.isLoading}
           loadingLabel="Loading attendance..."
@@ -367,7 +372,7 @@ export function AttendanceCapture({
       </div>
 
       {exportQuery.error ? (
-        <p className="status--error attendance-error">{exportQuery.error.message}</p>
+        <p className="status--error attendance-error">{friendlyErrorMessage(exportQuery.error)}</p>
       ) : null}
     </section>
   );

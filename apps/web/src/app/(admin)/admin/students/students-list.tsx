@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import {
   DailyDemeritBadge,
@@ -67,8 +68,12 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
     ? managedStudentsQuery.isLoading
     : activeStudentsQuery.isLoading;
   const errorMessage = canManageStudents
-    ? managedStudentsQuery.error?.message
-    : activeStudentsQuery.error?.message;
+    ? managedStudentsQuery.error
+      ? friendlyErrorMessage(managedStudentsQuery.error)
+      : undefined
+    : activeStudentsQuery.error
+      ? friendlyErrorMessage(activeStudentsQuery.error)
+      : undefined;
 
   const students = useMemo(() => {
     const availableRows = rows ?? [];

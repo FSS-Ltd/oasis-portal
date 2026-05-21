@@ -14,6 +14,7 @@ import {
 } from '@oasis/domain';
 import { Button, type ButtonProps } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import {
   blankStudent,
@@ -107,6 +108,10 @@ export function SiblingAddModalButton({
       reset(emptyValues());
       setSubmitError(null);
       setOpen(false);
+      showSuccessToast('Sibling added.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Sibling could not be added.');
     },
   });
 
@@ -217,7 +222,7 @@ export function SiblingAddModalButton({
             <div className="parent-sibling-modal__body">
               {registrationQuery.error ? (
                 <p className="status--error" role="alert">
-                  {registrationQuery.error.message}
+                  {friendlyErrorMessage(registrationQuery.error)}
                 </p>
               ) : null}
               {remainingSlots === 0 && !registrationQuery.isLoading ? (
@@ -417,7 +422,8 @@ export function SiblingAddModalButton({
               <div>
                 {submitError || addSiblings.error ? (
                   <p className="status--error" role="alert">
-                    {submitError ?? addSiblings.error?.message}
+                    {submitError ??
+                      (addSiblings.error ? friendlyErrorMessage(addSiblings.error) : null)}
                   </p>
                 ) : null}
               </div>

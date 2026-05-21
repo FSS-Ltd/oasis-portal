@@ -5,6 +5,7 @@ import { Search, UserCheck, UserCog, UserPlus, UsersRound } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { AccessAccountPanel } from './access-account-panel';
@@ -100,7 +101,9 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
   const supportCount = directoryRows.filter((row) => rowRole(row) === 'TechnicalSupport').length;
   const activeCount = accounts.filter((account) => account.active).length;
   const loading = accountsQuery.isLoading || invitationsQuery.isLoading;
-  const error = accountsQuery.error?.message ?? invitationsQuery.error?.message;
+  const error =
+    (accountsQuery.error ? friendlyErrorMessage(accountsQuery.error) : null) ??
+    (invitationsQuery.error ? friendlyErrorMessage(invitationsQuery.error) : null);
 
   return (
     <div className="people-profiles">

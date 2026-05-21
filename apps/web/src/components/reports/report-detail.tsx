@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Mail, Send, UserCheck } from 'lucide-react';
+import { Mail, Send, UserCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -16,7 +16,6 @@ import {
 
 interface ReportDetailProps {
   canEdit: boolean;
-  errorMessage?: string | null;
   headSummary: string;
   onHeadSummaryChange?: (value: string) => void;
   onReview?: () => void;
@@ -24,7 +23,6 @@ interface ReportDetailProps {
   report: TermReport | null;
   reviewPending?: boolean;
   sendPending?: boolean;
-  statusMessage?: string | null;
 }
 
 interface ReportMetricProps {
@@ -83,7 +81,6 @@ function TextEntries({
 
 export function ReportDetail({
   canEdit,
-  errorMessage,
   headSummary,
   onHeadSummaryChange,
   onReview,
@@ -91,7 +88,6 @@ export function ReportDetail({
   report,
   reviewPending = false,
   sendPending = false,
-  statusMessage,
 }: ReportDetailProps) {
   if (!report) return <EmptyReportDetail canEdit={canEdit} />;
 
@@ -274,13 +270,6 @@ export function ReportDetail({
             {isSent ? <Mail aria-hidden="true" size={16} /> : <Send aria-hidden="true" size={16} />}
             {isSent ? 'Sent' : 'Send'}
           </Button>
-          {statusMessage ? (
-            <p className="status--success">
-              <CheckCircle2 aria-hidden="true" size={15} />
-              {statusMessage}
-            </p>
-          ) : null}
-          {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
         </div>
       ) : null}
     </section>

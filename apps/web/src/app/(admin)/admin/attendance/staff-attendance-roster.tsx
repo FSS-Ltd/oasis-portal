@@ -2,6 +2,7 @@
 
 import { Plus, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Badge } from '@/components/ui/badge';
@@ -85,12 +86,16 @@ export function StaffAttendanceRoster() {
 
     try {
       await markMutation.mutateAsync({ staffUserId: row.staffUserId, date, status, absenceReason });
+      showSuccessToast(`${row.staffName} marked ${status}.`);
       await utils.attendance.staffForDate.invalidate({ date });
     } catch (err) {
+      showErrorToast(err, 'Supervisor attendance could not be saved.');
       setRowErrors((current) => ({
         ...current,
-        [row.staffUserId]:
-          err instanceof Error ? err.message : 'Supervisor attendance could not be saved.',
+        [row.staffUserId]: friendlyErrorMessage(
+          err,
+          'Supervisor attendance could not be saved.',
+        ),
       }));
     } finally {
       setPendingRows((current) => withoutRecordKey(current, row.staffUserId));
@@ -110,9 +115,11 @@ export function StaffAttendanceRoster() {
     try {
       await markMutation.mutateAsync({ staffUserId: selectedStaffUserId, date, status: 'Present' });
       setSelectedStaffUserId(NO_SELECTION);
+      showSuccessToast(`${option.name} added to attendance.`);
       await utils.attendance.staffForDate.invalidate({ date });
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Supervisor could not be added.');
+      setAddError(friendlyErrorMessage(err, 'Supervisor could not be added.'));
+      showErrorToast(err, 'Supervisor could not be added.');
     } finally {
       setPendingRows((current) => withoutRecordKey(current, selectedStaffUserId));
     }
@@ -307,7 +314,7 @@ export function StaffAttendanceRoster() {
               title="No supervisors scheduled"
             />
           }
-          errorMessage={staffQuery.error?.message}
+          errorMessage={staffQuery.error ? friendlyErrorMessage(staffQuery.error) : undefined}
           getRowKey={(row) => row.staffUserId}
           loading={staffQuery.isLoading}
           loadingLabel="Loading supervisor attendance..."
