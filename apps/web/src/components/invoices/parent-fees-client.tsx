@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
-import { friendlyErrorMessage } from '@/lib/user-facing-errors';
+import { Button } from '@/components/ui/button';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import {
   filterCountLabel,
@@ -15,20 +16,134 @@ import {
   InvoicePrimaryMeta,
   InvoiceStatCard,
   InvoiceStatusBadge,
+  InvoiceTotal,
   MessageOfficeAction,
   parentInvoiceStatusFilters,
   type InvoiceDto,
   type ParentInvoiceStatusFilter,
 } from './invoice-ui';
 
-function ParentInvoiceCard({
+function PaymentDonut({
+  paidAmountPence,
+  overdueAmountPence,
+  remainingAmountPence,
+}: {
+  paidAmountPence: number;
+  overdueAmountPence: number;
+  remainingAmountPence: number;
+}) {
+  const total = Math.max(1, paidAmountPence + overdueAmountPence + remainingAmountPence);
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  const paidLength = (paidAmountPence / total) * circumference;
+  const overdueLength = (overdueAmountPence / total) * circumference;
+  const remainingLength = circumference - paidLength - overdueLength;
+  return (
+    <div className="parent-fees-chart">
+      <div className="parent-fees-chart__amount parent-fees-chart__amount--paid">
+        <span>Paid</span>
+        <strong>{formatPence(paidAmountPence)}</strong>
+      </div>
+      <svg aria-label="Payment progress" height="116" role="img" viewBox="0 0 116 116" width="116">
+        <circle cx="58" cy="58" fill="none" r={radius} stroke="#d8dde8" strokeWidth="16" />
+        <circle
+          cx="58"
+          cy="58"
+          fill="none"
+          r={radius}
+          stroke="#7f8795"
+          strokeDasharray={`${String(remainingLength)} ${String(circumference - remainingLength)}`}
+          strokeDashoffset="0"
+          strokeLinecap="round"
+          strokeWidth="16"
+          transform="rotate(-90 58 58)"
+        />
+        <circle
+          cx="58"
+          cy="58"
+          fill="none"
+          r={radius}
+          stroke="#d04a4a"
+          strokeDasharray={`${String(overdueLength)} ${String(circumference - overdueLength)}`}
+          strokeDashoffset={-remainingLength}
+          strokeLinecap="round"
+          strokeWidth="16"
+          transform="rotate(-90 58 58)"
+        />
+        <circle
+          cx="58"
+          cy="58"
+          fill="none"
+          r={radius}
+          stroke="#24a36a"
+          strokeDasharray={`${String(paidLength)} ${String(circumference - paidLength)}`}
+          strokeDashoffset={-(remainingLength + overdueLength)}
+          strokeLinecap="round"
+          strokeWidth="16"
+          transform="rotate(-90 58 58)"
+        />
+      </svg>
+      <div className="parent-fees-chart__amount parent-fees-chart__amount--left">
+        <span>Left</span>
+        <strong>{formatPence(remainingAmountPence + overdueAmountPence)}</strong>
+      </div>
+    </div>
+  );
+}
+
+function ParentDiscountControls({
   invoice,
-  open,
-  onToggle,
+  pending,
+  onToggleDiscount,
 }: {
   invoice: InvoiceDto;
+  pending: boolean;
+  onToggleDiscount: (discountId: string, optedOut: boolean) => void;
+}) {
+  if (invoice.discounts.length === 0) return null;
+  return (
+    <section className="parent-discount-controls">
+      <h3>Discount choices</h3>
+      {invoice.discounts.map((discount) => (
+        <label key={discount.id}>
+          <input
+            checked={discount.optedOut}
+            disabled={!discount.canOptOut || pending}
+            onChange={(event) => {
+              onToggleDiscount(discount.id, event.target.checked);
+            }}
+            type="checkbox"
+          />
+          <span>
+            <strong>{discount.label}</strong>
+            <small>
+              {discount.optedOut
+                ? 'Opted out'
+                : `${formatPence(discount.appliedAmountPence)} applied`}
+            </small>
+          </span>
+        </label>
+      ))}
+    </section>
+  );
+}
+
+function ParentInvoiceCard({
+  invoice,
+  markingPaid,
+  open,
+  togglingDiscount,
+  onMarkPaid,
+  onToggle,
+  onToggleDiscount,
+}: {
+  invoice: InvoiceDto;
+  markingPaid: boolean;
   open: boolean;
+  togglingDiscount: boolean;
+  onMarkPaid: (invoice: InvoiceDto) => void;
   onToggle: () => void;
+  onToggleDiscount: (discountId: string, optedOut: boolean) => void;
 }) {
   return (
     <article className={open ? 'parent-invoice-card is-open' : 'parent-invoice-card'}>
@@ -54,10 +169,31 @@ function ParentInvoiceCard({
         <div className="parent-invoice-card__detail">
           <InvoicePrimaryMeta invoice={invoice} />
           <InvoiceLineItems invoice={invoice} />
+          <ParentDiscountControls
+            invoice={invoice}
+            onToggleDiscount={onToggleDiscount}
+            pending={togglingDiscount}
+          />
+          <InvoiceTotal invoice={invoice} />
           <div className="parent-invoice-card__actions">
             <InvoicePdfAction invoiceId={invoice.id} />
+            {invoice.status === 'Unpaid' ? (
+              <Button
+                onClick={() => {
+                  onMarkPaid(invoice);
+                }}
+                pending={markingPaid}
+                size="sm"
+                type="button"
+              >
+                Mark as paid
+              </Button>
+            ) : null}
             <MessageOfficeAction />
           </div>
+          {invoice.status === 'PaymentPending' ? (
+            <p className="parent-payment-note">Payment is waiting for pastor or head confirmation.</p>
+          ) : null}
         </div>
       ) : null}
     </article>
@@ -65,13 +201,40 @@ function ParentInvoiceCard({
 }
 
 export function ParentFeesClient() {
+  const utils = api.useUtils();
   const [status, setStatus] = useState<ParentInvoiceStatusFilter>('All');
   const [search, setSearch] = useState('');
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
+  const [pendingInvoiceId, setPendingInvoiceId] = useState<string | null>(null);
+  const [pendingDiscountId, setPendingDiscountId] = useState<string | null>(null);
   const invoicesQuery = api.invoice.listParent.useQuery(
     { status, search: search.trim() || undefined },
     { retry: false },
   );
+  const markPaid = api.invoice.parentMarkPaid.useMutation({
+    onSettled: () => {
+      setPendingInvoiceId(null);
+    },
+    onSuccess: async () => {
+      await utils.invoice.listParent.invalidate();
+      showSuccessToast('Payment sent for confirmation.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Payment could not be marked paid.');
+    },
+  });
+  const setDiscountOptOut = api.invoice.setDiscountOptOut.useMutation({
+    onSettled: () => {
+      setPendingDiscountId(null);
+    },
+    onSuccess: async () => {
+      await utils.invoice.listParent.invalidate();
+      showSuccessToast('Discount choice updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Discount choice could not be updated.');
+    },
+  });
   const invoices = invoicesQuery.data?.invoices ?? [];
   const stats = invoicesQuery.data?.stats;
   const firstUnpaidInvoiceId = useMemo(
@@ -88,6 +251,11 @@ export function ParentFeesClient() {
           <h1>{formatPence(stats?.outstandingAmountPence ?? 0)}</h1>
           <span>Outstanding balance</span>
         </div>
+        <PaymentDonut
+          overdueAmountPence={stats?.overdueAmountPence ?? 0}
+          paidAmountPence={stats?.paidAmountPence ?? 0}
+          remainingAmountPence={stats?.remainingAmountPence ?? 0}
+        />
         <div className="parent-fees-hero__stats">
           <InvoiceStatCard
             hint={filterCountLabel(stats?.overdueCount ?? 0)}
@@ -95,9 +263,9 @@ export function ParentFeesClient() {
             value={formatPence(stats?.overdueAmountPence ?? 0)}
           />
           <InvoiceStatCard
-            hint={filterCountLabel(stats?.paidCount ?? 0)}
-            label="Paid"
-            value={String(stats?.paidCount ?? 0)}
+            hint={filterCountLabel(stats?.paymentPendingCount ?? 0)}
+            label="Pending"
+            value={String(stats?.paymentPendingCount ?? 0)}
           />
         </div>
       </header>
@@ -140,12 +308,22 @@ export function ParentFeesClient() {
             <ParentInvoiceCard
               invoice={invoice}
               key={invoice.id}
+              markingPaid={pendingInvoiceId === invoice.id}
               onToggle={() => {
                 setOpenInvoiceId((current) =>
                   activeOpenInvoiceId === invoice.id && current ? null : invoice.id,
                 );
               }}
+              onMarkPaid={(targetInvoice) => {
+                setPendingInvoiceId(targetInvoice.id);
+                markPaid.mutate({ invoiceId: targetInvoice.id });
+              }}
+              onToggleDiscount={(discountId, optedOut) => {
+                setPendingDiscountId(discountId);
+                setDiscountOptOut.mutate({ invoiceId: invoice.id, discountId, optedOut });
+              }}
               open={activeOpenInvoiceId === invoice.id}
+              togglingDiscount={invoice.discounts.some((discount) => discount.id === pendingDiscountId)}
             />
           ))}
         </div>

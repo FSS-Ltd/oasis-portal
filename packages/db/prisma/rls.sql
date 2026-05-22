@@ -160,16 +160,37 @@ ALTER TABLE "SchoolFeeInvoice" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SchoolFeeInvoice" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "SchoolFeeInvoiceLineItem" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SchoolFeeInvoiceLineItem" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeYearFeeConfig" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeYearFeeConfig" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoiceStudent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoiceStudent" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoiceDiscount" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "SchoolFeeInvoiceDiscount" FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS invoice_staff_select ON "SchoolFeeInvoice";
 DROP POLICY IF EXISTS invoice_parent_own_child_select ON "SchoolFeeInvoice";
 DROP POLICY IF EXISTS invoice_staff_insert ON "SchoolFeeInvoice";
 DROP POLICY IF EXISTS invoice_staff_update ON "SchoolFeeInvoice";
 DROP POLICY IF EXISTS invoice_staff_delete ON "SchoolFeeInvoice";
+DROP POLICY IF EXISTS invoice_parent_payment_update ON "SchoolFeeInvoice";
 DROP POLICY IF EXISTS invoice_line_accessible_select ON "SchoolFeeInvoiceLineItem";
 DROP POLICY IF EXISTS invoice_line_staff_insert ON "SchoolFeeInvoiceLineItem";
 DROP POLICY IF EXISTS invoice_line_staff_update ON "SchoolFeeInvoiceLineItem";
 DROP POLICY IF EXISTS invoice_line_staff_delete ON "SchoolFeeInvoiceLineItem";
+DROP POLICY IF EXISTS invoice_fee_config_staff_select ON "SchoolFeeYearFeeConfig";
+DROP POLICY IF EXISTS invoice_fee_config_parent_select ON "SchoolFeeYearFeeConfig";
+DROP POLICY IF EXISTS invoice_fee_config_staff_insert ON "SchoolFeeYearFeeConfig";
+DROP POLICY IF EXISTS invoice_fee_config_staff_update ON "SchoolFeeYearFeeConfig";
+DROP POLICY IF EXISTS invoice_student_staff_select ON "SchoolFeeInvoiceStudent";
+DROP POLICY IF EXISTS invoice_student_parent_select ON "SchoolFeeInvoiceStudent";
+DROP POLICY IF EXISTS invoice_student_staff_insert ON "SchoolFeeInvoiceStudent";
+DROP POLICY IF EXISTS invoice_student_staff_delete ON "SchoolFeeInvoiceStudent";
+DROP POLICY IF EXISTS invoice_discount_staff_select ON "SchoolFeeInvoiceDiscount";
+DROP POLICY IF EXISTS invoice_discount_parent_select ON "SchoolFeeInvoiceDiscount";
+DROP POLICY IF EXISTS invoice_discount_staff_insert ON "SchoolFeeInvoiceDiscount";
+DROP POLICY IF EXISTS invoice_discount_staff_update ON "SchoolFeeInvoiceDiscount";
+DROP POLICY IF EXISTS invoice_discount_parent_update ON "SchoolFeeInvoiceDiscount";
+DROP POLICY IF EXISTS invoice_discount_staff_delete ON "SchoolFeeInvoiceDiscount";
 
 -- API RBAC applies the stricter finance-admin tag check before these policies.
 -- RLS remains a second boundary between staff, parents, students, and anonymous sessions.
@@ -194,8 +215,35 @@ CREATE POLICY invoice_parent_own_child_select ON "SchoolFeeInvoice"
     current_setting('app.user_role', true) = 'Parent'
     AND "status" <> 'Draft'
     AND EXISTS (
-      SELECT 1 FROM "Guardian" g
-      WHERE g."studentId" = "SchoolFeeInvoice"."studentId"
+      SELECT 1
+      FROM "SchoolFeeInvoiceStudent" link
+      JOIN "Guardian" g ON g."studentId" = link."studentId"
+      WHERE link."invoiceId" = "SchoolFeeInvoice"."id"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY invoice_parent_payment_update ON "SchoolFeeInvoice"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "status" = 'Unpaid'
+    AND EXISTS (
+      SELECT 1
+      FROM "SchoolFeeInvoiceStudent" link
+      JOIN "Guardian" g ON g."studentId" = link."studentId"
+      WHERE link."invoiceId" = "SchoolFeeInvoice"."id"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "status"::text IN ('Unpaid', 'PaymentPending')
+    AND EXISTS (
+      SELECT 1
+      FROM "SchoolFeeInvoiceStudent" link
+      JOIN "Guardian" g ON g."studentId" = link."studentId"
+      WHERE link."invoiceId" = "SchoolFeeInvoice"."id"
         AND g."userId" = current_setting('app.user_id', true)
     )
   );
@@ -309,6 +357,236 @@ CREATE POLICY invoice_line_staff_update ON "SchoolFeeInvoiceLineItem"
   );
 
 CREATE POLICY invoice_line_staff_delete ON "SchoolFeeInvoiceLineItem"
+  FOR DELETE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+
+CREATE POLICY invoice_fee_config_staff_select ON "SchoolFeeYearFeeConfig"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_fee_config_parent_select ON "SchoolFeeYearFeeConfig"
+  FOR SELECT
+  USING (current_setting('app.user_role', true) = 'Parent');
+
+CREATE POLICY invoice_fee_config_staff_insert ON "SchoolFeeYearFeeConfig"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_fee_config_staff_update ON "SchoolFeeYearFeeConfig"
+  FOR UPDATE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_student_staff_select ON "SchoolFeeInvoiceStudent"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_student_parent_select ON "SchoolFeeInvoiceStudent"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1 FROM "Guardian" g
+      WHERE g."studentId" = "SchoolFeeInvoiceStudent"."studentId"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY invoice_student_staff_insert ON "SchoolFeeInvoiceStudent"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_student_staff_delete ON "SchoolFeeInvoiceStudent"
+  FOR DELETE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_discount_staff_select ON "SchoolFeeInvoiceDiscount"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_discount_parent_select ON "SchoolFeeInvoiceDiscount"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1
+      FROM "SchoolFeeInvoiceStudent" link
+      JOIN "Guardian" g ON g."studentId" = link."studentId"
+      WHERE link."invoiceId" = "SchoolFeeInvoiceDiscount"."invoiceId"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY invoice_discount_staff_insert ON "SchoolFeeInvoiceDiscount"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_discount_staff_update ON "SchoolFeeInvoiceDiscount"
+  FOR UPDATE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY invoice_discount_parent_update ON "SchoolFeeInvoiceDiscount"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1
+      FROM "SchoolFeeInvoice" i
+      JOIN "SchoolFeeInvoiceStudent" link ON link."invoiceId" = i."id"
+      JOIN "Guardian" g ON g."studentId" = link."studentId"
+      WHERE i."id" = "SchoolFeeInvoiceDiscount"."invoiceId"
+        AND i."status" = 'Unpaid'
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1
+      FROM "SchoolFeeInvoice" i
+      JOIN "SchoolFeeInvoiceStudent" link ON link."invoiceId" = i."id"
+      JOIN "Guardian" g ON g."studentId" = link."studentId"
+      WHERE i."id" = "SchoolFeeInvoiceDiscount"."invoiceId"
+        AND i."status" = 'Unpaid'
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY invoice_discount_staff_delete ON "SchoolFeeInvoiceDiscount"
   FOR DELETE
   USING (
     current_setting('app.full_admin', true) = 'true'

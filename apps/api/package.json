@@ -24,6 +24,7 @@
     "@oasis/db": "workspace:*",
     "@oasis/domain": "workspace:*",
     "@trpc/server": "^11.0.0-rc.600",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.3.1",
     "react-email": "^6.0.5",

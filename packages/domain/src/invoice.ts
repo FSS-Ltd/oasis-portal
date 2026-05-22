@@ -1,11 +1,74 @@
-export const SCHOOL_FEE_INVOICE_STATUSES = ['Draft', 'Unpaid', 'Paid'] as const;
+export const SCHOOL_FEE_INVOICE_STATUSES = ['Draft', 'Unpaid', 'PaymentPending', 'Paid'] as const;
 export type SchoolFeeInvoiceStatus = (typeof SCHOOL_FEE_INVOICE_STATUSES)[number];
 export type SchoolFeeInvoiceDisplayStatus = SchoolFeeInvoiceStatus | 'Overdue';
+export const SCHOOL_FEE_BILLING_CADENCES = ['Annual', 'Term', 'Monthly'] as const;
+export type SchoolFeeBillingCadence = (typeof SCHOOL_FEE_BILLING_CADENCES)[number];
+export const SCHOOL_FEE_DISCOUNT_KINDS = ['Preset', 'ManualPercent', 'ManualFixed'] as const;
+export type SchoolFeeDiscountKind = (typeof SCHOOL_FEE_DISCOUNT_KINDS)[number];
+
+export const SCHOOL_FEE_DISCOUNT_EXPLANATION =
+  'Our discount structure is designed to be both fair and generous. If you qualify for just one discount - such as being a church leader, volunteer, tither, church member, or enrolling siblings - that discount will be applied in full. If your family qualifies for multiple discounts, we apply the largest discount in full, and then add 25% of each additional eligible discount. This approach ensures meaningful support for engaged families while keeping the learning centre sustainable for all.';
+
+export const SCHOOL_FEE_SIBLING_DISCOUNT_CODE = 'sibling';
+export const SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX = 'child-index:';
+
+export const SCHOOL_FEE_DISCOUNT_PRESETS = [
+  { code: SCHOOL_FEE_SIBLING_DISCOUNT_CODE, label: 'Sibling discount', percentBps: 2500 },
+  { code: 'church-leader', label: 'Church Leaders / Oasis Supervisors', percentBps: 2000 },
+  {
+    code: 'volunteer-tither',
+    label: 'Fountain Church Volunteers / Oasis Parent Volunteers / Tithers',
+    percentBps: 1500,
+  },
+  { code: 'church-member', label: 'Fountain Church Member', percentBps: 1000 },
+] as const;
+
+export interface SchoolFeeYearFeeConfigInput {
+  annualAmountPence: number;
+  termAmountPence: number;
+  monthlyAmountPence: number;
+}
 
 export interface SchoolFeeInvoiceLineInput {
   description: string;
   quantity: number;
   unitAmountPence: number;
+}
+
+export interface SchoolFeeDiscountInput {
+  label: string;
+  kind: SchoolFeeDiscountKind;
+  presetCode?: string | null;
+  percentBps: number | null;
+  amountPence: number | null;
+  optedOut?: boolean;
+}
+
+export interface SchoolFeeAppliedDiscount extends SchoolFeeDiscountInput {
+  baseAmountPence: number;
+  appliedAmountPence: number;
+}
+
+export interface SchoolFeeChildDiscountBreakdown {
+  childIndex: number;
+  lineAmountPence: number;
+  discountAmountPence: number;
+  totalAmountPence: number;
+  discounts: SchoolFeeAppliedDiscount[];
+}
+
+export interface SchoolFeeDiscountCalculation {
+  discounts: SchoolFeeAppliedDiscount[];
+  discountAmountPence: number;
+  totalAmountPence: number;
+  childBreakdowns: SchoolFeeChildDiscountBreakdown[];
+}
+
+export interface SchoolFeeFamilyDiscountInput {
+  subtotalAmountPence: number;
+  studentCount: number;
+  childLineAmountsPence: readonly number[];
+  discounts: readonly SchoolFeeDiscountInput[];
 }
 
 export interface ParsedSchoolFeeInvoice {
@@ -62,6 +125,140 @@ export function invoiceTotalPence(lines: readonly SchoolFeeInvoiceLineInput[]): 
   return lines.reduce((sum, line) => sum + lineItemTotalPence(line), 0);
 }
 
+export function schoolFeeCadenceAmountPence(
+  config: SchoolFeeYearFeeConfigInput,
+  cadence: SchoolFeeBillingCadence,
+): number {
+  if (cadence === 'Annual') return config.annualAmountPence;
+  if (cadence === 'Term') return config.termAmountPence;
+  return config.monthlyAmountPence;
+}
+
+export function schoolFeeDiscountChildIndexPresetCode(childIndex: number): string {
+  if (!Number.isInteger(childIndex) || childIndex < 0) {
+    throw new Error('discount child index must be a non-negative integer');
+  }
+  return `${SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX}${String(childIndex)}`;
+}
+
+export function calculateSchoolFeeDiscounts(
+  subtotalAmountPence: number,
+  discounts: readonly SchoolFeeDiscountInput[],
+): SchoolFeeDiscountCalculation {
+  if (!Number.isInteger(subtotalAmountPence) || subtotalAmountPence < 0) {
+    throw new Error('invoice subtotal must be a non-negative integer');
+  }
+
+  const applied = discounts.map<SchoolFeeAppliedDiscount>((discount) => {
+    const baseAmountPence = discount.optedOut
+      ? 0
+      : discountBaseAmountPence(subtotalAmountPence, discount);
+    return { ...discount, baseAmountPence, appliedAmountPence: 0 };
+  });
+
+  const eligibleIndexes = applied
+    .map((discount, index) => ({ discount, index }))
+    .filter(({ discount }) => !discount.optedOut && discount.baseAmountPence > 0)
+    .sort((left, right) => right.discount.baseAmountPence - left.discount.baseAmountPence);
+
+  let remaining = subtotalAmountPence;
+  eligibleIndexes.forEach(({ discount, index }, order) => {
+    if (remaining <= 0) return;
+    const rawAmount =
+      order === 0 ? discount.baseAmountPence : Math.round(discount.baseAmountPence * 0.25);
+    const appliedAmountPence = Math.min(rawAmount, remaining);
+    applied[index] = { ...discount, appliedAmountPence };
+    remaining -= appliedAmountPence;
+  });
+
+  const discountAmountPence = subtotalAmountPence - remaining;
+  return {
+    discounts: applied,
+    discountAmountPence,
+    totalAmountPence: subtotalAmountPence - discountAmountPence,
+    childBreakdowns: [],
+  };
+}
+
+export function calculateSchoolFeeFamilyDiscounts({
+  subtotalAmountPence,
+  studentCount,
+  childLineAmountsPence,
+  discounts,
+}: SchoolFeeFamilyDiscountInput): SchoolFeeDiscountCalculation {
+  if (!Number.isInteger(subtotalAmountPence) || subtotalAmountPence < 0) {
+    throw new Error('invoice subtotal must be a non-negative integer');
+  }
+  if (!Number.isInteger(studentCount) || studentCount <= 0) {
+    throw new Error('invoice must contain at least one child');
+  }
+  if (childLineAmountsPence.length < studentCount) {
+    throw new Error('generated invoices need one line item per child');
+  }
+
+  const hasSiblingDiscount = discounts.some(
+    (discount) => isSiblingDiscount(discount) && !discount.optedOut,
+  );
+  if (studentCount === 1 && hasSiblingDiscount) {
+    throw new Error('sibling discount requires at least two children');
+  }
+
+  const applied = discounts.map<SchoolFeeAppliedDiscount>((discount) => ({
+    ...discount,
+    baseAmountPence: 0,
+    appliedAmountPence: 0,
+  }));
+  const childAmounts = childLineAmountsPence.slice(0, studentCount);
+  const childBreakdowns: SchoolFeeChildDiscountBreakdown[] = [];
+  childAmounts.forEach((childAmountPence, childIndex) => {
+    if (!Number.isInteger(childAmountPence) || childAmountPence < 0) {
+      throw new Error('child line amount must be a non-negative integer');
+    }
+    const childDiscounts = discounts.map((discount) => {
+      const childScopeIndex = schoolFeeDiscountChildIndex(discount);
+      if (childScopeIndex !== null && childScopeIndex !== childIndex) {
+        return { ...discount, optedOut: true };
+      }
+      if (isSiblingDiscount(discount) && childIndex === 0) {
+        return { ...discount, optedOut: true };
+      }
+      if (discount.kind === 'ManualFixed' && childScopeIndex === null && childIndex > 0) {
+        return { ...discount, optedOut: true };
+      }
+      return discount;
+    });
+    const childCalculation = calculateSchoolFeeDiscounts(childAmountPence, childDiscounts);
+    childBreakdowns.push({
+      childIndex,
+      lineAmountPence: childAmountPence,
+      discountAmountPence: childCalculation.discountAmountPence,
+      totalAmountPence: childCalculation.totalAmountPence,
+      discounts: childCalculation.discounts,
+    });
+    childCalculation.discounts.forEach((discount, index) => {
+      const existing = applied[index];
+      if (!existing) return;
+      applied[index] = {
+        ...existing,
+        baseAmountPence: existing.baseAmountPence + discount.baseAmountPence,
+        appliedAmountPence: existing.appliedAmountPence + discount.appliedAmountPence,
+      };
+    });
+  });
+
+  const rawDiscountAmountPence = applied.reduce(
+    (sum, discount) => sum + discount.appliedAmountPence,
+    0,
+  );
+  const discountAmountPence = Math.min(rawDiscountAmountPence, subtotalAmountPence);
+  return {
+    discounts: applied,
+    discountAmountPence,
+    totalAmountPence: subtotalAmountPence - discountAmountPence,
+    childBreakdowns,
+  };
+}
+
 export function schoolFeeInvoiceDisplayStatus(
   status: SchoolFeeInvoiceStatus,
   dueOn: Date | string | null,
@@ -69,6 +266,38 @@ export function schoolFeeInvoiceDisplayStatus(
 ): SchoolFeeInvoiceDisplayStatus {
   if (status !== 'Unpaid' || !dueOn) return status;
   return dateKey(dueOn) < dateKey(now) ? 'Overdue' : 'Unpaid';
+}
+
+function discountBaseAmountPence(
+  subtotalAmountPence: number,
+  discount: SchoolFeeDiscountInput,
+): number {
+  if (discount.kind === 'ManualFixed') {
+    const amountPence = discount.amountPence ?? 0;
+    if (!Number.isInteger(amountPence) || amountPence < 0) {
+      throw new Error('manual fixed discount amount must be a non-negative integer');
+    }
+    return Math.min(amountPence, subtotalAmountPence);
+  }
+
+  const percentBps = discount.percentBps ?? 0;
+  if (!Number.isInteger(percentBps) || percentBps < 0 || percentBps > 10_000) {
+    throw new Error('discount percentage must be between 0 and 100%');
+  }
+  return Math.round((subtotalAmountPence * percentBps) / 10_000);
+}
+
+function isSiblingDiscount(discount: SchoolFeeDiscountInput): boolean {
+  return discount.presetCode === SCHOOL_FEE_SIBLING_DISCOUNT_CODE;
+}
+
+function schoolFeeDiscountChildIndex(discount: SchoolFeeDiscountInput): number | null {
+  const code = discount.presetCode;
+  if (!code?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return null;
+  const rawIndex = code.slice(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX.length);
+  if (!/^[0-9]+$/u.test(rawIndex)) return null;
+  const index = Number(rawIndex);
+  return Number.isSafeInteger(index) ? index : null;
 }
 
 export function parseSchoolFeeInvoiceText(text: string): ParsedSchoolFeeInvoice {

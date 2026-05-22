@@ -9859,10 +9859,53 @@ button.club-assignment-row {
   line-height: 1.1;
 }
 
+.invoice-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.invoice-fee-settings {
+  display: grid;
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+
+.invoice-fee-settings p,
+.invoice-fee-settings h2 {
+  margin: 0;
+}
+
+.invoice-fee-settings p {
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.invoice-fee-settings h2 {
+  margin-top: 4px;
+  color: var(--oasis-navy);
+  font-size: 1.1rem;
+}
+
+.invoice-fee-settings__fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .invoice-stat-grid,
 .parent-fees-hero__stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -10033,6 +10076,25 @@ button.club-assignment-row {
   white-space: nowrap;
 }
 
+.invoice-family-cell {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.invoice-family-cell strong {
+  color: var(--oasis-navy);
+  font-weight: 800;
+}
+
+.invoice-family-cell small {
+  overflow: hidden;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .invoice-row-actions {
   display: inline-flex;
   gap: 6px;
@@ -10063,6 +10125,12 @@ button.club-assignment-row {
   color: var(--oasis-navy);
 }
 
+.invoice-row-actions button.is-active {
+  border-color: var(--oasis-blue);
+  background: rgba(90, 145, 199, 0.1);
+  color: var(--oasis-navy);
+}
+
 .invoice-drawer {
   display: grid;
   gap: 14px;
@@ -10070,6 +10138,11 @@ button.club-assignment-row {
   border: 1px solid var(--oasis-border);
   border-radius: 8px;
   background: var(--oasis-surface);
+}
+
+.invoice-drawer:focus {
+  outline: 2px solid rgba(90, 145, 199, 0.35);
+  outline-offset: 3px;
 }
 
 .invoice-drawer header {
@@ -10152,7 +10225,11 @@ button.club-assignment-row {
   gap: 8px;
 }
 
-.invoice-line-item,
+.invoice-totals {
+  display: grid;
+  gap: 8px;
+}
+
 .invoice-total-row {
   display: flex;
   align-items: center;
@@ -10162,6 +10239,10 @@ button.club-assignment-row {
 }
 
 .invoice-line-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  min-width: 0;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--oasis-border-light);
 }
@@ -10189,6 +10270,41 @@ button.club-assignment-row {
   font-size: 0.72rem;
 }
 
+.invoice-line-item__discounts {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 4px;
+  padding: 6px 0 0 12px;
+  border-left: 2px solid var(--oasis-border);
+}
+
+.invoice-line-item__discounts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.invoice-line-item__discounts span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.invoice-line-item__discounts strong {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+}
+
+.invoice-line-item__net {
+  padding-top: 3px;
+}
+
+.invoice-line-item__net span,
+.invoice-line-item__net strong {
+  color: var(--oasis-navy);
+  font-weight: 850;
+}
+
 .invoice-line-item b,
 .invoice-total-row strong {
   color: var(--oasis-navy);
@@ -10200,10 +10316,64 @@ button.club-assignment-row {
   border-top: 1px solid var(--oasis-border);
 }
 
+.invoice-total-row--final {
+  border-top-width: 2px;
+}
+
 .invoice-total-row span {
   color: var(--oasis-text-secondary);
   font-size: 0.8rem;
   font-weight: 850;
+}
+
+.invoice-discounts {
+  display: grid;
+  gap: 8px;
+}
+
+.invoice-discounts h3,
+.invoice-create-section h3,
+.parent-discount-controls h3 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+}
+
+.invoice-discount-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.invoice-discount-row span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.invoice-discount-row strong,
+.invoice-discount-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invoice-discount-row strong {
+  color: var(--oasis-navy);
+  font-size: 0.8rem;
+}
+
+.invoice-discount-row small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+}
+
+.invoice-discount-row b {
+  color: var(--oasis-navy);
+  white-space: nowrap;
 }
 
 .invoice-modal {
@@ -10225,12 +10395,18 @@ button.club-assignment-row {
 .invoice-modal__panel {
   position: relative;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   width: min(860px, 100%);
-  max-height: min(760px, calc(100vh - 40px));
+  max-height: min(760px, calc(100dvh - 40px));
   overflow: hidden;
   border-radius: 8px;
   background: var(--oasis-surface);
   box-shadow: 0 24px 70px rgba(7, 13, 34, 0.32);
+}
+
+.invoice-modal--wide .invoice-modal__panel {
+  width: min(1120px, 100%);
+  height: min(760px, calc(100dvh - 40px));
 }
 
 .invoice-modal__header,
@@ -10247,6 +10423,35 @@ button.club-assignment-row {
   justify-content: flex-end;
   border-top: 1px solid var(--oasis-border);
   border-bottom: 0;
+}
+
+.invoice-modal__header--navy {
+  border-bottom: 0;
+  background: var(--oasis-navy);
+  color: #ffffff;
+}
+
+.invoice-modal__header--navy > span {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.invoice-modal__header--navy p,
+.invoice-modal__header--navy h2,
+.invoice-modal__header--navy button {
+  color: #ffffff;
+}
+
+.invoice-modal__header--navy button {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.invoice-modal__header--navy button:hover,
+.invoice-modal__header--navy button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
 }
 
 .invoice-modal__header > span {
@@ -10284,8 +10489,11 @@ button.club-assignment-row {
 
 .invoice-modal__body {
   display: grid;
+  align-content: start;
   gap: 16px;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
 }
 
@@ -10327,6 +10535,10 @@ button.club-assignment-row {
   font-weight: 750;
 }
 
+.invoice-form-error--modal {
+  padding: 0 16px 12px;
+}
+
 .invoice-review-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10358,11 +10570,196 @@ button.club-assignment-row {
   align-items: center;
 }
 
+.invoice-review-line-group {
+  display: grid;
+  gap: 7px;
+}
+
+.invoice-review-line-discounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 0 0 5px 12px;
+  border-left: 2px solid var(--oasis-border);
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.invoice-review-line-discounts strong {
+  color: var(--oasis-navy);
+}
+
+.invoice-create-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.invoice-create-section {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.invoice-create-section--wide {
+  grid-column: 1 / -1;
+}
+
+.invoice-child-list,
+.invoice-preset-grid,
+.parent-discount-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.invoice-child-list label,
+.invoice-preset-grid label,
+.parent-discount-controls label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.invoice-preset-grid label:has(input:disabled) {
+  opacity: 0.58;
+}
+
+.invoice-child-list span,
+.invoice-preset-grid span,
+.parent-discount-controls span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.invoice-child-list strong,
+.invoice-preset-grid strong,
+.parent-discount-controls strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+}
+
+.invoice-child-list small,
+.invoice-preset-grid small,
+.parent-discount-controls small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+}
+
+.invoice-family-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.invoice-family-summary div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.invoice-family-summary span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.invoice-family-summary strong {
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+  line-height: 1.1;
+}
+
+.invoice-family-summary p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.invoice-family-summary .invoice-family-summary__warning {
+  color: var(--oasis-danger);
+}
+
+.invoice-preset-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.invoice-manual-discount {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.45fr) 150px 120px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.invoice-manual-discount button {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+}
+
+.invoice-create-subtotal {
+  margin-right: auto;
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
 .parent-fees-hero {
   padding: 22px;
   border-radius: 8px;
   background: var(--oasis-navy);
   color: #ffffff;
+}
+
+.parent-fees-chart {
+  display: grid;
+  grid-template-columns: minmax(110px, max-content) 116px minmax(110px, max-content);
+  align-items: center;
+  gap: 18px;
+}
+
+.parent-fees-chart svg {
+  justify-self: center;
+}
+
+.parent-fees-chart__amount {
+  display: grid;
+  gap: 5px;
+}
+
+.parent-fees-chart__amount--paid {
+  justify-items: end;
+  text-align: right;
+}
+
+.parent-fees-chart__amount--left {
+  justify-items: start;
+  text-align: left;
+}
+
+.parent-fees-chart strong {
+  color: #ffffff;
+  font-size: 1.25rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .parent-fees-hero p,
@@ -10453,13 +10850,21 @@ button.club-assignment-row {
   padding: 0 14px 14px;
 }
 
+.parent-payment-note {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
 .parent-invoice-card.is-open .parent-invoice-card__summary svg:last-child {
   transform: rotate(180deg);
 }
 
 @media (max-width: 1020px) {
   .invoice-admin-grid,
-  .invoice-stat-grid {
+  .invoice-stat-grid,
+  .invoice-fee-settings {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -10484,12 +10889,31 @@ button.club-assignment-row {
   .parent-fees-hero__stats,
   .invoice-review-grid,
   .invoice-meta-grid,
-  .invoice-file-meta {
+  .invoice-file-meta,
+  .invoice-fee-settings,
+  .invoice-fee-settings__fields,
+  .invoice-create-grid,
+  .invoice-preset-grid,
+  .invoice-family-summary,
+  .invoice-manual-discount {
     grid-template-columns: 1fr;
   }
 
   .invoice-search {
     width: 100%;
+  }
+
+  .invoice-header-actions {
+    justify-content: flex-start;
+  }
+
+  .parent-fees-chart {
+    grid-template-columns: 1fr 116px 1fr;
+    gap: 12px;
+  }
+
+  .parent-fees-chart strong {
+    font-size: 1rem;
   }
 
   .invoice-table-card {

@@ -114,6 +114,9 @@ model User {
   clubRotaShifts            ClubRotaShift[]               @relation("ClubRotaShifts")
   clubAvailabilityWindows   ClubAvailabilityWindow[]      @relation("ClubAvailability")
   schoolFeeInvoicesCreated  SchoolFeeInvoice[]            @relation("SchoolFeeInvoicesCreated")
+  schoolFeeInvoicesMarked   SchoolFeeInvoice[]            @relation("SchoolFeeInvoicesParentMarkedPaid")
+  schoolFeeInvoicesConfirmed SchoolFeeInvoice[]           @relation("SchoolFeeInvoicesPaymentConfirmed")
+  schoolFeeDiscountOptOuts  SchoolFeeInvoiceDiscount[]    @relation("SchoolFeeDiscountOptedOutBy")
   auditEvents               AuditLog[]
   invitationsSent           UserInvitation[]              @relation("InvitedUserInvitations")
   acceptedInvitations       UserInvitation[]              @relation("AcceptedUserInvitations")
@@ -191,6 +194,7 @@ model Student {
   clubAttendance           ClubAttendance[]
   termReports              TermReport[]
   schoolFeeInvoices        SchoolFeeInvoice[]
+  schoolFeeInvoiceLinks    SchoolFeeInvoiceStudent[]
   registrationProfile      StudentRegistrationProfile?
 
   @@index([yearGroup])
@@ -1191,7 +1195,30 @@ model TermReport {
 enum SchoolFeeInvoiceStatus {
   Draft
   Unpaid
+  PaymentPending
   Paid
+}
+
+enum SchoolFeeBillingCadence {
+  Annual
+  Term
+  Monthly
+}
+
+enum SchoolFeeInvoiceDiscountKind {
+  Preset
+  ManualPercent
+  ManualFixed
+}
+
+model SchoolFeeYearFeeConfig {
+  id                 String   @id @default(cuid())
+  schoolYear         Int      @unique
+  annualAmountPence  Int
+  termAmountPence    Int
+  monthlyAmountPence Int
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model SchoolFeeInvoice {
@@ -1199,10 +1226,15 @@ model SchoolFeeInvoice {
   invoiceNumber       String?                @unique
   studentId           String?
   status              SchoolFeeInvoiceStatus @default(Draft)
+  schoolYear          Int?
+  billingCadence      SchoolFeeBillingCadence?
+  familyLabelEnc      String?
   term                String?
   issuedOn            DateTime?              @db.Date
   dueOn               DateTime?              @db.Date
   paidAt              DateTime?
+  subtotalAmountPence Int                    @default(0)
+  discountAmountPence Int                    @default(0)
   totalAmountPence    Int                    @default(0)
   originalFileNameEnc String
   fileMimeType        String                 @default("application/pdf")
@@ -1210,16 +1242,27 @@ model SchoolFeeInvoice {
   pdfBytesEnc         String
   extractedTextEnc    String?
   createdById         String
+  parentMarkedPaidAt  DateTime?
+  parentMarkedPaidById String?
+  paymentConfirmedAt  DateTime?
+  paymentConfirmedById String?
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
-  student   Student?                   @relation(fields: [studentId], references: [id])
-  createdBy User                       @relation("SchoolFeeInvoicesCreated", fields: [createdById], references: [id])
-  lineItems SchoolFeeInvoiceLineItem[]
+  student            Student?                  @relation(fields: [studentId], references: [id])
+  createdBy          User                      @relation("SchoolFeeInvoicesCreated", fields: [createdById], references: [id])
+  parentMarkedPaidBy User?                     @relation("SchoolFeeInvoicesParentMarkedPaid", fields: [parentMarkedPaidById], references: [id], onDelete: SetNull)
+  paymentConfirmedBy User?                     @relation("SchoolFeeInvoicesPaymentConfirmed", fields: [paymentConfirmedById], references: [id], onDelete: SetNull)
+  lineItems          SchoolFeeInvoiceLineItem[]
+  students           SchoolFeeInvoiceStudent[]
+  discounts          SchoolFeeInvoiceDiscount[]
 
   @@index([studentId, status, dueOn])
+  @@index([schoolYear, status, dueOn])
   @@index([status, dueOn])
   @@index([createdById, createdAt])
+  @@index([parentMarkedPaidById, parentMarkedPaidAt])
+  @@index([paymentConfirmedById, paymentConfirmedAt])
 }
 
 model SchoolFeeInvoiceLineItem {
@@ -1236,6 +1279,43 @@ model SchoolFeeInvoiceLineItem {
 
   @@unique([invoiceId, position])
   @@index([invoiceId])
+}
+
+model SchoolFeeInvoiceStudent {
+  invoiceId String
+  studentId String
+  position  Int
+  createdAt DateTime @default(now())
+
+  invoice SchoolFeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  student Student          @relation(fields: [studentId], references: [id])
+
+  @@id([invoiceId, studentId])
+  @@unique([invoiceId, position])
+  @@index([studentId])
+}
+
+model SchoolFeeInvoiceDiscount {
+  id                 String                       @id @default(cuid())
+  invoiceId          String
+  position           Int
+  labelEnc           String
+  kind               SchoolFeeInvoiceDiscountKind
+  presetCode         String?
+  percentBps         Int?
+  amountPence        Int?
+  baseAmountPence    Int                          @default(0)
+  appliedAmountPence Int                          @default(0)
+  optedOutAt         DateTime?
+  optedOutById       String?
+  createdAt          DateTime                     @default(now())
+
+  invoice    SchoolFeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  optedOutBy User?            @relation("SchoolFeeDiscountOptedOutBy", fields: [optedOutById], references: [id], onDelete: SetNull)
+
+  @@unique([invoiceId, position])
+  @@index([invoiceId])
+  @@index([optedOutById, optedOutAt])
 }
 
 // ---------------------------------------------------------------------------
