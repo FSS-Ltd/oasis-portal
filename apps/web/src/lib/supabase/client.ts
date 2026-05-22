@@ -6,8 +6,19 @@ import type { SupabaseDatabase } from './types';
 
 export type BrowserSupabaseClient = SupabaseClient<SupabaseDatabase>;
 
-export function createClient(): BrowserSupabaseClient {
+interface CreateClientOptions {
+  accessToken?: () => Promise<string | null>;
+}
+
+export function createClient(options: CreateClientOptions = {}): BrowserSupabaseClient {
   const { publishableKey, url } = getSupabaseConfig();
+
+  if (options.accessToken) {
+    return createBrowserClient<SupabaseDatabase>(url, publishableKey, {
+      accessToken: options.accessToken,
+      isSingleton: false,
+    });
+  }
 
   return createBrowserClient<SupabaseDatabase>(url, publishableKey);
 }

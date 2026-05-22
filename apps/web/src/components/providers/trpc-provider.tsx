@@ -5,13 +5,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { httpBatchLink } from '@trpc/client';
 import superjson from 'superjson';
 import { api } from '@/lib/trpc';
+import { RealtimeProvider } from './realtime-provider';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '';
   return process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
 }
 
-export function TrpcProvider({ children }: { children: ReactNode }) {
+export function TrpcProvider({
+  children,
+  enableRealtime = false,
+}: {
+  children: ReactNode;
+  enableRealtime?: boolean;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -36,7 +43,9 @@ export function TrpcProvider({ children }: { children: ReactNode }) {
 
   return (
     <api.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        {enableRealtime ? <RealtimeProvider>{children}</RealtimeProvider> : children}
+      </QueryClientProvider>
     </api.Provider>
   );
 }
