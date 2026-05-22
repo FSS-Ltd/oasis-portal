@@ -250,6 +250,7 @@ export interface BehaviourNotificationEmailInput {
   childName: string;
   logoUrl?: string;
   note?: string | null;
+  recordedByName: string;
   recipientName?: string;
   to: string;
   type: 'Merit' | 'Demerit' | 'General';
@@ -265,6 +266,7 @@ export function buildBehaviourNotificationEmail(
     category: input.category,
     childName: input.childName,
     note,
+    recordedByName: input.recordedByName,
     type: input.type,
     ...recipientNameProps,
   };

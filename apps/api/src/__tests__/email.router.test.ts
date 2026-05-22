@@ -214,6 +214,7 @@ describe('email builders', () => {
       childName: 'Jane Learner',
       type: 'Merit',
       category: 'Kindness',
+      recordedByName: 'Supervisor User',
       note: 'Helped a younger student',
     });
 
@@ -222,6 +223,7 @@ describe('email builders', () => {
     expect(email.text).toContain('Jane Learner');
     expect(email.text).toContain('Type: Merit');
     expect(email.text).toContain('Category: Kindness');
+    expect(email.text).toContain('Recorded by: Supervisor User');
     expect(email.text).toContain('Note: Helped a younger student');
     expect('react' in email).toBe(true);
     expect('html' in email).toBe(false);
@@ -231,6 +233,7 @@ describe('email builders', () => {
     expect(html).toContain('Merit recorded');
     expect(html).toContain('Jane Learner');
     expect(html).toContain('Kindness');
+    expect(html).toContain('Supervisor User');
     expect(html).toContain('Helped a younger student');
   });
 

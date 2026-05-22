@@ -156,6 +156,7 @@ interface FakeDb {
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
   student: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
+  user: { findUnique: ReturnType<typeof vi.fn> };
   guardian: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { findFirst: ReturnType<typeof vi.fn> };
   behaviourEntry: {
@@ -203,6 +204,11 @@ const defaultUsers: StoredUser[] = [
     id: supervisorUser.id,
     fullNameEnc: 'enc:Supervisor User',
     role: supervisorUser.role,
+  }),
+  makeStoredUser({
+    id: allStudentsSupervisorUser.id,
+    fullNameEnc: 'enc:All Students Supervisor User',
+    role: allStudentsSupervisorUser.role,
   }),
   makeStoredUser({
     id: otherSupervisorUser.id,
@@ -333,6 +339,16 @@ function makeFakeDb(
         if (!student) return Promise.resolve(null);
         return Promise.resolve(student);
       }),
+    },
+    user: {
+      findUnique: vi.fn(
+        ({ where, select }: { where: { id: string }; select?: { fullNameEnc?: boolean } }) => {
+          const user = users.find((candidate) => candidate.id === where.id);
+          if (!user) return Promise.resolve(null);
+          if (select?.fullNameEnc) return Promise.resolve({ fullNameEnc: user.fullNameEnc });
+          return Promise.resolve(user);
+        },
+      ),
     },
     guardian: {
       findMany: vi.fn(({ where }: { where: { studentId?: string; user?: { active?: boolean } } }) =>
@@ -783,6 +799,7 @@ describe('behaviour.log', () => {
     expect(firstEmail?.text).toContain('Jane Learner');
     expect(firstEmail?.text).toContain('Type: Merit');
     expect(firstEmail?.text).toContain('Category: Kindness');
+    expect(firstEmail?.text).toContain('Recorded by: Supervisor User');
     expect(firstEmail?.text).toContain('Note: Helped a younger student');
     const emailAudits = auditCreateArgs(db).filter((args) => args.data.entity === 'Email');
     expect(emailAudits).toHaveLength(2);
@@ -814,6 +831,7 @@ describe('behaviour.log', () => {
     const sentEmail = email.send.mock.calls[0]?.[0];
     expect(sentEmail?.text).toContain('Type: Demerit');
     expect(sentEmail?.text).toContain('Category: Disruption');
+    expect(sentEmail?.text).toContain('Recorded by: Supervisor User');
     expect(sentEmail?.text).toContain('Note: Interrupted group work');
   });
 
@@ -850,6 +868,7 @@ describe('behaviour.log', () => {
     expect(sentEmail?.text).toContain('received a general mark');
     expect(sentEmail?.text).toContain('Type: General');
     expect(sentEmail?.text).toContain('Category: Misc');
+    expect(sentEmail?.text).toContain('Recorded by: Supervisor User');
     expect(sentEmail?.text).toContain('Note: Shared pastoral update');
   });
 

@@ -11,6 +11,7 @@ export interface BehaviourNotificationEmailProps {
   childName: string;
   logoUrl?: string;
   note?: string | null;
+  recordedByName: string;
   recipientName?: string;
   type: 'Merit' | 'Demerit' | 'General';
 }
@@ -27,12 +28,17 @@ export function buildBehaviourNotificationEmailText({
   category,
   childName,
   note,
+  recordedByName,
   type,
-}: Pick<BehaviourNotificationEmailProps, 'category' | 'childName' | 'note' | 'type'>): string {
+}: Pick<
+  BehaviourNotificationEmailProps,
+  'category' | 'childName' | 'note' | 'recordedByName' | 'type'
+>): string {
   const lines = [
     `${childName} received a ${notificationLabel(type)} on Oasis Portal.`,
     `Type: ${type}`,
     `Category: ${category}`,
+    `Recorded by: ${recordedByName}`,
   ];
   if (note) lines.push(`Note: ${note}`);
   return lines.join('\n\n');
@@ -43,6 +49,7 @@ export function BehaviourNotificationEmail({
   childName,
   logoUrl,
   note,
+  recordedByName,
   recipientName,
   type,
 }: BehaviourNotificationEmailProps) {
@@ -66,6 +73,9 @@ export function BehaviourNotificationEmail({
       </Text>
       <Text style={paragraphStyle}>
         Category: <strong>{category}</strong>
+      </Text>
+      <Text style={paragraphStyle}>
+        Recorded by: <strong>{recordedByName}</strong>
       </Text>
       {note ? (
         <Text style={paragraphStyle}>

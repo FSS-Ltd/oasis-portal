@@ -65,6 +65,7 @@ interface BehaviourNotificationEntry {
   type: BehaviourType;
   category: string;
   note: string | null;
+  recordedById: string;
   visibility: BehaviourVisibility;
 }
 
@@ -566,23 +567,35 @@ async function notifyBehaviourGuardians({
 
   let guardians: BehaviourNotificationGuardian[];
   let childName: string;
+  let recordedByName: string;
 
   try {
-    guardians = await ctx.db.guardian.findMany({
-      where: { studentId: entry.studentId, user: { active: true } },
-      select: {
-        user: {
-          select: {
-            id: true,
-            role: true,
-            fullNameEnc: true,
-            emailEnc: true,
+    const [guardianRows, recordedBy] = await Promise.all([
+      ctx.db.guardian.findMany({
+        where: { studentId: entry.studentId, user: { active: true } },
+        select: {
+          user: {
+            select: {
+              id: true,
+              role: true,
+              fullNameEnc: true,
+              emailEnc: true,
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+        orderBy: { createdAt: 'asc' },
+      }),
+      ctx.db.user.findUnique({
+        where: { id: entry.recordedById },
+        select: { fullNameEnc: true },
+      }),
+    ]);
+    if (!recordedBy) {
+      throw new Error('recording user not found');
+    }
+    guardians = guardianRows;
     childName = decryptRequired(ctx.db.$enc.decrypt, entry.studentNameEnc, 'student PII');
+    recordedByName = decryptRequired(ctx.db.$enc.decrypt, recordedBy.fullNameEnc, 'user PII');
   } catch (err) {
     console.error('Behaviour notification recipient resolution failed', {
       behaviourEntryId: entry.id,
@@ -611,6 +624,7 @@ async function notifyBehaviourGuardians({
         type: entry.type,
         category: entry.category,
         note: entry.note,
+        recordedByName,
       });
       const result = await getEmailClient().send(email);
 
@@ -1251,6 +1265,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             type: result.behaviour.type,
             category: result.behaviour.category,
             note: input.note ?? null,
+            recordedById: result.behaviour.recordedById,
             visibility: result.behaviour.visibility,
           },
         });
@@ -1404,6 +1419,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 type: entry.type,
                 category: entry.category,
                 note: input.note ?? null,
+                recordedById: entry.recordedById,
                 visibility: entry.visibility,
               },
             });
@@ -1735,6 +1751,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 type: entry.type,
                 category: entry.category,
                 note: preparedEntries[index]?.note ?? null,
+                recordedById: entry.recordedById,
                 visibility: entry.visibility,
               },
             }),
@@ -1884,6 +1901,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                 type: entry.type,
                 category: entry.category,
                 note: entry.note,
+                recordedById: entry.recordedById,
                 visibility: entry.visibility,
               },
             });
