@@ -19,7 +19,7 @@ export interface ProfileRouterDeps {
   userEmailClient?: ClerkUserEmailClient;
 }
 
-const POST_SIGN_IN_PATH = '/post-sign-in';
+const SIGN_UP_PATH = '/sign-up';
 
 const profileUserSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
@@ -41,6 +41,20 @@ const profileUserSelect = Prisma.validator<Prisma.UserSelect>()({
           fullNameEnc: true,
           yearGroup: true,
           active: true,
+        },
+      },
+    },
+  },
+  acceptedInvitations: {
+    where: { status: 'Accepted', guardianLinkInviterId: { not: null } },
+    orderBy: { acceptedAt: 'desc' },
+    take: 1,
+    select: {
+      guardianLinkInviter: {
+        select: {
+          id: true,
+          fullNameEnc: true,
+          emailEnc: true,
         },
       },
     },
@@ -109,7 +123,7 @@ function sanitizeEmailDeliveryError(err: unknown) {
   };
 }
 
-function buildPostSignInRedirectUrl(appUrl: string | undefined): string {
+function buildSignUpRedirectUrl(appUrl: string | undefined): string {
   const trimmed = appUrl?.trim();
   if (!trimmed) {
     throw new TRPCError({
@@ -119,7 +133,7 @@ function buildPostSignInRedirectUrl(appUrl: string | undefined): string {
   }
 
   try {
-    return new URL(POST_SIGN_IN_PATH, trimmed).toString();
+    return new URL(SIGN_UP_PATH, trimmed).toString();
   } catch {
     throw new TRPCError({
       code: 'INTERNAL_SERVER_ERROR',
@@ -207,10 +221,25 @@ function userProfileUpdateData(
   return data;
 }
 
+function mapProfileInviter(
+  ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
+  inviter: ProfileUserRow['acceptedInvitations'][number]['guardianLinkInviter'] | null | undefined,
+) {
+  if (!inviter) return null;
+
+  return {
+    id: inviter.id,
+    fullName: decryptRequired(ctx.db.$enc.decrypt, inviter.fullNameEnc, 'inviter PII'),
+    email: decryptRequired(ctx.db.$enc.decrypt, inviter.emailEnc, 'inviter PII'),
+  };
+}
+
 function mapProfile(
   ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
   user: ProfileUserRow,
 ) {
+  const acceptedSpouseInvitation = user.acceptedInvitations[0];
+
   return {
     id: user.id,
     role: user.role,
@@ -229,6 +258,7 @@ function mapProfile(
       yearGroup: guardian.student.yearGroup,
       active: guardian.student.active,
     })),
+    invitedBy: mapProfileInviter(ctx, acceptedSpouseInvitation?.guardianLinkInviter),
   };
 }
 
@@ -338,6 +368,22 @@ async function loadProfile(ctx: AppContext & { user: { id: string } }) {
       },
     },
   });
+
+  if (profile.invitedBy) {
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        entityId: profile.invitedBy.id,
+        meta: {
+          source: 'profile.me.invitedBy',
+          fields: ['fullName', 'email'],
+        },
+      },
+    });
+  }
+
   return profile;
 }
 
@@ -361,7 +407,7 @@ export function createProfileRouter(deps: ProfileRouterDeps = {}) {
     return cachedUserEmailClient;
   };
   const getInvitationRedirectUrl = (): string =>
-    buildPostSignInRedirectUrl(deps.appUrl ?? process.env.APP_URL);
+    buildSignUpRedirectUrl(deps.appUrl ?? process.env.APP_URL);
 
   async function createSpouseClerkInvitation(input: { email: string }) {
     const invitation = await getClerk().createInvitation({

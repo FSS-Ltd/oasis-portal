@@ -13,7 +13,7 @@ const parentUser: SessionUser = {
   requires2fa: false,
 };
 const TEST_APP_URL = 'https://portal.example.com';
-const INVITATION_REDIRECT_URL = `${TEST_APP_URL}/post-sign-in`;
+const SPOUSE_INVITATION_REDIRECT_URL = `${TEST_APP_URL}/sign-up`;
 
 interface FakeDb {
   $enc: {
@@ -60,6 +60,7 @@ function makeFakeDb(): FakeDb {
         },
       },
     ],
+    acceptedInvitations: [],
   };
 
   return {
@@ -196,6 +197,7 @@ describe('profile.me', () => {
           active: true,
         },
       ],
+      invitedBy: null,
     });
     expect(db.user.findUnique).toHaveBeenCalledWith({
       where: { id: parentUser.id },
@@ -223,6 +225,20 @@ describe('profile.me', () => {
             },
           },
         },
+        acceptedInvitations: {
+          where: { status: 'Accepted', guardianLinkInviterId: { not: null } },
+          orderBy: { acceptedAt: 'desc' },
+          take: 1,
+          select: {
+            guardianLinkInviter: {
+              select: {
+                id: true,
+                fullNameEnc: true,
+                emailEnc: true,
+              },
+            },
+          },
+        },
       },
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -235,6 +251,61 @@ describe('profile.me', () => {
           source: 'profile.me',
           fields: ['fullName', 'email', 'phone', 'address'],
           linkedChildCount: 1,
+        },
+      },
+    });
+  });
+
+  it('returns the spouse invitation inviter after acceptance', async () => {
+    const spouseUser: SessionUser = {
+      id: 'u_spouse',
+      role: 'Parent',
+      tags: [],
+      requires2fa: false,
+    };
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValueOnce({
+      id: spouseUser.id,
+      clerkId: 'clerk_spouse',
+      role: 'Parent',
+      tags: [],
+      fullNameEnc: 'enc:Alex Spouse',
+      emailEnc: 'enc:alex@example.com',
+      phoneEnc: null,
+      addressEnc: null,
+      active: true,
+      createdAt: new Date('2026-05-12T09:00:00.000Z'),
+      updatedAt: new Date('2026-05-12T10:00:00.000Z'),
+      guardianOf: [],
+      acceptedInvitations: [
+        {
+          guardianLinkInviter: {
+            id: parentUser.id,
+            fullNameEnc: 'enc:Jane Parent',
+            emailEnc: 'enc:jane@example.com',
+          },
+        },
+      ],
+    });
+    const { caller } = makeCaller(spouseUser, { db });
+
+    await expect(caller.profile.me()).resolves.toMatchObject({
+      id: spouseUser.id,
+      invitedBy: {
+        id: parentUser.id,
+        fullName: 'Jane Parent',
+        email: 'jane@example.com',
+      },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: spouseUser.id,
+        action: 'DecryptPii',
+        entity: 'User',
+        entityId: parentUser.id,
+        meta: {
+          source: 'profile.me.invitedBy',
+          fields: ['fullName', 'email'],
         },
       },
     });
@@ -307,6 +378,7 @@ describe('profile.updateMe', () => {
         createdAt: new Date('2026-04-29T09:00:00.000Z'),
         updatedAt: new Date('2026-04-29T10:00:00.000Z'),
         guardianOf: [],
+        acceptedInvitations: [],
       });
     const { caller, updatePrimaryEmail } = makeCaller(parentUser, { db });
 
@@ -392,7 +464,7 @@ describe('profile spouse invites', () => {
     expect(createInvitation).toHaveBeenCalledWith({
       emailAddress: 'spouse@example.com',
       publicMetadata: { role: 'Parent', tags: [] },
-      redirectUrl: INVITATION_REDIRECT_URL,
+      redirectUrl: SPOUSE_INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
     });
