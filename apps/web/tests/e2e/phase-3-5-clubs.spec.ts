@@ -128,7 +128,7 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
   parentTest('Parent can load club signup without management controls', async ({ page }) => {
     await signIn(page, parentEmail!, parentPassword!);
     await page.goto('/parent/clubs');
-    await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^my clubs$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /create club/i })).toHaveCount(0);
   });
 
@@ -137,7 +137,8 @@ test.describe('Phase 3.5 ClubsAdmin club management', () => {
     async ({ page }) => {
       await signIn(page, parentEmail!, parentPassword!);
       await page.goto('/parent/clubs');
-      await expect(page.getByRole('heading', { name: /^clubs$/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /^my clubs$/i })).toBeVisible();
+      await page.getByRole('tab', { name: /^signups$/i }).click();
 
       const noLinkedChildren = page.getByText(/No linked children found/i);
       test.skip((await noLinkedChildren.count()) > 0, 'Parent account has no linked children.');

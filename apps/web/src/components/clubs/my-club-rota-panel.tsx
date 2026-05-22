@@ -27,6 +27,10 @@ type AvailabilityDraft = {
   endMinute: number;
 };
 
+interface MyClubRotaPanelProps {
+  accessClubs?: readonly AccessClub[];
+}
+
 const weekdays = [
   { value: 0, label: 'Sunday' },
   { value: 1, label: 'Monday' },
@@ -61,13 +65,16 @@ function mapAvailability(window: AvailabilityRow): AvailabilityDraft {
   };
 }
 
-export function MyClubRotaPanel() {
+export function MyClubRotaPanel({ accessClubs }: MyClubRotaPanelProps = {}) {
   const utils = api.useUtils();
   const [weekStart, setWeekStart] = useState(() => mondayFor(dateFromKey(dateKey(new Date()))));
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [availabilityDraft, setAvailabilityDraft] = useState<AvailabilityDraft[]>([]);
-  const accessQuery = api.club.myClubRotaAccess.useQuery(undefined, { retry: false });
-  const clubs = accessQuery.data ?? [];
+  const accessQuery = api.club.myClubRotaAccess.useQuery(undefined, {
+    enabled: accessClubs === undefined,
+    retry: false,
+  });
+  const clubs = accessClubs ?? accessQuery.data ?? [];
   const selectedClub: AccessClub | null =
     clubs.find((club) => club.id === selectedClubId) ?? clubs[0] ?? null;
   const weekDays = useMemo(
@@ -96,8 +103,10 @@ export function MyClubRotaPanel() {
     setAvailabilityDraft(availabilityQuery.data.map(mapAvailability));
   }, [availabilityQuery.data]);
 
-  if (accessQuery.isLoading) return <div className="empty-state">Loading club rota...</div>;
-  if (accessQuery.error) {
+  if (accessClubs === undefined && accessQuery.isLoading) {
+    return <div className="empty-state">Loading club rota...</div>;
+  }
+  if (accessClubs === undefined && accessQuery.error) {
     return <p className="status--error">{friendlyErrorMessage(accessQuery.error)}</p>;
   }
   if (clubs.length === 0) return null;
