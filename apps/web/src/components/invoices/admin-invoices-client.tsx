@@ -1,12 +1,11 @@
 'use client';
 
-import { type ChangeEvent, type FormEvent, useMemo, useState } from 'react';
-import { Download, Eye, FileUp, Loader2, Search, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Download, Eye, Plus, ReceiptText, Search, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
-import { api, type RouterOutputs } from '@/lib/trpc';
+import { api } from '@/lib/trpc';
 import {
   adminInvoiceStatusFilters,
   filterCountLabel,
@@ -15,6 +14,7 @@ import {
   formatPence,
   InvoiceEmptyState,
   InvoiceFilterButton,
+  InvoiceDiscounts,
   InvoiceLineItems,
   InvoicePdfAction,
   InvoicePrimaryMeta,
@@ -24,300 +24,84 @@ import {
   type AdminInvoiceStatusFilter,
   type InvoiceDto,
 } from './invoice-ui';
+import { AdminInvoiceCreateModal } from './admin-invoice-create-modal';
+import { InvoiceFeeSettings } from './invoice-fee-settings';
 
-type UploadDraftResult = RouterOutputs['invoice']['uploadDraft'];
-type BillableStudent = RouterOutputs['invoice']['listBillableStudents'][number];
-
-interface ReviewLineForm {
-  description: string;
-  quantity: string;
-  unitAmount: string;
-}
-
-interface ReviewForm {
-  studentId: string;
-  invoiceNumber: string;
-  issuedOn: string;
-  dueOn: string;
-  term: string;
-  lineItems: ReviewLineForm[];
-}
-
-const emptyReviewLine = (): ReviewLineForm => ({
-  description: '',
-  quantity: '1',
-  unitAmount: '0.00',
-});
-
-function penceToPoundsInput(amountPence: number): string {
-  return (amountPence / 100).toFixed(2);
-}
-
-function parsePenceInput(value: string): number | null {
-  const normalized = value.trim().replace(/[£,\s]/gu, '');
-  if (!/^[0-9]+(?:\.[0-9]{1,2})?$/u.test(normalized)) return null;
-  const amount = Number(normalized);
-  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
-}
-
-function reviewFormFromUpload(result: UploadDraftResult): ReviewForm {
-  const parsed = result.parsed;
-  return {
-    studentId: '',
-    invoiceNumber: parsed.invoiceNumber ?? result.invoice.invoiceNumber ?? '',
-    issuedOn: parsed.issuedOn ?? '',
-    dueOn: parsed.dueOn ?? '',
-    term: parsed.term ?? '',
-    lineItems:
-      parsed.lineItems.length > 0
-        ? parsed.lineItems.map((line) => ({
-            description: line.description,
-            quantity: String(line.quantity),
-            unitAmount: penceToPoundsInput(line.unitAmountPence),
-          }))
-        : [emptyReviewLine()],
-  };
-}
-
-function isUploadDraftResult(
-  payload: UploadDraftResult | { error?: string },
-): payload is UploadDraftResult {
-  return 'invoice' in payload && 'parsed' in payload;
-}
-
-function buildPublishInput(form: ReviewForm, invoiceId: string) {
-  if (!form.studentId) return 'Select a student.';
-  if (!form.invoiceNumber.trim()) return 'Invoice number is required.';
-  if (!form.dueOn) return 'Due date is required.';
-
-  const lineItems = form.lineItems.map((line) => {
-    const description = line.description.trim();
-    const quantity = Number(line.quantity);
-    const unitAmountPence = parsePenceInput(line.unitAmount);
-    if (!description || !Number.isInteger(quantity) || quantity <= 0 || unitAmountPence === null) {
-      return null;
-    }
-    return { description, quantity, unitAmountPence };
-  });
-
-  if (lineItems.some((line) => line === null)) {
-    return 'Each line needs a description, quantity, and amount.';
-  }
-  const validLineItems = lineItems.filter(
-    (line): line is { description: string; quantity: number; unitAmountPence: number } =>
-      line !== null,
-  );
-
-  return {
-    invoiceId,
-    studentId: form.studentId,
-    invoiceNumber: form.invoiceNumber.trim(),
-    issuedOn: form.issuedOn || null,
-    dueOn: form.dueOn,
-    term: form.term.trim() || null,
-    lineItems: validLineItems,
-  };
-}
-
-function UploadReviewModal({
+function AdminInvoiceCreateLoadingModal({
   error,
-  form,
-  invoiceFileName,
-  onAddLine,
   onClose,
-  onFileChange,
-  onPublish,
-  onRemoveLine,
-  onUpdateForm,
-  onUpdateLine,
-  publishing,
-  students,
-  uploading,
 }: {
-  error: string | null;
-  form: ReviewForm | null;
-  invoiceFileName: string | null;
-  onAddLine: () => void;
+  error: unknown;
   onClose: () => void;
-  onFileChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  onPublish: (event: FormEvent<HTMLFormElement>) => void;
-  onRemoveLine: (index: number) => void;
-  onUpdateForm: (patch: Partial<ReviewForm>) => void;
-  onUpdateLine: (index: number, patch: Partial<ReviewLineForm>) => void;
-  publishing: boolean;
-  students: readonly BillableStudent[];
-  uploading: boolean;
 }) {
   return (
-    <div aria-modal="true" className="invoice-modal" role="dialog">
+    <div aria-modal="true" className="invoice-modal invoice-modal--wide" role="dialog">
       <button
-        aria-label="Close invoice upload"
+        aria-label="Close invoice creator"
         className="invoice-modal__backdrop"
         onClick={onClose}
         type="button"
       />
-      <form className="invoice-modal__panel" onSubmit={onPublish}>
-        <header className="invoice-modal__header">
+      <section className="invoice-modal__panel">
+        <header className="invoice-modal__header invoice-modal__header--navy">
           <span>
-            <FileUp aria-hidden="true" size={19} />
+            <ReceiptText aria-hidden="true" size={19} />
           </span>
           <div>
-            <p>Invoice Upload</p>
-            <h2>Review draft invoice</h2>
+            <p>Create Invoice</p>
+            <h2>Compose learning centre fees</h2>
           </div>
-          <button aria-label="Close invoice upload" onClick={onClose} type="button">
+          <button aria-label="Close invoice creator" onClick={onClose} type="button">
             <X aria-hidden="true" size={18} />
           </button>
         </header>
-
         <div className="invoice-modal__body">
-          <label className="invoice-upload-drop">
-            <input accept="application/pdf,.pdf" onChange={onFileChange} type="file" />
-            {uploading ? (
-              <Loader2 aria-hidden="true" className="button__spinner" size={18} />
-            ) : (
-              <FileUp aria-hidden="true" size={22} />
-            )}
-            <strong>{invoiceFileName ?? 'Upload PDF invoice'}</strong>
-            <span>PDF, 10 MB max</span>
-          </label>
-
-          {error ? <p className="invoice-form-error">{error}</p> : null}
-
-          {form ? (
-            <>
-              <div className="invoice-review-grid">
-                <Field label="Student" required>
-                  <SelectInput
-                    onChange={(event) => {
-                      onUpdateForm({ studentId: event.target.value });
-                    }}
-                    value={form.studentId}
-                  >
-                    <option value="">Select student</option>
-                    {students.map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {student.fullName} · {student.yearGroup}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <Field label="Invoice number" required>
-                  <TextInput
-                    onChange={(event) => {
-                      onUpdateForm({ invoiceNumber: event.target.value });
-                    }}
-                    value={form.invoiceNumber}
-                  />
-                </Field>
-                <Field label="Issued">
-                  <TextInput
-                    onChange={(event) => {
-                      onUpdateForm({ issuedOn: event.target.value });
-                    }}
-                    type="date"
-                    value={form.issuedOn}
-                  />
-                </Field>
-                <Field label="Due" required>
-                  <TextInput
-                    onChange={(event) => {
-                      onUpdateForm({ dueOn: event.target.value });
-                    }}
-                    type="date"
-                    value={form.dueOn}
-                  />
-                </Field>
-                <Field label="Term">
-                  <TextInput
-                    onChange={(event) => {
-                      onUpdateForm({ term: event.target.value });
-                    }}
-                    value={form.term}
-                  />
-                </Field>
-              </div>
-
-              <section className="invoice-review-lines">
-                <div className="invoice-review-lines__header">
-                  <h3>Line items</h3>
-                  <Button onClick={onAddLine} size="sm" type="button" variant="secondary">
-                    Add line
-                  </Button>
-                </div>
-                {form.lineItems.map((line, index) => (
-                  <div className="invoice-review-line" key={`${line.description}-${String(index)}`}>
-                    <TextInput
-                      aria-label="Line item description"
-                      onChange={(event) => {
-                        onUpdateLine(index, { description: event.target.value });
-                      }}
-                      placeholder="Description"
-                      value={line.description}
-                    />
-                    <TextInput
-                      aria-label="Quantity"
-                      inputMode="numeric"
-                      onChange={(event) => {
-                        onUpdateLine(index, { quantity: event.target.value });
-                      }}
-                      value={line.quantity}
-                    />
-                    <TextInput
-                      aria-label="Unit amount"
-                      inputMode="decimal"
-                      onChange={(event) => {
-                        onUpdateLine(index, { unitAmount: event.target.value });
-                      }}
-                      value={line.unitAmount}
-                    />
-                    <button
-                      aria-label="Remove line item"
-                      disabled={form.lineItems.length === 1}
-                      onClick={() => {
-                        onRemoveLine(index);
-                      }}
-                      type="button"
-                    >
-                      <X aria-hidden="true" size={16} />
-                    </button>
-                  </div>
-                ))}
-              </section>
-            </>
-          ) : null}
+          {error ? (
+            <p className="invoice-form-error">
+              {friendlyErrorMessage(error, 'Invoice options could not be loaded.')}
+            </p>
+          ) : (
+            <InvoiceEmptyState
+              body="Preparing family and discount options."
+              title="Loading invoice options"
+            />
+          )}
         </div>
-
         <footer className="invoice-modal__footer">
           <Button onClick={onClose} type="button" variant="ghost">
             Cancel
           </Button>
-          <Button disabled={!form} pending={publishing} type="submit">
-            Publish invoice
-          </Button>
         </footer>
-      </form>
+      </section>
     </div>
   );
 }
 
 function AdminInvoiceDrawer({
+  detailsId,
+  detailsRef,
   invoice,
   onClose,
+  onConfirmPayment,
   onDelete,
   onMarkPaid,
   onMarkUnpaid,
+  onRejectPayment,
   pending,
 }: {
+  detailsId: string;
+  detailsRef: (node: HTMLElement | null) => void;
   invoice: InvoiceDto;
   onClose: () => void;
+  onConfirmPayment: (invoice: InvoiceDto) => void;
   onDelete: (invoice: InvoiceDto) => void;
   onMarkPaid: (invoice: InvoiceDto) => void;
   onMarkUnpaid: (invoice: InvoiceDto) => void;
+  onRejectPayment: (invoice: InvoiceDto) => void;
   pending: boolean;
 }) {
   return (
-    <aside className="invoice-drawer">
+    <aside className="invoice-drawer" id={detailsId} ref={detailsRef} tabIndex={-1}>
       <header>
         <button aria-label="Close invoice details" onClick={onClose} type="button">
           <X aria-hidden="true" size={18} />
@@ -328,6 +112,7 @@ function AdminInvoiceDrawer({
       </header>
       <InvoicePrimaryMeta invoice={invoice} />
       <InvoiceLineItems invoice={invoice} />
+      <InvoiceDiscounts invoice={invoice} />
       <InvoiceTotal invoice={invoice} />
       <dl className="invoice-file-meta">
         <div>
@@ -362,6 +147,28 @@ function AdminInvoiceDrawer({
           >
             Mark paid
           </Button>
+        ) : invoice.status === 'PaymentPending' ? (
+          <>
+            <Button
+              onClick={() => {
+                onConfirmPayment(invoice);
+              }}
+              pending={pending}
+              size="sm"
+            >
+              Confirm payment
+            </Button>
+            <Button
+              onClick={() => {
+                onRejectPayment(invoice);
+              }}
+              pending={pending}
+              size="sm"
+              variant="secondary"
+            >
+              Reject
+            </Button>
+          </>
         ) : null}
         <Button
           onClick={() => {
@@ -381,35 +188,49 @@ function AdminInvoiceDrawer({
 
 export function AdminInvoicesClient() {
   const utils = api.useUtils();
+  const invoiceDetailsId = 'admin-invoice-detail-drawer';
+  const invoiceDetailsRef = useRef<HTMLElement | null>(null);
   const [status, setStatus] = useState<AdminInvoiceStatusFilter>('All');
   const [search, setSearch] = useState('');
-  const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadedDraft, setUploadedDraft] = useState<UploadDraftResult | null>(null);
-  const [reviewForm, setReviewForm] = useState<ReviewForm | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createInvoiceError, setCreateInvoiceError] = useState<string | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [focusInvoiceDetails, setFocusInvoiceDetails] = useState(false);
   const [pendingInvoiceId, setPendingInvoiceId] = useState<string | null>(null);
 
   const invoicesQuery = api.invoice.listAdmin.useQuery(
     { status, search: search.trim() || undefined },
     { retry: false },
   );
-  const studentsQuery = api.invoice.listBillableStudents.useQuery(undefined, {
-    enabled: uploadOpen,
+  const feeConfigQuery = api.invoice.listFeeConfig.useQuery({ schoolYear: 2026 }, { retry: false });
+  const familiesQuery = api.invoice.listBillableFamilies.useQuery(undefined, {
+    enabled: createOpen,
     retry: false,
   });
-  const publishDraft = api.invoice.publishDraft.useMutation({
-    onSuccess: async (invoice) => {
-      setUploadOpen(false);
-      setUploadedDraft(null);
-      setReviewForm(null);
-      setSelectedInvoiceId(invoice.id);
-      await utils.invoice.listAdmin.invalidate();
-      showSuccessToast('Invoice published.');
+  const presetsQuery = api.invoice.discountPresets.useQuery(undefined, {
+    enabled: createOpen,
+    retry: false,
+  });
+  const upsertFeeConfig = api.invoice.upsertFeeConfig.useMutation({
+    onSuccess: async () => {
+      await feeConfigQuery.refetch();
+      showSuccessToast('Fee settings saved.');
     },
     onError(error) {
-      showErrorToast(error, 'Invoice could not be published.');
+      showErrorToast(error, 'Fee settings could not be saved.');
+    },
+  });
+  const createGeneratedInvoice = api.invoice.createGenerated.useMutation({
+    onSuccess: async (invoice) => {
+      setCreateInvoiceError(null);
+      setCreateOpen(false);
+      setSelectedInvoiceId(invoice.id);
+      await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Invoice generated.');
+    },
+    onError(error) {
+      setCreateInvoiceError(friendlyErrorMessage(error, 'Invoice could not be generated.'));
+      showErrorToast(error, 'Invoice could not be generated.');
     },
   });
   const markPaid = api.invoice.markPaid.useMutation({
@@ -436,6 +257,30 @@ export function AdminInvoicesClient() {
       showErrorToast(error, 'Invoice could not be marked unpaid.');
     },
   });
+  const confirmPayment = api.invoice.confirmPayment.useMutation({
+    onSettled: () => {
+      setPendingInvoiceId(null);
+    },
+    onSuccess: async () => {
+      await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Payment confirmed.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Payment could not be confirmed.');
+    },
+  });
+  const rejectPayment = api.invoice.rejectPayment.useMutation({
+    onSettled: () => {
+      setPendingInvoiceId(null);
+    },
+    onSuccess: async () => {
+      await utils.invoice.listAdmin.invalidate();
+      showSuccessToast('Payment marked unpaid.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Payment could not be rejected.');
+    },
+  });
   const deleteInvoice = api.invoice.delete.useMutation({
     onSettled: () => {
       setPendingInvoiceId(null);
@@ -452,65 +297,34 @@ export function AdminInvoicesClient() {
 
   const invoices = invoicesQuery.data?.invoices ?? [];
   const stats = invoicesQuery.data?.stats;
+  const createOptionsError = familiesQuery.error ?? presetsQuery.error ?? null;
+  const createOptionsReady = Boolean(familiesQuery.data && presetsQuery.data);
+  const createModalKey = familiesQuery.data
+    ? familiesQuery.data.map((family) => family.familyKey).join('|')
+    : 'loading';
   const selectedInvoice = useMemo(
     () => invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null,
     [invoices, selectedInvoiceId],
   );
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
-    if (!file) return;
-    const formData = new FormData();
-    formData.set('file', file);
-    setUploading(true);
-    setUploadError(null);
+  useEffect(() => {
+    if (!focusInvoiceDetails || !selectedInvoice) return;
+    const drawer = invoiceDetailsRef.current;
+    if (!drawer) return;
+    drawer.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    drawer.focus({ preventScroll: true });
+    setFocusInvoiceDetails(false);
+  }, [focusInvoiceDetails, selectedInvoice]);
 
-    try {
-      const response = await fetch('/api/invoices/upload', { method: 'POST', body: formData });
-      const payload = (await response.json()) as UploadDraftResult | { error?: string };
-      if (!response.ok || !isUploadDraftResult(payload)) {
-        setUploadError(
-          'error' in payload && payload.error
-            ? friendlyErrorMessage(payload.error, 'Invoice upload failed.')
-            : 'Invoice upload failed.',
-        );
-        return;
-      }
-      setUploadedDraft(payload);
-      setReviewForm(reviewFormFromUpload(payload));
-      await utils.invoice.listAdmin.invalidate();
-      showSuccessToast('Invoice uploaded for review.');
-    } catch (error) {
-      setUploadError(friendlyErrorMessage(error, 'Invoice upload failed.'));
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
-  }
-
-  function handlePublish(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!uploadedDraft || !reviewForm) return;
-    const payload = buildPublishInput(reviewForm, uploadedDraft.invoice.id);
-    if (typeof payload === 'string') {
-      setUploadError(payload);
-      return;
-    }
-    setUploadError(null);
-    publishDraft.mutate(payload);
+  function viewInvoice(invoiceId: string) {
+    setSelectedInvoiceId(invoiceId);
+    setFocusInvoiceDetails(true);
   }
 
   function handleDelete(invoice: InvoiceDto) {
     if (!window.confirm(`Delete ${invoice.invoiceNumber ?? 'draft invoice'}?`)) return;
     setPendingInvoiceId(invoice.id);
     deleteInvoice.mutate({ invoiceId: invoice.id });
-  }
-
-  function openUpload() {
-    setUploadOpen(true);
-    setUploadError(null);
-    setUploadedDraft(null);
-    setReviewForm(null);
   }
 
   return (
@@ -520,11 +334,29 @@ export function AdminInvoicesClient() {
           <p>Finance</p>
           <h1>Invoices & School Fees</h1>
         </div>
-        <Button onClick={openUpload} type="button">
-          <FileUp aria-hidden="true" size={16} />
-          Upload invoice
-        </Button>
+        <div className="invoice-header-actions">
+          <Button
+            onClick={() => {
+              setCreateInvoiceError(null);
+              setCreateOpen(true);
+            }}
+            type="button"
+          >
+            <Plus aria-hidden="true" size={16} />
+            Create invoice
+          </Button>
+        </div>
       </header>
+
+      {feeConfigQuery.data ? (
+        <InvoiceFeeSettings
+          config={feeConfigQuery.data}
+          onSubmit={(input) => {
+            upsertFeeConfig.mutate(input);
+          }}
+          pending={upsertFeeConfig.isPending}
+        />
+      ) : null}
 
       <div className="invoice-stat-grid">
         <InvoiceStatCard
@@ -541,6 +373,11 @@ export function AdminInvoicesClient() {
           hint={filterCountLabel(stats?.draftCount ?? 0)}
           label="Drafts"
           value={String(stats?.draftCount ?? 0)}
+        />
+        <InvoiceStatCard
+          hint={filterCountLabel(stats?.paymentPendingCount ?? 0)}
+          label="Pending"
+          value={String(stats?.paymentPendingCount ?? 0)}
         />
         <InvoiceStatCard
           hint={filterCountLabel(stats?.paidCount ?? 0)}
@@ -582,8 +419,15 @@ export function AdminInvoicesClient() {
       ) : invoices.length === 0 ? (
         <InvoiceEmptyState
           action={
-            <Button onClick={openUpload} type="button" variant="secondary">
-              Upload invoice
+            <Button
+              onClick={() => {
+                setCreateInvoiceError(null);
+                setCreateOpen(true);
+              }}
+              type="button"
+              variant="secondary"
+            >
+              Create invoice
             </Button>
           }
           body="No invoices match this view."
@@ -596,7 +440,7 @@ export function AdminInvoicesClient() {
               <thead>
                 <tr>
                   <th>Invoice</th>
-                  <th>Student</th>
+                  <th>Family</th>
                   <th>Due</th>
                   <th>Status</th>
                   <th>Total</th>
@@ -609,7 +453,7 @@ export function AdminInvoicesClient() {
                     <td>
                       <button
                         onClick={() => {
-                          setSelectedInvoiceId(invoice.id);
+                          viewInvoice(invoice.id);
                         }}
                         type="button"
                       >
@@ -617,7 +461,12 @@ export function AdminInvoicesClient() {
                         <span>{invoice.term ?? invoice.originalFileName}</span>
                       </button>
                     </td>
-                    <td>{invoice.studentName ?? 'Not assigned'}</td>
+                    <td>
+                      <span className="invoice-family-cell">
+                        <strong>{invoice.familyLabel ?? 'Not set'}</strong>
+                        <small>{invoice.studentName ?? 'Not assigned'}</small>
+                      </span>
+                    </td>
                     <td>{formatInvoiceDate(invoice.dueOn)}</td>
                     <td>
                       <InvoiceStatusBadge status={invoice.displayStatus} />
@@ -627,8 +476,10 @@ export function AdminInvoicesClient() {
                       <div className="invoice-row-actions">
                         <button
                           aria-label="View invoice"
+                          aria-controls={invoiceDetailsId}
+                          className={selectedInvoiceId === invoice.id ? 'is-active' : undefined}
                           onClick={() => {
-                            setSelectedInvoiceId(invoice.id);
+                            viewInvoice(invoice.id);
                           }}
                           type="button"
                         >
@@ -649,9 +500,17 @@ export function AdminInvoicesClient() {
           </div>
           {selectedInvoice ? (
             <AdminInvoiceDrawer
+              detailsId={invoiceDetailsId}
+              detailsRef={(node) => {
+                invoiceDetailsRef.current = node;
+              }}
               invoice={selectedInvoice}
               onClose={() => {
                 setSelectedInvoiceId(null);
+              }}
+              onConfirmPayment={(invoice) => {
+                setPendingInvoiceId(invoice.id);
+                confirmPayment.mutate({ invoiceId: invoice.id });
               }}
               onDelete={handleDelete}
               onMarkPaid={(invoice) => {
@@ -661,6 +520,10 @@ export function AdminInvoicesClient() {
               onMarkUnpaid={(invoice) => {
                 setPendingInvoiceId(invoice.id);
                 markUnpaid.mutate({ invoiceId: invoice.id });
+              }}
+              onRejectPayment={(invoice) => {
+                setPendingInvoiceId(invoice.id);
+                rejectPayment.mutate({ invoiceId: invoice.id });
               }}
               pending={pendingInvoiceId === selectedInvoice.id}
             />
@@ -674,58 +537,31 @@ export function AdminInvoicesClient() {
         </div>
       )}
 
-      {uploadOpen ? (
-        <UploadReviewModal
-          error={
-            uploadError ??
-            (publishDraft.error ? friendlyErrorMessage(publishDraft.error) : null) ??
-            (studentsQuery.error ? friendlyErrorMessage(studentsQuery.error) : null)
-          }
-          form={reviewForm}
-          invoiceFileName={uploadedDraft?.invoice.originalFileName ?? null}
-          onAddLine={() => {
-            setReviewForm((current) =>
-              current
-                ? { ...current, lineItems: [...current.lineItems, emptyReviewLine()] }
-                : current,
-            );
-          }}
-          onClose={() => {
-            setUploadOpen(false);
-          }}
-          onFileChange={(event) => {
-            void handleFileChange(event);
-          }}
-          onPublish={handlePublish}
-          onRemoveLine={(index) => {
-            setReviewForm((current) =>
-              current
-                ? {
-                    ...current,
-                    lineItems: current.lineItems.filter((_, lineIndex) => lineIndex !== index),
-                  }
-                : current,
-            );
-          }}
-          onUpdateForm={(patch) => {
-            setReviewForm((current) => (current ? { ...current, ...patch } : current));
-          }}
-          onUpdateLine={(index, patch) => {
-            setReviewForm((current) =>
-              current
-                ? {
-                    ...current,
-                    lineItems: current.lineItems.map((line, lineIndex) =>
-                      lineIndex === index ? { ...line, ...patch } : line,
-                    ),
-                  }
-                : current,
-            );
-          }}
-          publishing={publishDraft.isPending}
-          students={studentsQuery.data ?? []}
-          uploading={uploading}
-        />
+      {createOpen && feeConfigQuery.data ? (
+        createOptionsReady ? (
+          <AdminInvoiceCreateModal
+            families={familiesQuery.data ?? []}
+            feeConfig={feeConfigQuery.data}
+            key={createModalKey}
+            onClose={() => {
+              setCreateOpen(false);
+            }}
+            onSubmit={(input) => {
+              setCreateInvoiceError(null);
+              createGeneratedInvoice.mutate(input);
+            }}
+            pending={createGeneratedInvoice.isPending}
+            serverError={createInvoiceError}
+            presets={presetsQuery.data ?? []}
+          />
+        ) : (
+          <AdminInvoiceCreateLoadingModal
+            error={createOptionsError}
+            onClose={() => {
+              setCreateOpen(false);
+            }}
+          />
+        )
       ) : null}
     </section>
   );

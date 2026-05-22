@@ -1,23 +1,34 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import type { SessionUser } from '@oasis/domain';
+import { schoolFeeDiscountChildIndexPresetCode, type SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { createInvoiceRouter } from '../routers/invoice.js';
 import { router } from '../trpc.js';
 
-type InvoiceStatus = 'Draft' | 'Unpaid' | 'Paid';
+type InvoiceStatus = 'Draft' | 'Unpaid' | 'PaymentPending' | 'Paid';
+type BillingCadence = 'Annual' | 'Term' | 'Monthly';
+type DiscountKind = 'Preset' | 'ManualPercent' | 'ManualFixed';
 
 interface StoredInvoice {
   id: string;
   invoiceNumber: string | null;
   studentId: string | null;
   status: InvoiceStatus;
+  schoolYear: number | null;
+  billingCadence: BillingCadence | null;
+  familyLabelEnc: string | null;
   term: string | null;
   issuedOn: Date | null;
   dueOn: Date | null;
   paidAt: Date | null;
+  subtotalAmountPence: number;
+  discountAmountPence: number;
   totalAmountPence: number;
+  parentMarkedPaidAt: Date | null;
+  parentMarkedPaidById: string | null;
+  paymentConfirmedAt: Date | null;
+  paymentConfirmedById: string | null;
   originalFileNameEnc: string;
   fileMimeType: string;
   fileSizeBytes: number;
@@ -26,6 +37,28 @@ interface StoredInvoice {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface StoredInvoiceStudent {
+  invoiceId: string;
+  studentId: string;
+  position: number;
+}
+
+interface StoredDiscount {
+  id: string;
+  invoiceId: string;
+  position: number;
+  labelEnc: string;
+  kind: DiscountKind;
+  presetCode: string | null;
+  percentBps: number | null;
+  amountPence: number | null;
+  baseAmountPence: number;
+  appliedAmountPence: number;
+  optedOutAt: Date | null;
+  optedOutById: string | null;
+  createdAt: Date;
 }
 
 interface StoredLine {
@@ -52,10 +85,19 @@ interface StoredGuardian {
   studentId: string;
 }
 
+interface StoredFeeConfig {
+  schoolYear: number;
+  annualAmountPence: number;
+  termAmountPence: number;
+  monthlyAmountPence: number;
+}
+
 interface FakeInvoiceFindManyArgs {
   where?: {
+    id?: { in: string[] };
     studentId?: { in: string[] };
     status?: { not: InvoiceStatus };
+    OR?: Array<{ id?: { in: string[] }; studentId?: { in: string[] } }>;
   };
 }
 
@@ -63,15 +105,37 @@ interface FakeInvoiceFindUniqueArgs {
   where: { id: string };
 }
 
+interface FakeInvoiceFindFirstArgs {
+  where?: {
+    invoiceNumber?: string | null;
+    NOT?: { id?: string };
+  };
+}
+
 interface FakeInvoiceCreateArgs {
   data: {
     status: InvoiceStatus;
+    invoiceNumber?: string | null;
+    studentId?: string | null;
+    schoolYear?: number | null;
+    billingCadence?: BillingCadence | null;
+    familyLabelEnc?: string | null;
+    term?: string | null;
+    issuedOn?: Date | null;
+    dueOn?: Date | null;
+    paidAt?: Date | null;
+    subtotalAmountPence?: number;
+    discountAmountPence?: number;
+    totalAmountPence?: number;
     originalFileNameEnc: string;
     fileMimeType: string;
     fileSizeBytes: number;
     pdfBytesEnc: string;
     extractedTextEnc: string | null;
     createdById: string;
+    lineItems?: { create: FakeLineCreateInput[] };
+    students?: { create: Array<{ studentId: string; position: number }> };
+    discounts?: { create: FakeDiscountCreateInput[] };
   };
 }
 
@@ -81,6 +145,17 @@ interface FakeLineCreateInput {
   quantity: number;
   unitAmountPence: number;
   totalAmountPence: number;
+}
+
+interface FakeDiscountCreateInput {
+  position: number;
+  labelEnc: string;
+  kind: DiscountKind;
+  presetCode: string | null;
+  percentBps: number | null;
+  amountPence: number | null;
+  baseAmountPence: number;
+  appliedAmountPence: number;
 }
 
 interface FakeInvoiceUpdateArgs {
@@ -98,9 +173,30 @@ interface FakeInvoiceUpdateArgs {
       | 'totalAmountPence'
     >
   > & {
+    schoolYear?: number | null;
+    billingCadence?: BillingCadence | null;
+    familyLabelEnc?: string | null;
+    subtotalAmountPence?: number;
+    discountAmountPence?: number;
+    parentMarkedPaidAt?: Date | null;
+    parentMarkedPaidById?: string | null;
+    paymentConfirmedAt?: Date | null;
+    paymentConfirmedById?: string | null;
+    originalFileNameEnc?: string;
+    fileSizeBytes?: number;
+    pdfBytesEnc?: string;
+    extractedTextEnc?: string | null;
     lineItems?: {
       deleteMany: object;
       create: FakeLineCreateInput[];
+    };
+    students?: {
+      deleteMany: object;
+      create: Array<{ studentId: string; position: number }>;
+    };
+    discounts?: {
+      deleteMany: object;
+      create?: FakeDiscountCreateInput[];
     };
   };
 }
@@ -135,9 +231,24 @@ const parentUser: SessionUser = {
   requires2fa: false,
 };
 
+const secondParentUser: SessionUser = {
+  id: 'cparent000000000002',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
+
+const unlinkedParentUser: SessionUser = {
+  id: 'cparent000000000003',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
+
 const linkedStudentId = 'cstudent000000000001';
 const otherStudentId = 'cstudent000000000002';
 const invoiceId = 'cinvoice00000000001';
+const discountId = 'cdiscount0000000001';
 
 function encrypt(value: string): string {
   return `enc:${value}`;
@@ -163,11 +274,20 @@ function makeInvoice(input: Pick<StoredInvoice, 'id'> & Partial<StoredInvoice>):
     invoiceNumber: 'INV-2026-001',
     studentId: linkedStudentId,
     status: 'Unpaid',
+    schoolYear: 2026,
+    billingCadence: 'Monthly',
+    familyLabelEnc: encrypt('Parent family'),
     term: 'Summer Term 1',
     issuedOn: new Date('2026-05-01T00:00:00.000Z'),
     dueOn: new Date('2026-05-30T00:00:00.000Z'),
     paidAt: null,
+    subtotalAmountPence: 42000,
+    discountAmountPence: 0,
     totalAmountPence: 42000,
+    parentMarkedPaidAt: null,
+    parentMarkedPaidById: null,
+    paymentConfirmedAt: null,
+    paymentConfirmedById: null,
     originalFileNameEnc: encrypt('invoice.pdf'),
     fileMimeType: 'application/pdf',
     fileSizeBytes: 12,
@@ -193,22 +313,71 @@ function makeLine(input: Pick<StoredLine, 'invoiceId'> & Partial<StoredLine>): S
   };
 }
 
+function makeInvoiceStudent(input: StoredInvoiceStudent): StoredInvoiceStudent {
+  return input;
+}
+
+function makeDiscount(
+  input: Pick<StoredDiscount, 'invoiceId'> & Partial<StoredDiscount>,
+): StoredDiscount {
+  return {
+    id: discountId,
+    position: 1,
+    labelEnc: encrypt('Sibling discount'),
+    kind: 'Preset',
+    presetCode: 'sibling',
+    percentBps: 2500,
+    amountPence: null,
+    baseAmountPence: 10500,
+    appliedAmountPence: 10500,
+    optedOutAt: null,
+    optedOutById: null,
+    createdAt: new Date('2026-05-01T08:00:00.000Z'),
+    ...input,
+  };
+}
+
 function makeFakeDb({
   initialGuardians = [{ userId: parentUser.id, studentId: linkedStudentId }],
   initialInvoices = [],
   initialLines = [],
+  initialInvoiceStudents,
+  initialDiscounts = [],
   decryptImpl = decrypt,
 }: {
   initialGuardians?: StoredGuardian[];
   initialInvoices?: StoredInvoice[];
   initialLines?: StoredLine[];
+  initialInvoiceStudents?: StoredInvoiceStudent[];
+  initialDiscounts?: StoredDiscount[];
   decryptImpl?: (value: string | null | undefined) => string | null;
 } = {}) {
   const students = [makeStudent({ id: linkedStudentId }), makeStudent({ id: otherStudentId })];
   const guardians = [...initialGuardians];
   const invoices = [...initialInvoices];
   const lines = [...initialLines];
+  const invoiceStudents =
+    initialInvoiceStudents ??
+    initialInvoices
+      .filter((invoice) => invoice.studentId !== null)
+      .map((invoice) =>
+        makeInvoiceStudent({
+          invoiceId: invoice.id,
+          studentId: invoice.studentId ?? linkedStudentId,
+          position: 1,
+        }),
+      );
+  const discounts = [...initialDiscounts];
+  const feeConfigs: StoredFeeConfig[] = [
+    {
+      schoolYear: 2026,
+      annualAmountPence: 294000,
+      termAmountPence: 98000,
+      monthlyAmountPence: 24500,
+    },
+  ];
   let invoiceSequence = 1;
+  let discountSequence = 1;
 
   function invoiceRow(invoice: StoredInvoice) {
     return {
@@ -216,10 +385,39 @@ function makeFakeDb({
       student: invoice.studentId
         ? (students.find((student) => student.id === invoice.studentId) ?? null)
         : null,
+      students: invoiceStudents
+        .filter((link) => link.invoiceId === invoice.id)
+        .sort((left, right) => left.position - right.position)
+        .map((link) => ({
+          ...link,
+          student:
+            students.find((student) => student.id === link.studentId) ??
+            makeStudent({ id: link.studentId }),
+        })),
       lineItems: lines
         .filter((line) => line.invoiceId === invoice.id)
         .sort((left, right) => left.position - right.position),
+      discounts: discounts
+        .filter((discount) => discount.invoiceId === invoice.id)
+        .sort((left, right) => left.position - right.position),
     };
+  }
+
+  function matchesWhere(invoice: StoredInvoice, where: FakeInvoiceFindManyArgs['where']): boolean {
+    if (!where) return true;
+    if (where.OR) {
+      const matchesOr = where.OR.some((clause) => matchesWhere(invoice, clause));
+      if (!matchesOr) return false;
+    }
+    if (where.id && !where.id.in.includes(invoice.id)) return false;
+    if (
+      where.studentId &&
+      (invoice.studentId === null || !where.studentId.in.includes(invoice.studentId))
+    ) {
+      return false;
+    }
+    if (where.status?.not && invoice.status === where.status.not) return false;
+    return true;
   }
 
   const db = {
@@ -246,43 +444,132 @@ function makeFakeDb({
         const student = students.find((candidate) => candidate.id === where.id);
         return student ? { id: student.id, active: student.active } : null;
       }),
-      findMany: vi.fn(() =>
-        students
-          .filter((student) => student.active)
-          .map((student) => ({
-            id: student.id,
-            fullNameEnc: student.fullNameEnc,
-            yearGroup: student.yearGroup,
-          })),
+      findMany: vi.fn(
+        (
+          args: {
+            where?: { active?: boolean; id?: { in: string[] } };
+            select?: { guardians?: unknown };
+          } = {},
+        ) =>
+          students
+            .filter((student) =>
+              args.where?.active === undefined ? true : student.active === args.where.active,
+            )
+            .filter((student) => (args.where?.id ? args.where.id.in.includes(student.id) : true))
+            .map((student) => {
+              const base = {
+                id: student.id,
+                fullNameEnc: student.fullNameEnc,
+                yearGroup: student.yearGroup,
+                createdAt: student.createdAt,
+              };
+              if (!args.select?.guardians) return base;
+              return {
+                ...base,
+                guardians: guardians
+                  .filter((guardian) => guardian.studentId === student.id)
+                  .map((guardian) => ({
+                    userId: guardian.userId,
+                    user: {
+                      id: guardian.userId,
+                      fullNameEnc: encrypt(
+                        guardian.userId === secondParentUser.id ? 'Second Parent' : 'Talia Parent',
+                      ),
+                      emailEnc: encrypt(`${guardian.userId}@example.com`),
+                    },
+                  })),
+              };
+            }),
       ),
+    },
+    schoolFeeYearFeeConfig: {
+      findUnique: vi.fn(
+        ({ where }: { where: { schoolYear: number } }) =>
+          feeConfigs.find((config) => config.schoolYear === where.schoolYear) ?? null,
+      ),
+      upsert: vi.fn(
+        ({
+          where,
+          create,
+          update,
+        }: {
+          where: { schoolYear: number };
+          create: StoredFeeConfig;
+          update: Omit<StoredFeeConfig, 'schoolYear'>;
+        }) => {
+          const existing = feeConfigs.find((config) => config.schoolYear === where.schoolYear);
+          if (existing) {
+            Object.assign(existing, update);
+            return existing;
+          }
+          feeConfigs.push(create);
+          return create;
+        },
+      ),
+    },
+    schoolFeeInvoiceStudent: {
+      findMany: vi.fn(
+        ({ where }: { where: { studentId?: { in: string[] }; invoiceId?: string } }) =>
+          invoiceStudents.filter((link) => {
+            if (where.invoiceId && link.invoiceId !== where.invoiceId) return false;
+            if (where.studentId && !where.studentId.in.includes(link.studentId)) return false;
+            return true;
+          }),
+      ),
+      findFirst: vi.fn(
+        ({ where }: { where: { invoiceId: string; studentId?: { in: string[] } } }) =>
+          invoiceStudents.find((link) => {
+            if (link.invoiceId !== where.invoiceId) return false;
+            if (where.studentId && !where.studentId.in.includes(link.studentId)) return false;
+            return true;
+          }) ?? null,
+      ),
+    },
+    schoolFeeInvoiceDiscount: {
+      update: vi.fn(({ where, data }: { where: { id: string }; data: Partial<StoredDiscount> }) => {
+        const discount = discounts.find((candidate) => candidate.id === where.id);
+        if (!discount) throw new Error('discount not found');
+        Object.assign(discount, data);
+        return discount;
+      }),
     },
     schoolFeeInvoice: {
       findMany: vi.fn((args: FakeInvoiceFindManyArgs = {}) => {
-        const where = args.where;
-        return invoices
-          .filter((invoice) =>
-            where?.studentId
-              ? invoice.studentId !== null && where.studentId.in.includes(invoice.studentId)
-              : true,
-          )
-          .filter((invoice) => (where?.status?.not ? invoice.status !== where.status.not : true))
-          .map(invoiceRow);
+        return invoices.filter((invoice) => matchesWhere(invoice, args.where)).map(invoiceRow);
       }),
       findUnique: vi.fn(({ where }: FakeInvoiceFindUniqueArgs) => {
         const invoice = invoices.find((candidate) => candidate.id === where.id);
         return invoice ? invoiceRow(invoice) : null;
       }),
+      findFirst: vi.fn((args: FakeInvoiceFindFirstArgs = {}) => {
+        const invoice = invoices.find((candidate) => {
+          if (
+            args.where?.invoiceNumber !== undefined &&
+            candidate.invoiceNumber !== args.where.invoiceNumber
+          ) {
+            return false;
+          }
+          if (args.where?.NOT?.id && candidate.id === args.where.NOT.id) return false;
+          return true;
+        });
+        return invoice ? invoiceRow(invoice) : null;
+      }),
       create: vi.fn(({ data }: FakeInvoiceCreateArgs) => {
         const created = makeInvoice({
           id: `cinvoicenew000000${String(invoiceSequence++).padStart(2, '0')}`,
-          invoiceNumber: null,
-          studentId: null,
+          invoiceNumber: data.invoiceNumber ?? null,
+          studentId: data.studentId ?? null,
           status: data.status,
-          term: null,
-          issuedOn: null,
-          dueOn: null,
-          paidAt: null,
-          totalAmountPence: 0,
+          schoolYear: data.schoolYear ?? null,
+          billingCadence: data.billingCadence ?? null,
+          familyLabelEnc: data.familyLabelEnc ?? null,
+          term: data.term ?? null,
+          issuedOn: data.issuedOn ?? null,
+          dueOn: data.dueOn ?? null,
+          paidAt: data.paidAt ?? null,
+          subtotalAmountPence: data.subtotalAmountPence ?? data.totalAmountPence ?? 0,
+          discountAmountPence: data.discountAmountPence ?? 0,
+          totalAmountPence: data.totalAmountPence ?? 0,
           originalFileNameEnc: data.originalFileNameEnc,
           fileMimeType: data.fileMimeType,
           fileSizeBytes: data.fileSizeBytes,
@@ -291,6 +578,37 @@ function makeFakeDb({
           createdById: data.createdById,
         });
         invoices.push(created);
+        if (data.lineItems) {
+          lines.push(
+            ...data.lineItems.create.map((line, index) =>
+              makeLine({
+                ...line,
+                id: `clinecreated${String(index + 1).padStart(2, '0')}`,
+                invoiceId: created.id,
+              }),
+            ),
+          );
+        }
+        if (data.students) {
+          invoiceStudents.push(
+            ...data.students.create.map((link) => ({
+              invoiceId: created.id,
+              studentId: link.studentId,
+              position: link.position,
+            })),
+          );
+        }
+        if (data.discounts) {
+          discounts.push(
+            ...data.discounts.create.map((discount) =>
+              makeDiscount({
+                ...discount,
+                id: `cdiscountnew00000${String(discountSequence++).padStart(2, '0')}`,
+                invoiceId: created.id,
+              }),
+            ),
+          );
+        }
         return invoiceRow(created);
       }),
       update: vi.fn(({ where, data }: FakeInvoiceUpdateArgs) => {
@@ -299,6 +617,8 @@ function makeFakeDb({
         Object.assign(invoice, {
           ...data,
           lineItems: undefined,
+          students: undefined,
+          discounts: undefined,
           updatedAt: new Date('2026-05-02T08:00:00.000Z'),
         });
         if (data.lineItems) {
@@ -315,6 +635,34 @@ function makeFakeDb({
             ),
           );
         }
+        if (data.students) {
+          for (let index = invoiceStudents.length - 1; index >= 0; index -= 1) {
+            if (invoiceStudents[index]?.invoiceId === invoice.id) invoiceStudents.splice(index, 1);
+          }
+          invoiceStudents.push(
+            ...data.students.create.map((link) => ({
+              invoiceId: invoice.id,
+              studentId: link.studentId,
+              position: link.position,
+            })),
+          );
+        }
+        if (data.discounts) {
+          for (let index = discounts.length - 1; index >= 0; index -= 1) {
+            if (discounts[index]?.invoiceId === invoice.id) discounts.splice(index, 1);
+          }
+          if (data.discounts.create) {
+            discounts.push(
+              ...data.discounts.create.map((discount) =>
+                makeDiscount({
+                  ...discount,
+                  id: `cdiscountupdated${String(discountSequence++).padStart(2, '0')}`,
+                  invoiceId: invoice.id,
+                }),
+              ),
+            );
+          }
+        }
         return invoiceRow(invoice);
       }),
       delete: vi.fn(({ where }: FakeInvoiceFindUniqueArgs) => {
@@ -329,7 +677,7 @@ function makeFakeDb({
     },
   };
 
-  return { db, invoices, lines };
+  return { db, invoices, lines, invoiceStudents, discounts, feeConfigs };
 }
 
 function createCaller(user: SessionUser, fakeDb = makeFakeDb(), useDefaultExtractor = false) {
@@ -440,6 +788,52 @@ describe('invoiceRouter', () => {
     expect(auditCall?.data.entity).toBe('invoice.listAdmin');
   });
 
+  it('shows family year payment progress when creating invoices', async () => {
+    const paidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Paid',
+      dueOn: new Date('2026-12-31T00:00:00.000Z'),
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const pendingInvoice = makeInvoice({
+      id: 'cinvoice00000000002',
+      status: 'PaymentPending',
+      dueOn: new Date('2026-12-31T00:00:00.000Z'),
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+      parentMarkedPaidAt: new Date('2026-05-16T08:00:00.000Z'),
+      parentMarkedPaidById: parentUser.id,
+    });
+    const unpaidInvoice = makeInvoice({
+      id: 'cinvoice00000000003',
+      dueOn: new Date('2026-12-31T00:00:00.000Z'),
+      totalAmountPence: 98000,
+      subtotalAmountPence: 98000,
+    });
+    const fakeDb = makeFakeDb({ initialInvoices: [paidInvoice, pendingInvoice, unpaidInvoice] });
+    const { caller } = createCaller(financeUser, fakeDb);
+
+    const families = await caller.invoice.listBillableFamilies();
+    const parentFamily = families.find((family) =>
+      family.students.some((student) => student.id === linkedStudentId),
+    );
+
+    expect(parentFamily?.yearSummary).toMatchObject({
+      schoolYear: 2026,
+      adjustedAnnualAmountPence: 294000,
+      issuedAmountPence: 147000,
+      paidAmountPence: 24500,
+      paymentPendingAmountPence: 24500,
+      remainingAmountPence: 269500,
+      leftToInvoiceAmountPence: 147000,
+      invoiceCount: 3,
+    });
+  });
+
   it('scopes parent invoice lists and downloads to linked children only', async () => {
     const ownInvoice = makeInvoice({ id: invoiceId, studentId: linkedStudentId });
     const otherInvoice = makeInvoice({
@@ -469,6 +863,341 @@ describe('invoiceRouter', () => {
     const download = await caller.invoice.downloadPdf({ invoiceId: ownInvoice.id });
     expect(download.pdfBase64).toBe('JVBERi0xLjQK');
     expect(download.fileName).toBe('invoice.pdf');
+  });
+
+  it('creates generated family invoices for multiple children and linked parents', async () => {
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: secondParentUser.id, studentId: otherStudentId },
+      ],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const created = await adminCaller.invoice.createGenerated({
+      schoolYear: 2026,
+      billingCadence: 'Monthly',
+      studentIds: [linkedStudentId, otherStudentId],
+      familyLabel: 'Parent family',
+      invoiceNumber: 'OLC0011',
+      issuedOn: '2026-05-01',
+      dueOn: '2026-05-15',
+      term: 'MAY 2026',
+      lineItems: [
+        { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+        { description: 'Monthly fee - Other Child', quantity: 1, unitAmountPence: 24500 },
+      ],
+      discounts: [
+        {
+          label: 'Sibling discount',
+          kind: 'Preset',
+          presetCode: 'sibling',
+          percentBps: 2500,
+          amountPence: null,
+        },
+        {
+          label: 'Church Leaders / Oasis Supervisors',
+          kind: 'Preset',
+          presetCode: 'church-leader',
+          percentBps: 2000,
+          amountPence: null,
+        },
+      ],
+    });
+
+    expect(created.students.map((student) => student.id)).toEqual([
+      linkedStudentId,
+      otherStudentId,
+    ]);
+    expect(created.subtotalAmountPence).toBe(49000);
+    expect(created.discountAmountPence).toBe(12250);
+    expect(created.totalAmountPence).toBe(36750);
+    expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6125, 6125]);
+    expect(
+      created.discountBreakdowns.map((child) =>
+        child.discounts.map((discount) => discount.appliedAmountPence),
+      ),
+    ).toEqual([[4900], [6125, 1225]]);
+    expect(fakeDb.invoiceStudents).toEqual([
+      { invoiceId: created.id, studentId: linkedStudentId, position: 1 },
+      { invoiceId: created.id, studentId: otherStudentId, position: 2 },
+    ]);
+
+    const { caller: firstParentCaller } = createCaller(parentUser, fakeDb);
+    const { caller: secondParentCaller } = createCaller(secondParentUser, fakeDb);
+    const firstParentList = await firstParentCaller.invoice.listParent({ status: 'All' });
+    const secondParentList = await secondParentCaller.invoice.listParent({ status: 'All' });
+    expect(firstParentList.invoices.map((invoice) => invoice.id)).toEqual([created.id]);
+    expect(secondParentList.invoices.map((invoice) => invoice.id)).toEqual([created.id]);
+
+    const download = await firstParentCaller.invoice.downloadPdf({ invoiceId: created.id });
+    expect(Buffer.from(download.pdfBase64, 'base64').subarray(0, 5).toString('utf8')).toBe('%PDF-');
+
+    const { caller: unlinkedParentCaller } = createCaller(unlinkedParentUser, fakeDb);
+    await expect(
+      unlinkedParentCaller.invoice.downloadPdf({ invoiceId: created.id }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('stores manual generated discounts against the selected child', async () => {
+    const fakeDb = makeFakeDb();
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const created = await adminCaller.invoice.createGenerated({
+      schoolYear: 2026,
+      billingCadence: 'Monthly',
+      studentIds: [linkedStudentId, otherStudentId],
+      familyLabel: 'Parent family',
+      invoiceNumber: 'OLC0013',
+      issuedOn: '2026-05-01',
+      dueOn: '2026-05-15',
+      term: 'MAY 2026',
+      lineItems: [
+        { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+        { description: 'Monthly fee - Other Child', quantity: 1, unitAmountPence: 24500 },
+      ],
+      discounts: [
+        {
+          label: 'Manual bursary',
+          kind: 'ManualFixed',
+          presetCode: schoolFeeDiscountChildIndexPresetCode(1),
+          percentBps: null,
+          amountPence: 5000,
+        },
+      ],
+    });
+
+    expect(created.discountAmountPence).toBe(5000);
+    expect(created.totalAmountPence).toBe(44000);
+    expect(created.discounts[0]?.presetCode).toBe(schoolFeeDiscountChildIndexPresetCode(1));
+    expect(
+      created.discountBreakdowns.map((child) =>
+        child.discounts.map((discount) => discount.appliedAmountPence),
+      ),
+    ).toEqual([[], [5000]]);
+  });
+
+  it('rejects generated invoices with duplicate invoice numbers', async () => {
+    const fakeDb = makeFakeDb({
+      initialInvoices: [makeInvoice({ id: invoiceId, invoiceNumber: 'OLC0011' })],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    await expect(
+      adminCaller.invoice.createGenerated({
+        schoolYear: 2026,
+        billingCadence: 'Monthly',
+        studentIds: [linkedStudentId],
+        familyLabel: 'Parent family',
+        invoiceNumber: 'OLC0011',
+        issuedOn: '2026-05-01',
+        dueOn: '2026-05-15',
+        term: 'MAY 2026',
+        lineItems: [
+          { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+        ],
+        discounts: [],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'invoice number already exists',
+    });
+    expect(fakeDb.invoices).toHaveLength(1);
+  });
+
+  it('rejects sibling discounts for generated invoices with one child', async () => {
+    const fakeDb = makeFakeDb();
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    await expect(
+      adminCaller.invoice.createGenerated({
+        schoolYear: 2026,
+        billingCadence: 'Monthly',
+        studentIds: [linkedStudentId],
+        familyLabel: 'Parent family',
+        invoiceNumber: 'OLC0012',
+        issuedOn: '2026-05-01',
+        dueOn: '2026-05-15',
+        term: 'MAY 2026',
+        lineItems: [
+          { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+        ],
+        discounts: [
+          {
+            label: 'Sibling discount',
+            kind: 'Preset',
+            presetCode: 'sibling',
+            percentBps: 2500,
+            amountPence: null,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'sibling discount requires at least two children',
+    });
+  });
+
+  it('calculates parent year totals from annual fees with family discounts', async () => {
+    const paidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Paid',
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [paidInvoice],
+      initialLines: [
+        makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+      initialInvoiceStudents: [
+        { invoiceId: paidInvoice.id, studentId: linkedStudentId, position: 1 },
+        { invoiceId: paidInvoice.id, studentId: otherStudentId, position: 2 },
+      ],
+      initialDiscounts: [
+        makeDiscount({
+          invoiceId: paidInvoice.id,
+          baseAmountPence: 6125,
+          appliedAmountPence: 6125,
+        }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await parentCaller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.stats.paidAmountPence).toBe(24500);
+    expect(parentList.stats.outstandingAmountPence).toBe(490000);
+    expect(parentList.stats.remainingAmountPence).toBe(490000);
+    expect(parentList.stats.overdueAmountPence).toBe(0);
+  });
+
+  it('keeps parent marked payments pending until staff confirm or reject them', async () => {
+    const ownInvoice = makeInvoice({
+      id: invoiceId,
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [ownInvoice],
+      initialLines: [
+        makeLine({ invoiceId: ownInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const pending = await parentCaller.invoice.parentMarkPaid({ invoiceId });
+    expect(pending.status).toBe('PaymentPending');
+    expect(pending.paidAt).toBeNull();
+
+    const pendingParentList = await parentCaller.invoice.listParent({ status: 'All' });
+    expect(pendingParentList.stats.paidAmountPence).toBe(0);
+    expect(pendingParentList.stats.paymentPendingCount).toBe(1);
+    expect(pendingParentList.stats.remainingAmountPence).toBe(294000);
+
+    const paid = await adminCaller.invoice.confirmPayment({ invoiceId });
+    expect(paid.status).toBe('Paid');
+    expect(paid.paidAt).toBeInstanceOf(Date);
+    const paidParentList = await parentCaller.invoice.listParent({ status: 'All' });
+    expect(paidParentList.stats.paidAmountPence).toBe(24500);
+    expect(paidParentList.stats.remainingAmountPence).toBe(269500);
+
+    const rejectInvoice = makeInvoice({
+      id: 'cinvoice00000000004',
+      status: 'PaymentPending',
+      parentMarkedPaidAt: new Date('2026-05-02T08:00:00.000Z'),
+      parentMarkedPaidById: parentUser.id,
+    });
+    fakeDb.invoices.push(rejectInvoice);
+    fakeDb.lines.push(makeLine({ invoiceId: rejectInvoice.id }));
+    fakeDb.invoiceStudents.push({
+      invoiceId: rejectInvoice.id,
+      studentId: linkedStudentId,
+      position: 1,
+    });
+    const rejected = await adminCaller.invoice.rejectPayment({ invoiceId: rejectInvoice.id });
+    expect(rejected.status).toBe('Unpaid');
+    expect(rejected.parentMarkedPaidAt).toBeNull();
+  });
+
+  it('lets parents opt out of discounts before payment is pending', async () => {
+    const ownInvoice = makeInvoice({
+      id: invoiceId,
+      subtotalAmountPence: 49000,
+      discountAmountPence: 11125,
+      totalAmountPence: 37875,
+      invoiceNumber: 'OLC0012',
+      familyLabelEnc: encrypt('Parent family'),
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [ownInvoice],
+      initialLines: [
+        makeLine({
+          invoiceId: ownInvoice.id,
+          descriptionEnc: encrypt('Monthly fee - Talia Parent'),
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+        makeLine({
+          id: 'cline000000000002',
+          invoiceId: ownInvoice.id,
+          position: 2,
+          descriptionEnc: encrypt('Monthly fee - Other Child'),
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+      ],
+      initialInvoiceStudents: [
+        { invoiceId: ownInvoice.id, studentId: linkedStudentId, position: 1 },
+        { invoiceId: ownInvoice.id, studentId: otherStudentId, position: 2 },
+      ],
+      initialDiscounts: [
+        makeDiscount({
+          invoiceId: ownInvoice.id,
+          baseAmountPence: 6125,
+          appliedAmountPence: 6125,
+        }),
+        makeDiscount({
+          id: 'cdiscount0000000002',
+          invoiceId: ownInvoice.id,
+          position: 2,
+          labelEnc: encrypt('Pastor bursary'),
+          kind: 'ManualFixed',
+          presetCode: null,
+          percentBps: null,
+          amountPence: 5000,
+          baseAmountPence: 5000,
+          appliedAmountPence: 5000,
+        }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const updated = await parentCaller.invoice.setDiscountOptOut({
+      invoiceId,
+      discountId,
+      optedOut: true,
+    });
+
+    expect(updated.discountAmountPence).toBe(5000);
+    expect(updated.totalAmountPence).toBe(44000);
+    expect(updated.discounts[0]?.optedOut).toBe(true);
+    expect(
+      Buffer.from(fakeDb.invoices[0]?.pdfBytesEnc.replace(/^enc:/u, '') ?? '', 'base64')
+        .subarray(0, 5)
+        .toString('utf8'),
+    ).toBe('%PDF-');
+
+    await parentCaller.invoice.parentMarkPaid({ invoiceId });
+    await expect(
+      parentCaller.invoice.setDiscountOptOut({ invoiceId, discountId, optedOut: false }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('does not decrypt PDF data before parent access checks pass', async () => {

@@ -7,11 +7,30 @@ import type { RouterOutputs } from '@/lib/trpc';
 export type InvoiceDto = RouterOutputs['invoice']['listAdmin']['invoices'][number];
 export type InvoiceStatsDto = RouterOutputs['invoice']['listAdmin']['stats'];
 export type InvoiceDisplayStatus = InvoiceDto['displayStatus'];
-export type AdminInvoiceStatusFilter = 'All' | 'Draft' | 'Unpaid' | 'Overdue' | 'Paid';
-export type ParentInvoiceStatusFilter = 'All' | 'Unpaid' | 'Overdue' | 'Paid';
+export type AdminInvoiceStatusFilter =
+  | 'All'
+  | 'Draft'
+  | 'Unpaid'
+  | 'PaymentPending'
+  | 'Overdue'
+  | 'Paid';
+export type ParentInvoiceStatusFilter = 'All' | 'Unpaid' | 'PaymentPending' | 'Overdue' | 'Paid';
 
-export const adminInvoiceStatusFilters = ['All', 'Draft', 'Unpaid', 'Overdue', 'Paid'] as const;
-export const parentInvoiceStatusFilters = ['All', 'Unpaid', 'Overdue', 'Paid'] as const;
+export const adminInvoiceStatusFilters = [
+  'All',
+  'Draft',
+  'Unpaid',
+  'PaymentPending',
+  'Overdue',
+  'Paid',
+] as const;
+export const parentInvoiceStatusFilters = [
+  'All',
+  'Unpaid',
+  'PaymentPending',
+  'Overdue',
+  'Paid',
+] as const;
 
 export function formatPence(amountPence: number): string {
   return new Intl.NumberFormat('en-GB', {
@@ -39,6 +58,7 @@ export function formatFileSize(bytes: number): string {
 export function statusBadgeTone(status: InvoiceDisplayStatus) {
   if (status === 'Paid') return 'green';
   if (status === 'Overdue') return 'red';
+  if (status === 'PaymentPending') return 'blue';
   if (status === 'Unpaid') return 'amber';
   return 'grey';
 }
@@ -131,17 +151,36 @@ export function InvoiceFilterButton({
 export function InvoiceLineItems({ invoice }: { invoice: InvoiceDto }) {
   return (
     <div className="invoice-line-items">
-      {invoice.lineItems.map((line) => (
-        <div className="invoice-line-item" key={line.id}>
-          <span>
-            <strong>{line.description}</strong>
-            <small>
-              {String(line.quantity)} x {formatPence(line.unitAmountPence)}
-            </small>
-          </span>
-          <b>{formatPence(line.totalAmountPence)}</b>
-        </div>
-      ))}
+      {invoice.lineItems.map((line, index) => {
+        const breakdown = invoice.discountBreakdowns.find(
+          (candidate) => candidate.lineItemId === line.id || candidate.childIndex === index,
+        );
+        return (
+          <div className="invoice-line-item" key={line.id}>
+            <span>
+              <strong>{line.description}</strong>
+              <small>
+                {String(line.quantity)} x {formatPence(line.unitAmountPence)}
+              </small>
+            </span>
+            <b>{formatPence(line.totalAmountPence)}</b>
+            {breakdown && breakdown.discounts.length > 0 ? (
+              <div className="invoice-line-item__discounts">
+                {breakdown.discounts.map((discount) => (
+                  <div key={`${discount.id}-${String(index)}`}>
+                    <span>{discount.label}</span>
+                    <strong>-{formatPence(discount.appliedAmountPence)}</strong>
+                  </div>
+                ))}
+                <div className="invoice-line-item__net">
+                  <span>Net for child</span>
+                  <strong>{formatPence(breakdown.totalAmountPence)}</strong>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -150,12 +189,20 @@ export function InvoicePrimaryMeta({ invoice }: { invoice: InvoiceDto }) {
   return (
     <dl className="invoice-meta-grid">
       <div>
-        <dt>Student</dt>
+        <dt>Family</dt>
+        <dd>{invoice.familyLabel ?? 'Not set'}</dd>
+      </div>
+      <div>
+        <dt>Student(s)</dt>
         <dd>{invoice.studentName ?? 'Not assigned'}</dd>
       </div>
       <div>
-        <dt>Term</dt>
-        <dd>{invoice.term ?? 'Not set'}</dd>
+        <dt>Year group</dt>
+        <dd>{invoice.studentYearGroup ?? 'Not set'}</dd>
+      </div>
+      <div>
+        <dt>Billing</dt>
+        <dd>{invoice.billingCadence ?? invoice.term ?? 'Not set'}</dd>
       </div>
       <div>
         <dt>Issued</dt>
@@ -171,9 +218,39 @@ export function InvoicePrimaryMeta({ invoice }: { invoice: InvoiceDto }) {
 
 export function InvoiceTotal({ invoice }: { invoice: InvoiceDto }) {
   return (
-    <div className="invoice-total-row">
-      <span>Total</span>
-      <strong>{formatPence(invoice.totalAmountPence)}</strong>
+    <div className="invoice-totals">
+      <div className="invoice-total-row">
+        <span>Subtotal</span>
+        <strong>{formatPence(invoice.subtotalAmountPence)}</strong>
+      </div>
+      {invoice.discountAmountPence > 0 ? (
+        <div className="invoice-total-row">
+          <span>Discounts</span>
+          <strong>-{formatPence(invoice.discountAmountPence)}</strong>
+        </div>
+      ) : null}
+      <div className="invoice-total-row invoice-total-row--final">
+        <span>Total</span>
+        <strong>{formatPence(invoice.totalAmountPence)}</strong>
+      </div>
+    </div>
+  );
+}
+
+export function InvoiceDiscounts({ invoice }: { invoice: InvoiceDto }) {
+  if (invoice.discounts.length === 0) return null;
+  return (
+    <div className="invoice-discounts">
+      <h3>Discounts</h3>
+      {invoice.discounts.map((discount) => (
+        <div className="invoice-discount-row" key={discount.id}>
+          <span>
+            <strong>{discount.label}</strong>
+            <small>{discount.optedOut ? 'Opted out' : `${formatPence(discount.appliedAmountPence)} applied`}</small>
+          </span>
+          <b>{discount.optedOut ? '-' : `-${formatPence(discount.appliedAmountPence)}`}</b>
+        </div>
+      ))}
     </div>
   );
 }
