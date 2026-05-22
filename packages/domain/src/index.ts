@@ -13,3 +13,4 @@ export * from './schoolYears.js';
 export * from './registration.js';
 export * from './invoice.js';
 export * from './demeritPolicy.js';
+export * from './permissionSlips.js';

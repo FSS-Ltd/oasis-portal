@@ -9,6 +9,7 @@ import {
   CalendarDays,
   CalendarCheck,
   ClipboardList,
+  ClipboardCheck,
   Club,
   FileText,
   GraduationCap,
@@ -39,6 +40,7 @@ const navItems = [
   { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
+  { href: '/admin/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText },
   { href: '/admin/shop', label: 'Merit Shop', icon: ShoppingBag },
   { href: '/admin/reports', label: 'Reports', icon: FileText },
@@ -65,6 +67,7 @@ type AdminNavProps = {
   canManageCalendar: boolean;
   canManageClubs: boolean;
   canManageInvoices: boolean;
+  canManagePermissionSlips: boolean;
   canUseShop: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
@@ -99,6 +102,7 @@ function visibleForUser(
     | 'canManageCalendar'
     | 'canManageClubs'
     | 'canManageInvoices'
+    | 'canManagePermissionSlips'
     | 'canUseShop'
     | 'clubsOnly'
     | 'canViewAudit'
@@ -116,6 +120,7 @@ function visibleForUser(
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Clubs') return access.canManageClubs;
+  if (item.label === 'Permission Slips') return access.canManagePermissionSlips;
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;
   if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;
   if (item.label === 'Calendar') return true;
@@ -140,6 +145,7 @@ export function AdminSidebarNav({
   canManageCalendar,
   canManageClubs,
   canManageInvoices,
+  canManagePermissionSlips,
   canUseShop,
   clubsOnly,
   canExportAttendance,
@@ -155,6 +161,7 @@ export function AdminSidebarNav({
       canManageCalendar,
       canManageClubs,
       canManageInvoices,
+      canManagePermissionSlips,
       canUseShop,
       clubsOnly,
       canViewAudit,
@@ -204,6 +211,7 @@ export function AdminBottomNav({
   canManageCalendar,
   canManageClubs,
   canManageInvoices,
+  canManagePermissionSlips,
   canUseShop,
   clubsOnly,
   canExportAttendance,
@@ -219,6 +227,7 @@ export function AdminBottomNav({
       canManageCalendar,
       canManageClubs,
       canManageInvoices,
+      canManagePermissionSlips,
       canUseShop,
       clubsOnly,
       canViewAudit,
