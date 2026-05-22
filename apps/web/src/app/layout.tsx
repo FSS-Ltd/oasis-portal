@@ -15,7 +15,9 @@ export const metadata = {
 } satisfies Metadata;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  if (!hasClerkPublishableKey()) {
+  const hasClerk = hasClerkPublishableKey();
+
+  if (!hasClerk) {
     return (
       <html lang="en">
         <body>
@@ -30,7 +32,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <ClerkProvider>
       <html lang="en">
         <body>
-          <TrpcProvider>{children}</TrpcProvider>
+          <TrpcProvider enableRealtime>{children}</TrpcProvider>
           <Toaster />
         </body>
       </html>

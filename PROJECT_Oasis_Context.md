@@ -3818,6 +3818,16 @@ typecheck` now passes locally.
   regeneration, `git diff --check`, and `graphify update .` pass locally.
   Browser smoke reached the Clerk sign-in guard for `/admin/invoices` and
   `/parent/fees`; authenticated UI flow verification remains a follow-up.
+- 2026-05-21 Supabase realtime cache sync: branch
+  `feat/supabase-realtime-cache-sync` adds a private Supabase Realtime
+  invalidation bus for messages and child-note-driven views while keeping
+  reads behind tRPC/Prisma. The migration creates guarded database triggers
+  for message/thread/read/note changes and a private `realtime.messages`
+  policy keyed to the Clerk subject. Verification: web typecheck, web lint,
+  web build, API tests, DB tests, DB typecheck/lint, transactional `psql`
+  migration validation, `pnpm db:migrate`, and `graphify update .` pass
+  locally. Live browser verification still requires a configured Supabase
+  Realtime project with Clerk third-party auth enabled.
 
 ## Design decisions made (see ADRs for full rationale)
 
