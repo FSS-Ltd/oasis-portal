@@ -9,6 +9,7 @@ import {
   prepareShopReservation,
   rowsForReservationCancellation,
   rowsForReservationCollection,
+  SHOP_CATEGORIES,
   validateDraft,
 } from '../shop.js';
 import { AccessDeniedError, type SessionUser } from '../rbac.js';
@@ -82,6 +83,18 @@ describe('validateDraft', () => {
       description: 'Served at break',
       lowStockThreshold: 3,
     });
+  });
+  it('accepts the full shop category set', () => {
+    for (const category of SHOP_CATEGORIES) {
+      const out = validateDraft({
+        name: `Item ${category}`,
+        category,
+        priceExVat: 25,
+        vatRatePct: 0,
+        stockCount: 10,
+      });
+      expect(out.category).toBe(category);
+    }
   });
   it('rejects empty name', () => {
     expect(() =>

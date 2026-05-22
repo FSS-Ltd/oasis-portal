@@ -23,6 +23,52 @@ raw DB dump cannot re-identify anyone.
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
 
+## Current session - 2026-05-22 Merit shop categories
+
+Working branch: `feat/merit-shop-categories`.
+
+**PR scope:** Add Accessories and Toys as Merit Shop categories across the
+domain, API validation, database enum, and shop UI filters.
+
+Completed:
+
+- Added `Accessories` and `Toys` to the shop category domain source, visual
+  metadata, Prisma enum, web category options, and mobile smoke shop filters.
+- Added a database migration to extend the persisted `ShopCategory` enum.
+- Changed the shop router test fake category type to use the exported domain
+  `ShopCategory` type so tests track category additions.
+- Added domain test coverage that verifies every configured shop category is
+  accepted by `validateDraft`.
+- Left the pre-existing spouse invite/profile changes and design zip dirty
+  state untouched.
+
+Verification:
+
+- `pnpm --filter @oasis/db generate`
+- `pnpm --filter @oasis/domain test -- shop.test.ts`
+- `pnpm --filter @oasis/api test -- shop.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- The targeted Vitest commands still ran full package suites because of the
+  repo's package-script argument handling.
+- `graphify update .` reported the existing lower-node-count warning and did
+  not leave a tracked graph diff.
+- The web build passed with the existing Next.js ESLint-plugin warning.
+
 ## Current session - 2026-05-22 Spouse invite signup flow
 
 Working branch: `fix/spouse-invite-signup-flow`.

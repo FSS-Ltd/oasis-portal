@@ -731,6 +731,8 @@ enum ShopCategory {
   Treats
   Privileges
   Stationery
+  Accessories
+  Toys
   Vouchers
   Merch
   Recognition

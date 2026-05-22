@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MeritAccount, SessionUser } from '@oasis/domain';
+import type { MeritAccount, SessionUser, ShopCategory } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { shopRouter } from '../routers/shop.js';
 import { router } from '../trpc.js';
@@ -44,7 +44,6 @@ const studentUser: SessionUser = {
 const linkedStudentId = 'ckshopstudent000000001';
 const shopItemId = 'ckshopitem000000000001';
 
-type ShopCategory = 'Treats' | 'Privileges' | 'Stationery' | 'Vouchers' | 'Merch' | 'Recognition';
 type ShopReservationStatus = 'Ready' | 'Collected' | 'Cancelled';
 
 type AuditAction =

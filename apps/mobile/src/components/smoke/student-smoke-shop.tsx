@@ -14,6 +14,8 @@ const CATEGORY_ORDER: readonly ShopCategory[] = [
   'Treats',
   'Privileges',
   'Stationery',
+  'Accessories',
+  'Toys',
   'Vouchers',
   'Merch',
   'Recognition',
