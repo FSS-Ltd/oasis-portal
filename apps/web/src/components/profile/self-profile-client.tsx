@@ -243,6 +243,15 @@ export function SelfProfileClient({
               <span>Status</span>
               <strong>{profile.active ? 'Active' : 'Inactive'}</strong>
             </div>
+            {profile.invitedBy ? (
+              <div className="profile-field-row profile-field-row--stacked">
+                <span>Invited by</span>
+                <div className="profile-contact-strip">
+                  <strong>{profile.invitedBy.fullName}</strong>
+                  <small className="muted">{profile.invitedBy.email}</small>
+                </div>
+              </div>
+            ) : null}
             <div className="profile-field-row profile-field-row--stacked">
               <span>Permission tags</span>
               <div className="badge-list">

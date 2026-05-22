@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-21
+**Last updated:** 2026-05-22
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 4 complete.
 
@@ -22,6 +22,42 @@ raw DB dump cannot re-identify anyone.
 
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
+
+## Current session - 2026-05-22 Spouse invite signup flow
+
+Working branch: `fix/spouse-invite-signup-flow`.
+
+**PR scope:** Fix spouse invitations so accepted spouses sign up through Clerk,
+land in the parent portal with existing child links, and can see who invited
+them.
+
+Completed:
+
+- Changed spouse invitations from the profile workflow to redirect accepted
+  invitees to `/sign-up` instead of `/post-sign-in`.
+- Kept the existing Clerk webhook guardian-link creation path unchanged.
+- Extended `profile.me` to return the accepted spouse invitation inviter and
+  audit inviter PII decrypts separately.
+- Added the inviter display to Profile -> Role & Access.
+- Left the pre-existing dirty `design/Oasis Learning Center.zip` change
+  untouched.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- profile.router.test.ts clerkWebhook.test.ts`
+  - pass, ran the full API suite because of package-script argument handling.
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- `graphify update .` reported the existing lower-node-count warning but still
+  rebuilt the graph artifacts.
 
 ## Current session - 2026-05-21 Discipline stage tracker
 
