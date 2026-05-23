@@ -23,6 +23,61 @@ raw DB dump cannot re-identify anyone.
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
 
+## Current session - 2026-05-22 Permission slip workflow
+
+Working branch: `feat/permission-slip-workflow`.
+
+**PR scope:** Add the first production permission-slip workflow for Head/Pastor
+creation and management, parent signing/declining, physical slip entry,
+calendar sync, and payment confirmation.
+
+Completed:
+
+- Added permission-slip Prisma models, enums, migration, RLS policies, and
+  database exports.
+- Added domain helpers for Head/Pastor management gates, calendar category
+  mapping, initial payment state, parent mark-paid transitions, and payment
+  confirmation guards.
+- Added the `permissionSlip` tRPC router with admin list/create/update/archive,
+  parent list/respond/mark-paid, Head/Pastor physical-signature entry, and
+  payment confirmation/rejection actions.
+- Synced permission slips with calendar events when an `eventDate` is present,
+  including create, update, archive, and no-event-date paths.
+- Added admin and parent permission-slip pages and focused components based on
+  `design/Oasis Learning Center.zip`, including nav entries and role gating.
+- Updated the component ownership map for the new router, domain helper, and
+  permission-slip UI surface.
+
+Verification:
+
+- `pnpm --filter @oasis/db exec prisma format`
+- `pnpm --filter @oasis/db generate`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db lint`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/api test -- permissionSlip.router.test.ts calendar.router.test.ts`
+- `pnpm --filter @oasis/domain test -- permissionSlips.test.ts`
+- `pnpm --filter @oasis/web build`
+- `pnpm db:migrate`
+- `graphify update .`
+- `pnpm docs:component-map`
+- `git diff --check`
+
+Notes:
+
+- The targeted Vitest commands still ran full package suites because of the
+  repo's package-script argument handling.
+- The first sandboxed `pnpm db:migrate` attempt failed with a Prisma schema
+  engine error against `localhost:5432`; the approved unsandboxed rerun
+  completed, found no pending migrations, and applied the RLS file.
+- `graphify update .` reported the existing lower-node-count warning but still
+  rebuilt graph artifacts.
+
 ## Current session - 2026-05-22 Merit shop categories
 
 Working branch: `feat/merit-shop-categories`.

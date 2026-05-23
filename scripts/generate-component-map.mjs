@@ -125,6 +125,7 @@ const PRODUCT_MODULES = [
     apiRouters: [
       'shop',
       'invoice',
+      'permissionSlip',
       'club',
       'calendar',
       'tithe',
@@ -139,6 +140,7 @@ const PRODUCT_MODULES = [
       'packages/domain/src/investmentSim.ts',
       'packages/domain/src/investmentTransactions.ts',
       'packages/domain/src/invoice.ts',
+      'packages/domain/src/permissionSlips.ts',
       'packages/domain/src/report.ts',
       'packages/domain/src/shop.ts',
       'packages/domain/src/tithe.ts',
@@ -151,6 +153,7 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/calendar/',
       'apps/web/src/components/clubs/',
       'apps/web/src/components/invoices/',
+      'apps/web/src/components/permission-slips/',
       'apps/web/src/components/noticeboard/',
       'apps/web/src/components/reports/',
       'apps/web/src/components/shop/',

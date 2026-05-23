@@ -6,6 +6,7 @@ import {
   Bell,
   CalendarDays,
   ClipboardList,
+  ClipboardCheck,
   Club,
   FileText,
   Home,
@@ -18,6 +19,7 @@ import {
 const parentNavItems = [
   { href: '/parent', label: 'Home', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/parent/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },
   { href: '/parent/fees', label: 'Fees', icon: ReceiptText },
   { href: '/parent/shop', label: 'Shop', icon: ShoppingBag },
@@ -31,6 +33,7 @@ const parentNavItems = [
 const parentMobileNavHrefs = new Set([
   '/parent',
   '/parent/calendar',
+  '/parent/permission-slips',
   '/parent/clubs',
   '/parent/shop',
   '/parent/messages',

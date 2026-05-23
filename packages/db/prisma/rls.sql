@@ -600,3 +600,252 @@ CREATE POLICY invoice_discount_staff_delete ON "SchoolFeeInvoiceDiscount"
       'Supervisor'
     )
   );
+
+ALTER TABLE "PermissionSlip" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlip" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipRecipient" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipRecipient" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipBringItem" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipBringItem" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipQuestion" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipQuestion" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipAnswer" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PermissionSlipAnswer" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS permission_slip_manager_select ON "PermissionSlip";
+DROP POLICY IF EXISTS permission_slip_parent_select ON "PermissionSlip";
+DROP POLICY IF EXISTS permission_slip_manager_insert ON "PermissionSlip";
+DROP POLICY IF EXISTS permission_slip_manager_update ON "PermissionSlip";
+DROP POLICY IF EXISTS permission_slip_manager_delete ON "PermissionSlip";
+DROP POLICY IF EXISTS permission_slip_recipient_manager_select ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_recipient_parent_select ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_recipient_manager_insert ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_recipient_manager_update ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_recipient_parent_response_update ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_recipient_parent_payment_update ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_recipient_manager_delete ON "PermissionSlipRecipient";
+DROP POLICY IF EXISTS permission_slip_bring_item_accessible_select ON "PermissionSlipBringItem";
+DROP POLICY IF EXISTS permission_slip_bring_item_manager_insert ON "PermissionSlipBringItem";
+DROP POLICY IF EXISTS permission_slip_bring_item_manager_update ON "PermissionSlipBringItem";
+DROP POLICY IF EXISTS permission_slip_bring_item_manager_delete ON "PermissionSlipBringItem";
+DROP POLICY IF EXISTS permission_slip_question_accessible_select ON "PermissionSlipQuestion";
+DROP POLICY IF EXISTS permission_slip_question_manager_insert ON "PermissionSlipQuestion";
+DROP POLICY IF EXISTS permission_slip_question_manager_update ON "PermissionSlipQuestion";
+DROP POLICY IF EXISTS permission_slip_question_manager_delete ON "PermissionSlipQuestion";
+DROP POLICY IF EXISTS permission_slip_answer_accessible_select ON "PermissionSlipAnswer";
+DROP POLICY IF EXISTS permission_slip_answer_parent_insert ON "PermissionSlipAnswer";
+DROP POLICY IF EXISTS permission_slip_answer_manager_insert ON "PermissionSlipAnswer";
+DROP POLICY IF EXISTS permission_slip_answer_manager_update ON "PermissionSlipAnswer";
+DROP POLICY IF EXISTS permission_slip_answer_manager_delete ON "PermissionSlipAnswer";
+
+-- Permission slips are deliberately narrower than full-admin: only Head and Pastor
+-- manage slips, physical signatures, and payment confirmations in this version.
+CREATE POLICY permission_slip_manager_select ON "PermissionSlip"
+  FOR SELECT
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_parent_select ON "PermissionSlip"
+  FOR SELECT
+  USING (
+    "active" = true
+    AND current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlipRecipient" psr
+      JOIN "Guardian" g ON g."studentId" = psr."studentId"
+      WHERE psr."slipId" = "PermissionSlip"."id"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY permission_slip_manager_insert ON "PermissionSlip"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_manager_update ON "PermissionSlip"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'))
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_manager_delete ON "PermissionSlip"
+  FOR DELETE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_recipient_manager_select ON "PermissionSlipRecipient"
+  FOR SELECT
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_recipient_parent_select ON "PermissionSlipRecipient"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      JOIN "Guardian" g ON g."studentId" = "PermissionSlipRecipient"."studentId"
+      WHERE ps."id" = "PermissionSlipRecipient"."slipId"
+        AND ps."active" = true
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY permission_slip_recipient_manager_insert ON "PermissionSlipRecipient"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_recipient_manager_update ON "PermissionSlipRecipient"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'))
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_recipient_parent_response_update ON "PermissionSlipRecipient"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "responseStatus" = 'Pending'
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      JOIN "Guardian" g ON g."studentId" = "PermissionSlipRecipient"."studentId"
+      WHERE ps."id" = "PermissionSlipRecipient"."slipId"
+        AND ps."active" = true
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "responseStatus" IN ('Signed', 'Declined')
+    AND "paymentStatus" IN ('NotRequired', 'Unpaid')
+    AND (
+      ("responseStatus" = 'Signed' AND "signatureSource" = 'ParentPortal')
+      OR ("responseStatus" = 'Declined' AND "signatureSource" IS NULL)
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      JOIN "Guardian" g ON g."studentId" = "PermissionSlipRecipient"."studentId"
+      WHERE ps."id" = "PermissionSlipRecipient"."slipId"
+        AND ps."active" = true
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY permission_slip_recipient_parent_payment_update ON "PermissionSlipRecipient"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "responseStatus" = 'Signed'
+    AND "paymentStatus" = 'Unpaid'
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      JOIN "Guardian" g ON g."studentId" = "PermissionSlipRecipient"."studentId"
+      WHERE ps."id" = "PermissionSlipRecipient"."slipId"
+        AND ps."active" = true
+        AND ps."requirePayment" = true
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "responseStatus" = 'Signed'
+    AND "paymentStatus" = 'PaymentPending'
+    AND ("signatureSource" IS NULL OR "signatureSource" IN ('ParentPortal', 'Physical'))
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      JOIN "Guardian" g ON g."studentId" = "PermissionSlipRecipient"."studentId"
+      WHERE ps."id" = "PermissionSlipRecipient"."slipId"
+        AND ps."active" = true
+        AND ps."requirePayment" = true
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY permission_slip_recipient_manager_delete ON "PermissionSlipRecipient"
+  FOR DELETE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_bring_item_accessible_select ON "PermissionSlipBringItem"
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      WHERE ps."id" = "PermissionSlipBringItem"."slipId"
+    )
+  );
+
+CREATE POLICY permission_slip_bring_item_manager_insert ON "PermissionSlipBringItem"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_bring_item_manager_update ON "PermissionSlipBringItem"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'))
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_bring_item_manager_delete ON "PermissionSlipBringItem"
+  FOR DELETE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_question_accessible_select ON "PermissionSlipQuestion"
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      WHERE ps."id" = "PermissionSlipQuestion"."slipId"
+    )
+  );
+
+CREATE POLICY permission_slip_question_manager_insert ON "PermissionSlipQuestion"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_question_manager_update ON "PermissionSlipQuestion"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'))
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_question_manager_delete ON "PermissionSlipQuestion"
+  FOR DELETE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_answer_accessible_select ON "PermissionSlipAnswer"
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM "PermissionSlipRecipient" psr
+      WHERE psr."slipId" = "PermissionSlipAnswer"."slipId"
+        AND psr."studentId" = "PermissionSlipAnswer"."studentId"
+    )
+  );
+
+CREATE POLICY permission_slip_answer_parent_insert ON "PermissionSlipAnswer"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND EXISTS (
+      SELECT 1
+      FROM "PermissionSlip" ps
+      JOIN "Guardian" g ON g."studentId" = "PermissionSlipAnswer"."studentId"
+      WHERE ps."id" = "PermissionSlipAnswer"."slipId"
+        AND ps."active" = true
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY permission_slip_answer_manager_insert ON "PermissionSlipAnswer"
+  FOR INSERT
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_answer_manager_update ON "PermissionSlipAnswer"
+  FOR UPDATE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'))
+  WITH CHECK (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+CREATE POLICY permission_slip_answer_manager_delete ON "PermissionSlipAnswer"
+  FOR DELETE
+  USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));

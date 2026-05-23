@@ -6,6 +6,7 @@ import {
   AccessDeniedError,
   canExportAttendance,
   canManageInvoices,
+  canManagePermissionSlips,
   canManageShop,
   canManageCalendar,
   canManageClubs,
@@ -76,6 +77,7 @@ export async function getAdminShellUser(): Promise<SessionUser> {
     !canManageUserAccounts(user) &&
     !canExportAttendance(user) &&
     !canManageCalendar(user) &&
+    !canManagePermissionSlips(user) &&
     !canViewAuditLog(user) &&
     !canRespondToParentMessages(user) &&
     !canUseStaffMessaging(user) &&
@@ -102,6 +104,15 @@ export async function getShopWorkflowUser(): Promise<SessionUser> {
 export async function getInvoiceManagerUser(): Promise<SessionUser> {
   const user = await getAdminShellUser();
   if (!canManageInvoices(user)) {
+    notFound();
+  }
+
+  return user;
+}
+
+export async function getPermissionSlipManagerUser(): Promise<SessionUser> {
+  const user = await getAdminShellUser();
+  if (!canManagePermissionSlips(user)) {
     notFound();
   }
 

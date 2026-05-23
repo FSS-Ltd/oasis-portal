@@ -17,6 +17,7 @@
     "./clubs": "./src/clubs.ts",
     "./demeritPolicy": "./src/demeritPolicy.ts",
     "./invoice": "./src/invoice.ts",
+    "./permissionSlips": "./src/permissionSlips.ts",
     "./report": "./src/report.ts",
     "./schoolYears": "./src/schoolYears.ts"
   },
