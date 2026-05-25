@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createContext } from '@oasis/api';
 import { canAnswerChildRegistrationPrompt } from '@oasis/domain';
 import { redirect } from 'next/navigation';
+import { twoFactorSatisfiedFromClerkAuth } from '@/lib/clerk-two-factor';
 import { resolvePostSignInDestination } from '@/lib/post-sign-in-routing';
 import '../(admin)/admin/admin.css';
 import '../registration/registration.css';
@@ -11,10 +12,15 @@ import { ChildrenCheckClient } from './children-check-client';
 export const dynamic = 'force-dynamic';
 
 export default async function ChildrenCheckPage() {
-  const { userId } = await auth();
+  const clerkAuth = await auth();
+  const { userId } = clerkAuth;
   if (!userId) redirect('/sign-in/');
 
-  const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
+  const ctx = await createContext({
+    headers: new Headers(),
+    clerkUserId: userId,
+    twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
+  });
   if (!ctx.user) redirect('/not-ready');
   if (!canAnswerChildRegistrationPrompt(ctx.user)) redirect('/post-sign-in/resolve');
 

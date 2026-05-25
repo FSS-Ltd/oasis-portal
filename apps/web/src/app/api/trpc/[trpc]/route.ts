@@ -8,15 +8,21 @@
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { appRouter, createContext } from '@oasis/api';
-import { resolveClerkUserId } from '../../auth-context';
+import { resolveClerkSession } from '../../auth-context';
 
 const handler = (req: Request): Promise<Response> =>
   fetchRequestHandler({
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    createContext: async () =>
-      createContext({ headers: req.headers, clerkUserId: await resolveClerkUserId(req.headers) }),
+    createContext: async () => {
+      const session = await resolveClerkSession(req.headers);
+      return createContext({
+        headers: req.headers,
+        clerkUserId: session.clerkUserId,
+        twoFactorSatisfied: session.twoFactorSatisfied,
+      });
+    },
   });
 
 export { handler as GET, handler as POST };

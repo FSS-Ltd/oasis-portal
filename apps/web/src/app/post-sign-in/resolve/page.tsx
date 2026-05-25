@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { createContext } from '@oasis/api';
 import { canAnswerChildRegistrationPrompt } from '@oasis/domain';
 import { redirect } from 'next/navigation';
+import { twoFactorSatisfiedFromClerkAuth } from '@/lib/clerk-two-factor';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
 import { resolvePostSignInDestinationForState } from '@/lib/post-sign-in-routing';
 import { PostSignInTransition } from './post-sign-in-transition';
@@ -27,12 +28,17 @@ function portalSwitchTargetFromSearchParams(
 }
 
 export default async function PostSignInResolvePage({ searchParams }: PostSignInResolvePageProps) {
-  const { userId } = await auth();
+  const clerkAuth = await auth();
+  const { userId } = clerkAuth;
   if (!userId) redirect('/sign-in/');
 
   const switchTarget = portalSwitchTargetFromSearchParams(await searchParams);
   await ensureDevHeadUser(userId);
-  const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
+  const ctx = await createContext({
+    headers: new Headers(),
+    clerkUserId: userId,
+    twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
+  });
   let parentNeedsRegistration = false;
   let childRegistrationPromptRequired = false;
   let childRegistrationRequired = false;

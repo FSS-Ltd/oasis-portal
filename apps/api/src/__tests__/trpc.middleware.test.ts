@@ -58,6 +58,19 @@ describe('authedProcedure', () => {
     const caller = appRouter.createCaller(ctx);
     await expect(caller.whoami()).resolves.toEqual(headUser);
   });
+
+  it('rejects when the signed-in user has not completed 2FA', async () => {
+    const appRouter = router({
+      whoami: authedProcedure.query(({ ctx }) => ctx.user),
+    });
+    const { ctx } = makeCtx({ ...headUser, requires2fa: true });
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.whoami()).rejects.toMatchObject({
+      code: 'UNAUTHORIZED',
+      message: 'two-factor authentication required',
+    });
+  });
 });
 
 describe('fullAdminProcedure', () => {

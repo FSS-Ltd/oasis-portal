@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-27
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 6 mobile production build planned.
+**Phase:** Phase 5 PR-5.5 2FA enforcement feature-flag reconciliation.
 
 ---
 
@@ -28,6 +28,29 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-27 Phase 5 2FA flag reconciliation
+
+Working branch: `feat/reconcile-portal-2fa-flag`.
+
+**PR scope:** Reapply the existing Phase 5 PR-5.5 Clerk two-factor enforcement
+path onto current `origin/main`, keeping enforcement disabled by default behind
+`OASIS_ENFORCE_2FA` until Clerk is upgraded. Do not build later Phase 5
+observability, GDPR, backup, e2e, mobile, UAT, or launch-closeout work in this
+branch.
+
+Planned verification:
+
+- `pnpm --filter @oasis/api test -- trpc.middleware.test.ts clerk-auth.test.ts`
+- `pnpm --filter @oasis/domain test -- rbac.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
 
 ## Current session - 2026-05-27 GitHub Actions Node 24 runtime
 

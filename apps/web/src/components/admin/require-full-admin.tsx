@@ -1,5 +1,5 @@
 import { auth } from '@clerk/nextjs/server';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { createContext } from '@oasis/api';
 import { prisma } from '@oasis/db';
 import {
@@ -28,6 +28,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
+import { twoFactorSatisfiedFromClerkAuth } from '@/lib/clerk-two-factor';
 
 function notFoundOnAccessDenied(error: unknown): never {
   if (error instanceof AccessDeniedError) {
@@ -40,9 +41,14 @@ function notFoundOnAccessDenied(error: unknown): never {
 async function getSessionUser(
   options: { ensureDevHead?: boolean } = {},
 ): Promise<SessionUser | null> {
-  const { userId } = await auth();
+  const clerkAuth = await auth();
+  const { userId } = clerkAuth;
   if (userId && options.ensureDevHead !== false) await ensureDevHeadUser(userId);
-  const ctx = await createContext({ headers: new Headers(), clerkUserId: userId });
+  const ctx = await createContext({
+    headers: new Headers(),
+    clerkUserId: userId,
+    twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
+  });
   return ctx.user;
 }
 
@@ -51,6 +57,7 @@ async function getRequiredSessionUser(
 ): Promise<SessionUser> {
   const user = await getSessionUser(options);
   if (!user) notFound();
+  if (user.requires2fa) redirect('/2fa');
   return user;
 }
 
