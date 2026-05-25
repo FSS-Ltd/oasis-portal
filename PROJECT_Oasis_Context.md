@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-22
+**Last updated:** 2026-05-25
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 4 complete.
+**Phase:** Phase 6 mobile production build planned.
 
 ---
 
@@ -22,6 +22,33 @@ raw DB dump cannot re-identify anyone.
 
 Repository head: `main` fast-forwarded to `357944f` before starting the current
 feature branch.
+
+Phase 6 now owns the production mobile build plan. The mobile app currently has
+Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
+`apps/mobile/src/components/smoke`; production mobile routes, reusable native
+primitives, role journeys, mobile e2e, and EAS internal builds are planned as
+small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-25 Phase 6 mobile production plan
+
+Working branch: `docs/phase-6-mobile-production-build`.
+
+**PR scope:** Add the Phase 6 mobile production build plan and update phase
+references only. Do not build any Phase 6 mobile PRs in this branch.
+
+Completed:
+
+- Added a Phase 6 plan that lists each mobile production PR with its goal, plan,
+  and done criteria.
+- Updated the master platform plan to point at Phase 6 and move production
+  mobile ownership out of Phase 5.
+- Updated the Phase 5 build plan so launch hardening consumes Phase 6 mobile
+  outputs instead of adding more smoke-only mobile scope.
+
+Verification:
+
+- `pnpm exec prettier --check docs/phase-6-mobile-production-build-plan.md oasis-platform-plan.md docs/phase-5-build-plan.md PROJECT_Oasis_Context.md`
+- `git diff --check`
 
 ## Current session - 2026-05-22 Permission slip workflow
 
