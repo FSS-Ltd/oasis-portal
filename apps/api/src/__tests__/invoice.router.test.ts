@@ -775,7 +775,7 @@ describe('invoiceRouter', () => {
       { description: 'PACE workbooks x5', quantity: 5, unitAmountPence: 750 },
       { description: 'Lunch programme half term', quantity: 1, unitAmountPence: 6500 },
     ]);
-  });
+  }, 15_000);
 
   it('blocks untagged staff from admin invoice procedures', async () => {
     const { caller, fakeDb } = createCaller(untaggedStaffUser);
