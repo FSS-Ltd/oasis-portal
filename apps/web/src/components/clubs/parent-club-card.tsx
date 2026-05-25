@@ -9,6 +9,9 @@ import type { RouterOutputs } from '@/lib/trpc';
 import { clubAccentStyle, clubVisual } from './club-visuals';
 
 export type ParentClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
+export type ParentClubCardHref = Route<
+  `/admin/my-clubs/${string}` | `/parent/clubs/${string}` | `/supervisor/clubs/${string}`
+>;
 
 function capacityText(club: ParentClub): string {
   if (club.capacity === null) return `${String(club.activeSignupCount)} members`;
@@ -52,7 +55,7 @@ interface ParentClubCardProps {
   actionMode?: boolean;
   club: ParentClub;
   disabled?: boolean;
-  href?: Route;
+  href?: ParentClubCardHref;
   onSignUp?: (club: ParentClub) => void;
   onWithdraw?: (club: ParentClub) => void;
   pending?: boolean;

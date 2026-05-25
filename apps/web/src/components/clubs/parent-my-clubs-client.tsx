@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { Route } from 'next';
 import { Bell, CalendarDays, Club, UsersRound } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { Avatar } from '@/components/ui/avatar';
@@ -10,7 +9,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { MyClubRotaPanel } from './my-club-rota-panel';
-import { ParentClubCard, type ParentClub } from './parent-club-card';
+import { ParentClubCard, type ParentClub, type ParentClubCardHref } from './parent-club-card';
 
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupChild = SignupContext['children'][number];
@@ -41,11 +40,13 @@ const DETAIL_BASE_HREF = {
   admin: '/admin/my-clubs',
   parent: '/parent/clubs',
   supervisor: '/supervisor/clubs',
-} as const satisfies Record<MyClubsPortalVariant, string>;
+} as const satisfies Record<MyClubsPortalVariant, `/${string}`>;
 
-function clubDetailHref(baseHref: string, clubId: string): Route {
-  // Next typed routes cannot infer a dynamic path assembled from a runtime club id.
-  return `${baseHref}/${encodeURIComponent(clubId)}` as Route;
+type ClubDetailBaseHref = (typeof DETAIL_BASE_HREF)[MyClubsPortalVariant];
+type ClubDetailHref = ParentClubCardHref;
+
+function clubDetailHref(baseHref: ClubDetailBaseHref, clubId: string): ClubDetailHref {
+  return `${baseHref}/${encodeURIComponent(clubId)}`;
 }
 
 const BASE_TABS = [
@@ -154,7 +155,7 @@ function OverviewTab({
 }: {
   childCount: number;
   clubs: readonly ParentClub[];
-  detailBaseHref: string;
+  detailBaseHref: ClubDetailBaseHref;
   rotaClubCount: number;
 }) {
   return (
