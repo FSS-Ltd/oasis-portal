@@ -1,5 +1,7 @@
 'use client';
 
+import type { Route } from 'next';
+import Link from 'next/link';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,6 +9,9 @@ import type { RouterOutputs } from '@/lib/trpc';
 import { clubAccentStyle, clubVisual } from './club-visuals';
 
 export type ParentClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
+export type ParentClubCardHref = Route<
+  `/admin/my-clubs/${string}` | `/parent/clubs/${string}` | `/supervisor/clubs/${string}`
+>;
 
 function capacityText(club: ParentClub): string {
   if (club.capacity === null) return `${String(club.activeSignupCount)} members`;
@@ -50,6 +55,7 @@ interface ParentClubCardProps {
   actionMode?: boolean;
   club: ParentClub;
   disabled?: boolean;
+  href?: ParentClubCardHref;
   onSignUp?: (club: ParentClub) => void;
   onWithdraw?: (club: ParentClub) => void;
   pending?: boolean;
@@ -60,6 +66,7 @@ export function ParentClubCard({
   actionMode = false,
   club,
   disabled = false,
+  href,
   onSignUp,
   onWithdraw,
   pending = false,
@@ -70,9 +77,8 @@ export function ParentClubCard({
   const signedUp = selectedChildId ? club.signedUpStudentIds.includes(selectedChildId) : false;
   const full = isClubFull(club);
   const cannotSignUp = disabled || full;
-
-  return (
-    <article className="parent-club-card linked-club-card" style={clubAccentStyle(club)}>
+  const content = (
+    <>
       <div className="parent-club-card__band">
         <span className="parent-club-card__title">
           <strong>{club.name}</strong>
@@ -132,6 +138,25 @@ export function ParentClubCard({
           </div>
         ) : null}
       </div>
+    </>
+  );
+
+  if (href && !actionMode) {
+    return (
+      <Link
+        aria-label={`View ${club.name} details`}
+        className="parent-club-card parent-club-card--link linked-club-card"
+        href={href}
+        style={clubAccentStyle(club)}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <article className="parent-club-card linked-club-card" style={clubAccentStyle(club)}>
+      {content}
     </article>
   );
 }
