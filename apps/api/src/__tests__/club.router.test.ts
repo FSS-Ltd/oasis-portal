@@ -329,7 +329,9 @@ interface FakeClubLeadAssignmentCreateManyArgs {
 }
 
 interface FakeClubAttendanceFindManyArgs {
-  where: { clubId: string; sessionDate: Date };
+  where: { clubId: string; sessionDate?: Date; studentId?: { in: string[] } };
+  orderBy?: Array<{ sessionDate?: 'desc'; updatedAt?: 'desc' }>;
+  take?: number;
 }
 
 interface FakeClubAttendanceUpsertArgs {
@@ -720,11 +722,21 @@ function makeFakeDb(
     clubAttendance: {
       findMany: vi.fn((args: FakeClubAttendanceFindManyArgs) =>
         Promise.resolve(
-          attendance.filter(
-            (row) =>
-              row.clubId === args.where.clubId &&
-              row.sessionDate.getTime() === args.where.sessionDate.getTime(),
-          ),
+          attendance
+            .filter(
+              (row) =>
+                row.clubId === args.where.clubId &&
+                (args.where.sessionDate === undefined ||
+                  row.sessionDate.getTime() === args.where.sessionDate.getTime()) &&
+                (args.where.studentId === undefined ||
+                  args.where.studentId.in.includes(row.studentId)),
+            )
+            .sort(
+              (a, b) =>
+                b.sessionDate.getTime() - a.sessionDate.getTime() ||
+                b.updatedAt.getTime() - a.updatedAt.getTime(),
+            )
+            .slice(0, args.take),
         ),
       ),
       upsert: vi.fn((args: FakeClubAttendanceUpsertArgs) => {
@@ -1321,6 +1333,99 @@ describe('club.linkedChildSignupContext', () => {
   it('blocks roles that cannot use linked-child club signup', async () => {
     await expect(
       makeCaller(studentUser).caller.club.linkedChildSignupContext(),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+});
+
+describe('club.linkedChildClubDetail', () => {
+  it('returns linked child attendance and notices for one active club', async () => {
+    const sessionDate = new Date('2026-05-12T00:00:00.000Z');
+    const db = makeFakeDb({
+      attendance: [
+        {
+          id: 'cattendance000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+          sessionDate,
+          status: 'Present',
+          recordedById: clubsLeadUser.id,
+          updatedAt: new Date('2026-05-12T16:00:00.000Z'),
+        },
+        {
+          id: 'cattendance000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+          sessionDate,
+          status: 'Absent',
+          recordedById: clubsLeadUser.id,
+          updatedAt: new Date('2026-05-12T16:05:00.000Z'),
+        },
+      ],
+      notifications: [
+        makeNotification({
+          id: 'cnotification000000000010',
+          bodyEnc: encrypt('Please bring the completed sheet next week.'),
+          clubId: defaultClubId,
+          sentById: clubsLeadUser.id,
+          title: 'Homework reminder',
+        }),
+      ],
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+        makeSignup({
+          id: 'csignup000000000000002',
+          clubId: defaultClubId,
+          studentId: otherStudentId,
+        }),
+      ],
+    });
+
+    const result = await makeCaller(parentUser, db).caller.club.linkedChildClubDetail({
+      clubId: defaultClubId,
+    });
+
+    expect(result.club.id).toBe(defaultClubId);
+    expect(result.club.active).toBe(true);
+    expect(result.club.activeSignupCount).toBe(2);
+    expect(result.club.signedUpStudentIds).toEqual([linkedStudentId]);
+    expect(result.signedUpChildren).toEqual([
+      { id: linkedStudentId, fullName: 'Linked Learner', yearGroup: 'Year 7' },
+    ]);
+    expect(result.attendance).toEqual([
+      {
+        id: 'cattendance000000000001',
+        studentId: linkedStudentId,
+        studentName: 'Linked Learner',
+        yearGroup: 'Year 7',
+        sessionDate: '2026-05-12',
+        status: 'Present',
+        recordedAt: new Date('2026-05-12T16:00:00.000Z'),
+      },
+    ]);
+    expect(result.notices).toEqual([
+      {
+        id: 'cnotification000000000010',
+        body: 'Please bring the completed sheet next week.',
+        clubId: defaultClubId,
+        clubName: 'Choir',
+        sentAt: new Date('2026-05-11T14:00:00.000Z'),
+        sentByName: 'Clubs Lead',
+        title: 'Homework reminder',
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain('Other Learner');
+    expect(JSON.stringify(result)).not.toContain('Absent');
+  });
+
+  it('blocks roles that cannot use linked-child club detail', async () => {
+    await expect(
+      makeCaller(studentUser).caller.club.linkedChildClubDetail({ clubId: defaultClubId }),
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { Route } from 'next';
 import { Bell, CalendarDays, Club, UsersRound } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { Avatar } from '@/components/ui/avatar';
@@ -15,6 +16,37 @@ type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupChild = SignupContext['children'][number];
 type ClubNotice = RouterOutputs['club']['myClubNotices'][number];
 type ParentClubsTab = 'overview' | 'signups' | 'notices' | 'rota';
+type MyClubsPortalVariant = 'admin' | 'parent' | 'supervisor';
+
+interface ParentMyClubsClientProps {
+  variant?: MyClubsPortalVariant;
+}
+
+const VARIANT_COPY = {
+  admin: {
+    eyebrow: 'Linked child clubs',
+    title: 'My Clubs',
+  },
+  parent: {
+    eyebrow: 'Parent portal',
+    title: 'My Clubs',
+  },
+  supervisor: {
+    eyebrow: 'Linked child clubs',
+    title: 'My Clubs',
+  },
+} as const satisfies Record<MyClubsPortalVariant, { eyebrow: string; title: string }>;
+
+const DETAIL_BASE_HREF = {
+  admin: '/admin/my-clubs',
+  parent: '/parent/clubs',
+  supervisor: '/supervisor/clubs',
+} as const satisfies Record<MyClubsPortalVariant, string>;
+
+function clubDetailHref(baseHref: string, clubId: string): Route {
+  // Next typed routes cannot infer a dynamic path assembled from a runtime club id.
+  return `${baseHref}/${encodeURIComponent(clubId)}` as Route;
+}
 
 const BASE_TABS = [
   ['overview', 'Overview'],
@@ -117,10 +149,12 @@ function ChildPicker({
 function OverviewTab({
   childCount,
   clubs,
+  detailBaseHref,
   rotaClubCount,
 }: {
   childCount: number;
   clubs: readonly ParentClub[];
+  detailBaseHref: string;
   rotaClubCount: number;
 }) {
   return (
@@ -157,7 +191,11 @@ function OverviewTab({
       ) : (
         <section className="parent-clubs-card-grid" aria-label="Active clubs">
           {clubs.map((club) => (
-            <ParentClubCard club={club} key={club.id} />
+            <ParentClubCard
+              club={club}
+              href={clubDetailHref(detailBaseHref, club.id)}
+              key={club.id}
+            />
           ))}
         </section>
       )}
@@ -314,7 +352,8 @@ function NoticesTab({
   );
 }
 
-export function ParentMyClubsClient() {
+export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientProps) {
+  const copy = VARIANT_COPY[variant];
   const utils = api.useUtils();
   const contextQuery = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
   const noticesQuery = api.club.myClubNotices.useQuery(undefined, { retry: false });
@@ -399,10 +438,10 @@ export function ParentMyClubsClient() {
   }
 
   return (
-    <div className="clubs-page parent-my-clubs-page">
+    <div className={`clubs-page parent-my-clubs-page parent-my-clubs-page--${variant}`}>
       <div className="dashboard-hero parent-clubs-hero">
-        <p>Parent portal</p>
-        <h1>My Clubs</h1>
+        <p>{copy.eyebrow}</p>
+        <h1>{copy.title}</h1>
         <span>{clubs.length === 1 ? '1 active club' : `${String(clubs.length)} active clubs`}</span>
       </div>
 
@@ -413,7 +452,12 @@ export function ParentMyClubsClient() {
       ) : null}
 
       {activeTab === 'overview' ? (
-        <OverviewTab childCount={children.length} clubs={clubs} rotaClubCount={rotaClubs.length} />
+        <OverviewTab
+          childCount={children.length}
+          clubs={clubs}
+          detailBaseHref={DETAIL_BASE_HREF[variant]}
+          rotaClubCount={rotaClubs.length}
+        />
       ) : null}
       {activeTab === 'signups' ? (
         <SignupsTab

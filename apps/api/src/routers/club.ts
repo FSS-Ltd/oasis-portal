@@ -319,6 +319,35 @@ type ClubNotificationHistoryRow = Prisma.ClubNotificationGetPayload<{
   select: typeof clubNotificationHistorySelect;
 }>;
 
+const linkedClubNotificationSelect = Prisma.validator<Prisma.ClubNotificationSelect>()({
+  id: true,
+  clubId: true,
+  title: true,
+  bodyEnc: true,
+  sentAt: true,
+  sentBy: {
+    select: {
+      fullNameEnc: true,
+    },
+  },
+});
+
+type LinkedClubNotificationRow = Prisma.ClubNotificationGetPayload<{
+  select: typeof linkedClubNotificationSelect;
+}>;
+
+const linkedClubAttendanceSelect = Prisma.validator<Prisma.ClubAttendanceSelect>()({
+  id: true,
+  studentId: true,
+  sessionDate: true,
+  status: true,
+  updatedAt: true,
+});
+
+type LinkedClubAttendanceRow = Prisma.ClubAttendanceGetPayload<{
+  select: typeof linkedClubAttendanceSelect;
+}>;
+
 interface ClubNotificationNoticeRow {
   id: string;
   clubId: string;
@@ -593,6 +622,22 @@ function mapClubNoticeRow(
   };
 }
 
+function mapLinkedClubNoticeRow(
+  decrypt: (value: string | null | undefined) => string | null,
+  clubName: string,
+  row: LinkedClubNotificationRow,
+) {
+  return {
+    id: row.id,
+    clubId: row.clubId,
+    clubName,
+    title: row.title,
+    body: decryptRequired(decrypt, row.bodyEnc, 'club notification'),
+    sentAt: row.sentAt,
+    sentByName: decryptRequired(decrypt, row.sentBy.fullNameEnc, 'user PII'),
+  };
+}
+
 function mapClubUser(
   decrypt: (value: string | null | undefined) => string | null,
   user: {
@@ -726,7 +771,10 @@ async function loadLinkedActiveStudentIds(ctx: AuthedContext): Promise<Set<strin
   return new Set(guardians.map((guardian) => guardian.studentId));
 }
 
-async function loadLinkedActiveStudents(ctx: AuthedContext) {
+async function loadLinkedActiveStudents(
+  ctx: AuthedContext,
+  source = 'club.linkedChildSignupContext',
+) {
   const guardians = await ctx.db.guardian.findMany({
     where: { userId: ctx.user.id, student: { active: true } },
     select: {
@@ -742,7 +790,7 @@ async function loadLinkedActiveStudents(ctx: AuthedContext) {
       userId: ctx.user.id,
       action: 'DecryptPii',
       entity: 'Student',
-      meta: { source: 'club.linkedChildSignupContext', count: guardians.length },
+      meta: { source, count: guardians.length },
     },
   });
 
@@ -1004,6 +1052,86 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       return {
         children,
         clubs: clubs.map((club) => mapClub(ctx.user, club, linkedStudentIds)),
+      };
+    }),
+
+    linkedChildClubDetail: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
+      requireLinkedChildSignupAccess(ctx.user);
+
+      const children = await loadLinkedActiveStudents(ctx, 'club.linkedChildClubDetail');
+      const linkedStudentIds = new Set(children.map((child) => child.id));
+      const club = await ctx.db.club.findUnique({
+        where: { id: input.clubId },
+        include: clubListInclude,
+      });
+      if (!club || !club.active) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+      }
+
+      const mappedClub = mapClub(ctx.user, club, linkedStudentIds);
+      const signedUpStudentIds = new Set(mappedClub.signedUpStudentIds);
+      const signedUpChildren = children.filter((child) => signedUpStudentIds.has(child.id));
+      const childrenById = new Map(children.map((child) => [child.id, child] as const));
+
+      let attendanceRows: LinkedClubAttendanceRow[] = [];
+      let notifications: LinkedClubNotificationRow[] = [];
+      if (signedUpStudentIds.size > 0) {
+        [attendanceRows, notifications] = await Promise.all([
+          ctx.db.clubAttendance.findMany({
+            where: {
+              clubId: input.clubId,
+              studentId: { in: [...signedUpStudentIds] },
+            },
+            select: linkedClubAttendanceSelect,
+            orderBy: [{ sessionDate: 'desc' }, { updatedAt: 'desc' }],
+            take: 30,
+          }),
+          ctx.db.clubNotification.findMany({
+            where: { clubId: input.clubId },
+            select: linkedClubNotificationSelect,
+            orderBy: { sentAt: 'desc' },
+            take: 20,
+          }),
+        ]);
+      }
+
+      if (notifications.length > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'ClubNotification',
+            meta: {
+              source: 'club.linkedChildClubDetail.notices',
+              clubId: club.id,
+              count: notifications.length,
+            },
+          },
+        });
+      }
+
+      return {
+        club: mappedClub,
+        signedUpChildren,
+        attendance: attendanceRows
+          .map((row) => {
+            const child = childrenById.get(row.studentId);
+            if (!child) return null;
+
+            return {
+              id: row.id,
+              studentId: row.studentId,
+              studentName: child.fullName,
+              yearGroup: child.yearGroup,
+              sessionDate: dateKey(row.sessionDate),
+              status: row.status,
+              recordedAt: row.updatedAt,
+            };
+          })
+          .filter((row): row is NonNullable<typeof row> => row !== null),
+        notices: notifications.map((notification) =>
+          mapLinkedClubNoticeRow(ctx.db.$enc.decrypt, club.name, notification),
+        ),
       };
     }),
 
