@@ -10,6 +10,7 @@
 > - Phase 3.5 (planned): [`docs/phase-3.5-build-plan.md`](docs/phase-3.5-build-plan.md)
 > - Phase 4 (planned): [`docs/phase-4-build-plan.md`](docs/phase-4-build-plan.md)
 > - Phase 5 (hardening foundations partially pre-built): [`docs/phase-5-build-plan.md`](docs/phase-5-build-plan.md)
+> - Phase 6 (planned): [`docs/phase-6-mobile-production-build-plan.md`](docs/phase-6-mobile-production-build-plan.md)
 >
 > Always read the relevant phase plan before writing code — it contains
 > the authoritative PR breakdown, file lists, and done/in-progress status.
@@ -244,15 +245,23 @@ Every MVP item is in scope. Nice-to-haves from brief §6 are out of scope for v1
 - Full test pass (≥80% unit coverage, e2e for all 7 workflows in brief §4)
 - Penetration-style security review against brief §10 risks
 - UK GDPR paperwork: privacy policy, data-retention policy, DPIA, DPA with Clerk/Supabase/Vercel/Resend
-- EAS production builds, App Store + Play Store submission
+- Launch gate depends on Phase 6 mobile production outputs for mobile e2e, UAT, and EAS internal builds
 - Staff rollout plan + training (brief flags this as adoption risk)
+
+**Phase 6 — Mobile production build (post-hardening, pre-launch mobile closeout)** 🧭 PLANNED
+
+- Sprint & PR plan: [`docs/phase-6-mobile-production-build-plan.md`](docs/phase-6-mobile-production-build-plan.md)
+- Converts the current Expo mobile smoke app into production Parent, Student, and Staff route groups.
+- Extracts reusable Oasis mobile tokens, primitives, shell components, and auth routing before screen-level user journeys.
+- Builds each mobile journey in small PRs: staff home/attendance/behaviour/PACE/clubs/shop counter, parent home/child detail/messages/clubs/notices/shop/admin forms, and student home/wallet/actions/learning/rewards.
+- Ends with mobile e2e coverage, iOS/Android export checks, EAS internal builds, and Parent/Student/Supervisor/shopkeeper/ClubsAdmin UAT.
 
 ---
 
 ## Current implementation map
 
 - `apps/web/` — Next.js app with admin, supervisor, parent, registration, post-sign-in, and not-ready shells.
-- `apps/mobile/` — Expo app with Clerk provider and placeholder landing; mobile workflow buildout remains in Phase 2/3/4/5 plans.
+- `apps/mobile/` — Expo app with Clerk provider, Expo Router, typed tRPC wiring, and smoke screens under `components/smoke`; Phase 6 owns the production mobile buildout.
 - `apps/api/src/routers/` — implemented routers for auth context, admin, audit, attendance, behaviour, child log, child notes, email, health, PACE, profile, registration, rota, and student workflows. Routers for clubs, messages, notices, shop, tithe, investment, leaderboards, merit wallet, and reports currently expose typed placeholders and are planned in later phase docs.
 - `packages/db/prisma/schema.prisma` — current data model, migrations, RLS policy SQL, user invitation tables, child notes, registration tables, rota/attendance/PACE models, and future economy/comms/clubs/report tables.
 - `packages/domain/src/` — RBAC, users, school years, subjects, registration, merit ledger, tithe, investment simulator, shop, leaderboard, clubs, and reports domain helpers with tests.
@@ -295,7 +304,7 @@ Schema is designed to accommodate all of these without migration pain (e.g. `Gua
 - Vitest unit: every `packages/domain` function, including merit-split edge cases (rounding, zero balances, negative demerit totals, config changes mid-term)
 - Prisma integration: every tRPC router against a disposable Postgres container, with RLS enabled
 - Playwright e2e (web): each of brief §4 workflows 1–7, per role
-- Maestro e2e (mobile): attendance + behaviour logging + parent view on iOS sim + Android emulator
+- Maestro e2e (mobile): Phase 6 Parent, Student, Supervisor/staff, shopkeeper, and ClubsAdmin critical paths on iOS sim + Android emulator
 
 **Pre-launch manual**
 

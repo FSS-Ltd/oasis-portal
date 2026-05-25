@@ -1,7 +1,7 @@
 # Phase 5 - QA, hardening, rollout: sprint & PR plan
 
 **Status:** Hardening foundations partially pre-built; launch work planned
-**Last updated:** 2026-05-06
+**Last updated:** 2026-05-25
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -20,8 +20,13 @@ centre before the remaining sprints resumed:
 - PR #60 and PR #62 added/fixed admin lifecycle controls.
 
 The remaining Phase 5 work is 2FA enforcement, observability, GDPR paperwork,
-backup/restore drills, full e2e/mobile coverage, internal mobile builds,
-training, UAT, and launch closeout.
+backup/restore drills, web/API e2e coverage, Phase 6 mobile dependency
+tracking, training, UAT, and launch closeout.
+
+Phase 6 now owns the production mobile build, mobile e2e harness, production
+mobile journeys, and EAS internal build configuration. Phase 5 consumes those
+outputs as launch gates instead of adding new mobile screens or smoke-only
+coverage here.
 
 ---
 
@@ -41,9 +46,9 @@ Phase 5 is complete when:
    invitation flows, registration, finance/shop paths, and parent scoping.
 7. Web e2e coverage exists for critical Head, Supervisor, Parent, ClubsAdmin,
    shopkeeper/shopadmin, and report workflows.
-8. Mobile smoke or automated coverage exists for Supervisor, Parent, and Student
-   workflows.
-9. EAS internal builds install on target devices.
+8. Phase 6 mobile production build has either passed closeout or has an
+   explicit launch-blocking deferral approved by Jean-Fidele.
+9. EAS internal builds from Phase 6 install on target devices.
 10. Staff training, UAT, and rollout plan are complete.
 11. Final launch gate passes without unresolved P0/P1 risks.
 
@@ -272,14 +277,14 @@ Scope:
   lifecycle controls.
 - Keep credential-gated tests skipped cleanly when env vars are missing.
 - Add seeded state helpers where needed to avoid brittle UI setup.
-- Add mobile smoke automation if the chosen mobile runner is ready; otherwise
-  document manual mobile smoke.
+- Confirm Phase 6 owns mobile automation and record the Phase 6 dependency in
+  launch notes rather than adding new smoke-only mobile coverage here.
 
 Verification:
 
 - `pnpm --filter @oasis/web test:e2e`
 - `pnpm --filter @oasis/mobile typecheck`
-- Manual or automated mobile smoke for Supervisor, Parent, and Student.
+- Phase 6 mobile e2e or UAT status recorded as a launch dependency.
 
 ### PR-5.11 - `test: launch quality gate` PLANNED
 
@@ -304,20 +309,21 @@ Verification:
 
 ---
 
-## Sprint 6 - Mobile builds, UAT, and launch
+## Sprint 6 - Mobile verification, UAT, and launch
 
-### PR-5.12 - `chore(mobile): EAS internal builds` PLANNED
+### PR-5.12 - `chore(mobile): verify Phase 6 internal builds for launch` PLANNED
 
 Scope:
 
-- Configure EAS project/build profiles for internal distribution.
-- Build iOS TestFlight/internal and Android internal track artifacts.
+- Do not configure EAS here; Phase 6 PR-6.21 owns EAS profiles and build
+  commands.
+- Verify the Phase 6 iOS TestFlight/internal and Android internal artifacts.
 - Install on Head and Supervisor target devices.
-- Document device smoke checklist and known limitations.
+- Record device smoke checklist results and known limitations in launch notes.
 
 Tests:
 
-- Mobile typecheck/lint.
+- Phase 6 mobile typecheck/lint status reviewed.
 - Manual install and login smoke on target devices.
 - Supervisor, Parent, and Student smoke paths as applicable.
 
