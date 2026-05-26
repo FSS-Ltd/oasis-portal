@@ -2,11 +2,13 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { prisma } from '@oasis/db';
-import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
+import { getLinkedChildPortalUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
+import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ParentBottomNav, ParentSidebarNav, ParentTopNav } from '@/components/parent/parent-nav';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
+import { staffPortalHrefForUser } from '@/lib/portal-view-routing';
 import '../../(admin)/admin/admin.css';
 import './parent.css';
 
@@ -15,7 +17,8 @@ export const dynamic = 'force-dynamic';
 export default async function ParentLayout({ children }: { children: ReactNode }) {
   const user = await getLinkedChildPortalUser();
   const now = new Date();
-  const [unreadNoticeCount, unreadMessageCount] = await Promise.all([
+  const [linkedChildren, unreadNoticeCount, unreadMessageCount] = await Promise.all([
+    linkedChildCount(user.id),
     prisma.staffNotice.count({
       where: {
         active: true,
@@ -29,7 +32,11 @@ export default async function ParentLayout({ children }: { children: ReactNode }
     prisma.message.count({
       where: {
         senderId: { not: user.id },
-        thread: { kind: 'ParentStaff', parentId: user.id, participants: { some: { userId: user.id } } },
+        thread: {
+          kind: 'ParentStaff',
+          parentId: user.id,
+          participants: { some: { userId: user.id } },
+        },
         reads: {
           none: { userId: user.id },
         },
@@ -37,6 +44,8 @@ export default async function ParentLayout({ children }: { children: ReactNode }
     }),
   ]);
   const parentNavProps = { unreadMessageCount, unreadNoticeCount };
+  const staffHref = staffPortalHrefForUser(user);
+  const canShowPortalViewSwitch = linkedChildren > 0;
 
   return (
     <div className="admin-shell parent-shell">
@@ -53,6 +62,9 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </Link>
           <ParentTopNav {...parentNavProps} />
           <div className="parent-topbar__actions">
+            {canShowPortalViewSwitch && staffHref ? (
+              <PortalViewSwitch activeView="parent" staffHref={staffHref} variant="topbar" />
+            ) : null}
             <ProfileBadgeLink href="/parent/profile" variant="topbar" />
             <LogoutButton className="parent-topbar__logout" />
           </div>
@@ -74,6 +86,9 @@ export default async function ParentLayout({ children }: { children: ReactNode }
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            {canShowPortalViewSwitch && staffHref ? (
+              <PortalViewSwitch activeView="parent" staffHref={staffHref} variant="mobile" />
+            ) : null}
             <ProfileBadgeLink href="/parent/profile" variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>

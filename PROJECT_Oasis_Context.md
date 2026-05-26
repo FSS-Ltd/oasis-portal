@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-25
+**Last updated:** 2026-05-26
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 6 mobile production build planned.
 
@@ -28,6 +28,43 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-26 Portal view switcher
+
+Working branch: `feat/portal-view-switcher`.
+
+**PR scope:** Add a parent/supervisor portal switcher for staff/admin users with
+active linked children. Do not mix this with the invoice billing cycle branch.
+
+Completed:
+
+- Added a shared portal view switch component with Parent and Supervisor
+  segments, tactile thumb movement, focus states, and reduced-motion fallback via
+  existing global motion rules.
+- Added role-aware staff destination resolution using the existing post-sign-in
+  routing map.
+- Rendered the switcher in admin, supervisor, and parent shells only when the
+  current user has active linked children.
+- Removed parent-only linked-child shortcuts from the admin and supervisor navs
+  so staff users switch into the parent shell before using parent workflows.
+
+Verification:
+
+- `pnpm exec prettier --check apps/web/src/components/navigation/portal-view-switch.tsx apps/web/src/lib/portal-view-routing.ts 'apps/web/src/app/(admin)/admin/layout.tsx' 'apps/web/src/app/(supervisor)/supervisor/layout.tsx' 'apps/web/src/app/(parent)/parent/layout.tsx' 'apps/web/src/app/(admin)/admin/admin.css' 'apps/web/src/app/(parent)/parent/parent.css'`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- The primary workspace still contains the preserved dirty invoice branch state.
+  This switcher work was implemented in an isolated worktree at
+  `/private/tmp/oasis-portal-view-switcher`.
+- Browser smoke check could start the app on `http://localhost:3030`; authenticated
+  portal routes still resolve through their existing auth guards, so visual
+  switcher inspection requires a signed-in linked-child staff/admin session.
 
 ## Current session - 2026-05-25 Phase 6 mobile production plan
 

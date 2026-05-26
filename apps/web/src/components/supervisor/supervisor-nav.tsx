@@ -14,14 +14,11 @@ import {
   MessageSquare,
   ShoppingBag,
   Star,
-  UsersRound,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
   { href: '/admin/clubs', label: 'Club Admin', icon: Club, enabled: true },
-  { href: '/supervisor/children', label: 'My Children', icon: UsersRound, enabled: true },
-  { href: '/supervisor/clubs', label: 'Clubs', icon: Club, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
@@ -46,7 +43,6 @@ const navIconSize = 15;
 type SupervisorNavProps = {
   canManageClubs: boolean;
   canUseShop: boolean;
-  hasLinkedChildren: boolean;
   unreadMessageCount: number;
   unreadNoticeCount: number;
 };
@@ -79,7 +75,6 @@ function badgeForItem(
 export function SupervisorSidebarNav({
   canManageClubs,
   canUseShop,
-  hasLinkedChildren,
   unreadMessageCount,
   unreadNoticeCount,
 }: SupervisorNavProps) {
@@ -87,8 +82,7 @@ export function SupervisorSidebarNav({
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
-      (item.label !== 'Merit Shop' || canUseShop) &&
-      (!['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren),
+      (item.label !== 'Merit Shop' || canUseShop),
   );
 
   return (
@@ -121,7 +115,6 @@ export function SupervisorSidebarNav({
 export function SupervisorBottomNav({
   canManageClubs,
   canUseShop,
-  hasLinkedChildren,
   unreadMessageCount,
   unreadNoticeCount,
 }: SupervisorNavProps) {
@@ -129,8 +122,7 @@ export function SupervisorBottomNav({
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
-      (item.label !== 'Merit Shop' || canUseShop) &&
-      (!['My Children', 'Clubs'].includes(item.label) || hasLinkedChildren),
+      (item.label !== 'Merit Shop' || canUseShop),
   );
 
   return (
