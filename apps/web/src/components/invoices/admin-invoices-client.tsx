@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Eye, Plus, ReceiptText, Search, Trash2, X } from 'lucide-react';
+import { Download, Eye, Pencil, Plus, ReceiptText, Search, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -24,8 +24,27 @@ import {
   type AdminInvoiceStatusFilter,
   type InvoiceDto,
 } from './invoice-ui';
-import { AdminInvoiceCreateModal } from './admin-invoice-create-modal';
+import { AdminInvoiceCreateModal, AdminInvoiceEditModal } from './admin-invoice-create-modal';
 import { InvoiceFeeSettings } from './invoice-fee-settings';
+
+type InvoiceSortKey = 'invoiceNumber' | 'family';
+
+function compareInvoiceText(left: string | null | undefined, right: string | null | undefined) {
+  return (left || '').localeCompare(right || '', undefined, { numeric: true, sensitivity: 'base' });
+}
+
+function sortInvoices(invoices: readonly InvoiceDto[], sortBy: InvoiceSortKey): InvoiceDto[] {
+  return [...invoices].sort((left, right) => {
+    if (sortBy === 'family') {
+      const familyCompare = compareInvoiceText(left.familyLabel, right.familyLabel);
+      if (familyCompare !== 0) return familyCompare;
+      return compareInvoiceText(left.invoiceNumber, right.invoiceNumber);
+    }
+    const invoiceCompare = compareInvoiceText(left.invoiceNumber, right.invoiceNumber);
+    if (invoiceCompare !== 0) return invoiceCompare;
+    return compareInvoiceText(left.familyLabel, right.familyLabel);
+  });
+}
 
 function AdminInvoiceCreateLoadingModal({
   error,
@@ -77,6 +96,63 @@ function AdminInvoiceCreateLoadingModal({
   );
 }
 
+function AdminInvoiceDeleteModal({
+  invoice,
+  onCancel,
+  onConfirm,
+  pending,
+}: {
+  invoice: InvoiceDto;
+  onCancel: () => void;
+  onConfirm: (invoice: InvoiceDto) => void;
+  pending: boolean;
+}) {
+  return (
+    <div aria-modal="true" className="invoice-modal" role="dialog">
+      <button
+        aria-label="Cancel invoice delete"
+        className="invoice-modal__backdrop"
+        onClick={onCancel}
+        type="button"
+      />
+      <section className="invoice-modal__panel invoice-modal__panel--narrow">
+        <header className="invoice-modal__header invoice-modal__header--danger">
+          <span>
+            <Trash2 aria-hidden="true" size={19} />
+          </span>
+          <div>
+            <p>Delete Invoice</p>
+            <h2>{invoice.invoiceNumber ?? 'Draft invoice'}</h2>
+          </div>
+          <button aria-label="Cancel invoice delete" onClick={onCancel} type="button">
+            <X aria-hidden="true" size={18} />
+          </button>
+        </header>
+        <div className="invoice-modal__body">
+          <p className="invoice-delete-copy">
+            This removes the invoice from the family balance and cannot be undone.
+          </p>
+        </div>
+        <footer className="invoice-modal__footer">
+          <Button disabled={pending} onClick={onCancel} type="button" variant="ghost">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              onConfirm(invoice);
+            }}
+            pending={pending}
+            type="button"
+            variant="danger"
+          >
+            Delete invoice
+          </Button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 function AdminInvoiceDrawer({
   detailsId,
   detailsRef,
@@ -84,6 +160,7 @@ function AdminInvoiceDrawer({
   onClose,
   onConfirmPayment,
   onDelete,
+  onEdit,
   onMarkPaid,
   onMarkUnpaid,
   onRejectPayment,
@@ -95,6 +172,7 @@ function AdminInvoiceDrawer({
   onClose: () => void;
   onConfirmPayment: (invoice: InvoiceDto) => void;
   onDelete: (invoice: InvoiceDto) => void;
+  onEdit: (invoice: InvoiceDto) => void;
   onMarkPaid: (invoice: InvoiceDto) => void;
   onMarkUnpaid: (invoice: InvoiceDto) => void;
   onRejectPayment: (invoice: InvoiceDto) => void;
@@ -126,6 +204,20 @@ function AdminInvoiceDrawer({
       </dl>
       <div className="invoice-drawer__actions">
         <InvoicePdfAction invoiceId={invoice.id} />
+        {invoice.canEdit ? (
+          <Button
+            onClick={() => {
+              onEdit(invoice);
+            }}
+            pending={pending}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            <Pencil aria-hidden="true" size={15} />
+            Edit
+          </Button>
+        ) : null}
         {invoice.status === 'Paid' ? (
           <Button
             onClick={() => {
@@ -191,9 +283,13 @@ export function AdminInvoicesClient() {
   const invoiceDetailsId = 'admin-invoice-detail-drawer';
   const invoiceDetailsRef = useRef<HTMLElement | null>(null);
   const [status, setStatus] = useState<AdminInvoiceStatusFilter>('All');
+  const [sortBy, setSortBy] = useState<InvoiceSortKey>('invoiceNumber');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [createInvoiceError, setCreateInvoiceError] = useState<string | null>(null);
+  const [editInvoiceError, setEditInvoiceError] = useState<string | null>(null);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<InvoiceDto | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [focusInvoiceDetails, setFocusInvoiceDetails] = useState(false);
   const [pendingInvoiceId, setPendingInvoiceId] = useState<string | null>(null);
@@ -202,18 +298,31 @@ export function AdminInvoicesClient() {
     { status, search: search.trim() || undefined },
     { retry: false },
   );
-  const feeConfigQuery = api.invoice.listFeeConfig.useQuery({ schoolYear: 2026 }, { retry: false });
+  const feeConfigQuery = api.invoice.listFeeConfig.useQuery(undefined, { retry: false });
   const familiesQuery = api.invoice.listBillableFamilies.useQuery(undefined, {
-    enabled: createOpen,
+    enabled: createOpen || Boolean(editingInvoiceId),
     retry: false,
   });
   const presetsQuery = api.invoice.discountPresets.useQuery(undefined, {
-    enabled: createOpen,
+    enabled: createOpen || Boolean(editingInvoiceId),
     retry: false,
   });
+
+  async function refreshInvoiceViews() {
+    await Promise.all([
+      utils.invoice.listAdmin.invalidate(),
+      utils.invoice.listBillableFamilies.invalidate(),
+      utils.invoice.listParent.invalidate(),
+    ]);
+  }
+
   const upsertFeeConfig = api.invoice.upsertFeeConfig.useMutation({
     onSuccess: async () => {
-      await feeConfigQuery.refetch();
+      await Promise.all([
+        feeConfigQuery.refetch(),
+        utils.invoice.listBillableFamilies.invalidate(),
+        utils.invoice.listParent.invalidate(),
+      ]);
       showSuccessToast('Fee settings saved.');
     },
     onError(error) {
@@ -225,7 +334,7 @@ export function AdminInvoicesClient() {
       setCreateInvoiceError(null);
       setCreateOpen(false);
       setSelectedInvoiceId(invoice.id);
-      await utils.invoice.listAdmin.invalidate();
+      await refreshInvoiceViews();
       showSuccessToast('Invoice generated.');
     },
     onError(error) {
@@ -233,12 +342,25 @@ export function AdminInvoicesClient() {
       showErrorToast(error, 'Invoice could not be generated.');
     },
   });
+  const updateGeneratedInvoice = api.invoice.updateGenerated.useMutation({
+    onSuccess: async (invoice) => {
+      setEditInvoiceError(null);
+      setEditingInvoiceId(null);
+      setSelectedInvoiceId(invoice.id);
+      await refreshInvoiceViews();
+      showSuccessToast('Invoice updated.');
+    },
+    onError(error) {
+      setEditInvoiceError(friendlyErrorMessage(error, 'Invoice could not be updated.'));
+      showErrorToast(error, 'Invoice could not be updated.');
+    },
+  });
   const markPaid = api.invoice.markPaid.useMutation({
     onSettled: () => {
       setPendingInvoiceId(null);
     },
     onSuccess: async () => {
-      await utils.invoice.listAdmin.invalidate();
+      await refreshInvoiceViews();
       showSuccessToast('Invoice marked paid.');
     },
     onError(error) {
@@ -250,7 +372,7 @@ export function AdminInvoicesClient() {
       setPendingInvoiceId(null);
     },
     onSuccess: async () => {
-      await utils.invoice.listAdmin.invalidate();
+      await refreshInvoiceViews();
       showSuccessToast('Invoice marked unpaid.');
     },
     onError(error) {
@@ -262,7 +384,7 @@ export function AdminInvoicesClient() {
       setPendingInvoiceId(null);
     },
     onSuccess: async () => {
-      await utils.invoice.listAdmin.invalidate();
+      await refreshInvoiceViews();
       showSuccessToast('Payment confirmed.');
     },
     onError(error) {
@@ -274,7 +396,7 @@ export function AdminInvoicesClient() {
       setPendingInvoiceId(null);
     },
     onSuccess: async () => {
-      await utils.invoice.listAdmin.invalidate();
+      await refreshInvoiceViews();
       showSuccessToast('Payment marked unpaid.');
     },
     onError(error) {
@@ -287,7 +409,8 @@ export function AdminInvoicesClient() {
     },
     onSuccess: async () => {
       setSelectedInvoiceId(null);
-      await utils.invoice.listAdmin.invalidate();
+      setDeleteCandidate(null);
+      await refreshInvoiceViews();
       showSuccessToast('Invoice deleted.');
     },
     onError(error) {
@@ -296,6 +419,7 @@ export function AdminInvoicesClient() {
   });
 
   const invoices = invoicesQuery.data?.invoices ?? [];
+  const sortedInvoices = useMemo(() => sortInvoices(invoices, sortBy), [invoices, sortBy]);
   const stats = invoicesQuery.data?.stats;
   const createOptionsError = familiesQuery.error ?? presetsQuery.error ?? null;
   const createOptionsReady = Boolean(familiesQuery.data && presetsQuery.data);
@@ -305,6 +429,10 @@ export function AdminInvoicesClient() {
   const selectedInvoice = useMemo(
     () => invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null,
     [invoices, selectedInvoiceId],
+  );
+  const editingInvoice = useMemo(
+    () => invoices.find((invoice) => invoice.id === editingInvoiceId) ?? null,
+    [editingInvoiceId, invoices],
   );
 
   useEffect(() => {
@@ -322,7 +450,10 @@ export function AdminInvoicesClient() {
   }
 
   function handleDelete(invoice: InvoiceDto) {
-    if (!window.confirm(`Delete ${invoice.invoiceNumber ?? 'draft invoice'}?`)) return;
+    setDeleteCandidate(invoice);
+  }
+
+  function confirmDelete(invoice: InvoiceDto) {
     setPendingInvoiceId(invoice.id);
     deleteInvoice.mutate({ invoiceId: invoice.id });
   }
@@ -337,6 +468,8 @@ export function AdminInvoicesClient() {
         <div className="invoice-header-actions">
           <Button
             onClick={() => {
+              setEditingInvoiceId(null);
+              setEditInvoiceError(null);
               setCreateInvoiceError(null);
               setCreateOpen(true);
             }}
@@ -410,17 +543,34 @@ export function AdminInvoicesClient() {
             value={search}
           />
         </label>
+        <label className="invoice-sort">
+          <span>Sort by</span>
+          <select
+            onChange={(event) => {
+              setSortBy(event.target.value as InvoiceSortKey);
+            }}
+            value={sortBy}
+          >
+            <option value="invoiceNumber">Invoice number</option>
+            <option value="family">Family</option>
+          </select>
+        </label>
       </div>
 
       {invoicesQuery.isLoading ? (
         <InvoiceEmptyState body="Loading invoice records." title="Loading invoices" />
       ) : invoicesQuery.error ? (
-        <InvoiceEmptyState body={friendlyErrorMessage(invoicesQuery.error)} title="Invoices unavailable" />
+        <InvoiceEmptyState
+          body={friendlyErrorMessage(invoicesQuery.error)}
+          title="Invoices unavailable"
+        />
       ) : invoices.length === 0 ? (
         <InvoiceEmptyState
           action={
             <Button
               onClick={() => {
+                setEditingInvoiceId(null);
+                setEditInvoiceError(null);
                 setCreateInvoiceError(null);
                 setCreateOpen(true);
               }}
@@ -448,7 +598,7 @@ export function AdminInvoicesClient() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.map((invoice) => (
+                {sortedInvoices.map((invoice) => (
                   <tr key={invoice.id}>
                     <td>
                       <button
@@ -491,6 +641,21 @@ export function AdminInvoicesClient() {
                         >
                           <Download aria-hidden="true" size={15} />
                         </a>
+                        {invoice.canEdit ? (
+                          <button
+                            aria-label="Edit invoice"
+                            onClick={() => {
+                              setCreateOpen(false);
+                              setCreateInvoiceError(null);
+                              setEditInvoiceError(null);
+                              setSelectedInvoiceId(invoice.id);
+                              setEditingInvoiceId(invoice.id);
+                            }}
+                            type="button"
+                          >
+                            <Pencil aria-hidden="true" size={15} />
+                          </button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -513,6 +678,13 @@ export function AdminInvoicesClient() {
                 confirmPayment.mutate({ invoiceId: invoice.id });
               }}
               onDelete={handleDelete}
+              onEdit={(invoice) => {
+                setCreateOpen(false);
+                setCreateInvoiceError(null);
+                setEditInvoiceError(null);
+                setSelectedInvoiceId(invoice.id);
+                setEditingInvoiceId(invoice.id);
+              }}
               onMarkPaid={(invoice) => {
                 setPendingInvoiceId(invoice.id);
                 markPaid.mutate({ invoiceId: invoice.id });
@@ -562,6 +734,44 @@ export function AdminInvoicesClient() {
             }}
           />
         )
+      ) : null}
+      {editingInvoiceId && feeConfigQuery.data ? (
+        editingInvoice && createOptionsReady ? (
+          <AdminInvoiceEditModal
+            families={familiesQuery.data ?? []}
+            feeConfig={feeConfigQuery.data}
+            initialInvoice={editingInvoice}
+            key={`edit-${editingInvoice.id}-${createModalKey}`}
+            onClose={() => {
+              setEditingInvoiceId(null);
+            }}
+            onSubmit={(input) => {
+              setEditInvoiceError(null);
+              updateGeneratedInvoice.mutate({ ...input, invoiceId: editingInvoice.id });
+            }}
+            pending={updateGeneratedInvoice.isPending}
+            presets={presetsQuery.data ?? []}
+            serverError={editInvoiceError}
+          />
+        ) : (
+          <AdminInvoiceCreateLoadingModal
+            error={createOptionsError}
+            onClose={() => {
+              setEditingInvoiceId(null);
+            }}
+          />
+        )
+      ) : null}
+      {deleteCandidate ? (
+        <AdminInvoiceDeleteModal
+          invoice={deleteCandidate}
+          onCancel={() => {
+            if (pendingInvoiceId === deleteCandidate.id) return;
+            setDeleteCandidate(null);
+          }}
+          onConfirm={confirmDelete}
+          pending={pendingInvoiceId === deleteCandidate.id}
+        />
       ) : null}
     </section>
   );

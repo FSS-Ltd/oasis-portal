@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activeSchoolFeeYear,
   calculateSchoolFeeDiscounts,
   calculateSchoolFeeFamilyDiscounts,
   invoiceTotalPence,
   lineItemTotalPence,
   parseSchoolFeeInvoiceText,
+  schoolFeeBillingCycle,
+  schoolFeeChargeablePeriod,
   schoolFeeDiscountChildIndexPresetCode,
   schoolFeeInvoiceDisplayStatus,
+  schoolFeeStudentProratedFees,
 } from '../invoice.js';
 
 describe('school fee invoice totals', () => {
@@ -133,6 +137,20 @@ describe('school fee invoice discounts', () => {
     expect(result.totalAmountPence).toBe(0);
   });
 
+  it('applies at most three discounts per family', () => {
+    const result = calculateSchoolFeeDiscounts(100_000, [
+      { label: 'Forty', kind: 'ManualPercent', percentBps: 4000, amountPence: null },
+      { label: 'Thirty', kind: 'ManualPercent', percentBps: 3000, amountPence: null },
+      { label: 'Twenty', kind: 'ManualPercent', percentBps: 2000, amountPence: null },
+      { label: 'Ten', kind: 'ManualPercent', percentBps: 1000, amountPence: null },
+    ]);
+
+    expect(result.discountAmountPence).toBe(52_500);
+    expect(result.discounts.map((discount) => discount.appliedAmountPence)).toEqual([
+      40_000, 7_500, 5_000, 0,
+    ]);
+  });
+
   it('applies sibling discounts only to additional children', () => {
     const result = calculateSchoolFeeFamilyDiscounts({
       subtotalAmountPence: 49_000,
@@ -204,6 +222,28 @@ describe('school fee invoice discounts', () => {
     ]);
   });
 
+  it('does not discount the fourth child and later', () => {
+    const result = calculateSchoolFeeFamilyDiscounts({
+      subtotalAmountPence: 400_000,
+      studentCount: 4,
+      childLineAmountsPence: [100_000, 100_000, 100_000, 100_000],
+      discounts: [
+        {
+          label: 'Fountain Church Member',
+          kind: 'Preset',
+          presetCode: 'church-member',
+          percentBps: 1000,
+          amountPence: null,
+        },
+      ],
+    });
+
+    expect(result.discountAmountPence).toBe(30_000);
+    expect(result.childBreakdowns.map((child) => child.discountAmountPence)).toEqual([
+      10_000, 10_000, 10_000, 0,
+    ]);
+  });
+
   it('rejects sibling discounts for a single child', () => {
     expect(() =>
       calculateSchoolFeeFamilyDiscounts({
@@ -221,6 +261,50 @@ describe('school fee invoice discounts', () => {
         ],
       }),
     ).toThrow(/sibling discount/);
+  });
+});
+
+describe('school fee billing cycle proration', () => {
+  it('treats school year as the September to August cycle end year', () => {
+    expect(schoolFeeBillingCycle(2026)).toEqual({
+      schoolYear: 2026,
+      startsOn: '2025-09-01',
+      endsOn: '2026-08-31',
+      label: 'Sep 2025 - Aug 2026',
+    });
+    expect(schoolFeeBillingCycle(2027).startsOn).toBe('2026-09-01');
+  });
+
+  it('uses September as the active school fee year rollover', () => {
+    expect(activeSchoolFeeYear(new Date('2026-08-31T12:00:00.000Z'))).toBe(2026);
+    expect(activeSchoolFeeYear(new Date('2026-09-01T00:00:00.000Z'))).toBe(2027);
+  });
+
+  it('removes September to January from the 2026 fee for pre-February enrolments', () => {
+    expect(schoolFeeChargeablePeriod(2026, '2026-01-15')).toMatchObject({
+      chargeableStartsOn: '2026-02-01',
+      chargeableEndsOn: '2026-08-31',
+      chargeableMonths: 7,
+    });
+  });
+
+  it('charges from enrolment month for children enrolled after January 2026', () => {
+    const [januaryChild, mayChild] = schoolFeeStudentProratedFees({
+      schoolYear: 2026,
+      annualAmountPence: 294_000,
+      students: [
+        { studentId: 'jan', enrolmentDate: '2026-01-12' },
+        { studentId: 'may', enrolmentDate: '2026-05-18' },
+      ],
+    });
+
+    expect(januaryChild?.proratedAnnualAmountPence).toBe(171_500);
+    expect(mayChild?.chargeablePeriod).toMatchObject({
+      chargeableStartsOn: '2026-05-01',
+      chargeableEndsOn: '2026-08-31',
+      chargeableMonths: 4,
+    });
+    expect(mayChild?.proratedAnnualAmountPence).toBe(98_000);
   });
 });
 

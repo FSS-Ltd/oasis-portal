@@ -8,6 +8,7 @@ import type {
 } from '@oasis/db';
 import {
   AccessDeniedError,
+  activeSchoolFeeYear,
   calculateSchoolFeeDiscounts,
   calculateSchoolFeeFamilyDiscounts,
   invoiceTotalPence,
@@ -16,9 +17,12 @@ import {
   requireCanManageInvoices,
   requireOwnChild,
   SCHOOL_FEE_BILLING_CADENCES,
+  SCHOOL_FEE_DISCOUNT_EXPLANATION,
   SCHOOL_FEE_DISCOUNT_KINDS,
   SCHOOL_FEE_DISCOUNT_PRESETS,
   SCHOOL_FEE_SIBLING_DISCOUNT_CODE,
+  schoolFeeBillingCycle,
+  schoolFeeStudentProratedFees,
   schoolFeeInvoiceDisplayStatus,
   type ParsedSchoolFeeInvoice,
   type SchoolFeeDiscountInput,
@@ -72,6 +76,7 @@ type InvoiceStudentRow = {
   id: string;
   fullNameEnc: string;
   yearGroup: string;
+  enrolmentDate: Date;
 } | null;
 
 type InvoiceStudentLinkRow = {
@@ -110,6 +115,7 @@ type InvoiceRow = {
   subtotalAmountPence: number;
   discountAmountPence: number;
   totalAmountPence: number;
+  discountExplanationEnc: string | null;
   parentMarkedPaidAt: Date | null;
   parentMarkedPaidById: string | null;
   paymentConfirmedAt: Date | null;
@@ -152,6 +158,7 @@ export interface SchoolFeeInvoiceStudentDto {
   id: string;
   fullName: string;
   yearGroup: string;
+  enrolmentDate: string;
 }
 
 export interface SchoolFeeInvoiceDiscountDto {
@@ -205,6 +212,8 @@ export interface SchoolFeeInvoiceDto {
   subtotalAmountPence: number;
   discountAmountPence: number;
   totalAmountPence: number;
+  discountExplanation: string;
+  canEdit: boolean;
   parentMarkedPaidAt: Date | null;
   parentMarkedPaidById: string | null;
   paymentConfirmedAt: Date | null;
@@ -236,6 +245,7 @@ export interface BillableStudentDto {
   id: string;
   fullName: string;
   yearGroup: string;
+  enrolmentDate: string;
 }
 
 export interface BillableFamilyDto {
@@ -252,13 +262,38 @@ export interface BillableFamilyDto {
 
 export interface SchoolFeeYearFeeConfigDto {
   schoolYear: number;
+  cycleLabel: string;
+  cycleStartsOn: string;
+  cycleEndsOn: string;
   annualAmountPence: number;
   termAmountPence: number;
   monthlyAmountPence: number;
 }
 
+export interface SchoolFeeStudentYearSummaryDto {
+  studentId: string;
+  studentName: string;
+  yearGroup: string;
+  enrolmentDate: string;
+  chargeableStartsOn: string | null;
+  chargeableEndsOn: string | null;
+  chargeableMonths: number;
+  grossAnnualAmountPence: number;
+  adjustedAnnualAmountPence: number;
+  discountAmountPence: number;
+  issuedAmountPence: number;
+  paidAmountPence: number;
+  paymentPendingAmountPence: number;
+  overdueAmountPence: number;
+  remainingAmountPence: number;
+  leftToInvoiceAmountPence: number;
+}
+
 export interface SchoolFeeFamilyYearSummaryDto {
   schoolYear: number;
+  cycleLabel: string;
+  cycleStartsOn: string;
+  cycleEndsOn: string;
   annualAmountPence: number;
   adjustedAnnualAmountPence: number;
   discountAmountPence: number;
@@ -269,6 +304,7 @@ export interface SchoolFeeFamilyYearSummaryDto {
   remainingAmountPence: number;
   leftToInvoiceAmountPence: number;
   invoiceCount: number;
+  children: SchoolFeeStudentYearSummaryDto[];
 }
 
 const invoiceLineInput = z.object({
@@ -284,6 +320,13 @@ const invoiceDiscountInput = z.object({
   percentBps: z.number().int().min(0).max(10_000).nullable().optional(),
   amountPence: z.number().int().min(0).max(5_000_000).nullable().optional(),
 });
+
+const discountExplanationInput = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1_200)
+  .default(SCHOOL_FEE_DISCOUNT_EXPLANATION);
 
 const uploadDraftInput = z.object({
   fileName: z.string().trim().min(1).max(255),
@@ -323,6 +366,11 @@ const createGeneratedInput = z.object({
   term: z.string().trim().min(1).max(100).nullable(),
   lineItems: z.array(invoiceLineInput).min(1).max(50),
   discounts: z.array(invoiceDiscountInput).max(20).default([]),
+  discountExplanation: discountExplanationInput,
+});
+
+const updateGeneratedInput = createGeneratedInput.extend({
+  invoiceId: z.string().cuid(),
 });
 
 const feeConfigInput = z.object({
@@ -334,7 +382,7 @@ const feeConfigInput = z.object({
 
 const schoolYearInput = z
   .object({
-    schoolYear: z.number().int().min(2020).max(2100).default(DEFAULT_2026_FEE_CONFIG.schoolYear),
+    schoolYear: z.number().int().min(2020).max(2100).default(activeSchoolFeeYear),
   })
   .optional();
 
@@ -363,10 +411,12 @@ const parentListInput = z
   .optional();
 
 const invoiceInclude = {
-  student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
+  student: { select: { id: true, fullNameEnc: true, yearGroup: true, enrolmentDate: true } },
   students: {
     orderBy: { position: 'asc' as const },
-    include: { student: { select: { id: true, fullNameEnc: true, yearGroup: true } } },
+    include: {
+      student: { select: { id: true, fullNameEnc: true, yearGroup: true, enrolmentDate: true } },
+    },
   },
   lineItems: { orderBy: { position: 'asc' as const } },
   discounts: { orderBy: { position: 'asc' as const } },
@@ -532,6 +582,7 @@ function mapStudentRows(ctx: AuthedContext, invoice: InvoiceRow): SchoolFeeInvoi
     id: link.student.id,
     fullName: decryptRequired(ctx.db.$enc.decrypt, link.student.fullNameEnc, 'student name'),
     yearGroup: link.student.yearGroup,
+    enrolmentDate: dateOnly(link.student.enrolmentDate) ?? '',
   }));
   if (linked.length > 0) return linked;
   return invoice.student
@@ -544,9 +595,17 @@ function mapStudentRows(ctx: AuthedContext, invoice: InvoiceRow): SchoolFeeInvoi
             'student name',
           ),
           yearGroup: invoice.student.yearGroup,
+          enrolmentDate: dateOnly(invoice.student.enrolmentDate) ?? '',
         },
       ]
     : [];
+}
+
+function discountExplanationFromRow(ctx: AuthedContext, invoice: InvoiceRow): string {
+  return (
+    decryptOptional(ctx.db.$enc.decrypt, invoice.discountExplanationEnc) ??
+    SCHOOL_FEE_DISCOUNT_EXPLANATION
+  );
 }
 
 function mapInvoice(ctx: AuthedContext, invoice: InvoiceRow, now: Date): SchoolFeeInvoiceDto {
@@ -579,6 +638,8 @@ function mapInvoice(ctx: AuthedContext, invoice: InvoiceRow, now: Date): SchoolF
     subtotalAmountPence: invoice.subtotalAmountPence || invoice.totalAmountPence,
     discountAmountPence: invoice.discountAmountPence,
     totalAmountPence: invoice.totalAmountPence,
+    discountExplanation: discountExplanationFromRow(ctx, invoice),
+    canEdit: invoice.status === 'Draft' || invoice.status === 'Unpaid',
     parentMarkedPaidAt: invoice.parentMarkedPaidAt,
     parentMarkedPaidById: invoice.parentMarkedPaidById,
     paymentConfirmedAt: invoice.paymentConfirmedAt,
@@ -604,7 +665,7 @@ function invoiceChildDiscountBreakdowns(
   lineItems: readonly SchoolFeeInvoiceLineDto[],
   discounts: readonly SchoolFeeInvoiceDiscountDto[],
 ): SchoolFeeInvoiceChildDiscountBreakdownDto[] {
-  if (discounts.length === 0 || lineItems.length === 0) return [];
+  if (lineItems.length === 0) return [];
   const studentCount = Math.min(
     students.length > 0 ? students.length : invoice.studentId ? 1 : 0,
     lineItems.length,
@@ -666,6 +727,7 @@ function invoiceMatchesSearch(invoice: SchoolFeeInvoiceDto, search: string | und
     invoice.billingCadence,
     invoice.term,
     invoice.originalFileName,
+    invoice.discountExplanation,
     ...invoice.lineItems.map((line) => line.description),
     ...invoice.discounts.map((discount) => discount.label),
   ];
@@ -770,17 +832,21 @@ function calculateFamilyYearSummary({
   feeConfig,
   invoices,
   schoolYear,
-  studentIds,
+  students,
 }: {
   feeConfig: SchoolFeeYearFeeConfigDto;
   invoices: readonly SchoolFeeInvoiceDto[];
   schoolYear: number;
-  studentIds: readonly string[];
+  students: readonly BillableStudentDto[];
 }): SchoolFeeFamilyYearSummaryDto {
-  const uniqueStudentIds = [...new Set(studentIds)];
-  if (uniqueStudentIds.length === 0) {
+  const cycle = schoolFeeBillingCycle(schoolYear);
+  const uniqueStudents = uniqueStudentsById(students);
+  if (uniqueStudents.length === 0) {
     return {
       schoolYear,
+      cycleLabel: cycle.label,
+      cycleStartsOn: cycle.startsOn,
+      cycleEndsOn: cycle.endsOn,
       annualAmountPence: 0,
       adjustedAnnualAmountPence: 0,
       discountAmountPence: 0,
@@ -791,25 +857,35 @@ function calculateFamilyYearSummary({
       remainingAmountPence: 0,
       leftToInvoiceAmountPence: 0,
       invoiceCount: 0,
+      children: [],
     };
   }
 
-  const annualChildAmounts = uniqueStudentIds.map(() => feeConfig.annualAmountPence);
+  const studentFees = schoolFeeStudentProratedFees({
+    schoolYear,
+    annualAmountPence: feeConfig.annualAmountPence,
+    students: uniqueStudents.map((student) => ({
+      studentId: student.id,
+      enrolmentDate: student.enrolmentDate,
+    })),
+  });
+  const feeByStudentId = new Map(studentFees.map((fee) => [fee.studentId, fee]));
+  const annualChildAmounts = uniqueStudents.map(
+    (student) => feeByStudentId.get(student.id)?.proratedAnnualAmountPence ?? 0,
+  );
   const annualSubtotalAmountPence = annualChildAmounts.reduce((sum, amount) => sum + amount, 0);
   const discountInputs = latestParentYearDiscountInputs(
     invoices,
     schoolYear,
-    uniqueStudentIds.length,
+    uniqueStudents.length,
   );
-  const adjustedAnnualAmountPence =
-    discountInputs.length === 0
-      ? annualSubtotalAmountPence
-      : calculateSchoolFeeFamilyDiscounts({
-          subtotalAmountPence: annualSubtotalAmountPence,
-          studentCount: uniqueStudentIds.length,
-          childLineAmountsPence: annualChildAmounts,
-          discounts: discountInputs,
-        }).totalAmountPence;
+  const annualDiscountCalculation = calculateSchoolFeeFamilyDiscounts({
+    subtotalAmountPence: annualSubtotalAmountPence,
+    studentCount: uniqueStudents.length,
+    childLineAmountsPence: annualChildAmounts,
+    discounts: discountInputs,
+  });
+  const adjustedAnnualAmountPence = annualDiscountCalculation.totalAmountPence;
   const yearInvoices = invoices.filter((invoice) => invoice.schoolYear === schoolYear);
   const issuedAmountPence = yearInvoices.reduce(
     (sum, invoice) => sum + invoice.totalAmountPence,
@@ -831,9 +907,53 @@ function calculateFamilyYearSummary({
       .reduce((sum, invoice) => sum + invoice.totalAmountPence, 0),
     leftToPayAmountPence,
   );
+  const children = uniqueStudents.map<SchoolFeeStudentYearSummaryDto>((student, index) => {
+    const fee = feeByStudentId.get(student.id);
+    const childDiscountBreakdown = annualDiscountCalculation.childBreakdowns[index];
+    const grossAnnualAmountPence = fee?.proratedAnnualAmountPence ?? 0;
+    const adjustedChildAmountPence =
+      childDiscountBreakdown?.totalAmountPence ?? grossAnnualAmountPence;
+    const issuedForChild = sumInvoiceAmountsForStudent(yearInvoices, student.id);
+    const paidForChild = sumInvoiceAmountsForStudent(
+      yearInvoices.filter((invoice) => invoice.status === 'Paid'),
+      student.id,
+    );
+    const paymentPendingForChild = sumInvoiceAmountsForStudent(
+      yearInvoices.filter((invoice) => invoice.status === 'PaymentPending'),
+      student.id,
+    );
+    const remainingForChild = Math.max(adjustedChildAmountPence - paidForChild, 0);
+    return {
+      studentId: student.id,
+      studentName: student.fullName,
+      yearGroup: student.yearGroup,
+      enrolmentDate: student.enrolmentDate,
+      chargeableStartsOn: fee?.chargeablePeriod.chargeableStartsOn ?? null,
+      chargeableEndsOn: fee?.chargeablePeriod.chargeableEndsOn ?? null,
+      chargeableMonths: fee?.chargeablePeriod.chargeableMonths ?? 0,
+      grossAnnualAmountPence,
+      adjustedAnnualAmountPence: adjustedChildAmountPence,
+      discountAmountPence: Math.max(grossAnnualAmountPence - adjustedChildAmountPence, 0),
+      issuedAmountPence: issuedForChild,
+      paidAmountPence: Math.min(paidForChild, adjustedChildAmountPence),
+      paymentPendingAmountPence: paymentPendingForChild,
+      overdueAmountPence: Math.min(
+        sumInvoiceAmountsForStudent(
+          yearInvoices.filter((invoice) => invoice.displayStatus === 'Overdue'),
+          student.id,
+        ),
+        remainingForChild,
+      ),
+      remainingAmountPence: remainingForChild,
+      leftToInvoiceAmountPence: Math.max(adjustedChildAmountPence - issuedForChild, 0),
+    };
+  });
 
   return {
     schoolYear,
+    cycleLabel: cycle.label,
+    cycleStartsOn: cycle.startsOn,
+    cycleEndsOn: cycle.endsOn,
     annualAmountPence: annualSubtotalAmountPence,
     adjustedAnnualAmountPence,
     discountAmountPence: Math.max(annualSubtotalAmountPence - adjustedAnnualAmountPence, 0),
@@ -844,29 +964,60 @@ function calculateFamilyYearSummary({
     remainingAmountPence: leftToPayAmountPence,
     leftToInvoiceAmountPence: Math.max(adjustedAnnualAmountPence - issuedAmountPence, 0),
     invoiceCount: yearInvoices.length,
+    children,
   };
+}
+
+function uniqueStudentsById(students: readonly BillableStudentDto[]): BillableStudentDto[] {
+  const byId = new Map<string, BillableStudentDto>();
+  students.forEach((student) => {
+    if (!byId.has(student.id)) byId.set(student.id, student);
+  });
+  return [...byId.values()];
+}
+
+function sumInvoiceAmountsForStudent(
+  invoices: readonly SchoolFeeInvoiceDto[],
+  studentId: string,
+): number {
+  return invoices.reduce((sum, invoice) => sum + invoiceAmountForStudent(invoice, studentId), 0);
+}
+
+function invoiceAmountForStudent(invoice: SchoolFeeInvoiceDto, studentId: string): number {
+  const breakdown = invoice.discountBreakdowns.find(
+    (candidate) => candidate.studentId === studentId,
+  );
+  if (breakdown) return breakdown.totalAmountPence;
+  const invoiceStudentIds = new Set([
+    ...invoice.students.map((student) => student.id),
+    ...(invoice.studentId ? [invoice.studentId] : []),
+  ]);
+  if (invoiceStudentIds.size === 1 && invoiceStudentIds.has(studentId)) {
+    return invoice.totalAmountPence;
+  }
+  return 0;
 }
 
 function calculateParentYearStats({
   feeConfig,
   invoices,
   schoolYear,
-  studentIds,
+  students,
 }: {
   feeConfig: SchoolFeeYearFeeConfigDto;
   invoices: readonly SchoolFeeInvoiceDto[];
   schoolYear: number;
-  studentIds: readonly string[];
+  students: readonly BillableStudentDto[];
 }): SchoolFeeInvoiceStatsDto {
   const invoiceStats = calculateStats(invoices);
-  const uniqueStudentIds = [...new Set(studentIds)];
-  if (uniqueStudentIds.length === 0) return invoiceStats;
+  const uniqueStudents = uniqueStudentsById(students);
+  if (uniqueStudents.length === 0) return invoiceStats;
 
   const summary = calculateFamilyYearSummary({
     feeConfig,
     invoices,
     schoolYear,
-    studentIds: uniqueStudentIds,
+    students: uniqueStudents,
   });
 
   return {
@@ -1073,14 +1224,45 @@ async function assertParentInvoiceAccess(
   }
 }
 
-function defaultFeeConfig(schoolYear: number): SchoolFeeYearFeeConfigDto {
-  if (schoolYear === DEFAULT_2026_FEE_CONFIG.schoolYear) return DEFAULT_2026_FEE_CONFIG;
+function feeConfigDto(config: {
+  schoolYear: number;
+  annualAmountPence: number;
+  termAmountPence: number;
+  monthlyAmountPence: number;
+}): SchoolFeeYearFeeConfigDto {
+  const cycle = schoolFeeBillingCycle(config.schoolYear);
   return {
-    schoolYear,
-    annualAmountPence: DEFAULT_2026_FEE_CONFIG.annualAmountPence,
-    termAmountPence: DEFAULT_2026_FEE_CONFIG.termAmountPence,
-    monthlyAmountPence: DEFAULT_2026_FEE_CONFIG.monthlyAmountPence,
+    ...config,
+    cycleLabel: cycle.label,
+    cycleStartsOn: cycle.startsOn,
+    cycleEndsOn: cycle.endsOn,
   };
+}
+
+function defaultFeeConfig(schoolYear: number): SchoolFeeYearFeeConfigDto {
+  const config =
+    schoolYear === DEFAULT_2026_FEE_CONFIG.schoolYear
+      ? DEFAULT_2026_FEE_CONFIG
+      : {
+          schoolYear,
+          annualAmountPence: DEFAULT_2026_FEE_CONFIG.annualAmountPence,
+          termAmountPence: DEFAULT_2026_FEE_CONFIG.termAmountPence,
+          monthlyAmountPence: DEFAULT_2026_FEE_CONFIG.monthlyAmountPence,
+        };
+  return feeConfigDto(config);
+}
+
+async function loadSchoolFeeConfig(
+  ctx: AuthedContext,
+  schoolYear: number,
+): Promise<SchoolFeeYearFeeConfigDto> {
+  const config = await ctx.withRls((tx) =>
+    tx.schoolFeeYearFeeConfig.findUnique({
+      where: { schoolYear },
+      select: feeConfigSelect,
+    }),
+  );
+  return feeConfigDto(config ?? defaultFeeConfig(schoolYear));
 }
 
 function normalizeDiscountInput(
@@ -1133,7 +1315,7 @@ function discountCreateData(
       position: index + 1,
       labelEnc: ctx.db.$enc.encrypt(discount.label),
       kind: discount.kind,
-      presetCode: discounts[index]?.presetCode ?? null,
+      presetCode: discount.presetCode ?? null,
       percentBps: discount.percentBps,
       amountPence: discount.amountPence,
       baseAmountPence: discount.baseAmountPence,
@@ -1208,6 +1390,7 @@ async function buildGeneratedInvoicePdf(
     subtotalAmountPence: invoice.subtotalAmountPence,
     discountAmountPence: invoice.discountAmountPence,
     totalAmountPence: invoice.totalAmountPence,
+    discountExplanation: discountExplanationFromRow(ctx, invoice),
     paymentReference: invoiceNumber,
     lineItems,
     discounts: discounts.map((discount) => ({
@@ -1261,14 +1444,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
 
     listFeeConfig: authedProcedure.input(schoolYearInput).query(async ({ ctx, input }) => {
       await requireInvoiceManager(ctx, 'invoice.listFeeConfig');
-      const schoolYear = input?.schoolYear ?? DEFAULT_2026_FEE_CONFIG.schoolYear;
-      const config = await ctx.withRls((tx) =>
-        tx.schoolFeeYearFeeConfig.findUnique({
-          where: { schoolYear },
-          select: feeConfigSelect,
-        }),
-      );
-      return config ?? defaultFeeConfig(schoolYear);
+      const schoolYear = input?.schoolYear ?? activeSchoolFeeYear();
+      return loadSchoolFeeConfig(ctx, schoolYear);
     }),
 
     upsertFeeConfig: authedProcedure.input(feeConfigInput).mutation(async ({ ctx, input }) => {
@@ -1295,7 +1472,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         });
         return updated;
       });
-      return config;
+      return feeConfigDto(config);
     }),
 
     discountPresets: authedProcedure.query(() => SCHOOL_FEE_DISCOUNT_PRESETS),
@@ -1307,13 +1484,14 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         tx.student.findMany({
           where: { active: true },
           orderBy: [{ yearGroup: 'asc' }, { createdAt: 'desc' }],
-          select: { id: true, fullNameEnc: true, yearGroup: true },
+          select: { id: true, fullNameEnc: true, yearGroup: true, enrolmentDate: true },
         }),
       );
       const rows = students.map((student) => ({
         id: student.id,
         fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student name'),
         yearGroup: student.yearGroup,
+        enrolmentDate: dateOnly(student.enrolmentDate) ?? '',
       })) satisfies BillableStudentDto[];
 
       await auditStudentDecrypt(ctx, 'invoice.listBillableStudents', rows.length);
@@ -1331,6 +1509,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             id: true,
             fullNameEnc: true,
             yearGroup: true,
+            enrolmentDate: true,
             guardians: {
               select: {
                 userId: true,
@@ -1370,7 +1549,12 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             students: [],
             guardians: [],
           } satisfies Omit<BillableFamilyDto, 'yearSummary'>);
-        row.students.push({ id: student.id, fullName, yearGroup: student.yearGroup });
+        row.students.push({
+          id: student.id,
+          fullName,
+          yearGroup: student.yearGroup,
+          enrolmentDate: dateOnly(student.enrolmentDate) ?? '',
+        });
         guardians.forEach((guardian) => {
           if (!row.guardians.some((candidate) => candidate.id === guardian.id)) {
             row.guardians.push(guardian);
@@ -1382,14 +1566,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
       const familyRows = [...families.values()].sort((left, right) =>
         left.familyLabel.localeCompare(right.familyLabel),
       );
-      const schoolYear = DEFAULT_2026_FEE_CONFIG.schoolYear;
-      const feeConfig =
-        (await ctx.withRls((tx) =>
-          tx.schoolFeeYearFeeConfig.findUnique({
-            where: { schoolYear },
-            select: feeConfigSelect,
-          }),
-        )) ?? defaultFeeConfig(schoolYear);
+      const schoolYear = activeSchoolFeeYear();
+      const feeConfig = await loadSchoolFeeConfig(ctx, schoolYear);
       const studentIds = familyRows.flatMap((family) =>
         family.students.map((student) => student.id),
       );
@@ -1445,7 +1623,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             feeConfig,
             invoices: [...familyInvoices.values()],
             schoolYear,
-            studentIds: familyStudentIds,
+            students: family.students,
           }),
         };
       });
@@ -1465,7 +1643,18 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
 
       const studentIds = await parentStudentIds(ctx);
       if (studentIds.length === 0) {
-        return { invoices: [], stats: calculateStats([]) };
+        const schoolYear = activeSchoolFeeYear();
+        const feeConfig = defaultFeeConfig(schoolYear);
+        return {
+          invoices: [],
+          stats: calculateStats([]),
+          yearSummary: calculateFamilyYearSummary({
+            feeConfig,
+            invoices: [],
+            schoolYear,
+            students: [],
+          }),
+        };
       }
 
       const links = await ctx.db.schoolFeeInvoiceStudent.findMany({
@@ -1489,30 +1678,47 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
       const invoices = mappedInvoices
         .filter((invoice) => invoiceMatchesParentStatus(invoice, input?.status ?? 'All'))
         .filter((invoice) => invoiceMatchesSearch(invoice, input?.search));
-      const schoolYear = DEFAULT_2026_FEE_CONFIG.schoolYear;
-      const feeConfig =
-        (await ctx.withRls((tx) =>
-          tx.schoolFeeYearFeeConfig.findUnique({
-            where: { schoolYear },
-            select: feeConfigSelect,
-          }),
-        )) ?? defaultFeeConfig(schoolYear);
+      const schoolYear = activeSchoolFeeYear();
+      const feeConfig = await loadSchoolFeeConfig(ctx, schoolYear);
       const familyStudentIds = [
         ...new Set([
           ...studentIds,
           ...mappedInvoices.flatMap((invoice) => invoice.students.map((student) => student.id)),
         ]),
       ];
+      const familyStudentRows =
+        familyStudentIds.length === 0
+          ? []
+          : await ctx.withRls((tx) =>
+              tx.student.findMany({
+                where: { id: { in: familyStudentIds }, active: true },
+                select: { id: true, fullNameEnc: true, yearGroup: true, enrolmentDate: true },
+              }),
+            );
+      const familyStudents = familyStudentRows.map((student) => ({
+        id: student.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student name'),
+        yearGroup: student.yearGroup,
+        enrolmentDate: dateOnly(student.enrolmentDate) ?? '',
+      })) satisfies BillableStudentDto[];
 
       await auditInvoiceDecrypt(ctx, 'invoice.listParent', mappedInvoices.length);
+      await auditStudentDecrypt(ctx, 'invoice.listParent', familyStudents.length);
+      const yearSummary = calculateFamilyYearSummary({
+        feeConfig,
+        invoices: mappedInvoices,
+        schoolYear,
+        students: familyStudents,
+      });
       return {
         invoices,
         stats: calculateParentYearStats({
           feeConfig,
           invoices: mappedInvoices,
           schoolYear,
-          studentIds: familyStudentIds,
+          students: familyStudents,
         }),
+        yearSummary,
       };
     }),
 
@@ -1686,6 +1892,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             subtotalAmountPence,
             discountAmountPence: discountData.calculation.discountAmountPence,
             totalAmountPence: discountData.calculation.totalAmountPence,
+            discountExplanation: input.discountExplanation,
             paymentReference: input.invoiceNumber,
             lineItems: input.lineItems.map((line) => ({
               ...line,
@@ -1725,6 +1932,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
               subtotalAmountPence,
               discountAmountPence: discountData.calculation.discountAmountPence,
               totalAmountPence: discountData.calculation.totalAmountPence,
+              discountExplanationEnc: ctx.db.$enc.encrypt(input.discountExplanation),
               originalFileNameEnc: ctx.db.$enc.encrypt(fileName),
               fileMimeType: 'application/pdf',
               fileSizeBytes: pdf.bytes.length,
@@ -1765,6 +1973,159 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             },
           });
           return created;
+        });
+
+        return mapInvoice(ctx, invoice, new Date());
+      }),
+
+    updateGenerated: authedProcedure
+      .input(updateGeneratedInput)
+      .mutation(async ({ ctx, input }) => {
+        await requireInvoiceManager(ctx, 'invoice.updateGenerated', input.invoiceId);
+
+        let subtotalAmountPence: number;
+        try {
+          subtotalAmountPence = invoiceTotalPence(input.lineItems);
+        } catch (err) {
+          asBadRequest(err);
+        }
+        let childAmounts: number[];
+        try {
+          childAmounts = childLineAmountsPence(input.lineItems, input.studentIds.length);
+        } catch (err) {
+          if (err instanceof TRPCError) throw err;
+          asBadRequest(err);
+        }
+        const discountData = (() => {
+          try {
+            return discountCreateData(ctx, input.discounts, subtotalAmountPence, {
+              studentCount: input.studentIds.length,
+              childLineAmountsPence: childAmounts,
+            });
+          } catch (err) {
+            if (err instanceof TRPCError) throw err;
+            asBadRequest(err);
+          }
+        })();
+
+        const invoice = await ctx.withRls(async (tx) => {
+          const existing = await tx.schoolFeeInvoice.findUnique({
+            where: { id: input.invoiceId },
+            select: { id: true, status: true },
+          });
+          if (!existing) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: 'invoice not found' });
+          }
+          if (existing.status !== 'Draft' && existing.status !== 'Unpaid') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'only draft and unpaid invoices can be edited',
+            });
+          }
+
+          const students = await assertActiveStudents(tx, input.studentIds);
+          await assertInvoiceNumberAvailable(tx, input.invoiceNumber, input.invoiceId);
+          const studentDtos = students.map((student) => ({
+            name: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student name'),
+            yearGroup: student.yearGroup,
+          }));
+          const pdf = await generateSchoolFeeInvoicePdf({
+            invoiceNumber: input.invoiceNumber,
+            issuedOn: parseDateInput(input.issuedOn),
+            dueOn: parseDateInput(input.dueOn),
+            billTo: input.familyLabel,
+            familyLabel: input.familyLabel,
+            students: studentDtos,
+            schoolYear: input.schoolYear,
+            billingCadence: input.billingCadence,
+            term: input.term,
+            subtotalAmountPence,
+            discountAmountPence: discountData.calculation.discountAmountPence,
+            totalAmountPence: discountData.calculation.totalAmountPence,
+            discountExplanation: input.discountExplanation,
+            paymentReference: input.invoiceNumber,
+            lineItems: input.lineItems.map((line) => ({
+              ...line,
+              totalAmountPence: line.quantity * line.unitAmountPence,
+            })),
+            discounts: discountData.calculation.discounts.map((discount) => ({
+              label: discount.label,
+              baseAmountPence: discount.baseAmountPence,
+              appliedAmountPence: discount.appliedAmountPence,
+              optedOut: Boolean(discount.optedOut),
+            })),
+            discountBreakdowns: discountData.calculation.childBreakdowns.map((breakdown) => ({
+              childIndex: breakdown.childIndex,
+              discountAmountPence: breakdown.discountAmountPence,
+              totalAmountPence: breakdown.totalAmountPence,
+              discounts: breakdown.discounts
+                .filter((discount) => discount.appliedAmountPence > 0)
+                .map((discount) => ({
+                  label: discount.label,
+                  appliedAmountPence: discount.appliedAmountPence,
+                })),
+            })),
+          });
+          const fileName = `${input.invoiceNumber}.pdf`;
+          const updated = await tx.schoolFeeInvoice.update({
+            where: { id: input.invoiceId },
+            data: {
+              invoiceNumber: input.invoiceNumber,
+              studentId: input.studentIds[0] ?? null,
+              status: existing.status,
+              schoolYear: input.schoolYear,
+              billingCadence: input.billingCadence,
+              familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
+              term: input.term,
+              issuedOn: parseDateInput(input.issuedOn),
+              dueOn: parseDateInput(input.dueOn),
+              subtotalAmountPence,
+              discountAmountPence: discountData.calculation.discountAmountPence,
+              totalAmountPence: discountData.calculation.totalAmountPence,
+              discountExplanationEnc: ctx.db.$enc.encrypt(input.discountExplanation),
+              originalFileNameEnc: ctx.db.$enc.encrypt(fileName),
+              fileMimeType: 'application/pdf',
+              fileSizeBytes: pdf.bytes.length,
+              pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
+              extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
+              parentMarkedPaidAt: null,
+              parentMarkedPaidById: null,
+              lineItems: {
+                deleteMany: {},
+                create: input.lineItems.map((line, index) => ({
+                  ...lineData(line, index + 1),
+                  descriptionEnc: ctx.db.$enc.encrypt(line.description),
+                })),
+              },
+              students: {
+                deleteMany: {},
+                create: input.studentIds.map((studentId, index) => ({
+                  studentId,
+                  position: index + 1,
+                })),
+              },
+              discounts: { deleteMany: {}, create: discountData.create },
+            },
+            include: invoiceInclude,
+          });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'SchoolFeeInvoice',
+              entityId: updated.id,
+              meta: {
+                source: 'invoice.updateGenerated',
+                studentIds: input.studentIds,
+                schoolYear: input.schoolYear,
+                billingCadence: input.billingCadence,
+                subtotalAmountPence,
+                discountAmountPence: discountData.calculation.discountAmountPence,
+                totalAmountPence: discountData.calculation.totalAmountPence,
+              },
+            },
+          });
+          return updated;
         });
 
         return mapInvoice(ctx, invoice, new Date());

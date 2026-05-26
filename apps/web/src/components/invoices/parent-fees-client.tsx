@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
-import { api } from '@/lib/trpc';
+import { api, type RouterOutputs } from '@/lib/trpc';
 import {
   filterCountLabel,
   formatInvoiceDate,
@@ -22,6 +22,8 @@ import {
   type InvoiceDto,
   type ParentInvoiceStatusFilter,
 } from './invoice-ui';
+
+type ParentYearSummary = RouterOutputs['invoice']['listParent']['yearSummary'];
 
 function PaymentDonut({
   paidAmountPence,
@@ -192,11 +194,52 @@ function ParentInvoiceCard({
             <MessageOfficeAction />
           </div>
           {invoice.status === 'PaymentPending' ? (
-            <p className="parent-payment-note">Payment is waiting for pastor or head confirmation.</p>
+            <p className="parent-payment-note">
+              Payment is waiting for pastor or head confirmation.
+            </p>
           ) : null}
         </div>
       ) : null}
     </article>
+  );
+}
+
+function ParentFeeCycleSummary({ summary }: { summary: ParentYearSummary | undefined }) {
+  if (!summary) return null;
+  return (
+    <section className="parent-fee-cycle">
+      <div>
+        <span>Fee cycle</span>
+        <strong>{summary.cycleLabel}</strong>
+      </div>
+      <div>
+        <span>Annual target</span>
+        <strong>{formatPence(summary.adjustedAnnualAmountPence)}</strong>
+      </div>
+      <div>
+        <span>Left to invoice</span>
+        <strong>{formatPence(summary.leftToInvoiceAmountPence)}</strong>
+      </div>
+      {summary.children.map((child) => (
+        <article key={child.studentId}>
+          <span>
+            <strong>{child.studentName}</strong>
+            <small>
+              {child.chargeableMonths} months from{' '}
+              {child.chargeableStartsOn ?? summary.cycleStartsOn}
+            </small>
+          </span>
+          <span>
+            <small>Paid</small>
+            <strong>{formatPence(child.paidAmountPence)}</strong>
+          </span>
+          <span>
+            <small>Left</small>
+            <strong>{formatPence(child.remainingAmountPence)}</strong>
+          </span>
+        </article>
+      ))}
+    </section>
   );
 }
 
@@ -237,6 +280,7 @@ export function ParentFeesClient() {
   });
   const invoices = invoicesQuery.data?.invoices ?? [];
   const stats = invoicesQuery.data?.stats;
+  const yearSummary = invoicesQuery.data?.yearSummary;
   const firstUnpaidInvoiceId = useMemo(
     () => invoices.find((invoice) => invoice.status === 'Unpaid')?.id ?? invoices[0]?.id ?? null,
     [invoices],
@@ -249,7 +293,7 @@ export function ParentFeesClient() {
         <div>
           <p>School Fees</p>
           <h1>{formatPence(stats?.outstandingAmountPence ?? 0)}</h1>
-          <span>Outstanding balance</span>
+          <span>{yearSummary?.cycleLabel ?? 'Outstanding balance'}</span>
         </div>
         <PaymentDonut
           overdueAmountPence={stats?.overdueAmountPence ?? 0}
@@ -269,6 +313,8 @@ export function ParentFeesClient() {
           />
         </div>
       </header>
+
+      <ParentFeeCycleSummary summary={yearSummary} />
 
       <div className="invoice-toolbar">
         <div className="invoice-filter-group" aria-label="School fee status filters">
@@ -299,7 +345,10 @@ export function ParentFeesClient() {
       {invoicesQuery.isLoading ? (
         <InvoiceEmptyState body="Loading school fee invoices." title="Loading fees" />
       ) : invoicesQuery.error ? (
-        <InvoiceEmptyState body={friendlyErrorMessage(invoicesQuery.error)} title="Fees unavailable" />
+        <InvoiceEmptyState
+          body={friendlyErrorMessage(invoicesQuery.error)}
+          title="Fees unavailable"
+        />
       ) : invoices.length === 0 ? (
         <InvoiceEmptyState body="No invoices match this view." title="No invoices" />
       ) : (
@@ -323,7 +372,9 @@ export function ParentFeesClient() {
                 setDiscountOptOut.mutate({ invoiceId: invoice.id, discountId, optedOut });
               }}
               open={activeOpenInvoiceId === invoice.id}
-              togglingDiscount={invoice.discounts.some((discount) => discount.id === pendingDiscountId)}
+              togglingDiscount={invoice.discounts.some(
+                (discount) => discount.id === pendingDiscountId,
+              )}
             />
           ))}
         </div>

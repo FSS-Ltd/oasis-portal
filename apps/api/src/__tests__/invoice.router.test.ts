@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { schoolFeeDiscountChildIndexPresetCode, type SessionUser } from '@oasis/domain';
+import {
+  SCHOOL_FEE_DISCOUNT_EXPLANATION,
+  schoolFeeDiscountChildIndexPresetCode,
+  type SessionUser,
+} from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { createInvoiceRouter } from '../routers/invoice.js';
 import { router } from '../trpc.js';
@@ -25,6 +29,7 @@ interface StoredInvoice {
   subtotalAmountPence: number;
   discountAmountPence: number;
   totalAmountPence: number;
+  discountExplanationEnc: string | null;
   parentMarkedPaidAt: Date | null;
   parentMarkedPaidById: string | null;
   paymentConfirmedAt: Date | null;
@@ -77,6 +82,7 @@ interface StoredStudent {
   active: boolean;
   fullNameEnc: string;
   yearGroup: string;
+  enrolmentDate: Date;
   createdAt: Date;
 }
 
@@ -127,6 +133,7 @@ interface FakeInvoiceCreateArgs {
     subtotalAmountPence?: number;
     discountAmountPence?: number;
     totalAmountPence?: number;
+    discountExplanationEnc?: string | null;
     originalFileNameEnc: string;
     fileMimeType: string;
     fileSizeBytes: number;
@@ -178,11 +185,13 @@ interface FakeInvoiceUpdateArgs {
     familyLabelEnc?: string | null;
     subtotalAmountPence?: number;
     discountAmountPence?: number;
+    discountExplanationEnc?: string | null;
     parentMarkedPaidAt?: Date | null;
     parentMarkedPaidById?: string | null;
     paymentConfirmedAt?: Date | null;
     paymentConfirmedById?: string | null;
     originalFileNameEnc?: string;
+    fileMimeType?: string;
     fileSizeBytes?: number;
     pdfBytesEnc?: string;
     extractedTextEnc?: string | null;
@@ -247,6 +256,8 @@ const unlinkedParentUser: SessionUser = {
 
 const linkedStudentId = 'cstudent000000000001';
 const otherStudentId = 'cstudent000000000002';
+const thirdStudentId = 'cstudent000000000003';
+const fourthStudentId = 'cstudent000000000004';
 const invoiceId = 'cinvoice00000000001';
 const discountId = 'cdiscount0000000001';
 
@@ -260,10 +271,17 @@ function decrypt(value: string | null | undefined): string | null {
 }
 
 function makeStudent(input: Pick<StoredStudent, 'id'> & Partial<StoredStudent>): StoredStudent {
+  const names: Record<string, string> = {
+    [linkedStudentId]: 'Talia Parent',
+    [otherStudentId]: 'Other Child',
+    [thirdStudentId]: 'Third Child',
+    [fourthStudentId]: 'Fourth Child',
+  };
   return {
     active: true,
-    fullNameEnc: encrypt(input.id === linkedStudentId ? 'Talia Parent' : 'Other Child'),
+    fullNameEnc: encrypt(names[input.id] ?? 'Other Child'),
     yearGroup: 'Y9',
+    enrolmentDate: new Date('2026-01-12T00:00:00.000Z'),
     createdAt: new Date('2026-05-01T08:00:00.000Z'),
     ...input,
   };
@@ -284,6 +302,7 @@ function makeInvoice(input: Pick<StoredInvoice, 'id'> & Partial<StoredInvoice>):
     subtotalAmountPence: 42000,
     discountAmountPence: 0,
     totalAmountPence: 42000,
+    discountExplanationEnc: null,
     parentMarkedPaidAt: null,
     parentMarkedPaidById: null,
     paymentConfirmedAt: null,
@@ -338,6 +357,7 @@ function makeDiscount(
 }
 
 function makeFakeDb({
+  initialStudents,
   initialGuardians = [{ userId: parentUser.id, studentId: linkedStudentId }],
   initialInvoices = [],
   initialLines = [],
@@ -345,6 +365,7 @@ function makeFakeDb({
   initialDiscounts = [],
   decryptImpl = decrypt,
 }: {
+  initialStudents?: StoredStudent[];
   initialGuardians?: StoredGuardian[];
   initialInvoices?: StoredInvoice[];
   initialLines?: StoredLine[];
@@ -352,7 +373,10 @@ function makeFakeDb({
   initialDiscounts?: StoredDiscount[];
   decryptImpl?: (value: string | null | undefined) => string | null;
 } = {}) {
-  const students = [makeStudent({ id: linkedStudentId }), makeStudent({ id: otherStudentId })];
+  const students = initialStudents ?? [
+    makeStudent({ id: linkedStudentId }),
+    makeStudent({ id: otherStudentId }),
+  ];
   const guardians = [...initialGuardians];
   const invoices = [...initialInvoices];
   const lines = [...initialLines];
@@ -461,6 +485,7 @@ function makeFakeDb({
                 id: student.id,
                 fullNameEnc: student.fullNameEnc,
                 yearGroup: student.yearGroup,
+                enrolmentDate: student.enrolmentDate,
                 createdAt: student.createdAt,
               };
               if (!args.select?.guardians) return base;
@@ -570,6 +595,7 @@ function makeFakeDb({
           subtotalAmountPence: data.subtotalAmountPence ?? data.totalAmountPence ?? 0,
           discountAmountPence: data.discountAmountPence ?? 0,
           totalAmountPence: data.totalAmountPence ?? 0,
+          discountExplanationEnc: data.discountExplanationEnc ?? null,
           originalFileNameEnc: data.originalFileNameEnc,
           fileMimeType: data.fileMimeType,
           fileSizeBytes: data.fileSizeBytes,
@@ -824,14 +850,24 @@ describe('invoiceRouter', () => {
 
     expect(parentFamily?.yearSummary).toMatchObject({
       schoolYear: 2026,
-      adjustedAnnualAmountPence: 294000,
+      cycleLabel: 'Sep 2025 - Aug 2026',
+      adjustedAnnualAmountPence: 171500,
       issuedAmountPence: 147000,
       paidAmountPence: 24500,
       paymentPendingAmountPence: 24500,
-      remainingAmountPence: 269500,
-      leftToInvoiceAmountPence: 147000,
+      remainingAmountPence: 147000,
+      leftToInvoiceAmountPence: 24500,
       invoiceCount: 3,
     });
+    expect(parentFamily?.yearSummary.children).toEqual([
+      expect.objectContaining({
+        studentId: linkedStudentId,
+        chargeableStartsOn: '2026-02-01',
+        chargeableMonths: 7,
+        adjustedAnnualAmountPence: 171500,
+        leftToInvoiceAmountPence: 24500,
+      }),
+    ]);
   });
 
   it('scopes parent invoice lists and downloads to linked children only', async () => {
@@ -939,6 +975,81 @@ describe('invoiceRouter', () => {
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('uses capped discounts and prorated annual targets for generated invoices', async () => {
+    const fakeDb = makeFakeDb({
+      initialStudents: [
+        makeStudent({ id: linkedStudentId }),
+        makeStudent({ id: otherStudentId }),
+        makeStudent({ id: thirdStudentId }),
+        makeStudent({ id: fourthStudentId }),
+      ],
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+        { userId: parentUser.id, studentId: thirdStudentId },
+        { userId: parentUser.id, studentId: fourthStudentId },
+      ],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const created = await adminCaller.invoice.createGenerated({
+      schoolYear: 2026,
+      billingCadence: 'Annual',
+      studentIds: [linkedStudentId, otherStudentId, thirdStudentId, fourthStudentId],
+      familyLabel: 'Parent family',
+      invoiceNumber: 'OLC0014',
+      issuedOn: '2026-05-01',
+      dueOn: '2026-05-15',
+      term: '2026 SCHOOL YEAR',
+      lineItems: [
+        { description: 'Annual fee - Talia Parent', quantity: 1, unitAmountPence: 171500 },
+        { description: 'Annual fee - Other Child', quantity: 1, unitAmountPence: 171500 },
+        { description: 'Annual fee - Third Child', quantity: 1, unitAmountPence: 171500 },
+        { description: 'Annual fee - Fourth Child', quantity: 1, unitAmountPence: 171500 },
+      ],
+      discounts: [
+        {
+          label: 'Sibling discount',
+          kind: 'Preset',
+          presetCode: 'sibling',
+          percentBps: 2500,
+          amountPence: null,
+        },
+        {
+          label: 'Church Leaders / Oasis Supervisors',
+          kind: 'Preset',
+          presetCode: 'church-leader',
+          percentBps: 2000,
+          amountPence: null,
+        },
+        {
+          label: 'Fountain Church Volunteers / Oasis Parent Volunteers / Tithers',
+          kind: 'Preset',
+          presetCode: 'volunteer-tither',
+          percentBps: 1500,
+          amountPence: null,
+        },
+        {
+          label: 'Fountain Church Member',
+          kind: 'Preset',
+          presetCode: 'church-member',
+          percentBps: 1000,
+          amountPence: null,
+        },
+      ],
+    });
+
+    expect(created.subtotalAmountPence).toBe(686000);
+    expect(created.discountAmountPence).toBe(156493);
+    expect(created.totalAmountPence).toBe(529507);
+    expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([
+      85750, 51450, 19293, 0,
+    ]);
+    expect(created.discountBreakdowns.map((child) => child.totalAmountPence)).toEqual([
+      130769, 113619, 113619, 171500,
+    ]);
   });
 
   it('stores manual generated discounts against the selected child', async () => {
@@ -1072,9 +1183,168 @@ describe('invoiceRouter', () => {
     const parentList = await parentCaller.invoice.listParent({ status: 'All' });
 
     expect(parentList.stats.paidAmountPence).toBe(24500);
-    expect(parentList.stats.outstandingAmountPence).toBe(490000);
-    expect(parentList.stats.remainingAmountPence).toBe(490000);
+    expect(parentList.stats.outstandingAmountPence).toBe(275625);
+    expect(parentList.stats.remainingAmountPence).toBe(275625);
     expect(parentList.stats.overdueAmountPence).toBe(0);
+  });
+
+  it('prorates parent owed totals for January and May enrolments', async () => {
+    const paidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Paid',
+      studentId: linkedStudentId,
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const fakeDb = makeFakeDb({
+      initialStudents: [
+        makeStudent({ id: linkedStudentId, enrolmentDate: new Date('2026-01-12T00:00:00.000Z') }),
+        makeStudent({ id: otherStudentId, enrolmentDate: new Date('2026-05-18T00:00:00.000Z') }),
+      ],
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      initialInvoices: [paidInvoice],
+      initialLines: [
+        makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await parentCaller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.stats.paidAmountPence).toBe(24500);
+    expect(parentList.stats.outstandingAmountPence).toBe(245000);
+    expect(parentList.stats.remainingAmountPence).toBe(245000);
+    expect(parentList.yearSummary).toMatchObject({
+      annualAmountPence: 269500,
+      adjustedAnnualAmountPence: 269500,
+      paidAmountPence: 24500,
+      remainingAmountPence: 245000,
+      leftToInvoiceAmountPence: 245000,
+    });
+    expect(parentList.yearSummary.children).toEqual([
+      expect.objectContaining({
+        studentId: linkedStudentId,
+        chargeableStartsOn: '2026-02-01',
+        chargeableMonths: 7,
+        grossAnnualAmountPence: 171500,
+        paidAmountPence: 24500,
+        leftToInvoiceAmountPence: 147000,
+      }),
+      expect.objectContaining({
+        studentId: otherStudentId,
+        chargeableStartsOn: '2026-05-01',
+        chargeableMonths: 4,
+        grossAnnualAmountPence: 98000,
+        paidAmountPence: 0,
+        leftToInvoiceAmountPence: 98000,
+      }),
+    ]);
+  });
+
+  it('edits unpaid generated invoices and regenerates discount explanation text', async () => {
+    const ownInvoice = makeInvoice({
+      id: invoiceId,
+      invoiceNumber: 'OLC0015',
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+      discountExplanationEnc: encrypt(SCHOOL_FEE_DISCOUNT_EXPLANATION),
+    });
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      initialInvoices: [ownInvoice],
+      initialLines: [
+        makeLine({ invoiceId: ownInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const updated = await adminCaller.invoice.updateGenerated({
+      invoiceId,
+      schoolYear: 2026,
+      billingCadence: 'Monthly',
+      studentIds: [linkedStudentId, otherStudentId],
+      familyLabel: 'Parent family',
+      invoiceNumber: 'OLC0015-REV',
+      issuedOn: '2026-05-02',
+      dueOn: '2026-05-20',
+      term: 'MAY 2026',
+      lineItems: [
+        { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+        { description: 'Monthly fee - Other Child', quantity: 1, unitAmountPence: 24500 },
+      ],
+      discounts: [
+        {
+          label: 'Sibling discount',
+          kind: 'Preset',
+          presetCode: 'sibling',
+          percentBps: 2500,
+          amountPence: null,
+        },
+      ],
+      discountExplanation: 'Custom discount explanation for this invoice.',
+    });
+
+    expect(updated.invoiceNumber).toBe('OLC0015-REV');
+    expect(updated.totalAmountPence).toBe(42875);
+    expect(updated.discountExplanation).toBe('Custom discount explanation for this invoice.');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain(
+      'Custom discount explanation for this invoice.',
+    );
+    expect(
+      Buffer.from(decrypt(fakeDb.invoices[0]?.pdfBytesEnc) ?? '', 'base64')
+        .subarray(0, 5)
+        .toString('utf8'),
+    ).toBe('%PDF-');
+  });
+
+  it('rejects editing paid or payment-pending generated invoices', async () => {
+    const paidInvoice = makeInvoice({ id: invoiceId, status: 'Paid' });
+    const pendingInvoice = makeInvoice({
+      id: 'cinvoice00000000002',
+      invoiceNumber: 'OLC0016',
+      status: 'PaymentPending',
+      parentMarkedPaidAt: new Date('2026-05-16T08:00:00.000Z'),
+      parentMarkedPaidById: parentUser.id,
+    });
+    const fakeDb = makeFakeDb({ initialInvoices: [paidInvoice, pendingInvoice] });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+    const input = {
+      schoolYear: 2026,
+      billingCadence: 'Monthly' as const,
+      studentIds: [linkedStudentId],
+      familyLabel: 'Parent family',
+      invoiceNumber: 'OLC0017',
+      issuedOn: '2026-05-02',
+      dueOn: '2026-05-20',
+      term: 'MAY 2026',
+      lineItems: [
+        { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+      ],
+      discounts: [],
+      discountExplanation: SCHOOL_FEE_DISCOUNT_EXPLANATION,
+    };
+
+    await expect(
+      adminCaller.invoice.updateGenerated({ ...input, invoiceId: paidInvoice.id }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only draft and unpaid invoices can be edited',
+    });
+    await expect(
+      adminCaller.invoice.updateGenerated({ ...input, invoiceId: pendingInvoice.id }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only draft and unpaid invoices can be edited',
+    });
   });
 
   it('keeps parent marked payments pending until staff confirm or reject them', async () => {
@@ -1099,14 +1369,14 @@ describe('invoiceRouter', () => {
     const pendingParentList = await parentCaller.invoice.listParent({ status: 'All' });
     expect(pendingParentList.stats.paidAmountPence).toBe(0);
     expect(pendingParentList.stats.paymentPendingCount).toBe(1);
-    expect(pendingParentList.stats.remainingAmountPence).toBe(294000);
+    expect(pendingParentList.stats.remainingAmountPence).toBe(171500);
 
     const paid = await adminCaller.invoice.confirmPayment({ invoiceId });
     expect(paid.status).toBe('Paid');
     expect(paid.paidAt).toBeInstanceOf(Date);
     const paidParentList = await parentCaller.invoice.listParent({ status: 'All' });
     expect(paidParentList.stats.paidAmountPence).toBe(24500);
-    expect(paidParentList.stats.remainingAmountPence).toBe(269500);
+    expect(paidParentList.stats.remainingAmountPence).toBe(147000);
 
     const rejectInvoice = makeInvoice({
       id: 'cinvoice00000000004',
