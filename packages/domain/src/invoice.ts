@@ -1,3 +1,5 @@
+import { canAnswerChildRegistrationPrompt, type SessionUser } from './rbac.js';
+
 export const SCHOOL_FEE_INVOICE_STATUSES = ['Draft', 'Unpaid', 'PaymentPending', 'Paid'] as const;
 export type SchoolFeeInvoiceStatus = (typeof SCHOOL_FEE_INVOICE_STATUSES)[number];
 export type SchoolFeeInvoiceDisplayStatus = SchoolFeeInvoiceStatus | 'Overdue';
@@ -24,6 +26,10 @@ export const SCHOOL_FEE_DISCOUNT_PRESETS = [
   },
   { code: 'church-member', label: 'Fountain Church Member', percentBps: 1000 },
 ] as const;
+
+export function canUseLinkedChildInvoiceAccess(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+}
 
 export interface SchoolFeeYearFeeConfigInput {
   annualAmountPence: number;
@@ -104,6 +110,7 @@ export interface SchoolFeeFamilyDiscountInput {
 
 export interface ParsedSchoolFeeInvoice {
   invoiceNumber: string | null;
+  familyLabel: string | null;
   issuedOn: string | null;
   dueOn: string | null;
   term: string | null;
@@ -461,6 +468,8 @@ export function parseSchoolFeeInvoiceText(text: string): ParsedSchoolFeeInvoice 
     .filter(Boolean);
   const totalAmountPence = parseTotalAmountPence(lines, compactText);
   const lineItems = parseLineItems(lines);
+  const issuedOn = parseIssuedDate(compactText);
+  const dueOn = parseDueDate(compactText, issuedOn);
 
   if (lineItems.length === 0 && totalAmountPence !== null) {
     lineItems.push({
@@ -472,8 +481,9 @@ export function parseSchoolFeeInvoiceText(text: string): ParsedSchoolFeeInvoice 
 
   return {
     invoiceNumber: parseInvoiceNumber(compactText),
-    issuedOn: parseIssuedDate(compactText),
-    dueOn: parseDueDate(compactText),
+    familyLabel: parseFamilyLabel(lines),
+    issuedOn,
+    dueOn,
     term: parseTerm(compactText),
     lineItems,
     totalAmountPence,
@@ -529,11 +539,20 @@ function parseInvoiceNumber(text: string): string | null {
 }
 
 function parseIssuedDate(text: string): string | null {
-  return parseDateAfterLabel(text, ['issued', 'invoice date', 'date']);
+  return parseDateAfterLabel(text, ['issued', 'invoice date', 'date']) ?? parseFirstDateValue(text);
 }
 
-function parseDueDate(text: string): string | null {
-  return parseDateAfterLabel(text, ['due date', 'payment due', 'due']);
+function parseDueDate(text: string, issuedOn: string | null): string | null {
+  const labelled = parseDateAfterLabel(text, ['due date', 'payment due', 'due']);
+  if (labelled) return labelled;
+  if (!issuedOn) return null;
+  const withinDays = /\bwithin\s+([0-9]{1,2})\s+days\b/iu.exec(text);
+  if (!withinDays?.[1]) return null;
+  const days = Number(withinDays[1]);
+  if (!Number.isInteger(days) || days <= 0 || days > 60) return null;
+  const date = parseDateKey(issuedOn);
+  date.setUTCDate(date.getUTCDate() + days);
+  return dateKey(date);
 }
 
 function parseDateAfterLabel(text: string, labels: readonly string[]): string | null {
@@ -569,6 +588,14 @@ function parseDateValue(value: string): string | null {
   return null;
 }
 
+function parseFirstDateValue(text: string): string | null {
+  const match =
+    /\b([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[\s\-/][A-Za-z]{3,9}[\s\-/][0-9]{2,4}|[0-9]{1,2}[/-][0-9]{1,2}[/-][0-9]{2,4})\b/u.exec(
+      text,
+    );
+  return match?.[1] ? parseDateValue(match[1]) : null;
+}
+
 function datePartsToKey(yearInput: number, month: number, day: number): string | null {
   const year = yearInput < 100 ? 2000 + yearInput : yearInput;
   if (year < 2000 || month < 1 || month > 12 || day < 1 || day > 31) return null;
@@ -589,7 +616,43 @@ function parseTerm(text: string): string | null {
     return `${titleCase(schoolTerm[1])} Term${schoolTerm[2] ? ` ${schoolTerm[2]}` : ''}`;
   }
   const canonical = /\b([0-9]{4}-(?:Spring|Summer|Autumn))\b/iu.exec(text);
-  return canonical?.[1] ?? null;
+  if (canonical?.[1]) return canonical[1];
+  const monthly =
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+([0-9]{4})\b/iu.exec(
+      text,
+    );
+  if (!monthly?.[1] || !monthly[2]) return null;
+  const month = monthNumbers[monthly[1].toLowerCase()];
+  if (!month) return null;
+  return `${monthName(month).toUpperCase()} ${monthly[2]}`;
+}
+
+function parseFamilyLabel(lines: readonly string[]): string | null {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    const inlineMatch = /^(?:invoice\s+to|bill(?:ed)?\s+to)\s*:\s*(.+)$/iu.exec(line);
+    if (inlineMatch?.[1]) return sanitizeFamilyLabel(inlineMatch[1]);
+
+    if (!/^(?:invoice\s+to|bill(?:ed)?\s+to)\s*:?\s*$/iu.test(line)) continue;
+    const next = lines
+      .slice(index + 1, index + 5)
+      .find((candidate) => candidate && isLikelyFamilyLabel(candidate));
+    if (next) return sanitizeFamilyLabel(next);
+  }
+  return null;
+}
+
+function sanitizeFamilyLabel(value: string): string | null {
+  const label = value.replace(/\s+/gu, ' ').trim();
+  return isLikelyFamilyLabel(label) ? label : null;
+}
+
+function isLikelyFamilyLabel(value: string): boolean {
+  const normalized = value.replace(/\s+/gu, ' ').trim();
+  if (normalized.length < 2 || normalized.length > 160) return false;
+  return !/\b(invoice|child|fee|discount|amount|total|payment|reference|frequency)\b/iu.test(
+    normalized,
+  );
 }
 
 function titleCase(value: string): string {
@@ -609,6 +672,12 @@ function parseTotalAmountPence(lines: readonly string[], text: string): number |
 }
 
 function parseLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
+  const generatedInvoiceItems = parseGeneratedSchoolFeeLineItems(lines);
+  if (generatedInvoiceItems.length > 0) return generatedInvoiceItems;
+
+  const childTableItems = parseChildTableLineItems(lines);
+  if (childTableItems.length > 0) return childTableItems;
+
   const parsed: SchoolFeeInvoiceLineInput[] = [];
   for (const line of lines) {
     if (parsed.length >= 20) break;
@@ -617,6 +686,109 @@ function parseLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
     if (item) parsed.push(item);
   }
   return parsed;
+}
+
+function parseGeneratedSchoolFeeLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
+  const startIndex = lines.findIndex((line) => /^description$/iu.test(line));
+  if (startIndex < 0) return [];
+  const endIndex = lines.findIndex(
+    (line, index) => index > startIndex && /^(?:subtotal|total|discounts)$/iu.test(line),
+  );
+  const tableLines = lines.slice(startIndex + 1, endIndex > startIndex ? endIndex : undefined);
+  const parsed: SchoolFeeInvoiceLineInput[] = [];
+
+  for (let index = 0; index < tableLines.length; index += 1) {
+    const description = tableLines[index]?.replace(/\s+/gu, ' ').trim() ?? '';
+    if (!isGeneratedSchoolFeeDescription(description)) continue;
+
+    const nextFeeIndex = tableLines.findIndex(
+      (line, candidateIndex) =>
+        candidateIndex > index &&
+        isGeneratedSchoolFeeDescription(line.replace(/\s+/gu, ' ').trim()),
+    );
+    const childLines = tableLines.slice(index + 1, nextFeeIndex > index ? nextFeeIndex : undefined);
+    const netAmountPence = parseGeneratedNetAmountPence(childLines);
+    const grossAmountPence = parseGeneratedGrossAmountPence(childLines);
+    const amountPence = netAmountPence ?? grossAmountPence;
+
+    if (amountPence !== null && amountPence > 0) {
+      parsed.push({ description, quantity: 1, unitAmountPence: amountPence });
+    }
+  }
+
+  return parsed;
+}
+
+function isGeneratedSchoolFeeDescription(value: string): boolean {
+  return /\b(?:monthly|termly|annual|learning centre|school)\s+.*\bfee\b/iu.test(value);
+}
+
+function parseGeneratedNetAmountPence(lines: readonly string[]): number | null {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (!/^net\s+for\s+child\b/iu.test(line)) continue;
+    const inlineAmount = parseMoneyPence(line);
+    if (inlineAmount !== null) return inlineAmount;
+    const nextAmount = lines
+      .slice(index + 1)
+      .find((candidate) => parseMoneyPence(candidate) !== null);
+    return nextAmount ? parseMoneyPence(nextAmount) : null;
+  }
+  return null;
+}
+
+function parseGeneratedGrossAmountPence(lines: readonly string[]): number | null {
+  for (let index = 0; index < lines.length - 2; index += 1) {
+    const quantity = Number(lines[index]);
+    if (!Number.isInteger(quantity) || quantity <= 0) continue;
+    const amount = parseMoneyPence(lines[index + 2] ?? '');
+    if (amount !== null) return amount;
+  }
+  return null;
+}
+
+function parseChildTableLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
+  const startIndex = lines.findIndex((line) => /^child$/iu.test(line));
+  if (startIndex < 0) return [];
+  const endIndex = lines.findIndex(
+    (line, index) => index > startIndex && /\btotal\s+amount\s+due\b/iu.test(line),
+  );
+  const tableLines = lines.slice(startIndex + 1, endIndex > startIndex ? endIndex : undefined);
+  const parsed: SchoolFeeInvoiceLineInput[] = [];
+
+  for (let index = 0; index < tableLines.length; index += 1) {
+    const childName = tableLines[index];
+    if (!childName || !looksLikeChildName(childName)) continue;
+
+    const amountLines: string[] = [];
+    let nextIndex = index + 1;
+    while (nextIndex < tableLines.length) {
+      const candidate = tableLines[nextIndex];
+      if (candidate && looksLikeChildName(candidate)) break;
+      if (candidate && parseMoneyPence(candidate) !== null) amountLines.push(candidate);
+      nextIndex += 1;
+    }
+
+    const amountPence = amountLines.length > 0 ? parseMoneyPence(amountLines.at(-1) ?? '') : null;
+    if (amountPence !== null && amountPence > 0) {
+      parsed.push({
+        description: `Learning centre fees - ${childName}`,
+        quantity: 1,
+        unitAmountPence: amountPence,
+      });
+    }
+    index = nextIndex - 1;
+  }
+
+  return parsed;
+}
+
+function looksLikeChildName(value: string): boolean {
+  const normalized = value.replace(/\s+/gu, ' ').trim();
+  if (!/^[\p{L}][\p{L}'-]+(?:\s+[\p{L}][\p{L}'-]+)+$/u.test(normalized)) return false;
+  return !/\b(invoice|child|fee|discount|amount|total|payment|reference|frequency|leader|member)\b/iu.test(
+    normalized,
+  );
 }
 
 function shouldSkipLineItem(line: string): boolean {
@@ -628,7 +800,9 @@ function shouldSkipLineItem(line: string): boolean {
 }
 
 function parseLineItem(line: string): SchoolFeeInvoiceLineInput | null {
-  const amountMatch = /(.+?)\s+(?:£\s*)?([0-9][0-9,]*(?:\.[0-9]{2})?)$/u.exec(line);
+  const amountMatch = /(.+?)\s+(£\s*[0-9][0-9,]*(?:\.[0-9]{2})?|[0-9][0-9,]*\.[0-9]{2})$/u.exec(
+    line,
+  );
   if (!amountMatch?.[1] || !amountMatch[2]) return null;
   const amountPence = parseMoneyPence(amountMatch[2]);
   if (amountPence === null || amountPence === 0) return null;
@@ -644,4 +818,22 @@ function parseLineItem(line: string): SchoolFeeInvoiceLineInput | null {
   if (description.length < 2) return null;
 
   return { description, quantity, unitAmountPence };
+}
+
+function monthName(month: number): string {
+  const names = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return names[month - 1] ?? String(month);
 }

@@ -3,6 +3,7 @@ import {
   activeSchoolFeeYear,
   calculateSchoolFeeDiscounts,
   calculateSchoolFeeFamilyDiscounts,
+  canUseLinkedChildInvoiceAccess,
   invoiceTotalPence,
   lineItemTotalPence,
   parseSchoolFeeInvoiceText,
@@ -12,6 +13,19 @@ import {
   schoolFeeInvoiceDisplayStatus,
   schoolFeeStudentProratedFees,
 } from '../invoice.js';
+
+describe('canUseLinkedChildInvoiceAccess', () => {
+  it('allows parent and child-registration staff roles', () => {
+    expect(canUseLinkedChildInvoiceAccess({ role: 'Parent' })).toBe(true);
+    expect(canUseLinkedChildInvoiceAccess({ role: 'Supervisor' })).toBe(true);
+    expect(canUseLinkedChildInvoiceAccess({ role: 'ClubsAdmin' })).toBe(true);
+    expect(canUseLinkedChildInvoiceAccess({ role: 'Head' })).toBe(true);
+  });
+
+  it('blocks student accounts', () => {
+    expect(canUseLinkedChildInvoiceAccess({ role: 'Student' })).toBe(false);
+  });
+});
 
 describe('school fee invoice totals', () => {
   it('calculates line and invoice totals in pence', () => {
@@ -323,6 +337,7 @@ describe('parseSchoolFeeInvoiceText', () => {
 
     expect(parsed).toMatchObject({
       invoiceNumber: 'INV-2026-067',
+      familyLabel: null,
       issuedOn: '2026-04-24',
       dueOn: '2026-05-15',
       term: 'Spring Term 2',
@@ -344,6 +359,127 @@ describe('parseSchoolFeeInvoiceText', () => {
     expect(parsed.invoiceNumber).toBe('INV-2026-099');
     expect(parsed.lineItems).toEqual([
       { description: 'Imported invoice total', quantity: 1, unitAmountPence: 48300 },
+    ]);
+  });
+
+  it('extracts child fee rows from pastor-created OLC invoices', () => {
+    const parsed = parseSchoolFeeInvoiceText(`
+      OASIS LEARNING CENTRE
+      21 May 2026
+      INVOICE No: OLC0022
+      Invoice To:
+      Peter & Vivian Mutabaruka
+      INVOICE FOR LEARNING CENTRE FEES
+      : MAY 2026
+
+      Child
+      Base Monthly Fee
+      Discount Applied
+      Amount Due (£)
+      Levi Mutabaruka
+      £245.00
+      22.5% (Church
+      leader + Member)
+      £189.87
+      Micah Mutabaruka
+      £245.00
+      32.5% (Sibling,
+      Leader & Member)
+      £165.37
+
+      Total Amount Due
+      £355.24
+      PAYMENT TO BE MADE WITHIN 14 DAYS OF RECEIPT OF INVOICE.
+    `);
+
+    expect(parsed).toMatchObject({
+      invoiceNumber: 'OLC0022',
+      familyLabel: 'Peter & Vivian Mutabaruka',
+      issuedOn: '2026-05-21',
+      dueOn: '2026-06-04',
+      term: 'MAY 2026',
+      totalAmountPence: 35524,
+    });
+    expect(parsed.lineItems).toEqual([
+      {
+        description: 'Learning centre fees - Levi Mutabaruka',
+        quantity: 1,
+        unitAmountPence: 18987,
+      },
+      {
+        description: 'Learning centre fees - Micah Mutabaruka',
+        quantity: 1,
+        unitAmountPence: 16537,
+      },
+    ]);
+  });
+
+  it('extracts generated school fee invoice net rows per child', () => {
+    const parsed = parseSchoolFeeInvoiceText(`
+      OASIS LEARNING CENTRE
+      School Fee Invoice
+      OLC26052
+      Invoice No
+      OLC26052
+      Issued
+      26 May 2026
+      Due date
+      09 Jun 2026
+      Bill to
+      Test family
+      Student(s)
+      Joseph Test, April Test
+      Year group
+      Year 1, Year 2
+      Invoice for Learning Centre Fees
+      MAY 2026 / Monthly / 2026
+      Description
+      Qty
+      Unit
+      Amount
+      Monthly school fee - Joseph Test
+      1
+      £245.00
+      £245.00
+      Discount - Church Leaders / Oasis Supervisors
+      -£49.00
+      Net for child
+      £186.81
+      Monthly school fee - April Test
+      1
+      £245.00
+      £245.00
+      Discount - Sibling discount
+      -£61.25
+      Net for child
+      £162.31
+      Subtotal
+      £490.00
+      Discounts
+      -£140.88
+      Total
+      £349.12
+    `);
+
+    expect(parsed).toMatchObject({
+      invoiceNumber: 'OLC26052',
+      familyLabel: 'Test family',
+      issuedOn: '2026-05-26',
+      dueOn: '2026-06-09',
+      term: 'MAY 2026',
+      totalAmountPence: 34912,
+    });
+    expect(parsed.lineItems).toEqual([
+      {
+        description: 'Monthly school fee - Joseph Test',
+        quantity: 1,
+        unitAmountPence: 18681,
+      },
+      {
+        description: 'Monthly school fee - April Test',
+        quantity: 1,
+        unitAmountPence: 16231,
+      },
     ]);
   });
 

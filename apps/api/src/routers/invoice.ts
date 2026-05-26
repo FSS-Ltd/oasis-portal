@@ -11,11 +11,11 @@ import {
   activeSchoolFeeYear,
   calculateSchoolFeeDiscounts,
   calculateSchoolFeeFamilyDiscounts,
+  canUseLinkedChildInvoiceAccess,
   invoiceTotalPence,
   lineItemTotalPence,
   parseSchoolFeeInvoiceText,
   requireCanManageInvoices,
-  requireOwnChild,
   SCHOOL_FEE_BILLING_CADENCES,
   SCHOOL_FEE_DISCOUNT_EXPLANATION,
   SCHOOL_FEE_DISCOUNT_KINDS,
@@ -335,18 +335,32 @@ const uploadDraftInput = z.object({
   pdfBase64: z.string().min(1),
 });
 
-const publishDraftInput = z.object({
-  invoiceId: z.string().cuid(),
-  studentId: z.string().cuid(),
-  invoiceNumber: z.string().trim().min(1).max(80),
-  issuedOn: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/u)
-    .nullable(),
-  dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
-  term: z.string().trim().min(1).max(80).nullable(),
-  lineItems: z.array(invoiceLineInput).min(1).max(50),
-});
+const publishDraftInput = z
+  .object({
+    invoiceId: z.string().cuid(),
+    studentId: z.string().cuid().optional(),
+    studentIds: z
+      .array(z.string().cuid())
+      .min(1)
+      .max(20)
+      .refine((ids) => new Set(ids).size === ids.length, 'Each student can only be added once.')
+      .optional(),
+    familyLabel: z.string().trim().min(1).max(160).nullable().optional(),
+    schoolYear: z.number().int().min(2020).max(2100).nullable().optional(),
+    billingCadence: z.enum(SCHOOL_FEE_BILLING_CADENCES).nullable().optional(),
+    invoiceNumber: z.string().trim().min(1).max(80),
+    issuedOn: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/u)
+      .nullable(),
+    dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+    term: z.string().trim().min(1).max(80).nullable(),
+    lineItems: z.array(invoiceLineInput).min(1).max(50),
+  })
+  .refine((input) => input.studentId || input.studentIds?.length, {
+    message: 'Select at least one child.',
+    path: ['studentIds'],
+  });
 
 const createGeneratedInput = z.object({
   schoolYear: z.number().int().min(2020).max(2100),
@@ -1062,6 +1076,8 @@ async function auditStudentDecrypt(
 }
 
 async function defaultExtractPdfText(pdfBytes: Uint8Array): Promise<string> {
+  ensurePromiseWithResolvers();
+
   type PdfTextItem = { str: string };
   type PdfPage = { getTextContent: () => Promise<{ items: unknown[] }> };
   type PdfDocument = { numPages: number; getPage: (pageNumber: number) => Promise<PdfPage> };
@@ -1102,6 +1118,35 @@ async function defaultExtractPdfText(pdfBytes: Uint8Array): Promise<string> {
   }
 }
 
+interface PromiseWithResolversResult<T> {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+}
+
+type PromiseConstructorWithResolvers = PromiseConstructor & {
+  withResolvers?: <T>() => PromiseWithResolversResult<T>;
+};
+
+function ensurePromiseWithResolvers(): void {
+  const promiseConstructor = Promise as PromiseConstructorWithResolvers;
+  if (typeof promiseConstructor.withResolvers === 'function') return;
+
+  Object.defineProperty(promiseConstructor, 'withResolvers', {
+    configurable: true,
+    writable: true,
+    value: <T>(): PromiseWithResolversResult<T> => {
+      let resolve!: (value: T | PromiseLike<T>) => void;
+      let reject!: (reason?: unknown) => void;
+      const promise = new Promise<T>((promiseResolve, promiseReject) => {
+        resolve = promiseResolve;
+        reject = promiseReject;
+      });
+      return { promise, resolve, reject };
+    },
+  });
+}
+
 function extractLiteralPdfText(pdfBytes: Uint8Array): string {
   const pdfText = Buffer.from(pdfBytes).toString('latin1');
   const textMatches = pdfText.matchAll(/\((?:\\.|[^\\()])*\)\s*Tj/gu);
@@ -1137,16 +1182,6 @@ async function loadDraftForPublishing(tx: RlsTx, invoiceId: string) {
   }
   if (invoice.status !== 'Draft') {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'only draft invoices can be published' });
-  }
-}
-
-async function assertActiveStudent(tx: RlsTx, studentId: string): Promise<void> {
-  const student = await tx.student.findUnique({
-    where: { id: studentId },
-    select: { id: true, active: true },
-  });
-  if (!student?.active) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
   }
 }
 
@@ -1197,11 +1232,11 @@ async function assertParentInvoiceAccess(
   ctx: AuthedContext,
   invoice: Pick<InvoiceDownloadRow, 'id' | 'studentId' | 'status'>,
 ): Promise<void> {
-  if (ctx.user.role !== 'Parent' || invoice.status === 'Draft') {
+  if (!canUseLinkedChildInvoiceAccess(ctx.user) || invoice.status === 'Draft') {
     return auditPermissionDenied(
       ctx,
       'invoice.parentAccess',
-      new AccessDeniedError('invoice access requires a linked parent or finance-admin'),
+      new AccessDeniedError('invoice access requires a linked child account'),
       invoice.id,
     );
   }
@@ -1213,15 +1248,14 @@ async function assertParentInvoiceAccess(
     select: { invoiceId: true },
   });
 
-  try {
-    if (legacyAccess || link) return;
-    requireOwnChild(ctx.user, invoice.studentId ?? '', studentIds);
-  } catch (err) {
-    if (err instanceof AccessDeniedError) {
-      await auditPermissionDenied(ctx, 'invoice.parentAccess', err, invoice.id);
-    }
-    throw err;
-  }
+  if (legacyAccess || link) return;
+
+  await auditPermissionDenied(
+    ctx,
+    'invoice.parentAccess',
+    new AccessDeniedError('invoice is not linked to this account'),
+    invoice.id,
+  );
 }
 
 function feeConfigDto(config: {
@@ -1633,11 +1667,11 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
     }),
 
     listParent: authedProcedure.input(parentListInput).query(async ({ ctx, input }) => {
-      if (ctx.user.role !== 'Parent') {
+      if (!canUseLinkedChildInvoiceAccess(ctx.user)) {
         await auditPermissionDenied(
           ctx,
           'invoice.listParent',
-          new AccessDeniedError('parent invoice list requires Parent role'),
+          new AccessDeniedError('parent invoice list requires a linked child account'),
         );
       }
 
@@ -1732,6 +1766,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         ? parseSchoolFeeInvoiceText(extractedText)
         : {
             invoiceNumber: null,
+            familyLabel: null,
             issuedOn: null,
             dueOn: null,
             term: null,
@@ -1743,6 +1778,10 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         const created = await tx.schoolFeeInvoice.create({
           data: {
             status: 'Draft',
+            familyLabelEnc: parsed.familyLabel ? ctx.db.$enc.encrypt(parsed.familyLabel) : null,
+            term: parsed.term,
+            issuedOn: parseDateInput(parsed.issuedOn),
+            dueOn: parseDateInput(parsed.dueOn),
             subtotalAmountPence: parsed.totalAmountPence ?? 0,
             discountAmountPence: 0,
             totalAmountPence: parsed.totalAmountPence ?? 0,
@@ -1752,6 +1791,12 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             pdfBytesEnc: ctx.db.$enc.encrypt(pdfBytes.toString('base64')),
             extractedTextEnc: extractedText ? ctx.db.$enc.encrypt(extractedText) : null,
             createdById: ctx.user.id,
+            lineItems: {
+              create: parsed.lineItems.map((line, index) => ({
+                ...lineData(line, index + 1),
+                descriptionEnc: ctx.db.$enc.encrypt(line.description),
+              })),
+            },
           },
           include: invoiceInclude,
         });
@@ -1779,6 +1824,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
 
     publishDraft: authedProcedure.input(publishDraftInput).mutation(async ({ ctx, input }) => {
       await requireInvoiceManager(ctx, 'invoice.publishDraft', input.invoiceId);
+      const studentIds = input.studentIds ?? (input.studentId ? [input.studentId] : []);
 
       let totalAmountPence: number;
       try {
@@ -1789,15 +1835,18 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
 
       const invoice = (await ctx.withRls(async (tx) => {
         await loadDraftForPublishing(tx, input.invoiceId);
-        await assertActiveStudent(tx, input.studentId);
+        await assertActiveStudents(tx, studentIds);
         await assertInvoiceNumberAvailable(tx, input.invoiceNumber, input.invoiceId);
 
         const updated = await tx.schoolFeeInvoice.update({
           where: { id: input.invoiceId },
           data: {
             invoiceNumber: input.invoiceNumber,
-            studentId: input.studentId,
+            studentId: studentIds[0] ?? null,
             status: 'Unpaid',
+            schoolYear: input.schoolYear ?? null,
+            billingCadence: input.billingCadence ?? null,
+            familyLabelEnc: input.familyLabel ? ctx.db.$enc.encrypt(input.familyLabel) : null,
             term: input.term,
             issuedOn: parseDateInput(input.issuedOn),
             dueOn: parseDateInput(input.dueOn),
@@ -1814,7 +1863,10 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             },
             students: {
               deleteMany: {},
-              create: [{ studentId: input.studentId, position: 1 }],
+              create: studentIds.map((studentId, index) => ({
+                studentId,
+                position: index + 1,
+              })),
             },
             discounts: { deleteMany: {} },
           },
@@ -1829,7 +1881,9 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             entityId: updated.id,
             meta: {
               source: 'invoice.publishDraft',
-              studentId: input.studentId,
+              studentIds,
+              schoolYear: input.schoolYear ?? null,
+              billingCadence: input.billingCadence ?? null,
               invoiceNumber: input.invoiceNumber,
               totalAmountPence,
             },
