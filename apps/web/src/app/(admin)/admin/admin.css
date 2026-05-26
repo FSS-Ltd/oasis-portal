@@ -10337,6 +10337,33 @@ button.club-assignment-row {
   color: var(--oasis-text-secondary);
 }
 
+.invoice-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+}
+
+.invoice-sort span {
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.invoice-sort select {
+  border: 0;
+  background: transparent;
+  color: var(--oasis-text);
+  font-size: 0.82rem;
+  font-weight: 750;
+  outline: 0;
+}
+
 .invoice-search input {
   width: 100%;
   min-width: 0;
@@ -10758,6 +10785,11 @@ button.club-assignment-row {
   box-shadow: 0 24px 70px rgba(7, 13, 34, 0.32);
 }
 
+.invoice-modal__panel--narrow {
+  width: min(520px, 100%);
+  grid-template-rows: auto auto auto;
+}
+
 .invoice-modal--wide .invoice-modal__panel {
   width: min(1120px, 100%);
   height: min(760px, calc(100dvh - 40px));
@@ -10808,6 +10840,35 @@ button.club-assignment-row {
   color: #ffffff;
 }
 
+.invoice-modal__header--danger {
+  border-bottom: 0;
+  background: var(--oasis-danger);
+  color: #ffffff;
+}
+
+.invoice-modal__header--danger > span {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.invoice-modal__header--danger p,
+.invoice-modal__header--danger h2,
+.invoice-modal__header--danger button {
+  color: #ffffff;
+}
+
+.invoice-modal__header--danger button {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.invoice-modal__header--danger button:hover,
+.invoice-modal__header--danger button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
 .invoice-modal__header > span {
   display: inline-grid;
   width: 38px;
@@ -10849,6 +10910,14 @@ button.club-assignment-row {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 16px;
+}
+
+.invoice-delete-copy {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.88rem;
+  font-weight: 750;
+  line-height: 1.5;
 }
 
 .invoice-upload-drop {
@@ -11046,8 +11115,45 @@ button.club-assignment-row {
   color: var(--oasis-danger);
 }
 
+.invoice-family-summary__children {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.invoice-family-summary__child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+
+.invoice-family-summary__child strong {
+  overflow: hidden;
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invoice-family-summary__child small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
 .invoice-preset-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.invoice-discount-explanation {
+  min-height: 112px;
+  resize: vertical;
 }
 
 .invoice-manual-discount {
@@ -11081,6 +11187,58 @@ button.club-assignment-row {
   border-radius: 8px;
   background: var(--oasis-navy);
   color: #ffffff;
+}
+
+.parent-fee-cycle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+
+.parent-fee-cycle > div,
+.parent-fee-cycle article {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.parent-fee-cycle > div {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.parent-fee-cycle article {
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) 112px 112px;
+  align-items: center;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--oasis-border);
+}
+
+.parent-fee-cycle span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.parent-fee-cycle > div > span,
+.parent-fee-cycle small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.parent-fee-cycle strong {
+  overflow: hidden;
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .parent-fees-chart {
@@ -11248,12 +11406,15 @@ button.club-assignment-row {
   .invoice-fee-settings__fields,
   .invoice-create-grid,
   .invoice-preset-grid,
+  .invoice-family-summary__children,
+  .parent-fee-cycle,
   .invoice-family-summary,
   .invoice-manual-discount {
     grid-template-columns: 1fr;
   }
 
-  .invoice-search {
+  .invoice-search,
+  .invoice-sort {
     width: 100%;
   }
 
@@ -11280,6 +11441,7 @@ button.club-assignment-row {
   }
 
   .invoice-review-line,
+  .parent-fee-cycle article,
   .parent-invoice-card__summary {
     grid-template-columns: 1fr;
   }

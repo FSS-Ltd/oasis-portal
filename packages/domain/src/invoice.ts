@@ -7,10 +7,12 @@ export const SCHOOL_FEE_DISCOUNT_KINDS = ['Preset', 'ManualPercent', 'ManualFixe
 export type SchoolFeeDiscountKind = (typeof SCHOOL_FEE_DISCOUNT_KINDS)[number];
 
 export const SCHOOL_FEE_DISCOUNT_EXPLANATION =
-  'Our discount structure is designed to be both fair and generous. If you qualify for just one discount - such as being a church leader, volunteer, tither, church member, or enrolling siblings - that discount will be applied in full. If your family qualifies for multiple discounts, we apply the largest discount in full, and then add 25% of each additional eligible discount. This approach ensures meaningful support for engaged families while keeping the learning centre sustainable for all.';
+  'Our discount structure is designed to be both fair and generous. If you qualify for just one discount - such as being a church leader, volunteer, tither, church member, or enrolling siblings - that discount will be applied in full. If your family qualifies for multiple discounts, we apply the largest discount in full, and then add 25% of each additional eligible discount, with a maximum of 3 discounts per family. This approach ensures meaningful support for engaged families while keeping the learning centre sustainable for all.';
 
 export const SCHOOL_FEE_SIBLING_DISCOUNT_CODE = 'sibling';
 export const SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX = 'child-index:';
+export const SCHOOL_FEE_MAX_DISCOUNTS_PER_FAMILY = 3;
+export const SCHOOL_FEE_MAX_DISCOUNTED_CHILDREN = 3;
 
 export const SCHOOL_FEE_DISCOUNT_PRESETS = [
   { code: SCHOOL_FEE_SIBLING_DISCOUNT_CODE, label: 'Sibling discount', percentBps: 2500 },
@@ -27,6 +29,35 @@ export interface SchoolFeeYearFeeConfigInput {
   annualAmountPence: number;
   termAmountPence: number;
   monthlyAmountPence: number;
+}
+
+export interface SchoolFeeBillingCycle {
+  schoolYear: number;
+  startsOn: string;
+  endsOn: string;
+  label: string;
+}
+
+export interface SchoolFeeChargeablePeriod {
+  schoolYear: number;
+  cycleStartsOn: string;
+  cycleEndsOn: string;
+  chargeableStartsOn: string | null;
+  chargeableEndsOn: string | null;
+  chargeableMonths: number;
+}
+
+export interface SchoolFeeStudentProrationInput {
+  studentId: string;
+  enrolmentDate: Date | string;
+}
+
+export interface SchoolFeeStudentProratedFee {
+  studentId: string;
+  enrolmentDate: string;
+  annualAmountPence: number;
+  proratedAnnualAmountPence: number;
+  chargeablePeriod: SchoolFeeChargeablePeriod;
 }
 
 export interface SchoolFeeInvoiceLineInput {
@@ -134,6 +165,96 @@ export function schoolFeeCadenceAmountPence(
   return config.monthlyAmountPence;
 }
 
+export function schoolFeeBillingCycle(schoolYear: number): SchoolFeeBillingCycle {
+  if (!Number.isInteger(schoolYear) || schoolYear < 2020 || schoolYear > 2100) {
+    throw new Error('school year must be a valid cycle end year');
+  }
+  const startYear = schoolYear - 1;
+  return {
+    schoolYear,
+    startsOn: `${String(startYear)}-09-01`,
+    endsOn: `${String(schoolYear)}-08-31`,
+    label: `Sep ${String(startYear)} - Aug ${String(schoolYear)}`,
+  };
+}
+
+export function activeSchoolFeeYear(referenceDate: Date = new Date()): number {
+  const month = referenceDate.getUTCMonth() + 1;
+  return month >= 9 ? referenceDate.getUTCFullYear() + 1 : referenceDate.getUTCFullYear();
+}
+
+export function schoolFeeChargeablePeriod(
+  schoolYear: number,
+  enrolmentDate: Date | string,
+): SchoolFeeChargeablePeriod {
+  const cycle = schoolFeeBillingCycle(schoolYear);
+  const enrolmentKey = dateKey(enrolmentDate);
+  const cycleStart = parseDateKey(cycle.startsOn);
+  const cycleEnd = parseDateKey(cycle.endsOn);
+  const enrolmentMonthStart = monthStart(parseDateKey(enrolmentKey));
+  const transitionStart =
+    schoolYear === 2026 && enrolmentKey < '2026-02-01' ? parseDateKey('2026-02-01') : null;
+  const start = maxDate(transitionStart ?? cycleStart, cycleStart, enrolmentMonthStart);
+
+  if (start.getTime() > cycleEnd.getTime()) {
+    return {
+      schoolYear,
+      cycleStartsOn: cycle.startsOn,
+      cycleEndsOn: cycle.endsOn,
+      chargeableStartsOn: null,
+      chargeableEndsOn: null,
+      chargeableMonths: 0,
+    };
+  }
+
+  return {
+    schoolYear,
+    cycleStartsOn: cycle.startsOn,
+    cycleEndsOn: cycle.endsOn,
+    chargeableStartsOn: dateKey(start),
+    chargeableEndsOn: cycle.endsOn,
+    chargeableMonths: inclusiveMonthCount(start, cycleEnd),
+  };
+}
+
+export function schoolFeeProratedAnnualAmountPence(
+  annualAmountPence: number,
+  chargeableMonths: number,
+): number {
+  if (!Number.isInteger(annualAmountPence) || annualAmountPence < 0) {
+    throw new Error('annual fee must be a non-negative integer');
+  }
+  if (!Number.isInteger(chargeableMonths) || chargeableMonths < 0 || chargeableMonths > 12) {
+    throw new Error('chargeable months must be between 0 and 12');
+  }
+  return Math.round((annualAmountPence * chargeableMonths) / 12);
+}
+
+export function schoolFeeStudentProratedFees({
+  schoolYear,
+  annualAmountPence,
+  students,
+}: {
+  schoolYear: number;
+  annualAmountPence: number;
+  students: readonly SchoolFeeStudentProrationInput[];
+}): SchoolFeeStudentProratedFee[] {
+  return students.map((student) => {
+    const enrolmentDate = dateKey(student.enrolmentDate);
+    const chargeablePeriod = schoolFeeChargeablePeriod(schoolYear, enrolmentDate);
+    return {
+      studentId: student.studentId,
+      enrolmentDate,
+      annualAmountPence,
+      proratedAnnualAmountPence: schoolFeeProratedAnnualAmountPence(
+        annualAmountPence,
+        chargeablePeriod.chargeableMonths,
+      ),
+      chargeablePeriod,
+    };
+  });
+}
+
 export function schoolFeeDiscountChildIndexPresetCode(childIndex: number): string {
   if (!Number.isInteger(childIndex) || childIndex < 0) {
     throw new Error('discount child index must be a non-negative integer');
@@ -159,7 +280,8 @@ export function calculateSchoolFeeDiscounts(
   const eligibleIndexes = applied
     .map((discount, index) => ({ discount, index }))
     .filter(({ discount }) => !discount.optedOut && discount.baseAmountPence > 0)
-    .sort((left, right) => right.discount.baseAmountPence - left.discount.baseAmountPence);
+    .sort((left, right) => right.discount.baseAmountPence - left.discount.baseAmountPence)
+    .slice(0, SCHOOL_FEE_MAX_DISCOUNTS_PER_FAMILY);
 
   let remaining = subtotalAmountPence;
   eligibleIndexes.forEach(({ discount, index }, order) => {
@@ -209,20 +331,18 @@ export function calculateSchoolFeeFamilyDiscounts({
     appliedAmountPence: 0,
   }));
   const childAmounts = childLineAmountsPence.slice(0, studentCount);
+  const familyDiscountIndexes = familyEligibleDiscountIndexes(childAmounts, discounts);
   const childBreakdowns: SchoolFeeChildDiscountBreakdown[] = [];
   childAmounts.forEach((childAmountPence, childIndex) => {
     if (!Number.isInteger(childAmountPence) || childAmountPence < 0) {
       throw new Error('child line amount must be a non-negative integer');
     }
-    const childDiscounts = discounts.map((discount) => {
-      const childScopeIndex = schoolFeeDiscountChildIndex(discount);
-      if (childScopeIndex !== null && childScopeIndex !== childIndex) {
-        return { ...discount, optedOut: true };
-      }
-      if (isSiblingDiscount(discount) && childIndex === 0) {
-        return { ...discount, optedOut: true };
-      }
-      if (discount.kind === 'ManualFixed' && childScopeIndex === null && childIndex > 0) {
+    const childDiscounts = discounts.map((discount, discountIndex) => {
+      if (
+        childIndex >= SCHOOL_FEE_MAX_DISCOUNTED_CHILDREN ||
+        !familyDiscountIndexes.has(discountIndex) ||
+        shouldSkipDiscountForChild(discount, childIndex)
+      ) {
         return { ...discount, optedOut: true };
       }
       return discount;
@@ -291,6 +411,39 @@ function isSiblingDiscount(discount: SchoolFeeDiscountInput): boolean {
   return discount.presetCode === SCHOOL_FEE_SIBLING_DISCOUNT_CODE;
 }
 
+function familyEligibleDiscountIndexes(
+  childAmountsPence: readonly number[],
+  discounts: readonly SchoolFeeDiscountInput[],
+): Set<number> {
+  const totals = discounts.map((discount, discountIndex) => {
+    const baseAmountPence = childAmountsPence.reduce((sum, childAmountPence, childIndex) => {
+      if (
+        childIndex >= SCHOOL_FEE_MAX_DISCOUNTED_CHILDREN ||
+        discount.optedOut ||
+        shouldSkipDiscountForChild(discount, childIndex)
+      ) {
+        return sum;
+      }
+      return sum + discountBaseAmountPence(childAmountPence, discount);
+    }, 0);
+    return { discountIndex, baseAmountPence };
+  });
+  return new Set(
+    totals
+      .filter((total) => total.baseAmountPence > 0)
+      .sort((left, right) => right.baseAmountPence - left.baseAmountPence)
+      .slice(0, SCHOOL_FEE_MAX_DISCOUNTS_PER_FAMILY)
+      .map((total) => total.discountIndex),
+  );
+}
+
+function shouldSkipDiscountForChild(discount: SchoolFeeDiscountInput, childIndex: number): boolean {
+  const childScopeIndex = schoolFeeDiscountChildIndex(discount);
+  if (childScopeIndex !== null && childScopeIndex !== childIndex) return true;
+  if (isSiblingDiscount(discount) && childIndex === 0) return true;
+  return discount.kind === 'ManualFixed' && childScopeIndex === null && childIndex > 0;
+}
+
 function schoolFeeDiscountChildIndex(discount: SchoolFeeDiscountInput): number | null {
   const code = discount.presetCode;
   if (!code?.startsWith(SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX)) return null;
@@ -331,6 +484,27 @@ function dateKey(value: Date | string): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/u.test(value)) return value;
   return new Date(value).toISOString().slice(0, 10);
+}
+
+function parseDateKey(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function monthStart(value: Date): Date {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+}
+
+function maxDate(...values: Date[]): Date {
+  return new Date(Math.max(...values.map((value) => value.getTime())));
+}
+
+function inclusiveMonthCount(start: Date, end: Date): number {
+  return (
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+    end.getUTCMonth() -
+    start.getUTCMonth() +
+    1
+  );
 }
 
 function parseMoneyPence(value: string): number | null {

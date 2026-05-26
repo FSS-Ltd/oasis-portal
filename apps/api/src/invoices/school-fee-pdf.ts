@@ -67,6 +67,7 @@ export interface GenerateSchoolFeeInvoicePdfInput {
   subtotalAmountPence: number;
   discountAmountPence: number;
   totalAmountPence: number;
+  discountExplanation: string;
   paymentReference: string;
   lineItems: GeneratedInvoiceLine[];
   discounts: GeneratedInvoiceDiscount[];
@@ -368,7 +369,7 @@ function drawDiscounts(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeI
   const bodyLineHeight = 10.5;
   const leftColumnWidth = PAYMENT_BOX_X - x - SECTION_COLUMN_GAP;
   const explanationLines = wrapText(
-    SCHOOL_FEE_DISCOUNT_EXPLANATION,
+    input.discountExplanation || SCHOOL_FEE_DISCOUNT_EXPLANATION,
     fonts.regular,
     8.5,
     leftColumnWidth,
@@ -527,7 +528,7 @@ function invoiceSearchText(input: GenerateSchoolFeeInvoicePdfInput): string {
     `Subtotal ${formatMoney(input.subtotalAmountPence)}`,
     `Total ${formatMoney(input.totalAmountPence)}`,
     `Payment reference ${input.paymentReference}`,
-    SCHOOL_FEE_DISCOUNT_EXPLANATION,
+    input.discountExplanation || SCHOOL_FEE_DISCOUNT_EXPLANATION,
   ].join('\n');
 }
 

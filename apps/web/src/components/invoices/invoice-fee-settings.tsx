@@ -70,7 +70,7 @@ export function InvoiceFeeSettings({
   return (
     <form className="invoice-fee-settings" onSubmit={submit}>
       <div>
-        <p>Fee settings</p>
+        <p>Fee settings - {config.cycleLabel}</p>
         <h2>{formatPence(config.annualAmountPence)} per annum</h2>
       </div>
       <div className="invoice-fee-settings__fields">

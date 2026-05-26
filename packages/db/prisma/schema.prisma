@@ -1373,32 +1373,33 @@ model SchoolFeeYearFeeConfig {
 }
 
 model SchoolFeeInvoice {
-  id                   String                   @id @default(cuid())
-  invoiceNumber        String?                  @unique
-  studentId            String?
-  status               SchoolFeeInvoiceStatus   @default(Draft)
-  schoolYear           Int?
-  billingCadence       SchoolFeeBillingCadence?
-  familyLabelEnc       String?
-  term                 String?
-  issuedOn             DateTime?                @db.Date
-  dueOn                DateTime?                @db.Date
-  paidAt               DateTime?
-  subtotalAmountPence  Int                      @default(0)
-  discountAmountPence  Int                      @default(0)
-  totalAmountPence     Int                      @default(0)
-  originalFileNameEnc  String
-  fileMimeType         String                   @default("application/pdf")
-  fileSizeBytes        Int
-  pdfBytesEnc          String
-  extractedTextEnc     String?
-  createdById          String
-  parentMarkedPaidAt   DateTime?
-  parentMarkedPaidById String?
-  paymentConfirmedAt   DateTime?
-  paymentConfirmedById String?
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
+  id                     String                   @id @default(cuid())
+  invoiceNumber          String?                  @unique
+  studentId              String?
+  status                 SchoolFeeInvoiceStatus   @default(Draft)
+  schoolYear             Int?
+  billingCadence         SchoolFeeBillingCadence?
+  familyLabelEnc         String?
+  term                   String?
+  issuedOn               DateTime?                @db.Date
+  dueOn                  DateTime?                @db.Date
+  paidAt                 DateTime?
+  subtotalAmountPence    Int                      @default(0)
+  discountAmountPence    Int                      @default(0)
+  totalAmountPence       Int                      @default(0)
+  discountExplanationEnc String?
+  originalFileNameEnc    String
+  fileMimeType           String                   @default("application/pdf")
+  fileSizeBytes          Int
+  pdfBytesEnc            String
+  extractedTextEnc       String?
+  createdById            String
+  parentMarkedPaidAt     DateTime?
+  parentMarkedPaidById   String?
+  paymentConfirmedAt     DateTime?
+  paymentConfirmedById   String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
 
   student            Student?                   @relation(fields: [studentId], references: [id])
   createdBy          User                       @relation("SchoolFeeInvoicesCreated", fields: [createdById], references: [id])
