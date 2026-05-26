@@ -23,7 +23,9 @@ import { AdminBottomNav, AdminSidebarNav } from '@/components/admin/admin-nav';
 import { getAdminShellUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
+import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
+import { staffPortalHrefForUser } from '@/lib/portal-view-routing';
 import { roleLabel } from '@/lib/profile-display';
 import './admin.css';
 
@@ -59,6 +61,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       : Promise.resolve(0),
   ]);
   const hasLinkedChildren = linkedChildren > 0;
+  const staffHref = staffPortalHrefForUser(user);
   const userRoleLabel = roleLabel(user.role);
   const homeHref = fullAdmin
     ? '/admin'
@@ -96,7 +99,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     canExportAttendance: canExportAttendanceCsv,
     clubsOnly: user.role === 'ClubsAdmin',
     fullAdmin,
-    hasLinkedChildren,
     unreadMessageCount,
   };
 
@@ -118,6 +120,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <strong>{userRoleLabel}</strong>
           <span>Centre operations</span>
           <ProfileBadgeLink href="/admin/profile" />
+          {hasLinkedChildren && staffHref ? (
+            <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="sidebar" />
+          ) : null}
         </div>
         <AdminSidebarNav {...adminNavProps} />
         <div className="admin-shell__foot">
@@ -143,6 +148,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            {hasLinkedChildren && staffHref ? (
+              <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="mobile" />
+            ) : null}
             <ProfileBadgeLink href="/admin/profile" variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>

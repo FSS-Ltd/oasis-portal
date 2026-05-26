@@ -7,7 +7,9 @@ import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervis
 import { getStaffUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
+import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
+import { staffPortalHrefForUser } from '@/lib/portal-view-routing';
 import { roleLabel } from '@/lib/profile-display';
 import '../../(admin)/admin/admin.css';
 
@@ -40,10 +42,10 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
     }),
   ]);
   const hasLinkedChildren = linkedChildren > 0;
+  const staffHref = staffPortalHrefForUser(user);
   const supervisorNavProps = {
     canManageClubs: canManageClubs(user),
     canUseShop: canManageShop(user) || canSellInShop(user),
-    hasLinkedChildren,
     unreadMessageCount,
     unreadNoticeCount,
   };
@@ -66,6 +68,9 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <strong>{userRoleLabel}</strong>
           <span>Daily operations</span>
           <ProfileBadgeLink href="/supervisor/profile" />
+          {hasLinkedChildren && staffHref ? (
+            <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="sidebar" />
+          ) : null}
         </div>
         <SupervisorSidebarNav {...supervisorNavProps} />
         <div className="admin-shell__foot">
@@ -91,6 +96,9 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            {hasLinkedChildren && staffHref ? (
+              <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="mobile" />
+            ) : null}
             <ProfileBadgeLink href="/supervisor/profile" variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>

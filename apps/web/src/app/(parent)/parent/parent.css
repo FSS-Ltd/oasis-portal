@@ -380,6 +380,16 @@
     padding-inline: 11px;
   }
 
+  .parent-topbar__actions {
+    gap: 8px;
+    margin-left: 12px;
+    padding-left: 12px;
+  }
+
+  .portal-view-switch--topbar {
+    width: 160px;
+  }
+
   .profile-badge--topbar .profile-badge__text small {
     display: none;
   }

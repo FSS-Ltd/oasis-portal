@@ -24,8 +24,6 @@ import {
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: Home },
-  { href: '/admin/children', label: 'My Children', icon: UsersRound },
-  { href: '/admin/my-clubs', label: 'My Clubs', icon: Club },
   { href: '/supervisor', label: 'Supervisor', icon: ClipboardList },
   { href: '/admin/students', label: 'Students', icon: GraduationCap },
   { href: '/admin/attendance', label: 'Attendance', icon: CalendarCheck },
@@ -72,7 +70,6 @@ type AdminNavProps = {
   clubsOnly: boolean;
   canExportAttendance: boolean;
   fullAdmin: boolean;
-  hasLinkedChildren: boolean;
   canUseMessages: boolean;
   unreadMessageCount: number;
 };
@@ -111,12 +108,9 @@ function visibleForUser(
     | 'canViewPace'
     | 'canViewStudents'
     | 'fullAdmin'
-    | 'hasLinkedChildren'
     | 'canUseMessages'
   >,
 ) {
-  if (item.label === 'My Children') return access.hasLinkedChildren;
-  if (item.label === 'My Clubs') return access.hasLinkedChildren;
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Clubs') return access.canManageClubs;
@@ -150,7 +144,6 @@ export function AdminSidebarNav({
   clubsOnly,
   canExportAttendance,
   fullAdmin,
-  hasLinkedChildren,
   canUseMessages,
   unreadMessageCount,
 }: AdminNavProps) {
@@ -170,7 +163,6 @@ export function AdminSidebarNav({
       canViewPace,
       canViewStudents,
       fullAdmin,
-      hasLinkedChildren,
       canUseMessages,
     }),
   );
@@ -216,7 +208,6 @@ export function AdminBottomNav({
   clubsOnly,
   canExportAttendance,
   fullAdmin,
-  hasLinkedChildren,
   canUseMessages,
   unreadMessageCount,
 }: AdminNavProps) {
@@ -236,7 +227,6 @@ export function AdminBottomNav({
       canViewPace,
       canViewStudents,
       fullAdmin,
-      hasLinkedChildren,
       canUseMessages,
     }),
   );
