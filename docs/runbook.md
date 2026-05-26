@@ -284,24 +284,27 @@ history; the fix is to reseed from the first-buy timestamp and replay.
 
 ### 5.6 Clerk 2FA enforcement and recovery
 
-2FA is required for every portal role before launch. Clerk dashboard settings
-must require multi-factor authentication for sign-in, and the portal also
-checks the current session's second-factor verification before allowing
-protected app routes or tRPC calls.
+2FA enforcement is currently feature-flagged off until the Clerk upgrade is
+complete. To enable it, set `OASIS_ENFORCE_2FA=true` in the relevant preview or
+production environment, then enable Clerk's dashboard MFA requirement. When the
+flag is enabled, the portal checks the current session's second-factor
+verification before allowing protected app routes or tRPC calls.
 
 1. Dashboard check: Clerk → Configure → Authentication → Multi-factor
    authentication → Require multi-factor authentication.
-2. Preview smoke: sign in with a test user that has not completed second factor.
+2. Portal flag check: confirm `OASIS_ENFORCE_2FA=true` is present in the target
+   deployment environment.
+3. Preview smoke: sign in with a test user that has not completed second factor.
    Expected result: `/post-sign-in/resolve` sends the user to `/2fa`, and
    protected tRPC calls return `UNAUTHORIZED` with
    `two-factor authentication required`.
-3. Completion smoke: complete the second factor, sign out, sign back in, and
+4. Completion smoke: complete the second factor, sign out, sign back in, and
    confirm role routing reaches the expected portal.
-4. Locked-out user recovery: verify identity outside the portal, then Clerk
+5. Locked-out user recovery: verify identity outside the portal, then Clerk
    dashboard → user → security → reset/remove the affected factor or generate a
    recovery path. Do not bypass Oasis RBAC or create replacement accounts unless
    Jean-Fidele approves it.
-5. Incident note: record the user id, support actor, factor reset reason, and
+6. Incident note: record the user id, support actor, factor reset reason, and
    timestamp in the support log. Do not record recovery codes, raw tokens, or
    authenticator secrets.
 

@@ -13,6 +13,7 @@ import { isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
 export interface CreateContextArgs {
   headers: Headers;
   clerkUserId?: string | null;
+  enforceTwoFactor?: boolean;
   twoFactorSatisfied?: boolean;
 }
 
@@ -40,6 +41,7 @@ interface UserLookupRow {
 
 async function loadSessionUser(
   clerkUserId: string,
+  enforceTwoFactor: boolean,
   twoFactorSatisfied: boolean,
 ): Promise<SessionUser | null> {
   const user: UserLookupRow | null = await prisma.user.findUnique({
@@ -51,7 +53,7 @@ async function loadSessionUser(
     id: user.id,
     role: user.role,
     tags: user.tags,
-    requires2fa: !twoFactorSatisfied,
+    requires2fa: enforceTwoFactor && !twoFactorSatisfied,
   };
 }
 
@@ -79,7 +81,11 @@ export function applyRlsTx<T>(
 export async function createContext(args: CreateContextArgs): Promise<AppContext> {
   const clerkUserId = args.clerkUserId ?? null;
   const user = clerkUserId
-    ? await loadSessionUser(clerkUserId, args.twoFactorSatisfied ?? false)
+    ? await loadSessionUser(
+        clerkUserId,
+        args.enforceTwoFactor ?? false,
+        args.twoFactorSatisfied ?? false,
+      )
     : null;
   return {
     db: prisma,

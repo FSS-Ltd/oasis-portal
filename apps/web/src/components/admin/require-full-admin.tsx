@@ -28,7 +28,10 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
-import { twoFactorSatisfiedFromClerkAuth } from '@/lib/clerk-two-factor';
+import {
+  isTwoFactorEnforcementEnabled,
+  twoFactorSatisfiedFromClerkAuth,
+} from '@/lib/clerk-two-factor';
 
 function notFoundOnAccessDenied(error: unknown): never {
   if (error instanceof AccessDeniedError) {
@@ -47,6 +50,7 @@ async function getSessionUser(
   const ctx = await createContext({
     headers: new Headers(),
     clerkUserId: userId,
+    enforceTwoFactor: isTwoFactorEnforcementEnabled(),
     twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
   });
   return ctx.user;

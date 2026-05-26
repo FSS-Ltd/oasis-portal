@@ -8,6 +8,7 @@
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
 import { appRouter, createContext } from '@oasis/api';
+import { isTwoFactorEnforcementEnabled } from '@/lib/clerk-two-factor';
 import { resolveClerkSession } from '../../auth-context';
 
 const handler = (req: Request): Promise<Response> =>
@@ -20,6 +21,7 @@ const handler = (req: Request): Promise<Response> =>
       return createContext({
         headers: req.headers,
         clerkUserId: session.clerkUserId,
+        enforceTwoFactor: isTwoFactorEnforcementEnabled(),
         twoFactorSatisfied: session.twoFactorSatisfied,
       });
     },

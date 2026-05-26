@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { appRouter, createContext, resolveClerkSessionFromBearerToken } from '@oasis/api';
-import { twoFactorSatisfiedFromClerkAuth } from '@/lib/clerk-two-factor';
+import {
+  isTwoFactorEnforcementEnabled,
+  twoFactorSatisfiedFromClerkAuth,
+} from '@/lib/clerk-two-factor';
 
 type AppRouterCaller = ReturnType<typeof appRouter.createCaller>;
 
@@ -34,6 +37,7 @@ export async function createCallerForRequest(req: Request): Promise<AppRouterCal
   const ctx = await createContext({
     headers: req.headers,
     clerkUserId: session.clerkUserId,
+    enforceTwoFactor: isTwoFactorEnforcementEnabled(),
     twoFactorSatisfied: session.twoFactorSatisfied,
   });
   return appRouter.createCaller(ctx);
