@@ -1,7 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Eye, Pencil, Plus, ReceiptText, Search, Trash2, X } from 'lucide-react';
+import {
+  Download,
+  Eye,
+  Pencil,
+  Plus,
+  ReceiptText,
+  Search,
+  Trash2,
+  UploadCloud,
+  X,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -25,6 +35,7 @@ import {
   type InvoiceDto,
 } from './invoice-ui';
 import { AdminInvoiceCreateModal, AdminInvoiceEditModal } from './admin-invoice-create-modal';
+import { AdminInvoiceUploadModal } from './admin-invoice-upload-modal';
 import { InvoiceFeeSettings } from './invoice-fee-settings';
 
 type InvoiceSortKey = 'invoiceNumber' | 'family';
@@ -48,10 +59,14 @@ function sortInvoices(invoices: readonly InvoiceDto[], sortBy: InvoiceSortKey): 
 
 function AdminInvoiceCreateLoadingModal({
   error,
+  eyebrow = 'Create Invoice',
   onClose,
+  title = 'Compose learning centre fees',
 }: {
   error: unknown;
+  eyebrow?: string;
   onClose: () => void;
+  title?: string;
 }) {
   return (
     <div aria-modal="true" className="invoice-modal invoice-modal--wide" role="dialog">
@@ -67,8 +82,8 @@ function AdminInvoiceCreateLoadingModal({
             <ReceiptText aria-hidden="true" size={19} />
           </span>
           <div>
-            <p>Create Invoice</p>
-            <h2>Compose learning centre fees</h2>
+            <p>{eyebrow}</p>
+            <h2>{title}</h2>
           </div>
           <button aria-label="Close invoice creator" onClick={onClose} type="button">
             <X aria-hidden="true" size={18} />
@@ -286,7 +301,9 @@ export function AdminInvoicesClient() {
   const [sortBy, setSortBy] = useState<InvoiceSortKey>('invoiceNumber');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [createInvoiceError, setCreateInvoiceError] = useState<string | null>(null);
+  const [uploadInvoiceError, setUploadInvoiceError] = useState<string | null>(null);
   const [editInvoiceError, setEditInvoiceError] = useState<string | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<InvoiceDto | null>(null);
@@ -300,7 +317,7 @@ export function AdminInvoicesClient() {
   );
   const feeConfigQuery = api.invoice.listFeeConfig.useQuery(undefined, { retry: false });
   const familiesQuery = api.invoice.listBillableFamilies.useQuery(undefined, {
-    enabled: createOpen || Boolean(editingInvoiceId),
+    enabled: createOpen || uploadOpen || Boolean(editingInvoiceId),
     retry: false,
   });
   const presetsQuery = api.invoice.discountPresets.useQuery(undefined, {
@@ -353,6 +370,21 @@ export function AdminInvoicesClient() {
     onError(error) {
       setEditInvoiceError(friendlyErrorMessage(error, 'Invoice could not be updated.'));
       showErrorToast(error, 'Invoice could not be updated.');
+    },
+  });
+  const publishUploadedInvoice = api.invoice.publishDraft.useMutation({
+    onSuccess: async (invoice) => {
+      setUploadInvoiceError(null);
+      setUploadOpen(false);
+      setSelectedInvoiceId(invoice.id);
+      await refreshInvoiceViews();
+      showSuccessToast('Uploaded invoice published.');
+    },
+    onError(error) {
+      setUploadInvoiceError(
+        friendlyErrorMessage(error, 'Uploaded invoice could not be published.'),
+      );
+      showErrorToast(error, 'Uploaded invoice could not be published.');
     },
   });
   const markPaid = api.invoice.markPaid.useMutation({
@@ -423,6 +455,7 @@ export function AdminInvoicesClient() {
   const stats = invoicesQuery.data?.stats;
   const createOptionsError = familiesQuery.error ?? presetsQuery.error ?? null;
   const createOptionsReady = Boolean(familiesQuery.data && presetsQuery.data);
+  const uploadOptionsReady = Boolean(familiesQuery.data);
   const createModalKey = familiesQuery.data
     ? familiesQuery.data.map((family) => family.familyKey).join('|')
     : 'loading';
@@ -468,6 +501,22 @@ export function AdminInvoicesClient() {
         <div className="invoice-header-actions">
           <Button
             onClick={() => {
+              setCreateOpen(false);
+              setEditingInvoiceId(null);
+              setCreateInvoiceError(null);
+              setEditInvoiceError(null);
+              setUploadInvoiceError(null);
+              setUploadOpen(true);
+            }}
+            type="button"
+            variant="secondary"
+          >
+            <UploadCloud aria-hidden="true" size={16} />
+            Upload invoice
+          </Button>
+          <Button
+            onClick={() => {
+              setUploadOpen(false);
               setEditingInvoiceId(null);
               setEditInvoiceError(null);
               setCreateInvoiceError(null);
@@ -569,6 +618,7 @@ export function AdminInvoicesClient() {
           action={
             <Button
               onClick={() => {
+                setUploadOpen(false);
                 setEditingInvoiceId(null);
                 setEditInvoiceError(null);
                 setCreateInvoiceError(null);
@@ -646,6 +696,7 @@ export function AdminInvoicesClient() {
                             aria-label="Edit invoice"
                             onClick={() => {
                               setCreateOpen(false);
+                              setUploadOpen(false);
                               setCreateInvoiceError(null);
                               setEditInvoiceError(null);
                               setSelectedInvoiceId(invoice.id);
@@ -680,6 +731,7 @@ export function AdminInvoicesClient() {
               onDelete={handleDelete}
               onEdit={(invoice) => {
                 setCreateOpen(false);
+                setUploadOpen(false);
                 setCreateInvoiceError(null);
                 setEditInvoiceError(null);
                 setSelectedInvoiceId(invoice.id);
@@ -732,6 +784,32 @@ export function AdminInvoicesClient() {
             onClose={() => {
               setCreateOpen(false);
             }}
+          />
+        )
+      ) : null}
+      {uploadOpen && feeConfigQuery.data ? (
+        uploadOptionsReady ? (
+          <AdminInvoiceUploadModal
+            families={familiesQuery.data ?? []}
+            feeConfig={feeConfigQuery.data}
+            onClose={() => {
+              setUploadOpen(false);
+            }}
+            onSubmit={(input) => {
+              setUploadInvoiceError(null);
+              publishUploadedInvoice.mutate(input);
+            }}
+            pending={publishUploadedInvoice.isPending}
+            serverError={uploadInvoiceError}
+          />
+        ) : (
+          <AdminInvoiceCreateLoadingModal
+            eyebrow="Upload Invoice"
+            error={familiesQuery.error}
+            onClose={() => {
+              setUploadOpen(false);
+            }}
+            title="Import pastor-created PDF"
           />
         )
       ) : null}

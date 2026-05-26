@@ -233,6 +233,13 @@ const untaggedStaffUser: SessionUser = {
   tags: [],
 };
 
+const supervisorParentUser: SessionUser = {
+  id: 'csupervisorparent01',
+  role: 'Supervisor',
+  tags: [],
+  requires2fa: false,
+};
+
 const parentUser: SessionUser = {
   id: 'cparent000000000001',
   role: 'Parent',
@@ -745,6 +752,13 @@ describe('invoiceRouter', () => {
     });
     expect(draft.invoice.status).toBe('Draft');
     expect(draft.parsed.invoiceNumber).toBe('INV-2026-011');
+    expect(draft.invoice.lineItems).toEqual([
+      expect.objectContaining({
+        description: 'Summer Term 1 tuition',
+        quantity: 1,
+        unitAmountPence: 42000,
+      }),
+    ]);
 
     const published = await caller.invoice.publishDraft({
       invoiceId: draft.invoice.id,
@@ -781,13 +795,32 @@ describe('invoiceRouter', () => {
     const pdfBytes = readFileSync(
       resolve(process.cwd(), '../../test-fixtures/invoices/oasis-example-school-fee-invoice.pdf'),
     );
+    const promiseWithResolversDescriptor = Object.getOwnPropertyDescriptor(
+      Promise,
+      'withResolvers',
+    );
 
-    const draft = await caller.invoice.uploadDraft({
-      fileName: 'oasis-example-school-fee-invoice.pdf',
-      mimeType: 'application/pdf',
-      sizeBytes: pdfBytes.length,
-      pdfBase64: pdfBytes.toString('base64'),
+    Object.defineProperty(Promise, 'withResolvers', {
+      configurable: true,
+      writable: true,
+      value: undefined,
     });
+
+    let draft!: Awaited<ReturnType<typeof caller.invoice.uploadDraft>>;
+    try {
+      draft = await caller.invoice.uploadDraft({
+        fileName: 'oasis-example-school-fee-invoice.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: pdfBytes.length,
+        pdfBase64: pdfBytes.toString('base64'),
+      });
+    } finally {
+      if (promiseWithResolversDescriptor) {
+        Object.defineProperty(Promise, 'withResolvers', promiseWithResolversDescriptor);
+      } else {
+        delete (Promise as PromiseConstructor & { withResolvers?: unknown }).withResolvers;
+      }
+    }
 
     expect(draft.parsed).toMatchObject({
       invoiceNumber: 'INV-2026-067',
@@ -802,6 +835,56 @@ describe('invoiceRouter', () => {
       { description: 'Lunch programme half term', quantity: 1, unitAmountPence: 6500 },
     ]);
   }, 15_000);
+
+  it('publishes uploaded drafts against multiple children', async () => {
+    const { caller } = createCaller(financeUser);
+    const pdfBase64 = Buffer.from('%PDF-1.4\n').toString('base64');
+
+    const draft = await caller.invoice.uploadDraft({
+      fileName: 'OLC0022.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: Buffer.from('%PDF-1.4\n').length,
+      pdfBase64,
+    });
+
+    const published = await caller.invoice.publishDraft({
+      invoiceId: draft.invoice.id,
+      studentIds: [linkedStudentId, otherStudentId],
+      familyLabel: 'Parent family',
+      schoolYear: 2026,
+      billingCadence: 'Monthly',
+      invoiceNumber: 'OLC0022',
+      issuedOn: '2026-05-21',
+      dueOn: '2026-06-04',
+      term: 'MAY 2026',
+      lineItems: [
+        {
+          description: 'Learning centre fees - Talia Parent',
+          quantity: 1,
+          unitAmountPence: 18987,
+        },
+        {
+          description: 'Learning centre fees - Other Child',
+          quantity: 1,
+          unitAmountPence: 16537,
+        },
+      ],
+    });
+
+    expect(published).toMatchObject({
+      status: 'Unpaid',
+      invoiceNumber: 'OLC0022',
+      familyLabel: 'Parent family',
+      schoolYear: 2026,
+      billingCadence: 'Monthly',
+      totalAmountPence: 35524,
+    });
+    expect(published.students.map((student) => student.id)).toEqual([
+      linkedStudentId,
+      otherStudentId,
+    ]);
+    expect(published.lineItems.map((line) => line.unitAmountPence)).toEqual([18987, 16537]);
+  });
 
   it('blocks untagged staff from admin invoice procedures', async () => {
     const { caller, fakeDb } = createCaller(untaggedStaffUser);
@@ -899,6 +982,44 @@ describe('invoiceRouter', () => {
     const download = await caller.invoice.downloadPdf({ invoiceId: ownInvoice.id });
     expect(download.pdfBase64).toBe('JVBERi0xLjQK');
     expect(download.fileName).toBe('invoice.pdf');
+  });
+
+  it('lets linked supervisor-parent users view only linked child fee invoices', async () => {
+    const ownInvoice = makeInvoice({ id: invoiceId, studentId: linkedStudentId });
+    const otherInvoice = makeInvoice({
+      id: 'cinvoice00000000002',
+      invoiceNumber: 'INV-2026-002',
+      studentId: otherStudentId,
+    });
+    const draftInvoice = makeInvoice({
+      id: 'cinvoice00000000003',
+      invoiceNumber: null,
+      studentId: linkedStudentId,
+      status: 'Draft',
+    });
+    const fakeDb = makeFakeDb({
+      initialGuardians: [{ userId: supervisorParentUser.id, studentId: linkedStudentId }],
+      initialInvoices: [ownInvoice, otherInvoice, draftInvoice],
+      initialLines: [
+        makeLine({ invoiceId: ownInvoice.id }),
+        makeLine({ invoiceId: otherInvoice.id }),
+        makeLine({ invoiceId: draftInvoice.id }),
+      ],
+    });
+    const { caller } = createCaller(supervisorParentUser, fakeDb);
+
+    const parentList = await caller.invoice.listParent({ status: 'All' });
+    expect(parentList.invoices.map((invoice) => invoice.id)).toEqual([ownInvoice.id]);
+
+    const download = await caller.invoice.downloadPdf({ invoiceId: ownInvoice.id });
+    expect(download.pdfBase64).toBe('JVBERi0xLjQK');
+
+    await expect(caller.invoice.downloadPdf({ invoiceId: otherInvoice.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(caller.invoice.downloadPdf({ invoiceId: draftInvoice.id })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 
   it('creates generated family invoices for multiple children and linked parents', async () => {
