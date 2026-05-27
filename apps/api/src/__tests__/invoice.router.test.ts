@@ -91,6 +91,17 @@ interface StoredGuardian {
   studentId: string;
 }
 
+interface FakeGuardianFindManyArgs {
+  where: {
+    userId?: string | { in: string[] };
+    studentId?: string;
+  };
+  select?: {
+    userId?: boolean;
+    studentId?: boolean;
+  };
+}
+
 interface StoredFeeConfig {
   schoolYear: number;
   annualAmountPence: number;
@@ -224,6 +235,27 @@ const financeUser: SessionUser = {
   id: 'cfinance000000000001',
   role: 'Supervisor',
   tags: ['finance-admin'],
+  requires2fa: false,
+};
+
+const principalUser: SessionUser = {
+  id: 'cprincipal0000000001',
+  role: 'Principal',
+  tags: [],
+  requires2fa: false,
+};
+
+const pastorUser: SessionUser = {
+  id: 'cpastor000000000001',
+  role: 'Pastor',
+  tags: [],
+  requires2fa: false,
+};
+
+const headUser: SessionUser = {
+  id: 'chead00000000000001',
+  role: 'Head',
+  tags: [],
   requires2fa: false,
 };
 
@@ -458,8 +490,18 @@ function makeFakeDb({
       blindIndex: vi.fn((value: string) => value.toLowerCase()),
     },
     guardian: {
-      findMany: vi.fn(({ where }: { where: { userId: string } }) =>
-        guardians.filter((guardian) => guardian.userId === where.userId),
+      findMany: vi.fn(({ where }: FakeGuardianFindManyArgs) =>
+        guardians.filter((guardian) => {
+          if (where.userId) {
+            const matchesUser =
+              typeof where.userId === 'string'
+                ? guardian.userId === where.userId
+                : where.userId.in.includes(guardian.userId);
+            if (!matchesUser) return false;
+          }
+          if (where.studentId && guardian.studentId !== where.studentId) return false;
+          return true;
+        }),
       ),
       findUnique: vi.fn(
         ({ where }: { where: { userId_studentId: { userId: string; studentId: string } } }) =>
@@ -1461,6 +1503,205 @@ describe('invoiceRouter', () => {
       remainingAmountPence: 147000,
       leftToInvoiceAmountPence: 147000,
     });
+  });
+
+  it('tracks gross paid coverage before annual discounts', async () => {
+    const paidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Paid',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 24500,
+      discountAmountPence: 2450,
+      totalAmountPence: 22050,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [paidInvoice],
+      initialLines: [
+        makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+      initialDiscounts: [
+        makeDiscount({
+          invoiceId: paidInvoice.id,
+          labelEnc: encrypt('Fountain Church Member'),
+          kind: 'Preset',
+          presetCode: 'church-member',
+          percentBps: 1000,
+          amountPence: null,
+          baseAmountPence: 2450,
+          appliedAmountPence: 2450,
+        }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await parentCaller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.yearSummary).toMatchObject({
+      annualAmountPence: 171500,
+      adjustedAnnualAmountPence: 154350,
+      discountAmountPence: 17150,
+      paidAmountPence: 22050,
+      remainingAmountPence: 132300,
+      grossPaidAmountPence: 24500,
+      grossRemainingAmountPence: 147000,
+      grossLeftToInvoiceAmountPence: 147000,
+    });
+    expect(parentList.stats).toMatchObject({
+      paidAmountPence: 22050,
+      grossPaidAmountPence: 24500,
+      grossOutstandingAmountPence: 147000,
+      grossRemainingAmountPence: 147000,
+    });
+  });
+
+  it('summarises student finance for Pastor and Principal only', async () => {
+    const paidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Paid',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 24500,
+      discountAmountPence: 2450,
+      totalAmountPence: 22050,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const pendingInvoice = makeInvoice({
+      id: 'cinvoice00000000002',
+      invoiceNumber: 'INV-2026-002',
+      status: 'PaymentPending',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 10000,
+      totalAmountPence: 10000,
+      parentMarkedPaidAt: new Date('2026-05-18T08:00:00.000Z'),
+      parentMarkedPaidById: parentUser.id,
+    });
+    const overdueInvoice = makeInvoice({
+      id: 'cinvoice00000000003',
+      invoiceNumber: 'INV-2026-003',
+      status: 'Unpaid',
+      studentId: linkedStudentId,
+      dueOn: new Date('2026-05-01T00:00:00.000Z'),
+      subtotalAmountPence: 5000,
+      totalAmountPence: 5000,
+    });
+    const unpaidInvoice = makeInvoice({
+      id: 'cinvoice00000000004',
+      invoiceNumber: 'INV-2026-004',
+      status: 'Unpaid',
+      studentId: linkedStudentId,
+      dueOn: new Date('2026-06-30T00:00:00.000Z'),
+      subtotalAmountPence: 7000,
+      totalAmountPence: 7000,
+    });
+    const siblingInvoice = makeInvoice({
+      id: 'cinvoice00000000005',
+      invoiceNumber: 'INV-2026-005',
+      status: 'Paid',
+      studentId: otherStudentId,
+      subtotalAmountPence: 24500,
+      discountAmountPence: 4900,
+      totalAmountPence: 19600,
+      paidAt: new Date('2026-05-17T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-17T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      initialInvoices: [paidInvoice, pendingInvoice, overdueInvoice, unpaidInvoice, siblingInvoice],
+      initialLines: [
+        makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+        makeLine({
+          id: 'cline000000000002',
+          invoiceId: pendingInvoice.id,
+          unitAmountPence: 10000,
+          totalAmountPence: 10000,
+        }),
+        makeLine({
+          id: 'cline000000000003',
+          invoiceId: overdueInvoice.id,
+          unitAmountPence: 5000,
+          totalAmountPence: 5000,
+        }),
+        makeLine({
+          id: 'cline000000000004',
+          invoiceId: unpaidInvoice.id,
+          unitAmountPence: 7000,
+          totalAmountPence: 7000,
+        }),
+        makeLine({
+          id: 'cline000000000005',
+          invoiceId: siblingInvoice.id,
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+      ],
+      initialDiscounts: [
+        makeDiscount({
+          invoiceId: paidInvoice.id,
+          labelEnc: encrypt('Fountain Church Member'),
+          kind: 'Preset',
+          presetCode: 'church-member',
+          percentBps: 1000,
+          amountPence: null,
+          baseAmountPence: 2450,
+          appliedAmountPence: 2450,
+        }),
+        makeDiscount({
+          id: 'cdiscount0000000002',
+          invoiceId: siblingInvoice.id,
+          labelEnc: encrypt('Church Leaders / Oasis Supervisors'),
+          kind: 'Preset',
+          presetCode: 'church-leader',
+          percentBps: 2000,
+          amountPence: null,
+          baseAmountPence: 4900,
+          appliedAmountPence: 4900,
+        }),
+      ],
+    });
+    const { caller: principalCaller } = createCaller(principalUser, fakeDb);
+    const { caller: pastorCaller } = createCaller(pastorUser, fakeDb);
+    const { caller: headCaller } = createCaller(headUser, fakeDb);
+    const { caller: financeCaller } = createCaller(financeUser, fakeDb);
+
+    const summary = await principalCaller.invoice.studentFinanceSummary({
+      studentId: linkedStudentId,
+    });
+
+    expect(
+      await pastorCaller.invoice.studentFinanceSummary({ studentId: linkedStudentId }),
+    ).toEqual(summary);
+    expect(summary).toMatchObject({
+      studentId: linkedStudentId,
+      grossAnnualAmountPence: 171500,
+      adjustedAnnualAmountPence: 132912,
+      discountAmountPence: 38588,
+      grossIssuedAmountPence: 46500,
+      grossPaidAmountPence: 24500,
+      grossPaymentPendingAmountPence: 10000,
+      grossOverdueAmountPence: 5000,
+      grossUnpaidAmountPence: 7000,
+      grossRemainingAmountPence: 147000,
+      grossLeftToInvoiceAmountPence: 125000,
+      invoiceCount: 4,
+      paidCount: 1,
+      paymentPendingCount: 1,
+      overdueCount: 1,
+      unpaidCount: 1,
+    });
+    await expect(
+      headCaller.invoice.studentFinanceSummary({ studentId: linkedStudentId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      financeCaller.invoice.studentFinanceSummary({ studentId: linkedStudentId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('does not count unpaid non-zero invoices as settled annual coverage', async () => {

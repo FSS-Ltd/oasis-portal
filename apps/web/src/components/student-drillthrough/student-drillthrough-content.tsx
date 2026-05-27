@@ -29,6 +29,7 @@ import {
   SummaryTotal,
 } from '@/components/child-log/snapshot-widgets';
 import { formatShortDate, scoreLabel, scoreTone } from '@/components/child-log/snapshot-utils';
+import { filterCountLabel, formatPence } from '@/components/invoices/invoice-ui';
 import { AttendanceCalendar } from './attendance-calendar';
 import { NotesList } from './notes-list';
 
@@ -40,13 +41,14 @@ type DrillThroughTab =
   | 'discipline'
   | 'pace'
   | 'merits'
-  | 'notes';
+  | 'notes'
+  | 'finance';
 type BehaviourEntry = DrillThrough['behaviour'][number];
 type DisciplineDemerit = DrillThrough['discipline']['demerits'][number];
 type NoteEntry = DrillThrough['notes'][number];
 type PaceEntry = DrillThrough['pace'][number];
 
-const DRILL_THROUGH_TABS = [
+const BASE_DRILL_THROUGH_TABS = [
   ['overview', 'Overview'],
   ['attendance', 'Attendance'],
   ['behaviour', 'Behaviour'],
@@ -54,13 +56,22 @@ const DRILL_THROUGH_TABS = [
   ['pace', 'Pace'],
   ['merits', 'Merits'],
   ['notes', 'Notes'],
-] as const satisfies readonly (readonly [DrillThroughTab, string])[];
+] as const satisfies readonly (readonly [Exclude<DrillThroughTab, 'finance'>, string])[];
+
+function drillThroughTabs(
+  canViewFinance: boolean,
+): readonly (readonly [DrillThroughTab, string])[] {
+  return canViewFinance
+    ? [...BASE_DRILL_THROUGH_TABS, ['finance', 'Finance'] as const]
+    : BASE_DRILL_THROUGH_TABS;
+}
 
 interface StudentDrillThroughContentProps {
   backHref: Route;
   backLabel: string;
   onEdit?: (() => void) | undefined;
   canManageCorrections?: boolean;
+  canViewFinance?: boolean;
   studentId: string;
 }
 
@@ -147,13 +158,15 @@ function StudentHero({
 function StudentTabs({
   activeTab,
   onSelect,
+  tabs,
 }: {
   activeTab: DrillThroughTab;
   onSelect: (tab: DrillThroughTab) => void;
+  tabs: readonly (readonly [DrillThroughTab, string])[];
 }) {
   return (
     <div className="student-detail-tabs" role="tablist">
-      {DRILL_THROUGH_TABS.map(([id, label]) => (
+      {tabs.map(([id, label]) => (
         <button
           aria-selected={activeTab === id}
           className={activeTab === id ? 'is-selected' : undefined}
@@ -611,14 +624,201 @@ function NotesTab({
   );
 }
 
+function StudentFinanceDonut({
+  overdueAmountPence,
+  paidAmountPence,
+  remainingAmountPence,
+}: {
+  overdueAmountPence: number;
+  paidAmountPence: number;
+  remainingAmountPence: number;
+}) {
+  const total = Math.max(1, paidAmountPence + overdueAmountPence + remainingAmountPence);
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  const paidLength = (paidAmountPence / total) * circumference;
+  const overdueLength = (overdueAmountPence / total) * circumference;
+  const remainingLength = circumference - paidLength - overdueLength;
+
+  return (
+    <section className="panel panel__body student-finance-chart">
+      <div>
+        <span>Paid</span>
+        <strong>{formatPence(paidAmountPence)}</strong>
+      </div>
+      <svg
+        aria-label="Student fee payment progress"
+        height="116"
+        role="img"
+        viewBox="0 0 116 116"
+        width="116"
+      >
+        <circle cx="58" cy="58" fill="none" r={radius} stroke="#d8dde8" strokeWidth="16" />
+        <circle
+          cx="58"
+          cy="58"
+          fill="none"
+          r={radius}
+          stroke="var(--oasis-text-muted)"
+          strokeDasharray={`${String(remainingLength)} ${String(circumference - remainingLength)}`}
+          strokeDashoffset="0"
+          strokeLinecap="round"
+          strokeWidth="16"
+          transform="rotate(-90 58 58)"
+        />
+        <circle
+          cx="58"
+          cy="58"
+          fill="none"
+          r={radius}
+          stroke="var(--oasis-danger)"
+          strokeDasharray={`${String(overdueLength)} ${String(circumference - overdueLength)}`}
+          strokeDashoffset={-remainingLength}
+          strokeLinecap="round"
+          strokeWidth="16"
+          transform="rotate(-90 58 58)"
+        />
+        <circle
+          cx="58"
+          cy="58"
+          fill="none"
+          r={radius}
+          stroke="var(--oasis-success)"
+          strokeDasharray={`${String(paidLength)} ${String(circumference - paidLength)}`}
+          strokeDashoffset={-(remainingLength + overdueLength)}
+          strokeLinecap="round"
+          strokeWidth="16"
+          transform="rotate(-90 58 58)"
+        />
+      </svg>
+      <div>
+        <span>Left to pay</span>
+        <strong>{formatPence(overdueAmountPence + remainingAmountPence)}</strong>
+      </div>
+    </section>
+  );
+}
+
+function StudentFinanceMetric({
+  label,
+  value,
+  hint,
+  tone = 'blue',
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone?: 'amber' | 'blue' | 'green' | 'red';
+}) {
+  return (
+    <article className={`student-finance-metric is-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{hint}</small>
+    </article>
+  );
+}
+
+function StudentFinanceTab({ studentId }: { studentId: string }) {
+  const financeQuery = api.invoice.studentFinanceSummary.useQuery({ studentId }, { retry: false });
+  const summary = financeQuery.data;
+
+  if (financeQuery.isLoading) return <EmptyCard>Loading finance summary.</EmptyCard>;
+  if (financeQuery.error || !summary) {
+    return (
+      <EmptyCard>
+        {financeQuery.error
+          ? friendlyErrorMessage(financeQuery.error)
+          : 'Finance summary is unavailable.'}
+      </EmptyCard>
+    );
+  }
+
+  const remainingWithoutOverdue = Math.max(
+    summary.grossRemainingAmountPence - summary.grossOverdueAmountPence,
+    0,
+  );
+
+  return (
+    <div className="snapshot-tab-panel student-finance-panel">
+      <StudentFinanceDonut
+        overdueAmountPence={summary.grossOverdueAmountPence}
+        paidAmountPence={summary.grossPaidAmountPence}
+        remainingAmountPence={remainingWithoutOverdue}
+      />
+      <div className="student-finance-grid">
+        <StudentFinanceMetric
+          hint={`${String(summary.chargeableMonths)} chargeable months in ${summary.cycleLabel}`}
+          label="Annual Fee / Adjusted Fee"
+          value={`${formatPence(summary.grossAnnualAmountPence)} / ${formatPence(
+            summary.adjustedAnnualAmountPence,
+          )}`}
+        />
+        <StudentFinanceMetric
+          hint={
+            summary.discountAmountPence > 0
+              ? `${formatPence(summary.discountAmountPence)} saved`
+              : 'No discount applied'
+          }
+          label="Discounts"
+          tone={summary.discountAmountPence > 0 ? 'green' : 'blue'}
+          value={formatPence(summary.discountAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint="Gross fee minus gross paid"
+          label="Current Balance"
+          tone={summary.grossRemainingAmountPence > 0 ? 'amber' : 'green'}
+          value={formatPence(summary.grossRemainingAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint="Paid coverage before discounts"
+          label="Paid"
+          tone="green"
+          value={formatPence(summary.grossPaidAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint={filterCountLabel(summary.invoiceCount)}
+          label="Invoiced"
+          value={formatPence(summary.grossIssuedAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint="Gross amount not yet invoiced"
+          label="Left to invoice"
+          value={formatPence(summary.grossLeftToInvoiceAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint={filterCountLabel(summary.unpaidCount)}
+          label="Unpaid"
+          tone={summary.grossUnpaidAmountPence > 0 ? 'amber' : 'blue'}
+          value={formatPence(summary.grossUnpaidAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint={filterCountLabel(summary.overdueCount)}
+          label="Overdue"
+          tone={summary.grossOverdueAmountPence > 0 ? 'red' : 'blue'}
+          value={formatPence(summary.grossOverdueAmountPence)}
+        />
+        <StudentFinanceMetric
+          hint={filterCountLabel(summary.paymentPendingCount)}
+          label="Pending review"
+          tone={summary.grossPaymentPendingAmountPence > 0 ? 'amber' : 'blue'}
+          value={formatPence(summary.grossPaymentPendingAmountPence)}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function StudentDrillThroughContent({
   backHref,
   backLabel,
   canManageCorrections = false,
+  canViewFinance = false,
   onEdit,
   studentId,
 }: StudentDrillThroughContentProps) {
   const [activeTab, setActiveTab] = useState<DrillThroughTab>('overview');
+  const tabs = drillThroughTabs(canViewFinance);
   const drillThroughQuery = api.childLog.drillThrough.useQuery({ studentId }, { retry: false });
   const utils = api.useUtils();
   const [behaviourDraft, setBehaviourDraft] = useState<BehaviourCorrectionDraft | null>(null);
@@ -771,7 +971,7 @@ export function StudentDrillThroughContent({
   return (
     <div className="student-drillthrough">
       <StudentHero backHref={backHref} backLabel={backLabel} data={data} onEdit={onEdit} />
-      <StudentTabs activeTab={activeTab} onSelect={setActiveTab} />
+      <StudentTabs activeTab={activeTab} onSelect={setActiveTab} tabs={tabs} />
       {activeTab === 'overview' ? (
         <OverviewTab
           canManageCorrections={canManageCorrections}
@@ -808,6 +1008,9 @@ export function StudentDrillThroughContent({
             setNoteDraft({ id: note.id, note: note.note, sensitive: note.sensitive });
           }}
         />
+      ) : null}
+      {activeTab === 'finance' && canViewFinance ? (
+        <StudentFinanceTab studentId={studentId} />
       ) : null}
       {behaviourDraft ? (
         <CorrectionModal

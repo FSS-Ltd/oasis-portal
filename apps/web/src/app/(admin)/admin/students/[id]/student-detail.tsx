@@ -8,10 +8,11 @@ import { StudentAdminEditor } from './student-admin-editor';
 
 interface StudentDetailProps {
   canEdit: boolean;
+  canViewFinance: boolean;
   studentId: string;
 }
 
-export function StudentDetail({ canEdit, studentId }: StudentDetailProps) {
+export function StudentDetail({ canEdit, canViewFinance, studentId }: StudentDetailProps) {
   const [editing, setEditing] = useState(false);
 
   if (editing && canEdit) {
@@ -39,6 +40,7 @@ export function StudentDetail({ canEdit, studentId }: StudentDetailProps) {
       backHref="/admin/students"
       backLabel="Back to Students"
       canManageCorrections={canEdit}
+      canViewFinance={canViewFinance}
       onEdit={
         canEdit
           ? () => {

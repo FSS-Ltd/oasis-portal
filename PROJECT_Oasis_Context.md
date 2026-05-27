@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-26
+**Last updated:** 2026-05-27
 **Agent:** Technical Agent (Codex)
 **Phase:** Phase 6 mobile production build planned.
 
@@ -28,6 +28,55 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-27 Finance fee display
+
+Working branch: `fix/finance-fee-display`.
+
+**PR scope:** Update invoice/finance displays so parents and Pastor/Principal
+staff can see gross fees, adjusted fees, savings, and gross left-to-pay figures
+without mixing this with unrelated invoice workflows.
+
+Completed:
+
+- Added gross invoice totals beside the existing discounted totals for parent
+  fee stats, family year summaries, and per-child year summaries.
+- Updated parent fees to show `Current Balance`, `Annual Fee / Adjusted Fee`,
+  green savings text, gross left-to-invoice/left-to-pay, and collapsed invoice
+  cards by default while leaving individual invoice totals discounted.
+- Added a Pastor/Principal-only student finance API and student-view Finance
+  tab with paid/left-to-pay chart, discounts, invoiced, left to invoice,
+  unpaid, overdue, and pending-review values.
+- Added RBAC coverage for `canViewStudentFinance` so finance-tagged supervisors,
+  Heads, parents, and students cannot access the child finance tab or endpoint.
+- Kept student finance annual discount calculations aligned with the full linked
+  family invoice context, including sibling invoices.
+
+Verification:
+
+- `pnpm exec prettier --write ...`
+- `pnpm --filter @oasis/domain test -- rbac.test.ts`
+- `pnpm --filter @oasis/api test -- invoice.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- Targeted package test commands still ran full package suites because of the
+  repo's package-script argument handling.
+- Local browser smoke check started the web app on `http://localhost:3001`, but
+  the protected parent/admin finance routes redirected to Clerk sign-in without
+  a signed-in test session.
+- Existing warnings remain: Prisma config deprecation/driverAdapters warnings,
+  Next.js ESLint-plugin warning, and the PDF standardFontDataUrl warning in the
+  invoice test.
 
 ## Current session - 2026-05-26 Portal view switcher
 

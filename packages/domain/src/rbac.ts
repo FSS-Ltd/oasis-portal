@@ -131,6 +131,10 @@ export function canManageInvoices(user: Pick<SessionUser, 'role' | 'tags'>): boo
   return hasTag(user, 'finance-admin');
 }
 
+export function canViewStudentFinance(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Pastor' || user.role === 'Principal';
+}
+
 export function canAnswerChildRegistrationPrompt(user: Pick<SessionUser, 'role'>): boolean {
   return CHILD_REGISTRATION_PROMPT_ROLE_SET.has(user.role);
 }
