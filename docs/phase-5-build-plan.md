@@ -19,9 +19,10 @@ centre before the remaining sprints resumed:
 - PR #59 and PR #61 stabilised post-sign-in routing and Clerk handoff.
 - PR #60 and PR #62 added/fixed admin lifecycle controls.
 
-The remaining Phase 5 work is 2FA enforcement, observability, GDPR paperwork,
-backup/restore drills, web/API e2e coverage, Phase 6 mobile dependency
-tracking, training, UAT, and launch closeout.
+The remaining Phase 5 work is enabling the feature-flagged 2FA enforcement
+after the Clerk Pro upgrade, observability, GDPR paperwork, backup/restore
+drills, web/API e2e coverage, Phase 6 mobile dependency tracking, training,
+UAT, and launch closeout.
 
 Phase 6 now owns the production mobile build, mobile e2e harness, production
 mobile journeys, and EAS internal build configuration. Phase 5 consumes those
@@ -150,22 +151,29 @@ Tests:
 
 ## Sprint 2 - 2FA enforcement and auth security
 
-### PR-5.5 - `security(auth): enforce 2FA for portal access` PLANNED
+### PR-5.5 - `security(auth): enforce 2FA for portal access` FEATURE-FLAGGED
 
 Scope:
 
-- Turn the existing 2FA scaffold into enforced access for all roles.
-- Define the exact Clerk factor policy for test, preview, and production.
-- Prevent app-route access when Clerk session has not satisfied 2FA.
-- Keep webhook and public auth callback routes callable.
-- Add clear not-ready/2FA-required states without leaking internal auth errors.
-- Document recovery and support process for locked-out staff/parents.
+- Reapplied the existing 2FA enforcement path onto current `origin/main`.
+- Kept enforcement disabled by default behind `OASIS_ENFORCE_2FA=false` until
+  Clerk is upgraded to Pro.
+- Parse Clerk second-factor state from `factorVerificationAge` /
+  `sessionClaims.fva`.
+- Prevent app-route and tRPC access when `OASIS_ENFORCE_2FA=true` and the Clerk
+  session has not satisfied 2FA.
+- Keep webhook, public auth, and setup routes callable.
+- Document recovery and support process for locked-out staff/parents in the
+  runbook.
 
 Tests:
 
-- User without completed 2FA is redirected to the 2FA flow.
-- User with completed 2FA reaches role-specific portal.
-- API tRPC calls reject unsatisfied 2FA sessions.
+- Feature flag defaults off so current portal access remains unchanged before
+  the Clerk Pro upgrade.
+- With the flag enabled, a user without completed 2FA is redirected to the 2FA
+  flow.
+- With the flag enabled, a user with completed 2FA reaches role-specific portal.
+- With the flag enabled, API tRPC calls reject unsatisfied 2FA sessions.
 - Webhook route remains callable.
 - TechnicalSupport recovery flow is documented and scoped.
 
@@ -176,7 +184,8 @@ Verification:
 - `pnpm --filter @oasis/web typecheck`
 - `pnpm lint`
 - `pnpm --filter @oasis/web build`
-- Credentialed Clerk smoke in preview.
+- Credentialed Clerk smoke in preview after the Clerk Pro upgrade and flag
+  enablement.
 
 ---
 
