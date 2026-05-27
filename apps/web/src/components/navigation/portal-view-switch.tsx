@@ -4,15 +4,16 @@ import Link from 'next/link';
 import type { MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import type { StaffPortalHref } from '@/lib/portal-view-routing';
 
 type PortalView = 'parent' | 'staff';
 type PortalViewSwitchVariant = 'sidebar' | 'topbar' | 'mobile';
 
+const parentPortalTransitionHref = '/post-sign-in/resolve?switchTo=parent';
+const staffPortalTransitionHref = '/post-sign-in/resolve?switchTo=staff';
+
 interface PortalViewSwitchProps {
   activeView: PortalView;
   className?: string;
-  staffHref: StaffPortalHref;
   variant: PortalViewSwitchVariant;
 }
 
@@ -20,23 +21,25 @@ function shouldUseCurrentTab(event: MouseEvent<HTMLAnchorElement>): boolean {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 
-export function PortalViewSwitch({
-  activeView,
-  className,
-  staffHref,
-  variant,
-}: PortalViewSwitchProps) {
+export function PortalViewSwitch({ activeView, className, variant }: PortalViewSwitchProps) {
   const [pendingView, setPendingView] = useState<PortalView | null>(null);
   const selectedView = pendingView ?? activeView;
 
   useEffect(() => {
     setPendingView(null);
-  }, [activeView, staffHref]);
+  }, [activeView]);
 
   function handleSelect(event: MouseEvent<HTMLAnchorElement>, view: PortalView) {
-    if (view !== activeView && shouldUseCurrentTab(event)) {
-      setPendingView(view);
+    if (!shouldUseCurrentTab(event)) {
+      return;
     }
+
+    if (view === activeView) {
+      event.preventDefault();
+      return;
+    }
+
+    setPendingView(view);
   }
 
   return (
@@ -57,7 +60,7 @@ export function PortalViewSwitch({
           'portal-view-switch__segment',
           selectedView === 'parent' ? 'is-selected' : undefined,
         )}
-        href="/parent"
+        href={parentPortalTransitionHref}
         onClick={(event) => {
           handleSelect(event, 'parent');
         }}
@@ -70,7 +73,7 @@ export function PortalViewSwitch({
           'portal-view-switch__segment',
           selectedView === 'staff' ? 'is-selected' : undefined,
         )}
-        href={staffHref}
+        href={staffPortalTransitionHref}
         onClick={(event) => {
           handleSelect(event, 'staff');
         }}

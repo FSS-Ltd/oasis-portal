@@ -69,7 +69,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           <span>Daily operations</span>
           <ProfileBadgeLink href="/supervisor/profile" />
           {hasLinkedChildren && staffHref ? (
-            <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="sidebar" />
+            <PortalViewSwitch activeView="staff" variant="sidebar" />
           ) : null}
         </div>
         <SupervisorSidebarNav {...supervisorNavProps} />
@@ -97,7 +97,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
           </Link>
           <div className="admin-shell__mobile-actions">
             {hasLinkedChildren && staffHref ? (
-              <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="mobile" />
+              <PortalViewSwitch activeView="staff" variant="mobile" />
             ) : null}
             <ProfileBadgeLink href="/supervisor/profile" variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
