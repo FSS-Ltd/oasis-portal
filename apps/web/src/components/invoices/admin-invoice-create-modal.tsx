@@ -45,6 +45,10 @@ const siblingDiscountCode = 'sibling';
 type BillableStudent = BillableFamily['students'][number];
 type StudentYearSummary = BillableFamily['yearSummary']['children'][number];
 
+function withoutSiblingDiscountPreset(codes: readonly string[]): string[] {
+  return codes.filter((code) => code !== siblingDiscountCode);
+}
+
 function studentYearSummary(
   family: BillableFamily | undefined,
   studentId: string | null,
@@ -253,9 +257,7 @@ function discountInputsForForm({
 }): SchoolFeeDiscountInput[] {
   const studentCount = selectedStudents.length;
   const presetCodes =
-    studentCount <= 1
-      ? selectedPresetCodes.filter((code) => code !== siblingDiscountCode)
-      : selectedPresetCodes;
+    studentCount <= 1 ? withoutSiblingDiscountPreset(selectedPresetCodes) : selectedPresetCodes;
   const presetDiscounts: SchoolFeeDiscountInput[] = [];
   presetCodes.forEach((code) => {
     const preset = presets.find((candidate) => candidate.code === code);
@@ -599,7 +601,7 @@ function AdminInvoiceFormModal({
       ),
     );
     if (selectedFamily.students.length <= 1) {
-      setSelectedPresetCodes((current) => current.filter((code) => code !== siblingDiscountCode));
+      setSelectedPresetCodes(withoutSiblingDiscountPreset);
     }
   }, [familyKey, selectedFamily]);
 
@@ -632,7 +634,7 @@ function AdminInvoiceFormModal({
       ),
     );
     if (nextStudentIds.length <= 1) {
-      setSelectedPresetCodes((current) => current.filter((code) => code !== siblingDiscountCode));
+      setSelectedPresetCodes(withoutSiblingDiscountPreset);
     }
   }
 
@@ -686,7 +688,7 @@ function AdminInvoiceFormModal({
     }
     const selectedDiscountPresetCodes =
       selectedStudentIds.length <= 1
-        ? selectedPresetCodes.filter((code) => code !== siblingDiscountCode)
+        ? withoutSiblingDiscountPreset(selectedPresetCodes)
         : selectedPresetCodes;
     const discounts = selectedDiscountPresetCodes.map((code) => {
       const preset = presets.find((candidate) => candidate.code === code);

@@ -45,6 +45,12 @@ type StaffShopTab = 'catalogue' | 'pickups' | 'activity';
 type CatalogueStatusFilter = 'All' | 'Active' | 'Paused' | 'LowStock' | 'OutOfStock';
 type CategoryFilter = ShopCategoryOption | 'All';
 
+const SHOP_WORKFLOW_TABS = [
+  { id: 'catalogue', label: 'Catalogue' },
+  { id: 'pickups', label: 'Pickups' },
+  { id: 'activity', label: 'Activity' },
+] as const satisfies readonly { id: StaffShopTab; label: string }[];
+
 interface ShopWorkflowClientProps {
   canManageItems: boolean;
   canRecordPurchases: boolean;
@@ -1434,25 +1440,26 @@ export function ShopWorkflowClient({
       ) : null}
 
       <div className="shop-tabs" role="tablist" aria-label="Shop workflow tabs">
-        {[
-          ['catalogue', 'Catalogue', items.length],
-          ['pickups', 'Pickups', readyReservationCount],
-          ['activity', 'Activity', null],
-        ].map(([id, label, count]) => (
-          <button
-            aria-selected={tab === id}
-            className={tab === id ? 'is-active' : undefined}
-            key={id}
-            onClick={() => {
-              setTab(id as StaffShopTab);
-            }}
-            role="tab"
-            type="button"
-          >
-            {label}
-            {typeof count === 'number' && count > 0 ? <span>{formatMerits(count)}</span> : null}
-          </button>
-        ))}
+        {SHOP_WORKFLOW_TABS.map(({ id, label }) => {
+          const count =
+            id === 'catalogue' ? items.length : id === 'pickups' ? readyReservationCount : null;
+
+          return (
+            <button
+              aria-selected={tab === id}
+              className={tab === id ? 'is-active' : undefined}
+              key={id}
+              onClick={() => {
+                setTab(id);
+              }}
+              role="tab"
+              type="button"
+            >
+              {label}
+              {typeof count === 'number' && count > 0 ? <span>{formatMerits(count)}</span> : null}
+            </button>
+          );
+        })}
       </div>
 
       {itemsQuery.error ? (

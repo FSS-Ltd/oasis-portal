@@ -94,6 +94,26 @@ function totalBatchEntries(entries: readonly BatchEntryForm[]): number {
   return entries.reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
 }
 
+function studentCountLabel(count: number): string {
+  return `${String(count)} ${count === 1 ? 'student' : 'students'}`;
+}
+
+function singleEntrySuccessMessage(type: BehaviourType, studentCount: number): string {
+  if (type === 'Merit') return `Merit recorded for ${studentCountLabel(studentCount)}.`;
+  if (type === 'Demerit') return `Demerit recorded for ${studentCountLabel(studentCount)}.`;
+  return `General mark recorded for ${studentCountLabel(studentCount)}.`;
+}
+
+function batchEntrySuccessMessage(
+  type: BatchBehaviourType,
+  entryCount: number,
+  studentCount: number,
+): string {
+  return `${String(entryCount)} ${type.toLowerCase()} ${
+    entryCount === 1 ? 'entry' : 'entries'
+  } recorded for ${studentCountLabel(studentCount)}.`;
+}
+
 export function BehaviourLogClient({
   canManageEntries,
   canLogBehaviour,
@@ -130,13 +150,7 @@ export function BehaviourLogClient({
   const utils = api.useUtils();
   const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      showSuccessToast(
-        input.type === 'Merit'
-          ? `Merit recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
-          : input.type === 'Demerit'
-            ? `Demerit recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
-            : `General mark recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
-      );
+      showSuccessToast(singleEntrySuccessMessage(input.type, input.studentIds.length));
       setNote('');
       setVisibility(
         canUseSensitiveMode(sensitiveMode, input.type) &&
@@ -158,7 +172,7 @@ export function BehaviourLogClient({
   const logManyBehaviour = api.behaviour.logManyForStudents.useMutation({
     onSuccess: async (_result, input) => {
       showSuccessToast(
-        `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} recorded for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
+        batchEntrySuccessMessage(input.type, input.entries.length, input.studentIds.length),
       );
       setBatchEntries([newBatchEntry(input.type)]);
       await Promise.all([

@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import type { Route } from 'next';
-import { ArrowLeft, Edit3, ShieldAlert, Trash2, X } from 'lucide-react';
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { ArrowLeft, Edit3, ShieldAlert, Trash2 } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
+import { CorrectionModal } from '@/components/child-log/correction-modal';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1228,42 +1229,4 @@ function drillThroughPaceToEditable(studentName: string, entry: PaceEntry): Edit
     subjectName: entry.subjectName,
     testType: entry.testType,
   };
-}
-
-function CorrectionModal({
-  children,
-  errorMessage,
-  onClose,
-  pending,
-  title,
-}: {
-  children: ReactNode;
-  errorMessage?: string | undefined;
-  onClose: () => void;
-  pending: boolean;
-  title: string;
-}) {
-  return (
-    <div className="admin-confirmation-backdrop">
-      <section aria-modal="true" className="admin-confirmation-dialog" role="dialog">
-        <header className="admin-confirmation-dialog__header">
-          <div>
-            <h2>{title}</h2>
-          </div>
-          <Button
-            aria-label="Close"
-            disabled={pending}
-            onClick={onClose}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            <X aria-hidden="true" size={16} />
-          </Button>
-        </header>
-        {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
-        {children}
-      </section>
-    </div>
-  );
 }
