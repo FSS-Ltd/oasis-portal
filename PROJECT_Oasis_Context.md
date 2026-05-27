@@ -4078,6 +4078,11 @@ typecheck` now passes locally.
   migration validation, `pnpm db:migrate`, and `graphify update .` pass
   locally. Live browser verification still requires a configured Supabase
   Realtime project with Clerk third-party auth enabled.
+- 2026-05-27 parent dashboard today status: parent hero attendance now uses
+  parent-visible HalfTerm calendar closures and Oasis Tue-Fri operating days
+  before showing today's attendance mark. Verification in this session:
+  domain/API focused tests, domain/API/web typecheck and lint, `git diff
+  --check`, and `graphify update .` pass.
 
 ## Design decisions made (see ADRs for full rationale)
 

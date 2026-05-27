@@ -9,9 +9,10 @@ import {
   canViewStudentDrillThrough,
   demeritPolicyEscalationEntryIds,
   demeritPolicyStatusForEntries,
-  isValidTithePercentage,
   isFullAdmin,
+  isOasisOperatingDay,
   isStaff,
+  isValidTithePercentage,
   type Role,
   type SessionUser,
   type TithePercentage,
@@ -30,6 +31,13 @@ type AuthedContext = AppContext & { user: SessionUser };
 const DRILLTHROUGH_MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
 const PARENT_DASHBOARD_RECENT_LIMIT = 3;
 const DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE = 10 satisfies TithePercentage;
+
+type ParentDashboardAttendanceStatus = 'Present' | 'Absent' | 'Late';
+type ParentDashboardTodayStatus =
+  | { date: string; kind: 'halfTerm'; label: 'Half Term' }
+  | { date: string; kind: 'closed'; label: 'Closed' }
+  | { date: string; kind: 'attendance'; label: ParentDashboardAttendanceStatus }
+  | { date: string; kind: 'unmarked'; label: 'No mark' };
 
 const studentListInclude = {
   subjects: {
@@ -98,6 +106,18 @@ function dayEnd(date: Date): Date {
 
 function dateKey(date: Date): string {
   return normalizeDate(date).toISOString().slice(0, 10);
+}
+
+function parentDashboardTodayStatus(
+  date: Date,
+  hasHalfTermToday: boolean,
+  attendanceStatus: ParentDashboardAttendanceStatus | undefined,
+): ParentDashboardTodayStatus {
+  const key = dateKey(date);
+  if (hasHalfTermToday) return { date: key, kind: 'halfTerm', label: 'Half Term' };
+  if (!isOasisOperatingDay(date)) return { date: key, kind: 'closed', label: 'Closed' };
+  if (attendanceStatus) return { date: key, kind: 'attendance', label: attendanceStatus };
+  return { date: key, kind: 'unmarked', label: 'No mark' };
 }
 
 function academicYearStart(referenceDate = new Date()): Date {
@@ -779,7 +799,9 @@ export const childLogRouter = router({
     const students = guardians.map((guardian) => guardian.student);
     const studentIds = students.map((student) => student.id);
     const from = academicYearStart();
-    const to = dayEnd(new Date());
+    const today = normalizeDate(new Date());
+    const todayKey = dateKey(today);
+    const to = dayEnd(today);
 
     await ctx.db.auditLog.create({
       data: {
@@ -791,7 +813,7 @@ export const childLogRouter = router({
     });
 
     if (studentIds.length === 0) {
-      return { children: [], range: { from: dateKey(from), to: dateKey(new Date()) } };
+      return { children: [], range: { from: dateKey(from), to: todayKey } };
     }
 
     const [
@@ -803,6 +825,7 @@ export const childLogRouter = router({
       meritBalances,
       titheConfigs,
       policy,
+      halfTermEvents,
     ] = await Promise.all([
       ctx.db.attendance.findMany({
         where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
@@ -868,8 +891,20 @@ export const childLogRouter = router({
         select: { studentId: true, percentage: true },
       }),
       ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+      ctx.db.calendarEvent.findMany({
+        where: {
+          active: true,
+          audience: { in: ['All', 'Parents'] },
+          category: 'HalfTerm',
+          startDate: { lte: today },
+          endDate: { gte: today },
+        },
+        select: { id: true },
+        take: 1,
+      }),
     ]);
 
+    const hasHalfTermToday = halfTermEvents.length > 0;
     const passThreshold = policy?.passThreshold ?? 80;
     const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
     const tithePercentageByStudent = new Map(
@@ -892,6 +927,7 @@ export const childLogRouter = router({
         }
 
         const studentAttendance = attendance.filter((row) => row.studentId === student.id);
+        const todayAttendance = studentAttendance.find((row) => dateKey(row.date) === todayKey);
         const presentDays = studentAttendance.filter((row) => row.status === 'Present').length;
         const studentPace = paceTests.filter((record) => record.studentId === student.id);
         const pacesCompletedThisAcademicYear = paceProgress.filter(
@@ -911,6 +947,7 @@ export const childLogRouter = router({
             presentDays,
             recordedAttendanceDays: studentAttendance.length,
           },
+          todayStatus: parentDashboardTodayStatus(today, hasHalfTermToday, todayAttendance?.status),
           attendance: takeRecentByStudent(attendance, student.id).map((row) => ({
             id: row.id,
             date: dateKey(row.date),

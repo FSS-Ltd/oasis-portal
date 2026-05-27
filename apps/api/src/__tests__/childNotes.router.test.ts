@@ -158,6 +158,42 @@ interface StaffShiftFindManyInput {
   };
 }
 
+type StoredAttendanceStatus = 'Present' | 'Absent' | 'Late';
+
+interface StoredAttendance {
+  id: string;
+  studentId: string;
+  date: Date;
+  status: StoredAttendanceStatus;
+  recordedById: string;
+  createdAt: Date;
+}
+
+interface StoredCalendarEvent {
+  id: string;
+  active: boolean;
+  audience: 'All' | 'Parents' | 'Supervisors' | 'Heads' | 'Custom';
+  category: 'HalfTerm' | 'Trips' | 'OasisDays' | 'Birthdays' | 'Meetings' | 'Trainings';
+  startDate: Date;
+  endDate: Date;
+}
+
+interface CalendarEventFindManyInput {
+  where?: {
+    active?: boolean;
+    audience?: { in: Array<StoredCalendarEvent['audience']> };
+    category?: StoredCalendarEvent['category'];
+    startDate?: { lte: Date };
+    endDate?: { gte: Date };
+  };
+  take?: number;
+}
+
+interface FakeDbOptions {
+  attendanceRows?: StoredAttendance[];
+  calendarEvents?: StoredCalendarEvent[];
+}
+
 const today = day('2026-04-30');
 
 function day(value: string): Date {
@@ -208,8 +244,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function makeFakeDb() {
+function makeFakeDb(options: FakeDbOptions = {}) {
   const notes: StoredChildNote[] = [];
+  const attendanceRows =
+    options.attendanceRows ??
+    ([
+      {
+        id: 'att_1',
+        studentId: 'student_1',
+        date: day('2026-04-29'),
+        status: 'Late',
+        recordedById: headUser.id,
+        createdAt: day('2026-04-29'),
+      },
+    ] satisfies StoredAttendance[]);
+  const calendarEvents = options.calendarEvents ?? [];
   const students: StoredStudent[] = [
     {
       id: 'student_1',
@@ -473,18 +522,8 @@ function makeFakeDb() {
             date?: { gte: Date; lt: Date };
           };
         } = {}) => {
-          const rows = [
-            {
-              id: 'att_1',
-              studentId: 'student_1',
-              date: day('2026-04-29'),
-              status: 'Late',
-              recordedById: headUser.id,
-              createdAt: day('2026-04-29'),
-            },
-          ];
           return Promise.resolve(
-            rows
+            attendanceRows
               .filter(
                 (row) =>
                   where?.studentId === undefined ||
@@ -498,6 +537,19 @@ function makeFakeDb() {
           );
         },
       ),
+    },
+    calendarEvent: {
+      findMany: vi.fn(({ where, take }: CalendarEventFindManyInput = {}) => {
+        const rows = calendarEvents.filter((event) => {
+          if (where?.active !== undefined && event.active !== where.active) return false;
+          if (where?.audience && !where.audience.in.includes(event.audience)) return false;
+          if (where?.category && event.category !== where.category) return false;
+          if (where?.startDate && event.startDate > where.startDate.lte) return false;
+          if (where?.endDate && event.endDate < where.endDate.gte) return false;
+          return true;
+        });
+        return Promise.resolve(take === undefined ? rows : rows.slice(0, take));
+      }),
     },
     pacePolicy: { findUnique: vi.fn(() => Promise.resolve({ passThreshold: 80 })) },
     meritLedger: {
@@ -1201,6 +1253,102 @@ describe('childLog.snapshot', () => {
         entity: 'Student',
         meta: { count: 1, source: 'childLog.parentDashboard' },
       },
+    });
+  });
+
+  it.each(['Present', 'Late', 'Absent'] as const)(
+    'returns today attendance status %s on an Oasis operating day',
+    async (status) => {
+      const { db } = makeFakeDb({
+        attendanceRows: [
+          {
+            id: 'att_today',
+            studentId: 'student_1',
+            date: today,
+            status,
+            recordedById: headUser.id,
+            createdAt: today,
+          },
+        ],
+      });
+
+      const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
+
+      expect(dashboard.children[0]?.todayStatus).toEqual({
+        date: '2026-04-30',
+        kind: 'attendance',
+        label: status,
+      });
+    },
+  );
+
+  it('returns closed on non-operating days before attendance status', async () => {
+    const monday = day('2026-05-04');
+    vi.setSystemTime(monday);
+    const { db } = makeFakeDb({
+      attendanceRows: [
+        {
+          id: 'att_monday',
+          studentId: 'student_1',
+          date: monday,
+          status: 'Present',
+          recordedById: headUser.id,
+          createdAt: monday,
+        },
+      ],
+    });
+
+    const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
+
+    expect(dashboard.children[0]?.todayStatus).toEqual({
+      date: '2026-05-04',
+      kind: 'closed',
+      label: 'Closed',
+    });
+  });
+
+  it('returns half term before attendance status when today has a parent-visible HalfTerm event', async () => {
+    const { db } = makeFakeDb({
+      attendanceRows: [
+        {
+          id: 'att_today',
+          studentId: 'student_1',
+          date: today,
+          status: 'Present',
+          recordedById: headUser.id,
+          createdAt: today,
+        },
+      ],
+      calendarEvents: [
+        {
+          id: 'half_term',
+          active: true,
+          audience: 'Parents',
+          category: 'HalfTerm',
+          startDate: day('2026-04-29'),
+          endDate: day('2026-05-01'),
+        },
+      ],
+    });
+
+    const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
+
+    expect(dashboard.children[0]?.todayStatus).toEqual({
+      date: '2026-04-30',
+      kind: 'halfTerm',
+      label: 'Half Term',
+    });
+  });
+
+  it('returns no mark on operating days without today attendance', async () => {
+    const { db } = makeFakeDb();
+
+    const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
+
+    expect(dashboard.children[0]?.todayStatus).toEqual({
+      date: '2026-04-30',
+      kind: 'unmarked',
+      label: 'No mark',
     });
   });
 
