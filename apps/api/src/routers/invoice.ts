@@ -12,6 +12,7 @@ import {
   calculateSchoolFeeDiscounts,
   calculateSchoolFeeFamilyDiscounts,
   canUseLinkedChildInvoiceAccess,
+  canViewStudentFinance,
   invoiceTotalPence,
   lineItemTotalPence,
   parseSchoolFeeInvoiceText,
@@ -239,6 +240,11 @@ export interface SchoolFeeInvoiceStatsDto {
   overdueAmountPence: number;
   paidAmountPence: number;
   remainingAmountPence: number;
+  grossOutstandingAmountPence: number;
+  grossOverdueAmountPence: number;
+  grossPaidAmountPence: number;
+  grossPaymentPendingAmountPence: number;
+  grossRemainingAmountPence: number;
 }
 
 export interface BillableStudentDto {
@@ -287,6 +293,12 @@ export interface SchoolFeeStudentYearSummaryDto {
   overdueAmountPence: number;
   remainingAmountPence: number;
   leftToInvoiceAmountPence: number;
+  grossIssuedAmountPence: number;
+  grossPaidAmountPence: number;
+  grossPaymentPendingAmountPence: number;
+  grossOverdueAmountPence: number;
+  grossRemainingAmountPence: number;
+  grossLeftToInvoiceAmountPence: number;
 }
 
 export interface SchoolFeeFamilyYearSummaryDto {
@@ -303,8 +315,42 @@ export interface SchoolFeeFamilyYearSummaryDto {
   overdueAmountPence: number;
   remainingAmountPence: number;
   leftToInvoiceAmountPence: number;
+  grossIssuedAmountPence: number;
+  grossPaidAmountPence: number;
+  grossPaymentPendingAmountPence: number;
+  grossOverdueAmountPence: number;
+  grossRemainingAmountPence: number;
+  grossLeftToInvoiceAmountPence: number;
   invoiceCount: number;
   children: SchoolFeeStudentYearSummaryDto[];
+}
+
+export interface SchoolFeeStudentFinanceSummaryDto {
+  studentId: string;
+  studentName: string;
+  yearGroup: string;
+  schoolYear: number;
+  cycleLabel: string;
+  cycleStartsOn: string;
+  cycleEndsOn: string;
+  chargeableStartsOn: string | null;
+  chargeableEndsOn: string | null;
+  chargeableMonths: number;
+  grossAnnualAmountPence: number;
+  adjustedAnnualAmountPence: number;
+  discountAmountPence: number;
+  grossIssuedAmountPence: number;
+  grossPaidAmountPence: number;
+  grossPaymentPendingAmountPence: number;
+  grossOverdueAmountPence: number;
+  grossUnpaidAmountPence: number;
+  grossRemainingAmountPence: number;
+  grossLeftToInvoiceAmountPence: number;
+  invoiceCount: number;
+  paidCount: number;
+  paymentPendingCount: number;
+  overdueCount: number;
+  unpaidCount: number;
 }
 
 const invoiceLineInput = z.object({
@@ -404,6 +450,10 @@ const invoiceIdInput = z.object({
   invoiceId: z.string().cuid(),
 });
 
+const studentFinanceInput = z.object({
+  studentId: z.string().min(1),
+});
+
 const discountOptOutInput = z.object({
   invoiceId: z.string().cuid(),
   discountId: z.string().cuid(),
@@ -482,6 +532,20 @@ async function requireInvoiceManager(
     }
     throw err;
   }
+}
+
+async function requireStudentFinanceViewer(
+  ctx: AuthedContext,
+  entity: string,
+  entityId?: string,
+): Promise<void> {
+  if (canViewStudentFinance(ctx.user)) return;
+  await auditPermissionDenied(
+    ctx,
+    entity,
+    new AccessDeniedError('student finance requires Pastor or Principal access'),
+    entityId,
+  );
 }
 
 function decryptRequired(
@@ -766,28 +830,41 @@ function invoiceMatchesParentStatus(
   return status === 'Overdue' ? invoice.displayStatus === 'Overdue' : invoice.status === status;
 }
 
+function invoiceGrossAmount(invoice: SchoolFeeInvoiceDto): number {
+  return invoice.subtotalAmountPence || invoice.totalAmountPence;
+}
+
 function calculateStats(invoices: readonly SchoolFeeInvoiceDto[]): SchoolFeeInvoiceStatsDto {
   return invoices.reduce<SchoolFeeInvoiceStatsDto>(
     (stats, invoice) => {
+      const grossAmountPence = invoiceGrossAmount(invoice);
       stats.totalCount += 1;
       if (invoice.status === 'Draft') stats.draftCount += 1;
       if (invoice.status === 'Paid') {
         stats.paidCount += 1;
         stats.paidAmountPence += invoice.totalAmountPence;
+        stats.grossPaidAmountPence += grossAmountPence;
       }
       if (invoice.status === 'PaymentPending') {
         stats.paymentPendingCount += 1;
         stats.outstandingAmountPence += invoice.totalAmountPence;
         stats.remainingAmountPence += invoice.totalAmountPence;
+        stats.grossPaymentPendingAmountPence += grossAmountPence;
+        stats.grossOutstandingAmountPence += grossAmountPence;
+        stats.grossRemainingAmountPence += grossAmountPence;
       }
       if (invoice.displayStatus === 'Overdue') {
         stats.overdueCount += 1;
         stats.overdueAmountPence += invoice.totalAmountPence;
         stats.outstandingAmountPence += invoice.totalAmountPence;
+        stats.grossOverdueAmountPence += grossAmountPence;
+        stats.grossOutstandingAmountPence += grossAmountPence;
       } else if (invoice.status === 'Unpaid') {
         stats.unpaidCount += 1;
         stats.outstandingAmountPence += invoice.totalAmountPence;
         stats.remainingAmountPence += invoice.totalAmountPence;
+        stats.grossOutstandingAmountPence += grossAmountPence;
+        stats.grossRemainingAmountPence += grossAmountPence;
       }
       return stats;
     },
@@ -802,6 +879,11 @@ function calculateStats(invoices: readonly SchoolFeeInvoiceDto[]): SchoolFeeInvo
       overdueAmountPence: 0,
       paidAmountPence: 0,
       remainingAmountPence: 0,
+      grossOutstandingAmountPence: 0,
+      grossOverdueAmountPence: 0,
+      grossPaidAmountPence: 0,
+      grossPaymentPendingAmountPence: 0,
+      grossRemainingAmountPence: 0,
     },
   );
 }
@@ -901,6 +983,12 @@ function calculateFamilyYearSummary({
       overdueAmountPence: 0,
       remainingAmountPence: 0,
       leftToInvoiceAmountPence: 0,
+      grossIssuedAmountPence: 0,
+      grossPaidAmountPence: 0,
+      grossPaymentPendingAmountPence: 0,
+      grossOverdueAmountPence: 0,
+      grossRemainingAmountPence: 0,
+      grossLeftToInvoiceAmountPence: 0,
       invoiceCount: 0,
       children: [],
     };
@@ -950,6 +1038,26 @@ function calculateFamilyYearSummary({
       .reduce((sum, invoice) => sum + invoice.totalAmountPence, 0),
     leftToPayAmountPence,
   );
+  const grossIssuedAmountPence = yearInvoices.reduce(
+    (sum, invoice) => sum + invoiceGrossAmount(invoice),
+    0,
+  );
+  const grossPaidAmountPence = Math.min(
+    yearInvoices
+      .filter(invoiceSettlesAnnualBalance)
+      .reduce((sum, invoice) => sum + invoiceGrossAmount(invoice), 0),
+    annualSubtotalAmountPence,
+  );
+  const grossPaymentPendingAmountPence = yearInvoices
+    .filter((invoice) => invoice.status === 'PaymentPending')
+    .reduce((sum, invoice) => sum + invoiceGrossAmount(invoice), 0);
+  const grossRemainingAmountPence = Math.max(annualSubtotalAmountPence - grossPaidAmountPence, 0);
+  const grossOverdueAmountPence = Math.min(
+    yearInvoices
+      .filter((invoice) => invoice.displayStatus === 'Overdue')
+      .reduce((sum, invoice) => sum + invoiceGrossAmount(invoice), 0),
+    grossRemainingAmountPence,
+  );
   const children = uniqueStudents.map<SchoolFeeStudentYearSummaryDto>((student, index) => {
     const fee = feeByStudentId.get(student.id);
     const childDiscountBreakdown = annualDiscountCalculation.childBreakdowns[index];
@@ -966,6 +1074,26 @@ function calculateFamilyYearSummary({
       student.id,
     );
     const remainingForChild = Math.max(adjustedChildAmountPence - paidForChild, 0);
+    const grossIssuedForChild = sumInvoiceGrossAmountsForStudent(yearInvoices, student.id);
+    const grossPaidForChild = Math.min(
+      sumInvoiceGrossAmountsForStudent(
+        yearInvoices.filter(invoiceSettlesAnnualBalance),
+        student.id,
+      ),
+      grossAnnualAmountPence,
+    );
+    const grossPaymentPendingForChild = sumInvoiceGrossAmountsForStudent(
+      yearInvoices.filter((invoice) => invoice.status === 'PaymentPending'),
+      student.id,
+    );
+    const grossRemainingForChild = Math.max(grossAnnualAmountPence - grossPaidForChild, 0);
+    const grossOverdueForChild = Math.min(
+      sumInvoiceGrossAmountsForStudent(
+        yearInvoices.filter((invoice) => invoice.displayStatus === 'Overdue'),
+        student.id,
+      ),
+      grossRemainingForChild,
+    );
     return {
       studentId: student.id,
       studentName: student.fullName,
@@ -989,6 +1117,12 @@ function calculateFamilyYearSummary({
       ),
       remainingAmountPence: remainingForChild,
       leftToInvoiceAmountPence: Math.max(adjustedChildAmountPence - issuedForChild, 0),
+      grossIssuedAmountPence: grossIssuedForChild,
+      grossPaidAmountPence: grossPaidForChild,
+      grossPaymentPendingAmountPence: grossPaymentPendingForChild,
+      grossOverdueAmountPence: grossOverdueForChild,
+      grossRemainingAmountPence: grossRemainingForChild,
+      grossLeftToInvoiceAmountPence: Math.max(grossAnnualAmountPence - grossIssuedForChild, 0),
     };
   });
 
@@ -1006,6 +1140,12 @@ function calculateFamilyYearSummary({
     overdueAmountPence,
     remainingAmountPence: leftToPayAmountPence,
     leftToInvoiceAmountPence: Math.max(adjustedAnnualAmountPence - issuedAmountPence, 0),
+    grossIssuedAmountPence,
+    grossPaidAmountPence,
+    grossPaymentPendingAmountPence,
+    grossOverdueAmountPence,
+    grossRemainingAmountPence,
+    grossLeftToInvoiceAmountPence: Math.max(annualSubtotalAmountPence - grossIssuedAmountPence, 0),
     invoiceCount: yearInvoices.length,
     children,
   };
@@ -1026,6 +1166,16 @@ function sumInvoiceAmountsForStudent(
   return invoices.reduce((sum, invoice) => sum + invoiceAmountForStudent(invoice, studentId), 0);
 }
 
+function sumInvoiceGrossAmountsForStudent(
+  invoices: readonly SchoolFeeInvoiceDto[],
+  studentId: string,
+): number {
+  return invoices.reduce(
+    (sum, invoice) => sum + invoiceGrossAmountForStudent(invoice, studentId),
+    0,
+  );
+}
+
 function sumInvoiceAnnualCoverageForStudent(
   invoices: readonly SchoolFeeInvoiceDto[],
   studentId: string,
@@ -1034,6 +1184,18 @@ function sumInvoiceAnnualCoverageForStudent(
     (sum, invoice) => sum + invoiceAnnualCoverageAmountForStudent(invoice, studentId),
     0,
   );
+}
+
+function invoiceGrossAmountForStudent(invoice: SchoolFeeInvoiceDto, studentId: string): number {
+  const breakdown = invoice.discountBreakdowns.find(
+    (candidate) => candidate.studentId === studentId,
+  );
+  if (breakdown) return breakdown.lineAmountPence;
+  const invoiceStudentIds = invoiceStudentIdSet(invoice);
+  if (invoiceStudentIds.size === 1 && invoiceStudentIds.has(studentId)) {
+    return invoiceGrossAmount(invoice);
+  }
+  return 0;
 }
 
 function invoiceAmountForStudent(invoice: SchoolFeeInvoiceDto, studentId: string): number {
@@ -1115,6 +1277,178 @@ function calculateParentYearStats({
     overdueAmountPence: summary.overdueAmountPence,
     paidAmountPence: summary.paidAmountPence,
     remainingAmountPence: Math.max(summary.remainingAmountPence - summary.overdueAmountPence, 0),
+    grossOutstandingAmountPence: summary.grossRemainingAmountPence,
+    grossOverdueAmountPence: summary.grossOverdueAmountPence,
+    grossPaidAmountPence: summary.grossPaidAmountPence,
+    grossPaymentPendingAmountPence: summary.grossPaymentPendingAmountPence,
+    grossRemainingAmountPence: Math.max(
+      summary.grossRemainingAmountPence - summary.grossOverdueAmountPence,
+      0,
+    ),
+  };
+}
+
+function studentFinanceStatusTotals(
+  invoices: readonly SchoolFeeInvoiceDto[],
+  studentId: string,
+): Pick<
+  SchoolFeeStudentFinanceSummaryDto,
+  | 'grossOverdueAmountPence'
+  | 'grossPaymentPendingAmountPence'
+  | 'grossUnpaidAmountPence'
+  | 'invoiceCount'
+  | 'overdueCount'
+  | 'paidCount'
+  | 'paymentPendingCount'
+  | 'unpaidCount'
+> {
+  return invoices.reduce(
+    (totals, invoice) => {
+      const grossAmountPence = invoiceGrossAmountForStudent(invoice, studentId);
+      if (grossAmountPence <= 0) return totals;
+
+      totals.invoiceCount += 1;
+      if (invoiceSettlesAnnualBalance(invoice)) {
+        totals.paidCount += 1;
+        return totals;
+      }
+      if (invoice.status === 'PaymentPending') {
+        totals.paymentPendingCount += 1;
+        totals.grossPaymentPendingAmountPence += grossAmountPence;
+        return totals;
+      }
+      if (invoice.displayStatus === 'Overdue') {
+        totals.overdueCount += 1;
+        totals.grossOverdueAmountPence += grossAmountPence;
+        return totals;
+      }
+      if (invoice.status === 'Unpaid') {
+        totals.unpaidCount += 1;
+        totals.grossUnpaidAmountPence += grossAmountPence;
+      }
+      return totals;
+    },
+    {
+      grossOverdueAmountPence: 0,
+      grossPaymentPendingAmountPence: 0,
+      grossUnpaidAmountPence: 0,
+      invoiceCount: 0,
+      overdueCount: 0,
+      paidCount: 0,
+      paymentPendingCount: 0,
+      unpaidCount: 0,
+    },
+  );
+}
+
+async function loadStudentFinanceSummary(
+  ctx: AuthedContext,
+  studentId: string,
+): Promise<SchoolFeeStudentFinanceSummaryDto> {
+  const schoolYear = activeSchoolFeeYear();
+  const feeConfig = await loadSchoolFeeConfig(ctx, schoolYear);
+  const targetGuardianRows = await ctx.db.guardian.findMany({
+    where: { studentId },
+    select: { userId: true },
+  });
+  const guardianUserIds = uniqueValues(targetGuardianRows.map((guardian) => guardian.userId));
+  const siblingGuardianRows =
+    guardianUserIds.length === 0
+      ? []
+      : await ctx.db.guardian.findMany({
+          where: { userId: { in: guardianUserIds } },
+          select: { studentId: true },
+        });
+  const initialFamilyStudentIds = uniqueValues([
+    studentId,
+    ...siblingGuardianRows.map((guardian) => guardian.studentId),
+  ]);
+
+  const linkedInvoiceRows = await ctx.db.schoolFeeInvoiceStudent.findMany({
+    where: { studentId: { in: initialFamilyStudentIds } },
+    select: { invoiceId: true },
+  });
+  const linkedInvoiceIds = [...new Set(linkedInvoiceRows.map((link) => link.invoiceId))];
+  const now = new Date();
+  const invoiceRows = (await ctx.withRls((tx) =>
+    tx.schoolFeeInvoice.findMany({
+      where: {
+        OR: [{ id: { in: linkedInvoiceIds } }, { studentId: { in: initialFamilyStudentIds } }],
+        status: { not: 'Draft' },
+      },
+      include: invoiceInclude,
+      orderBy: [{ dueOn: 'asc' }, { createdAt: 'desc' }],
+    }),
+  )) as InvoiceRow[];
+  const mappedInvoices = invoiceRows.map((invoice) => mapInvoice(ctx, invoice, now));
+
+  const familyStudentIds = uniqueValues([
+    ...initialFamilyStudentIds,
+    ...mappedInvoices.flatMap((invoice) => [
+      ...invoice.students.map((student) => student.id),
+      ...(invoice.studentId ? [invoice.studentId] : []),
+    ]),
+  ]);
+
+  const familyStudentRows = await ctx.withRls((tx) =>
+    tx.student.findMany({
+      where: { id: { in: familyStudentIds }, active: true },
+      select: { id: true, fullNameEnc: true, yearGroup: true, enrolmentDate: true },
+    }),
+  );
+  const familyStudents = familyStudentRows.map((student) => ({
+    id: student.id,
+    fullName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student name'),
+    yearGroup: student.yearGroup,
+    enrolmentDate: dateOnly(student.enrolmentDate) ?? '',
+  })) satisfies BillableStudentDto[];
+  const targetStudent = familyStudents.find((student) => student.id === studentId);
+  if (!targetStudent) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+  }
+
+  const yearSummary = calculateFamilyYearSummary({
+    feeConfig,
+    invoices: mappedInvoices,
+    schoolYear,
+    students: familyStudents,
+  });
+  const childSummary = yearSummary.children.find((child) => child.studentId === studentId);
+  if (!childSummary) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student finance summary not found' });
+  }
+  const yearInvoices = mappedInvoices.filter((invoice) => invoice.schoolYear === schoolYear);
+  const statusTotals = studentFinanceStatusTotals(yearInvoices, studentId);
+
+  await auditInvoiceDecrypt(ctx, 'invoice.studentFinanceSummary', mappedInvoices.length);
+  await auditStudentDecrypt(ctx, 'invoice.studentFinanceSummary', familyStudents.length);
+
+  return {
+    studentId,
+    studentName: targetStudent.fullName,
+    yearGroup: targetStudent.yearGroup,
+    schoolYear,
+    cycleLabel: yearSummary.cycleLabel,
+    cycleStartsOn: yearSummary.cycleStartsOn,
+    cycleEndsOn: yearSummary.cycleEndsOn,
+    chargeableStartsOn: childSummary.chargeableStartsOn,
+    chargeableEndsOn: childSummary.chargeableEndsOn,
+    chargeableMonths: childSummary.chargeableMonths,
+    grossAnnualAmountPence: childSummary.grossAnnualAmountPence,
+    adjustedAnnualAmountPence: childSummary.adjustedAnnualAmountPence,
+    discountAmountPence: childSummary.discountAmountPence,
+    grossIssuedAmountPence: childSummary.grossIssuedAmountPence,
+    grossPaidAmountPence: childSummary.grossPaidAmountPence,
+    grossPaymentPendingAmountPence: childSummary.grossPaymentPendingAmountPence,
+    grossOverdueAmountPence: childSummary.grossOverdueAmountPence,
+    grossUnpaidAmountPence: statusTotals.grossUnpaidAmountPence,
+    grossRemainingAmountPence: childSummary.grossRemainingAmountPence,
+    grossLeftToInvoiceAmountPence: childSummary.grossLeftToInvoiceAmountPence,
+    invoiceCount: statusTotals.invoiceCount,
+    paidCount: statusTotals.paidCount,
+    paymentPendingCount: statusTotals.paymentPendingCount,
+    overdueCount: statusTotals.overdueCount,
+    unpaidCount: statusTotals.unpaidCount,
   };
 }
 
@@ -1830,6 +2164,13 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         yearSummary,
       };
     }),
+
+    studentFinanceSummary: authedProcedure
+      .input(studentFinanceInput)
+      .query(async ({ ctx, input }) => {
+        await requireStudentFinanceViewer(ctx, 'invoice.studentFinanceSummary', input.studentId);
+        return loadStudentFinanceSummary(ctx, input.studentId);
+      }),
 
     uploadDraft: authedProcedure.input(uploadDraftInput).mutation(async ({ ctx, input }) => {
       await requireInvoiceManager(ctx, 'invoice.uploadDraft');

@@ -7741,6 +7741,96 @@ button.club-assignment-row {
   gap: 12px;
 }
 
+.student-finance-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.student-finance-chart {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 116px minmax(120px, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.student-finance-chart > div {
+  display: grid;
+  gap: 5px;
+}
+
+.student-finance-chart > div:first-child {
+  justify-items: end;
+  text-align: right;
+}
+
+.student-finance-chart > div:last-child {
+  justify-items: start;
+}
+
+.student-finance-chart span,
+.student-finance-metric span,
+.student-finance-metric small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.student-finance-chart strong {
+  color: var(--oasis-navy);
+  font-size: 1.2rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.student-finance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.student-finance-metric {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--oasis-border);
+  border-top: 4px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+
+.student-finance-metric.is-green {
+  border-top-color: var(--oasis-success);
+}
+
+.student-finance-metric.is-red {
+  border-top-color: var(--oasis-danger);
+}
+
+.student-finance-metric.is-amber {
+  border-top-color: var(--oasis-warning);
+}
+
+.student-finance-metric strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--oasis-navy);
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.student-finance-metric.is-green strong {
+  color: var(--oasis-success);
+}
+
+.student-finance-metric.is-red strong {
+  color: var(--oasis-danger);
+}
+
+.student-finance-metric.is-amber strong {
+  color: var(--oasis-warning);
+}
+
 .student-attendance-row {
   display: flex;
   align-items: center;
@@ -9837,10 +9927,23 @@ button.club-assignment-row {
   .snapshot-grid,
   .policy-grid,
   .student-detail-summary-grid,
+  .student-finance-grid,
   .student-merit-grid,
   .report-layout,
   .report-two-column {
     grid-template-columns: 1fr;
+  }
+
+  .student-finance-chart {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .student-finance-chart > div:first-child,
+  .student-finance-chart > div:last-child {
+    justify-items: center;
+    text-align: center;
   }
 
   .clubs-lead-hero-card__meta {
@@ -12217,6 +12320,19 @@ button.club-assignment-row {
   font-size: 0.9rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.parent-fee-cycle__adjusted-fee {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.parent-fee-cycle__adjusted-fee small {
+  color: var(--oasis-success);
 }
 
 .parent-fees-chart {

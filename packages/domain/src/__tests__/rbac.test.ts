@@ -21,6 +21,7 @@ import {
   canViewSensitiveChildNotes,
   canViewSensitiveBehaviourEntry,
   canViewSensitiveStudentDrillThrough,
+  canViewStudentFinance,
   canViewStudentDrillThrough,
   canSubmitInitialRegistration,
   canUseClubsLeadPortal,
@@ -133,6 +134,17 @@ describe('invoice finance administration', () => {
     expect(() => {
       requireCanManageInvoices(parent);
     }).toThrow(AccessDeniedError);
+  });
+
+  it('limits student finance visibility to Pastor and Principal', () => {
+    expect(canViewStudentFinance(principal)).toBe(true);
+    expect(canViewStudentFinance(pastor)).toBe(true);
+    expect(canViewStudentFinance(head)).toBe(false);
+    expect(canViewStudentFinance(hod)).toBe(false);
+    const financeTaggedSupervisor: SessionUser = { ...supervisor, tags: ['finance-admin'] };
+    expect(canViewStudentFinance(financeTaggedSupervisor)).toBe(false);
+    expect(canViewStudentFinance(parent)).toBe(false);
+    expect(canViewStudentFinance(student)).toBe(false);
   });
 });
 

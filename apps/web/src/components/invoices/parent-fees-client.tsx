@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -43,7 +43,7 @@ function PaymentDonut({
   return (
     <div className="parent-fees-chart">
       <div className="parent-fees-chart__amount parent-fees-chart__amount--paid">
-        <span>Paid / credited</span>
+        <span>Paid</span>
         <strong>{formatPence(paidAmountPence)}</strong>
       </div>
       <svg aria-label="Payment progress" height="116" role="img" viewBox="0 0 116 116" width="116">
@@ -86,7 +86,7 @@ function PaymentDonut({
         />
       </svg>
       <div className="parent-fees-chart__amount parent-fees-chart__amount--left">
-        <span>Left</span>
+        <span>Left to pay</span>
         <strong>{formatPence(remainingAmountPence + overdueAmountPence)}</strong>
       </div>
     </div>
@@ -213,12 +213,18 @@ function ParentFeeCycleSummary({ summary }: { summary: ParentYearSummary | undef
         <strong>{summary.cycleLabel}</strong>
       </div>
       <div>
-        <span>Annual target</span>
-        <strong>{formatPence(summary.adjustedAnnualAmountPence)}</strong>
+        <span>Annual Fee / Adjusted Fee</span>
+        <strong className="parent-fee-cycle__adjusted-fee">
+          {formatPence(summary.annualAmountPence)} /{' '}
+          {formatPence(summary.adjustedAnnualAmountPence)}
+          {summary.discountAmountPence > 0 ? (
+            <small>({formatPence(summary.discountAmountPence)} saved)</small>
+          ) : null}
+        </strong>
       </div>
       <div>
         <span>Left to invoice</span>
-        <strong>{formatPence(summary.leftToInvoiceAmountPence)}</strong>
+        <strong>{formatPence(summary.grossLeftToInvoiceAmountPence)}</strong>
       </div>
       {summary.children.map((child) => (
         <article key={child.studentId}>
@@ -230,12 +236,12 @@ function ParentFeeCycleSummary({ summary }: { summary: ParentYearSummary | undef
             </small>
           </span>
           <span>
-            <small>Paid / credited</small>
-            <strong>{formatPence(child.paidAmountPence)}</strong>
+            <small>Paid</small>
+            <strong>{formatPence(child.grossPaidAmountPence)}</strong>
           </span>
           <span>
-            <small>Left</small>
-            <strong>{formatPence(child.remainingAmountPence)}</strong>
+            <small>Left to pay</small>
+            <strong>{formatPence(child.grossRemainingAmountPence)}</strong>
           </span>
         </article>
       ))}
@@ -281,24 +287,20 @@ export function ParentFeesClient() {
   const invoices = invoicesQuery.data?.invoices ?? [];
   const stats = invoicesQuery.data?.stats;
   const yearSummary = invoicesQuery.data?.yearSummary;
-  const firstUnpaidInvoiceId = useMemo(
-    () => invoices.find((invoice) => invoice.status === 'Unpaid')?.id ?? invoices[0]?.id ?? null,
-    [invoices],
-  );
-  const activeOpenInvoiceId = openInvoiceId ?? firstUnpaidInvoiceId;
+  const activeOpenInvoiceId = openInvoiceId;
 
   return (
     <section className="invoice-page invoice-page--parent">
       <header className="parent-fees-hero">
         <div>
-          <p>School Fees</p>
-          <h1>{formatPence(stats?.outstandingAmountPence ?? 0)}</h1>
+          <p>Current Balance</p>
+          <h1>{formatPence(stats?.grossOutstandingAmountPence ?? 0)}</h1>
           <span>{yearSummary?.cycleLabel ?? 'Outstanding balance'}</span>
         </div>
         <PaymentDonut
-          overdueAmountPence={stats?.overdueAmountPence ?? 0}
-          paidAmountPence={stats?.paidAmountPence ?? 0}
-          remainingAmountPence={stats?.remainingAmountPence ?? 0}
+          overdueAmountPence={stats?.grossOverdueAmountPence ?? 0}
+          paidAmountPence={stats?.grossPaidAmountPence ?? 0}
+          remainingAmountPence={stats?.grossRemainingAmountPence ?? 0}
         />
         <div className="parent-fees-hero__stats">
           <InvoiceStatCard
@@ -359,9 +361,7 @@ export function ParentFeesClient() {
               key={invoice.id}
               markingPaid={pendingInvoiceId === invoice.id}
               onToggle={() => {
-                setOpenInvoiceId((current) =>
-                  activeOpenInvoiceId === invoice.id && current ? null : invoice.id,
-                );
+                setOpenInvoiceId((current) => (current === invoice.id ? null : invoice.id));
               }}
               onMarkPaid={(targetInvoice) => {
                 setPendingInvoiceId(targetInvoice.id);
