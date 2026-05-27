@@ -43,7 +43,7 @@ function PaymentDonut({
   return (
     <div className="parent-fees-chart">
       <div className="parent-fees-chart__amount parent-fees-chart__amount--paid">
-        <span>Paid</span>
+        <span>Paid / credited</span>
         <strong>{formatPence(paidAmountPence)}</strong>
       </div>
       <svg aria-label="Payment progress" height="116" role="img" viewBox="0 0 116 116" width="116">
@@ -230,7 +230,7 @@ function ParentFeeCycleSummary({ summary }: { summary: ParentYearSummary | undef
             </small>
           </span>
           <span>
-            <small>Paid</small>
+            <small>Paid / credited</small>
             <strong>{formatPence(child.paidAmountPence)}</strong>
           </span>
           <span>

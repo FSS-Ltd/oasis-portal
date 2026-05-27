@@ -819,6 +819,7 @@ function latestParentYearDiscountInputs(
     .filter((invoice) => invoice.schoolYear === schoolYear)
     .forEach((invoice) => {
       invoice.discounts.forEach((discount) => {
+        if (!isAnnualTargetDiscount(discount)) return;
         if (studentCount <= 1 && discount.presetCode === SCHOOL_FEE_SIBLING_DISCOUNT_CODE) return;
         const key =
           discount.kind === 'Preset' && discount.presetCode
@@ -840,6 +841,36 @@ function latestParentYearDiscountInputs(
       });
     });
   return [...latestByKey.values()].map((entry) => entry.discount);
+}
+
+function isAnnualTargetDiscount(
+  discount: Pick<SchoolFeeInvoiceDiscountDto, 'kind' | 'presetCode'>,
+): boolean {
+  return (
+    discount.kind === 'Preset' &&
+    SCHOOL_FEE_DISCOUNT_PRESETS.some((preset) => preset.code === discount.presetCode)
+  );
+}
+
+function invoiceCreditCoverageAmount(invoice: SchoolFeeInvoiceDto): number {
+  return invoice.discounts
+    .filter((discount) => !isAnnualTargetDiscount(discount))
+    .reduce((sum, discount) => sum + discount.appliedAmountPence, 0);
+}
+
+function invoiceSettlesAnnualBalance(invoice: SchoolFeeInvoiceDto): boolean {
+  return (
+    invoice.status === 'Paid' ||
+    (invoice.totalAmountPence === 0 && invoiceCreditCoverageAmount(invoice) > 0)
+  );
+}
+
+function invoiceAnnualCoverageAmount(invoice: SchoolFeeInvoiceDto): number {
+  return invoice.totalAmountPence + invoiceCreditCoverageAmount(invoice);
+}
+
+function invoiceSettledAnnualCoverageAmount(invoice: SchoolFeeInvoiceDto): number {
+  return invoiceSettlesAnnualBalance(invoice) ? invoiceAnnualCoverageAmount(invoice) : 0;
 }
 
 function calculateFamilyYearSummary({
@@ -902,13 +933,11 @@ function calculateFamilyYearSummary({
   const adjustedAnnualAmountPence = annualDiscountCalculation.totalAmountPence;
   const yearInvoices = invoices.filter((invoice) => invoice.schoolYear === schoolYear);
   const issuedAmountPence = yearInvoices.reduce(
-    (sum, invoice) => sum + invoice.totalAmountPence,
+    (sum, invoice) => sum + invoiceAnnualCoverageAmount(invoice),
     0,
   );
   const confirmedPaidAmountPence = Math.min(
-    yearInvoices
-      .filter((invoice) => invoice.status === 'Paid')
-      .reduce((sum, invoice) => sum + invoice.totalAmountPence, 0),
+    yearInvoices.reduce((sum, invoice) => sum + invoiceSettledAnnualCoverageAmount(invoice), 0),
     adjustedAnnualAmountPence,
   );
   const paymentPendingAmountPence = yearInvoices
@@ -927,9 +956,9 @@ function calculateFamilyYearSummary({
     const grossAnnualAmountPence = fee?.proratedAnnualAmountPence ?? 0;
     const adjustedChildAmountPence =
       childDiscountBreakdown?.totalAmountPence ?? grossAnnualAmountPence;
-    const issuedForChild = sumInvoiceAmountsForStudent(yearInvoices, student.id);
-    const paidForChild = sumInvoiceAmountsForStudent(
-      yearInvoices.filter((invoice) => invoice.status === 'Paid'),
+    const issuedForChild = sumInvoiceAnnualCoverageForStudent(yearInvoices, student.id);
+    const paidForChild = sumInvoiceAnnualCoverageForStudent(
+      yearInvoices.filter(invoiceSettlesAnnualBalance),
       student.id,
     );
     const paymentPendingForChild = sumInvoiceAmountsForStudent(
@@ -997,19 +1026,65 @@ function sumInvoiceAmountsForStudent(
   return invoices.reduce((sum, invoice) => sum + invoiceAmountForStudent(invoice, studentId), 0);
 }
 
+function sumInvoiceAnnualCoverageForStudent(
+  invoices: readonly SchoolFeeInvoiceDto[],
+  studentId: string,
+): number {
+  return invoices.reduce(
+    (sum, invoice) => sum + invoiceAnnualCoverageAmountForStudent(invoice, studentId),
+    0,
+  );
+}
+
 function invoiceAmountForStudent(invoice: SchoolFeeInvoiceDto, studentId: string): number {
   const breakdown = invoice.discountBreakdowns.find(
     (candidate) => candidate.studentId === studentId,
   );
   if (breakdown) return breakdown.totalAmountPence;
-  const invoiceStudentIds = new Set([
-    ...invoice.students.map((student) => student.id),
-    ...(invoice.studentId ? [invoice.studentId] : []),
-  ]);
+  const invoiceStudentIds = invoiceStudentIdSet(invoice);
   if (invoiceStudentIds.size === 1 && invoiceStudentIds.has(studentId)) {
     return invoice.totalAmountPence;
   }
   return 0;
+}
+
+function invoiceAnnualCoverageAmountForStudent(
+  invoice: SchoolFeeInvoiceDto,
+  studentId: string,
+): number {
+  return (
+    invoiceAmountForStudent(invoice, studentId) +
+    invoiceCreditCoverageAmountForStudent(invoice, studentId)
+  );
+}
+
+function invoiceCreditCoverageAmountForStudent(
+  invoice: SchoolFeeInvoiceDto,
+  studentId: string,
+): number {
+  const breakdown = invoice.discountBreakdowns.find(
+    (candidate) => candidate.studentId === studentId,
+  );
+  if (!breakdown) {
+    const invoiceStudentIds = invoiceStudentIdSet(invoice);
+    return invoiceStudentIds.size === 1 && invoiceStudentIds.has(studentId)
+      ? invoiceCreditCoverageAmount(invoice)
+      : 0;
+  }
+  return breakdown.discounts.reduce((sum, breakdownDiscount) => {
+    const invoiceDiscount = invoice.discounts.find(
+      (discount) => discount.id === breakdownDiscount.id,
+    );
+    if (!invoiceDiscount || isAnnualTargetDiscount(invoiceDiscount)) return sum;
+    return sum + breakdownDiscount.appliedAmountPence;
+  }, 0);
+}
+
+function invoiceStudentIdSet(invoice: SchoolFeeInvoiceDto): Set<string> {
+  return new Set([
+    ...invoice.students.map((student) => student.id),
+    ...(invoice.studentId ? [invoice.studentId] : []),
+  ]);
 }
 
 function calculateParentYearStats({
