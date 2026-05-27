@@ -1307,6 +1307,188 @@ describe('invoiceRouter', () => {
     expect(parentList.stats.outstandingAmountPence).toBe(275625);
     expect(parentList.stats.remainingAmountPence).toBe(275625);
     expect(parentList.stats.overdueAmountPence).toBe(0);
+    expect(parentList.yearSummary).toMatchObject({
+      adjustedAnnualAmountPence: 300125,
+      discountAmountPence: 42875,
+      paidAmountPence: 24500,
+      remainingAmountPence: 275625,
+    });
+  });
+
+  it('counts fully credited monthly invoices without reducing the annual fee target', async () => {
+    const creditInvoices = Array.from({ length: 4 }, (_value, index) =>
+      makeInvoice({
+        id: `cinvoicecredit00000${String(index + 1)}`,
+        invoiceNumber: `OLC-CREDIT-${String(index + 1)}`,
+        status: 'Unpaid',
+        studentId: null,
+        issuedOn: new Date(`2026-0${String(index + 2)}-01T00:00:00.000Z`),
+        dueOn: new Date(`2026-0${String(index + 2)}-12T00:00:00.000Z`),
+        subtotalAmountPence: 49000,
+        discountAmountPence: 49000,
+        totalAmountPence: 0,
+      }),
+    );
+    const fakeDb = makeFakeDb({
+      initialStudents: [
+        makeStudent({ id: linkedStudentId, enrolmentDate: new Date('2026-02-01T00:00:00.000Z') }),
+        makeStudent({ id: otherStudentId, enrolmentDate: new Date('2026-02-01T00:00:00.000Z') }),
+      ],
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      initialInvoices: creditInvoices,
+      initialInvoiceStudents: creditInvoices.flatMap((invoice) => [
+        { invoiceId: invoice.id, studentId: linkedStudentId, position: 1 },
+        { invoiceId: invoice.id, studentId: otherStudentId, position: 2 },
+      ]),
+      initialLines: creditInvoices.flatMap((invoice) => [
+        makeLine({
+          invoiceId: invoice.id,
+          position: 1,
+          descriptionEnc: encrypt('Monthly fee - Talia Parent'),
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+        makeLine({
+          id: `cline${invoice.id}2`,
+          invoiceId: invoice.id,
+          position: 2,
+          descriptionEnc: encrypt('Monthly fee - Other Child'),
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+      ]),
+      initialDiscounts: creditInvoices.flatMap((invoice) => [
+        makeDiscount({
+          id: `cdiscount${invoice.id}1`,
+          invoiceId: invoice.id,
+          labelEnc: encrypt('Portal thank-you credit - Talia Parent'),
+          kind: 'ManualFixed',
+          presetCode: schoolFeeDiscountChildIndexPresetCode(0),
+          percentBps: null,
+          amountPence: 24500,
+          baseAmountPence: 24500,
+          appliedAmountPence: 24500,
+        }),
+        makeDiscount({
+          id: `cdiscount${invoice.id}2`,
+          invoiceId: invoice.id,
+          position: 2,
+          labelEnc: encrypt('Portal thank-you credit - Other Child'),
+          kind: 'ManualFixed',
+          presetCode: schoolFeeDiscountChildIndexPresetCode(1),
+          percentBps: null,
+          amountPence: 24500,
+          baseAmountPence: 24500,
+          appliedAmountPence: 24500,
+        }),
+      ]),
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await parentCaller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.yearSummary).toMatchObject({
+      annualAmountPence: 343000,
+      adjustedAnnualAmountPence: 343000,
+      paidAmountPence: 196000,
+      remainingAmountPence: 147000,
+      leftToInvoiceAmountPence: 147000,
+    });
+    expect(parentList.stats.outstandingAmountPence).toBe(147000);
+    expect(parentList.stats.paidAmountPence).toBe(196000);
+    expect(parentList.yearSummary.children).toEqual([
+      expect.objectContaining({
+        studentId: linkedStudentId,
+        chargeableStartsOn: '2026-02-01',
+        chargeableMonths: 7,
+        paidAmountPence: 98000,
+        remainingAmountPence: 73500,
+        leftToInvoiceAmountPence: 73500,
+      }),
+      expect.objectContaining({
+        studentId: otherStudentId,
+        chargeableStartsOn: '2026-02-01',
+        chargeableMonths: 7,
+        paidAmountPence: 98000,
+        remainingAmountPence: 73500,
+        leftToInvoiceAmountPence: 73500,
+      }),
+    ]);
+  });
+
+  it('counts paid invoice manual credits as settled annual coverage', async () => {
+    const paidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Paid',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 24500,
+      discountAmountPence: 5000,
+      totalAmountPence: 19500,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [paidInvoice],
+      initialLines: [
+        makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+      initialDiscounts: [
+        makeDiscount({
+          invoiceId: paidInvoice.id,
+          labelEnc: encrypt('Pastoral credit'),
+          kind: 'ManualFixed',
+          presetCode: null,
+          percentBps: null,
+          amountPence: 5000,
+          baseAmountPence: 5000,
+          appliedAmountPence: 5000,
+        }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await parentCaller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.stats.paidAmountPence).toBe(24500);
+    expect(parentList.stats.remainingAmountPence).toBe(147000);
+    expect(parentList.yearSummary).toMatchObject({
+      adjustedAnnualAmountPence: 171500,
+      paidAmountPence: 24500,
+      remainingAmountPence: 147000,
+      leftToInvoiceAmountPence: 147000,
+    });
+  });
+
+  it('does not count unpaid non-zero invoices as settled annual coverage', async () => {
+    const unpaidInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'Unpaid',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 24500,
+      totalAmountPence: 24500,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [unpaidInvoice],
+      initialLines: [
+        makeLine({ invoiceId: unpaidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
+      ],
+    });
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await parentCaller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.stats.paidAmountPence).toBe(0);
+    expect(parentList.stats.outstandingAmountPence).toBe(171500);
+    expect(parentList.yearSummary).toMatchObject({
+      adjustedAnnualAmountPence: 171500,
+      paidAmountPence: 0,
+      remainingAmountPence: 171500,
+      leftToInvoiceAmountPence: 147000,
+    });
   });
 
   it('prorates parent owed totals for January and May enrolments', async () => {
