@@ -25,6 +25,13 @@ const supervisorUser: SessionUser = {
   requires2fa: false,
 };
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
+const clubsLeadUser: SessionUser = {
+  id: 'u_clubs_lead',
+  role: 'ClubsLead',
+  tags: [],
+  requires2fa: false,
+};
+const studentUser: SessionUser = { id: 'u_student', role: 'Student', tags: [], requires2fa: false };
 
 type SlipCategory = 'SchoolTrip' | 'Activity' | 'Reward' | 'Consent';
 type ResponseStatus = 'Pending' | 'Signed' | 'Declined';
@@ -647,6 +654,52 @@ describe('permissionSlip parent access', () => {
     });
   });
 
+  it('allows a linked supervisor guardian to list and respond for linked children only', async () => {
+    const slip = makeSlip({ id: 'slip_supervisor', title: 'Supervisor child trip' });
+    const db = makeFakeDb({
+      guardians: [{ id: 'g_supervisor', userId: supervisorUser.id, studentId: 's_child_1' }],
+      slips: [slip],
+      recipients: [
+        makeRecipient({ slipId: slip.id, studentId: 's_child_1', position: 1 }),
+        makeRecipient({ slipId: slip.id, studentId: 's_child_2', position: 2 }),
+      ],
+    });
+    const { caller } = makeCaller(supervisorUser, db);
+
+    const list = await caller.permissionSlip.listParent();
+    expect(list.slips).toHaveLength(1);
+    expect(list.slips[0]?.recipients).toHaveLength(1);
+    expect(list.slips[0]?.recipients[0]?.studentId).toBe('s_child_1');
+
+    await expect(
+      caller.permissionSlip.submitParentResponse({
+        slipId: slip.id,
+        studentId: 's_child_2',
+        decision: 'Signed',
+        parentName: 'Sam Supervisor',
+        medicalInfo: 'None',
+        emergencyContact: 'Sarah Johnson 07700',
+        answers: [],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    const response = await caller.permissionSlip.submitParentResponse({
+      slipId: slip.id,
+      studentId: 's_child_1',
+      decision: 'Signed',
+      parentName: 'Sam Supervisor',
+      medicalInfo: 'None',
+      emergencyContact: 'Sarah Johnson 07700',
+      answers: [],
+    });
+
+    expect(response.recipients.find((recipient) => recipient.studentId === 's_child_1')).toMatchObject({
+      parentRespondedById: supervisorUser.id,
+      responseStatus: 'Signed',
+      paymentStatus: 'Unpaid',
+    });
+  });
+
   it('moves signed unpaid slips to payment pending without marking them paid', async () => {
     const slip = makeSlip({ id: 'slip_paid', title: 'Paid trip' });
     const db = makeFakeDb({
@@ -676,6 +729,48 @@ describe('permissionSlip parent access', () => {
       paymentConfirmedAt: null,
     });
     expect(db.recipients[0]?.paymentStatus).toBe('PaymentPending');
+  });
+
+  it('allows a linked supervisor guardian to mark signed unpaid slips as payment pending', async () => {
+    const slip = makeSlip({ id: 'slip_supervisor_paid', title: 'Supervisor paid trip' });
+    const db = makeFakeDb({
+      guardians: [{ id: 'g_supervisor', userId: supervisorUser.id, studentId: 's_child_1' }],
+      slips: [slip],
+      recipients: [
+        makeRecipient({
+          slipId: slip.id,
+          studentId: 's_child_1',
+          position: 1,
+          responseStatus: 'Signed',
+          signatureSource: 'ParentPortal',
+          parentNameEnc: encrypt('Sam Supervisor'),
+          signedAt: new Date('2026-05-21T10:00:00.000Z'),
+          paymentStatus: 'Unpaid',
+        }),
+      ],
+    });
+    const { caller } = makeCaller(supervisorUser, db);
+
+    const result = await caller.permissionSlip.parentMarkPaid({
+      slipId: slip.id,
+      studentId: 's_child_1',
+    });
+
+    expect(result.recipients[0]).toMatchObject({
+      parentMarkedPaidById: supervisorUser.id,
+      paymentStatus: 'PaymentPending',
+      paymentConfirmedAt: null,
+    });
+    expect(db.recipients[0]?.paymentStatus).toBe('PaymentPending');
+  });
+
+  it('denies users without linked-child guardian permission-slip access', async () => {
+    await expect(makeCaller(studentUser).caller.permissionSlip.listParent()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(makeCaller(clubsLeadUser).caller.permissionSlip.listParent()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
   });
 });
 
