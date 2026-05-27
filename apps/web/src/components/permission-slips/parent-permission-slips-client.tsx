@@ -1,7 +1,15 @@
 'use client';
 
 import { type FormEvent, useMemo, useState } from 'react';
-import { Check, ChevronDown, ClipboardCheck, CreditCard, X } from 'lucide-react';
+import {
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  CreditCard,
+  PenLine,
+  X,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
@@ -26,6 +34,7 @@ interface ParentSlipRow {
 }
 
 interface ResponseFormState {
+  agreed: boolean;
   answers: Record<string, string>;
   decision: 'Signed' | 'Declined' | null;
   declineReason: string;
@@ -35,6 +44,7 @@ interface ResponseFormState {
 }
 
 const emptyResponseForm = (): ResponseFormState => ({
+  agreed: false,
   answers: {},
   decision: null,
   declineReason: '',
@@ -47,16 +57,21 @@ function isOutstanding(row: ParentSlipRow): boolean {
   return row.recipient.responseStatus === 'Pending' && !row.slip.inactive;
 }
 
-function ParentSlipCard({
-  onOpen,
-  row,
-}: {
-  onOpen: () => void;
-  row: ParentSlipRow;
-}) {
+function ParentSlipCard({ onOpen, row }: { onOpen: () => void; row: ParentSlipRow }) {
   const { recipient, slip } = row;
+  const statusClass =
+    recipient.responseStatus === 'Signed'
+      ? 'is-signed'
+      : recipient.responseStatus === 'Declined'
+        ? 'is-declined'
+        : slip.inactive
+          ? 'is-closed'
+          : 'is-pending';
+  const actionLabel =
+    recipient.responseStatus === 'Pending' && !slip.inactive ? 'Open & sign' : 'View';
+
   return (
-    <article className="permission-parent-card">
+    <article className={`permission-parent-card ${statusClass}`}>
       <button onClick={onOpen} type="button">
         <span>
           <Badge tone={slip.inactive ? 'grey' : 'blue'}>
@@ -70,35 +85,34 @@ function ParentSlipCard({
           {recipient.student.fullName} · Respond by {formatSlipDate(slip.deadline)}
           {slip.cost ? ` · ${slip.cost}` : ''}
         </small>
+        <b>{actionLabel}</b>
         <ChevronDown aria-hidden="true" size={17} />
       </button>
     </article>
   );
 }
 
-function ParentSlipResponseView({
-  onBack,
-  row,
-}: {
-  onBack: () => void;
-  row: ParentSlipRow;
-}) {
+function ParentSlipResponseView({ onBack, row }: { onBack: () => void; row: ParentSlipRow }) {
   const utils = api.useUtils();
   const [form, setForm] = useState<ResponseFormState>(() => emptyResponseForm());
+  const [submittedDecision, setSubmittedDecision] = useState<ResponseFormState['decision']>(null);
   const { recipient, slip } = row;
   const canSubmit =
     form.decision &&
     form.parentName.trim() &&
     (form.decision === 'Declined' ||
-      ((!slip.requireMedical || form.medicalInfo.trim()) &&
+      (form.agreed &&
+        (!slip.requireMedical || form.medicalInfo.trim()) &&
         (!slip.requireEmergencyContact || form.emergencyContact.trim()) &&
-        slip.questions.every((question) => !question.required || form.answers[question.id]?.trim())));
+        slip.questions.every(
+          (question) => !question.required || form.answers[question.id]?.trim(),
+        )));
 
   const submitResponse = api.permissionSlip.submitParentResponse.useMutation({
-    async onSuccess() {
+    async onSuccess(_data, variables) {
       await utils.permissionSlip.listParent.invalidate();
       showSuccessToast('Permission slip response submitted.');
-      onBack();
+      setSubmittedDecision(variables.decision);
     },
     onError(error) {
       showErrorToast(error, 'Permission slip response could not be submitted.');
@@ -131,6 +145,31 @@ function ParentSlipResponseView({
         answer: form.answers[question.id]?.trim() ?? '',
       })),
     });
+  }
+
+  if (submittedDecision) {
+    return (
+      <section className="permission-page">
+        <Panel body className="permission-submitted-panel">
+          <span className={submittedDecision === 'Signed' ? 'is-signed' : 'is-declined'}>
+            {submittedDecision === 'Signed' ? (
+              <CheckCircle2 aria-hidden="true" size={42} />
+            ) : (
+              <X aria-hidden="true" size={42} />
+            )}
+          </span>
+          <h1>{submittedDecision === 'Signed' ? 'Permission granted' : 'Response recorded'}</h1>
+          <p>
+            {submittedDecision === 'Signed'
+              ? `Thank you, ${form.parentName.trim()}. Your e-signature has been recorded for ${recipient.student.fullName}.`
+              : `Thank you, ${form.parentName.trim()}. ${recipient.student.fullName} will not take part.`}
+          </p>
+          <Button onClick={onBack} type="button">
+            Back to permission slips
+          </Button>
+        </Panel>
+      </section>
+    );
   }
 
   return (
@@ -219,7 +258,10 @@ function ParentSlipResponseView({
                   <Field label="Emergency contact" required>
                     <TextInput
                       onChange={(event) => {
-                        setForm((current) => ({ ...current, emergencyContact: event.target.value }));
+                        setForm((current) => ({
+                          ...current,
+                          emergencyContact: event.target.value,
+                        }));
                       }}
                       placeholder="Name, phone, relationship"
                       value={form.emergencyContact}
@@ -261,6 +303,33 @@ function ParentSlipResponseView({
                     value={form.parentName}
                   />
                 </Field>
+                {form.parentName.trim() && form.decision === 'Signed' ? (
+                  <div className="permission-signature-preview">
+                    <span>
+                      <PenLine aria-hidden="true" size={16} />
+                      Signed name preview
+                    </span>
+                    <strong>{form.parentName}</strong>
+                    <small>
+                      Typing your name acts as your e-signature for this permission slip.
+                    </small>
+                  </div>
+                ) : null}
+                {form.decision === 'Signed' ? (
+                  <label className="permission-agreement">
+                    <input
+                      checked={form.agreed}
+                      onChange={(event) => {
+                        setForm((current) => ({ ...current, agreed: event.target.checked }));
+                      }}
+                      type="checkbox"
+                    />
+                    <span>
+                      I confirm I have read the consent statement and agree on behalf of{' '}
+                      <strong>{recipient.student.fullName}</strong>.
+                    </span>
+                  </label>
+                ) : null}
                 <Button disabled={!canSubmit} pending={submitResponse.isPending} type="submit">
                   {form.decision === 'Signed' ? 'Submit signed slip' : 'Submit decline'}
                 </Button>
