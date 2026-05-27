@@ -14,3 +14,4 @@ export * from './registration.js';
 export * from './invoice.js';
 export * from './demeritPolicy.js';
 export * from './permissionSlips.js';
+export * from './oasisCalendar.js';

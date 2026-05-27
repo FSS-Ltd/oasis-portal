@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { isOasisOperatingDay } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 
 type DrillThrough = RouterOutputs['childLog']['drillThrough'];
@@ -43,11 +44,6 @@ function statusClass(status: AttendanceStatus | undefined): string {
 
 function statusLabel(status: AttendanceStatus | undefined): string {
   return status ?? 'No record';
-}
-
-function isCentreClosed(date: Date): boolean {
-  const day = date.getUTCDay();
-  return day === 0 || day === 1 || day === 6;
 }
 
 function calendarOffset(date: Date): number {
@@ -121,7 +117,7 @@ export function AttendanceCalendar({
           const date = new Date(Date.UTC(year, month, day));
           const dateKey = toDateKey(date);
           const status = statusByDate.get(dateKey);
-          const closed = isCentreClosed(date);
+          const closed = !isOasisOperatingDay(date);
           const className = [
             'student-attendance-calendar__day',
             closed ? 'is-closed' : statusClass(status),

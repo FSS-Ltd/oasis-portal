@@ -54,11 +54,6 @@ function formatDateTime(value: Date | string): string {
   }).format(new Date(value));
 }
 
-function attendanceLabel(status: AttendanceStatus | undefined): string {
-  if (!status) return 'No mark';
-  return status;
-}
-
 function attendanceSub(child: DashboardChild): string {
   const { attendanceRate, presentDays, recordedAttendanceDays } = child.metrics;
   if (attendanceRate === null) return 'No attendance recorded';
@@ -66,7 +61,6 @@ function attendanceSub(child: DashboardChild): string {
 }
 
 function ChildHero({ child }: { child: DashboardChild }) {
-  const latestAttendance = child.attendance[0];
   const totalMerits = child.metrics.totalMerits;
 
   return (
@@ -84,7 +78,7 @@ function ChildHero({ child }: { child: DashboardChild }) {
       </div>
       <div className="parent-child-hero__stats">
         <div>
-          <strong>{attendanceLabel(latestAttendance?.status)}</strong>
+          <strong>{child.todayStatus.label}</strong>
           <span>Today</span>
         </div>
         <div>
