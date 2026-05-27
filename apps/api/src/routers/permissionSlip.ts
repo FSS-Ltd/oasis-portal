@@ -8,6 +8,7 @@ import {
   AccessDeniedError,
   assertPermissionSlipCanBeParentMarkedPaid,
   assertPermissionSlipPaymentCanBeConfirmed,
+  canUseLinkedChildPermissionSlipAccess,
   initialPermissionSlipPaymentStatus,
   permissionSlipCalendarCategory,
   PERMISSION_SLIP_CATEGORIES,
@@ -232,7 +233,7 @@ async function assertActiveStudents(tx: RlsTx, studentIds: readonly string[]) {
   return uniqueIds;
 }
 
-async function parentStudentIds(ctx: AuthedContext): Promise<string[]> {
+async function linkedChildStudentIds(ctx: AuthedContext): Promise<string[]> {
   const guardians = await ctx.db.guardian.findMany({
     where: { userId: ctx.user.id },
     select: { studentId: true },
@@ -240,12 +241,14 @@ async function parentStudentIds(ctx: AuthedContext): Promise<string[]> {
   return guardians.map((guardian) => guardian.studentId);
 }
 
-async function assertParentRecipientAccess(
+async function assertLinkedChildGuardianRecipientAccess(
   ctx: AuthedContext,
   input: { slipId: string; studentId: string },
 ): Promise<void> {
-  if (ctx.user.role !== 'Parent') {
-    throw toForbidden(new AccessDeniedError('permission slip response requires Parent role'));
+  if (!canUseLinkedChildPermissionSlipAccess(ctx.user)) {
+    throw toForbidden(
+      new AccessDeniedError('permission slip response requires linked-child guardian access'),
+    );
   }
   const guardian = await ctx.db.guardian.findUnique({
     where: { userId_studentId: { userId: ctx.user.id, studentId: input.studentId } },
@@ -647,10 +650,12 @@ export const permissionSlipRouter = router({
   }),
 
   listParent: authedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== 'Parent') {
-      throw toForbidden(new AccessDeniedError('permission slip parent list requires Parent role'));
+    if (!canUseLinkedChildPermissionSlipAccess(ctx.user)) {
+      throw toForbidden(
+        new AccessDeniedError('permission slip list requires linked-child guardian access'),
+      );
     }
-    const studentIds = await parentStudentIds(ctx);
+    const studentIds = await linkedChildStudentIds(ctx);
     if (studentIds.length === 0) return { slips: [] };
     const rows = await ctx.withRls((tx) =>
       tx.permissionSlip.findMany({
@@ -783,7 +788,7 @@ export const permissionSlipRouter = router({
   }),
 
   submitParentResponse: authedProcedure.input(parentResponseInput).mutation(async ({ ctx, input }) => {
-    await assertParentRecipientAccess(ctx, input);
+    await assertLinkedChildGuardianRecipientAccess(ctx, input);
     const slip = await ctx.withRls(async (tx) => {
       const current = await loadSlip(tx, input.slipId);
       validateParentResponse(current, input);
@@ -831,7 +836,7 @@ export const permissionSlipRouter = router({
   }),
 
   parentMarkPaid: authedProcedure.input(recipientInput).mutation(async ({ ctx, input }) => {
-    await assertParentRecipientAccess(ctx, input);
+    await assertLinkedChildGuardianRecipientAccess(ctx, input);
     const slip = await ctx.withRls(async (tx) => {
       const recipient = await tx.permissionSlipRecipient.findUnique({
         where: { slipId_studentId: input },

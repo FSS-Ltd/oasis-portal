@@ -3,6 +3,7 @@ import {
   assertPermissionSlipCanBeParentMarkedPaid,
   assertPermissionSlipPaymentCanBeConfirmed,
   canManagePermissionSlips,
+  canUseLinkedChildPermissionSlipAccess,
   initialPermissionSlipPaymentStatus,
   permissionSlipCalendarCategory,
 } from '../permissionSlips.js';
@@ -23,6 +24,28 @@ describe('permission slip roles', () => {
     expect(canManagePermissionSlips(user('HeadOfDiscipline'))).toBe(false);
     expect(canManagePermissionSlips(user('Supervisor'))).toBe(false);
     expect(canManagePermissionSlips(user('Parent'))).toBe(false);
+  });
+});
+
+describe('linked-child permission slip access', () => {
+  it('allows parent and adult linked-child guardian roles', () => {
+    for (const role of [
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor',
+    ] as const) {
+      expect(canUseLinkedChildPermissionSlipAccess(user(role))).toBe(true);
+    }
+  });
+
+  it('rejects roles that cannot act as linked-child guardians', () => {
+    expect(canUseLinkedChildPermissionSlipAccess(user('Student'))).toBe(false);
+    expect(canUseLinkedChildPermissionSlipAccess(user('ClubsLead'))).toBe(false);
   });
 });
 
