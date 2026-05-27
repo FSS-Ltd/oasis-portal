@@ -29,6 +29,36 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
 
+## Current session - 2026-05-27 GitHub Actions Node 24 runtime
+
+Working branch: `ci/node24-actions`.
+
+**PR scope:** Update first-party GitHub Actions versions in the CI workflow so
+CI, preview deploys, and production deploys stop using deprecated Node 20 action
+runtimes. Do not change the app runtime, deploy logic, cache keys, or package
+manager setup.
+
+Completed:
+
+- Updated `actions/checkout`, `actions/setup-node`, `actions/cache`, and
+  `actions/github-script` references in `.github/workflows/ci.yml` to their
+  Node 24-compatible major versions.
+- Confirmed `NODE_VERSION` remains `20` because that controls the project
+  runtime, not the GitHub action runtime.
+
+Verification:
+
+- `rg "actions/(checkout|setup-node|cache)@v4|actions/github-script@v7" .github/workflows/ci.yml`
+- `pnpm --dir /Users/JeanFidele/Projects/oasis-portal exec prettier --check /private/tmp/oasis-node24-actions/.github/workflows/ci.yml /private/tmp/oasis-node24-actions/PROJECT_Oasis_Context.md`
+- `git diff --check`
+
+Notes:
+
+- The isolated worktree at `/private/tmp/oasis-node24-actions` avoids the dirty
+  primary workspace branch.
+- GitHub Actions PR workflow remains the final validation for the hosted runner
+  environment.
+
 ## Current session - 2026-05-27 Finance fee display
 
 Working branch: `fix/finance-fee-display`.
