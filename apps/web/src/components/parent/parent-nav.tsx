@@ -21,7 +21,7 @@ const parentNavItems = [
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/parent/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },
-  { href: '/parent/fees', label: 'Fees', icon: ReceiptText },
+  { href: '/parent/fees', label: 'Fees/Invoices', icon: ReceiptText },
   { href: '/parent/shop', label: 'Shop', icon: ShoppingBag },
   { href: '/parent/reports', label: 'Reports', icon: FileText },
   { href: '/parent/profile', label: 'My Profile', icon: UserRound },
@@ -34,8 +34,7 @@ const parentMobileNavHrefs = new Set([
   '/parent',
   '/parent/calendar',
   '/parent/permission-slips',
-  '/parent/clubs',
-  '/parent/shop',
+  '/parent/fees',
   '/parent/messages',
 ]);
 const parentTopNavItems = parentNavItems.filter((item) => item.href !== '/parent/profile');
@@ -132,6 +131,12 @@ export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: Paren
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
         const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
+        const mobileLabel =
+          item.label === 'Permission Slips'
+            ? 'Slips'
+            : item.label === 'Fees/Invoices'
+              ? 'Fees'
+              : item.label;
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -144,7 +149,7 @@ export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: Paren
             key={item.label}
           >
             <Icon aria-hidden="true" size={navIconSize} />
-            <span>{item.label}</span>
+            <span>{mobileLabel}</span>
             {badge ? <b>{badge}</b> : null}
           </Link>
         );

@@ -455,6 +455,15 @@
     box-shadow: inset 0 3px 0 var(--oasis-crimson);
   }
 
+  .parent-shell .admin-shell__bottom-item span {
+    overflow: hidden;
+    max-width: 100%;
+    font-size: 0.6rem;
+    line-height: 1.05;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .parent-shell .admin-shell__bottom-item b {
     background: var(--oasis-crimson);
   }

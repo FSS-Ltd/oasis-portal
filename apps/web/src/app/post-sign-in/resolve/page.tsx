@@ -4,6 +4,7 @@ import { canAnswerChildRegistrationPrompt } from '@oasis/domain';
 import { redirect } from 'next/navigation';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
 import { resolvePostSignInDestinationForState } from '@/lib/post-sign-in-routing';
+import { PostSignInTransition } from './post-sign-in-transition';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,11 +40,11 @@ export default async function PostSignInResolvePage() {
     }
   }
 
-  redirect(
-    resolvePostSignInDestinationForState(ctx.user, {
-      childRegistrationPromptRequired,
-      childRegistrationRequired,
-      parentNeedsRegistration,
-    }),
-  );
+  const destination = resolvePostSignInDestinationForState(ctx.user, {
+    childRegistrationPromptRequired,
+    childRegistrationRequired,
+    parentNeedsRegistration,
+  });
+
+  return <PostSignInTransition destination={destination} />;
 }
