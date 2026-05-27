@@ -63,7 +63,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           <ParentTopNav {...parentNavProps} />
           <div className="parent-topbar__actions">
             {canShowPortalViewSwitch && staffHref ? (
-              <PortalViewSwitch activeView="parent" staffHref={staffHref} variant="topbar" />
+              <PortalViewSwitch activeView="parent" variant="topbar" />
             ) : null}
             <ProfileBadgeLink href="/parent/profile" variant="topbar" />
             <LogoutButton className="parent-topbar__logout" />
@@ -87,7 +87,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </Link>
           <div className="admin-shell__mobile-actions">
             {canShowPortalViewSwitch && staffHref ? (
-              <PortalViewSwitch activeView="parent" staffHref={staffHref} variant="mobile" />
+              <PortalViewSwitch activeView="parent" variant="mobile" />
             ) : null}
             <ProfileBadgeLink href="/parent/profile" variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
