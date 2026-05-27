@@ -121,7 +121,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <span>Centre operations</span>
           <ProfileBadgeLink href="/admin/profile" />
           {hasLinkedChildren && staffHref ? (
-            <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="sidebar" />
+            <PortalViewSwitch activeView="staff" variant="sidebar" />
           ) : null}
         </div>
         <AdminSidebarNav {...adminNavProps} />
@@ -149,7 +149,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </Link>
           <div className="admin-shell__mobile-actions">
             {hasLinkedChildren && staffHref ? (
-              <PortalViewSwitch activeView="staff" staffHref={staffHref} variant="mobile" />
+              <PortalViewSwitch activeView="staff" variant="mobile" />
             ) : null}
             <ProfileBadgeLink href="/admin/profile" variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
