@@ -1,6 +1,7 @@
 import { resolvePostSignInPortal, type SessionUser } from '@oasis/domain';
 
 export type PostSignInDestination =
+  | '/2fa'
   | '/admin'
   | '/admin/access'
   | '/admin/clubs'
@@ -14,6 +15,7 @@ export type PostSignInDestination =
 type PostSignInPortal = ReturnType<typeof resolvePostSignInPortal>;
 
 const DESTINATION_BY_PORTAL = {
+  'two-factor-required': '/2fa',
   'full-admin': '/admin',
   'account-admin': '/admin/access',
   'clubs-admin': '/admin/clubs',

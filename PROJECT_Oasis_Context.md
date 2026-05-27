@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-05-27
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 6 mobile production build planned.
+**Phase:** Phase 5 PR-5.5 2FA enforcement feature-flag reconciliation.
 
 ---
 
@@ -28,6 +28,51 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-27 Phase 5 2FA flag reconciliation
+
+Working branch: `feat/reconcile-portal-2fa-flag`.
+
+**PR scope:** Reapply the existing Phase 5 PR-5.5 Clerk two-factor enforcement
+path onto current `origin/main`, keeping enforcement disabled by default behind
+`OASIS_ENFORCE_2FA` until Clerk is upgraded. Do not build later Phase 5
+observability, GDPR, backup, e2e, mobile, UAT, or launch-closeout work in this
+branch.
+
+Completed:
+
+- Reapplied the existing Phase 5 PR-5.5 Clerk two-factor enforcement path onto
+  current `origin/main`.
+- Kept enforcement disabled by default behind `OASIS_ENFORCE_2FA=false` until
+  Clerk is upgraded to Pro.
+- Added `OASIS_ENFORCE_2FA=false` to `.env.example` and included the flag in
+  Turborepo strict env configuration.
+- Updated the Phase 5 plan so PR-5.5 is marked feature-flagged rather than
+  purely planned.
+- Preserved the newer portal switcher post-sign-in behavior while adding the
+  `/2fa` transition route.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- trpc.middleware.test.ts clerk-auth.test.ts`
+- `pnpm --filter @oasis/domain test -- rbac.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- Fetched `origin` during the session and confirmed this branch contains current
+  `origin/main`; there were no upstream commits to merge.
+- Targeted API and domain Vitest commands still ran full package suites because
+  of the repo's package-script argument handling.
+- Existing warnings remain: Prisma config deprecation/driverAdapters warnings
+  and the Next.js ESLint-plugin warning during web build.
 
 ## Current session - 2026-05-27 GitHub Actions Node 24 runtime
 
@@ -4110,9 +4155,8 @@ typecheck` now passes locally.
   Realtime project with Clerk third-party auth enabled.
 - 2026-05-27 parent dashboard today status: parent hero attendance now uses
   parent-visible HalfTerm calendar closures and Oasis Tue-Fri operating days
-  before showing today's attendance mark. Verification in this session:
-  domain/API focused tests, domain/API/web typecheck and lint, `git diff
-  --check`, and `graphify update .` pass.
+  before showing today's attendance mark. Verification: focused tests,
+  typecheck/lint, `git diff --check`, and `graphify update .` pass.
 
 ## Design decisions made (see ADRs for full rationale)
 

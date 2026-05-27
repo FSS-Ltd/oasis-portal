@@ -13,7 +13,9 @@ export { adminRouter, createAdminRouter, type AdminRouterDeps } from './routers/
 export { profileRouter } from './routers/profile.js';
 export {
   createDefaultClerkInvitationClient,
+  resolveClerkSessionFromBearerToken,
   resolveClerkUserIdFromBearerToken,
+  type ClerkSessionAuthResult,
   type ClerkInvitationClient,
   type ClerkInvitationCreateInput,
   type ClerkInvitationResult,

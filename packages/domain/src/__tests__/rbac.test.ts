@@ -25,6 +25,7 @@ import {
   canViewStudentDrillThrough,
   canSubmitInitialRegistration,
   canUseClubsLeadPortal,
+  hasCompletedTwoFactor,
   isFullAdmin,
   isStaff,
   requireClubsLead,
@@ -185,6 +186,11 @@ describe('child registration prompt roles', () => {
 });
 
 describe('resolvePostSignInPortal', () => {
+  it('sends users without completed 2FA to setup before portal routing', () => {
+    expect(resolvePostSignInPortal({ ...head, requires2fa: true })).toBe('two-factor-required');
+    expect(resolvePostSignInPortal({ ...parent, requires2fa: true })).toBe('two-factor-required');
+  });
+
   it('sends full admins to the admin portal', () => {
     expect(resolvePostSignInPortal(head)).toBe('full-admin');
     expect(resolvePostSignInPortal(principal)).toBe('full-admin');
@@ -213,6 +219,18 @@ describe('resolvePostSignInPortal', () => {
 
   it('sends missing local users to not-ready', () => {
     expect(resolvePostSignInPortal(null)).toBe('not-ready');
+  });
+});
+
+describe('hasCompletedTwoFactor', () => {
+  it('accepts Clerk factor verification age only when the second factor has been verified', () => {
+    expect(hasCompletedTwoFactor([0, 0])).toBe(true);
+    expect(hasCompletedTwoFactor([9, 2])).toBe(true);
+    expect(hasCompletedTwoFactor([9, -1])).toBe(false);
+    expect(hasCompletedTwoFactor(null)).toBe(false);
+    expect(hasCompletedTwoFactor([0])).toBe(false);
+    expect(hasCompletedTwoFactor(['0', 0])).toBe(false);
+    expect(hasCompletedTwoFactor([0, Number.NaN])).toBe(false);
   });
 });
 

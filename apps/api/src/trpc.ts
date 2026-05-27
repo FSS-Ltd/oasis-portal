@@ -36,6 +36,12 @@ const requireAuth = t.middleware(({ ctx, next }) => {
   if (!ctx.user) {
     throw new TRPCError({ code: 'UNAUTHORIZED', message: 'sign-in required' });
   }
+  if (ctx.user.requires2fa) {
+    throw new TRPCError({
+      code: 'UNAUTHORIZED',
+      message: 'two-factor authentication required',
+    });
+  }
   return next({ ctx: { ...ctx, user: ctx.user } });
 });
 

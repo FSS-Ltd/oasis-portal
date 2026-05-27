@@ -5,7 +5,7 @@
  * interface so router tests can pass a fake without needing CLERK_SECRET_KEY.
  */
 import { createClerkClient, verifyToken as verifyClerkToken } from '@clerk/backend';
-import type { PermissionTag, Role } from '@oasis/domain';
+import { hasCompletedTwoFactor, type PermissionTag, type Role } from '@oasis/domain';
 
 export interface ClerkInvitationCreateInput {
   emailAddress: string;
@@ -44,6 +44,7 @@ export interface ClerkUserEmailClient {
 
 interface ClerkTokenPayload {
   sub?: unknown;
+  fva?: unknown;
 }
 
 type ClerkBearerTokenVerifier = (token: string) => Promise<ClerkTokenPayload>;
@@ -51,6 +52,11 @@ type ClerkBearerTokenVerifier = (token: string) => Promise<ClerkTokenPayload>;
 export interface ResolveClerkBearerTokenDeps {
   secretKey?: string | undefined;
   verifyToken?: ClerkBearerTokenVerifier | undefined;
+}
+
+export interface ClerkSessionAuthResult {
+  clerkUserId: string;
+  twoFactorSatisfied: boolean;
 }
 
 function bearerTokenFrom(headers: Headers): string | null {
@@ -62,10 +68,10 @@ function bearerTokenFrom(headers: Headers): string | null {
   return token;
 }
 
-export async function resolveClerkUserIdFromBearerToken(
+export async function resolveClerkSessionFromBearerToken(
   headers: Headers,
   deps: ResolveClerkBearerTokenDeps = {},
-): Promise<string | null> {
+): Promise<ClerkSessionAuthResult | null> {
   const token = bearerTokenFrom(headers);
   if (!token) return null;
 
@@ -80,10 +86,23 @@ export async function resolveClerkUserIdFromBearerToken(
       payload = await verifyClerkToken(token, { secretKey });
     }
 
-    return typeof payload.sub === 'string' && payload.sub.length > 0 ? payload.sub : null;
+    if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null;
+
+    return {
+      clerkUserId: payload.sub,
+      twoFactorSatisfied: hasCompletedTwoFactor(payload.fva),
+    };
   } catch {
     return null;
   }
+}
+
+export async function resolveClerkUserIdFromBearerToken(
+  headers: Headers,
+  deps: ResolveClerkBearerTokenDeps = {},
+): Promise<string | null> {
+  const session = await resolveClerkSessionFromBearerToken(headers, deps);
+  return session?.clerkUserId ?? null;
 }
 
 function mapInvitation(invitation: {

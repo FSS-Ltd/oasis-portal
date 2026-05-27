@@ -13,6 +13,7 @@ const PORTAL_COPY_BY_DESTINATION = {
   '/supervisor': 'Preparing your supervisor portal',
   '/parent': 'Preparing your parent portal',
   '/registration': 'Preparing registration',
+  '/2fa': 'Preparing two-factor setup',
   '/not-ready': 'Preparing your Oasis portal',
 } satisfies Record<PostSignInDestination, string>;
 

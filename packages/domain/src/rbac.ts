@@ -88,6 +88,25 @@ export interface SessionUser {
   requires2fa: boolean;
 }
 
+export function hasCompletedTwoFactor(factorVerificationAge: unknown): boolean {
+  if (!Array.isArray(factorVerificationAge) || factorVerificationAge.length < 2) {
+    return false;
+  }
+
+  const factors: readonly unknown[] = factorVerificationAge;
+  const firstFactorAge = factors[0];
+  const secondFactorAge = factors[1];
+
+  return (
+    typeof firstFactorAge === 'number' &&
+    Number.isFinite(firstFactorAge) &&
+    firstFactorAge >= 0 &&
+    typeof secondFactorAge === 'number' &&
+    Number.isFinite(secondFactorAge) &&
+    secondFactorAge >= 0
+  );
+}
+
 const FULL_ADMIN_ROLES: ReadonlySet<Role> = new Set([
   'Head',
   'Principal',
@@ -171,6 +190,7 @@ export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean 
 }
 
 export type PostSignInPortal =
+  | 'two-factor-required'
   | 'full-admin'
   | 'account-admin'
   | 'clubs-admin'
@@ -181,6 +201,7 @@ export type PostSignInPortal =
 
 export function resolvePostSignInPortal(user: SessionUser | null): PostSignInPortal {
   if (!user) return 'not-ready';
+  if (user.requires2fa) return 'two-factor-required';
 
   if (isFullAdmin(user)) return 'full-admin';
   if (canManageUserAccounts(user)) return 'account-admin';

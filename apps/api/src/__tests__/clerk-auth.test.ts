@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { resolveClerkUserIdFromBearerToken } from '../lib/clerk.js';
+import {
+  resolveClerkSessionFromBearerToken,
+  resolveClerkUserIdFromBearerToken,
+} from '../lib/clerk.js';
 
 describe('resolveClerkUserIdFromBearerToken', () => {
   it('returns null when the authorization header is absent or malformed', async () => {
@@ -20,6 +23,25 @@ describe('resolveClerkUserIdFromBearerToken', () => {
         },
       }),
     ).resolves.toBe('user_clerk_123');
+  });
+
+  it('returns session 2FA state from Clerk factor verification age claims', async () => {
+    const headers = new Headers({ authorization: 'Bearer token_2fa' });
+
+    await expect(
+      resolveClerkSessionFromBearerToken(headers, {
+        verifyToken: (token) => {
+          expect(token).toBe('token_2fa');
+          return Promise.resolve({ sub: 'user_clerk_2fa', fva: [1, 0] });
+        },
+      }),
+    ).resolves.toEqual({ clerkUserId: 'user_clerk_2fa', twoFactorSatisfied: true });
+
+    await expect(
+      resolveClerkSessionFromBearerToken(headers, {
+        verifyToken: () => Promise.resolve({ sub: 'user_clerk_no_2fa', fva: [1, -1] }),
+      }),
+    ).resolves.toEqual({ clerkUserId: 'user_clerk_no_2fa', twoFactorSatisfied: false });
   });
 
   it('returns null when token verification fails or has no subject', async () => {

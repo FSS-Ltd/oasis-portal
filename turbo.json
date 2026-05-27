@@ -13,7 +13,8 @@
         "FEATURE_PUSH_NOTIFICATIONS",
         "INVESTMENT_NAV_SEED",
         "NEXT_PUBLIC_*",
-        "NODE_ENV"
+        "NODE_ENV",
+        "OASIS_ENFORCE_2FA"
       ],
       "passThroughEnv": [
         "AXIOM_TOKEN",

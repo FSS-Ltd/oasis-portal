@@ -8,7 +8,6 @@ const isProtectedRoute = createRouteMatcher([
   '/supervisor(.*)',
   '/parent(.*)',
   '/registration(.*)',
-  '/2fa(.*)',
   '/not-ready(.*)',
 ]);
 
