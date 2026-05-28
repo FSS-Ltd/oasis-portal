@@ -13,26 +13,69 @@ import { RotaWeekSchedule } from './_components/rota-week-schedule';
 import {
   addDays,
   asDateTime,
-  availabilityLabel,
+  availabilityTimeLabel,
   dateKey,
   emptyShiftForm,
   formatDateTime,
-  formatDateLabel,
   mondayFor,
-  monthlyUnavailabilityLabel,
   monthlyUnavailabilityTimeLabel,
   shiftToForm,
   today,
+  type RotaDayAvailabilitySummary,
   type RotaShift,
   type ShiftForm,
   type StaffAvailability,
   type StaffMonthlyAvailability,
 } from './_components/rota-utils';
 
-function selectedDateUnavailabilityLabel(date: string): string {
-  if (!date) return 'on the selected date';
-  if (date === dateKey(today())) return 'today';
-  return `on ${formatDateLabel(new Date(`${date}T00:00:00.000Z`))}`;
+function buildStaffAvailabilityByDay({
+  staffAvailability,
+  staffMonthlyAvailability,
+  weekDays,
+}: {
+  staffAvailability: readonly StaffAvailability[];
+  staffMonthlyAvailability: readonly StaffMonthlyAvailability[];
+  weekDays: readonly Date[];
+}): RotaDayAvailabilitySummary[] {
+  return weekDays.map((day) => {
+    const date = dateKey(day);
+    const dayOfWeek = day.getUTCDay();
+    const unavailable = staffMonthlyAvailability.flatMap((staff) =>
+      staff.availability
+        .filter((window) => window.date === date)
+        .map((window) => ({
+          id: `${staff.id}-${window.id}`,
+          label: staff.fullName,
+          detail: monthlyUnavailabilityTimeLabel(window),
+        })),
+    );
+    const allDayUnavailableStaffIds = new Set(
+      staffMonthlyAvailability
+        .filter((staff) =>
+          staff.availability.some(
+            (window) =>
+              window.date === date && window.startMinute === 0 && window.endMinute === 1440,
+          ),
+        )
+        .map((staff) => staff.id),
+    );
+    return {
+      date,
+      available: staffAvailability.flatMap((staff) => {
+        if (allDayUnavailableStaffIds.has(staff.id)) return [];
+        return staff.availability
+          .filter((window) => window.dayOfWeek === dayOfWeek)
+          .map((window) => ({
+            id: `${staff.id}-${String(window.dayOfWeek)}-${String(window.startMinute)}-${String(
+              window.endMinute,
+            )}`,
+            label: staff.fullName,
+            detail: availabilityTimeLabel(window),
+          }));
+      }),
+      unavailable,
+    };
+  });
 }
 
 export function RotaSchedulerClient() {
@@ -69,6 +112,14 @@ export function RotaSchedulerClient() {
   const staffAvailability = (availabilityQuery.data ?? []) as StaffAvailability[];
   const staffMonthlyAvailability = (monthlyAvailabilityQuery.data ??
     []) as StaffMonthlyAvailability[];
+  const staffAvailabilityByDay = useMemo(
+    () => buildStaffAvailabilityByDay({ staffAvailability, staffMonthlyAvailability, weekDays }),
+    [staffAvailability, staffMonthlyAvailability, weekDays],
+  );
+  const availabilityErrorMessage =
+    availabilityQuery.error || monthlyAvailabilityQuery.error
+      ? friendlyErrorMessage(availabilityQuery.error ?? monthlyAvailabilityQuery.error)
+      : undefined;
 
   const refreshRota = async () => {
     await Promise.all([
@@ -128,17 +179,6 @@ export function RotaSchedulerClient() {
     },
   });
 
-  const selectedStaffAvailability = staffAvailability.find(
-    (staff) => staff.id === shiftForm.staffUserId,
-  );
-  const selectedStaffMonthlyAvailability = staffMonthlyAvailability.find(
-    (staff) => staff.id === shiftForm.staffUserId,
-  );
-  const selectedShiftDateUnavailableWindows =
-    selectedStaffMonthlyAvailability?.availability.filter(
-      (window) => window.date === shiftForm.date,
-    ) ?? [];
-  const selectedShiftDateLabel = selectedDateUnavailabilityLabel(shiftForm.date);
   const mutationError =
     createShift.error ??
     updateShift.error ??
@@ -149,7 +189,9 @@ export function RotaSchedulerClient() {
   return (
     <div className="rota-layout">
       <RotaWeekSchedule
+        availabilityErrorMessage={availabilityErrorMessage}
         errorMessage={scheduleQuery.error ? friendlyErrorMessage(scheduleQuery.error) : undefined}
+        isAvailabilityLoading={availabilityQuery.isLoading || monthlyAvailabilityQuery.isLoading}
         isFetching={scheduleQuery.isFetching}
         isLoading={scheduleQuery.isLoading}
         onNextWeek={() => {
@@ -169,6 +211,7 @@ export function RotaSchedulerClient() {
           setWeekStart(nextWeek);
           setShiftForm((current) => ({ ...current, date: dateKey(nextWeek) }));
         }}
+        staffAvailabilityByDay={staffAvailabilityByDay}
         shifts={shifts}
         weekDays={weekDays}
         weekEnd={weekEnd}
@@ -340,95 +383,6 @@ export function RotaSchedulerClient() {
 
         <MyAvailabilityEditor title="My availability" />
         <MonthlyAvailabilityEditor title="My monthly unavailability" />
-
-        <section className="panel">
-          <div className="panel__body">
-            <div className="section-title">
-              <h2>Weekly availability</h2>
-            </div>
-            {availabilityQuery.isLoading ? (
-              <div className="empty-state">Loading availability...</div>
-            ) : null}
-            {availabilityQuery.error ? (
-              <p className="status--error">{friendlyErrorMessage(availabilityQuery.error)}</p>
-            ) : null}
-            {selectedStaffAvailability ? (
-              <div className="availability-list">
-                <strong>{selectedStaffAvailability.fullName}</strong>
-                {selectedStaffAvailability.availability.length === 0 ? (
-                  <span className="muted">No availability set</span>
-                ) : (
-                  selectedStaffAvailability.availability.map((window) => (
-                    <span
-                      className="availability-pill"
-                      key={`${String(window.dayOfWeek)}-${String(window.startMinute)}`}
-                    >
-                      {availabilityLabel(window)}
-                    </span>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="availability-list">
-                {staffAvailability.slice(0, 6).map((staff) => (
-                  <div className="availability-row" key={staff.id}>
-                    <strong>{staff.fullName}</strong>
-                    <span>
-                      {staff.availability.length === 0
-                        ? 'No availability'
-                        : staff.availability.map(availabilityLabel).join(', ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel__body">
-            <div className="section-title">
-              <h2>Monthly unavailability</h2>
-            </div>
-            {monthlyAvailabilityQuery.isLoading ? (
-              <div className="empty-state">Loading monthly unavailability...</div>
-            ) : null}
-            {monthlyAvailabilityQuery.error ? (
-              <p className="status--error">
-                {friendlyErrorMessage(monthlyAvailabilityQuery.error)}
-              </p>
-            ) : null}
-            {selectedStaffMonthlyAvailability ? (
-              <div className="availability-list">
-                <strong>
-                  {selectedStaffMonthlyAvailability.fullName} is unavailable {selectedShiftDateLabel}
-                </strong>
-                {selectedShiftDateUnavailableWindows.length === 0 ? (
-                  <span className="muted">No monthly unavailability set for this date</span>
-                ) : (
-                  selectedShiftDateUnavailableWindows.map((window) => (
-                    <span className="availability-pill" key={window.id}>
-                      {monthlyUnavailabilityTimeLabel(window)}
-                    </span>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="availability-list">
-                {staffMonthlyAvailability.slice(0, 6).map((staff) => (
-                  <div className="availability-row" key={staff.id}>
-                    <strong>{staff.fullName}</strong>
-                    <span>
-                      {staff.availability.length === 0
-                        ? 'No monthly unavailability'
-                        : staff.availability.map(monthlyUnavailabilityLabel).join(', ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
 
         <section className="panel">
           <div className="panel__body">

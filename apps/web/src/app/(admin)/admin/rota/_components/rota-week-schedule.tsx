@@ -1,11 +1,20 @@
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { dateKey, dayLabels, formatDateLabel, formatDateTime, type RotaShift } from './rota-utils';
+import {
+  dateKey,
+  dayLabels,
+  formatDateLabel,
+  formatDateTime,
+  type RotaDayAvailabilitySummary,
+  type RotaShift,
+} from './rota-utils';
 
 const MEETING_COLOUR = '#0f766e';
 
 interface RotaWeekScheduleProps {
+  availabilityErrorMessage?: string | undefined;
   errorMessage?: string | undefined;
+  isAvailabilityLoading: boolean;
   isFetching: boolean;
   isLoading: boolean;
   onNextWeek: () => void;
@@ -13,6 +22,7 @@ interface RotaWeekScheduleProps {
   onRefresh: () => void;
   onSelectShift: (shift: RotaShift) => void;
   onThisWeek: () => void;
+  staffAvailabilityByDay: readonly RotaDayAvailabilitySummary[];
   shifts: readonly RotaShift[];
   weekDays: readonly Date[];
   weekEnd: Date;
@@ -20,7 +30,9 @@ interface RotaWeekScheduleProps {
 }
 
 export function RotaWeekSchedule({
+  availabilityErrorMessage,
   errorMessage,
+  isAvailabilityLoading,
   isFetching,
   isLoading,
   onNextWeek,
@@ -28,6 +40,7 @@ export function RotaWeekSchedule({
   onRefresh,
   onSelectShift,
   onThisWeek,
+  staffAvailabilityByDay,
   shifts,
   weekDays,
   weekEnd,
@@ -67,16 +80,62 @@ export function RotaWeekSchedule({
 
         {isLoading ? <div className="empty-state">Loading rota...</div> : null}
         {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
+        {availabilityErrorMessage ? (
+          <p className="status--error">{availabilityErrorMessage}</p>
+        ) : null}
         <div className="rota-week-grid">
           {weekDays.map((day) => {
             const key = dateKey(day);
             const dayShifts = shifts.filter((shift) => shift.date === key);
+            const dayAvailability = staffAvailabilityByDay.find((summary) => summary.date === key);
             return (
               <article className="rota-day" key={key}>
                 <header>
                   <span>{dayLabels[day.getUTCDay()]}</span>
                   <strong>{formatDateLabel(day)}</strong>
                 </header>
+                {dayAvailability ? (
+                  <div className="rota-availability-badges" aria-label={`Availability for ${key}`}>
+                    {isAvailabilityLoading ? (
+                      <span className="rota-availability-badge is-empty">Loading availability</span>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="rota-availability-badges__label">Available</span>
+                          {dayAvailability.available.length === 0 ? (
+                            <span className="rota-availability-badge is-empty">None set</span>
+                          ) : (
+                            dayAvailability.available.map((staff) => (
+                              <span
+                                className="rota-availability-badge is-available"
+                                key={staff.id}
+                              >
+                                {staff.label}
+                                <small>{staff.detail}</small>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        <div>
+                          <span className="rota-availability-badges__label">Unavailable</span>
+                          {dayAvailability.unavailable.length === 0 ? (
+                            <span className="rota-availability-badge is-empty">None set</span>
+                          ) : (
+                            dayAvailability.unavailable.map((staff) => (
+                              <span
+                                className="rota-availability-badge is-unavailable"
+                                key={staff.id}
+                              >
+                                {staff.label}
+                                <small>{staff.detail}</small>
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : null}
                 {dayShifts.length === 0 ? (
                   <p className="muted">No shifts</p>
                 ) : (

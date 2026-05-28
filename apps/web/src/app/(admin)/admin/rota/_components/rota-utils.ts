@@ -38,6 +38,18 @@ export type StaffMonthlyAvailability = {
   availability: MonthlyAvailabilityWindow[];
 };
 
+export type RotaAvailabilityBadge = {
+  id: string;
+  label: string;
+  detail: string;
+};
+
+export type RotaDayAvailabilitySummary = {
+  date: string;
+  available: RotaAvailabilityBadge[];
+  unavailable: RotaAvailabilityBadge[];
+};
+
 export type RotaShift = {
   id: string;
   staffUserId: string;
@@ -122,7 +134,11 @@ export function shiftToForm(shift: RotaShift): ShiftForm {
 
 export function availabilityLabel(window: AvailabilityWindow): string {
   const dayLabel = dayLabels[window.dayOfWeek] ?? 'Unknown';
-  return `${dayLabel} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
+  return `${dayLabel} ${availabilityTimeLabel(window)}`;
+}
+
+export function availabilityTimeLabel(window: AvailabilityWindow): string {
+  return `${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
 }
 
 export function monthlyUnavailabilityTimeLabel(window: MonthlyAvailabilityWindow): string {
