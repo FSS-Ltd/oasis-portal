@@ -1038,6 +1038,7 @@ enum CalendarEventCategory {
   HalfTerm
   Trips
   OasisDays
+  TheCedars
   Birthdays
   Meetings
   Trainings
