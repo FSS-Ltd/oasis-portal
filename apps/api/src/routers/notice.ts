@@ -79,7 +79,10 @@ const prepareAttachmentsInput = z.object({
   attachments: z.array(attachmentMetadataInput).min(1).max(MAX_NOTICE_ATTACHMENTS),
 });
 
-const attachmentIdInput = z.object({ attachmentId: z.string().cuid() });
+const downloadAttachmentInput = z.object({
+  attachmentId: z.string().cuid(),
+  markRead: z.boolean().optional().default(false),
+});
 
 const attachmentMimeByExtension = {
   '.doc': 'application/msword',
@@ -394,6 +397,60 @@ function mapNotice(
   };
 }
 
+async function createNoticeReadReceipt(
+  ctx: AuthedContext,
+  noticeId: string,
+  source: 'notice.markRead' | 'notice.viewAttachment',
+) {
+  const existingRead = await ctx.db.staffNoticeRead.findUnique({
+    where: { noticeId_userId: { noticeId, userId: ctx.user.id } },
+    select: { noticeId: true, userId: true, readAt: true },
+  });
+  if (existingRead) {
+    return {
+      noticeId: existingRead.noticeId,
+      readAt: existingRead.readAt,
+    };
+  }
+
+  let read: { noticeId: string; readAt: Date };
+  try {
+    read = await ctx.db.staffNoticeRead.create({
+      data: { noticeId, userId: ctx.user.id },
+      select: { noticeId: true, userId: true, readAt: true },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      const concurrentRead = await ctx.db.staffNoticeRead.findUnique({
+        where: { noticeId_userId: { noticeId, userId: ctx.user.id } },
+        select: { noticeId: true, userId: true, readAt: true },
+      });
+      if (concurrentRead) {
+        return {
+          noticeId: concurrentRead.noticeId,
+          readAt: concurrentRead.readAt,
+        };
+      }
+    }
+    throw error;
+  }
+
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'Update',
+      entity: 'StaffNoticeRead',
+      entityId: noticeId,
+      meta: { source, noticeId },
+    },
+  });
+
+  return {
+    noticeId: read.noticeId,
+    readAt: read.readAt,
+  };
+}
+
 export const noticeRouter = router({
   listForAdmin: authedProcedure.query(async ({ ctx }) => {
     requireNoticePoster(ctx.user);
@@ -566,60 +623,66 @@ export const noticeRouter = router({
       })),
     };
   }),
-  downloadAttachment: authedProcedure.input(attachmentIdInput).query(async ({ ctx, input }) => {
-    const attachment = await ctx.db.staffNoticeAttachment.findUnique({
-      where: { id: input.attachmentId },
-      include: {
-        notice: {
-          select: {
-            id: true,
-            active: true,
-            audience: true,
-            expiresAt: true,
+  downloadAttachment: authedProcedure
+    .input(downloadAttachmentInput)
+    .query(async ({ ctx, input }) => {
+      const attachment = await ctx.db.staffNoticeAttachment.findUnique({
+        where: { id: input.attachmentId },
+        include: {
+          notice: {
+            select: {
+              id: true,
+              active: true,
+              audience: true,
+              expiresAt: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    if (
-      !attachment ||
-      !isAvailableNotice(attachment.notice, new Date()) ||
-      !(await canReadNoticeAudience(ctx, attachment.notice.audience))
-    ) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'notice attachment not found' });
-    }
+      if (
+        !attachment ||
+        !isAvailableNotice(attachment.notice, new Date()) ||
+        !(await canReadNoticeAudience(ctx, attachment.notice.audience))
+      ) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'notice attachment not found' });
+      }
 
-    const fileName = decryptRequired(ctx.db.$enc.decrypt, attachment.originalFileNameEnc);
-    const storagePath = decryptRequired(ctx.db.$enc.decrypt, attachment.storagePathEnc);
-    const kind = attachmentKind(attachment.mimeType);
+      const fileName = decryptRequired(ctx.db.$enc.decrypt, attachment.originalFileNameEnc);
+      const storagePath = decryptRequired(ctx.db.$enc.decrypt, attachment.storagePathEnc);
+      const kind = attachmentKind(attachment.mimeType);
 
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'ReadSensitive',
-        entity: 'StaffNoticeAttachment',
-        entityId: attachment.id,
-        meta: {
-          source: 'notice.downloadAttachment',
-          noticeId: attachment.noticeId,
-          mimeType: attachment.mimeType,
-          sizeBytes: attachment.sizeBytes,
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'ReadSensitive',
+          entity: 'StaffNoticeAttachment',
+          entityId: attachment.id,
+          meta: {
+            source: 'notice.downloadAttachment',
+            noticeId: attachment.noticeId,
+            mimeType: attachment.mimeType,
+            sizeBytes: attachment.sizeBytes,
+          },
         },
-      },
-    });
+      });
 
-    return {
-      attachmentId: attachment.id,
-      noticeId: attachment.noticeId,
-      fileName,
-      mimeType: attachment.mimeType,
-      sizeBytes: attachment.sizeBytes,
-      storageBucket: attachment.storageBucket,
-      storagePath,
-      kind,
-      canPreview: kind === 'image' || kind === 'pdf',
-    };
-  }),
+      if (input.markRead && ctx.user.role === 'Parent') {
+        await createNoticeReadReceipt(ctx, attachment.noticeId, 'notice.viewAttachment');
+      }
+
+      return {
+        attachmentId: attachment.id,
+        noticeId: attachment.noticeId,
+        fileName,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        storageBucket: attachment.storageBucket,
+        storagePath,
+        kind,
+        canPreview: kind === 'image' || kind === 'pdf',
+      };
+    }),
   markRead: authedProcedure
     .input(z.object({ noticeId: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -641,52 +704,6 @@ export const noticeRouter = router({
         });
       }
 
-      const existingRead = await ctx.db.staffNoticeRead.findUnique({
-        where: { noticeId_userId: { noticeId: input.noticeId, userId: ctx.user.id } },
-        select: { noticeId: true, userId: true, readAt: true },
-      });
-      if (existingRead) {
-        return {
-          noticeId: existingRead.noticeId,
-          readAt: existingRead.readAt,
-        };
-      }
-
-      let read: { noticeId: string; readAt: Date };
-      try {
-        read = await ctx.db.staffNoticeRead.create({
-          data: { noticeId: input.noticeId, userId: ctx.user.id },
-          select: { noticeId: true, userId: true, readAt: true },
-        });
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          const concurrentRead = await ctx.db.staffNoticeRead.findUnique({
-            where: { noticeId_userId: { noticeId: input.noticeId, userId: ctx.user.id } },
-            select: { noticeId: true, userId: true, readAt: true },
-          });
-          if (concurrentRead) {
-            return {
-              noticeId: concurrentRead.noticeId,
-              readAt: concurrentRead.readAt,
-            };
-          }
-        }
-        throw error;
-      }
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'StaffNoticeRead',
-          entityId: input.noticeId,
-          meta: { source: 'notice.markRead', noticeId: input.noticeId },
-        },
-      });
-
-      return {
-        noticeId: read.noticeId,
-        readAt: read.readAt,
-      };
+      return createNoticeReadReceipt(ctx, input.noticeId, 'notice.markRead');
     }),
 });

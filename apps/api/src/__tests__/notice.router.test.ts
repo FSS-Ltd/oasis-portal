@@ -985,6 +985,83 @@ describe('notice.downloadAttachment', () => {
     });
   });
 
+  it('marks parent notices read when a parent previews an attachment', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const notice = makeNotice({
+      id: 'cmnotice00000000000000024',
+      title: 'Parent preview file',
+      audience: 'Parents',
+    });
+    const attachment: StoredAttachment = {
+      id: 'cmattachment00000000000024',
+      noticeId: notice.id,
+      originalFileNameEnc: encrypt('preview.pdf'),
+      mimeType: 'application/pdf',
+      sizeBytes: pdfBytes.length,
+      storageBucket: 'notice-attachments',
+      storagePathEnc: encrypt('notices/u_head/preview.pdf'),
+      position: 1,
+      createdAt: new Date('2026-05-08T12:00:00.000Z'),
+    };
+    const { caller, db } = makeCaller(
+      parentUser,
+      makeFakeDb([notice], [], defaultUsers, [attachment]),
+    );
+    const noticeApi = caller.notice as unknown as {
+      downloadAttachment(input: { attachmentId: string; markRead?: boolean }): Promise<unknown>;
+    };
+
+    await noticeApi.downloadAttachment({ attachmentId: attachment.id, markRead: true });
+    await noticeApi.downloadAttachment({ attachmentId: attachment.id, markRead: true });
+
+    expect(db.staffNoticeRead.create).toHaveBeenCalledTimes(1);
+    expect(db.reads).toEqual([
+      { noticeId: notice.id, userId: parentUser.id, readAt: new Date('2026-05-08T12:00:00.000Z') },
+    ]);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: parentUser.id,
+        action: 'Update',
+        entity: 'StaffNoticeRead',
+        entityId: notice.id,
+        meta: { source: 'notice.viewAttachment', noticeId: notice.id },
+      },
+    });
+  });
+
+  it('does not mark parent notices read when an attachment is downloaded without preview marking', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const notice = makeNotice({
+      id: 'cmnotice00000000000000025',
+      title: 'Parent download file',
+      audience: 'Parents',
+    });
+    const attachment: StoredAttachment = {
+      id: 'cmattachment00000000000025',
+      noticeId: notice.id,
+      originalFileNameEnc: encrypt('download.pdf'),
+      mimeType: 'application/pdf',
+      sizeBytes: pdfBytes.length,
+      storageBucket: 'notice-attachments',
+      storagePathEnc: encrypt('notices/u_head/download.pdf'),
+      position: 1,
+      createdAt: new Date('2026-05-08T12:00:00.000Z'),
+    };
+    const { caller, db } = makeCaller(
+      parentUser,
+      makeFakeDb([notice], [], defaultUsers, [attachment]),
+    );
+    const noticeApi = caller.notice as unknown as {
+      downloadAttachment(input: { attachmentId: string; markRead?: boolean }): Promise<unknown>;
+    };
+
+    await noticeApi.downloadAttachment({ attachmentId: attachment.id, markRead: false });
+
+    expect(db.staffNoticeRead.create).not.toHaveBeenCalled();
+    expect(db.reads).toEqual([]);
+    expect(db.auditLog.create).toHaveBeenCalledTimes(1);
+  });
+
   it('does not leak attachments across audiences or unavailable notices', async () => {
     vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
     const parentNotice = makeNotice({
@@ -1025,21 +1102,25 @@ describe('notice.downloadAttachment', () => {
       expiredAttachment,
     ]);
     const supervisorNoticeApi = makeCaller(supervisorUser, db).caller.notice as unknown as {
-      downloadAttachment(input: { attachmentId: string }): Promise<unknown>;
+      downloadAttachment(input: { attachmentId: string; markRead?: boolean }): Promise<unknown>;
     };
     const parentNoticeApi = makeCaller(parentUser, db).caller.notice as unknown as {
-      downloadAttachment(input: { attachmentId: string }): Promise<unknown>;
+      downloadAttachment(input: { attachmentId: string; markRead?: boolean }): Promise<unknown>;
     };
 
     await expect(
-      supervisorNoticeApi.downloadAttachment({ attachmentId: parentAttachment.id }),
+      supervisorNoticeApi.downloadAttachment({ attachmentId: parentAttachment.id, markRead: true }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      parentNoticeApi.downloadAttachment({ attachmentId: expiredAttachment.id }),
+      parentNoticeApi.downloadAttachment({ attachmentId: expiredAttachment.id, markRead: true }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     await expect(
-      parentNoticeApi.downloadAttachment({ attachmentId: 'cmattachment00000000000999' }),
+      parentNoticeApi.downloadAttachment({
+        attachmentId: 'cmattachment00000000000999',
+        markRead: true,
+      }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(db.staffNoticeRead.create).not.toHaveBeenCalled();
   });
 });
 

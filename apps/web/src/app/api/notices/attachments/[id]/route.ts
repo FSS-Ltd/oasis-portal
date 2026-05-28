@@ -12,7 +12,10 @@ export async function GET(req: Request, context: NoticeAttachmentRouteContext): 
     const url = new URL(req.url);
     const shouldDownload = url.searchParams.get('download') === '1';
     const caller = await createCallerForRequest(req);
-    const result = await caller.notice.downloadAttachment({ attachmentId: params.id });
+    const result = await caller.notice.downloadAttachment({
+      attachmentId: params.id,
+      markRead: !shouldDownload,
+    });
     const supabase = createAdminClient();
     const { data, error } = await supabase.storage
       .from(result.storageBucket)
