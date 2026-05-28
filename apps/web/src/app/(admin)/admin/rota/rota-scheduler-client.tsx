@@ -382,7 +382,7 @@ export function RotaSchedulerClient() {
         </section>
 
         <MyAvailabilityEditor title="My availability" />
-        <MonthlyAvailabilityEditor title="My monthly unavailability" />
+        <MonthlyAvailabilityEditor title="Unavailable dates" />
 
         <section className="panel">
           <div className="panel__body">

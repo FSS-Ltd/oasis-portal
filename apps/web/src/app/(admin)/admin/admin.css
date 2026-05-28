@@ -5506,8 +5506,7 @@ button.club-assignment-row {
 
 .monthly-availability-editor .availability-editor__row {
   grid-template-columns:
-    minmax(130px, 1fr) minmax(96px, 0.6fr) minmax(86px, 0.7fr) minmax(86px, 0.7fr)
-    auto;
+    minmax(130px, 0.9fr) minmax(104px, auto) minmax(180px, 1fr) auto;
 }
 
 .monthly-availability-editor__all-day-toggle {
@@ -5515,8 +5514,10 @@ button.club-assignment-row {
   margin-bottom: 0;
 }
 
-.monthly-availability-editor__all-day-field {
-  grid-column: span 2;
+.monthly-availability-editor__time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .monthly-availability-editor__all-day {
@@ -9552,7 +9553,7 @@ button.club-assignment-row {
 
 .rota-layout__side {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -10221,8 +10222,12 @@ button.club-assignment-row {
     grid-template-columns: 1fr;
   }
 
-  .monthly-availability-editor__all-day-field {
-    grid-column: auto;
+  .monthly-availability-editor .availability-editor__row {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-availability-editor__time-fields {
+    grid-template-columns: 1fr;
   }
 
   .supervisor-week-grid {

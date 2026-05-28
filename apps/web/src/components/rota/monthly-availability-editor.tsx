@@ -61,7 +61,7 @@ function lastDateForMonth(month: string): string {
 }
 
 export function MonthlyAvailabilityEditor({
-  title = 'Monthly unavailability',
+  title = 'Unavailable dates',
 }: MonthlyAvailabilityEditorProps) {
   const utils = api.useUtils();
   const [month, setMonth] = useState(currentMonthKey);
@@ -182,7 +182,7 @@ export function MonthlyAvailabilityEditor({
                     <span className="input monthly-availability-editor__all-day">All day</span>
                   </div>
                 ) : (
-                  <>
+                  <div className="monthly-availability-editor__time-fields">
                     <Field label="Start">
                       <TextInput
                         aria-label="Monthly unavailability start time"
@@ -215,7 +215,7 @@ export function MonthlyAvailabilityEditor({
                         value={toTimeValue(window.endMinute)}
                       />
                     </Field>
-                  </>
+                  </div>
                 )}
                 <Button
                   aria-label="Remove monthly unavailability window"
@@ -250,7 +250,7 @@ export function MonthlyAvailabilityEditor({
         type="button"
       >
         <Save aria-hidden="true" size={16} />
-        Save monthly unavailability
+        Save dates
       </Button>
     </section>
   );
