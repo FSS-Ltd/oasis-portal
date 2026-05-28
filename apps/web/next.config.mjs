@@ -1,4 +1,5 @@
 import { PrismaPlugin } from '@prisma/nextjs-monorepo-workaround-plugin';
+import { withSentryConfig } from '@sentry/nextjs';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -22,4 +23,10 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG ?? 'faithful-software-solutions-lt',
+  project: process.env.SENTRY_PROJECT ?? 'oasisportal-nextjs',
+  silent: true,
+  widenClientFileUpload: true,
+});

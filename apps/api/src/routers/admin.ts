@@ -43,6 +43,7 @@ import {
   type ClerkUserEmailClient,
 } from '../lib/clerk.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
+import { logOperationalEvent } from '../lib/observability.js';
 import type { AppContext } from '../context.js';
 
 export interface AdminRouterDeps {
@@ -625,12 +626,19 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
           },
         },
       });
-      console.error('Invitation email delivery failed', {
-        error: sanitizeEmailDeliveryError(err),
-        invitationId: invitation.id,
-        role: input.storedInvitation.role,
-        source: input.source,
-        status: invitation.status,
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Invitation email delivery failed',
+        meta: {
+          error: sanitizeEmailDeliveryError(err),
+          invitationId: invitation.id,
+          role: input.storedInvitation.role,
+          source: input.source,
+          status: invitation.status,
+        },
+        requestId: input.ctx.requestId,
+        userId: input.ctx.user.id,
       });
       throw new TRPCError({
         code: 'INTERNAL_SERVER_ERROR',

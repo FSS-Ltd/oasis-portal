@@ -1,7 +1,7 @@
 # Phase 5 - QA, hardening, rollout: sprint & PR plan
 
 **Status:** Hardening foundations partially pre-built; launch work planned
-**Last updated:** 2026-05-25
+**Last updated:** 2026-05-28
 **Parent plan:** [`/oasis-platform-plan.md`](/oasis-platform-plan.md) Delivery phases
 **Project context:** [`/PROJECT_Oasis_Context.md`](/PROJECT_Oasis_Context.md)
 
@@ -151,7 +151,9 @@ Tests:
 
 ## Sprint 2 - 2FA enforcement and auth security
 
-### PR-5.5 - `security(auth): enforce 2FA for portal access` FEATURE-FLAGGED
+### PR-5.5 - `security(auth): enforce 2FA for portal access` MERGED
+
+Merged via PR #191 on 2026-05-27.
 
 Scope:
 
@@ -191,13 +193,14 @@ Verification:
 
 ## Sprint 3 - Observability and incident readiness
 
-### PR-5.6 - `chore(obs): runtime logging and error monitoring` PLANNED
+### PR-5.6 - `chore(obs): runtime logging and error monitoring` READY FOR REVIEW
 
 Scope:
 
-- Configure application error reporting for web/API and mobile.
+- Configure Sentry error reporting for the Next.js web/API runtime. Phase 6
+  remains the owner for production mobile observability.
 - Add structured server logs for auth handoff failures, invite failures, email
-  sends, registration submits, finance/shop/report writes, and RLS denials.
+  sends, tRPC failures, and audit-write failures.
 - Add health/runbook links for common production incidents.
 - Avoid logging decrypted PII, raw tokens, Clerk secrets, Resend keys, or raw
   email addresses where not needed.
@@ -207,6 +210,7 @@ Scope:
 Tests:
 
 - Logging helper unit tests if helpers are added.
+- API/web typecheck and web build after Sentry instrumentation is wired.
 - Manual smoke that a known safe error appears in the selected monitoring tool.
 - Secret/PII log scan of changed code.
 

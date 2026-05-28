@@ -10,6 +10,7 @@ import {
   type ClerkUserEmailClient,
 } from '../lib/clerk.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
+import { logOperationalEvent } from '../lib/observability.js';
 import { authedProcedure, router } from '../trpc.js';
 
 export interface ProfileRouterDeps {
@@ -563,11 +564,18 @@ export function createProfileRouter(deps: ProfileRouterDeps = {}) {
             },
           },
         });
-        console.error('Spouse invitation email delivery failed', {
-          error: sanitizeEmailDeliveryError(err),
-          invitationId: invitation.id,
-          source: 'profile.inviteSpouse',
-          status: invitation.status,
+        logOperationalEvent({
+          event: 'email.delivery_failed',
+          level: 'error',
+          message: 'Spouse invitation email delivery failed',
+          meta: {
+            error: sanitizeEmailDeliveryError(err),
+            invitationId: invitation.id,
+            source: 'profile.inviteSpouse',
+            status: invitation.status,
+          },
+          requestId: ctx.requestId,
+          userId: ctx.user.id,
         });
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',

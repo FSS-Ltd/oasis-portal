@@ -27,7 +27,10 @@
         "OASIS_MASTER_KEY_VERSION",
         "RESEND_API_KEY",
         "RESEND_FROM",
-        "SENTRY_DSN"
+        "SENTRY_AUTH_TOKEN",
+        "SENTRY_DSN",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT"
       ]
     },
     "dev": {

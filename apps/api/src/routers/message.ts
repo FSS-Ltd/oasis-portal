@@ -14,6 +14,7 @@ import {
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   type EmailClient,
 } from '../lib/email.js';
+import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -485,11 +486,18 @@ async function notifyMessageRecipient({
       },
     });
   } catch (err) {
-    console.error('Message notification email delivery failed', {
-      error: err instanceof Error ? err.message : 'unknown error',
-      messageId,
-      threadId: thread.id,
-      toUserId: recipient.id,
+    logOperationalEvent({
+      event: 'email.delivery_failed',
+      level: 'error',
+      message: 'Message notification email delivery failed',
+      meta: {
+        error: operationalErrorMessage(err),
+        messageId,
+        threadId: thread.id,
+        toUserId: recipient.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
     });
 
     try {
@@ -509,10 +517,17 @@ async function notifyMessageRecipient({
         },
       });
     } catch (auditErr) {
-      console.error('Message notification failure audit failed', {
-        error: auditErr instanceof Error ? auditErr.message : 'unknown error',
-        messageId,
-        threadId: thread.id,
+      logOperationalEvent({
+        event: 'audit.write_failed',
+        level: 'error',
+        message: 'Message notification failure audit failed',
+        meta: {
+          error: operationalErrorMessage(auditErr),
+          messageId,
+          threadId: thread.id,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
       });
     }
   }

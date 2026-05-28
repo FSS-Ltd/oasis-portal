@@ -1,5 +1,12 @@
 import { auth } from '@clerk/nextjs/server';
-import { appRouter, createContext, resolveClerkSessionFromBearerToken } from '@oasis/api';
+import * as Sentry from '@sentry/nextjs';
+import {
+  appRouter,
+  createContext,
+  logOperationalEvent,
+  operationalErrorMessage,
+  resolveClerkSessionFromBearerToken,
+} from '@oasis/api';
 import {
   isTwoFactorEnforcementEnabled,
   twoFactorSatisfiedFromClerkAuth,
@@ -21,8 +28,17 @@ export async function resolveClerkSession(headers: Headers): Promise<ResolvedAut
         twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
       };
     }
-  } catch {
-    // Continue to bearer-token resolution for mobile requests.
+  } catch (err) {
+    logOperationalEvent({
+      event: 'auth.handoff_failed',
+      level: 'warn',
+      message: 'Clerk auth handoff failed',
+      meta: { error: operationalErrorMessage(err) },
+    });
+    Sentry.withScope((scope) => {
+      scope.setTag('auth.source', 'clerk-cookie');
+      Sentry.captureException(err);
+    });
   }
 
   const bearerSession = await resolveClerkSessionFromBearerToken(headers);

@@ -7,7 +7,8 @@
  * In CI / dev without Clerk secrets, auth resolution falls back to anonymous.
  */
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter, createContext } from '@oasis/api';
+import * as Sentry from '@sentry/nextjs';
+import { appRouter, createContext, logOperationalEvent, operationalErrorMessage } from '@oasis/api';
 import { isTwoFactorEnforcementEnabled } from '@/lib/clerk-two-factor';
 import { resolveClerkSession } from '../../auth-context';
 
@@ -24,6 +25,27 @@ const handler = (req: Request): Promise<Response> =>
         enforceTwoFactor: isTwoFactorEnforcementEnabled(),
         twoFactorSatisfied: session.twoFactorSatisfied,
       });
+    },
+    onError({ error, path, type }) {
+      logOperationalEvent({
+        event: 'trpc.request_failed',
+        level: error.code === 'INTERNAL_SERVER_ERROR' ? 'error' : 'warn',
+        message: 'tRPC request failed',
+        meta: {
+          code: error.code,
+          error: operationalErrorMessage(error),
+          path: path ?? 'unknown',
+          type,
+        },
+      });
+
+      if (error.code === 'INTERNAL_SERVER_ERROR') {
+        Sentry.withScope((scope) => {
+          scope.setTag('trpc.path', path ?? 'unknown');
+          scope.setTag('trpc.type', type);
+          Sentry.captureException(error);
+        });
+      }
     },
   });
 

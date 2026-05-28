@@ -1879,13 +1879,23 @@ describe('admin.inviteUser', () => {
         code: 'INTERNAL_SERVER_ERROR',
         message: 'invitation email send failed',
       });
-      expect(consoleError).toHaveBeenCalledWith('Invitation email delivery failed', {
-        error: { name: 'Error', message: 'resend unavailable' },
-        invitationId: 'inv_xyz',
-        role: 'Parent',
-        source: 'admin.inviteUser',
-        status: 'pending',
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const logEntry = JSON.parse(String(consoleError.mock.calls[0]?.[0])) as {
+        meta?: Record<string, unknown>;
+      };
+      expect(logEntry).toMatchObject({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Invitation email delivery failed',
+        meta: {
+          error: { name: 'Error', message: 'resend unavailable' },
+          invitationId: 'inv_xyz',
+          role: 'Parent',
+          source: 'admin.inviteUser',
+          status: 'pending',
+        },
       });
+      expect(logEntry.meta).not.toHaveProperty('email');
       expect(JSON.stringify(consoleError.mock.calls)).not.toContain('jane@example.com');
     } finally {
       consoleError.mockRestore();
@@ -2262,13 +2272,23 @@ describe('admin.resendUserInvitation', () => {
           message: 'invitation email send failed',
         },
       );
-      expect(consoleError).toHaveBeenCalledWith('Invitation email delivery failed', {
-        error: { name: 'Error', message: 'resend unavailable' },
-        invitationId: 'inv_xyz',
-        role: 'Parent',
-        source: 'admin.resendUserInvitation',
-        status: 'pending',
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      const logEntry = JSON.parse(String(consoleError.mock.calls[0]?.[0])) as {
+        meta?: Record<string, unknown>;
+      };
+      expect(logEntry).toMatchObject({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Invitation email delivery failed',
+        meta: {
+          error: { name: 'Error', message: 'resend unavailable' },
+          invitationId: 'inv_xyz',
+          role: 'Parent',
+          source: 'admin.resendUserInvitation',
+          status: 'pending',
+        },
       });
+      expect(logEntry.meta).not.toHaveProperty('email');
       expect(JSON.stringify(consoleError.mock.calls)).not.toContain('jane@example.com');
     } finally {
       consoleError.mockRestore();
