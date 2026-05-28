@@ -30,7 +30,9 @@
         "SENTRY_AUTH_TOKEN",
         "SENTRY_DSN",
         "SENTRY_ORG",
-        "SENTRY_PROJECT"
+        "SENTRY_PROJECT",
+        "SUPABASE_NOTICE_ATTACHMENTS_BUCKET",
+        "SUPABASE_SERVICE_ROLE_KEY"
       ]
     },
     "dev": {

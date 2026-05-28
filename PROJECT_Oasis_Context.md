@@ -4201,6 +4201,17 @@ typecheck` now passes locally.
   parent-visible HalfTerm calendar closures and Oasis Tue-Fri operating days
   before showing today's attendance mark. Verification: focused tests,
   typecheck/lint, `git diff --check`, and `graphify update .` pass.
+- 2026-05-28 noticeboard attachments: branch
+  `feat/noticeboard-attachments` adds direct Supabase Storage uploads for
+  notice attachments. Admins request signed upload tokens through the web API,
+  upload files directly from the browser to a private `notice-attachments`
+  bucket, and then post the notice with encrypted attachment metadata. Parents,
+  supervisors, and admins can view image/PDF attachments and download all
+  supported files through an authenticated signed-download route.
+- 2026-05-28 Supabase production storage setup: the `notice-attachments`
+  bucket now exists in the active Oasis Portal Supabase project
+  (`fjatgkyswxqkbunrsmdq`). It is private, capped at 10 MB per object, and
+  restricted to PDF, Word, JPEG, PNG, and WebP MIME types.
 
 ## Design decisions made (see ADRs for full rationale)
 
@@ -4226,10 +4237,21 @@ typecheck` now passes locally.
 6. **Deterministic investment sim** — Mulberry32 PRNG + FNV-1a seed
    hashing; seed persisted per student on first buy; GBM with regime
    switches so students occasionally lose money.
+7. **Notice attachments use private Supabase Storage** — files are not stored
+   in Postgres. The database stores encrypted original filenames and encrypted
+   storage paths only. Web route handlers use the Supabase service role server
+   side to issue short-lived upload/download URLs after tRPC auth, audience,
+   and notice availability checks.
 
 ## Blockers / escalations
 
 No product blockers currently. Phase 1 is code-complete and merged through PR-1.9.
+
+**Current technical verification note:**
+
+- `pnpm db:migrate` cannot run in the isolated noticeboard attachment worktree
+  until `DIRECT_URL` is present for Prisma. The migration file is created and
+  should be applied once the database environment variables are available.
 
 **Items to confirm with the centre before Phase 2:**
 

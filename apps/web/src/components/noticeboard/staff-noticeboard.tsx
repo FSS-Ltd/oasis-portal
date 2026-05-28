@@ -7,6 +7,11 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
+import {
+  NoticeAttachmentLinks,
+  NoticeAttachmentPicker,
+  type NoticeAttachmentPayload,
+} from './noticeboard-attachments';
 
 type Notice = RouterOutputs['notice']['listForAdmin'][number];
 type NoticeAudience = Notice['audience'];
@@ -149,6 +154,7 @@ function NoticeCard({
         ) : null}
       </div>
       <p>{notice.body}</p>
+      <NoticeAttachmentLinks attachments={notice.attachments} />
       <footer>
         <span>Posted {formatDateTime(notice.createdAt)}</span>
         {notice.expiresAt ? <span>Expires {formatDateTime(notice.expiresAt)}</span> : null}
@@ -164,6 +170,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
   const [body, setBody] = useState('');
   const [audience, setAudience] = useState<NoticeAudience>('Supervisors');
   const [expiresAt, setExpiresAt] = useState('');
+  const [attachments, setAttachments] = useState<NoticeAttachmentPayload[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingReadId, setPendingReadId] = useState<string | null>(null);
 
@@ -193,6 +200,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
       setBody('');
       setAudience('Supervisors');
       setExpiresAt('');
+      setAttachments([]);
       setFormError(null);
       showSuccessToast('Notice posted.');
       await utils.notice.listForAdmin.invalidate();
@@ -244,6 +252,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
         title: trimmedTitle,
         body: trimmedBody,
         audience,
+        attachments,
         ...(expiry ? { expiresAt: expiry } : {}),
       });
     } catch {
@@ -334,6 +343,17 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
                   }}
                   type="datetime-local"
                   value={expiresAt}
+                />
+              </Field>
+              <Field label="Attachments" hint="Optional">
+                <NoticeAttachmentPicker
+                  attachments={attachments}
+                  disabled={postNotice.isPending}
+                  onAttachmentsChange={(nextAttachments) => {
+                    setAttachments(nextAttachments);
+                    setFormError(null);
+                  }}
+                  onError={setFormError}
                 />
               </Field>
               <Button pending={postNotice.isPending} type="submit">
