@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-27
+**Last updated:** 2026-05-28
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 5 PR-5.5 2FA enforcement feature-flag reconciliation.
+**Phase:** Phase 5 PR-5.6 runtime logging and error monitoring.
 
 ---
 
@@ -20,14 +20,58 @@ raw DB dump cannot re-identify anyone.
 
 ## Current status - Phase 4 complete
 
-Repository head: `main` fast-forwarded to `357944f` before starting the current
-feature branch.
+Repository head: `main` fast-forwarded to `b9c3f44` before starting the current
+observability branch.
 
 Phase 6 now owns the production mobile build plan. The mobile app currently has
 Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-28 Phase 5 runtime observability
+
+Working branch: `chore/runtime-observability`.
+
+**PR scope:** Implement Phase 5 PR-5.6 runtime observability on top of PR #191.
+Update local `main` first, then add Sentry error reporting for the Next.js
+web/API runtime, structured operational logs for auth/tRPC/email/audit failure
+paths, runbook setup notes, and tracker updates. Do not build GDPR, backup
+restore, launch e2e, mobile production observability, UAT, or launch-closeout
+work in this branch.
+
+Completed:
+
+- Fast-forwarded local `main` to `origin/main` at PR #191 before creating this
+  branch.
+- Added the Sentry SDK to `@oasis/web`.
+- Added dependency-free operational log helpers with redaction tests.
+- Wired Sentry instrumentation for Next.js server, edge, browser, global error,
+  request error, and tRPC route-handler failures.
+- Replaced API notification failure `console.error` calls with structured
+  operational log events for email delivery, recipient resolution, and audit
+  write failures.
+- Updated `.env.example`, Turborepo env passthrough, the Phase 5 plan, and the
+  runbook with Sentry setup and safe smoke guidance.
+
+Verification:
+
+- `pnpm exec prettier --check .env.example PROJECT_Oasis_Context.md apps/api/src/__tests__/admin.router.test.ts apps/api/src/__tests__/observability.test.ts apps/api/src/index.ts apps/api/src/lib/observability.ts apps/api/src/routers/admin.ts apps/api/src/routers/behaviour.ts apps/api/src/routers/club.ts apps/api/src/routers/message.ts apps/api/src/routers/profile.ts apps/api/src/routers/report.ts apps/web/next.config.mjs apps/web/package.json apps/web/src/app/api/auth-context.ts 'apps/web/src/app/api/trpc/[trpc]/route.ts' apps/web/src/app/global-error.tsx apps/web/src/instrumentation-client.ts apps/web/src/instrumentation.ts apps/web/src/sentry-shared.ts apps/web/src/sentry.edge.config.ts apps/web/src/sentry.server.config.ts docs/phase-5-build-plan.md docs/runbook.md turbo.json`
+- `pnpm --filter @oasis/api test -- observability.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- Secret/PII log scan against changed runtime files and docs.
+- `graphify update .`
+
+Notes:
+
+- Added `@sentry/nextjs` as the justified dependency for the selected Sentry
+  implementation.
+- Build still reports existing Prisma deprecation/driverAdapters warnings and
+  the existing Next.js ESLint plugin warning.
 
 ## Current session - 2026-05-27 Phase 5 2FA flag reconciliation
 

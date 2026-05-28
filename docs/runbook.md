@@ -72,6 +72,10 @@ Required env vars (copy from `.env.example`):
 - `OASIS_MASTER_KEY` — 32 random bytes, base64-encoded
 - `OASIS_MASTER_KEY_VERSION` — current master-key version, usually `1`
 - `OASIS_BIDX_PEPPER` — pepper for HMAC blind indexes
+- `SENTRY_DSN` and `NEXT_PUBLIC_SENTRY_DSN` — Sentry project DSN for server and
+  browser error reporting
+- `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — optional build-time
+  source-map upload settings
 
 ## 3. Supabase Postgres setup
 
@@ -218,6 +222,44 @@ If a recipient reports junk placement:
 5. If authentication passes but junking continues, keep DMARC at `p=none`,
    reduce test sends, and build reputation with normal transactional traffic
    before considering stricter DMARC policy.
+
+### 4.2 Runtime observability
+
+Sentry is the primary launch error-monitoring tool. The web app initializes
+Sentry through Next.js instrumentation for server, edge, browser, global error,
+request error, and tRPC handler failures.
+
+Required Vercel environment variables:
+
+- `SENTRY_DSN` — server/edge DSN.
+- `NEXT_PUBLIC_SENTRY_DSN` — browser DSN. Use the same public DSN as
+  `SENTRY_DSN` unless Sentry project separation is required later.
+- `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` — optional source-map
+  upload values. Keep the auth token out of local `.env` unless uploading maps.
+
+Safe smoke:
+
+1. In preview, trigger a known non-PII server exception or use Sentry's project
+   test event. Do not use real child, guardian, staff, invoice, token, or raw
+   email values as test input.
+2. Confirm the event reaches Sentry with environment, release, route, and tRPC
+   tags where applicable.
+3. Confirm operational logs contain JSON entries for `trpc.request_failed`,
+   `auth.handoff_failed`, `email.delivery_failed`,
+   `email.recipient_resolution_failed`, or `audit.write_failed` when those
+   paths fail.
+4. Confirm logs redact email, token, password, cookie, authorization, secret,
+   and API-key fields before copying them into an incident note.
+
+Alerting defaults:
+
+- Production Sentry issue spike: notify Jean-Fidele and the technical owner.
+- Repeated `auth.handoff_failed`: check Clerk status and recent Clerk
+  configuration changes.
+- Repeated `email.delivery_failed`: check Resend status, DNS/authentication,
+  sender configuration, and bounced recipients.
+- Repeated `audit.write_failed`: treat as launch-blocking until the affected DB
+  write path is understood.
 
 ## 5. Incident playbooks
 

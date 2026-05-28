@@ -21,6 +21,7 @@ import {
   createResendEmailClient,
   type EmailClient,
 } from '../lib/email.js';
+import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -894,11 +895,18 @@ async function auditClubNotificationFailure(
       },
     });
   } catch (auditErr) {
-    console.error('Club notification failure audit failed', {
-      clubId: input.clubId,
-      error: auditErr instanceof Error ? auditErr.message : 'unknown error',
-      notificationId: input.notificationId,
-      toUserId: input.recipient.userId,
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Club notification failure audit failed',
+      meta: {
+        clubId: input.clubId,
+        error: operationalErrorMessage(auditErr),
+        notificationId: input.notificationId,
+        toUserId: input.recipient.userId,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
     });
   }
 }
@@ -969,11 +977,18 @@ async function sendClubNotificationEmails({
       });
     } catch (err) {
       failedCount += 1;
-      console.error('Club notification email delivery failed', {
-        clubId: club.id,
-        error: err instanceof Error ? err.message : 'unknown error',
-        notificationId,
-        toUserId: recipient.userId,
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Club notification email delivery failed',
+        meta: {
+          clubId: club.id,
+          error: operationalErrorMessage(err),
+          notificationId,
+          toUserId: recipient.userId,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
       });
       await auditClubNotificationFailure(ctx, {
         clubId: club.id,

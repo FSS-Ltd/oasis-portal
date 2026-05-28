@@ -15,6 +15,7 @@ import {
   REPORT_NOTIFICATION_EMAIL_SUBJECT,
   type EmailClient,
 } from '../lib/email.js';
+import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -59,7 +60,10 @@ interface ReportNotificationGuardian {
 const termSchema = z
   .string()
   .trim()
-  .regex(/^\d{4}-(Spring|Summer|Autumn)$/u, 'term must use YYYY-Spring, YYYY-Summer, or YYYY-Autumn');
+  .regex(
+    /^\d{4}-(Spring|Summer|Autumn)$/u,
+    'term must use YYYY-Spring, YYYY-Summer, or YYYY-Autumn',
+  );
 
 const draftInput = z.object({
   studentId: z.string().cuid(),
@@ -495,10 +499,17 @@ async function auditReportNotificationFailure(
       },
     });
   } catch (auditErr) {
-    console.error('Report notification failure audit failed', {
-      error: auditErr instanceof Error ? auditErr.message : 'unknown error',
-      reportId: report.id,
-      studentId: report.studentId,
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Report notification failure audit failed',
+      meta: {
+        error: operationalErrorMessage(auditErr),
+        reportId: report.id,
+        studentId: report.studentId,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
     });
   }
 }
@@ -543,10 +554,17 @@ async function notifyReportGuardians({
     childName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII');
     guardians = guardianRows;
   } catch (err) {
-    console.error('Report notification recipient resolution failed', {
-      error: err instanceof Error ? err.message : 'unknown error',
-      reportId: report.id,
-      studentId: report.studentId,
+    logOperationalEvent({
+      event: 'email.recipient_resolution_failed',
+      level: 'error',
+      message: 'Report notification recipient resolution failed',
+      meta: {
+        error: operationalErrorMessage(err),
+        reportId: report.id,
+        studentId: report.studentId,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
     });
     await auditReportNotificationFailure(ctx, report, { reason: 'recipient-resolution' });
     return;
@@ -592,11 +610,18 @@ async function notifyReportGuardians({
         },
       });
     } catch (err) {
-      console.error('Report notification email delivery failed', {
-        error: err instanceof Error ? err.message : 'unknown error',
-        reportId: report.id,
-        studentId: report.studentId,
-        toUserId: guardian.user.id,
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Report notification email delivery failed',
+        meta: {
+          error: operationalErrorMessage(err),
+          reportId: report.id,
+          studentId: report.studentId,
+          toUserId: guardian.user.id,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
       });
       await auditReportNotificationFailure(ctx, report, {
         toUserId: guardian.user.id,

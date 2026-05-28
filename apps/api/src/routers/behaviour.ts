@@ -30,6 +30,7 @@ import {
   type EmailClient,
 } from '../lib/email.js';
 import { localDayBounds } from '../lib/local-day.js';
+import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -547,9 +548,16 @@ async function auditNotificationFailure(
       },
     });
   } catch (auditErr) {
-    console.error('Behaviour notification failure audit failed', {
-      behaviourEntryId: entry.id,
-      error: auditErr instanceof Error ? auditErr.message : 'unknown error',
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Behaviour notification failure audit failed',
+      meta: {
+        behaviourEntryId: entry.id,
+        error: operationalErrorMessage(auditErr),
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
     });
   }
 }
@@ -597,9 +605,16 @@ async function notifyBehaviourGuardians({
     childName = decryptRequired(ctx.db.$enc.decrypt, entry.studentNameEnc, 'student PII');
     recordedByName = decryptRequired(ctx.db.$enc.decrypt, recordedBy.fullNameEnc, 'user PII');
   } catch (err) {
-    console.error('Behaviour notification recipient resolution failed', {
-      behaviourEntryId: entry.id,
-      error: err instanceof Error ? err.message : 'unknown error',
+    logOperationalEvent({
+      event: 'email.recipient_resolution_failed',
+      level: 'error',
+      message: 'Behaviour notification recipient resolution failed',
+      meta: {
+        behaviourEntryId: entry.id,
+        error: operationalErrorMessage(err),
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
     });
     await auditNotificationFailure(ctx, entry, { reason: 'recipient-resolution' });
     return;
@@ -647,10 +662,17 @@ async function notifyBehaviourGuardians({
         },
       });
     } catch (err) {
-      console.error('Behaviour notification email delivery failed', {
-        behaviourEntryId: entry.id,
-        toUserId: guardian.user.id,
-        error: err instanceof Error ? err.message : 'unknown error',
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Behaviour notification email delivery failed',
+        meta: {
+          behaviourEntryId: entry.id,
+          error: operationalErrorMessage(err),
+          toUserId: guardian.user.id,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
       });
       await auditNotificationFailure(ctx, entry, {
         toUserId: guardian.user.id,

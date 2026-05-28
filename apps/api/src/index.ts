@@ -54,6 +54,17 @@ export {
   type UserInviteEmailInput,
 } from './lib/email.js';
 export {
+  buildOperationalLogEntry,
+  logOperationalEvent,
+  operationalErrorMessage,
+  sanitizeOperationalMeta,
+  type OperationalLogEntry,
+  type OperationalLogInput,
+  type OperationalLogLevel,
+  type OperationalLogMeta,
+  type OperationalLogMetaValue,
+} from './lib/observability.js';
+export {
   behaviourRouter,
   createBehaviourRouter,
   type BehaviourRouterDeps,
