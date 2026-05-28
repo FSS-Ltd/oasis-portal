@@ -17,8 +17,10 @@ import {
   dateKey,
   emptyShiftForm,
   formatDateTime,
+  formatDateLabel,
   mondayFor,
-  monthlyAvailabilityLabel,
+  monthlyUnavailabilityLabel,
+  monthlyUnavailabilityTimeLabel,
   shiftToForm,
   today,
   type RotaShift,
@@ -26,6 +28,12 @@ import {
   type StaffAvailability,
   type StaffMonthlyAvailability,
 } from './_components/rota-utils';
+
+function selectedDateUnavailabilityLabel(date: string): string {
+  if (!date) return 'on the selected date';
+  if (date === dateKey(today())) return 'today';
+  return `on ${formatDateLabel(new Date(`${date}T00:00:00.000Z`))}`;
+}
 
 export function RotaSchedulerClient() {
   const [weekStart, setWeekStart] = useState(() => mondayFor(today()));
@@ -126,6 +134,11 @@ export function RotaSchedulerClient() {
   const selectedStaffMonthlyAvailability = staffMonthlyAvailability.find(
     (staff) => staff.id === shiftForm.staffUserId,
   );
+  const selectedShiftDateUnavailableWindows =
+    selectedStaffMonthlyAvailability?.availability.filter(
+      (window) => window.date === shiftForm.date,
+    ) ?? [];
+  const selectedShiftDateLabel = selectedDateUnavailabilityLabel(shiftForm.date);
   const mutationError =
     createShift.error ??
     updateShift.error ??
@@ -326,7 +339,7 @@ export function RotaSchedulerClient() {
         </section>
 
         <MyAvailabilityEditor title="My availability" />
-        <MonthlyAvailabilityEditor title="My monthly availability" />
+        <MonthlyAvailabilityEditor title="My monthly unavailability" />
 
         <section className="panel">
           <div className="panel__body">
@@ -375,10 +388,10 @@ export function RotaSchedulerClient() {
         <section className="panel">
           <div className="panel__body">
             <div className="section-title">
-              <h2>Monthly availability</h2>
+              <h2>Monthly unavailability</h2>
             </div>
             {monthlyAvailabilityQuery.isLoading ? (
-              <div className="empty-state">Loading monthly availability...</div>
+              <div className="empty-state">Loading monthly unavailability...</div>
             ) : null}
             {monthlyAvailabilityQuery.error ? (
               <p className="status--error">
@@ -387,13 +400,15 @@ export function RotaSchedulerClient() {
             ) : null}
             {selectedStaffMonthlyAvailability ? (
               <div className="availability-list">
-                <strong>{selectedStaffMonthlyAvailability.fullName}</strong>
-                {selectedStaffMonthlyAvailability.availability.length === 0 ? (
-                  <span className="muted">No monthly availability set for this week</span>
+                <strong>
+                  {selectedStaffMonthlyAvailability.fullName} is unavailable {selectedShiftDateLabel}
+                </strong>
+                {selectedShiftDateUnavailableWindows.length === 0 ? (
+                  <span className="muted">No monthly unavailability set for this date</span>
                 ) : (
-                  selectedStaffMonthlyAvailability.availability.map((window) => (
+                  selectedShiftDateUnavailableWindows.map((window) => (
                     <span className="availability-pill" key={window.id}>
-                      {monthlyAvailabilityLabel(window)}
+                      {monthlyUnavailabilityTimeLabel(window)}
                     </span>
                   ))
                 )}
@@ -405,8 +420,8 @@ export function RotaSchedulerClient() {
                     <strong>{staff.fullName}</strong>
                     <span>
                       {staff.availability.length === 0
-                        ? 'No monthly availability'
-                        : staff.availability.map(monthlyAvailabilityLabel).join(', ')}
+                        ? 'No monthly unavailability'
+                        : staff.availability.map(monthlyUnavailabilityLabel).join(', ')}
                     </span>
                   </div>
                 ))}

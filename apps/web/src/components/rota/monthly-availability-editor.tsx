@@ -44,6 +44,16 @@ function fromTimeValue(value: string): number {
   return Number(hour) * 60 + Number(minute);
 }
 
+function isAllDay(window: MonthlyAvailabilityDraft): boolean {
+  return window.startMinute === 0 && window.endMinute === 1440;
+}
+
+function withAllDay(window: MonthlyAvailabilityDraft, allDay: boolean): MonthlyAvailabilityDraft {
+  return allDay
+    ? { ...window, startMinute: 0, endMinute: 1440 }
+    : { ...window, startMinute: 540, endMinute: 720 };
+}
+
 function lastDateForMonth(month: string): string {
   const [yearValue, monthValue] = month.split('-');
   const lastDate = new Date(Date.UTC(Number(yearValue), Number(monthValue), 0));
@@ -51,7 +61,7 @@ function lastDateForMonth(month: string): string {
 }
 
 export function MonthlyAvailabilityEditor({
-  title = 'Monthly availability',
+  title = 'Monthly unavailability',
 }: MonthlyAvailabilityEditorProps) {
   const utils = api.useUtils();
   const [month, setMonth] = useState(currentMonthKey);
@@ -63,14 +73,14 @@ export function MonthlyAvailabilityEditor({
   const availabilityQuery = api.rota.myMonthlyAvailability.useQuery({ month }, { retry: false });
   const saveAvailability = api.rota.setMyMonthlyAvailability.useMutation({
     onSuccess: async () => {
-      showSuccessToast('Monthly availability saved.');
+      showSuccessToast('Monthly unavailability saved.');
       await Promise.all([
         utils.rota.myMonthlyAvailability.invalidate({ month }),
         utils.rota.staffMonthlyAvailability.invalidate(),
       ]);
     },
     onError(error) {
-      showErrorToast(error, 'Monthly availability could not be saved.');
+      showErrorToast(error, 'Monthly unavailability could not be saved.');
     },
   });
 
@@ -91,7 +101,7 @@ export function MonthlyAvailabilityEditor({
       <div className="section-title">
         <div>
           <h2>{title}</h2>
-          <p className="muted">Set exact dates for this month.</p>
+          <p className="muted">Select the dates and times you cannot be scheduled.</p>
         </div>
         <Button
           onClick={() => {
@@ -117,7 +127,7 @@ export function MonthlyAvailabilityEditor({
       </Field>
 
       {availabilityQuery.isLoading ? (
-        <div className="empty-state">Loading monthly availability...</div>
+        <div className="empty-state">Loading monthly unavailability...</div>
       ) : null}
       {availabilityQuery.error ? (
         <p className="status--error">{friendlyErrorMessage(availabilityQuery.error)}</p>
@@ -125,70 +135,102 @@ export function MonthlyAvailabilityEditor({
 
       <div className="availability-editor monthly-availability-editor">
         {availabilityDraft.length === 0 ? (
-          <div className="empty-state">No monthly availability set.</div>
+          <div className="empty-state">No monthly unavailability set.</div>
         ) : (
-          availabilityDraft.map((window) => (
-            <div className="availability-editor__row" key={window.id}>
-              <Field label="Date">
-                <TextInput
-                  max={monthBounds.max}
-                  min={monthBounds.min}
-                  onChange={(event) => {
-                    setAvailabilityDraft((rows) =>
-                      rows.map((row) =>
-                        row.id === window.id ? { ...row, date: event.target.value } : row,
-                      ),
-                    );
+          availabilityDraft.map((window) => {
+            const allDay = isAllDay(window);
+            return (
+              <div className="availability-editor__row" key={window.id}>
+                <Field label="Date">
+                  <TextInput
+                    max={monthBounds.max}
+                    min={monthBounds.min}
+                    onChange={(event) => {
+                      setAvailabilityDraft((rows) =>
+                        rows.map((row) =>
+                          row.id === window.id ? { ...row, date: event.target.value } : row,
+                        ),
+                      );
+                    }}
+                    type="date"
+                    value={window.date}
+                  />
+                </Field>
+                <label
+                  className={`checkbox-card monthly-availability-editor__all-day-toggle${
+                    allDay ? ' is-checked' : ''
+                  }`}
+                >
+                  <input
+                    checked={allDay}
+                    onChange={(event) => {
+                      setAvailabilityDraft((rows) =>
+                        rows.map((row) =>
+                          row.id === window.id
+                            ? withAllDay(row, event.target.checked)
+                            : row,
+                        ),
+                      );
+                    }}
+                    type="checkbox"
+                  />
+                  All day
+                </label>
+                {allDay ? (
+                  <div className="field monthly-availability-editor__all-day-field">
+                    <span className="field__label">Time</span>
+                    <span className="input monthly-availability-editor__all-day">All day</span>
+                  </div>
+                ) : (
+                  <>
+                    <Field label="Start">
+                      <TextInput
+                        aria-label="Monthly unavailability start time"
+                        onChange={(event) => {
+                          setAvailabilityDraft((rows) =>
+                            rows.map((row) =>
+                              row.id === window.id
+                                ? { ...row, startMinute: fromTimeValue(event.target.value) }
+                                : row,
+                            ),
+                          );
+                        }}
+                        type="time"
+                        value={toTimeValue(window.startMinute)}
+                      />
+                    </Field>
+                    <Field label="End">
+                      <TextInput
+                        aria-label="Monthly unavailability end time"
+                        onChange={(event) => {
+                          setAvailabilityDraft((rows) =>
+                            rows.map((row) =>
+                              row.id === window.id
+                                ? { ...row, endMinute: fromTimeValue(event.target.value) }
+                                : row,
+                            ),
+                          );
+                        }}
+                        type="time"
+                        value={toTimeValue(window.endMinute)}
+                      />
+                    </Field>
+                  </>
+                )}
+                <Button
+                  aria-label="Remove monthly unavailability window"
+                  onClick={() => {
+                    setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id));
                   }}
-                  type="date"
-                  value={window.date}
-                />
-              </Field>
-              <Field label="Start">
-                <TextInput
-                  aria-label="Monthly availability start time"
-                  onChange={(event) => {
-                    setAvailabilityDraft((rows) =>
-                      rows.map((row) =>
-                        row.id === window.id
-                          ? { ...row, startMinute: fromTimeValue(event.target.value) }
-                          : row,
-                      ),
-                    );
-                  }}
-                  type="time"
-                  value={toTimeValue(window.startMinute)}
-                />
-              </Field>
-              <Field label="End">
-                <TextInput
-                  aria-label="Monthly availability end time"
-                  onChange={(event) => {
-                    setAvailabilityDraft((rows) =>
-                      rows.map((row) =>
-                        row.id === window.id
-                          ? { ...row, endMinute: fromTimeValue(event.target.value) }
-                          : row,
-                      ),
-                    );
-                  }}
-                  type="time"
-                  value={toTimeValue(window.endMinute)}
-                />
-              </Field>
-              <Button
-                aria-label="Remove monthly availability window"
-                onClick={() => {
-                  setAvailabilityDraft((rows) => rows.filter((row) => row.id !== window.id));
-                }}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <Trash2 aria-hidden="true" size={14} />
-              </Button>
-            </div>
-          ))
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                </Button>
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -208,7 +250,7 @@ export function MonthlyAvailabilityEditor({
         type="button"
       >
         <Save aria-hidden="true" size={16} />
-        Save monthly availability
+        Save monthly unavailability
       </Button>
     </section>
   );

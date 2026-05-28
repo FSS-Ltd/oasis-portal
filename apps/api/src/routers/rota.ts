@@ -231,7 +231,7 @@ function assertNoMonthlyAvailabilityOverlap(
     ) {
       throw new TRPCError({
         code: 'BAD_REQUEST',
-        message: 'monthly availability windows must not overlap',
+        message: 'monthly unavailability windows must not overlap',
       });
     }
   }
@@ -245,7 +245,7 @@ function assertMonthlyAvailabilityWithinMonth(
   if (invalidWindow) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'monthly availability dates must be inside the selected month',
+      message: 'monthly unavailability dates must be inside the selected month',
     });
   }
 }

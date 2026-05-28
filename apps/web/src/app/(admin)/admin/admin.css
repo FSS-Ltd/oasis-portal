@@ -5504,6 +5504,28 @@ button.club-assignment-row {
   background: #fbfcff;
 }
 
+.monthly-availability-editor .availability-editor__row {
+  grid-template-columns:
+    minmax(130px, 1fr) minmax(96px, 0.6fr) minmax(86px, 0.7fr) minmax(86px, 0.7fr)
+    auto;
+}
+
+.monthly-availability-editor__all-day-toggle {
+  min-height: 42px;
+  margin-bottom: 0;
+}
+
+.monthly-availability-editor__all-day-field {
+  grid-column: span 2;
+}
+
+.monthly-availability-editor__all-day {
+  display: inline-flex;
+  align-items: center;
+  color: var(--oasis-text-secondary);
+  font-weight: 800;
+}
+
 .supervisor-submit {
   width: 100%;
   margin-top: 14px;
@@ -10131,6 +10153,10 @@ button.club-assignment-row {
 
   .availability-editor__row {
     grid-template-columns: 1fr;
+  }
+
+  .monthly-availability-editor__all-day-field {
+    grid-column: auto;
   }
 
   .supervisor-week-grid {

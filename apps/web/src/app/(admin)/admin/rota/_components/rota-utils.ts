@@ -125,8 +125,15 @@ export function availabilityLabel(window: AvailabilityWindow): string {
   return `${dayLabel} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
 }
 
-export function monthlyAvailabilityLabel(window: MonthlyAvailabilityWindow): string {
-  return `${formatDateLabel(new Date(`${window.date}T00:00:00.000Z`))} ${formatMinute(
-    window.startMinute,
-  )}-${formatMinute(window.endMinute)}`;
+export function monthlyUnavailabilityTimeLabel(window: MonthlyAvailabilityWindow): string {
+  if (window.startMinute === 0 && window.endMinute === 1440) {
+    return 'all day';
+  }
+  return `from ${formatMinute(window.startMinute)} to ${formatMinute(window.endMinute)}`;
+}
+
+export function monthlyUnavailabilityLabel(window: MonthlyAvailabilityWindow): string {
+  return `${formatDateLabel(new Date(`${window.date}T00:00:00.000Z`))} ${monthlyUnavailabilityTimeLabel(
+    window,
+  )}`;
 }

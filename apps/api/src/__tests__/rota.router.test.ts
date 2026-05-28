@@ -636,7 +636,7 @@ describe('rota availability', () => {
     });
   });
 
-  it('lets staff replace exact-date monthly availability for a selected month', async () => {
+  it('lets staff replace exact-date monthly unavailability for a selected month', async () => {
     const { db, monthlyAvailability } = makeFakeDb();
     const caller = makeCaller(supervisorUser, db);
 
@@ -645,12 +645,12 @@ describe('rota availability', () => {
         month: '2026-05',
         windows: [
           { date: '2026-05-06', startMinute: 540, endMinute: 720 },
-          { date: '2026-05-20', startMinute: 780, endMinute: 960 },
+          { date: '2026-05-20', startMinute: 0, endMinute: 1440 },
         ],
       }),
     ).resolves.toMatchObject([
       { date: '2026-05-06', startMinute: 540, endMinute: 720 },
-      { date: '2026-05-20', startMinute: 780, endMinute: 960 },
+      { date: '2026-05-20', startMinute: 0, endMinute: 1440 },
     ]);
     expect(monthlyAvailability).toHaveLength(2);
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -669,11 +669,11 @@ describe('rota availability', () => {
 
     await expect(caller.rota.myMonthlyAvailability({ month: '2026-05' })).resolves.toMatchObject([
       { date: '2026-05-06', startMinute: 540, endMinute: 720 },
-      { date: '2026-05-20', startMinute: 780, endMinute: 960 },
+      { date: '2026-05-20', startMinute: 0, endMinute: 1440 },
     ]);
   });
 
-  it('rejects monthly availability outside the month or overlapping on the same date', async () => {
+  it('rejects monthly unavailability outside the month or overlapping on the same date', async () => {
     const { db } = makeFakeDb();
     const caller = makeCaller(supervisorUser, db);
 
@@ -684,7 +684,7 @@ describe('rota availability', () => {
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'monthly availability dates must be inside the selected month',
+      message: 'monthly unavailability dates must be inside the selected month',
     });
 
     await expect(
@@ -697,7 +697,7 @@ describe('rota availability', () => {
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'monthly availability windows must not overlap',
+      message: 'monthly unavailability windows must not overlap',
     });
   });
 });
@@ -933,7 +933,7 @@ describe('rota scheduling', () => {
     });
   });
 
-  it('lets full-admin read active staff monthly availability for a date range', async () => {
+  it('lets full-admin read active staff monthly unavailability for a date range', async () => {
     const { db, users, monthlyAvailability } = makeFakeDb();
     users.push({
       id: 'u_inactive_sup',
