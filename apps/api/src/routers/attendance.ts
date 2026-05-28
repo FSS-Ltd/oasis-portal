@@ -740,8 +740,8 @@ export const attendanceRouter = router({
           id: shift.id,
           startsAt: shift.startsAt,
           endsAt: shift.endsAt,
-          bandName: shift.yearGroupBand.name,
-          bandColour: shift.yearGroupBand.colour,
+          bandName: shift.kind === 'Meeting' ? 'Meeting' : (shift.yearGroupBand?.name ?? null),
+          bandColour: shift.kind === 'Meeting' ? '#0f766e' : (shift.yearGroupBand?.colour ?? null),
         };
         if (existing) {
           existing.shifts.push(mappedShift);

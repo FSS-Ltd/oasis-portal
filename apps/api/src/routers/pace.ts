@@ -537,6 +537,7 @@ async function loadPaceScope(
   const shifts = await ctx.db.staffShift.findMany({
     where: {
       staffUserId: ctx.user.id,
+      kind: 'Cover',
       date: selectedDate,
     },
     orderBy: [{ startsAt: 'asc' }],
@@ -552,7 +553,9 @@ async function loadPaceScope(
       },
     },
   });
-  const assignedBands = uniqueBands(shifts.map((shift) => shift.yearGroupBand));
+  const assignedBands = uniqueBands(
+    shifts.flatMap((shift) => (shift.yearGroupBand ? [shift.yearGroupBand] : [])),
+  );
 
   return {
     assignedBands,

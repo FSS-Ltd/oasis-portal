@@ -1,12 +1,8 @@
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  dateKey,
-  dayLabels,
-  formatDateLabel,
-  formatDateTime,
-  type RotaShift,
-} from './rota-utils';
+import { dateKey, dayLabels, formatDateLabel, formatDateTime, type RotaShift } from './rota-utils';
+
+const MEETING_COLOUR = '#0f766e';
 
 interface RotaWeekScheduleProps {
   errorMessage?: string | undefined;
@@ -48,7 +44,12 @@ export function RotaWeekSchedule({
             </p>
           </div>
           <div className="row-actions">
-            <Button aria-label="Previous week" onClick={onPreviousWeek} type="button" variant="secondary">
+            <Button
+              aria-label="Previous week"
+              onClick={onPreviousWeek}
+              type="button"
+              variant="secondary"
+            >
               <ChevronLeft aria-hidden="true" size={16} />
             </Button>
             <Button onClick={onThisWeek} type="button" variant="secondary">
@@ -87,7 +88,12 @@ export function RotaWeekSchedule({
                         onClick={() => {
                           onSelectShift(shift);
                         }}
-                        style={{ borderLeftColor: shift.bandColour ?? '#5B90C5' }}
+                        style={{
+                          borderLeftColor:
+                            shift.kind === 'Meeting'
+                              ? MEETING_COLOUR
+                              : (shift.bandColour ?? '#5B90C5'),
+                        }}
                         type="button"
                       >
                         <span>
@@ -95,8 +101,15 @@ export function RotaWeekSchedule({
                         </span>
                         <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
                         <small>
-                          <i style={{ backgroundColor: shift.bandColour ?? '#5B90C5' }} />
-                          {shift.bandName ?? 'Band'}
+                          <i
+                            style={{
+                              backgroundColor:
+                                shift.kind === 'Meeting'
+                                  ? MEETING_COLOUR
+                                  : (shift.bandColour ?? '#5B90C5'),
+                            }}
+                          />
+                          {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}
                         </small>
                         {shift.notes ? <em>{shift.notes}</em> : null}
                       </button>

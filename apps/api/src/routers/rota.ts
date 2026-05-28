@@ -28,11 +28,41 @@ const setAvailabilityInput = z.object({
   windows: z.array(availabilityWindowInput).max(42).default([]),
 });
 
+const dateKeyInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date');
+const monthKeyInput = z.string().regex(/^\d{4}-\d{2}$/u, 'Enter a valid month');
+
+const monthlyAvailabilityWindowInput = z
+  .object({
+    date: dateKeyInput,
+    startMinute: z.number().int().min(0).max(1439),
+    endMinute: z.number().int().min(1).max(1440),
+  })
+  .refine((input) => input.startMinute < input.endMinute, {
+    message: 'startMinute must be before endMinute',
+    path: ['endMinute'],
+  });
+
+const setMonthlyAvailabilityInput = z.object({
+  month: monthKeyInput,
+  windows: z.array(monthlyAvailabilityWindowInput).max(124).default([]),
+});
+
 const staffAvailabilityInput = z
   .object({
     staffUserIds: z.array(z.string().min(1)).max(100).optional(),
   })
   .optional();
+
+const staffMonthlyAvailabilityInput = z
+  .object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+    staffUserIds: z.array(z.string().min(1)).max(100).optional(),
+  })
+  .refine((input) => normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime(), {
+    message: 'from must be on or before to',
+    path: ['to'],
+  });
 
 const dateRangeInput = z
   .object({
@@ -44,16 +74,19 @@ const dateRangeInput = z
     path: ['to'],
   });
 
-const shiftBaseInput = z.object({
+const shiftKindSchema = z.enum(['Cover', 'Meeting']);
+
+const createShiftInput = z.object({
   staffUserId: z.string().min(1),
-  yearGroupBandId: z.string().min(1),
+  kind: shiftKindSchema.default('Cover'),
+  yearGroupBandId: z.string().min(1).optional(),
   date: z.coerce.date(),
   startsAt: z.coerce.date(),
   endsAt: z.coerce.date(),
   notes: z.string().trim().max(500).optional(),
 });
 
-const shiftInput = shiftBaseInput.refine(
+const shiftInput = createShiftInput.refine(
   (input) => input.startsAt.getTime() < input.endsAt.getTime(),
   {
     message: 'startsAt must be before endsAt',
@@ -61,14 +94,21 @@ const shiftInput = shiftBaseInput.refine(
   },
 );
 
-const updateShiftInput = shiftBaseInput
-  .partial()
-  .extend({
+const updateShiftInput = z
+  .object({
     id: z.string().min(1),
+    staffUserId: z.string().min(1).optional(),
+    kind: shiftKindSchema.optional(),
+    yearGroupBandId: z.string().min(1).nullable().optional(),
+    date: z.coerce.date().optional(),
+    startsAt: z.coerce.date().optional(),
+    endsAt: z.coerce.date().optional(),
+    notes: z.string().trim().max(500).optional(),
   })
   .refine(
     (input) =>
       input.staffUserId !== undefined ||
+      input.kind !== undefined ||
       input.yearGroupBandId !== undefined ||
       input.date !== undefined ||
       input.startsAt !== undefined ||
@@ -86,12 +126,33 @@ const reviewSwapInput = z.object({
   id: z.string().min(1),
 });
 
+const deleteShiftInput = z.object({
+  id: z.string().min(1),
+});
+
 function normalizeDate(date: Date): Date {
   return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
 }
 
 function dateKey(date: Date): string {
   return normalizeDate(date).toISOString().slice(0, 10);
+}
+
+function dateFromKey(value: string): Date {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || dateKey(date) !== value) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter a valid date' });
+  }
+  return date;
+}
+
+function monthRange(month: string): { from: Date; to: Date } {
+  const [yearValue, monthValue] = month.split('-');
+  const year = Number(yearValue);
+  const monthIndex = Number(monthValue) - 1;
+  const from = new Date(Date.UTC(year, monthIndex, 1));
+  const to = new Date(Date.UTC(year, monthIndex + 1, 0));
+  return { from, to };
 }
 
 function decryptRequired(
@@ -153,6 +214,54 @@ function assertNoAvailabilityOverlap(windows: z.infer<typeof availabilityWindowI
   }
 }
 
+function assertNoMonthlyAvailabilityOverlap(
+  windows: z.infer<typeof monthlyAvailabilityWindowInput>[],
+): void {
+  const sorted = [...windows].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.startMinute - b.startMinute,
+  );
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    if (
+      previous &&
+      current &&
+      previous.date === current.date &&
+      current.startMinute < previous.endMinute
+    ) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'monthly availability windows must not overlap',
+      });
+    }
+  }
+}
+
+function assertMonthlyAvailabilityWithinMonth(
+  month: string,
+  windows: z.infer<typeof monthlyAvailabilityWindowInput>[],
+): void {
+  const invalidWindow = windows.find((window) => !window.date.startsWith(month));
+  if (invalidWindow) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'monthly availability dates must be inside the selected month',
+    });
+  }
+}
+
+function assertShiftKindBand(input: {
+  kind: 'Cover' | 'Meeting';
+  yearGroupBandId: string | null | undefined;
+}): void {
+  if (input.kind === 'Cover' && !input.yearGroupBandId) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'cover shifts require a year-group band',
+    });
+  }
+}
+
 async function assertActiveStaffUser(ctx: RouterCtx, staffUserId: string): Promise<void> {
   const user = await ctx.db.user.findUnique({
     where: { id: staffUserId },
@@ -204,7 +313,8 @@ async function assertNoShiftOverlap(
 function mapShift(shift: {
   id: string;
   staffUserId: string;
-  yearGroupBandId: string;
+  kind: 'Cover' | 'Meeting';
+  yearGroupBandId: string | null;
   date: Date;
   startsAt: Date;
   endsAt: Date;
@@ -215,6 +325,7 @@ function mapShift(shift: {
     id: shift.id,
     staffUserId: shift.staffUserId,
     yearGroupBandId: shift.yearGroupBandId,
+    kind: shift.kind,
     date: dateKey(shift.date),
     startsAt: shift.startsAt,
     endsAt: shift.endsAt,
@@ -229,7 +340,8 @@ function mapShiftWithStaff(
   shift: {
     id: string;
     staffUserId: string;
-    yearGroupBandId: string;
+    kind: 'Cover' | 'Meeting';
+    yearGroupBandId: string | null;
     date: Date;
     startsAt: Date;
     endsAt: Date;
@@ -347,6 +459,90 @@ export const rotaRouter = router({
       return rows;
     }),
 
+  myMonthlyAvailability: authedProcedure
+    .input(z.object({ month: monthKeyInput }))
+    .query(async ({ ctx, input }) => {
+      assertStaffWorkflow(ctx.user);
+      const range = monthRange(input.month);
+      const rows = await ctx.db.staffMonthlyAvailabilityWindow.findMany({
+        where: {
+          staffUserId: ctx.user.id,
+          date: { gte: range.from, lte: range.to },
+        },
+        orderBy: [{ date: 'asc' }, { startMinute: 'asc' }],
+        select: {
+          id: true,
+          date: true,
+          startMinute: true,
+          endMinute: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+      return rows.map((row) => ({ ...row, date: dateKey(row.date) }));
+    }),
+
+  setMyMonthlyAvailability: authedProcedure
+    .input(setMonthlyAvailabilityInput)
+    .mutation(async ({ ctx, input }) => {
+      assertStaffWorkflow(ctx.user);
+      assertMonthlyAvailabilityWithinMonth(input.month, input.windows);
+      assertNoMonthlyAvailabilityOverlap(input.windows);
+
+      const range = monthRange(input.month);
+      const windows = input.windows
+        .map((window) => ({
+          staffUserId: ctx.user.id,
+          date: dateFromKey(window.date),
+          startMinute: window.startMinute,
+          endMinute: window.endMinute,
+        }))
+        .sort((a, b) => a.date.getTime() - b.date.getTime() || a.startMinute - b.startMinute);
+
+      const rows = await ctx.db.$transaction(async (tx) => {
+        await tx.staffMonthlyAvailabilityWindow.deleteMany({
+          where: {
+            staffUserId: ctx.user.id,
+            date: { gte: range.from, lte: range.to },
+          },
+        });
+        if (windows.length > 0) {
+          await tx.staffMonthlyAvailabilityWindow.createMany({ data: windows });
+        }
+        return tx.staffMonthlyAvailabilityWindow.findMany({
+          where: {
+            staffUserId: ctx.user.id,
+            date: { gte: range.from, lte: range.to },
+          },
+          orderBy: [{ date: 'asc' }, { startMinute: 'asc' }],
+          select: {
+            id: true,
+            date: true,
+            startMinute: true,
+            endMinute: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StaffMonthlyAvailability',
+          entityId: ctx.user.id,
+          meta: {
+            month: input.month,
+            windowCount: rows.length,
+            source: 'rota.setMyMonthlyAvailability',
+          },
+        },
+      });
+
+      return rows.map((row) => ({ ...row, date: dateKey(row.date) }));
+    }),
+
   myRota: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     assertStaffWorkflow(ctx.user);
     const from = normalizeDate(input.from);
@@ -360,6 +556,7 @@ export const rotaRouter = router({
       select: {
         id: true,
         staffUserId: true,
+        kind: true,
         yearGroupBandId: true,
         date: true,
         startsAt: true,
@@ -491,16 +688,80 @@ export const rotaRouter = router({
       return staff;
     }),
 
+  staffMonthlyAvailability: fullAdminProcedure
+    .input(staffMonthlyAvailabilityInput)
+    .query(async ({ ctx, input }) => {
+      const from = normalizeDate(input.from);
+      const to = normalizeDate(input.to);
+      const staffRows = await ctx.db.user.findMany({
+        where: {
+          active: true,
+          role: { in: [...STAFF_ROLES] },
+          ...(input.staffUserIds ? { id: { in: input.staffUserIds } } : {}),
+        },
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          role: true,
+          fullNameEnc: true,
+          emailEnc: true,
+        },
+      });
+      const staffIds = staffRows.map((row) => row.id);
+      const windows = await ctx.db.staffMonthlyAvailabilityWindow.findMany({
+        where: {
+          staffUserId: { in: staffIds },
+          date: { gte: from, lte: to },
+        },
+        orderBy: [{ staffUserId: 'asc' }, { date: 'asc' }, { startMinute: 'asc' }],
+        select: {
+          id: true,
+          staffUserId: true,
+          date: true,
+          startMinute: true,
+          endMinute: true,
+        },
+      });
+
+      const staff = staffRows.map((row) => ({
+        ...mapStaffUser(ctx.db.$enc.decrypt, row),
+        availability: windows
+          .filter((window) => window.staffUserId === row.id)
+          .map((window) => ({
+            id: window.id,
+            date: dateKey(window.date),
+            startMinute: window.startMinute,
+            endMinute: window.endMinute,
+          })),
+      }));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'StaffMonthlyAvailability',
+          meta: { count: staff.length, source: 'rota.staffMonthlyAvailability' },
+        },
+      });
+
+      return staff;
+    }),
+
   createShift: fullAdminProcedure.input(shiftInput).mutation(async ({ ctx, input }) => {
     const date = normalizeDate(input.date);
+    assertShiftKindBand({ kind: input.kind, yearGroupBandId: input.yearGroupBandId ?? null });
     await assertActiveStaffUser(ctx, input.staffUserId);
-    await assertActiveBand(ctx, input.yearGroupBandId);
+    const yearGroupBandId = input.kind === 'Cover' ? (input.yearGroupBandId ?? null) : null;
+    if (input.kind === 'Cover' && yearGroupBandId) {
+      await assertActiveBand(ctx, yearGroupBandId);
+    }
     await assertNoShiftOverlap(ctx, { ...input, date });
 
     const shift = await ctx.db.staffShift.create({
       data: {
         staffUserId: input.staffUserId,
-        yearGroupBandId: input.yearGroupBandId,
+        kind: input.kind,
+        yearGroupBandId,
         date,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
@@ -517,6 +778,7 @@ export const rotaRouter = router({
         entityId: shift.id,
         meta: {
           staffUserId: shift.staffUserId,
+          kind: shift.kind,
           yearGroupBandId: shift.yearGroupBandId,
           date: dateKey(shift.date),
           startsAt: shift.startsAt.toISOString(),
@@ -534,6 +796,7 @@ export const rotaRouter = router({
       select: {
         id: true,
         staffUserId: true,
+        kind: true,
         yearGroupBandId: true,
         date: true,
         startsAt: true,
@@ -546,6 +809,7 @@ export const rotaRouter = router({
 
     const next = {
       staffUserId: input.staffUserId ?? existing.staffUserId,
+      kind: input.kind ?? existing.kind,
       yearGroupBandId: input.yearGroupBandId ?? existing.yearGroupBandId,
       date: normalizeDate(input.date ?? existing.date),
       startsAt: input.startsAt ?? existing.startsAt,
@@ -555,13 +819,21 @@ export const rotaRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'startsAt must be before endsAt' });
     }
 
+    assertShiftKindBand(next);
     await assertActiveStaffUser(ctx, next.staffUserId);
-    await assertActiveBand(ctx, next.yearGroupBandId);
+    if (next.kind === 'Cover' && next.yearGroupBandId) {
+      await assertActiveBand(ctx, next.yearGroupBandId);
+    }
     await assertNoShiftOverlap(ctx, { ...next, exceptShiftId: existing.id });
 
     const data = {
       ...(input.staffUserId !== undefined ? { staffUserId: input.staffUserId } : {}),
-      ...(input.yearGroupBandId !== undefined ? { yearGroupBandId: input.yearGroupBandId } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(next.kind === 'Meeting'
+        ? { yearGroupBandId: null }
+        : input.yearGroupBandId !== undefined
+          ? { yearGroupBandId: input.yearGroupBandId }
+          : {}),
       ...(input.date !== undefined ? { date: next.date } : {}),
       ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
       ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
@@ -583,6 +855,7 @@ export const rotaRouter = router({
         meta: {
           fields: Object.keys(data).sort(),
           staffUserId: shift.staffUserId,
+          kind: shift.kind,
           yearGroupBandId: shift.yearGroupBandId,
           date: dateKey(shift.date),
         },
@@ -590,6 +863,48 @@ export const rotaRouter = router({
     });
 
     return mapShift(shift);
+  }),
+
+  deleteShift: fullAdminProcedure.input(deleteShiftInput).mutation(async ({ ctx, input }) => {
+    const existing = await ctx.db.staffShift.findUnique({
+      where: { id: input.id },
+      select: { id: true, staffUserId: true, date: true },
+    });
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'supervisor shift not found' });
+    }
+
+    const pendingSwap = await ctx.db.shiftSwapRequest.findFirst({
+      where: {
+        status: 'Pending',
+        OR: [{ fromShiftId: input.id }, { toShiftId: input.id }],
+      },
+      select: { id: true },
+    });
+    if (pendingSwap) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'shift has a pending swap request',
+      });
+    }
+
+    const shift = await ctx.db.staffShift.delete({ where: { id: input.id } });
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Delete',
+        entity: 'StaffShift',
+        entityId: shift.id,
+        meta: {
+          staffUserId: shift.staffUserId,
+          date: dateKey(shift.date),
+          source: 'rota.deleteShift',
+        },
+      },
+    });
+
+    return { id: shift.id };
   }),
 
   pendingSwapRequests: fullAdminProcedure.query(async ({ ctx }) => {

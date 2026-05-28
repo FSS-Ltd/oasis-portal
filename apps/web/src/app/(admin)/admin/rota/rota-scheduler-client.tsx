@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Pencil, Save, X } from 'lucide-react';
+import { Check, Pencil, Save, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
@@ -17,11 +17,13 @@ import {
   emptyShiftForm,
   formatDateTime,
   mondayFor,
+  monthlyAvailabilityLabel,
   shiftToForm,
   today,
   type RotaShift,
   type ShiftForm,
   type StaffAvailability,
+  type StaffMonthlyAvailability,
 } from './_components/rota-utils';
 
 export function RotaSchedulerClient() {
@@ -43,6 +45,10 @@ export function RotaSchedulerClient() {
   );
   const staffQuery = api.rota.listStaff.useQuery(undefined, { retry: false });
   const availabilityQuery = api.rota.staffAvailability.useQuery(undefined, { retry: false });
+  const monthlyAvailabilityQuery = api.rota.staffMonthlyAvailability.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
   const swapsQuery = api.rota.pendingSwapRequests.useQuery(undefined, { retry: false });
 
@@ -52,11 +58,14 @@ export function RotaSchedulerClient() {
   );
   const shifts = (scheduleQuery.data ?? []) as RotaShift[];
   const staffAvailability = (availabilityQuery.data ?? []) as StaffAvailability[];
+  const staffMonthlyAvailability = (monthlyAvailabilityQuery.data ??
+    []) as StaffMonthlyAvailability[];
 
   const refreshRota = async () => {
     await Promise.all([
       utils.rota.weekSchedule.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.staffAvailability.invalidate(),
+      utils.rota.staffMonthlyAvailability.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.pendingSwapRequests.invalidate(),
     ]);
   };
@@ -99,12 +108,29 @@ export function RotaSchedulerClient() {
       showErrorToast(error, 'Shift swap could not be rejected.');
     },
   });
+  const deleteShift = api.rota.deleteShift.useMutation({
+    async onSuccess() {
+      setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
+      showSuccessToast('Shift removed.');
+      await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Shift could not be removed.');
+    },
+  });
 
   const selectedStaffAvailability = staffAvailability.find(
     (staff) => staff.id === shiftForm.staffUserId,
   );
+  const selectedStaffMonthlyAvailability = staffMonthlyAvailability.find(
+    (staff) => staff.id === shiftForm.staffUserId,
+  );
   const mutationError =
-    createShift.error ?? updateShift.error ?? approveSwap.error ?? rejectSwap.error;
+    createShift.error ??
+    updateShift.error ??
+    deleteShift.error ??
+    approveSwap.error ??
+    rejectSwap.error;
 
   return (
     <div className="rota-layout">
@@ -148,7 +174,10 @@ export function RotaSchedulerClient() {
                 event.preventDefault();
                 const payload = {
                   staffUserId: shiftForm.staffUserId,
-                  yearGroupBandId: shiftForm.yearGroupBandId,
+                  kind: shiftForm.kind,
+                  ...(shiftForm.kind === 'Cover'
+                    ? { yearGroupBandId: shiftForm.yearGroupBandId }
+                    : {}),
                   date: asDateTime(shiftForm.date, '00:00'),
                   startsAt: asDateTime(shiftForm.date, shiftForm.startsAt),
                   endsAt: asDateTime(shiftForm.date, shiftForm.endsAt),
@@ -177,22 +206,41 @@ export function RotaSchedulerClient() {
                   ))}
                 </SelectInput>
               </Field>
-              <Field label="Year-group band">
+              <Field label="Shift type">
                 <SelectInput
                   onChange={(event) => {
-                    setShiftForm({ ...shiftForm, yearGroupBandId: event.target.value });
+                    const kind = event.target.value as ShiftForm['kind'];
+                    setShiftForm({
+                      ...shiftForm,
+                      kind,
+                      yearGroupBandId: kind === 'Meeting' ? '' : shiftForm.yearGroupBandId,
+                    });
                   }}
                   required
-                  value={shiftForm.yearGroupBandId}
+                  value={shiftForm.kind}
                 >
-                  <option value="">Choose band</option>
-                  {activeBands.map((band) => (
-                    <option key={band.id} value={band.id}>
-                      {band.name}
-                    </option>
-                  ))}
+                  <option value="Cover">Year-group cover</option>
+                  <option value="Meeting">Meeting</option>
                 </SelectInput>
               </Field>
+              {shiftForm.kind === 'Cover' ? (
+                <Field label="Year-group band">
+                  <SelectInput
+                    onChange={(event) => {
+                      setShiftForm({ ...shiftForm, yearGroupBandId: event.target.value });
+                    }}
+                    required
+                    value={shiftForm.yearGroupBandId}
+                  >
+                    <option value="">Choose band</option>
+                    {activeBands.map((band) => (
+                      <option key={band.id} value={band.id}>
+                        {band.name}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
+              ) : null}
               <Field label="Date">
                 <TextInput
                   onChange={(event) => {
@@ -249,6 +297,20 @@ export function RotaSchedulerClient() {
                     Cancel
                   </Button>
                 ) : null}
+                {shiftForm.id ? (
+                  <Button
+                    onClick={() => {
+                      if (!shiftForm.id) return;
+                      deleteShift.mutate({ id: shiftForm.id });
+                    }}
+                    pending={deleteShift.isPending}
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Trash2 aria-hidden="true" size={16} />
+                    Remove
+                  </Button>
+                ) : null}
                 <Button pending={createShift.isPending || updateShift.isPending} type="submit">
                   {shiftForm.id ? (
                     <Pencil aria-hidden="true" size={16} />
@@ -267,7 +329,7 @@ export function RotaSchedulerClient() {
         <section className="panel">
           <div className="panel__body">
             <div className="section-title">
-              <h2>Availability</h2>
+              <h2>Weekly availability</h2>
             </div>
             {availabilityQuery.isLoading ? (
               <div className="empty-state">Loading availability...</div>
@@ -300,6 +362,49 @@ export function RotaSchedulerClient() {
                       {staff.availability.length === 0
                         ? 'No availability'
                         : staff.availability.map(availabilityLabel).join(', ')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="panel__body">
+            <div className="section-title">
+              <h2>Monthly availability</h2>
+            </div>
+            {monthlyAvailabilityQuery.isLoading ? (
+              <div className="empty-state">Loading monthly availability...</div>
+            ) : null}
+            {monthlyAvailabilityQuery.error ? (
+              <p className="status--error">
+                {friendlyErrorMessage(monthlyAvailabilityQuery.error)}
+              </p>
+            ) : null}
+            {selectedStaffMonthlyAvailability ? (
+              <div className="availability-list">
+                <strong>{selectedStaffMonthlyAvailability.fullName}</strong>
+                {selectedStaffMonthlyAvailability.availability.length === 0 ? (
+                  <span className="muted">No monthly availability set for this week</span>
+                ) : (
+                  selectedStaffMonthlyAvailability.availability.map((window) => (
+                    <span className="availability-pill" key={window.id}>
+                      {monthlyAvailabilityLabel(window)}
+                    </span>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="availability-list">
+                {staffMonthlyAvailability.slice(0, 6).map((staff) => (
+                  <div className="availability-row" key={staff.id}>
+                    <strong>{staff.fullName}</strong>
+                    <span>
+                      {staff.availability.length === 0
+                        ? 'No monthly availability'
+                        : staff.availability.map(monthlyAvailabilityLabel).join(', ')}
                     </span>
                   </div>
                 ))}

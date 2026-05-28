@@ -70,63 +70,64 @@ model User {
   updatedAt                         DateTime                      @updatedAt
 
   guardianOf                       Guardian[]
-  studentProfile                   Student?                      @relation("StudentLogin")
-  behaviourEntries                 BehaviourEntry[]              @relation("RecordedBehaviour")
-  childNotesCreated                ChildNote[]                   @relation("ChildNotesCreated")
-  deletedBehaviourEntries          BehaviourEntry[]              @relation("DeletedBehaviour")
-  deletedChildNotes                ChildNote[]                   @relation("DeletedChildNotes")
-  seenBehaviourEntries             BehaviourEntry[]              @relation("SeenBehaviour")
-  seenChildNotes                   ChildNote[]                   @relation("SeenChildNotes")
-  paceRecords                      PaceRecord[]                  @relation("RecordedPace")
-  approvedPaceAdvancements         PaceAdvancementApproval[]     @relation("ApprovedPaceAdvancements")
-  attendanceRecords                Attendance[]                  @relation("RecordedAttendance")
-  availabilityWindows              StaffAvailabilityWindow[]     @relation("StaffAvailability")
-  staffShifts                      StaffShift[]                  @relation("StaffShifts")
-  requestedShiftSwaps              ShiftSwapRequest[]            @relation("RequestedShiftSwaps")
-  targetedShiftSwaps               ShiftSwapRequest[]            @relation("TargetedShiftSwaps")
-  approvedShiftSwaps               ShiftSwapRequest[]            @relation("ApprovedShiftSwaps")
-  staffAttendance                  StaffAttendance[]             @relation("StaffAttendanceUser")
-  recordedStaffAttendance          StaffAttendance[]             @relation("RecordedStaffAttendance")
-  noticesPosted                    StaffNotice[]                 @relation("NoticesPosted")
+  studentProfile                   Student?                         @relation("StudentLogin")
+  behaviourEntries                 BehaviourEntry[]                 @relation("RecordedBehaviour")
+  childNotesCreated                ChildNote[]                      @relation("ChildNotesCreated")
+  deletedBehaviourEntries          BehaviourEntry[]                 @relation("DeletedBehaviour")
+  deletedChildNotes                ChildNote[]                      @relation("DeletedChildNotes")
+  seenBehaviourEntries             BehaviourEntry[]                 @relation("SeenBehaviour")
+  seenChildNotes                   ChildNote[]                      @relation("SeenChildNotes")
+  paceRecords                      PaceRecord[]                     @relation("RecordedPace")
+  approvedPaceAdvancements         PaceAdvancementApproval[]        @relation("ApprovedPaceAdvancements")
+  attendanceRecords                Attendance[]                     @relation("RecordedAttendance")
+  availabilityWindows              StaffAvailabilityWindow[]        @relation("StaffAvailability")
+  monthlyAvailabilityWindows       StaffMonthlyAvailabilityWindow[] @relation("StaffMonthlyAvailability")
+  staffShifts                      StaffShift[]                     @relation("StaffShifts")
+  requestedShiftSwaps              ShiftSwapRequest[]               @relation("RequestedShiftSwaps")
+  targetedShiftSwaps               ShiftSwapRequest[]               @relation("TargetedShiftSwaps")
+  approvedShiftSwaps               ShiftSwapRequest[]               @relation("ApprovedShiftSwaps")
+  staffAttendance                  StaffAttendance[]                @relation("StaffAttendanceUser")
+  recordedStaffAttendance          StaffAttendance[]                @relation("RecordedStaffAttendance")
+  noticesPosted                    StaffNotice[]                    @relation("NoticesPosted")
   noticeReads                      StaffNoticeRead[]
-  calendarEventsCreated            CalendarEvent[]               @relation("CalendarEventsCreated")
-  requiredCalendarEvents           CalendarEventRequiredPerson[] @relation("CalendarEventRequiredUser")
-  calendarEventTagsCreated         CalendarEventRequiredPerson[] @relation("CalendarEventRequiredTaggedBy")
-  permissionSlipsCreated           PermissionSlip[]              @relation("PermissionSlipsCreated")
-  permissionSlipResponses          PermissionSlipRecipient[]     @relation("PermissionSlipParentResponses")
-  permissionSlipPhysicalSignatures PermissionSlipRecipient[]     @relation("PermissionSlipPhysicalSignatures")
-  permissionSlipPaymentsMarked     PermissionSlipRecipient[]     @relation("PermissionSlipPaymentsMarked")
-  permissionSlipPaymentsConfirmed  PermissionSlipRecipient[]     @relation("PermissionSlipPaymentsConfirmed")
-  messagesSent                     Message[]                     @relation("MessagesSent")
+  calendarEventsCreated            CalendarEvent[]                  @relation("CalendarEventsCreated")
+  requiredCalendarEvents           CalendarEventRequiredPerson[]    @relation("CalendarEventRequiredUser")
+  calendarEventTagsCreated         CalendarEventRequiredPerson[]    @relation("CalendarEventRequiredTaggedBy")
+  permissionSlipsCreated           PermissionSlip[]                 @relation("PermissionSlipsCreated")
+  permissionSlipResponses          PermissionSlipRecipient[]        @relation("PermissionSlipParentResponses")
+  permissionSlipPhysicalSignatures PermissionSlipRecipient[]        @relation("PermissionSlipPhysicalSignatures")
+  permissionSlipPaymentsMarked     PermissionSlipRecipient[]        @relation("PermissionSlipPaymentsMarked")
+  permissionSlipPaymentsConfirmed  PermissionSlipRecipient[]        @relation("PermissionSlipPaymentsConfirmed")
+  messagesSent                     Message[]                        @relation("MessagesSent")
   messageReads                     MessageRead[]
   messageThreadParticipants        MessageThreadParticipant[]
-  threadsAsParent                  MessageThread[]               @relation("ThreadParent")
-  threadsAsSupervisor              MessageThread[]               @relation("ThreadSupervisor")
-  threadsAsAdmin                   MessageThread[]               @relation("ThreadAdmin")
-  shopPurchases                    ShopPurchase[]                @relation("Shopkeeper")
-  shopItemsCreated                 ShopItem[]                    @relation("ShopItemsCreated")
-  shopReservationsMade             ShopReservation[]             @relation("ShopReservationCreator")
-  shopReservationsCollected        ShopReservation[]             @relation("ShopReservationCollector")
-  shopReservationsCancelled        ShopReservation[]             @relation("ShopReservationCanceller")
-  clubsCreated                     Club[]                        @relation("ClubsCreated")
-  clubSignupsCreated               ClubSignup[]                  @relation("SignupsCreated")
-  clubNotifications                ClubNotification[]            @relation("ClubNotificationsSent")
-  clubAttendanceRecords            ClubAttendance[]              @relation("RecordedClubAttendance")
-  clubLeadAssignments              ClubLeadAssignment[]          @relation("ClubLeadAssignedUsers")
-  clubLeadAssignmentsMade          ClubLeadAssignment[]          @relation("ClubLeadAssignmentsMade")
-  clubRotaSelections               ClubRotaParticipant[]         @relation("ClubRotaSelectedUsers")
-  clubRotaParticipants             ClubRotaParticipant[]         @relation("ClubRotaParticipants")
-  clubRotaShifts                   ClubRotaShift[]               @relation("ClubRotaShifts")
-  clubAvailabilityWindows          ClubAvailabilityWindow[]      @relation("ClubAvailability")
-  schoolFeeInvoicesCreated         SchoolFeeInvoice[]            @relation("SchoolFeeInvoicesCreated")
-  schoolFeeInvoicesMarked          SchoolFeeInvoice[]            @relation("SchoolFeeInvoicesParentMarkedPaid")
-  schoolFeeInvoicesConfirmed       SchoolFeeInvoice[]            @relation("SchoolFeeInvoicesPaymentConfirmed")
-  schoolFeeDiscountOptOuts         SchoolFeeInvoiceDiscount[]    @relation("SchoolFeeDiscountOptedOutBy")
+  threadsAsParent                  MessageThread[]                  @relation("ThreadParent")
+  threadsAsSupervisor              MessageThread[]                  @relation("ThreadSupervisor")
+  threadsAsAdmin                   MessageThread[]                  @relation("ThreadAdmin")
+  shopPurchases                    ShopPurchase[]                   @relation("Shopkeeper")
+  shopItemsCreated                 ShopItem[]                       @relation("ShopItemsCreated")
+  shopReservationsMade             ShopReservation[]                @relation("ShopReservationCreator")
+  shopReservationsCollected        ShopReservation[]                @relation("ShopReservationCollector")
+  shopReservationsCancelled        ShopReservation[]                @relation("ShopReservationCanceller")
+  clubsCreated                     Club[]                           @relation("ClubsCreated")
+  clubSignupsCreated               ClubSignup[]                     @relation("SignupsCreated")
+  clubNotifications                ClubNotification[]               @relation("ClubNotificationsSent")
+  clubAttendanceRecords            ClubAttendance[]                 @relation("RecordedClubAttendance")
+  clubLeadAssignments              ClubLeadAssignment[]             @relation("ClubLeadAssignedUsers")
+  clubLeadAssignmentsMade          ClubLeadAssignment[]             @relation("ClubLeadAssignmentsMade")
+  clubRotaSelections               ClubRotaParticipant[]            @relation("ClubRotaSelectedUsers")
+  clubRotaParticipants             ClubRotaParticipant[]            @relation("ClubRotaParticipants")
+  clubRotaShifts                   ClubRotaShift[]                  @relation("ClubRotaShifts")
+  clubAvailabilityWindows          ClubAvailabilityWindow[]         @relation("ClubAvailability")
+  schoolFeeInvoicesCreated         SchoolFeeInvoice[]               @relation("SchoolFeeInvoicesCreated")
+  schoolFeeInvoicesMarked          SchoolFeeInvoice[]               @relation("SchoolFeeInvoicesParentMarkedPaid")
+  schoolFeeInvoicesConfirmed       SchoolFeeInvoice[]               @relation("SchoolFeeInvoicesPaymentConfirmed")
+  schoolFeeDiscountOptOuts         SchoolFeeInvoiceDiscount[]       @relation("SchoolFeeDiscountOptedOutBy")
   auditEvents                      AuditLog[]
-  invitationsSent                  UserInvitation[]              @relation("InvitedUserInvitations")
-  acceptedInvitations              UserInvitation[]              @relation("AcceptedUserInvitations")
-  spouseInvitationsSent            UserInvitation[]              @relation("GuardianLinkInviterInvitations")
-  parentRegistration               ParentRegistration?           @relation("ParentRegistrationParent")
+  invitationsSent                  UserInvitation[]                 @relation("InvitedUserInvitations")
+  acceptedInvitations              UserInvitation[]                 @relation("AcceptedUserInvitations")
+  spouseInvitationsSent            UserInvitation[]                 @relation("GuardianLinkInviterInvitations")
+  parentRegistration               ParentRegistration?              @relation("ParentRegistrationParent")
 
   @@index([role])
 }
@@ -516,19 +517,40 @@ model StaffAvailabilityWindow {
   @@index([staffUserId, dayOfWeek])
 }
 
+model StaffMonthlyAvailabilityWindow {
+  id          String   @id @default(cuid())
+  staffUserId String
+  date        DateTime @db.Date
+  startMinute Int
+  endMinute   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staffUser User @relation("StaffMonthlyAvailability", fields: [staffUserId], references: [id])
+
+  @@index([staffUserId, date])
+  @@index([date])
+}
+
+enum StaffShiftKind {
+  Cover
+  Meeting
+}
+
 model StaffShift {
-  id              String   @id @default(cuid())
+  id              String         @id @default(cuid())
   staffUserId     String
-  yearGroupBandId String
-  date            DateTime @db.Date
+  kind            StaffShiftKind @default(Cover)
+  yearGroupBandId String?
+  date            DateTime       @db.Date
   startsAt        DateTime
   endsAt          DateTime
   notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   staffUser        User               @relation("StaffShifts", fields: [staffUserId], references: [id])
-  yearGroupBand    YearGroupBand      @relation(fields: [yearGroupBandId], references: [id])
+  yearGroupBand    YearGroupBand?     @relation(fields: [yearGroupBandId], references: [id])
   fromSwapRequests ShiftSwapRequest[] @relation("FromShift")
   toSwapRequests   ShiftSwapRequest[] @relation("ToShift")
 
