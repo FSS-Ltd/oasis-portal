@@ -114,13 +114,21 @@ function ReadSummaryBadge({ summary }: { summary: NonNullable<Notice['readSummar
 function NoticeCard({
   notice,
   onMarkRead,
+  onViewAttachment,
   pending,
 }: {
   notice: Notice;
   onMarkRead: (noticeId: string) => void;
+  onViewAttachment?: ((noticeId: string) => void) | undefined;
   pending: boolean;
 }) {
   const readSummary = notice.readSummary;
+  const handleViewAttachment =
+    !notice.read && !readSummary && onViewAttachment
+      ? () => {
+          onViewAttachment(notice.id);
+        }
+      : undefined;
 
   return (
     <article className={notice.read ? 'noticeboard-card' : 'noticeboard-card is-unread'}>
@@ -154,7 +162,10 @@ function NoticeCard({
         ) : null}
       </div>
       <p>{notice.body}</p>
-      <NoticeAttachmentLinks attachments={notice.attachments} />
+      <NoticeAttachmentLinks
+        attachments={notice.attachments}
+        onViewAttachment={handleViewAttachment}
+      />
       <footer>
         <span>Posted {formatDateTime(notice.createdAt)}</span>
         {notice.expiresAt ? <span>Expires {formatDateTime(notice.expiresAt)}</span> : null}
@@ -203,10 +214,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
       setAttachments([]);
       setFormError(null);
       showSuccessToast('Notice posted.');
-      await utils.notice.listForAdmin.invalidate();
-      await utils.notice.listForStaff.invalidate();
-      await utils.notice.listForParents.invalidate();
-      router.refresh();
+      await refreshNoticeState();
     },
     onError(error) {
       showErrorToast(error, 'Notice could not be posted.');
@@ -220,10 +228,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
       setPendingReadId(null);
     },
     onSuccess: async () => {
-      await utils.notice.listForAdmin.invalidate();
-      await utils.notice.listForStaff.invalidate();
-      await utils.notice.listForParents.invalidate();
-      router.refresh();
+      await refreshNoticeState();
     },
   });
 
@@ -265,14 +270,30 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
     markRead.mutate({ noticeId });
   }
 
+  async function refreshNoticeState(): Promise<void> {
+    await utils.notice.listForAdmin.invalidate();
+    await utils.notice.listForStaff.invalidate();
+    await utils.notice.listForParents.invalidate();
+    router.refresh();
+  }
+
+  function handleViewAttachment(): void {
+    if (mode !== 'parent') return;
+    window.setTimeout(() => {
+      void refreshNoticeState();
+    }, 750);
+  }
+
   return (
     <div className="noticeboard-page">
       <div className="dashboard-hero">
         <p>{copy.eyebrow}</p>
         <h1>{copy.heading}</h1>
-        <span>
-          {unreadCount === 1 ? '1 unread notice' : `${String(unreadCount)} unread notices`}
-        </span>
+        {unreadCount > 0 ? (
+          <span>
+            {unreadCount === 1 ? '1 unread notice' : `${String(unreadCount)} unread notices`}
+          </span>
+        ) : null}
       </div>
 
       <div
@@ -374,7 +395,9 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
               <h2 id="noticeboard-list-title">{copy.listTitle}</h2>
               <p className="muted">{copy.listDescription}</p>
             </div>
-            <span className="badge badge--blue">{String(unreadCount)} unread</span>
+            {unreadCount > 0 ? (
+              <span className="badge badge--blue">{String(unreadCount)} unread</span>
+            ) : null}
           </div>
 
           {noticesQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
@@ -390,6 +413,7 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
                 key={notice.id}
                 notice={notice}
                 onMarkRead={handleMarkRead}
+                onViewAttachment={mode === 'parent' ? handleViewAttachment : undefined}
                 pending={pendingReadId === notice.id}
               />
             ))}

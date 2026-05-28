@@ -295,8 +295,10 @@ export function NoticeAttachmentPicker({
 
 export function NoticeAttachmentLinks({
   attachments,
+  onViewAttachment,
 }: {
   attachments: readonly NoticeAttachmentMeta[];
+  onViewAttachment?: (() => void) | undefined;
 }) {
   if (attachments.length === 0) return null;
 
@@ -316,6 +318,7 @@ export function NoticeAttachmentLinks({
                 <a
                   className="button button--secondary button--sm"
                   href={href}
+                  onClick={onViewAttachment}
                   target="_blank"
                   rel="noreferrer"
                 >
