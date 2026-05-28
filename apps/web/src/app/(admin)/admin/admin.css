@@ -9540,7 +9540,7 @@ button.club-assignment-row {
 
 .rota-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  grid-template-columns: 1fr;
   gap: 18px;
   align-items: start;
 }
@@ -9552,7 +9552,9 @@ button.club-assignment-row {
 
 .rota-layout__side {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 18px;
+  align-items: start;
 }
 
 .rota-toolbar {
