@@ -404,12 +404,28 @@ describe('parseSchoolFeeInvoiceText', () => {
       {
         description: 'Learning centre fees - Levi Mutabaruka',
         quantity: 1,
-        unitAmountPence: 18987,
+        unitAmountPence: 24500,
       },
       {
         description: 'Learning centre fees - Micah Mutabaruka',
         quantity: 1,
-        unitAmountPence: 16537,
+        unitAmountPence: 24500,
+      },
+    ]);
+    expect(parsed.discounts).toEqual([
+      {
+        label: 'Church leader + Member',
+        kind: 'ManualFixed',
+        presetCode: 'child-index:0',
+        percentBps: null,
+        amountPence: 5513,
+      },
+      {
+        label: 'Sibling, Leader & Member',
+        kind: 'ManualFixed',
+        presetCode: 'child-index:1',
+        percentBps: null,
+        amountPence: 7963,
       },
     ]);
   });
@@ -473,12 +489,28 @@ describe('parseSchoolFeeInvoiceText', () => {
       {
         description: 'Monthly school fee - Joseph Test',
         quantity: 1,
-        unitAmountPence: 18681,
+        unitAmountPence: 24500,
       },
       {
         description: 'Monthly school fee - April Test',
         quantity: 1,
-        unitAmountPence: 16231,
+        unitAmountPence: 24500,
+      },
+    ]);
+    expect(parsed.discounts).toEqual([
+      {
+        label: 'Church Leaders / Oasis Supervisors',
+        kind: 'ManualFixed',
+        presetCode: 'child-index:0',
+        percentBps: null,
+        amountPence: 5819,
+      },
+      {
+        label: 'Sibling discount',
+        kind: 'ManualFixed',
+        presetCode: 'child-index:1',
+        percentBps: null,
+        amountPence: 8269,
       },
     ]);
   });

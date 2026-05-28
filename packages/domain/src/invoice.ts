@@ -81,6 +81,8 @@ export interface SchoolFeeDiscountInput {
   optedOut?: boolean;
 }
 
+export type ParsedSchoolFeeInvoiceDiscount = SchoolFeeDiscountInput;
+
 export interface SchoolFeeAppliedDiscount extends SchoolFeeDiscountInput {
   baseAmountPence: number;
   appliedAmountPence: number;
@@ -115,6 +117,7 @@ export interface ParsedSchoolFeeInvoice {
   dueOn: string | null;
   term: string | null;
   lineItems: SchoolFeeInvoiceLineInput[];
+  discounts: ParsedSchoolFeeInvoiceDiscount[];
   totalAmountPence: number | null;
 }
 
@@ -467,7 +470,7 @@ export function parseSchoolFeeInvoiceText(text: string): ParsedSchoolFeeInvoice 
     .map((line) => line.trim())
     .filter(Boolean);
   const totalAmountPence = parseTotalAmountPence(lines, compactText);
-  const lineItems = parseLineItems(lines);
+  const { discounts, lineItems } = parseInvoiceRows(lines);
   const issuedOn = parseIssuedDate(compactText);
   const dueOn = parseDueDate(compactText, issuedOn);
 
@@ -486,6 +489,7 @@ export function parseSchoolFeeInvoiceText(text: string): ParsedSchoolFeeInvoice 
     dueOn,
     term: parseTerm(compactText),
     lineItems,
+    discounts,
     totalAmountPence,
   };
 }
@@ -671,12 +675,15 @@ function parseTotalAmountPence(lines: readonly string[], text: string): number |
   return labelled?.[1] ? parseMoneyPence(labelled[1]) : null;
 }
 
-function parseLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
-  const generatedInvoiceItems = parseGeneratedSchoolFeeLineItems(lines);
-  if (generatedInvoiceItems.length > 0) return generatedInvoiceItems;
+function parseInvoiceRows(lines: readonly string[]): {
+  lineItems: SchoolFeeInvoiceLineInput[];
+  discounts: ParsedSchoolFeeInvoiceDiscount[];
+} {
+  const generatedInvoiceRows = parseGeneratedSchoolFeeRows(lines);
+  if (generatedInvoiceRows.lineItems.length > 0) return generatedInvoiceRows;
 
-  const childTableItems = parseChildTableLineItems(lines);
-  if (childTableItems.length > 0) return childTableItems;
+  const childTableRows = parseChildTableRows(lines);
+  if (childTableRows.lineItems.length > 0) return childTableRows;
 
   const parsed: SchoolFeeInvoiceLineInput[] = [];
   for (const line of lines) {
@@ -685,21 +692,26 @@ function parseLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
     const item = parseLineItem(line);
     if (item) parsed.push(item);
   }
-  return parsed;
+  return { lineItems: parsed, discounts: [] };
 }
 
-function parseGeneratedSchoolFeeLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
+function parseGeneratedSchoolFeeRows(lines: readonly string[]): {
+  lineItems: SchoolFeeInvoiceLineInput[];
+  discounts: ParsedSchoolFeeInvoiceDiscount[];
+} {
   const startIndex = lines.findIndex((line) => /^description$/iu.test(line));
-  if (startIndex < 0) return [];
+  if (startIndex < 0) return { lineItems: [], discounts: [] };
   const endIndex = lines.findIndex(
     (line, index) => index > startIndex && /^(?:subtotal|total|discounts)$/iu.test(line),
   );
   const tableLines = lines.slice(startIndex + 1, endIndex > startIndex ? endIndex : undefined);
   const parsed: SchoolFeeInvoiceLineInput[] = [];
+  const discounts: ParsedSchoolFeeInvoiceDiscount[] = [];
 
   for (let index = 0; index < tableLines.length; index += 1) {
     const description = tableLines[index]?.replace(/\s+/gu, ' ').trim() ?? '';
     if (!isGeneratedSchoolFeeDescription(description)) continue;
+    const childIndex = parsed.length;
 
     const nextFeeIndex = tableLines.findIndex(
       (line, candidateIndex) =>
@@ -709,14 +721,16 @@ function parseGeneratedSchoolFeeLineItems(lines: readonly string[]): SchoolFeeIn
     const childLines = tableLines.slice(index + 1, nextFeeIndex > index ? nextFeeIndex : undefined);
     const netAmountPence = parseGeneratedNetAmountPence(childLines);
     const grossAmountPence = parseGeneratedGrossAmountPence(childLines);
-    const amountPence = netAmountPence ?? grossAmountPence;
+    const amountPence = grossAmountPence ?? netAmountPence;
 
     if (amountPence !== null && amountPence > 0) {
       parsed.push({ description, quantity: 1, unitAmountPence: amountPence });
+      const discount = parseGeneratedDiscount(childLines, childIndex, amountPence, netAmountPence);
+      if (discount) discounts.push(discount);
     }
   }
 
-  return parsed;
+  return { lineItems: parsed, discounts };
 }
 
 function isGeneratedSchoolFeeDescription(value: string): boolean {
@@ -747,40 +761,124 @@ function parseGeneratedGrossAmountPence(lines: readonly string[]): number | null
   return null;
 }
 
-function parseChildTableLineItems(lines: readonly string[]): SchoolFeeInvoiceLineInput[] {
+function parseGeneratedDiscount(
+  lines: readonly string[],
+  childIndex: number,
+  grossAmountPence: number,
+  netAmountPence: number | null,
+): ParsedSchoolFeeInvoiceDiscount | null {
+  if (netAmountPence === null || netAmountPence >= grossAmountPence) return null;
+  const amountPence = grossAmountPence - netAmountPence;
+  const label =
+    parseGeneratedDiscountLabel(lines) ?? `Imported invoice discount ${String(childIndex + 1)}`;
+  return parsedFixedDiscount(label, childIndex, amountPence);
+}
+
+function parseGeneratedDiscountLabel(lines: readonly string[]): string | null {
+  for (const line of lines) {
+    const match = /^discount\s*-\s*(.+)$/iu.exec(line.replace(/\s+/gu, ' ').trim());
+    if (match?.[1]) return sanitizeDiscountLabel(match[1]);
+  }
+  return null;
+}
+
+function parseChildTableRows(lines: readonly string[]): {
+  lineItems: SchoolFeeInvoiceLineInput[];
+  discounts: ParsedSchoolFeeInvoiceDiscount[];
+} {
   const startIndex = lines.findIndex((line) => /^child$/iu.test(line));
-  if (startIndex < 0) return [];
+  if (startIndex < 0) return { lineItems: [], discounts: [] };
   const endIndex = lines.findIndex(
     (line, index) => index > startIndex && /\btotal\s+amount\s+due\b/iu.test(line),
   );
   const tableLines = lines.slice(startIndex + 1, endIndex > startIndex ? endIndex : undefined);
   const parsed: SchoolFeeInvoiceLineInput[] = [];
+  const discounts: ParsedSchoolFeeInvoiceDiscount[] = [];
 
   for (let index = 0; index < tableLines.length; index += 1) {
     const childName = tableLines[index];
     if (!childName || !looksLikeChildName(childName)) continue;
+    const childIndex = parsed.length;
 
     const amountLines: string[] = [];
+    const discountLabelLines: string[] = [];
     let nextIndex = index + 1;
     while (nextIndex < tableLines.length) {
       const candidate = tableLines[nextIndex];
       if (candidate && looksLikeChildName(candidate)) break;
-      if (candidate && parseMoneyPence(candidate) !== null) amountLines.push(candidate);
+      if (candidate && isChildTableMoneyLine(candidate)) {
+        amountLines.push(candidate);
+      } else if (candidate && !isChildTableHeaderLine(candidate)) {
+        discountLabelLines.push(candidate);
+      }
       nextIndex += 1;
     }
 
-    const amountPence = amountLines.length > 0 ? parseMoneyPence(amountLines.at(-1) ?? '') : null;
+    const grossAmountPence = amountLines.length > 0 ? parseMoneyPence(amountLines[0] ?? '') : null;
+    const netAmountPence =
+      amountLines.length > 0 ? parseMoneyPence(amountLines.at(-1) ?? '') : null;
+    const amountPence = grossAmountPence ?? netAmountPence;
     if (amountPence !== null && amountPence > 0) {
       parsed.push({
         description: `Learning centre fees - ${childName}`,
         quantity: 1,
         unitAmountPence: amountPence,
       });
+      if (
+        grossAmountPence !== null &&
+        netAmountPence !== null &&
+        netAmountPence < grossAmountPence
+      ) {
+        discounts.push(
+          parsedFixedDiscount(
+            parseChildTableDiscountLabel(discountLabelLines) ??
+              `Imported invoice discount ${String(childIndex + 1)}`,
+            childIndex,
+            grossAmountPence - netAmountPence,
+          ),
+        );
+      }
     }
     index = nextIndex - 1;
   }
 
-  return parsed;
+  return { lineItems: parsed, discounts };
+}
+
+function parsedFixedDiscount(
+  label: string,
+  childIndex: number,
+  amountPence: number,
+): ParsedSchoolFeeInvoiceDiscount {
+  return {
+    label,
+    kind: 'ManualFixed',
+    presetCode: schoolFeeDiscountChildIndexPresetCode(childIndex),
+    percentBps: null,
+    amountPence,
+  };
+}
+
+function isChildTableHeaderLine(value: string): boolean {
+  return /^(?:base\s+monthly\s+fee|discount\s+applied|amount\s+due(?:\s*\(£\))?)$/iu.test(
+    value.replace(/\s+/gu, ' ').trim(),
+  );
+}
+
+function isChildTableMoneyLine(value: string): boolean {
+  return value.includes('£') && parseMoneyPence(value) !== null;
+}
+
+function parseChildTableDiscountLabel(lines: readonly string[]): string | null {
+  const joined = lines.join(' ');
+  const withoutPercent = joined.replace(/\b[0-9]+(?:\.[0-9]+)?%\s*/gu, '');
+  return sanitizeDiscountLabel(withoutPercent);
+}
+
+function sanitizeDiscountLabel(value: string): string | null {
+  const label = value.replace(/[()]/gu, ' ').replace(/\s+/gu, ' ').trim();
+  if (label.length < 2 || label.length > 160) return null;
+  return label;
 }
 
 function looksLikeChildName(value: string): boolean {

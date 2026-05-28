@@ -23,6 +23,7 @@ import {
   type LineForm,
   type PublishBillingCadence,
   type PublishDraftInput,
+  type UploadDiscount,
   type UploadDraftResponse,
   type UploadParsedInvoice,
 } from './admin-invoice-upload-utils';
@@ -81,6 +82,7 @@ export function AdminInvoiceUploadModal({
   const [dueOn, setDueOn] = useState(defaultDueDate(today));
   const [term, setTerm] = useState(defaultTerm(today));
   const [lineItems, setLineItems] = useState<LineForm[]>([]);
+  const [discounts, setDiscounts] = useState<UploadDiscount[]>([]);
 
   const selectedFamily = useMemo(
     () => families.find((family) => family.familyKey === familyKey),
@@ -97,6 +99,15 @@ export function AdminInvoiceUploadModal({
       }, 0),
     [lineItems],
   );
+  const discountTotal = useMemo(
+    () =>
+      discounts.reduce((sum, discount) => {
+        if (discount.kind !== 'ManualFixed') return sum;
+        return sum + (discount.amountPence ?? 0);
+      }, 0),
+    [discounts],
+  );
+  const netTotal = Math.max(subtotal - discountTotal, 0);
   const canSubmit =
     draft !== null &&
     selectedFamily !== undefined &&
@@ -133,6 +144,7 @@ export function AdminInvoiceUploadModal({
       setDueOn(clientParsed.dueOn ?? defaultDueDate(parsedIssuedOn));
       setTerm(clientParsed.term ?? defaultTerm(parsedIssuedOn));
       setLineItems(lineFormsFromParsed(clientParsed.lineItems));
+      setDiscounts(clientParsed.discounts);
       setFamilyKey(matchedFamily?.familyKey ?? '');
       setFamilyLabel(clientParsed.familyLabel ?? matchedFamily?.familyLabel ?? '');
       setSelectedStudentIds(
@@ -172,6 +184,7 @@ export function AdminInvoiceUploadModal({
       setDueOn(parsed.dueOn ?? defaultDueDate(parsedIssuedOn));
       setTerm(parsed.term ?? defaultTerm(parsedIssuedOn));
       setLineItems(lineFormsFromParsed(parsed.lineItems));
+      setDiscounts(parsed.discounts);
       setFamilyKey(matchedFamily?.familyKey ?? '');
       setFamilyLabel(parsed.familyLabel ?? matchedFamily?.familyLabel ?? '');
       setSelectedStudentIds(
@@ -180,6 +193,7 @@ export function AdminInvoiceUploadModal({
     } catch (err) {
       setDraft(null);
       setLineItems([]);
+      setDiscounts([]);
       setFamilyKey('');
       setFamilyLabel('');
       setSelectedStudentIds([]);
@@ -242,6 +256,10 @@ export function AdminInvoiceUploadModal({
       setError('Imported invoices need one line item per selected child.');
       return;
     }
+    if (discounts.length > 0 && validLineItems.length !== selectedStudentIds.length) {
+      setError('Imported discounts need one line item per selected child.');
+      return;
+    }
     if (!invoiceNumber.trim() || !dueOn.trim()) {
       setError('Invoice number and due date are required.');
       return;
@@ -258,6 +276,7 @@ export function AdminInvoiceUploadModal({
       dueOn,
       term: term.trim() || null,
       lineItems: validLineItems,
+      discounts,
     });
   }
 
@@ -478,13 +497,35 @@ export function AdminInvoiceUploadModal({
               ))}
             </div>
           </section>
+
+          {discounts.length > 0 ? (
+            <section className="invoice-create-section invoice-create-section--wide">
+              <h3>Imported discounts</h3>
+              <div className="invoice-discounts">
+                {discounts.map((discount, index) => (
+                  <div className="invoice-discount-row" key={`${discount.label}-${String(index)}`}>
+                    <span>
+                      <strong>{discount.label}</strong>
+                      <small>Imported from PDF</small>
+                    </span>
+                    <b>-{formatPence(discount.amountPence ?? 0)}</b>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         {error || serverError ? (
           <p className="invoice-form-error invoice-form-error--modal">{error ?? serverError}</p>
         ) : null}
         <footer className="invoice-modal__footer">
-          <span className="invoice-create-subtotal">Subtotal {formatPence(subtotal)}</span>
+          <span className="invoice-create-subtotal">
+            Subtotal {formatPence(subtotal)}
+            {discountTotal > 0
+              ? ` | Discounts -${formatPence(discountTotal)} | Total ${formatPence(netTotal)}`
+              : ''}
+          </span>
           <Button disabled={uploading || pending} onClick={onClose} type="button" variant="ghost">
             Cancel
           </Button>
