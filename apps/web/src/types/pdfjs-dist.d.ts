@@ -1,4 +1,4 @@
-declare module 'pdfjs-dist/legacy/build/pdf.mjs' {
+declare module 'pdfjs-dist/legacy/webpack.mjs' {
   interface PdfTextContent {
     items: unknown[];
   }
@@ -18,7 +18,6 @@ declare module 'pdfjs-dist/legacy/build/pdf.mjs' {
 
   export function getDocument(input: {
     data: Uint8Array;
-    disableWorker: boolean;
     isEvalSupported: boolean;
   }): PdfLoadingTask;
 }

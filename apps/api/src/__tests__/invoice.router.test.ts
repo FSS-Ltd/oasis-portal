@@ -928,6 +928,84 @@ describe('invoiceRouter', () => {
     expect(published.lineItems.map((line) => line.unitAmountPence)).toEqual([18987, 16537]);
   });
 
+  it('publishes uploaded draft discounts as exact child-scoped fixed discounts', async () => {
+    const { caller } = createCaller(financeUser);
+    const pdfBase64 = Buffer.from('%PDF-1.4\n').toString('base64');
+
+    const draft = await caller.invoice.uploadDraft({
+      fileName: 'OLC0022.pdf',
+      mimeType: 'application/pdf',
+      sizeBytes: Buffer.from('%PDF-1.4\n').length,
+      pdfBase64,
+    });
+
+    const published = await caller.invoice.publishDraft({
+      invoiceId: draft.invoice.id,
+      studentIds: [linkedStudentId, otherStudentId],
+      familyLabel: 'Parent family',
+      schoolYear: 2026,
+      billingCadence: 'Monthly',
+      invoiceNumber: 'OLC0022',
+      issuedOn: '2026-05-21',
+      dueOn: '2026-06-04',
+      term: 'MAY 2026',
+      lineItems: [
+        {
+          description: 'Learning centre fees - Talia Parent',
+          quantity: 1,
+          unitAmountPence: 24500,
+        },
+        {
+          description: 'Learning centre fees - Other Child',
+          quantity: 1,
+          unitAmountPence: 24500,
+        },
+      ],
+      discounts: [
+        {
+          label: 'Church leader + Member',
+          kind: 'ManualFixed',
+          presetCode: schoolFeeDiscountChildIndexPresetCode(0),
+          percentBps: null,
+          amountPence: 5513,
+        },
+        {
+          label: 'Sibling, Leader & Member',
+          kind: 'ManualFixed',
+          presetCode: schoolFeeDiscountChildIndexPresetCode(1),
+          percentBps: null,
+          amountPence: 7963,
+        },
+      ],
+    });
+
+    expect(published).toMatchObject({
+      status: 'Unpaid',
+      subtotalAmountPence: 49000,
+      discountAmountPence: 13476,
+      totalAmountPence: 35524,
+    });
+    expect(published.discounts).toEqual([
+      expect.objectContaining({
+        label: 'Church leader + Member',
+        kind: 'ManualFixed',
+        presetCode: schoolFeeDiscountChildIndexPresetCode(0),
+        amountPence: 5513,
+        appliedAmountPence: 5513,
+      }),
+      expect.objectContaining({
+        label: 'Sibling, Leader & Member',
+        kind: 'ManualFixed',
+        presetCode: schoolFeeDiscountChildIndexPresetCode(1),
+        amountPence: 7963,
+        appliedAmountPence: 7963,
+      }),
+    ]);
+    expect(published.discountBreakdowns.map((breakdown) => breakdown.totalAmountPence)).toEqual([
+      18987, 16537,
+    ]);
+  });
+
   it('blocks untagged staff from admin invoice procedures', async () => {
     const { caller, fakeDb } = createCaller(untaggedStaffUser);
 

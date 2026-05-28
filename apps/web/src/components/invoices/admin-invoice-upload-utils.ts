@@ -12,6 +12,14 @@ export interface UploadLineItem {
   unitAmountPence: number;
 }
 
+export interface UploadDiscount {
+  label: string;
+  kind: 'Preset' | 'ManualPercent' | 'ManualFixed';
+  presetCode?: string | null;
+  percentBps: number | null;
+  amountPence: number | null;
+}
+
 export interface UploadParsedInvoice {
   invoiceNumber: string | null;
   familyLabel?: string | null;
@@ -20,6 +28,7 @@ export interface UploadParsedInvoice {
   term: string | null;
   totalAmountPence: number | null;
   lineItems: UploadLineItem[];
+  discounts: UploadDiscount[];
 }
 
 export interface UploadDraftResponse {
@@ -64,7 +73,7 @@ type BrowserPdfDocument = {
 };
 
 type BrowserPdfJs = {
-  getDocument: (input: { data: Uint8Array; disableWorker: boolean; isEvalSupported: boolean }) => {
+  getDocument: (input: { data: Uint8Array; isEvalSupported: boolean }) => {
     promise: Promise<BrowserPdfDocument>;
   };
 };
@@ -82,9 +91,27 @@ function isUploadLineItem(value: unknown): value is UploadLineItem {
   );
 }
 
+function isUploadDiscount(value: unknown): value is UploadDiscount {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.label === 'string' &&
+    (value.kind === 'Preset' || value.kind === 'ManualPercent' || value.kind === 'ManualFixed') &&
+    (value.presetCode === undefined ||
+      value.presetCode === null ||
+      typeof value.presetCode === 'string') &&
+    (value.percentBps === null || typeof value.percentBps === 'number') &&
+    (value.amountPence === null || typeof value.amountPence === 'number')
+  );
+}
+
 function isParsedInvoice(value: unknown): value is UploadParsedInvoice {
   if (!isRecord(value)) return false;
-  return Array.isArray(value.lineItems) && value.lineItems.every(isUploadLineItem);
+  return (
+    Array.isArray(value.lineItems) &&
+    value.lineItems.every(isUploadLineItem) &&
+    Array.isArray(value.discounts) &&
+    value.discounts.every(isUploadDiscount)
+  );
 }
 
 export function isUploadResponse(value: unknown): value is UploadDraftResponse {
@@ -122,10 +149,9 @@ function ensurePromiseWithResolvers(): void {
 
 export async function parseInvoiceFromPdfFile(file: File): Promise<UploadParsedInvoice> {
   ensurePromiseWithResolvers();
-  const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as BrowserPdfJs;
+  const pdfjs = (await import('pdfjs-dist/legacy/webpack.mjs')) as BrowserPdfJs;
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(await file.arrayBuffer()),
-    disableWorker: true,
     isEvalSupported: false,
   });
   const pdf = await loadingTask.promise;
@@ -162,6 +188,7 @@ export function parsedInvoiceFromUpload(
     term: parsed?.term ?? response.invoice.term ?? null,
     totalAmountPence: parsed?.totalAmountPence ?? response.invoice.totalAmountPence ?? null,
     lineItems: parsedLines,
+    discounts: parsed?.discounts ?? [],
   };
 }
 

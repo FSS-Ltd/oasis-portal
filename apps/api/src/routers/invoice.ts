@@ -402,6 +402,7 @@ const publishDraftInput = z
     dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
     term: z.string().trim().min(1).max(80).nullable(),
     lineItems: z.array(invoiceLineInput).min(1).max(50),
+    discounts: z.array(invoiceDiscountInput).max(20).default([]),
   })
   .refine((input) => input.studentId || input.studentIds?.length, {
     message: 'Select at least one child.',
@@ -2187,6 +2188,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             dueOn: null,
             term: null,
             lineItems: [],
+            discounts: [],
             totalAmountPence: null,
           };
 
@@ -2242,12 +2244,31 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
       await requireInvoiceManager(ctx, 'invoice.publishDraft', input.invoiceId);
       const studentIds = input.studentIds ?? (input.studentId ? [input.studentId] : []);
 
-      let totalAmountPence: number;
+      let subtotalAmountPence: number;
       try {
-        totalAmountPence = invoiceTotalPence(input.lineItems);
+        subtotalAmountPence = invoiceTotalPence(input.lineItems);
       } catch (err) {
         asBadRequest(err);
       }
+      let childAmounts: number[];
+      try {
+        childAmounts = childLineAmountsPence(input.lineItems, studentIds.length);
+      } catch (err) {
+        if (err instanceof TRPCError) throw err;
+        asBadRequest(err);
+      }
+      const discountData = (() => {
+        try {
+          return discountCreateData(ctx, input.discounts, subtotalAmountPence, {
+            studentCount: studentIds.length,
+            childLineAmountsPence: childAmounts,
+          });
+        } catch (err) {
+          if (err instanceof TRPCError) throw err;
+          asBadRequest(err);
+        }
+      })();
+      const totalAmountPence = discountData.calculation.totalAmountPence;
 
       const invoice = (await ctx.withRls(async (tx) => {
         await loadDraftForPublishing(tx, input.invoiceId);
@@ -2267,8 +2288,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             issuedOn: parseDateInput(input.issuedOn),
             dueOn: parseDateInput(input.dueOn),
             paidAt: null,
-            subtotalAmountPence: totalAmountPence,
-            discountAmountPence: 0,
+            subtotalAmountPence,
+            discountAmountPence: discountData.calculation.discountAmountPence,
             totalAmountPence,
             lineItems: {
               deleteMany: {},
@@ -2284,7 +2305,10 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
                 position: index + 1,
               })),
             },
-            discounts: { deleteMany: {} },
+            discounts: {
+              deleteMany: {},
+              create: discountData.create,
+            },
           },
           include: invoiceInclude,
         });
@@ -2301,6 +2325,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
               schoolYear: input.schoolYear ?? null,
               billingCadence: input.billingCadence ?? null,
               invoiceNumber: input.invoiceNumber,
+              discountAmountPence: discountData.calculation.discountAmountPence,
               totalAmountPence,
             },
           },
