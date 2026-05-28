@@ -6,6 +6,7 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
+import { MonthlyAvailabilityEditor } from '@/components/rota/monthly-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { RotaWeekSchedule } from './_components/rota-week-schedule';
@@ -325,6 +326,7 @@ export function RotaSchedulerClient() {
         </section>
 
         <MyAvailabilityEditor title="My availability" />
+        <MonthlyAvailabilityEditor title="My monthly availability" />
 
         <section className="panel">
           <div className="panel__body">
