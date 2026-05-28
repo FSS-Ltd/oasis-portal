@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "repoId": "oasis-portal",
+  "currentPass": 1,
+  "lastRunDate": "2026-05-28",
+  "reviewedFiles": {
+    "apps/web/src/components/shop/shop-workflow-client.tsx": {
+      "lastReviewedAt": "2026-05-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1503,
+      "lineCountAfter": 1503,
+      "issuesFixed": ["Prior automation pass reviewed shop workflow client."],
+      "validationStatus": "pass",
+      "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
+    },
+    "apps/web/src/components/invoices/admin-invoice-create-modal.tsx": {
+      "lastReviewedAt": "2026-05-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1204,
+      "lineCountAfter": 1204,
+      "issuesFixed": ["Prior automation pass reviewed admin invoice create modal."],
+      "validationStatus": "pass",
+      "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
+    },
+    "apps/web/src/components/child-log/child-snapshot-client.tsx": {
+      "lastReviewedAt": "2026-05-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1157,
+      "lineCountAfter": 1157,
+      "issuesFixed": ["Prior automation pass reviewed child snapshot client."],
+      "validationStatus": "pass",
+      "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
+    },
+    "apps/web/src/components/student-drillthrough/student-drillthrough-content.tsx": {
+      "lastReviewedAt": "2026-05-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1232,
+      "lineCountAfter": 1232,
+      "issuesFixed": ["Prior automation pass reviewed student drillthrough content."],
+      "validationStatus": "pass",
+      "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
+    },
+    "apps/web/src/components/behaviour/behaviour-log-client.tsx": {
+      "lastReviewedAt": "2026-05-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 978,
+      "lineCountAfter": 978,
+      "issuesFixed": ["Prior automation pass reviewed behaviour log client."],
+      "validationStatus": "pass",
+      "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
+    },
+    "apps/web/src/app/registration/registration-form.tsx": {
+      "lastReviewedAt": "2026-05-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 923,
+      "lineCountAfter": 795,
+      "issuesFixed": [
+        "Extracted registration payload conversion and validation issue mapping into a focused helper module.",
+        "Preserved existing schema parsing and form field path behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized React form component."
+    },
+    "apps/web/src/app/(supervisor)/supervisor/supervisor-dashboard-client.tsx": {
+      "lastReviewedAt": "2026-05-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 856,
+      "lineCountAfter": 850,
+      "issuesFixed": [
+        "Extracted repeated behaviour success message formatting into supervisor utilities.",
+        "Ran formatter to repair existing JSX indentation in the entry-mode field."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized supervisor workflow component."
+    },
+    "apps/web/src/components/invoices/admin-invoices-client.tsx": {
+      "lastReviewedAt": "2026-05-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 856,
+      "lineCountAfter": 609,
+      "issuesFixed": [
+        "Extracted invoice loading, delete, and drawer components into a focused invoice modal module.",
+        "Removed imports that only supported the extracted modal code."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized invoice admin UI component."
+    },
+    "apps/web/src/components/invoices/admin-invoice-upload-modal.tsx": {
+      "lastReviewedAt": "2026-05-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 773,
+      "lineCountAfter": 498,
+      "issuesFixed": [
+        "Extracted PDF parsing, upload response guards, money parsing, default date helpers, and family matching into a focused utility module.",
+        "Kept modal UI state and submission flow in the original component."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized invoice upload component with mixed parsing and UI responsibilities."
+    },
+    "apps/web/src/components/calendar/shared-calendar.tsx": {
+      "lastReviewedAt": "2026-05-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 599,
+      "lineCountAfter": 604,
+      "issuesFixed": [
+        "Removed duplicate active-event filtering for the count.",
+        "Centralized required-people fallback data inside the component render path."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized shared calendar component; no broader extraction was made to avoid unnecessary churn."
+    }
+  },
+  "deferredFiles": {},
+  "fullPassHistory": [
+    {
+      "pass": 1,
+      "startedAt": "2026-05-27",
+      "completedAt": null,
+      "eligibleFileCountAtStart": 389
+    }
+  ]
+}

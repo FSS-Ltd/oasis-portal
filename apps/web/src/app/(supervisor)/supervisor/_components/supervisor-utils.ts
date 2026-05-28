@@ -152,6 +152,41 @@ export function noticeDashboardAdapter(): DashboardNoticeSummary[] {
   return [];
 }
 
+export function studentCountLabel(count: number): string {
+  return `${String(count)} ${count === 1 ? 'student' : 'students'}`;
+}
+
+export function behaviourLogSuccessMessage(input: {
+  type: BehaviourType;
+  visibility?: BehaviourVisibility | undefined;
+  studentIds: readonly string[];
+}): string {
+  const students = studentCountLabel(input.studentIds.length);
+
+  if (input.type === 'General') {
+    return input.visibility === 'General'
+      ? `Parent-visible general mark saved for ${students}.`
+      : `General mark saved for ${students}. Heads and you can view it.`;
+  }
+
+  if (input.visibility === 'Sensitive') {
+    return `Sensitive demerit saved for ${students}. Heads and you can view it.`;
+  }
+
+  return `Behaviour saved for ${students}.`;
+}
+
+export function batchBehaviourSuccessMessage(input: {
+  entries: readonly unknown[];
+  studentIds: readonly string[];
+  type: BatchBehaviourType;
+}): string {
+  const entries = `${String(input.entries.length)} ${input.type.toLowerCase()} ${
+    input.entries.length === 1 ? 'entry' : 'entries'
+  }`;
+  return `${entries} saved for ${studentCountLabel(input.studentIds.length)}.`;
+}
+
 export function emptyAvailabilityRow(): AvailabilityDraft {
   return {
     id: `draft_${String(Date.now())}_${Math.random().toString(36).slice(2)}`,

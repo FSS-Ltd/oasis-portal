@@ -106,9 +106,10 @@ export function SharedCalendar({
   });
 
   const events: CalendarEvent[] = eventsQuery.data ?? [];
-  const activeCount = events.filter((event) => event.active).length;
   const activeEvents = events.filter((event) => event.active);
+  const activeCount = activeEvents.length;
   const mutationError = createEvent.error ?? updateEvent.error ?? archiveEvent.error;
+  const requiredPeople = requiredPeopleQuery.data ?? [];
   const listDescription = canManage
     ? copy.listDescription
     : 'Published dates visible to your portal.';
@@ -419,11 +420,13 @@ export function SharedCalendar({
                     <div className="empty-state">Loading staff...</div>
                   ) : null}
                   {requiredPeopleQuery.error ? (
-                    <p className="status--error">{friendlyErrorMessage(requiredPeopleQuery.error)}</p>
+                    <p className="status--error">
+                      {friendlyErrorMessage(requiredPeopleQuery.error)}
+                    </p>
                   ) : null}
                   {!requiredPeopleQuery.isLoading &&
                   !requiredPeopleQuery.error &&
-                  (requiredPeopleQuery.data ?? []).length === 0 ? (
+                  requiredPeople.length === 0 ? (
                     <div className="empty-state">No active staff found.</div>
                   ) : null}
                   <div
@@ -431,7 +434,7 @@ export function SharedCalendar({
                     role="group"
                     aria-label="Required people"
                   >
-                    {(requiredPeopleQuery.data ?? []).map((person) => {
+                    {requiredPeople.map((person) => {
                       const selected = form.requiredPersonIds.includes(person.id);
                       return (
                         <label
@@ -476,7 +479,9 @@ export function SharedCalendar({
                 ) : null}
               </div>
               {formError ? <p className="status--error">{formError}</p> : null}
-              {mutationError ? <p className="status--error">{friendlyErrorMessage(mutationError)}</p> : null}
+              {mutationError ? (
+                <p className="status--error">{friendlyErrorMessage(mutationError)}</p>
+              ) : null}
             </form>
           </section>
         ) : null}
