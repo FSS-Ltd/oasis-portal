@@ -1,28 +1,82 @@
 'use client';
 
-import { Check, Pencil, Save, X } from 'lucide-react';
+import { Check, Pencil, Save, Trash2, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
+import { MonthlyAvailabilityEditor } from '@/components/rota/monthly-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { RotaWeekSchedule } from './_components/rota-week-schedule';
 import {
   addDays,
   asDateTime,
-  availabilityLabel,
+  availabilityTimeLabel,
   dateKey,
   emptyShiftForm,
   formatDateTime,
   mondayFor,
+  monthlyUnavailabilityTimeLabel,
   shiftToForm,
   today,
+  type RotaDayAvailabilitySummary,
   type RotaShift,
   type ShiftForm,
   type StaffAvailability,
+  type StaffMonthlyAvailability,
 } from './_components/rota-utils';
+
+function buildStaffAvailabilityByDay({
+  staffAvailability,
+  staffMonthlyAvailability,
+  weekDays,
+}: {
+  staffAvailability: readonly StaffAvailability[];
+  staffMonthlyAvailability: readonly StaffMonthlyAvailability[];
+  weekDays: readonly Date[];
+}): RotaDayAvailabilitySummary[] {
+  return weekDays.map((day) => {
+    const date = dateKey(day);
+    const dayOfWeek = day.getUTCDay();
+    const unavailable = staffMonthlyAvailability.flatMap((staff) =>
+      staff.availability
+        .filter((window) => window.date === date)
+        .map((window) => ({
+          id: `${staff.id}-${window.id}`,
+          label: staff.fullName,
+          detail: monthlyUnavailabilityTimeLabel(window),
+        })),
+    );
+    const allDayUnavailableStaffIds = new Set(
+      staffMonthlyAvailability
+        .filter((staff) =>
+          staff.availability.some(
+            (window) =>
+              window.date === date && window.startMinute === 0 && window.endMinute === 1440,
+          ),
+        )
+        .map((staff) => staff.id),
+    );
+    return {
+      date,
+      available: staffAvailability.flatMap((staff) => {
+        if (allDayUnavailableStaffIds.has(staff.id)) return [];
+        return staff.availability
+          .filter((window) => window.dayOfWeek === dayOfWeek)
+          .map((window) => ({
+            id: `${staff.id}-${String(window.dayOfWeek)}-${String(window.startMinute)}-${String(
+              window.endMinute,
+            )}`,
+            label: staff.fullName,
+            detail: availabilityTimeLabel(window),
+          }));
+      }),
+      unavailable,
+    };
+  });
+}
 
 export function RotaSchedulerClient() {
   const [weekStart, setWeekStart] = useState(() => mondayFor(today()));
@@ -43,6 +97,10 @@ export function RotaSchedulerClient() {
   );
   const staffQuery = api.rota.listStaff.useQuery(undefined, { retry: false });
   const availabilityQuery = api.rota.staffAvailability.useQuery(undefined, { retry: false });
+  const monthlyAvailabilityQuery = api.rota.staffMonthlyAvailability.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
   const swapsQuery = api.rota.pendingSwapRequests.useQuery(undefined, { retry: false });
 
@@ -52,11 +110,22 @@ export function RotaSchedulerClient() {
   );
   const shifts = (scheduleQuery.data ?? []) as RotaShift[];
   const staffAvailability = (availabilityQuery.data ?? []) as StaffAvailability[];
+  const staffMonthlyAvailability = (monthlyAvailabilityQuery.data ??
+    []) as StaffMonthlyAvailability[];
+  const staffAvailabilityByDay = useMemo(
+    () => buildStaffAvailabilityByDay({ staffAvailability, staffMonthlyAvailability, weekDays }),
+    [staffAvailability, staffMonthlyAvailability, weekDays],
+  );
+  const availabilityErrorMessage =
+    availabilityQuery.error || monthlyAvailabilityQuery.error
+      ? friendlyErrorMessage(availabilityQuery.error ?? monthlyAvailabilityQuery.error)
+      : undefined;
 
   const refreshRota = async () => {
     await Promise.all([
       utils.rota.weekSchedule.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.staffAvailability.invalidate(),
+      utils.rota.staffMonthlyAvailability.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.pendingSwapRequests.invalidate(),
     ]);
   };
@@ -99,17 +168,30 @@ export function RotaSchedulerClient() {
       showErrorToast(error, 'Shift swap could not be rejected.');
     },
   });
+  const deleteShift = api.rota.deleteShift.useMutation({
+    async onSuccess() {
+      setShiftForm({ ...emptyShiftForm, date: shiftForm.date });
+      showSuccessToast('Shift removed.');
+      await refreshRota();
+    },
+    onError(error) {
+      showErrorToast(error, 'Shift could not be removed.');
+    },
+  });
 
-  const selectedStaffAvailability = staffAvailability.find(
-    (staff) => staff.id === shiftForm.staffUserId,
-  );
   const mutationError =
-    createShift.error ?? updateShift.error ?? approveSwap.error ?? rejectSwap.error;
+    createShift.error ??
+    updateShift.error ??
+    deleteShift.error ??
+    approveSwap.error ??
+    rejectSwap.error;
 
   return (
     <div className="rota-layout">
       <RotaWeekSchedule
+        availabilityErrorMessage={availabilityErrorMessage}
         errorMessage={scheduleQuery.error ? friendlyErrorMessage(scheduleQuery.error) : undefined}
+        isAvailabilityLoading={availabilityQuery.isLoading || monthlyAvailabilityQuery.isLoading}
         isFetching={scheduleQuery.isFetching}
         isLoading={scheduleQuery.isLoading}
         onNextWeek={() => {
@@ -129,6 +211,7 @@ export function RotaSchedulerClient() {
           setWeekStart(nextWeek);
           setShiftForm((current) => ({ ...current, date: dateKey(nextWeek) }));
         }}
+        staffAvailabilityByDay={staffAvailabilityByDay}
         shifts={shifts}
         weekDays={weekDays}
         weekEnd={weekEnd}
@@ -136,10 +219,10 @@ export function RotaSchedulerClient() {
       />
 
       <aside className="rota-layout__side">
-        <section className="panel">
+        <section className="panel rota-layout__create">
           <div className="panel__body">
             <div className="section-title">
-              <h2>{shiftForm.id ? 'Update shift' : 'Create shift'}</h2>
+              <h2>{shiftForm.id ? 'Update Shift' : 'Create Shift'}</h2>
               {shiftForm.id ? <span className="badge">Editing</span> : null}
             </div>
             <form
@@ -148,7 +231,10 @@ export function RotaSchedulerClient() {
                 event.preventDefault();
                 const payload = {
                   staffUserId: shiftForm.staffUserId,
-                  yearGroupBandId: shiftForm.yearGroupBandId,
+                  kind: shiftForm.kind,
+                  ...(shiftForm.kind === 'Cover'
+                    ? { yearGroupBandId: shiftForm.yearGroupBandId }
+                    : {}),
                   date: asDateTime(shiftForm.date, '00:00'),
                   startsAt: asDateTime(shiftForm.date, shiftForm.startsAt),
                   endsAt: asDateTime(shiftForm.date, shiftForm.endsAt),
@@ -177,22 +263,41 @@ export function RotaSchedulerClient() {
                   ))}
                 </SelectInput>
               </Field>
-              <Field label="Year-group band">
+              <Field label="Shift type">
                 <SelectInput
                   onChange={(event) => {
-                    setShiftForm({ ...shiftForm, yearGroupBandId: event.target.value });
+                    const kind = event.target.value as ShiftForm['kind'];
+                    setShiftForm({
+                      ...shiftForm,
+                      kind,
+                      yearGroupBandId: kind === 'Meeting' ? '' : shiftForm.yearGroupBandId,
+                    });
                   }}
                   required
-                  value={shiftForm.yearGroupBandId}
+                  value={shiftForm.kind}
                 >
-                  <option value="">Choose band</option>
-                  {activeBands.map((band) => (
-                    <option key={band.id} value={band.id}>
-                      {band.name}
-                    </option>
-                  ))}
+                  <option value="Cover">Year-group cover</option>
+                  <option value="Meeting">Meeting</option>
                 </SelectInput>
               </Field>
+              {shiftForm.kind === 'Cover' ? (
+                <Field label="Year-group band">
+                  <SelectInput
+                    onChange={(event) => {
+                      setShiftForm({ ...shiftForm, yearGroupBandId: event.target.value });
+                    }}
+                    required
+                    value={shiftForm.yearGroupBandId}
+                  >
+                    <option value="">Choose band</option>
+                    {activeBands.map((band) => (
+                      <option key={band.id} value={band.id}>
+                        {band.name}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </Field>
+              ) : null}
               <Field label="Date">
                 <TextInput
                   onChange={(event) => {
@@ -249,6 +354,20 @@ export function RotaSchedulerClient() {
                     Cancel
                   </Button>
                 ) : null}
+                {shiftForm.id ? (
+                  <Button
+                    onClick={() => {
+                      if (!shiftForm.id) return;
+                      deleteShift.mutate({ id: shiftForm.id });
+                    }}
+                    pending={deleteShift.isPending}
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Trash2 aria-hidden="true" size={16} />
+                    Remove
+                  </Button>
+                ) : null}
                 <Button pending={createShift.isPending || updateShift.isPending} type="submit">
                   {shiftForm.id ? (
                     <Pencil aria-hidden="true" size={16} />
@@ -262,104 +381,66 @@ export function RotaSchedulerClient() {
           </div>
         </section>
 
-        <MyAvailabilityEditor title="My availability" />
+        <div className="rota-layout__middle">
+          <MyAvailabilityEditor title="My Availability" />
 
-        <section className="panel">
-          <div className="panel__body">
-            <div className="section-title">
-              <h2>Availability</h2>
+          <section className="panel">
+            <div className="panel__body">
+              <div className="section-title">
+                <h2>Shift Swaps</h2>
+                <span className="badge">{swapsQuery.data?.length ?? 0} pending</span>
+              </div>
+              {swapsQuery.isLoading ? <div className="empty-state">Loading swaps...</div> : null}
+              {swapsQuery.error ? (
+                <p className="status--error">{friendlyErrorMessage(swapsQuery.error)}</p>
+              ) : null}
+              {(swapsQuery.data ?? []).length === 0 ? (
+                <div className="empty-state">No pending shift swaps</div>
+              ) : (
+                <div className="swap-list">
+                  {(swapsQuery.data ?? []).map((swap) => (
+                    <article className="swap-card" key={swap.id}>
+                      <strong>
+                        {swap.requester.fullName} with {swap.targetUser.fullName}
+                      </strong>
+                      <span>
+                        {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for{' '}
+                        {swap.toShift.date} {formatDateTime(swap.toShift.startsAt)}
+                      </span>
+                      <div className="row-actions">
+                        <Button
+                          onClick={() => {
+                            rejectSwap.mutate({ id: swap.id });
+                          }}
+                          pending={rejectSwap.isPending}
+                          type="button"
+                          variant="secondary"
+                        >
+                          <X aria-hidden="true" size={16} />
+                          Reject
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            approveSwap.mutate({ id: swap.id });
+                          }}
+                          pending={approveSwap.isPending}
+                          type="button"
+                        >
+                          <Check aria-hidden="true" size={16} />
+                          Approve
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
-            {availabilityQuery.isLoading ? (
-              <div className="empty-state">Loading availability...</div>
-            ) : null}
-            {availabilityQuery.error ? (
-              <p className="status--error">{friendlyErrorMessage(availabilityQuery.error)}</p>
-            ) : null}
-            {selectedStaffAvailability ? (
-              <div className="availability-list">
-                <strong>{selectedStaffAvailability.fullName}</strong>
-                {selectedStaffAvailability.availability.length === 0 ? (
-                  <span className="muted">No availability set</span>
-                ) : (
-                  selectedStaffAvailability.availability.map((window) => (
-                    <span
-                      className="availability-pill"
-                      key={`${String(window.dayOfWeek)}-${String(window.startMinute)}`}
-                    >
-                      {availabilityLabel(window)}
-                    </span>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="availability-list">
-                {staffAvailability.slice(0, 6).map((staff) => (
-                  <div className="availability-row" key={staff.id}>
-                    <strong>{staff.fullName}</strong>
-                    <span>
-                      {staff.availability.length === 0
-                        ? 'No availability'
-                        : staff.availability.map(availabilityLabel).join(', ')}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
+          </section>
+        </div>
 
-        <section className="panel">
-          <div className="panel__body">
-            <div className="section-title">
-              <h2>Shift swaps</h2>
-              <span className="badge">{swapsQuery.data?.length ?? 0} pending</span>
-            </div>
-            {swapsQuery.isLoading ? <div className="empty-state">Loading swaps...</div> : null}
-            {swapsQuery.error ? (
-              <p className="status--error">{friendlyErrorMessage(swapsQuery.error)}</p>
-            ) : null}
-            {(swapsQuery.data ?? []).length === 0 ? (
-              <div className="empty-state">No pending shift swaps</div>
-            ) : (
-              <div className="swap-list">
-                {(swapsQuery.data ?? []).map((swap) => (
-                  <article className="swap-card" key={swap.id}>
-                    <strong>
-                      {swap.requester.fullName} with {swap.targetUser.fullName}
-                    </strong>
-                    <span>
-                      {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for{' '}
-                      {swap.toShift.date} {formatDateTime(swap.toShift.startsAt)}
-                    </span>
-                    <div className="row-actions">
-                      <Button
-                        onClick={() => {
-                          rejectSwap.mutate({ id: swap.id });
-                        }}
-                        pending={rejectSwap.isPending}
-                        type="button"
-                        variant="secondary"
-                      >
-                        <X aria-hidden="true" size={16} />
-                        Reject
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          approveSwap.mutate({ id: swap.id });
-                        }}
-                        pending={approveSwap.isPending}
-                        type="button"
-                      >
-                        <Check aria-hidden="true" size={16} />
-                        Approve
-                      </Button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
+        <div className="rota-layout__unavailable">
+          <MonthlyAvailabilityEditor title="Unavailable Dates" />
+        </div>
       </aside>
     </div>
   );

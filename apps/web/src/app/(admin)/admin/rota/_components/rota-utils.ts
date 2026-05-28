@@ -3,6 +3,7 @@ export const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as co
 export type ShiftForm = {
   id: string | null;
   staffUserId: string;
+  kind: 'Cover' | 'Meeting';
   yearGroupBandId: string;
   date: string;
   startsAt: string;
@@ -23,10 +24,37 @@ export type StaffAvailability = {
   availability: AvailabilityWindow[];
 };
 
+export type MonthlyAvailabilityWindow = {
+  id: string;
+  date: string;
+  startMinute: number;
+  endMinute: number;
+};
+
+export type StaffMonthlyAvailability = {
+  id: string;
+  fullName: string;
+  role: string;
+  availability: MonthlyAvailabilityWindow[];
+};
+
+export type RotaAvailabilityBadge = {
+  id: string;
+  label: string;
+  detail: string;
+};
+
+export type RotaDayAvailabilitySummary = {
+  date: string;
+  available: RotaAvailabilityBadge[];
+  unavailable: RotaAvailabilityBadge[];
+};
+
 export type RotaShift = {
   id: string;
   staffUserId: string;
-  yearGroupBandId: string;
+  kind: 'Cover' | 'Meeting';
+  yearGroupBandId: string | null;
   date: string;
   startsAt: Date;
   endsAt: Date;
@@ -39,6 +67,7 @@ export type RotaShift = {
 export const emptyShiftForm: ShiftForm = {
   id: null,
   staffUserId: '',
+  kind: 'Cover',
   yearGroupBandId: '',
   date: '',
   startsAt: '09:00',
@@ -94,7 +123,8 @@ export function shiftToForm(shift: RotaShift): ShiftForm {
   return {
     id: shift.id,
     staffUserId: shift.staffUserId,
-    yearGroupBandId: shift.yearGroupBandId,
+    kind: shift.kind,
+    yearGroupBandId: shift.yearGroupBandId ?? '',
     date: shift.date,
     startsAt: formatDateTime(shift.startsAt),
     endsAt: formatDateTime(shift.endsAt),
@@ -104,5 +134,22 @@ export function shiftToForm(shift: RotaShift): ShiftForm {
 
 export function availabilityLabel(window: AvailabilityWindow): string {
   const dayLabel = dayLabels[window.dayOfWeek] ?? 'Unknown';
-  return `${dayLabel} ${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
+  return `${dayLabel} ${availabilityTimeLabel(window)}`;
+}
+
+export function availabilityTimeLabel(window: AvailabilityWindow): string {
+  return `${formatMinute(window.startMinute)}-${formatMinute(window.endMinute)}`;
+}
+
+export function monthlyUnavailabilityTimeLabel(window: MonthlyAvailabilityWindow): string {
+  if (window.startMinute === 0 && window.endMinute === 1440) {
+    return 'all day';
+  }
+  return `from ${formatMinute(window.startMinute)} to ${formatMinute(window.endMinute)}`;
+}
+
+export function monthlyUnavailabilityLabel(window: MonthlyAvailabilityWindow): string {
+  return `${formatDateLabel(new Date(`${window.date}T00:00:00.000Z`))} ${monthlyUnavailabilityTimeLabel(
+    window,
+  )}`;
 }

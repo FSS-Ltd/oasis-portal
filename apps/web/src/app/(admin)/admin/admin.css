@@ -5518,6 +5518,29 @@ button.club-assignment-row {
   background: #fbfcff;
 }
 
+.monthly-availability-editor .availability-editor__row {
+  grid-template-columns:
+    minmax(130px, 0.9fr) minmax(104px, auto) minmax(180px, 1fr) auto;
+}
+
+.monthly-availability-editor__all-day-toggle {
+  min-height: 42px;
+  margin-bottom: 0;
+}
+
+.monthly-availability-editor__time-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.monthly-availability-editor__all-day {
+  display: inline-flex;
+  align-items: center;
+  color: var(--oasis-text-secondary);
+  font-weight: 800;
+}
+
 .supervisor-submit {
   width: 100%;
   margin-top: 14px;
@@ -9532,7 +9555,7 @@ button.club-assignment-row {
 
 .rota-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+  grid-template-columns: 1fr;
   gap: 18px;
   align-items: start;
 }
@@ -9544,6 +9567,15 @@ button.club-assignment-row {
 
 .rota-layout__side {
   display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(300px, 1fr) minmax(360px, 1.08fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.rota-layout__middle,
+.rota-layout__unavailable {
+  display: grid;
+  min-width: 0;
   gap: 18px;
 }
 
@@ -9567,14 +9599,14 @@ button.club-assignment-row {
 
 .rota-week-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  grid-template-columns: repeat(7, minmax(190px, 1fr));
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
 .rota-day {
-  min-height: 220px;
+  min-height: 300px;
   border: 1px solid var(--oasis-border);
   border-radius: 8px;
   background: #ffffff;
@@ -9596,6 +9628,70 @@ button.club-assignment-row {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.rota-availability-badges {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.rota-availability-badges > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.rota-availability-badges__label {
+  flex: 0 0 100%;
+  color: var(--oasis-text-secondary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rota-availability-badge {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: var(--oasis-text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.rota-availability-badge small {
+  color: inherit;
+  font-size: 0.64rem;
+  font-weight: 700;
+  opacity: 0.82;
+}
+
+.rota-availability-badge.is-available {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.rota-availability-badge.is-unavailable {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.rota-availability-badge.is-empty {
+  border-color: var(--oasis-border-light);
+  background: #f8fbff;
+  color: var(--oasis-text-muted);
 }
 
 .rota-shift-list,
@@ -10022,6 +10118,7 @@ button.club-assignment-row {
   .supervisor-workflow-grid,
   .pace-score-entry,
   .rota-layout,
+  .rota-layout__side,
   .snapshot-grid,
   .policy-grid,
   .student-detail-summary-grid,
@@ -10144,6 +10241,14 @@ button.club-assignment-row {
   }
 
   .availability-editor__row {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-availability-editor .availability-editor__row {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-availability-editor__time-fields {
     grid-template-columns: 1fr;
   }
 

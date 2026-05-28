@@ -52,10 +52,21 @@ interface StoredAvailability {
   updatedAt: Date;
 }
 
+interface StoredMonthlyAvailability {
+  id: string;
+  staffUserId: string;
+  date: Date;
+  startMinute: number;
+  endMinute: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface StoredShift {
   id: string;
   staffUserId: string;
-  yearGroupBandId: string;
+  kind: 'Cover' | 'Meeting';
+  yearGroupBandId: string | null;
   date: Date;
   startsAt: Date;
   endsAt: Date;
@@ -91,12 +102,18 @@ interface FakeDb {
     deleteMany: ReturnType<typeof vi.fn>;
     createMany: ReturnType<typeof vi.fn>;
   };
+  staffMonthlyAvailabilityWindow: {
+    findMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+    createMany: ReturnType<typeof vi.fn>;
+  };
   staffShift: {
     findMany: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
   };
   shiftSwapRequest: {
     findFirst: ReturnType<typeof vi.fn>;
@@ -172,12 +189,15 @@ function makeFakeDb() {
     { id: 'band_inactive', name: 'Old Band', colour: '#999999', active: false },
   ];
   const availability: StoredAvailability[] = [];
+  const monthlyAvailability: StoredMonthlyAvailability[] = [];
   const shifts: StoredShift[] = [];
   const swaps: StoredSwap[] = [];
 
   const withBand = (shift: StoredShift) => ({
     ...shift,
-    yearGroupBand: bands.find((band) => band.id === shift.yearGroupBandId) ?? null,
+    yearGroupBand: shift.yearGroupBandId
+      ? (bands.find((band) => band.id === shift.yearGroupBandId) ?? null)
+      : null,
   });
   const withStaffAndBand = (shift: StoredShift) => ({
     ...withBand(shift),
@@ -277,6 +297,77 @@ function makeFakeDb() {
         },
       ),
     },
+    staffMonthlyAvailabilityWindow: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            staffUserId: string | { in: string[] };
+            date?: { gte: Date; lte: Date };
+          };
+        }) =>
+          Promise.resolve(
+            monthlyAvailability
+              .filter((row) =>
+                typeof where.staffUserId === 'string'
+                  ? row.staffUserId === where.staffUserId
+                  : where.staffUserId.in.includes(row.staffUserId),
+              )
+              .filter(
+                (row) =>
+                  where.date === undefined ||
+                  (row.date.getTime() >= where.date.gte.getTime() &&
+                    row.date.getTime() <= where.date.lte.getTime()),
+              )
+              .sort(
+                (a, b) =>
+                  a.staffUserId.localeCompare(b.staffUserId) ||
+                  a.date.getTime() - b.date.getTime() ||
+                  a.startMinute - b.startMinute,
+              ),
+          ),
+      ),
+      deleteMany: vi.fn(
+        ({ where }: { where: { staffUserId: string; date: { gte: Date; lte: Date } } }) => {
+          const before = monthlyAvailability.length;
+          for (let index = monthlyAvailability.length - 1; index >= 0; index -= 1) {
+            const row = monthlyAvailability[index];
+            if (
+              row &&
+              row.staffUserId === where.staffUserId &&
+              row.date.getTime() >= where.date.gte.getTime() &&
+              row.date.getTime() <= where.date.lte.getTime()
+            ) {
+              monthlyAvailability.splice(index, 1);
+            }
+          }
+          return Promise.resolve({ count: before - monthlyAvailability.length });
+        },
+      ),
+      createMany: vi.fn(
+        ({
+          data,
+        }: {
+          data: {
+            staffUserId: string;
+            date: Date;
+            startMinute: number;
+            endMinute: number;
+          }[];
+        }) => {
+          for (const row of data) {
+            monthlyAvailability.push({
+              id: `monthly_${String(monthlyAvailability.length + 1)}`,
+              createdAt: at('2026-04-29T09:00:00.000Z'),
+              updatedAt: at('2026-04-29T09:00:00.000Z'),
+              ...row,
+            });
+          }
+          return Promise.resolve({ count: data.length });
+        },
+      ),
+    },
     staffShift: {
       findMany: vi.fn(
         ({
@@ -361,6 +452,13 @@ function makeFakeDb() {
         const shift = shifts.find((candidate) => candidate.id === where.id);
         if (!shift) throw new Error('shift missing');
         Object.assign(shift, data, { updatedAt: at('2026-04-29T11:00:00.000Z') });
+        return Promise.resolve(withStaffAndBand(shift));
+      }),
+      delete: vi.fn(({ where }: { where: { id: string } }) => {
+        const index = shifts.findIndex((candidate) => candidate.id === where.id);
+        if (index === -1) throw new Error('shift missing');
+        const [shift] = shifts.splice(index, 1);
+        if (!shift) throw new Error('shift missing');
         return Promise.resolve(withStaffAndBand(shift));
       }),
     },
@@ -451,7 +549,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, users, availability, shifts, swaps };
+  return { db, users, availability, monthlyAvailability, shifts, swaps };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -535,6 +633,71 @@ describe('rota availability', () => {
 
     await expect(makeCaller(parentUser, db).rota.myAvailability()).rejects.toMatchObject({
       code: 'FORBIDDEN',
+    });
+  });
+
+  it('lets staff replace exact-date monthly unavailability for a selected month', async () => {
+    const { db, monthlyAvailability } = makeFakeDb();
+    const caller = makeCaller(supervisorUser, db);
+
+    await expect(
+      caller.rota.setMyMonthlyAvailability({
+        month: '2026-05',
+        windows: [
+          { date: '2026-05-06', startMinute: 540, endMinute: 720 },
+          { date: '2026-05-20', startMinute: 0, endMinute: 1440 },
+        ],
+      }),
+    ).resolves.toMatchObject([
+      { date: '2026-05-06', startMinute: 540, endMinute: 720 },
+      { date: '2026-05-20', startMinute: 0, endMinute: 1440 },
+    ]);
+    expect(monthlyAvailability).toHaveLength(2);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'Update',
+        entity: 'StaffMonthlyAvailability',
+        entityId: supervisorUser.id,
+        meta: {
+          month: '2026-05',
+          windowCount: 2,
+          source: 'rota.setMyMonthlyAvailability',
+        },
+      },
+    });
+
+    await expect(caller.rota.myMonthlyAvailability({ month: '2026-05' })).resolves.toMatchObject([
+      { date: '2026-05-06', startMinute: 540, endMinute: 720 },
+      { date: '2026-05-20', startMinute: 0, endMinute: 1440 },
+    ]);
+  });
+
+  it('rejects monthly unavailability outside the month or overlapping on the same date', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(supervisorUser, db);
+
+    await expect(
+      caller.rota.setMyMonthlyAvailability({
+        month: '2026-05',
+        windows: [{ date: '2026-06-01', startMinute: 540, endMinute: 720 }],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'monthly unavailability dates must be inside the selected month',
+    });
+
+    await expect(
+      caller.rota.setMyMonthlyAvailability({
+        month: '2026-05',
+        windows: [
+          { date: '2026-05-06', startMinute: 540, endMinute: 720 },
+          { date: '2026-05-06', startMinute: 700, endMinute: 840 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'monthly unavailability windows must not overlap',
     });
   });
 });
@@ -655,6 +818,7 @@ describe('rota scheduling', () => {
     shifts.push({
       id: 'shift_inactive',
       staffUserId: 'u_inactive_sup',
+      kind: 'Cover',
       yearGroupBandId: 'band_lower',
       date: day('2026-04-29'),
       startsAt: at('2026-04-29T17:00:00.000Z'),
@@ -769,6 +933,72 @@ describe('rota scheduling', () => {
     });
   });
 
+  it('lets full-admin read active staff monthly unavailability for a date range', async () => {
+    const { db, users, monthlyAvailability } = makeFakeDb();
+    users.push({
+      id: 'u_inactive_sup',
+      role: 'Supervisor',
+      active: false,
+      fullNameEnc: 'enc:Inactive Supervisor',
+      emailEnc: 'enc:inactive@example.test',
+      createdAt: at('2026-04-25T09:00:00.000Z'),
+    });
+    monthlyAvailability.push(
+      {
+        id: 'monthly_1',
+        staffUserId: supervisorUser.id,
+        date: day('2026-05-06'),
+        startMinute: 540,
+        endMinute: 720,
+        createdAt: at('2026-04-29T09:00:00.000Z'),
+        updatedAt: at('2026-04-29T09:00:00.000Z'),
+      },
+      {
+        id: 'monthly_2',
+        staffUserId: supervisorUser.id,
+        date: day('2026-05-20'),
+        startMinute: 540,
+        endMinute: 720,
+        createdAt: at('2026-04-29T09:00:00.000Z'),
+        updatedAt: at('2026-04-29T09:00:00.000Z'),
+      },
+      {
+        id: 'monthly_inactive',
+        staffUserId: 'u_inactive_sup',
+        date: day('2026-05-06'),
+        startMinute: 540,
+        endMinute: 720,
+        createdAt: at('2026-04-29T09:00:00.000Z'),
+        updatedAt: at('2026-04-29T09:00:00.000Z'),
+      },
+    );
+
+    const rows = await makeCaller(headUser, db).rota.staffMonthlyAvailability({
+      from: day('2026-05-01'),
+      to: day('2026-05-10'),
+    });
+    expect(rows.find((row) => row.id === supervisorUser.id)).toMatchObject({
+      fullName: 'Supervisor One',
+      availability: [{ date: '2026-05-06', startMinute: 540, endMinute: 720 }],
+    });
+    expect(rows.some((row) => row.id === 'u_inactive_sup')).toBe(false);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'DecryptPii',
+        entity: 'StaffMonthlyAvailability',
+        meta: { count: 4, source: 'rota.staffMonthlyAvailability' },
+      },
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).rota.staffMonthlyAvailability({
+        from: day('2026-05-01'),
+        to: day('2026-05-10'),
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('lets full-admin create and update shifts, while supervisors can only read their own rota', async () => {
     const { db, shifts } = makeFakeDb();
     const head = makeCaller(headUser, db);
@@ -797,6 +1027,7 @@ describe('rota scheduling', () => {
         entityId: 'shift_1',
         meta: {
           staffUserId: supervisorUser.id,
+          kind: 'Cover',
           yearGroupBandId: 'band_lower',
           date: '2026-04-29',
           startsAt: '2026-04-29T09:00:00.000Z',
@@ -843,6 +1074,110 @@ describe('rota scheduling', () => {
         to: day('2026-04-29'),
       }),
     ).resolves.toHaveLength(1);
+  });
+
+  it('supports meeting shifts without a year-group band and validates cover shift bands', async () => {
+    const { db } = makeFakeDb();
+    const head = makeCaller(headUser, db);
+
+    await expect(
+      head.rota.createShift({
+        staffUserId: supervisorUser.id,
+        kind: 'Meeting',
+        date: day('2026-04-29'),
+        startsAt: at('2026-04-29T09:00:00.000Z'),
+        endsAt: at('2026-04-29T10:00:00.000Z'),
+        notes: 'Safeguarding review',
+      }),
+    ).resolves.toMatchObject({
+      id: 'shift_1',
+      kind: 'Meeting',
+      yearGroupBandId: null,
+      bandName: null,
+      bandColour: null,
+    });
+
+    await expect(
+      head.rota.createShift({
+        staffUserId: supervisorUser.id,
+        kind: 'Cover',
+        date: day('2026-04-30'),
+        startsAt: at('2026-04-30T09:00:00.000Z'),
+        endsAt: at('2026-04-30T10:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'cover shifts require a year-group band',
+    });
+
+    await expect(
+      head.rota.updateShift({
+        id: 'shift_1',
+        kind: 'Cover',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'cover shifts require a year-group band',
+    });
+  });
+
+  it('lets full-admin delete shifts unless a pending swap references the shift', async () => {
+    const { db, shifts, swaps } = makeFakeDb();
+    const head = makeCaller(headUser, db);
+    await head.rota.createShift({
+      staffUserId: supervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-29'),
+      startsAt: at('2026-04-29T09:00:00.000Z'),
+      endsAt: at('2026-04-29T12:00:00.000Z'),
+    });
+    await head.rota.createShift({
+      staffUserId: secondSupervisorUser.id,
+      yearGroupBandId: 'band_lower',
+      date: day('2026-04-30'),
+      startsAt: at('2026-04-30T09:00:00.000Z'),
+      endsAt: at('2026-04-30T12:00:00.000Z'),
+    });
+    swaps.push({
+      id: 'swap_pending',
+      requesterUserId: supervisorUser.id,
+      targetUserId: secondSupervisorUser.id,
+      fromShiftId: 'shift_2',
+      toShiftId: 'shift_1',
+      status: 'Pending',
+      approvedById: null,
+      reviewedAt: null,
+      createdAt: at('2026-04-29T12:00:00.000Z'),
+      updatedAt: at('2026-04-29T12:00:00.000Z'),
+    });
+
+    await expect(head.rota.deleteShift({ id: 'shift_2' })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'shift has a pending swap request',
+    });
+    await expect(head.rota.deleteShift({ id: 'shift_1' })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'shift has a pending swap request',
+    });
+
+    const pendingSwap = swaps[0];
+    if (!pendingSwap) throw new Error('expected pending swap');
+    swaps[0] = { ...pendingSwap, status: 'Rejected' };
+    await expect(head.rota.deleteShift({ id: 'shift_1' })).resolves.toEqual({ id: 'shift_1' });
+    expect(shifts.map((shift) => shift.id)).toEqual(['shift_2']);
+    expect(db.auditLog.create).toHaveBeenLastCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Delete',
+        entity: 'StaffShift',
+        entityId: 'shift_1',
+        meta: {
+          staffUserId: supervisorUser.id,
+          date: '2026-04-29',
+          source: 'rota.deleteShift',
+        },
+      },
+    });
   });
 });
 

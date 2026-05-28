@@ -11,6 +11,7 @@ import {
   useDailyDemeritStatusMap,
 } from '@/components/behaviour/daily-demerit-badge';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
+import { MonthlyAvailabilityEditor } from '@/components/rota/monthly-availability-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -761,7 +762,10 @@ export function SupervisorDashboardClient({
                         style={{ borderLeftColor: shift.bandColour ?? undefined }}
                       >
                         <strong>
-                          {shift.staff?.fullName ?? 'Staff'} · {shift.bandName ?? 'Unassigned band'}
+                          {shift.staff?.fullName ?? 'Staff'} ·{' '}
+                          {shift.kind === 'Meeting'
+                            ? 'Meeting'
+                            : (shift.bandName ?? 'Unassigned band')}
                         </strong>
                         <span>{formatShift(shift)}</span>
                         {shift.notes ? <em>{shift.notes}</em> : null}
@@ -778,6 +782,7 @@ export function SupervisorDashboardClient({
       {view === 'rota' ? (
         <aside className="supervisor-layout__side">
           <MyAvailabilityEditor />
+          <MonthlyAvailabilityEditor />
 
           <section className="panel panel__body">
             <div className="section-title">

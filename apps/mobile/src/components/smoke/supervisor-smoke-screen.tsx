@@ -388,9 +388,19 @@ export function SupervisorSmokeScreen() {
               ) : null}
               {rotaRows.map((shift) => (
                 <View key={shift.id} style={styles.row}>
-                  <View style={[styles.bandDot, { backgroundColor: shift.bandColour ?? C.blue }]} />
+                  <View
+                    style={[
+                      styles.bandDot,
+                      {
+                        backgroundColor:
+                          shift.kind === 'Meeting' ? '#0f766e' : (shift.bandColour ?? C.blue),
+                      },
+                    ]}
+                  />
                   <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle}>{shift.bandName ?? 'Unassigned band'}</Text>
+                    <Text style={styles.rowTitle}>
+                      {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Unassigned band')}
+                    </Text>
                     <MutedText>
                       {shift.date} · {formatTime(shift.startsAt)}-{formatTime(shift.endsAt)}
                     </MutedText>

@@ -125,10 +125,12 @@ export function formatShift(shift: {
   date: string;
   startsAt: Date;
   endsAt: Date;
+  kind?: 'Cover' | 'Meeting';
   bandName: string | null;
 }): string {
+  const assignment = shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Unassigned band');
   return `${formatDate(shift.date)} · ${formatDateTime(shift.startsAt)}-${formatDateTime(shift.endsAt)} · ${
-    shift.bandName ?? 'Unassigned band'
+    assignment
   }`;
 }
 
