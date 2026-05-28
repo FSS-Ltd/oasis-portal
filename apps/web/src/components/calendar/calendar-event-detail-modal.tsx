@@ -1,4 +1,4 @@
-import { CalendarDays, UsersRound, X } from 'lucide-react';
+import { CalendarDays, Pencil, UsersRound, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   audienceLabels,
@@ -11,9 +11,14 @@ import {
 interface CalendarEventDetailModalProps {
   event: CalendarEvent;
   onClose: () => void;
+  onEdit?: (event: CalendarEvent) => void;
 }
 
-export function CalendarEventDetailModal({ event, onClose }: CalendarEventDetailModalProps) {
+export function CalendarEventDetailModal({
+  event,
+  onClose,
+  onEdit,
+}: CalendarEventDetailModalProps) {
   return (
     <div
       aria-labelledby="calendar-detail-title"
@@ -32,6 +37,19 @@ export function CalendarEventDetailModal({ event, onClose }: CalendarEventDetail
           </Button>
         </header>
         <div className="calendar-detail-modal__body">
+          {onEdit ? (
+            <div className="calendar-detail-modal__actions">
+              <Button
+                onClick={() => {
+                  onEdit(event);
+                }}
+                type="button"
+              >
+                <Pencil aria-hidden="true" size={16} />
+                Edit
+              </Button>
+            </div>
+          ) : null}
           <p className="calendar-detail-modal__date">
             <CalendarDays aria-hidden="true" size={16} />
             {formatEventSchedule(event)}

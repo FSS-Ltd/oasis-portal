@@ -38,7 +38,14 @@ const technicalSupportUser: SessionUser = {
 };
 
 type CalendarAudience = 'All' | 'Parents' | 'Supervisors' | 'Heads' | 'Custom';
-type CalendarCategory = 'HalfTerm' | 'Trips' | 'OasisDays' | 'Birthdays' | 'Meetings' | 'Trainings';
+type CalendarCategory =
+  | 'HalfTerm'
+  | 'Trips'
+  | 'OasisDays'
+  | 'TheCedars'
+  | 'Birthdays'
+  | 'Meetings'
+  | 'Trainings';
 
 interface StoredCalendarEvent {
   id: string;
@@ -411,6 +418,25 @@ describe('calendar.create', () => {
     });
   });
 
+  it('allows The Cedars as a manual calendar category', async () => {
+    const { caller } = makeCaller(headUser);
+
+    await expect(
+      caller.calendar.create({
+        title: 'The Cedars visit',
+        audience: 'All',
+        category: 'TheCedars',
+        startDate: '2026-05-26',
+      }),
+    ).resolves.toMatchObject({
+      title: 'The Cedars visit',
+      audience: 'All',
+      category: 'TheCedars',
+      startDate: '2026-05-26',
+      endDate: '2026-05-26',
+    });
+  });
+
   it('rejects invalid date ranges', async () => {
     const { caller } = makeCaller(headUser);
 
@@ -733,6 +759,19 @@ describe('calendar reader lists', () => {
     expect(studentResult).toEqual([expect.objectContaining({ id: 'event_all' })]);
   });
 
+  it('lists The Cedars calendar category for visible readers', async () => {
+    const cedarsEvent = makeEvent({
+      id: 'event_cedars',
+      title: 'The Cedars',
+      audience: 'All',
+      category: 'TheCedars',
+    });
+
+    await expect(
+      makeCaller(parentUser, makeFakeDb([cedarsEvent])).caller.calendar.listVisible(),
+    ).resolves.toEqual([expect.objectContaining({ id: 'event_cedars', category: 'TheCedars' })]);
+  });
+
   it('denies unsupported reader roles', async () => {
     await expect(makeCaller(studentUser).caller.calendar.listForParents()).rejects.toMatchObject({
       code: 'FORBIDDEN',
@@ -845,7 +884,7 @@ describe('calendar.update and calendar.archive', () => {
         title: 'Updated',
         description: 'New details',
         audience: 'Supervisors',
-        category: 'Meetings',
+        category: 'TheCedars',
         startDate: '2026-06-01',
         endDate: '2026-06-02',
       }),
@@ -854,7 +893,7 @@ describe('calendar.update and calendar.archive', () => {
       title: 'Updated',
       description: 'New details',
       audience: 'Supervisors',
-      category: 'Meetings',
+      category: 'TheCedars',
       startDate: '2026-06-01',
       endDate: '2026-06-02',
     });
@@ -867,7 +906,7 @@ describe('calendar.update and calendar.archive', () => {
         meta: {
           source: 'calendar.update',
           audience: 'Supervisors',
-          category: 'Meetings',
+          category: 'TheCedars',
           startDate: '2026-06-01',
           endDate: '2026-06-02',
           startTime: null,

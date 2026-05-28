@@ -1839,8 +1839,8 @@
 }
 
 .calendar-month-day.is-outside {
-  background: #f8fafc;
-  color: var(--oasis-text-muted);
+  background: #dbe3ee;
+  color: #526071;
 }
 
 .calendar-month-day.is-today {
@@ -2088,6 +2088,12 @@
   --calendar-category-text: #4c1d95;
 }
 
+.calendar-category--the-cedars {
+  --calendar-category: #0f766e;
+  --calendar-category-soft: #ccfbf1;
+  --calendar-category-text: #134e4a;
+}
+
 .calendar-category--birthdays {
   --calendar-category: #2563eb;
   --calendar-category-soft: #dbeafe;
@@ -2109,6 +2115,7 @@
 .calendar-month-event.calendar-category--half-term,
 .calendar-month-event.calendar-category--trips,
 .calendar-month-event.calendar-category--oasis-days,
+.calendar-month-event.calendar-category--the-cedars,
 .calendar-month-event.calendar-category--birthdays,
 .calendar-month-event.calendar-category--meetings,
 .calendar-month-event.calendar-category--trainings,
@@ -2116,6 +2123,7 @@
 .calendar-card__date.calendar-category--half-term,
 .calendar-card__date.calendar-category--trips,
 .calendar-card__date.calendar-category--oasis-days,
+.calendar-card__date.calendar-category--the-cedars,
 .calendar-card__date.calendar-category--birthdays,
 .calendar-card__date.calendar-category--meetings,
 .calendar-card__date.calendar-category--trainings {
@@ -2127,6 +2135,7 @@
 .calendar-month-event.calendar-category--half-term,
 .calendar-month-event.calendar-category--trips,
 .calendar-month-event.calendar-category--oasis-days,
+.calendar-month-event.calendar-category--the-cedars,
 .calendar-month-event.calendar-category--birthdays,
 .calendar-month-event.calendar-category--meetings,
 .calendar-month-event.calendar-category--trainings {
@@ -2218,6 +2227,11 @@
   display: grid;
   gap: 14px;
   padding: 18px;
+}
+
+.calendar-detail-modal__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .calendar-detail-modal__body p {

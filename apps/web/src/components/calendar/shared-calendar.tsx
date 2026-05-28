@@ -17,6 +17,8 @@ import {
   currentMonthKey,
   editableCategories,
   emptyCalendarForm,
+  eventOverlapsMonth,
+  formatMonthLabel,
   legendCategories,
   pageCopy,
   type CalendarAudience,
@@ -107,12 +109,14 @@ export function SharedCalendar({
 
   const events: CalendarEvent[] = eventsQuery.data ?? [];
   const activeEvents = events.filter((event) => event.active);
+  const monthEvents = events.filter((event) => eventOverlapsMonth(event, monthKey));
+  const monthActiveCount = monthEvents.filter((event) => event.active).length;
   const activeCount = activeEvents.length;
   const mutationError = createEvent.error ?? updateEvent.error ?? archiveEvent.error;
   const requiredPeople = requiredPeopleQuery.data ?? [];
   const listDescription = canManage
-    ? copy.listDescription
-    : 'Published dates visible to your portal.';
+    ? `${copy.listDescription} Showing ${formatMonthLabel(monthKey)}.`
+    : `Published dates visible to your portal in ${formatMonthLabel(monthKey)}.`;
   const isSingleDate = form.selectionMode === 'single';
 
   async function submitEvent(event: FormEvent<HTMLFormElement>) {
@@ -488,6 +492,7 @@ export function SharedCalendar({
 
         <div className="calendar-view-stack">
           <CalendarMonthView
+            eventOpenMode={canManage ? 'doubleClick' : 'click'}
             events={activeEvents}
             monthKey={monthKey}
             {...(canManage ? { onDateSelect: selectFormDate } : {})}
@@ -500,10 +505,17 @@ export function SharedCalendar({
                   },
                 }
               : {})}
-            {...(!canManage
+            onEventSelect={(event: CalendarEvent) => {
+              setSelectedEvent(event);
+            }}
+            {...(canManage
               ? {
-                  onEventSelect: (event: CalendarEvent) => {
-                    setSelectedEvent(event);
+                  onEventDoubleSelect: (event: CalendarEvent) => {
+                    if (event.source !== 'Manual') {
+                      setSelectedEvent(event);
+                      return;
+                    }
+                    editEvent(event);
                   },
                 }
               : {})}
@@ -538,18 +550,18 @@ export function SharedCalendar({
                 <h2 id="calendar-list-title">{copy.listTitle}</h2>
                 <p className="muted">{listDescription}</p>
               </div>
-              <span className="badge badge--blue">{String(activeCount)} active</span>
+              <span className="badge badge--blue">{String(monthActiveCount)} active</span>
             </div>
 
             {eventsQuery.isLoading ? <div className="empty-state">{copy.loading}</div> : null}
             {eventsQuery.error ? (
               <p className="status--error">{friendlyErrorMessage(eventsQuery.error)}</p>
             ) : null}
-            {!eventsQuery.isLoading && events.length === 0 ? (
+            {!eventsQuery.isLoading && monthEvents.length === 0 ? (
               <div className="empty-state">{copy.empty}</div>
             ) : null}
             <div className="calendar-list" aria-label={copy.listTitle}>
-              {events.map((event) => (
+              {monthEvents.map((event) => (
                 <CalendarEventCard
                   canManage={canManage}
                   event={event}
@@ -570,6 +582,14 @@ export function SharedCalendar({
       {selectedEvent ? (
         <CalendarEventDetailModal
           event={selectedEvent}
+          {...(canManage && selectedEvent.source === 'Manual'
+            ? {
+                onEdit: (event: CalendarEvent) => {
+                  editEvent(event);
+                  setSelectedEvent(null);
+                },
+              }
+            : {})}
           onClose={() => {
             setSelectedEvent(null);
           }}

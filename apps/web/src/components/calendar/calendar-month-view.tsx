@@ -17,8 +17,10 @@ interface CalendarSelection {
 
 interface CalendarMonthViewProps {
   events: readonly CalendarEvent[];
+  eventOpenMode?: 'click' | 'doubleClick';
   monthKey: string;
   onDateSelect?: (date: string) => void;
+  onEventDoubleSelect?: (event: CalendarEvent) => void;
   onEventSelect?: (event: CalendarEvent) => void;
   onNextMonth: () => void;
   onPreviousMonth: () => void;
@@ -28,8 +30,10 @@ interface CalendarMonthViewProps {
 
 export function CalendarMonthView({
   events,
+  eventOpenMode = 'click',
   monthKey,
   onDateSelect,
+  onEventDoubleSelect,
   onEventSelect,
   onNextMonth,
   onPreviousMonth,
@@ -115,6 +119,18 @@ export function CalendarMonthView({
                       key={`${day.key}-${event.id}`}
                       onClick={(clickEvent) => {
                         clickEvent.stopPropagation();
+                        if (eventOpenMode === 'click') {
+                          onEventSelect(event);
+                        }
+                      }}
+                      onDoubleClick={(clickEvent) => {
+                        clickEvent.stopPropagation();
+                        (onEventDoubleSelect ?? onEventSelect)(event);
+                      }}
+                      onKeyDown={(keyEvent) => {
+                        if (keyEvent.key !== 'Enter' && keyEvent.key !== ' ') return;
+                        keyEvent.preventDefault();
+                        keyEvent.stopPropagation();
                         onEventSelect(event);
                       }}
                       type="button"

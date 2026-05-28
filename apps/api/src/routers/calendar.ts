@@ -19,6 +19,7 @@ const calendarCategorySchema = z.enum([
   'HalfTerm',
   'Trips',
   'OasisDays',
+  'TheCedars',
   'Birthdays',
   'Meetings',
   'Trainings',

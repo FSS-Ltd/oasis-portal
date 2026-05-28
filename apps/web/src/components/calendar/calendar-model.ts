@@ -39,6 +39,7 @@ export const categoryLabels: Record<CalendarCategory, string> = {
   HalfTerm: 'Half term',
   Trips: 'Trips',
   OasisDays: 'Oasis days',
+  TheCedars: 'The Cedars',
   Birthdays: 'Birthdays',
   Meetings: 'Meetings',
   Trainings: 'Trainings',
@@ -48,6 +49,7 @@ export const categoryClassNames: Record<CalendarCategory, string> = {
   HalfTerm: 'calendar-category--half-term',
   Trips: 'calendar-category--trips',
   OasisDays: 'calendar-category--oasis-days',
+  TheCedars: 'calendar-category--the-cedars',
   Birthdays: 'calendar-category--birthdays',
   Meetings: 'calendar-category--meetings',
   Trainings: 'calendar-category--trainings',
@@ -57,6 +59,7 @@ export const editableCategories: readonly Exclude<CalendarCategory, 'Birthdays'>
   'HalfTerm',
   'Trips',
   'OasisDays',
+  'TheCedars',
   'Meetings',
   'Trainings',
 ];
@@ -65,6 +68,7 @@ export const legendCategories: readonly CalendarCategory[] = [
   'HalfTerm',
   'Trips',
   'OasisDays',
+  'TheCedars',
   'Birthdays',
   'Meetings',
   'Trainings',
@@ -161,6 +165,18 @@ export function formatMonthLabel(monthKey: string): string {
     month: 'long',
     year: 'numeric',
   }).format(dateFromKey(`${monthKey}-01`));
+}
+
+export function eventOverlapsMonth(
+  event: Pick<CalendarEvent, 'endDate' | 'startDate'>,
+  monthKey: string,
+): boolean {
+  const [yearValue, monthValue] = monthKey.split('-');
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const firstDate = `${monthKey}-01`;
+  const lastDate = dateKey(new Date(Date.UTC(year, month, 0)));
+  return event.startDate <= lastDate && event.endDate >= firstDate;
 }
 
 export function formatDateRange(event: Pick<CalendarEvent, 'endDate' | 'startDate'>): string {
