@@ -1053,11 +1053,28 @@ model StaffNotice {
   expiresAt  DateTime?
   createdAt  DateTime            @default(now())
 
-  postedBy User              @relation("NoticesPosted", fields: [postedById], references: [id])
-  reads    StaffNoticeRead[]
+  postedBy    User                    @relation("NoticesPosted", fields: [postedById], references: [id])
+  reads       StaffNoticeRead[]
+  attachments StaffNoticeAttachment[]
 
   @@index([active, expiresAt, createdAt])
   @@index([audience, active, expiresAt, createdAt])
+}
+
+model StaffNoticeAttachment {
+  id                  String   @id @default(cuid())
+  noticeId            String
+  originalFileNameEnc String
+  mimeType            String
+  sizeBytes           Int
+  storageBucket       String
+  storagePathEnc      String
+  position            Int
+  createdAt           DateTime @default(now())
+
+  notice StaffNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@index([noticeId, position])
 }
 
 model StaffNoticeRead {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { Prisma } from '@oasis/db';
@@ -9,9 +10,22 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import { assertUploadedNoticeAttachments } from '../services/notice-attachment-storage.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
+
+type NoticeAttachmentKind = 'image' | 'pdf' | 'document';
+
+interface StaffNoticeAttachmentRow {
+  id: string;
+  originalFileNameEnc: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageBucket: string;
+  storagePathEnc: string;
+  position: number;
+}
 
 interface StaffNoticeRow {
   id: string;
@@ -23,6 +37,7 @@ interface StaffNoticeRow {
   expiresAt: Date | null;
   createdAt: Date;
   reads: { userId?: string; readAt: Date }[];
+  attachments?: StaffNoticeAttachmentRow[];
 }
 
 const noticeAudienceSchema = z.enum(['Supervisors', 'Parents', 'Both']);
@@ -35,12 +50,60 @@ interface NoticeRecipient {
   fullNameEnc: string;
 }
 
+const MAX_NOTICE_ATTACHMENTS = 5;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+const attachmentMetadataInput = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  sizeBytes: z.number().int().positive().max(MAX_DOCUMENT_BYTES),
+});
+
+const attachmentInput = attachmentMetadataInput.extend({
+  storageBucket: z.string().trim().min(1).max(120),
+  storagePath: z.string().trim().min(1).max(512),
+});
+
 const postNoticeInput = z.object({
   title: z.string().trim().min(1),
   body: z.string().trim().min(1),
   audience: noticeAudienceSchema.default('Supervisors'),
   expiresAt: z.coerce.date().optional(),
+  attachments: z.array(attachmentInput).max(MAX_NOTICE_ATTACHMENTS).default([]),
 });
+
+const prepareAttachmentsInput = z.object({
+  attachments: z.array(attachmentMetadataInput).min(1).max(MAX_NOTICE_ATTACHMENTS),
+});
+
+const attachmentIdInput = z.object({ attachmentId: z.string().cuid() });
+
+const attachmentMimeByExtension = {
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+} as const;
+
+type AllowedAttachmentExtension = keyof typeof attachmentMimeByExtension;
+
+const attachmentKindByMime: Record<string, NoticeAttachmentKind> = {
+  'application/msword': 'document',
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
+  'image/jpeg': 'image',
+  'image/png': 'image',
+  'image/webp': 'image',
+};
+
+function noticeAttachmentBucket(): string {
+  return process.env['SUPABASE_NOTICE_ATTACHMENTS_BUCKET'] ?? 'notice-attachments';
+}
 
 function toForbidden(error: AccessDeniedError): TRPCError {
   return new TRPCError({ code: 'FORBIDDEN', message: error.message, cause: error });
@@ -81,6 +144,137 @@ function decryptRequired(
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'staff notice decrypt failed' });
   }
   return decrypted;
+}
+
+function safeOriginalFileName(value: string): string {
+  const fileName = value.replaceAll('\\', '/').split('/').pop()?.replace(/\0/gu, '').trim();
+  return fileName?.replace(/^\.+/u, '').trim() || 'attachment';
+}
+
+function attachmentExtension(fileName: string): AllowedAttachmentExtension | null {
+  const lowerName = fileName.toLowerCase();
+  const extension = Object.keys(attachmentMimeByExtension).find((candidate) =>
+    lowerName.endsWith(candidate),
+  );
+  return extension ? (extension as AllowedAttachmentExtension) : null;
+}
+
+function attachmentKind(mimeType: string): NoticeAttachmentKind {
+  const kind = attachmentKindByMime[mimeType];
+  if (!kind) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'unsupported notice attachment type' });
+  }
+  return kind;
+}
+
+function mapAttachment(ctx: AuthedContext, attachment: StaffNoticeAttachmentRow) {
+  const mimeType = attachment.mimeType;
+  const kind = attachmentKind(mimeType);
+  return {
+    id: attachment.id,
+    fileName: decryptRequired(ctx.db.$enc.decrypt, attachment.originalFileNameEnc),
+    mimeType,
+    sizeBytes: attachment.sizeBytes,
+    kind,
+    canPreview: kind === 'image' || kind === 'pdf',
+  };
+}
+
+function safeStorageFileName(fileName: string): string {
+  return fileName.replace(/[^a-zA-Z0-9._-]/gu, '-').replace(/-+/gu, '-');
+}
+
+function storagePathForAttachment(userId: string, fileName: string): string {
+  return `notices/${userId}/${randomUUID()}-${safeStorageFileName(fileName)}`;
+}
+
+function validateAttachmentMetadata(input: z.infer<typeof attachmentMetadataInput>) {
+  const originalFileName = safeOriginalFileName(input.fileName);
+  const extension = attachmentExtension(originalFileName);
+  if (!extension) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'unsupported notice attachment type' });
+  }
+
+  const expectedMimeType = attachmentMimeByExtension[extension];
+  const mimeType = input.mimeType.toLowerCase();
+  if (mimeType !== expectedMimeType) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'notice attachment type mismatch' });
+  }
+
+  const kind = attachmentKind(mimeType);
+  const maxBytes = kind === 'image' ? MAX_IMAGE_BYTES : MAX_DOCUMENT_BYTES;
+  if (input.sizeBytes > maxBytes) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'notice attachment is too large' });
+  }
+
+  return {
+    originalFileName,
+    mimeType,
+    sizeBytes: input.sizeBytes,
+  };
+}
+
+function assertStorageTarget(
+  input: Pick<z.infer<typeof attachmentInput>, 'storageBucket' | 'storagePath'>,
+  userId: string,
+): void {
+  if (input.storageBucket !== noticeAttachmentBucket()) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid notice attachment bucket' });
+  }
+  if (
+    !input.storagePath.startsWith(`notices/${userId}/`) ||
+    input.storagePath.includes('..') ||
+    input.storagePath.startsWith('/') ||
+    input.storagePath.endsWith('/')
+  ) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid notice attachment path' });
+  }
+}
+
+function validateAttachment(
+  input: z.infer<typeof attachmentInput>,
+  position: number,
+  userId: string,
+) {
+  const metadata = validateAttachmentMetadata(input);
+  assertStorageTarget(input, userId);
+  return {
+    ...metadata,
+    storageBucket: input.storageBucket,
+    storagePath: input.storagePath,
+    position,
+  };
+}
+
+function validateAttachments(inputs: readonly z.infer<typeof attachmentInput>[], userId: string) {
+  const attachments = inputs.map((attachment, index) =>
+    validateAttachment(attachment, index + 1, userId),
+  );
+  const totalSizeBytes = attachments.reduce((sum, attachment) => sum + attachment.sizeBytes, 0);
+  if (totalSizeBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'notice attachments are too large' });
+  }
+  return { attachments, totalSizeBytes };
+}
+
+function prepareStorageAttachments(
+  inputs: readonly z.infer<typeof attachmentMetadataInput>[],
+  userId: string,
+) {
+  const bucket = noticeAttachmentBucket();
+  const attachments = inputs.map((input) => {
+    const metadata = validateAttachmentMetadata(input);
+    return {
+      ...metadata,
+      storageBucket: bucket,
+      storagePath: storagePathForAttachment(userId, metadata.originalFileName),
+    };
+  });
+  const totalSizeBytes = attachments.reduce((sum, attachment) => sum + attachment.sizeBytes, 0);
+  if (totalSizeBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'notice attachments are too large' });
+  }
+  return attachments;
 }
 
 function assertFutureExpiry(expiresAt: Date | undefined, now: Date): void {
@@ -172,6 +366,7 @@ function mapNotice(
     createdAt: notice.createdAt,
     expiresAt: notice.expiresAt,
     active: notice.active,
+    attachments: (notice.attachments ?? []).map((attachment) => mapAttachment(ctx, attachment)),
     read: ownNotice || Boolean(readAt),
     readAt: ownNotice ? null : readAt,
     readSummary:
@@ -196,6 +391,18 @@ export const noticeRouter = router({
           reads: {
             select: { userId: true, readAt: true },
           },
+          attachments: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true,
+              originalFileNameEnc: true,
+              mimeType: true,
+              sizeBytes: true,
+              storageBucket: true,
+              storagePathEnc: true,
+              position: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -215,6 +422,18 @@ export const noticeRouter = router({
           select: { readAt: true },
           take: 1,
         },
+        attachments: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            originalFileNameEnc: true,
+            mimeType: true,
+            sizeBytes: true,
+            storageBucket: true,
+            storagePathEnc: true,
+            position: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -232,6 +451,18 @@ export const noticeRouter = router({
           select: { readAt: true },
           take: 1,
         },
+        attachments: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            originalFileNameEnc: true,
+            mimeType: true,
+            sizeBytes: true,
+            storageBucket: true,
+            storagePathEnc: true,
+            position: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -243,6 +474,8 @@ export const noticeRouter = router({
 
     const now = new Date();
     assertFutureExpiry(input.expiresAt, now);
+    const { attachments, totalSizeBytes } = validateAttachments(input.attachments, ctx.user.id);
+    await assertUploadedNoticeAttachments(attachments);
 
     const notice = await ctx.db.staffNotice.create({
       data: {
@@ -252,12 +485,38 @@ export const noticeRouter = router({
         postedById: ctx.user.id,
         active: true,
         expiresAt: input.expiresAt ?? null,
+        ...(attachments.length > 0
+          ? {
+              attachments: {
+                create: attachments.map((attachment) => ({
+                  originalFileNameEnc: ctx.db.$enc.encrypt(attachment.originalFileName),
+                  mimeType: attachment.mimeType,
+                  sizeBytes: attachment.sizeBytes,
+                  storageBucket: attachment.storageBucket,
+                  storagePathEnc: ctx.db.$enc.encrypt(attachment.storagePath),
+                  position: attachment.position,
+                })),
+              },
+            }
+          : {}),
       },
       include: {
         reads: {
           where: { userId: ctx.user.id },
           select: { readAt: true },
           take: 1,
+        },
+        attachments: {
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            originalFileNameEnc: true,
+            mimeType: true,
+            sizeBytes: true,
+            storageBucket: true,
+            storagePathEnc: true,
+            position: true,
+          },
         },
       },
     });
@@ -272,11 +531,82 @@ export const noticeRouter = router({
           source: 'notice.post',
           audience: input.audience,
           expiresAt: input.expiresAt?.toISOString() ?? null,
+          attachmentCount: attachments.length,
+          totalAttachmentSizeBytes: totalSizeBytes,
         },
       },
     });
 
     return mapNotice(ctx, notice);
+  }),
+  prepareAttachments: authedProcedure.input(prepareAttachmentsInput).mutation(({ ctx, input }) => {
+    requireNoticePoster(ctx.user);
+    const attachments = prepareStorageAttachments(input.attachments, ctx.user.id);
+    return {
+      attachments: attachments.map((attachment) => ({
+        fileName: attachment.originalFileName,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+        storageBucket: attachment.storageBucket,
+        storagePath: attachment.storagePath,
+      })),
+    };
+  }),
+  downloadAttachment: authedProcedure.input(attachmentIdInput).query(async ({ ctx, input }) => {
+    requireAnyNoticeReader(ctx.user);
+
+    const attachment = await ctx.db.staffNoticeAttachment.findUnique({
+      where: { id: input.attachmentId },
+      include: {
+        notice: {
+          select: {
+            id: true,
+            active: true,
+            audience: true,
+            expiresAt: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !attachment ||
+      !isAvailableNotice(attachment.notice, new Date()) ||
+      !canReadNoticeAudience(ctx.user, attachment.notice.audience)
+    ) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'notice attachment not found' });
+    }
+
+    const fileName = decryptRequired(ctx.db.$enc.decrypt, attachment.originalFileNameEnc);
+    const storagePath = decryptRequired(ctx.db.$enc.decrypt, attachment.storagePathEnc);
+    const kind = attachmentKind(attachment.mimeType);
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'ReadSensitive',
+        entity: 'StaffNoticeAttachment',
+        entityId: attachment.id,
+        meta: {
+          source: 'notice.downloadAttachment',
+          noticeId: attachment.noticeId,
+          mimeType: attachment.mimeType,
+          sizeBytes: attachment.sizeBytes,
+        },
+      },
+    });
+
+    return {
+      attachmentId: attachment.id,
+      noticeId: attachment.noticeId,
+      fileName,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      storageBucket: attachment.storageBucket,
+      storagePath,
+      kind,
+      canPreview: kind === 'image' || kind === 'pdf',
+    };
   }),
   markRead: authedProcedure
     .input(z.object({ noticeId: z.string().cuid() }))
