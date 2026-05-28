@@ -3,22 +3,28 @@
 import { Plus, Send, Trash2, UserRoundPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
-import { useFieldArray, useForm, type FieldPath } from 'react-hook-form';
-import type { ZodIssue } from 'zod';
+import { useFieldArray, useForm } from 'react-hook-form';
 import {
   REGISTRATION_CONSENT_COPY,
   REGISTRATION_CONSENT_TYPES,
   REGISTRATION_GENDER_OPTIONS,
   STANDARD_SCHOOL_YEARS,
   displaySchoolYearLabel,
-  parentInitialRegistrationInput,
-  parentRegistrationSiblingInput,
-  parentRegistrationUpdateInput,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
+import {
+  cleanSubmitErrorMessage,
+  formPath,
+  parseInitialRegistration,
+  parseRegistrationUpdate,
+  parseSiblingRegistration,
+  setValidationIssues,
+  submitLabel,
+  type RegistrationFormMode,
+} from './registration-form-helpers';
 import {
   blankRegistrationValues,
   blankStudent,
@@ -29,7 +35,6 @@ import {
   siblingValuesFromServer,
   todayDateInput,
   type RegistrationFormValues,
-  type RegistrationStudentFormValues,
 } from './registration-form-model';
 
 function TextArea({
@@ -53,141 +58,6 @@ function TextArea({
       {error ? <span className="field__error">{error}</span> : null}
     </label>
   );
-}
-
-function formPath(value: string): FieldPath<RegistrationFormValues> {
-  return value as FieldPath<RegistrationFormValues>;
-}
-
-type RegistrationFormMode = 'edit' | 'initial' | 'sibling';
-
-const submitLabel = {
-  edit: 'Save registration',
-  initial: 'Submit registration',
-  sibling: 'Add sibling',
-} as const satisfies Record<RegistrationFormMode, string>;
-
-function stripStudentId(student: RegistrationStudentFormValues) {
-  const studentInput = { ...student };
-  delete studentInput.studentId;
-  return studentInput;
-}
-
-function sharedPayloadInput(values: RegistrationFormValues) {
-  return {
-    homeAddress: values.homeAddress,
-    guardianContacts: values.guardianContacts.map((contact) => ({
-      ...contact,
-      workPhone: contact.workPhone ?? '',
-      address: contact.address ?? '',
-    })),
-    emergencyContacts: values.emergencyContacts,
-    pickupContacts: values.pickupContacts,
-    agreement: {
-      ...values.agreement,
-    },
-  };
-}
-
-function toInitialPayloadInput(values: RegistrationFormValues): unknown {
-  return {
-    ...sharedPayloadInput(values),
-    students: values.students.map(stripStudentId),
-  };
-}
-
-function toUpdatePayloadInput(values: RegistrationFormValues): unknown {
-  return {
-    ...sharedPayloadInput(values),
-    students: values.students.map((student) => ({
-      ...stripStudentId(student),
-      studentId: student.studentId ?? '',
-    })),
-  };
-}
-
-function toSiblingPayloadInput(values: RegistrationFormValues): unknown {
-  return {
-    ...sharedPayloadInput(values),
-    student: stripStudentId(values.students[0] ?? blankStudent()),
-  };
-}
-
-function issuePathParts(issue: ZodIssue, mode: RegistrationFormMode): Array<number | string> {
-  if (mode === 'sibling' && issue.path[0] === 'student') {
-    return ['students', 0, ...issue.path.slice(1)];
-  }
-  return issue.path;
-}
-
-function issuePath(issue: ZodIssue, mode: RegistrationFormMode): string {
-  return issuePathParts(issue, mode).map(String).join('.');
-}
-
-function labelForIssue(issue: ZodIssue, mode: RegistrationFormMode): string {
-  const path = issuePath(issue, mode);
-  const last = String(issuePathParts(issue, mode).at(-1) ?? '');
-
-  if (path === 'homeAddress') return 'Enter the home address.';
-  if (path === 'agreement.guardianName') return 'Enter the parent or guardian name.';
-  if (path === 'agreement.agreementDate') return 'Choose a valid agreement date.';
-  if (last === 'fullName') return 'Enter the full name.';
-  if (last === 'relationship') return 'Enter the relationship.';
-  if (last === 'primaryPhone' || last === 'phone') return 'Enter a phone number.';
-  if (last === 'email') return 'Enter a valid email address.';
-  if (last === 'dob') return 'Choose a valid date of birth.';
-  if (last === 'yearGroup') return 'Choose a year group or check the date of birth.';
-  if (last === 'startDate') return 'Choose a valid start date.';
-  if (last === 'gender') return 'Choose Male or Female, or leave gender blank.';
-  if (last === 'initials') return 'Enter initials for this consent.';
-
-  return issue.message || 'Check this field.';
-}
-
-function sectionForIssue(issue: ZodIssue, mode: RegistrationFormMode): string {
-  const [root, index] = issuePathParts(issue, mode);
-  if (root === 'homeAddress') return 'Household';
-  if (root === 'guardianContacts') return `Guardian ${String(Number(index) + 1)}`;
-  if (root === 'emergencyContacts') return `Emergency contact ${String(Number(index) + 1)}`;
-  if (root === 'pickupContacts') return `Pickup contact ${String(Number(index) + 1)}`;
-  if (root === 'students') return `Student ${String(Number(index) + 1)}`;
-  if (root === 'agreement') return 'Agreement';
-  return 'Registration form';
-}
-
-function uniqueSections(issues: ZodIssue[], mode: RegistrationFormMode): string[] {
-  return [...new Set(issues.map((issue) => sectionForIssue(issue, mode)))];
-}
-
-function cleanSubmitErrorMessage(error: unknown): string {
-  const message = friendlyErrorMessage(error, '');
-  if (message.includes('invalid_enum_value') || message.includes('String must contain')) {
-    return 'Registration could not be saved. Please finish the required fields and try again.';
-  }
-  return friendlyErrorMessage(error, 'Registration could not be saved. Please try again.');
-}
-
-function setValidationIssues({
-  issues,
-  mode,
-  setError,
-  setIncompleteSections,
-}: {
-  issues: ZodIssue[];
-  mode: RegistrationFormMode;
-  setError: ReturnType<typeof useForm<RegistrationFormValues>>['setError'];
-  setIncompleteSections: (sections: string[]) => void;
-}) {
-  setIncompleteSections(uniqueSections(issues, mode));
-  issues.forEach((issue, index) => {
-    const path = issuePath(issue, mode);
-    if (path.length === 0) return;
-    setError(
-      formPath(path),
-      { message: labelForIssue(issue, mode), type: 'validate' },
-      { shouldFocus: index === 0 },
-    );
-  });
 }
 
 function RequirementBadge({ optional = false }: { optional?: boolean | undefined }) {
@@ -318,7 +188,9 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
   }
 
   if (mode === 'initial' && statusQuery.error) {
-    return <div className="empty-state status--error">{friendlyErrorMessage(statusQuery.error)}</div>;
+    return (
+      <div className="empty-state status--error">{friendlyErrorMessage(statusQuery.error)}</div>
+    );
   }
 
   if (mode !== 'initial' && mineQuery.isLoading) {
@@ -344,7 +216,7 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
           activeMutation.reset();
 
           if (mode === 'edit') {
-            const result = parentRegistrationUpdateInput.safeParse(toUpdatePayloadInput(values));
+            const result = parseRegistrationUpdate(values);
             if (!result.success) {
               setValidationIssues({
                 issues: result.error.issues,
@@ -359,7 +231,7 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
           }
 
           if (mode === 'sibling') {
-            const result = parentRegistrationSiblingInput.safeParse(toSiblingPayloadInput(values));
+            const result = parseSiblingRegistration(values);
             if (!result.success) {
               setValidationIssues({
                 issues: result.error.issues,
@@ -373,7 +245,7 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
             return;
           }
 
-          const result = parentInitialRegistrationInput.safeParse(toInitialPayloadInput(values));
+          const result = parseInitialRegistration(values);
           if (!result.success) {
             setValidationIssues({
               issues: result.error.issues,

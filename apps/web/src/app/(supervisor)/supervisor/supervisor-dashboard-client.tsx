@@ -18,6 +18,8 @@ import { SupervisorDashboardOverview } from './_components/supervisor-dashboard-
 import {
   addDays,
   asDate,
+  batchBehaviourSuccessMessage,
+  behaviourLogSuccessMessage,
   dateKey,
   formatDateTime,
   formatShift,
@@ -144,15 +146,7 @@ export function SupervisorDashboardClient({
   });
   const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      showSuccessToast(
-        input.type === 'General'
-          ? input.visibility === 'General'
-            ? `Parent-visible general mark saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`
-            : `General mark saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}. Heads and you can view it.`
-          : input.visibility === 'Sensitive'
-            ? `Sensitive demerit saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}. Heads and you can view it.`
-            : `Behaviour saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
-      );
+      showSuccessToast(behaviourLogSuccessMessage(input));
       setBehaviourForm((current) => ({
         ...current,
         category: '',
@@ -178,9 +172,7 @@ export function SupervisorDashboardClient({
   });
   const logManyBehaviour = api.behaviour.logManyForStudents.useMutation({
     onSuccess: async (_result, input) => {
-      showSuccessToast(
-        `${String(input.entries.length)} ${input.type.toLowerCase()} ${input.entries.length === 1 ? 'entry' : 'entries'} saved for ${String(input.studentIds.length)} ${input.studentIds.length === 1 ? 'student' : 'students'}.`,
-      );
+      showSuccessToast(batchBehaviourSuccessMessage(input));
       setBatchEntries([newBatchEntry()]);
       await Promise.all([
         ...input.studentIds.map((studentId) =>
@@ -311,7 +303,9 @@ export function SupervisorDashboardClient({
       <SupervisorDashboardOverview
         absentCount={absentCount}
         attendanceError={
-          attendanceRosterQuery.error ? friendlyErrorMessage(attendanceRosterQuery.error) : undefined
+          attendanceRosterQuery.error
+            ? friendlyErrorMessage(attendanceRosterQuery.error)
+            : undefined
         }
         dashboardActivity={dashboardActivity}
         dashboardActivityError={
@@ -415,11 +409,11 @@ export function SupervisorDashboardClient({
               <div className="form-grid">
                 <div className="form-grid form-grid--two">
                   <Field label="Entry mode">
-                        <SelectInput
-                          aria-label="Behaviour entry mode"
-                          onChange={(event) => {
-                            setEntryMode(event.target.value as EntryMode);
-                          }}
+                    <SelectInput
+                      aria-label="Behaviour entry mode"
+                      onChange={(event) => {
+                        setEntryMode(event.target.value as EntryMode);
+                      }}
                       value={entryMode}
                     >
                       <option value="single">Single</option>
@@ -539,9 +533,7 @@ export function SupervisorDashboardClient({
                       type="submit"
                     >
                       <Save aria-hidden="true" size={16} />
-                      {behaviourForm.type === 'Demerit'
-                        ? 'Save demerit'
-                        : 'Save behaviour'}
+                      {behaviourForm.type === 'Demerit' ? 'Save demerit' : 'Save behaviour'}
                     </Button>
                     {logBehaviour.error ? (
                       <p className="status--error">{friendlyErrorMessage(logBehaviour.error)}</p>
@@ -655,7 +647,9 @@ export function SupervisorDashboardClient({
                       Save {String(batchEntryCount * Math.max(selectedStudentCount, 1))} entries
                     </Button>
                     {logManyBehaviour.error ? (
-                      <p className="status--error">{friendlyErrorMessage(logManyBehaviour.error)}</p>
+                      <p className="status--error">
+                        {friendlyErrorMessage(logManyBehaviour.error)}
+                      </p>
                     ) : null}
                   </form>
                 )}
