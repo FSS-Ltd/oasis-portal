@@ -508,6 +508,17 @@ export function SharedCalendar({
             onEventSelect={(event: CalendarEvent) => {
               setSelectedEvent(event);
             }}
+            {...(canManage
+              ? {
+                  onEventDoubleSelect: (event: CalendarEvent) => {
+                    if (event.source !== 'Manual') {
+                      setSelectedEvent(event);
+                      return;
+                    }
+                    editEvent(event);
+                  },
+                }
+              : {})}
             onNextMonth={() => {
               setMonthKey((current) => addMonths(current, 1));
             }}
