@@ -219,10 +219,10 @@ export function RotaSchedulerClient() {
       />
 
       <aside className="rota-layout__side">
-        <section className="panel">
+        <section className="panel rota-layout__create">
           <div className="panel__body">
             <div className="section-title">
-              <h2>{shiftForm.id ? 'Update shift' : 'Create shift'}</h2>
+              <h2>{shiftForm.id ? 'Update Shift' : 'Create Shift'}</h2>
               {shiftForm.id ? <span className="badge">Editing</span> : null}
             </div>
             <form
@@ -381,61 +381,66 @@ export function RotaSchedulerClient() {
           </div>
         </section>
 
-        <MyAvailabilityEditor title="My availability" />
-        <MonthlyAvailabilityEditor title="Unavailable dates" />
+        <div className="rota-layout__middle">
+          <MyAvailabilityEditor title="My Availability" />
 
-        <section className="panel">
-          <div className="panel__body">
-            <div className="section-title">
-              <h2>Shift swaps</h2>
-              <span className="badge">{swapsQuery.data?.length ?? 0} pending</span>
-            </div>
-            {swapsQuery.isLoading ? <div className="empty-state">Loading swaps...</div> : null}
-            {swapsQuery.error ? (
-              <p className="status--error">{friendlyErrorMessage(swapsQuery.error)}</p>
-            ) : null}
-            {(swapsQuery.data ?? []).length === 0 ? (
-              <div className="empty-state">No pending shift swaps</div>
-            ) : (
-              <div className="swap-list">
-                {(swapsQuery.data ?? []).map((swap) => (
-                  <article className="swap-card" key={swap.id}>
-                    <strong>
-                      {swap.requester.fullName} with {swap.targetUser.fullName}
-                    </strong>
-                    <span>
-                      {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for{' '}
-                      {swap.toShift.date} {formatDateTime(swap.toShift.startsAt)}
-                    </span>
-                    <div className="row-actions">
-                      <Button
-                        onClick={() => {
-                          rejectSwap.mutate({ id: swap.id });
-                        }}
-                        pending={rejectSwap.isPending}
-                        type="button"
-                        variant="secondary"
-                      >
-                        <X aria-hidden="true" size={16} />
-                        Reject
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          approveSwap.mutate({ id: swap.id });
-                        }}
-                        pending={approveSwap.isPending}
-                        type="button"
-                      >
-                        <Check aria-hidden="true" size={16} />
-                        Approve
-                      </Button>
-                    </div>
-                  </article>
-                ))}
+          <section className="panel">
+            <div className="panel__body">
+              <div className="section-title">
+                <h2>Shift Swaps</h2>
+                <span className="badge">{swapsQuery.data?.length ?? 0} pending</span>
               </div>
-            )}
-          </div>
-        </section>
+              {swapsQuery.isLoading ? <div className="empty-state">Loading swaps...</div> : null}
+              {swapsQuery.error ? (
+                <p className="status--error">{friendlyErrorMessage(swapsQuery.error)}</p>
+              ) : null}
+              {(swapsQuery.data ?? []).length === 0 ? (
+                <div className="empty-state">No pending shift swaps</div>
+              ) : (
+                <div className="swap-list">
+                  {(swapsQuery.data ?? []).map((swap) => (
+                    <article className="swap-card" key={swap.id}>
+                      <strong>
+                        {swap.requester.fullName} with {swap.targetUser.fullName}
+                      </strong>
+                      <span>
+                        {swap.fromShift.date} {formatDateTime(swap.fromShift.startsAt)} for{' '}
+                        {swap.toShift.date} {formatDateTime(swap.toShift.startsAt)}
+                      </span>
+                      <div className="row-actions">
+                        <Button
+                          onClick={() => {
+                            rejectSwap.mutate({ id: swap.id });
+                          }}
+                          pending={rejectSwap.isPending}
+                          type="button"
+                          variant="secondary"
+                        >
+                          <X aria-hidden="true" size={16} />
+                          Reject
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            approveSwap.mutate({ id: swap.id });
+                          }}
+                          pending={approveSwap.isPending}
+                          type="button"
+                        >
+                          <Check aria-hidden="true" size={16} />
+                          Approve
+                        </Button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="rota-layout__unavailable">
+          <MonthlyAvailabilityEditor title="Unavailable Dates" />
+        </div>
       </aside>
     </div>
   );

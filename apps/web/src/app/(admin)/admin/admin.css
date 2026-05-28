@@ -9553,9 +9553,16 @@ button.club-assignment-row {
 
 .rota-layout__side {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
+  grid-template-columns: minmax(280px, 0.95fr) minmax(300px, 1fr) minmax(360px, 1.08fr);
   gap: 18px;
   align-items: start;
+}
+
+.rota-layout__middle,
+.rota-layout__unavailable {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
 }
 
 .rota-toolbar {
@@ -10097,6 +10104,7 @@ button.club-assignment-row {
   .supervisor-workflow-grid,
   .pace-score-entry,
   .rota-layout,
+  .rota-layout__side,
   .snapshot-grid,
   .policy-grid,
   .student-detail-summary-grid,

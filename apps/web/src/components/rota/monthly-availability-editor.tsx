@@ -61,7 +61,7 @@ function lastDateForMonth(month: string): string {
 }
 
 export function MonthlyAvailabilityEditor({
-  title = 'Unavailable dates',
+  title = 'Unavailable Dates',
 }: MonthlyAvailabilityEditorProps) {
   const utils = api.useUtils();
   const [month, setMonth] = useState(currentMonthKey);
