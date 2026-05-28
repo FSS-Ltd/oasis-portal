@@ -437,6 +437,27 @@ function makeFakeDb(seed?: {
           return Promise.resolve(recipient);
         },
       ),
+      updateMany: vi.fn(
+        (args: {
+          where: { slipId: string; studentId: { in: string[] }; responseStatus: ResponseStatus };
+          data: Partial<Omit<StoredRecipient, 'slipId' | 'studentId' | 'createdAt' | 'updatedAt'>>;
+        }) => {
+          let count = 0;
+          recipients.forEach((recipient) => {
+            if (
+              recipient.slipId === args.where.slipId &&
+              args.where.studentId.in.includes(recipient.studentId) &&
+              recipient.responseStatus === args.where.responseStatus
+            ) {
+              Object.assign(recipient, args.data, {
+                updatedAt: new Date('2026-05-10T13:00:00.000Z'),
+              });
+              count += 1;
+            }
+          });
+          return Promise.resolve({ count });
+        },
+      ),
       deleteMany: vi.fn((args: { where: { slipId: string; studentId: { notIn: string[] } } }) => {
         for (let index = recipients.length - 1; index >= 0; index -= 1) {
           const recipient = recipients[index];
@@ -606,6 +627,42 @@ describe('permissionSlip.update and archive', () => {
 
     expect(db.slips[0]?.active).toBe(false);
     expect(db.calendarEvents[0]?.active).toBe(false);
+  });
+
+  it('updates pending recipient payment state when payment requirement changes', async () => {
+    const slip = makeSlip({ id: 'slip_payment_change', title: 'Payment change trip' });
+    const db = makeFakeDb({
+      slips: [slip],
+      recipients: [
+        makeRecipient({ slipId: slip.id, studentId: 's_child_1', position: 1 }),
+        makeRecipient({
+          slipId: slip.id,
+          studentId: 's_child_2',
+          position: 2,
+          responseStatus: 'Signed',
+          signatureSource: 'ParentPortal',
+          parentNameEnc: encrypt('Grace Williams'),
+          signedAt: new Date('2026-05-21T10:00:00.000Z'),
+          paymentStatus: 'Unpaid',
+        }),
+      ],
+    });
+    const { caller } = makeCaller(headUser, db);
+
+    await caller.permissionSlip.update({
+      ...createInput,
+      id: slip.id,
+      requirePayment: false,
+    });
+
+    expect(db.recipients.find((recipient) => recipient.studentId === 's_child_1')).toMatchObject({
+      paymentStatus: 'NotRequired',
+      responseStatus: 'Pending',
+    });
+    expect(db.recipients.find((recipient) => recipient.studentId === 's_child_2')).toMatchObject({
+      paymentStatus: 'Unpaid',
+      responseStatus: 'Signed',
+    });
   });
 });
 

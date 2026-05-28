@@ -70,6 +70,11 @@ interface StoredUser {
   active: boolean;
 }
 
+interface StoredGuardian {
+  userId: string;
+  student: { active: boolean };
+}
+
 interface FakeNoticeInclude {
   reads: { where?: { userId: string } };
   attachments?: unknown;
@@ -225,11 +230,13 @@ function makeFakeDb(
   initialReads: StoredRead[] = [],
   initialUsers: StoredUser[] = defaultUsers,
   initialAttachments: StoredAttachment[] = [],
+  initialGuardians: StoredGuardian[] = [],
 ) {
   const notices = [...initialNotices];
   const reads = [...initialReads];
   const users = [...initialUsers];
   const attachments = [...initialAttachments];
+  const guardians = [...initialGuardians];
 
   const withIncludedReads = (notice: StoredNotice, include: FakeNoticeInclude) => ({
     ...notice,
@@ -257,6 +264,17 @@ function makeFakeDb(
           users.filter(
             (user) => user.active === args.where.active && args.where.role.in.includes(user.role),
           ),
+        ),
+      ),
+    },
+    guardian: {
+      count: vi.fn((args: { where: { userId: string; student: { active: boolean } } }) =>
+        Promise.resolve(
+          guardians.filter(
+            (guardian) =>
+              guardian.userId === args.where.userId &&
+              guardian.student.active === args.where.student.active,
+          ).length,
         ),
       ),
     },
@@ -854,6 +872,39 @@ describe('notice.listForParents', () => {
     ]);
   });
 
+  it('allows supervisors with linked children to list parent notices', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const parentNotice = makeNotice({
+      id: 'cmnotice00000000000000021',
+      title: 'Linked child parent update',
+      audience: 'Parents',
+      bodyEnc: encrypt('Linked child parent body'),
+    });
+    const bothNotice = makeNotice({
+      id: 'cmnotice00000000000000022',
+      title: 'Shared linked child update',
+      audience: 'Both',
+      bodyEnc: encrypt('Shared linked child body'),
+      createdAt: new Date('2026-05-08T12:00:00.000Z'),
+    });
+
+    await expect(
+      makeCaller(
+        supervisorUser,
+        makeFakeDb(
+          [parentNotice, bothNotice],
+          [],
+          defaultUsers,
+          [],
+          [{ userId: supervisorUser.id, student: { active: true } }],
+        ),
+      ).caller.notice.listForParents(),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: bothNotice.id, audience: 'Both', read: false }),
+      expect.objectContaining({ id: parentNotice.id, audience: 'Parents', read: false }),
+    ]);
+  });
+
   it.each([supervisorUser, studentUser, clubsAdminUser, technicalSupportUser])(
     'denies %s callers',
     async (user) => {
@@ -1120,5 +1171,29 @@ describe('notice.markRead', () => {
     await expect(
       makeCaller(clubsAdminUser, db).caller.notice.markRead({ noticeId: supervisorNotice.id }),
     ).resolves.toMatchObject({ noticeId: supervisorNotice.id });
+  });
+
+  it('allows supervisors with linked children to mark parent notices read', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const parentNotice = makeNotice({
+      id: 'cmnotice00000000000000023',
+      title: 'Linked child parent read',
+      audience: 'Parents',
+    });
+    const db = makeFakeDb(
+      [parentNotice],
+      [],
+      defaultUsers,
+      [],
+      [{ userId: supervisorUser.id, student: { active: true } }],
+    );
+
+    await expect(
+      makeCaller(supervisorUser, db).caller.notice.markRead({ noticeId: parentNotice.id }),
+    ).resolves.toMatchObject({ noticeId: parentNotice.id });
+    expect(db.staffNoticeRead.create).toHaveBeenCalledWith({
+      data: { noticeId: parentNotice.id, userId: supervisorUser.id },
+      select: { noticeId: true, userId: true, readAt: true },
+    });
   });
 });
