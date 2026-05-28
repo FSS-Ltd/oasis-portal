@@ -4,6 +4,7 @@ import { TRPCError } from '@trpc/server';
 import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  canAnswerChildRegistrationPrompt,
   isFullAdmin,
   isStaff,
   requireFullAdmin,
@@ -112,16 +113,6 @@ function toForbidden(error: AccessDeniedError): TRPCError {
 function requireStaffNoticeReader(user: SessionUser): void {
   if (isStaff(user)) return;
   throw toForbidden(new AccessDeniedError('staff notices require full-admin or Supervisor'));
-}
-
-function requireParentNoticeReader(user: SessionUser): void {
-  if (user.role === 'Parent' || isFullAdmin(user)) return;
-  throw toForbidden(new AccessDeniedError('parent notices require Parent or full-admin'));
-}
-
-function requireAnyNoticeReader(user: SessionUser): void {
-  if (isStaff(user) || user.role === 'Parent') return;
-  throw toForbidden(new AccessDeniedError('notices require staff or Parent'));
 }
 
 function requireNoticePoster(user: SessionUser): void {
@@ -290,11 +281,34 @@ function isAvailableNotice(
   return notice.active && (!notice.expiresAt || notice.expiresAt > now);
 }
 
-function canReadNoticeAudience(user: SessionUser, audience: NoticeAudience): boolean {
-  if (isFullAdmin(user)) return true;
-  if (audience === 'Both') return isStaff(user) || user.role === 'Parent';
-  if (audience === 'Supervisors') return isStaff(user);
-  return user.role === 'Parent';
+async function hasLinkedActiveChild(ctx: AuthedContext): Promise<boolean> {
+  if (!canAnswerChildRegistrationPrompt(ctx.user)) return false;
+  const count = await ctx.db.guardian.count({
+    where: { userId: ctx.user.id, student: { active: true } },
+  });
+  return count > 0;
+}
+
+async function canReadParentNotice(ctx: AuthedContext): Promise<boolean> {
+  if (ctx.user.role === 'Parent' || isFullAdmin(ctx.user)) return true;
+  return hasLinkedActiveChild(ctx);
+}
+
+async function requireParentNoticeReader(ctx: AuthedContext): Promise<void> {
+  if (await canReadParentNotice(ctx)) return;
+  throw toForbidden(
+    new AccessDeniedError('parent notices require Parent or linked-child access'),
+  );
+}
+
+async function canReadNoticeAudience(
+  ctx: AuthedContext,
+  audience: NoticeAudience,
+): Promise<boolean> {
+  if (isFullAdmin(ctx.user)) return true;
+  if (audience === 'Supervisors') return isStaff(ctx.user);
+  if (audience === 'Parents') return canReadParentNotice(ctx);
+  return isStaff(ctx.user) || ctx.user.role === 'Parent' || hasLinkedActiveChild(ctx);
 }
 
 function recipientRolesForAudience(audience: NoticeAudience): NoticeRecipientRole[] {
@@ -441,7 +455,7 @@ export const noticeRouter = router({
     return notices.map((notice) => mapNotice(ctx, notice));
   }),
   listForParents: authedProcedure.query(async ({ ctx }) => {
-    requireParentNoticeReader(ctx.user);
+    await requireParentNoticeReader(ctx);
 
     const notices = await ctx.db.staffNotice.findMany({
       where: audienceWhere(['Parents', 'Both']),
@@ -553,8 +567,6 @@ export const noticeRouter = router({
     };
   }),
   downloadAttachment: authedProcedure.input(attachmentIdInput).query(async ({ ctx, input }) => {
-    requireAnyNoticeReader(ctx.user);
-
     const attachment = await ctx.db.staffNoticeAttachment.findUnique({
       where: { id: input.attachmentId },
       include: {
@@ -572,7 +584,7 @@ export const noticeRouter = router({
     if (
       !attachment ||
       !isAvailableNotice(attachment.notice, new Date()) ||
-      !canReadNoticeAudience(ctx.user, attachment.notice.audience)
+      !(await canReadNoticeAudience(ctx, attachment.notice.audience))
     ) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'notice attachment not found' });
     }
@@ -611,8 +623,6 @@ export const noticeRouter = router({
   markRead: authedProcedure
     .input(z.object({ noticeId: z.string().cuid() }))
     .mutation(async ({ ctx, input }) => {
-      requireAnyNoticeReader(ctx.user);
-
       const notice = await ctx.db.staffNotice.findUnique({
         where: { id: input.noticeId },
         select: { id: true, active: true, audience: true, expiresAt: true, postedById: true },
@@ -620,7 +630,7 @@ export const noticeRouter = router({
       if (
         !notice ||
         !isAvailableNotice(notice, new Date()) ||
-        !canReadNoticeAudience(ctx.user, notice.audience)
+        !(await canReadNoticeAudience(ctx, notice.audience))
       ) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'notice not found' });
       }

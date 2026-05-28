@@ -516,6 +516,10 @@ async function replaceSlipCollections(
     })),
     skipDuplicates: true,
   });
+  await tx.permissionSlipRecipient.updateMany({
+    where: { slipId, studentId: { in: studentIds }, responseStatus: 'Pending' },
+    data: { paymentStatus: initialPermissionSlipPaymentStatus(input.requirePayment) },
+  });
   await Promise.all(
     studentIds.map((studentId, index) =>
       tx.permissionSlipRecipient.update({
