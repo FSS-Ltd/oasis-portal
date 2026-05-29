@@ -113,7 +113,10 @@ function makeFakeDb() {
       yearGroup: 'Y9',
     },
   ];
-  const guardians = [{ id: 'g_1', userId: parentUser.id, studentId: 's_child_1' }];
+  const guardians = [
+    { id: 'g_1', userId: parentUser.id, studentId: 's_child_1' },
+    { id: 'g_2', userId: supervisorUser.id, studentId: 's_child_1' },
+  ];
   const incidents: StoredIncident[] = [];
   const incidentStudents: Array<{ reportId: string; studentId: string; position: number }> = [];
   const parentCopies: StoredParentCopy[] = [];
@@ -449,6 +452,39 @@ describe('incident router', () => {
     const otherParentCaller = createIncidentCaller(db, otherParentUser);
     await expect(otherParentCaller.incident.getParentCopy({ copyId: copy.id })).rejects.toMatchObject({
       code: 'FORBIDDEN',
+    });
+  });
+
+  it('allows linked-child supervisor guardians to use parent incident copies', async () => {
+    const { caller: supervisorCaller, db } = makeCaller(supervisorUser);
+    const draft = await supervisorCaller.incident.createDraft(draftInput);
+    const headCaller = createIncidentCaller(db, headUser);
+    await headCaller.incident.submitForHeadReview({ reportId: draft.id });
+    await headCaller.incident.signOff({ reportId: draft.id });
+    const copy = await headCaller.incident.generateParentCopy({
+      reportId: draft.id,
+      studentId: 's_child_1',
+      parentSummary: 'Joshua slipped during break time.',
+      redactions: '',
+      attachmentsIncluded: '',
+      sharingReason: 'Parent needs first-aid record.',
+    });
+    await headCaller.incident.shareParentCopy({ copyId: copy.id });
+
+    const copies = await supervisorCaller.incident.listParent();
+    expect(copies).toHaveLength(1);
+    expect(copies[0]?.studentId).toBe('s_child_1');
+
+    await expect(supervisorCaller.incident.getParentCopy({ copyId: copy.id })).resolves.toMatchObject({
+      id: copy.id,
+      studentId: 's_child_1',
+    });
+    await expect(supervisorCaller.incident.acknowledgeParentCopy({ copyId: copy.id })).resolves.toMatchObject({
+      copyId: copy.id,
+      guardianId: supervisorUser.id,
+    });
+    await expect(supervisorCaller.incident.downloadParentPdf({ copyId: copy.id })).resolves.toMatchObject({
+      mimeType: 'application/pdf',
     });
   });
 
