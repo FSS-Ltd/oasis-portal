@@ -4212,6 +4212,13 @@ typecheck` now passes locally.
   bucket now exists in the active Oasis Portal Supabase project
   (`fjatgkyswxqkbunrsmdq`). It is private, capped at 10 MB per object, and
   restricted to PDF, Word, JPEG, PNG, and WebP MIME types.
+- 2026-05-29 PACE progress academic-year count: branch
+  `fix/pace-progress-academic-year-count` changes parent dashboard and
+  drill-through PACE completion metrics to count passed final `PaceRecord`
+  rows in the UK academic year starting 1 September, rather than relying on
+  lifecycle `PaceProgress` rows that may be missing for imported history.
+  Verification: focused domain/API tests, typechecks, lint, Prettier check, and
+  `graphify update .` pass.
 
 ## Design decisions made (see ADRs for full rationale)
 

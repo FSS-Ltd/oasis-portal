@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canonicalSchoolYear,
+  academicYearStart,
   createYearGroupBandInput,
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
@@ -41,6 +42,13 @@ describe('deriveEnglandWalesSchoolYear', () => {
     expect(() => deriveEnglandWalesSchoolYear(date('2007-08-31'), referenceDate)).toThrow(
       'date of birth does not map',
     );
+  });
+});
+
+describe('academicYearStart', () => {
+  it('starts the UK academic year on 1 September in UTC', () => {
+    expect(academicYearStart(date('2026-08-31'))).toEqual(date('2025-09-01'));
+    expect(academicYearStart(date('2026-09-01'))).toEqual(date('2026-09-01'));
   });
 });
 
