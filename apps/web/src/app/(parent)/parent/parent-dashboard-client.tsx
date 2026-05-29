@@ -241,6 +241,13 @@ function MeritWalletPreview({ child }: { child: DashboardChild }) {
         <span>Weekly tithe rate</span>
         <strong>{String(child.metrics.tithePercentage)}%</strong>
       </div>
+      <Link
+        className="button button--secondary button--sm parent-card-link"
+        href={`/parent/children/${child.student.id}`}
+      >
+        Manage wallet
+        <ArrowRight aria-hidden="true" size={14} />
+      </Link>
     </section>
   );
 }

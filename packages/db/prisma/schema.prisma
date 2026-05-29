@@ -724,8 +724,8 @@ model TitheConfig {
 model TitheRun {
   id          String   @id @default(cuid())
   studentId   String
-  periodStart DateTime @db.Date
-  periodEnd   DateTime @db.Date
+  periodStart DateTime
+  periodEnd   DateTime
   grossMerits Int
   titheAmount Int
   createdAt   DateTime @default(now())

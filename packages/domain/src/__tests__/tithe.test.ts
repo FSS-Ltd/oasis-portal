@@ -7,8 +7,8 @@ import {
   TITHE_PERCENTAGES,
 } from '../tithe.js';
 
-const monday = new Date(Date.UTC(2026, 3, 20)); // 2026-04-20 is a Monday
-const sunday = new Date(Date.UTC(2026, 3, 26));
+const fridayOnePmLondon = new Date('2026-05-15T12:00:00.000Z'); // BST
+const nextFridayOnePmLondon = new Date('2026-05-22T12:00:00.000Z');
 
 describe('isValidTithePercentage', () => {
   it.each(TITHE_PERCENTAGES)('accepts %i', (p) => {
@@ -20,7 +20,7 @@ describe('isValidTithePercentage', () => {
 });
 
 describe('computeWeeklyTithe', () => {
-  const period = { periodStart: monday, periodEnd: sunday };
+  const period = { periodStart: fridayOnePmLondon, periodEnd: nextFridayOnePmLondon };
 
   it('tithes 10% of gross merits earned', () => {
     const r = computeWeeklyTithe({
@@ -107,14 +107,31 @@ describe('computeWeeklyTithe', () => {
 });
 
 describe('startOfTitheWeek / endOfTitheWeek', () => {
-  it('snaps any day in a week to that Monday', () => {
-    const wed = new Date(Date.UTC(2026, 3, 22));
-    const start = startOfTitheWeek(wed);
-    expect(start.toISOString().slice(0, 10)).toBe('2026-04-20');
+  it('snaps summer dates to the Friday 13:00 London boundary', () => {
+    const thursday = new Date('2026-05-21T09:30:00.000Z');
+    const start = startOfTitheWeek(thursday);
+    expect(start.toISOString()).toBe('2026-05-15T12:00:00.000Z');
+  });
+
+  it('uses the previous Friday before the local Friday 13:00 boundary', () => {
+    const fridayBeforeBoundary = new Date('2026-05-15T11:59:59.000Z');
+    const start = startOfTitheWeek(fridayBeforeBoundary);
+    expect(start.toISOString()).toBe('2026-05-08T12:00:00.000Z');
+  });
+
+  it('uses the current Friday at the local Friday 13:00 boundary', () => {
+    const start = startOfTitheWeek(fridayOnePmLondon);
+    expect(start.toISOString()).toBe('2026-05-15T12:00:00.000Z');
+  });
+
+  it('handles winter GMT boundaries without shifting the local hour', () => {
+    const winter = new Date('2026-01-14T15:00:00.000Z');
+    const start = startOfTitheWeek(winter);
+    expect(start.toISOString()).toBe('2026-01-09T13:00:00.000Z');
   });
 
   it('end is exactly 7 days after start', () => {
-    const start = startOfTitheWeek(monday);
+    const start = startOfTitheWeek(fridayOnePmLondon);
     const end = endOfTitheWeek(start);
     expect(end.getTime() - start.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
   });
