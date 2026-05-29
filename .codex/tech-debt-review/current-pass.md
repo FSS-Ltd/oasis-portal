@@ -3,10 +3,10 @@
 - Current pass: 1
 - Pass started: 2026-05-27
 - Eligible files at pass start: 389
-- Files reviewed so far: 10
-- Files remaining estimate: 382
-- Last run: 2026-05-28
-- Next selection strategy: continue pass 1 by selecting unreviewed oversized source files first, avoiding files touched by active user work or already reviewed in this pass.
+- Files reviewed so far: 15
+- Files remaining estimate: 374
+- Last run: 2026-05-29
+- Next selection strategy: continue pass 1 by selecting unreviewed oversized source files first, then high-churn files if no selected-file lint or type errors are present.
 
 ## Reviewed This Pass
 
@@ -20,3 +20,8 @@
 8. `apps/web/src/components/invoices/admin-invoices-client.tsx`
 9. `apps/web/src/components/invoices/admin-invoice-upload-modal.tsx`
 10. `apps/web/src/components/calendar/shared-calendar.tsx`
+11. `apps/api/src/routers/invoice.ts`
+12. `apps/api/src/routers/club.ts`
+13. `apps/api/src/routers/behaviour.ts`
+14. `apps/api/src/routers/pace.ts`
+15. `apps/api/src/routers/childLog.ts`

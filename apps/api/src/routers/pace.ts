@@ -16,6 +16,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
+import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
 import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
 
 const DEFAULT_POLICY = {
@@ -54,14 +55,6 @@ function utcDayBounds(date: Date): { dayKey: string; dayStart: Date; dayEnd: Dat
   const dayEnd = new Date(dayStart);
   dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
   return { dayKey, dayStart, dayEnd };
-}
-
-function normalizeDate(date: Date): Date {
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function dateKey(date: Date): string {
-  return normalizeDate(date).toISOString().slice(0, 10);
 }
 
 function canUsePaceWorkflow(user: SessionUser): boolean {

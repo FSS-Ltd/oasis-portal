@@ -18,7 +18,10 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
+  dateKey,
+  dayEnd,
   loadDailyYearBandScope,
+  normalizeDate,
   studentMatchesDailyScope,
   studentWhereForDailyScope,
   type DailyYearBandScope,
@@ -211,20 +214,6 @@ function decryptOptional(
 ): string | null {
   if (!value) return null;
   return decrypt(value);
-}
-
-function normalizeDate(date: Date): Date {
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function dayEnd(date: Date): Date {
-  const end = normalizeDate(date);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return end;
-}
-
-function dateKey(date: Date): string {
-  return normalizeDate(date).toISOString().slice(0, 10);
 }
 
 function isBlankNote(note: string | null | undefined): boolean {

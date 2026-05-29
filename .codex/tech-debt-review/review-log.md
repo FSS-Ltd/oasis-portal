@@ -35,3 +35,41 @@
 
 ### Follow-Ups Deferred
 - Larger splits remain possible in the selected oversized UI files, but were deferred to keep this daily pass small and low risk.
+
+## 2026-05-29 - Pass 1
+
+### Selected Files
+1. `apps/api/src/routers/invoice.ts`
+2. `apps/api/src/routers/club.ts`
+3. `apps/api/src/routers/behaviour.ts`
+4. `apps/api/src/routers/pace.ts`
+5. `apps/api/src/routers/childLog.ts`
+
+### Baseline Findings
+- Lint: `pnpm --filter @oasis/api exec eslint src/routers/invoice.ts src/routers/club.ts src/routers/behaviour.ts src/routers/pace.ts src/routers/childLog.ts` passed before edits.
+- Typecheck: `pnpm --filter @oasis/api typecheck` passed before edits.
+- Tests: Not run at baseline; targeted router tests were run after the behaviour-preserving cleanup.
+
+### Changes Made
+- `apps/api/src/routers/invoice.ts`: centralized repeated student ID array validation into one local schema.
+- `apps/api/src/routers/club.ts`: reused existing API UTC date helpers instead of router-local duplicates.
+- `apps/api/src/routers/behaviour.ts`: reused existing API UTC date helpers instead of router-local duplicates.
+- `apps/api/src/routers/pace.ts`: reused existing API UTC date helpers instead of router-local duplicates.
+- `apps/api/src/routers/childLog.ts`: reused existing API UTC date helpers instead of router-local duplicates.
+
+### Validation
+- lint command: pass, `pnpm --filter @oasis/api lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/invoice.router.test.ts src/__tests__/club.router.test.ts src/__tests__/behaviour.router.test.ts src/__tests__/pace.router.test.ts src/__tests__/childNotes.router.test.ts`
+- diff whitespace: pass, `git diff --check`
+- graph update: pass with warning, `graphify update .` reported a lower node count than the previous graph before updating generated graph output; no graph files remained changed in git status.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger router splits remain warranted, especially for invoice and club, but were deferred because they would require broader service extraction and deeper regression coverage.
