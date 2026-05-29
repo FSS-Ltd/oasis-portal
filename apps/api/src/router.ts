@@ -28,6 +28,7 @@ import { emailRouter } from './routers/email.js';
 import { registrationRouter } from './routers/registration.js';
 import { invoiceRouter } from './routers/invoice.js';
 import { permissionSlipRouter } from './routers/permissionSlip.js';
+import { incidentRouter } from './routers/incident.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -55,6 +56,7 @@ export const appRouter = router({
   registration: registrationRouter,
   invoice: invoiceRouter,
   permissionSlip: permissionSlipRouter,
+  incident: incidentRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -18,6 +18,7 @@
     "./demeritPolicy": "./src/demeritPolicy.ts",
     "./invoice": "./src/invoice.ts",
     "./permissionSlips": "./src/permissionSlips.ts",
+    "./incidents": "./src/incidents.ts",
     "./report": "./src/report.ts",
     "./schoolYears": "./src/schoolYears.ts"
   },

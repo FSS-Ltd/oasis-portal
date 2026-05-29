@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { DailyDemeritBadge, type DailyDemeritStatus } from './daily-demerit-badge';
 
@@ -13,24 +13,35 @@ export interface BehaviourStudentOption {
 
 interface BehaviourStudentSelectorProps {
   disabled?: boolean | undefined;
+  chooseLabel?: string | undefined;
+  emptyLabel?: string | undefined;
   hint?: string | undefined;
   label: string;
+  loadingLabel?: string | undefined;
   loading?: boolean | undefined;
   onChange: (studentIds: string[]) => void;
   options: readonly BehaviourStudentOption[];
+  selectedAriaLabel?: string | undefined;
   selectedIds: readonly string[];
+  selectedLabel?: string | undefined;
 }
 
 export function BehaviourStudentSelector({
+  chooseLabel = 'Choose students',
   disabled = false,
+  emptyLabel = 'No students selected',
   hint,
   label,
+  loadingLabel = 'Loading students...',
   loading = false,
   onChange,
   options,
+  selectedAriaLabel = 'Selected students',
   selectedIds,
+  selectedLabel = 'students selected',
 }: BehaviourStudentSelectorProps) {
   const baseId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const optionById = useMemo(
     () => new Map(options.map((option) => [option.id, option])),
@@ -47,6 +58,22 @@ export function BehaviourStudentSelector({
     if (unavailable) setOpen(false);
   }, [unavailable]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    function handlePointerDown(event: PointerEvent): void {
+      const target = event.target;
+      if (target instanceof Node && !rootRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [open]);
+
   function setSelected(nextIds: readonly string[]): void {
     const validIds = nextIds.filter((studentId) => optionById.has(studentId));
     onChange([...new Set(validIds)]);
@@ -62,17 +89,17 @@ export function BehaviourStudentSelector({
 
   const buttonLabel =
     selectedOptions.length === 0
-      ? 'Choose students'
+      ? chooseLabel
       : selectedOptions.length === 1
-        ? (selectedOptions[0]?.label ?? 'Choose students')
-        : `${String(selectedOptions.length)} students selected`;
+        ? (selectedOptions[0]?.label ?? chooseLabel)
+        : `${String(selectedOptions.length)} ${selectedLabel}`;
 
   return (
-    <div className="field behaviour-student-selector-field">
+    <div className="field behaviour-student-selector-field" ref={rootRef}>
       <span className="field__label" id={`${baseId}-label`}>
         {label}
       </span>
-      <div aria-label="Selected students" className="behaviour-selected-student-tags">
+      <div aria-label={selectedAriaLabel} className="behaviour-selected-student-tags">
         {selectedOptions.length > 0 ? (
           selectedOptions.map((student) => (
             <span className="behaviour-student-tag" key={student.id}>
@@ -91,7 +118,7 @@ export function BehaviourStudentSelector({
             </span>
           ))
         ) : (
-          <span className="behaviour-student-tags-empty">No students selected</span>
+          <span className="behaviour-student-tags-empty">{emptyLabel}</span>
         )}
       </div>
       <div className="behaviour-student-selector">
@@ -107,7 +134,7 @@ export function BehaviourStudentSelector({
           }}
           type="button"
         >
-          <span>{loading ? 'Loading students...' : buttonLabel}</span>
+          <span>{loading ? loadingLabel : buttonLabel}</span>
           <ChevronDown aria-hidden="true" size={16} />
         </button>
         {open ? (

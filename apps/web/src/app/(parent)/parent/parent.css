@@ -159,10 +159,18 @@
   color: var(--oasis-crimson);
 }
 
+.parent-page-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
 .parent-home-intro {
   display: grid;
+  min-width: 0;
   gap: 2px;
-  margin-bottom: 20px;
 }
 
 .parent-home-intro p,
@@ -182,6 +190,84 @@
   font-size: clamp(1.45rem, 2vw, 1.65rem);
   font-weight: 850;
   line-height: 1.15;
+}
+
+.parent-child-selector {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  justify-items: end;
+}
+
+.parent-child-selector > span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.66rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.parent-child-selector__list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.parent-child-selector__list button {
+  display: grid;
+  min-width: 72px;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 8px;
+  row-gap: 1px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-navy);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.parent-child-selector__list button.is-selected {
+  border-color: var(--student-colour);
+  background: color-mix(in srgb, var(--student-colour) 10%, #ffffff);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--student-colour) 18%, transparent);
+}
+
+.parent-child-selector__list small {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  grid-row: span 2;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--student-colour);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.parent-child-selector__list strong,
+.parent-child-selector__list em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parent-child-selector__list strong {
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.parent-child-selector__list em {
+  color: var(--oasis-text-secondary);
+  font-size: 0.66rem;
+  font-style: normal;
+  font-weight: 750;
 }
 
 .parent-shell .parent-child-hero {
@@ -472,6 +558,19 @@
   .parent-home-feature-grid,
   .parent-shell .parent-dashboard-panels {
     grid-template-columns: 1fr;
+  }
+
+  .parent-page-title-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .parent-child-selector {
+    justify-items: start;
+  }
+
+  .parent-child-selector__list {
+    justify-content: flex-start;
   }
 
   .parent-child-hero__merits {
