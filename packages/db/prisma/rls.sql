@@ -1028,7 +1028,12 @@ CREATE POLICY incident_parent_copy_staff_select ON "IncidentReportParentCopy"
 CREATE POLICY incident_parent_copy_parent_select ON "IncidentReportParentCopy"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "status" = 'Shared'
     AND EXISTS (
       SELECT 1
@@ -1053,7 +1058,12 @@ CREATE POLICY incident_parent_recipient_staff_select ON "IncidentReportParentRec
 CREATE POLICY incident_parent_recipient_parent_select ON "IncidentReportParentRecipient"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "guardianId" = current_setting('app.user_id', true)
     AND EXISTS (
       SELECT 1
@@ -1073,7 +1083,12 @@ CREATE POLICY incident_parent_recipient_staff_write ON "IncidentReportParentReci
 CREATE POLICY incident_parent_recipient_parent_ack_update ON "IncidentReportParentRecipient"
   FOR UPDATE
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "guardianId" = current_setting('app.user_id', true)
     AND EXISTS (
       SELECT 1
@@ -1085,7 +1100,12 @@ CREATE POLICY incident_parent_recipient_parent_ack_update ON "IncidentReportPare
     )
   )
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "guardianId" = current_setting('app.user_id', true)
     AND EXISTS (
       SELECT 1
