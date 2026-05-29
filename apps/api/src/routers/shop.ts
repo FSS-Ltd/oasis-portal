@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import { Prisma } from '@oasis/db';
 import {
@@ -22,6 +23,10 @@ import {
 } from '@oasis/domain';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
+import {
+  assertUploadedShopItemPhoto,
+  type UploadedShopItemPhoto,
+} from '../services/shop-item-photo-storage.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -120,6 +125,12 @@ interface ReservationLineRequest {
   unitsReserved: number;
 }
 
+interface ShopItemPhotoMetadata {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
 export interface ShopItemDto {
   id: string;
   name: string;
@@ -193,6 +204,18 @@ export interface ShopReservationDto {
 
 const shopCategorySchema = z.enum(SHOP_CATEGORIES);
 const reservationStatusSchema = z.enum(['Ready', 'Collected', 'Cancelled']);
+const MAX_SHOP_ITEM_PHOTO_BYTES = 5 * 1024 * 1024;
+
+const shopItemPhotoMetadataInput = z.object({
+  fileName: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(120),
+  sizeBytes: z.number().int().positive().max(MAX_SHOP_ITEM_PHOTO_BYTES),
+});
+
+const shopItemPhotoInput = shopItemPhotoMetadataInput.extend({
+  storageBucket: z.string().trim().min(1).max(120),
+  storagePath: z.string().trim().min(1).max(512),
+});
 
 const itemSelect = {
   id: true,
@@ -285,8 +308,132 @@ const listReservationsInput = z
   })
   .optional();
 
+const prepareItemPhotoUploadInput = z.object({
+  photo: shopItemPhotoMetadataInput,
+});
+
+const updateItemPhotoInput = z.object({
+  id: z.string().cuid(),
+  photo: shopItemPhotoInput,
+});
+
+const shopItemPhotoMimeByExtension = {
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+} as const;
+
+type AllowedShopItemPhotoExtension = keyof typeof shopItemPhotoMimeByExtension;
+
 function categoryDetails(category: ShopCategory) {
   return SHOP_CATEGORY_DETAILS[category];
+}
+
+function shopItemPhotoBucket(): string {
+  return process.env['SUPABASE_SHOP_ITEM_PHOTOS_BUCKET'] ?? 'shop-item-photos';
+}
+
+function safeOriginalFileName(value: string): string {
+  const fileName = value.replaceAll('\\', '/').split('/').pop()?.replace(/\0/gu, '').trim();
+  return fileName?.replace(/^\.+/u, '').trim() || 'shop-item-photo';
+}
+
+function shopItemPhotoExtension(fileName: string): AllowedShopItemPhotoExtension | null {
+  const lowerName = fileName.toLowerCase();
+  const extension = Object.keys(shopItemPhotoMimeByExtension).find((candidate) =>
+    lowerName.endsWith(candidate),
+  );
+  return extension ? (extension as AllowedShopItemPhotoExtension) : null;
+}
+
+function safeStorageFileName(fileName: string): string {
+  return fileName.replace(/[^a-zA-Z0-9._-]/gu, '-').replace(/-+/gu, '-');
+}
+
+function publicStorageObjectUrl(bucket: string, path: string): string {
+  const url =
+    process.env['SUPABASE_URL']?.trim() ?? process.env['NEXT_PUBLIC_SUPABASE_URL']?.trim();
+  if (!url) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'shop item photo storage is not configured',
+    });
+  }
+
+  const encodedPath = path
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+  return new URL(
+    `/storage/v1/object/public/${encodeURIComponent(bucket)}/${encodedPath}`,
+    url.replace(/\/+$/u, ''),
+  ).toString();
+}
+
+function validateShopItemPhotoMetadata(input: ShopItemPhotoMetadata): ShopItemPhotoMetadata {
+  const fileName = safeOriginalFileName(input.fileName);
+  const extension = shopItemPhotoExtension(fileName);
+  if (!extension) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'unsupported shop item photo type' });
+  }
+
+  const mimeType = input.mimeType.toLowerCase();
+  if (mimeType !== shopItemPhotoMimeByExtension[extension]) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'shop item photo type mismatch' });
+  }
+  if (input.sizeBytes > MAX_SHOP_ITEM_PHOTO_BYTES) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'shop item photo is too large' });
+  }
+
+  return {
+    fileName,
+    mimeType,
+    sizeBytes: input.sizeBytes,
+  };
+}
+
+function storagePathForItemPhoto(userId: string, fileName: string): string {
+  return `shop-items/${userId}/${randomUUID()}-${safeStorageFileName(fileName)}`;
+}
+
+function assertShopItemPhotoStorageTarget(
+  input: Pick<UploadedShopItemPhoto, 'storageBucket' | 'storagePath'>,
+  userId: string,
+): void {
+  if (input.storageBucket !== shopItemPhotoBucket()) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid shop item photo bucket' });
+  }
+  if (
+    !input.storagePath.startsWith(`shop-items/${userId}/`) ||
+    input.storagePath.includes('..') ||
+    input.storagePath.startsWith('/') ||
+    input.storagePath.endsWith('/')
+  ) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid shop item photo path' });
+  }
+}
+
+function prepareShopItemPhoto(input: ShopItemPhotoMetadata, userId: string): UploadedShopItemPhoto {
+  const metadata = validateShopItemPhotoMetadata(input);
+  return {
+    ...metadata,
+    storageBucket: shopItemPhotoBucket(),
+    storagePath: storagePathForItemPhoto(userId, metadata.fileName),
+  };
+}
+
+function validateUploadedShopItemPhoto(
+  input: z.infer<typeof shopItemPhotoInput>,
+  userId: string,
+): UploadedShopItemPhoto {
+  const metadata = validateShopItemPhotoMetadata(input);
+  assertShopItemPhotoStorageTarget(input, userId);
+  return {
+    ...metadata,
+    storageBucket: input.storageBucket,
+    storagePath: input.storagePath,
+  };
 }
 
 function stockStatus(
@@ -434,6 +581,20 @@ async function requireCanSellInShop(
     }
     throw err;
   }
+}
+
+async function requireCanUploadShopItemPhoto(
+  ctx: AuthedContext,
+  entity: string,
+  entityId?: string,
+): Promise<void> {
+  if (canManageShop(ctx.user) || canSellInShop(ctx.user)) return;
+  await auditPermissionDenied(
+    ctx,
+    entity,
+    new AccessDeniedError('shop item photo uploads require full-admin, shopadmin, or shopkeeper'),
+    entityId,
+  );
 }
 
 function requireReservationListAccess(ctx: AuthedContext): Prisma.ShopReservationWhereInput {
@@ -864,6 +1025,58 @@ export const shopRouter = router({
           stockCount: item.stockCount,
           active: item.active,
           previousActive: existing.active,
+        },
+      },
+    });
+
+    return mapItem(item, soldCountByItemId.get(item.id) ?? 0);
+  }),
+
+  prepareItemPhotoUpload: authedProcedure
+    .input(prepareItemPhotoUploadInput)
+    .mutation(async ({ ctx, input }) => {
+      await requireCanUploadShopItemPhoto(ctx, 'shop.prepareItemPhotoUpload');
+      const photo = prepareShopItemPhoto(input.photo, ctx.user.id);
+      return {
+        ...photo,
+        publicUrl: publicStorageObjectUrl(photo.storageBucket, photo.storagePath),
+      };
+    }),
+
+  updateItemPhoto: authedProcedure.input(updateItemPhotoInput).mutation(async ({ ctx, input }) => {
+    await requireCanUploadShopItemPhoto(ctx, 'shop.updateItemPhoto', input.id);
+
+    const existing = await ctx.db.shopItem.findUnique({
+      where: { id: input.id },
+      select: itemSelect,
+    });
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'shop item not found' });
+    }
+
+    const photo = validateUploadedShopItemPhoto(input.photo, ctx.user.id);
+    await assertUploadedShopItemPhoto(photo);
+    const photoUrl = publicStorageObjectUrl(photo.storageBucket, photo.storagePath);
+
+    const item = await ctx.db.shopItem.update({
+      where: { id: input.id },
+      data: { photoUrl },
+      select: itemSelect,
+    });
+    const soldCountByItemId = await loadSoldCountByItemId(ctx, [item.id]);
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'ShopItem',
+        entityId: item.id,
+        meta: {
+          source: 'shop.updateItemPhoto',
+          storageBucket: photo.storageBucket,
+          storagePath: photo.storagePath,
+          sizeBytes: photo.sizeBytes,
+          mimeType: photo.mimeType,
         },
       },
     });

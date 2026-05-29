@@ -43,6 +43,7 @@ const studentUser: SessionUser = {
 
 const linkedStudentId = 'ckshopstudent000000001';
 const shopItemId = 'ckshopitem000000000001';
+const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 type ShopReservationStatus = 'Ready' | 'Collected' | 'Cancelled';
 
@@ -168,9 +169,13 @@ interface FakeShopItemStockIncrementUpdate {
   stockCount: { increment: number };
 }
 
+interface FakeShopItemPhotoUpdate {
+  photoUrl: string;
+}
+
 interface FakeShopItemUpdateArgs {
   where: { id: string };
-  data: FakeShopItemScalarUpdate | FakeShopItemStockIncrementUpdate;
+  data: FakeShopItemScalarUpdate | FakeShopItemStockIncrementUpdate | FakeShopItemPhotoUpdate;
 }
 
 interface FakeShopItemUpdateManyArgs {
@@ -298,9 +303,7 @@ function makeItem(input: Partial<StoredShopItem> & Pick<StoredShopItem, 'id'>): 
   };
 }
 
-function makeStudent(
-  input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>,
-): StoredStudent {
+function makeStudent(input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>): StoredStudent {
   return {
     active: true,
     userId: studentUser.id,
@@ -363,7 +366,11 @@ function makeReservationLine(
 function isStockIncrementUpdate(
   data: FakeShopItemUpdateArgs['data'],
 ): data is FakeShopItemStockIncrementUpdate {
-  return typeof data.stockCount === 'object';
+  return 'stockCount' in data && typeof data.stockCount === 'object';
+}
+
+function isPhotoOnlyUpdate(data: FakeShopItemUpdateArgs['data']): data is FakeShopItemPhotoUpdate {
+  return 'photoUrl' in data && !('name' in data);
 }
 
 function makeFakeDb(
@@ -531,6 +538,11 @@ function makeFakeDb(
           item.updatedAt = new Date();
           return Promise.resolve(selectItem(item));
         }
+        if (isPhotoOnlyUpdate(data)) {
+          item.photoUrl = data.photoUrl;
+          item.updatedAt = new Date();
+          return Promise.resolve(selectItem(item));
+        }
         item.name = data.name;
         item.photoUrl = data.photoUrl ?? null;
         item.category = data.category;
@@ -548,7 +560,11 @@ function makeFakeDb(
       updateMany: vi.fn((args: FakeShopItemUpdateManyArgs) => {
         if (forceStockConflict) return Promise.resolve({ count: 0 });
         const item = items.find((row) => row.id === args.where.id);
-        if (!item || item.active !== args.where.active || item.stockCount < args.where.stockCount.gte) {
+        if (
+          !item ||
+          item.active !== args.where.active ||
+          item.stockCount < args.where.stockCount.gte
+        ) {
           return Promise.resolve({ count: 0 });
         }
         item.stockCount -= args.data.stockCount.decrement;
@@ -705,6 +721,26 @@ function auditCreates(db: ReturnType<typeof makeFakeDb>): FakeAuditCreateArgs[] 
   return db.auditLog.create.mock.calls.map(([args]) => args);
 }
 
+function stubShopItemPhotoStorage(
+  input: {
+    bytes?: Uint8Array;
+    contentType?: string;
+    ok?: boolean;
+  } = {},
+) {
+  const bytes = input.bytes ?? pngBytes;
+  vi.stubEnv('SUPABASE_URL', 'https://supabase.test');
+  vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => {
+      const init: ResponseInit = { status: input.ok === false ? 404 : 200 };
+      if (input.contentType) init.headers = { 'content-type': input.contentType };
+      return Promise.resolve(new Response(input.ok === false ? null : bytes.slice().buffer, init));
+    }),
+  );
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
@@ -712,6 +748,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 describe('shop.listItems', () => {
@@ -988,6 +1026,163 @@ describe('shop.updateItem', () => {
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
+
+  it('does not let shopkeepers change item management fields', async () => {
+    const { caller, db } = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({ items: [makeItem({ id: shopItemId, name: 'Notebook' })] }),
+    );
+
+    await expect(
+      caller.shop.updateItem({
+        id: shopItemId,
+        priceExVat: 50,
+        stockCount: 2,
+        active: false,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.items[0]).toMatchObject({
+      name: 'Notebook',
+      priceExVat: 100,
+      stockCount: 5,
+      active: true,
+    });
+  });
+});
+
+describe('shop item photos', () => {
+  const validPhoto = {
+    fileName: 'photo.png',
+    mimeType: 'image/png',
+    sizeBytes: pngBytes.byteLength,
+    storageBucket: 'shop-item-photos',
+    storagePath: `shop-items/${shopkeeperUser.id}/photo.png`,
+  };
+
+  it('prepares signed upload metadata for shopkeepers', async () => {
+    vi.stubEnv('SUPABASE_URL', 'https://supabase.test');
+
+    const result = await makeCaller(shopkeeperUser).caller.shop.prepareItemPhotoUpload({
+      photo: {
+        fileName: 'Reward Photo.png',
+        mimeType: 'image/png',
+        sizeBytes: pngBytes.byteLength,
+      },
+    });
+
+    expect(result).toMatchObject({
+      fileName: 'Reward Photo.png',
+      mimeType: 'image/png',
+      sizeBytes: pngBytes.byteLength,
+      storageBucket: 'shop-item-photos',
+    });
+    expect(result.publicUrl).toContain('/storage/v1/object/public/shop-item-photos/shop-items/');
+  });
+
+  it('lets shopkeepers update only the item photo after uploaded object verification', async () => {
+    stubShopItemPhotoStorage();
+    const { caller, db } = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({ items: [makeItem({ id: shopItemId, name: 'Notebook' })] }),
+    );
+
+    await expect(
+      caller.shop.updateItemPhoto({
+        id: shopItemId,
+        photo: validPhoto,
+      }),
+    ).resolves.toMatchObject({
+      id: shopItemId,
+      name: 'Notebook',
+      photoUrl:
+        'https://supabase.test/storage/v1/object/public/shop-item-photos/shop-items/ckshopkeeper000000001/photo.png',
+      priceExVat: 100,
+      stockCount: 5,
+      active: true,
+    });
+
+    expect(db.items[0]?.photoUrl).toBe(
+      'https://supabase.test/storage/v1/object/public/shop-item-photos/shop-items/ckshopkeeper000000001/photo.png',
+    );
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'Update',
+        entity: 'ShopItem',
+        entityId: shopItemId,
+        meta: expect.objectContaining({
+          source: 'shop.updateItemPhoto',
+          storageBucket: 'shop-item-photos',
+          storagePath: validPhoto.storagePath,
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('rejects ordinary supervisors before preparing or saving item photos', async () => {
+    const { caller, db } = makeCaller(
+      supervisorUser,
+      makeFakeDb({ items: [makeItem({ id: shopItemId, name: 'Notebook' })] }),
+    );
+
+    await expect(
+      caller.shop.prepareItemPhotoUpload({
+        photo: { fileName: 'photo.png', mimeType: 'image/png', sizeBytes: pngBytes.byteLength },
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.shop.updateItemPhoto({
+        id: shopItemId,
+        photo: validPhoto,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.items[0]?.photoUrl).toBeNull();
+  });
+
+  it('rejects invalid photo metadata and unsafe storage targets', async () => {
+    const caller = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({ items: [makeItem({ id: shopItemId, name: 'Notebook' })] }),
+    ).caller;
+
+    await expect(
+      caller.shop.prepareItemPhotoUpload({
+        photo: { fileName: 'photo.gif', mimeType: 'image/gif', sizeBytes: 100 },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.shop.prepareItemPhotoUpload({
+        photo: { fileName: 'photo.png', mimeType: 'image/png', sizeBytes: 5 * 1024 * 1024 + 1 },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.shop.updateItemPhoto({
+        id: shopItemId,
+        photo: { ...validPhoto, storageBucket: 'notice-attachments' },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.shop.updateItemPhoto({
+        id: shopItemId,
+        photo: { ...validPhoto, storagePath: 'shop-items/other-user/photo.png' },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('rejects missing uploaded objects before saving the photo URL', async () => {
+    stubShopItemPhotoStorage({ ok: false });
+    const { caller, db } = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({ items: [makeItem({ id: shopItemId, name: 'Notebook' })] }),
+    );
+
+    await expect(
+      caller.shop.updateItemPhoto({
+        id: shopItemId,
+        photo: validPhoto,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.items[0]?.photoUrl).toBeNull();
+  });
 });
 
 describe('shop reservations', () => {
@@ -1101,9 +1296,7 @@ describe('shop reservations', () => {
     const cancelReservationId = 'ckshopreserve000000002';
     const db = makeFakeDb({
       items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 1 })],
-      ledger: [
-        { studentId: linkedStudentId, account: 'ShopReserved', delta: 40, reason: 'hold' },
-      ],
+      ledger: [{ studentId: linkedStudentId, account: 'ShopReserved', delta: 40, reason: 'hold' }],
       reservations: [
         makeReservation({
           id: reservationId,
@@ -1146,9 +1339,7 @@ describe('shop reservations', () => {
       }),
     );
 
-    await expect(
-      caller.shop.collectReservation({ reservationId }),
-    ).resolves.toMatchObject({
+    await expect(caller.shop.collectReservation({ reservationId })).resolves.toMatchObject({
       id: reservationId,
       status: 'Collected',
       collectedById: shopkeeperUser.id,
