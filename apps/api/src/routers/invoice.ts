@@ -381,16 +381,17 @@ const uploadDraftInput = z.object({
   pdfBase64: z.string().min(1),
 });
 
+const studentIdsInput = z
+  .array(z.string().cuid())
+  .min(1)
+  .max(20)
+  .refine((ids) => new Set(ids).size === ids.length, 'Each student can only be added once.');
+
 const publishDraftInput = z
   .object({
     invoiceId: z.string().cuid(),
     studentId: z.string().cuid().optional(),
-    studentIds: z
-      .array(z.string().cuid())
-      .min(1)
-      .max(20)
-      .refine((ids) => new Set(ids).size === ids.length, 'Each student can only be added once.')
-      .optional(),
+    studentIds: studentIdsInput.optional(),
     familyLabel: z.string().trim().min(1).max(160).nullable().optional(),
     schoolYear: z.number().int().min(2020).max(2100).nullable().optional(),
     billingCadence: z.enum(SCHOOL_FEE_BILLING_CADENCES).nullable().optional(),
@@ -412,11 +413,7 @@ const publishDraftInput = z
 const createGeneratedInput = z.object({
   schoolYear: z.number().int().min(2020).max(2100),
   billingCadence: z.enum(SCHOOL_FEE_BILLING_CADENCES),
-  studentIds: z
-    .array(z.string().cuid())
-    .min(1)
-    .max(20)
-    .refine((ids) => new Set(ids).size === ids.length, 'Each student can only be added once.'),
+  studentIds: studentIdsInput,
   familyLabel: z.string().trim().min(1).max(160),
   invoiceNumber: z.string().trim().min(1).max(80),
   issuedOn: z

@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-05-28",
+  "lastRunDate": "2026-05-29",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -118,6 +118,67 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized shared calendar component; no broader extraction was made to avoid unnecessary churn."
+    },
+    "apps/api/src/routers/invoice.ts": {
+      "lastReviewedAt": "2026-05-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 3059,
+      "lineCountAfter": 3056,
+      "issuesFixed": [
+        "Centralized repeated student ID array validation into a local reusable schema.",
+        "Preserved invoice request shapes and duplicate-student validation message."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; only local validation duplication was reduced."
+    },
+    "apps/api/src/routers/club.ts": {
+      "lastReviewedAt": "2026-05-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2359,
+      "lineCountAfter": 2352,
+      "issuesFixed": [
+        "Reused existing API date helpers instead of maintaining duplicate router-local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; no endpoint, auth, or DTO semantics changed."
+    },
+    "apps/api/src/routers/behaviour.ts": {
+      "lastReviewedAt": "2026-05-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1950,
+      "lineCountAfter": 1939,
+      "issuesFixed": [
+        "Reused existing API date helpers instead of maintaining duplicate router-local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; safeguarding and sensitive behaviour rules were not changed."
+    },
+    "apps/api/src/routers/pace.ts": {
+      "lastReviewedAt": "2026-05-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1944,
+      "lineCountAfter": 1937,
+      "issuesFixed": [
+        "Reused existing API date helpers instead of maintaining duplicate router-local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; PACE policy and merit logic were not changed."
+    },
+    "apps/api/src/routers/childLog.ts": {
+      "lastReviewedAt": "2026-05-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1904,
+      "lineCountAfter": 1893,
+      "issuesFixed": [
+        "Reused existing API date helpers instead of maintaining duplicate router-local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; drillthrough and sensitive review semantics were not changed."
     }
   },
   "deferredFiles": {},

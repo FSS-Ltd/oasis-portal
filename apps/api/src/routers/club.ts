@@ -15,6 +15,7 @@ import {
   validateClubScheduleDraft,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
 import {
   buildClubNotificationEmail,
   CLUB_NOTIFICATION_EMAIL_SUBJECT,
@@ -427,14 +428,6 @@ function normalizeOptionalText(value: string | null | undefined): string | null 
   if (!value) return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-function normalizeDate(date: Date): Date {
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function dateKey(date: Date): string {
-  return normalizeDate(date).toISOString().slice(0, 10);
 }
 
 function scheduleFromRow(row: {

@@ -19,7 +19,10 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
+  dateKey,
+  dayEnd,
   loadDailyYearBandScope,
+  normalizeDate,
   studentMatchesDailyScope,
   studentWhereForDailyScope,
 } from '../lib/daily-year-band-scope.js';
@@ -93,20 +96,6 @@ const reviewSensitiveItemInput = z.object({
   id: z.string().min(1),
   comment: z.string().trim().max(3000).optional(),
 });
-
-function normalizeDate(date: Date): Date {
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function dayEnd(date: Date): Date {
-  const end = normalizeDate(date);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return end;
-}
-
-function dateKey(date: Date): string {
-  return normalizeDate(date).toISOString().slice(0, 10);
-}
 
 function parentDashboardTodayStatus(
   date: Date,
