@@ -4623,6 +4623,10 @@
   line-height: 1.45;
 }
 
+.shop-editor-preview .button {
+  margin-bottom: 8px;
+}
+
 .shop-editor-preview .input {
   min-height: 32px;
   border-style: dashed;
@@ -5089,6 +5093,10 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.shop-photo-upload__input {
+  display: none;
 }
 
 .shop-stock-control .button {

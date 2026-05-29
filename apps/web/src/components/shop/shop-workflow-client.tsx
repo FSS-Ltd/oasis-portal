@@ -25,6 +25,7 @@ import { downloadCsv } from '@/components/attendance/download-csv';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { ShopPhotoUploadButton, type ShopPhotoUploadPayload } from './shop-photo-upload';
 import {
   CategoryPill,
   SHOP_CATEGORY_OPTIONS,
@@ -63,6 +64,7 @@ interface ItemFormState {
   category: ShopCategoryOption;
   blurb: string;
   description: string;
+  photoUpload: ShopPhotoUploadPayload | null;
   priceExVat: string;
   vatRatePct: string;
   stockCount: string;
@@ -79,6 +81,7 @@ interface PurchaseFormState {
 const emptyItemForm = (): ItemFormState => ({
   name: '',
   photoUrl: '',
+  photoUpload: null,
   category: 'Treats',
   blurb: '',
   description: '',
@@ -130,7 +133,7 @@ function buildItemPayload(form: ItemFormState): CreateItemInput | string {
     stockCount,
     lowStockThreshold,
   };
-  if (photoUrl) payload.photoUrl = photoUrl;
+  if (photoUrl && !form.photoUpload) payload.photoUrl = photoUrl;
   if (blurb) payload.blurb = blurb;
   if (description) payload.description = description;
   return payload;
@@ -140,6 +143,7 @@ function formFromItem(item: ShopItem): ItemFormState {
   return {
     name: item.name,
     photoUrl: item.photoUrl ?? '',
+    photoUpload: null,
     category: item.category,
     blurb: item.blurb ?? '',
     description: item.description ?? '',
@@ -283,6 +287,7 @@ function ItemEditorModal({
   mutationPending,
   onCancel,
   onChange,
+  onPhotoUploadError,
   onSubmit,
 }: {
   editingItemId: string | null;
@@ -291,6 +296,7 @@ function ItemEditorModal({
   mutationPending: boolean;
   onCancel: () => void;
   onChange: (next: ItemFormState) => void;
+  onPhotoUploadError: (message: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const previewItem = previewItemFromForm(form);
@@ -355,15 +361,21 @@ function ItemEditorModal({
             <ShopTile className="shop-editor-preview__tile" item={previewItem} size="md" />
             <div>
               <p>Preview</p>
-              <span>
-                Real photography can be added with a hosted image URL. Tinted tile is a placeholder
-                so the list stays scannable.
-              </span>
+              <span>Use a product photo or a hosted image URL.</span>
+              <ShopPhotoUploadButton
+                disabled={mutationPending}
+                onError={onPhotoUploadError}
+                onUploaded={(photo) => {
+                  onChange({ ...form, photoUrl: photo.publicUrl, photoUpload: photo });
+                }}
+              >
+                {form.photoUrl ? 'Replace Photo' : 'Upload Photo'}
+              </ShopPhotoUploadButton>
               <TextInput
                 aria-label="Photo URL"
                 disabled={mutationPending}
                 onChange={(event) => {
-                  onChange({ ...form, photoUrl: event.target.value });
+                  onChange({ ...form, photoUrl: event.target.value, photoUpload: null });
                 }}
                 placeholder="Photo URL"
                 type="url"
@@ -483,9 +495,7 @@ function ItemEditorModal({
             />
           </label>
 
-          <div aria-live="polite">
-            {error ? <p className="status--error">{error}</p> : null}
-          </div>
+          <div aria-live="polite">{error ? <p className="status--error">{error}</p> : null}</div>
         </div>
 
         <footer className="shop-editor-modal__footer">
@@ -503,18 +513,24 @@ function ItemEditorModal({
 
 function CatalogueTab({
   canManageItems,
+  canUploadItemPhotos,
   items,
   loading,
   onEdit,
+  onPhotoUpload,
+  onPhotoUploadError,
   onPriceChange,
   onStockChange,
   onToggleActive,
   pendingItemId,
 }: {
   canManageItems: boolean;
+  canUploadItemPhotos: boolean;
   items: readonly ShopItem[];
   loading: boolean;
   onEdit: (item: ShopItem) => void;
+  onPhotoUpload: (item: ShopItem, photo: ShopPhotoUploadPayload) => Promise<void>;
+  onPhotoUploadError: (message: string) => void;
   onPriceChange: (item: ShopItem, nextPriceExVat: number) => void;
   onStockChange: (item: ShopItem, nextStockCount: number) => void;
   onToggleActive: (item: ShopItem) => void;
@@ -694,29 +710,43 @@ function CatalogueTab({
                         <Badge tone={statusInfo.tone}>{statusInfo.label}</Badge>
                       </td>
                       <td>
-                        {canManageItems ? (
+                        {canManageItems || canUploadItemPhotos ? (
                           <div className="shop-admin-row__actions">
-                            <Button
-                              onClick={() => {
-                                onEdit(item);
-                              }}
-                              size="sm"
-                              type="button"
-                              variant="secondary"
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                onToggleActive(item);
-                              }}
-                              pending={pendingItemId === item.id}
-                              size="sm"
-                              type="button"
-                              variant="ghost"
-                            >
-                              {item.active ? 'Pause' : 'Resume'}
-                            </Button>
+                            {canManageItems ? (
+                              <>
+                                <Button
+                                  onClick={() => {
+                                    onEdit(item);
+                                  }}
+                                  size="sm"
+                                  type="button"
+                                  variant="secondary"
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    onToggleActive(item);
+                                  }}
+                                  pending={pendingItemId === item.id}
+                                  size="sm"
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  {item.active ? 'Pause' : 'Resume'}
+                                </Button>
+                              </>
+                            ) : null}
+                            {canUploadItemPhotos ? (
+                              <ShopPhotoUploadButton
+                                disabled={pendingItemId === item.id}
+                                onError={onPhotoUploadError}
+                                onUploaded={(photo) => onPhotoUpload(item, photo)}
+                                variant={canManageItems ? 'ghost' : 'secondary'}
+                              >
+                                {item.photoUrl ? 'Replace Photo' : 'Add Photo'}
+                              </ShopPhotoUploadButton>
+                            ) : null}
                           </div>
                         ) : null}
                       </td>
@@ -929,9 +959,7 @@ function CounterSalePanel({
           <CheckCircle2 aria-hidden="true" size={16} />
           Confirm Sale
         </Button>
-        <div aria-live="polite">
-          {error ? <p className="status--error">{error}</p> : null}
-        </div>
+        <div aria-live="polite">{error ? <p className="status--error">{error}</p> : null}</div>
       </form>
     </section>
   );
@@ -1173,10 +1201,24 @@ export function ShopWorkflowClient({
       showErrorToast(error, 'Item could not be updated.');
     },
   });
+  const updateItemPhoto = api.shop.updateItemPhoto.useMutation({
+    onSettled: () => {
+      setPendingItemId(null);
+    },
+    onSuccess: async () => {
+      showSuccessToast('Item photo updated.');
+      await utils.shop.listItems.invalidate();
+    },
+    onError(error) {
+      showErrorToast(error, 'Item photo could not be updated.');
+    },
+  });
   const purchase = api.shop.purchase.useMutation({
     onSuccess: async (result) => {
       setPurchaseForm((current) => ({ ...current, unitsBought: '1' }));
-      showSuccessToast(`Counter sale recorded for ${formatMerits(result.totalPriceMerits)} merits.`);
+      showSuccessToast(
+        `Counter sale recorded for ${formatMerits(result.totalPriceMerits)} merits.`,
+      );
       await Promise.all([
         utils.shop.listItems.invalidate(),
         utils.shop.listPurchasers.invalidate(),
@@ -1244,8 +1286,10 @@ export function ShopWorkflowClient({
   });
   const purchaseQueriesLoading = purchasersQuery.isLoading || itemsQuery.isLoading;
   const itemMutationPending =
-    createItem.isPending || (updateItem.isPending && pendingItemId === null);
-  const itemMutationError = createItem.error ?? updateItem.error;
+    createItem.isPending ||
+    (updateItem.isPending && pendingItemId === null) ||
+    (updateItemPhoto.isPending && pendingItemId === null);
+  const itemMutationError = createItem.error ?? updateItem.error ?? updateItemPhoto.error;
   const reservationMutationError = collectReservation.error ?? cancelReservation.error;
 
   useEffect(() => {
@@ -1302,9 +1346,17 @@ export function ShopWorkflowClient({
           active: saveAsActive,
         };
         await updateItem.mutateAsync(updatePayload);
+        if (itemForm.photoUpload) {
+          setPendingItemId(editingItemId);
+          await updateItemPhoto.mutateAsync({ id: editingItemId, photo: itemForm.photoUpload });
+        }
         return;
       }
       const createdItem = await createItem.mutateAsync(payload);
+      if (itemForm.photoUpload) {
+        setPendingItemId(createdItem.id);
+        await updateItemPhoto.mutateAsync({ id: createdItem.id, photo: itemForm.photoUpload });
+      }
       if (!saveAsActive) {
         setPendingItemId(createdItem.id);
         await updateItem.mutateAsync({ id: createdItem.id, active: false });
@@ -1330,6 +1382,12 @@ export function ShopWorkflowClient({
     setItemFormError(null);
     setPendingItemId(item.id);
     updateItem.mutate({ id: item.id, priceExVat: Math.max(0, nextPriceExVat) });
+  }
+
+  async function updatePhoto(item: ShopItem, photo: ShopPhotoUploadPayload): Promise<void> {
+    setItemFormError(null);
+    setPendingItemId(item.id);
+    await updateItemPhoto.mutateAsync({ id: item.id, photo });
   }
 
   function exportCatalogue(): void {
@@ -1428,11 +1486,14 @@ export function ShopWorkflowClient({
       {itemEditorOpen && canManageItems ? (
         <ItemEditorModal
           editingItemId={editingItemId}
-          error={itemFormError ?? (itemMutationError ? friendlyErrorMessage(itemMutationError) : null)}
+          error={
+            itemFormError ?? (itemMutationError ? friendlyErrorMessage(itemMutationError) : null)
+          }
           form={itemForm}
           mutationPending={itemMutationPending}
           onCancel={cancelEdit}
           onChange={setItemForm}
+          onPhotoUploadError={setItemFormError}
           onSubmit={(event) => {
             void submitItem(event);
           }}
@@ -1471,13 +1532,20 @@ export function ShopWorkflowClient({
       {reservationMutationError ? (
         <p className="status--error">{friendlyErrorMessage(reservationMutationError)}</p>
       ) : null}
+      {!itemEditorOpen && itemFormError ? <p className="status--error">{itemFormError}</p> : null}
+      {!itemEditorOpen && itemMutationError ? (
+        <p className="status--error">{friendlyErrorMessage(itemMutationError)}</p>
+      ) : null}
 
       {tab === 'catalogue' ? (
         <CatalogueTab
           canManageItems={canManageItems}
+          canUploadItemPhotos={canManageItems || canRecordPurchases}
           items={items}
           loading={itemsQuery.isLoading}
           onEdit={beginEdit}
+          onPhotoUpload={updatePhoto}
+          onPhotoUploadError={setItemFormError}
           onPriceChange={changeItemPrice}
           onStockChange={changeItemStock}
           onToggleActive={toggleItemActive}
