@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-28
+**Last updated:** 2026-05-29
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 5 PR-5.6 runtime logging and error monitoring.
+**Phase:** Parent tithe wallet and Friday settlement.
 
 ---
 
@@ -28,6 +28,50 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-05-29 Parent tithe wallet
+
+Working branch: `feat/parent-tithe-wallet`.
+
+**PR scope:** Implement parent-side tithe percentage management and automatic
+Friday 13:00 Europe/London tithe settlement for the existing merit economy.
+
+Completed:
+
+- Changed tithe weeks from Monday UTC to Friday 13:00 to Friday 13:00 in
+  `Europe/London`, with GMT and BST tests.
+- Changed `TitheRun.periodStart` and `periodEnd` from date-only fields to full
+  timestamps and applied migration `20260529130000_tithe_friday_1pm_periods`.
+- Extracted reusable weekly tithe settlement logic for both the existing
+  full-admin tRPC mutation and a new protected `/api/cron/tithe-weekly` route.
+- Added Vercel cron entries for 12:00 and 13:00 UTC on Fridays; the route runs
+  only when local London time is Friday 13:00, covering BST and GMT.
+- Added the parent-side 10/15/20 percent selector to the child detail Merits tab
+  and kept the parent dashboard wallet card read-only with a manage link.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test -- tithe.test.ts phase4AccountingInvariants.test.ts`
+- `pnpm --filter @oasis/api test -- tithe.router.test.ts meritLedger.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm db:migrate` against local `oasis_dev`, with RLS reapplied.
+- `pnpm --filter @oasis/web build`
+- `pnpm exec prettier --check` on changed supported source files.
+- `git diff --check`
+- `graphify update .`
+- `pnpm docs:component-map`
+
+Notes:
+
+- `pnpm db:migrate` failed inside the sandbox with a Prisma schema engine error
+  against local Postgres, then passed when rerun outside the sandbox.
+- Build still reports the existing Prisma config and Next.js ESLint plugin
+  warnings.
 
 ## Current session - 2026-05-28 Phase 5 runtime observability
 

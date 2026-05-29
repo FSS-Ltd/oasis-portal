@@ -160,6 +160,10 @@ function day(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
+function instant(value: string): Date {
+  return new Date(value);
+}
+
 function sameDate(a: Date, b: Date): boolean {
   return a.getTime() === b.getTime();
 }
@@ -469,7 +473,7 @@ describe('tithe.setPercentage', () => {
 });
 
 describe('tithe.runWeek', () => {
-  it('runs a Monday-start tithe week, ignores demerits, and creates balanced ledger rows', async () => {
+  it('runs a Friday 1pm London tithe week, ignores demerits, and creates balanced ledger rows', async () => {
     const { caller, db } = makeCaller(
       headUser,
       makeFakeDb({
@@ -522,18 +526,21 @@ describe('tithe.runWeek', () => {
     );
 
     await expect(caller.tithe.runWeek({ weekStart: day('2026-05-15') })).resolves.toMatchObject({
-      period: { start: day('2026-05-11'), end: day('2026-05-18') },
+      period: {
+        start: instant('2026-05-08T12:00:00.000Z'),
+        end: instant('2026-05-15T12:00:00.000Z'),
+      },
       created: 2,
       skipped: 0,
       ledgerRowsCreated: 2,
-      grossMerits: 59,
-      titheAmount: 5,
+      grossMerits: 158,
+      titheAmount: 14,
       runs: [
         {
           studentId: linkedStudentId,
           status: 'Created',
-          grossMerits: 50,
-          titheAmount: 5,
+          grossMerits: 149,
+          titheAmount: 14,
           ledgerRowsCreated: 2,
         },
         {
@@ -550,14 +557,14 @@ describe('tithe.runWeek', () => {
       {
         studentId: linkedStudentId,
         account: 'Spend',
-        delta: -5,
-        reason: 'tithe:2026-05-11:10pct',
+        delta: -14,
+        reason: 'tithe:2026-05-08:10pct',
       },
       {
         studentId: linkedStudentId,
         account: 'TithePaid',
-        delta: 5,
-        reason: 'tithe:2026-05-11:10pct',
+        delta: 14,
+        reason: 'tithe:2026-05-08:10pct',
       },
     ]);
     expect(db.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
@@ -568,12 +575,12 @@ describe('tithe.runWeek', () => {
         entity: 'TitheRun',
         meta: expect.objectContaining({
           source: 'tithe.runWeek',
-          periodStart: '2026-05-11',
-          periodEnd: '2026-05-18',
+          periodStart: '2026-05-08T12:00:00.000Z',
+          periodEnd: '2026-05-15T12:00:00.000Z',
           created: 2,
           skipped: 0,
-          grossMerits: 59,
-          titheAmount: 5,
+          grossMerits: 158,
+          titheAmount: 14,
         }) as unknown,
       }),
     );

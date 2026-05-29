@@ -65,6 +65,14 @@ export {
   type OperationalLogMetaValue,
 } from './lib/observability.js';
 export {
+  DEFAULT_TITHE_PERCENTAGE,
+  TITHE_CADENCE,
+  runWeeklyTithe,
+  toTithePercentage,
+  type TitheRunResultDto,
+  type WeeklyTitheRunSummary,
+} from './services/tithe-run.js';
+export {
   behaviourRouter,
   createBehaviourRouter,
   type BehaviourRouterDeps,
