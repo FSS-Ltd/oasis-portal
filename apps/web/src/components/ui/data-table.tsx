@@ -1,6 +1,6 @@
 'use client';
 
-import type { Key, ReactNode } from 'react';
+import type { Key, KeyboardEvent, ReactNode } from 'react';
 import { MotionList, MotionTableRow } from '@/components/ui/motion';
 import { cn } from '@/lib/utils';
 
@@ -18,9 +18,11 @@ export interface DataTableProps<T> {
   columns: readonly DataTableColumn<T>[];
   empty?: ReactNode;
   errorMessage?: string | undefined;
+  getRowClassName?: ((row: T) => string | undefined) | undefined;
   getRowKey: (row: T) => Key;
   loading?: boolean;
   loadingLabel?: string | undefined;
+  onRowClick?: ((row: T) => void) | undefined;
   rows: readonly T[];
   tableClassName?: string | undefined;
 }
@@ -42,9 +44,11 @@ export function DataTable<T>({
   columns,
   empty,
   errorMessage,
+  getRowClassName,
   getRowKey,
   loading = false,
   loadingLabel,
+  onRowClick,
   rows,
   tableClassName,
 }: DataTableProps<T>) {
@@ -70,6 +74,22 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row) => {
+            const rowClassName = cn(getRowClassName?.(row), onRowClick ? 'is-clickable' : undefined);
+            const rowProps = onRowClick
+              ? {
+                  className: rowClassName,
+                  onClick: () => {
+                    onRowClick(row);
+                  },
+                  onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    onRowClick(row);
+                  },
+                  role: 'button',
+                  tabIndex: 0,
+                }
+              : { className: rowClassName };
             const cells = columns.map((column) => (
               <td
                 className={column.className}
@@ -81,9 +101,13 @@ export function DataTable<T>({
             ));
 
             return animateRows ? (
-              <MotionTableRow key={getRowKey(row)}>{cells}</MotionTableRow>
+              <MotionTableRow key={getRowKey(row)} {...rowProps}>
+                {cells}
+              </MotionTableRow>
             ) : (
-              <tr key={getRowKey(row)}>{cells}</tr>
+              <tr key={getRowKey(row)} {...rowProps}>
+                {cells}
+              </tr>
             );
           })}
         </tbody>

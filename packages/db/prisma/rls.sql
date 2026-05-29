@@ -849,3 +849,265 @@ CREATE POLICY permission_slip_answer_manager_update ON "PermissionSlipAnswer"
 CREATE POLICY permission_slip_answer_manager_delete ON "PermissionSlipAnswer"
   FOR DELETE
   USING (current_setting('app.user_role', true) IN ('Head', 'Pastor'));
+
+ALTER TABLE "IncidentReport" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReport" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportStudent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportStudent" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportStaff" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportStaff" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportAttachment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportAttachment" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportParentCopy" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportParentCopy" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportParentRecipient" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportParentRecipient" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportEvent" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "IncidentReportEvent" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS incident_staff_select ON "IncidentReport";
+DROP POLICY IF EXISTS incident_staff_insert ON "IncidentReport";
+DROP POLICY IF EXISTS incident_staff_update ON "IncidentReport";
+DROP POLICY IF EXISTS incident_report_student_staff_select ON "IncidentReportStudent";
+DROP POLICY IF EXISTS incident_report_student_staff_write ON "IncidentReportStudent";
+DROP POLICY IF EXISTS incident_report_staff_staff_select ON "IncidentReportStaff";
+DROP POLICY IF EXISTS incident_report_staff_staff_write ON "IncidentReportStaff";
+DROP POLICY IF EXISTS incident_attachment_staff_select ON "IncidentReportAttachment";
+DROP POLICY IF EXISTS incident_attachment_staff_write ON "IncidentReportAttachment";
+DROP POLICY IF EXISTS incident_parent_copy_staff_select ON "IncidentReportParentCopy";
+DROP POLICY IF EXISTS incident_parent_copy_parent_select ON "IncidentReportParentCopy";
+DROP POLICY IF EXISTS incident_parent_copy_staff_write ON "IncidentReportParentCopy";
+DROP POLICY IF EXISTS incident_parent_recipient_staff_select ON "IncidentReportParentRecipient";
+DROP POLICY IF EXISTS incident_parent_recipient_parent_select ON "IncidentReportParentRecipient";
+DROP POLICY IF EXISTS incident_parent_recipient_staff_write ON "IncidentReportParentRecipient";
+DROP POLICY IF EXISTS incident_parent_recipient_parent_ack_update ON "IncidentReportParentRecipient";
+DROP POLICY IF EXISTS incident_event_staff_select ON "IncidentReportEvent";
+DROP POLICY IF EXISTS incident_event_staff_insert ON "IncidentReportEvent";
+
+CREATE POLICY incident_staff_select ON "IncidentReport"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+    OR (
+      current_setting('app.user_role', true) = 'Parent'
+      AND EXISTS (
+        SELECT 1
+        FROM "IncidentReportParentCopy" ipc
+        JOIN "Guardian" g ON g."studentId" = ipc."studentId"
+        WHERE ipc."reportId" = "IncidentReport"."id"
+          AND ipc."status" = 'Shared'
+          AND g."userId" = current_setting('app.user_id', true)
+      )
+    )
+  );
+
+CREATE POLICY incident_staff_insert ON "IncidentReport"
+  FOR INSERT
+  WITH CHECK (
+    "recordedById" = current_setting('app.user_id', true)
+    AND (
+      current_setting('app.full_admin', true) = 'true'
+      OR current_setting('app.user_role', true) = 'Supervisor'
+    )
+  );
+
+CREATE POLICY incident_staff_update ON "IncidentReport"
+  FOR UPDATE
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR (
+      current_setting('app.user_role', true) = 'Supervisor'
+      AND "recordedById" = current_setting('app.user_id', true)
+      AND "status" IN ('Draft', 'HeadReview')
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR (
+      current_setting('app.user_role', true) = 'Supervisor'
+      AND "recordedById" = current_setting('app.user_id', true)
+      AND "status" IN ('Draft', 'HeadReview')
+    )
+  );
+
+CREATE POLICY incident_report_student_staff_select ON "IncidentReportStudent"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+  );
+
+CREATE POLICY incident_report_student_staff_write ON "IncidentReportStudent"
+  FOR ALL
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR EXISTS (
+      SELECT 1 FROM "IncidentReport" ir
+      WHERE ir."id" = "IncidentReportStudent"."reportId"
+        AND ir."recordedById" = current_setting('app.user_id', true)
+        AND ir."status" = 'Draft'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR EXISTS (
+      SELECT 1 FROM "IncidentReport" ir
+      WHERE ir."id" = "IncidentReportStudent"."reportId"
+        AND ir."recordedById" = current_setting('app.user_id', true)
+        AND ir."status" = 'Draft'
+    )
+  );
+
+CREATE POLICY incident_report_staff_staff_select ON "IncidentReportStaff"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+  );
+
+CREATE POLICY incident_report_staff_staff_write ON "IncidentReportStaff"
+  FOR ALL
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR EXISTS (
+      SELECT 1 FROM "IncidentReport" ir
+      WHERE ir."id" = "IncidentReportStaff"."reportId"
+        AND ir."recordedById" = current_setting('app.user_id', true)
+        AND ir."status" = 'Draft'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR EXISTS (
+      SELECT 1 FROM "IncidentReport" ir
+      WHERE ir."id" = "IncidentReportStaff"."reportId"
+        AND ir."recordedById" = current_setting('app.user_id', true)
+        AND ir."status" = 'Draft'
+    )
+  );
+
+CREATE POLICY incident_attachment_staff_select ON "IncidentReportAttachment"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+  );
+
+CREATE POLICY incident_attachment_staff_write ON "IncidentReportAttachment"
+  FOR ALL
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR EXISTS (
+      SELECT 1 FROM "IncidentReport" ir
+      WHERE ir."id" = "IncidentReportAttachment"."reportId"
+        AND ir."recordedById" = current_setting('app.user_id', true)
+        AND ir."status" = 'Draft'
+    )
+  )
+  WITH CHECK (
+    current_setting('app.full_admin', true) = 'true'
+    OR (
+      "uploadedById" = current_setting('app.user_id', true)
+      AND EXISTS (
+        SELECT 1 FROM "IncidentReport" ir
+        WHERE ir."id" = "IncidentReportAttachment"."reportId"
+          AND ir."recordedById" = current_setting('app.user_id', true)
+          AND ir."status" = 'Draft'
+      )
+    )
+  );
+
+CREATE POLICY incident_parent_copy_staff_select ON "IncidentReportParentCopy"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+  );
+
+CREATE POLICY incident_parent_copy_parent_select ON "IncidentReportParentCopy"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "status" = 'Shared'
+    AND EXISTS (
+      SELECT 1
+      FROM "Guardian" g
+      WHERE g."studentId" = "IncidentReportParentCopy"."studentId"
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY incident_parent_copy_staff_write ON "IncidentReportParentCopy"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY incident_parent_recipient_staff_select ON "IncidentReportParentRecipient"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+  );
+
+CREATE POLICY incident_parent_recipient_parent_select ON "IncidentReportParentRecipient"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "guardianId" = current_setting('app.user_id', true)
+    AND EXISTS (
+      SELECT 1
+      FROM "IncidentReportParentCopy" ipc
+      JOIN "Guardian" g ON g."studentId" = ipc."studentId"
+      WHERE ipc."id" = "IncidentReportParentRecipient"."copyId"
+        AND ipc."status" = 'Shared'
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY incident_parent_recipient_staff_write ON "IncidentReportParentRecipient"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY incident_parent_recipient_parent_ack_update ON "IncidentReportParentRecipient"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "guardianId" = current_setting('app.user_id', true)
+    AND EXISTS (
+      SELECT 1
+      FROM "IncidentReportParentCopy" ipc
+      JOIN "Guardian" g ON g."studentId" = ipc."studentId"
+      WHERE ipc."id" = "IncidentReportParentRecipient"."copyId"
+        AND ipc."status" = 'Shared'
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "guardianId" = current_setting('app.user_id', true)
+    AND EXISTS (
+      SELECT 1
+      FROM "IncidentReportParentCopy" ipc
+      JOIN "Guardian" g ON g."studentId" = ipc."studentId"
+      WHERE ipc."id" = "IncidentReportParentRecipient"."copyId"
+        AND ipc."status" = 'Shared'
+        AND g."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY incident_event_staff_select ON "IncidentReportEvent"
+  FOR SELECT
+  USING (
+    current_setting('app.full_admin', true) = 'true'
+    OR current_setting('app.user_role', true) = 'Supervisor'
+  );
+
+CREATE POLICY incident_event_staff_insert ON "IncidentReportEvent"
+  FOR INSERT
+  WITH CHECK (
+    "actorId" IS NULL
+    OR "actorId" = current_setting('app.user_id', true)
+    OR current_setting('app.full_admin', true) = 'true'
+  );

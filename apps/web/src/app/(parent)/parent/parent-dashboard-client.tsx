@@ -16,8 +16,8 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ParentChildSelector } from '@/components/parent/parent-child-selector';
 import { StatCard } from '@/components/ui/stat-card';
-import { avatarColour, firstName, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@/lib/display';
 import { SiblingAddModalButton } from './registration/sibling-add-modal';
 
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
@@ -102,27 +102,44 @@ function ChildHero({ child }: { child: DashboardChild }) {
 }
 
 function ParentHomeIntro({
+  children,
   childrenCount,
+  onSelectChild,
   parentName,
   rangeTo,
   selectedChild,
 }: {
+  children: readonly DashboardChild[];
   childrenCount: number;
+  onSelectChild: (studentId: string) => void;
   parentName: string;
   rangeTo: Date | string;
   selectedChild: DashboardChild | undefined;
 }) {
   return (
-    <div className="parent-home-intro">
-      <p>{formatLongDate(rangeTo)}</p>
-      <h1>Welcome, {parentName}</h1>
-      <span>
-        {selectedChild
-          ? childrenCount === 1
-            ? `Parent of ${selectedChild.student.fullName}`
-            : `${String(childrenCount)} linked children`
-          : 'Parent portal'}
-      </span>
+    <div className="parent-page-title-row">
+      <div className="parent-home-intro">
+        <p>{formatLongDate(rangeTo)}</p>
+        <h1>Welcome, {parentName}</h1>
+        <span>
+          {selectedChild
+            ? childrenCount === 1
+              ? `Parent of ${selectedChild.student.fullName}`
+              : `${String(childrenCount)} linked children`
+            : 'Parent portal'}
+        </span>
+      </div>
+      {selectedChild ? (
+        <ParentChildSelector
+          children={children.map((child) => ({
+            fullName: child.student.fullName,
+            id: child.student.id,
+            yearGroup: child.student.yearGroup,
+          }))}
+          onSelect={onSelectChild}
+          selectedChildId={selectedChild.student.id}
+        />
+      ) : null}
     </div>
   );
 }
@@ -333,45 +350,6 @@ function ChildDashboard({ child }: { child: DashboardChild }) {
   );
 }
 
-function ChildDashboardPicker({
-  children,
-  onSelect,
-  selectedChildId,
-}: {
-  children: readonly DashboardChild[];
-  onSelect: (studentId: string) => void;
-  selectedChildId: string;
-}) {
-  return (
-    <section className="panel panel__body snapshot-picker-panel">
-      <h2>Select child</h2>
-      <div className="snapshot-student-picker" aria-label="Select child">
-        {children.map((child, index) => {
-          const colour = avatarColour(index, SNAPSHOT_AVATAR_COLOURS);
-          const selected = child.student.id === selectedChildId;
-
-          return (
-            <button
-              aria-pressed={selected}
-              className={selected ? 'snapshot-student-card is-selected' : 'snapshot-student-card'}
-              key={child.student.id}
-              onClick={() => {
-                onSelect(child.student.id);
-              }}
-              style={{ '--student-colour': colour } as CSSProperties}
-              type="button"
-            >
-              <span>{getInitials(child.student.fullName)}</span>
-              <strong>{firstName(child.student.fullName)}</strong>
-              <small>{displaySchoolYearLabel(child.student.yearGroup)}</small>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function EmptyDashboard() {
   const registration = api.registration.status.useQuery(undefined, { retry: false });
   const status = registration.data;
@@ -445,7 +423,9 @@ export function ParentDashboardClient() {
   return (
     <div className="parent-dashboard">
       <ParentHomeIntro
+        children={children}
         childrenCount={children.length}
+        onSelectChild={setSelectedChildId}
         parentName={profileQuery.data?.fullName ?? 'Parent'}
         rangeTo={dashboardQuery.data?.range.to ?? new Date()}
         selectedChild={selectedChild}
@@ -453,13 +433,6 @@ export function ParentDashboardClient() {
 
       {selectedChild ? (
         <div className="parent-dashboard-stack">
-          {children.length > 1 ? (
-            <ChildDashboardPicker
-              children={children}
-              onSelect={setSelectedChildId}
-              selectedChildId={selectedChild.student.id}
-            />
-          ) : null}
           <ChildDashboard child={selectedChild} />
         </div>
       ) : (

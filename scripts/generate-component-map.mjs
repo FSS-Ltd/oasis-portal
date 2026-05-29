@@ -90,6 +90,24 @@ const PRODUCT_MODULES = [
     sharedSurfaces: ['apps/web/src/components/ui/'],
   },
   {
+    name: 'Incident reports, staff review, and parent-safe release',
+    owns: 'Incident recording, head sign-off, escalation review, encrypted parent copies, guardian release, acknowledgements, and PDF downloads.',
+    apiRouters: ['incident'],
+    domainFiles: ['packages/domain/src/incidents.ts'],
+    webSurfaces: [
+      'apps/web/src/app/(admin)/admin/incidents/',
+      'apps/web/src/app/(supervisor)/supervisor/incidents/',
+      'apps/web/src/app/(parent)/parent/incidents/',
+      'apps/web/src/app/api/incidents/',
+      'apps/web/src/components/incidents/',
+    ],
+    mobileSurfaces: [],
+    sharedSurfaces: [
+      'apps/api/src/incidents/',
+      'packages/db/prisma/migrations/20260528160000_incident_reports/',
+    ],
+  },
+  {
     name: 'PACE, subjects, school years, and academic progress',
     owns: 'PACE workflow, academic year rules, subject helpers, score entry, and progress display.',
     apiRouters: ['pace'],

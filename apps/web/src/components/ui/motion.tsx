@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 
 const ease = [0.16, 1, 0.3, 1] as const;
@@ -57,11 +57,14 @@ export function MotionItem({ children }: { children: ReactNode }) {
   );
 }
 
-export function MotionTableRow({ children }: { children: ReactNode }) {
+type MotionTableRowProps = ComponentProps<typeof motion.tr>;
+
+export function MotionTableRow({ children, ...props }: MotionTableRowProps) {
   const reduceMotion = useReducedMotion();
 
   return (
     <motion.tr
+      {...props}
       variants={{
         hidden: reduceMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 },
         show: { opacity: 1, y: 0, transition: { duration: 0.2, ease } },

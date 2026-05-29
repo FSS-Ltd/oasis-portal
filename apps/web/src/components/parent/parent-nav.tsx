@@ -12,6 +12,7 @@ import {
   Home,
   MessageSquare,
   ReceiptText,
+  ShieldAlert,
   ShoppingBag,
   UserRound,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ const parentNavItems = [
   { href: '/parent/fees', label: 'Fees/Invoices', icon: ReceiptText },
   { href: '/parent/shop', label: 'Shop', icon: ShoppingBag },
   { href: '/parent/reports', label: 'Reports', icon: FileText },
+  { href: '/parent/incidents', label: 'Incidents', icon: ShieldAlert },
   { href: '/parent/profile', label: 'My Profile', icon: UserRound },
   { href: '/parent/registration', label: 'Registration', icon: ClipboardList },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },

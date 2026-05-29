@@ -98,6 +98,16 @@ model User {
   permissionSlipPhysicalSignatures PermissionSlipRecipient[]        @relation("PermissionSlipPhysicalSignatures")
   permissionSlipPaymentsMarked     PermissionSlipRecipient[]        @relation("PermissionSlipPaymentsMarked")
   permissionSlipPaymentsConfirmed  PermissionSlipRecipient[]        @relation("PermissionSlipPaymentsConfirmed")
+  incidentReportsRecorded          IncidentReport[]                 @relation("IncidentReportsRecorded")
+  incidentReportsSignedOff         IncidentReport[]                 @relation("IncidentReportsSignedOff")
+  incidentReportsEscalated         IncidentReport[]                 @relation("IncidentReportsEscalated")
+  incidentReportsFirstAided        IncidentReport[]                 @relation("IncidentReportsFirstAided")
+  incidentStaffLinks               IncidentReportStaff[]            @relation("IncidentReportStaffUser")
+  incidentAttachmentsUploaded      IncidentReportAttachment[]       @relation("IncidentReportAttachmentsUploaded")
+  incidentParentCopiesGenerated    IncidentReportParentCopy[]       @relation("IncidentParentCopiesGenerated")
+  incidentParentCopiesShared       IncidentReportParentCopy[]       @relation("IncidentParentCopiesShared")
+  incidentParentRecipients         IncidentReportParentRecipient[]  @relation("IncidentParentRecipients")
+  incidentEvents                   IncidentReportEvent[]            @relation("IncidentReportEvents")
   messagesSent                     Message[]                        @relation("MessagesSent")
   messageReads                     MessageRead[]
   messageThreadParticipants        MessageThreadParticipant[]
@@ -202,6 +212,8 @@ model Student {
   schoolFeeInvoices        SchoolFeeInvoice[]
   schoolFeeInvoiceLinks    SchoolFeeInvoiceStudent[]
   permissionSlipRecipients PermissionSlipRecipient[]
+  incidentReports          IncidentReportStudent[]
+  incidentParentCopies     IncidentReportParentCopy[]
   registrationProfile      StudentRegistrationProfile?
 
   @@index([yearGroup])
@@ -1290,6 +1302,237 @@ model PermissionSlipAnswer {
 
   @@id([questionId, studentId])
   @@index([slipId, studentId])
+}
+
+// ---------------------------------------------------------------------------
+// Incident reports
+// ---------------------------------------------------------------------------
+
+enum IncidentType {
+  SafeguardingConcern
+  AccidentFirstAid
+  BehaviourIncident
+  BullyingPeerOnPeer
+  OnlineSafety
+  MedicalMedication
+  PhysicalIntervention
+  NearMiss
+  OffSiteTrip
+}
+
+enum IncidentSeverity {
+  Low
+  Medium
+  High
+  Critical
+}
+
+enum IncidentConfidentiality {
+  StaffOnly
+  HeadDsl
+  ParentViewableAfterSignOff
+}
+
+enum IncidentReportStatus {
+  Draft
+  HeadReview
+  Escalated
+  SignedOff
+  Archived
+}
+
+enum IncidentParentCopyStatus {
+  Draft
+  Generated
+  Shared
+  Archived
+}
+
+enum IncidentPersonKind {
+  StaffInvolved
+  Witness
+}
+
+enum IncidentEventType {
+  DraftSaved
+  SubmittedForHeadReview
+  SignedOff
+  Escalated
+  ParentCopyGenerated
+  ParentCopyShared
+  ParentCopyAcknowledged
+  AttachmentAdded
+  Archived
+}
+
+model IncidentReport {
+  id                            String                  @id @default(cuid())
+  reportNumber                  String                  @unique
+  type                          IncidentType
+  severity                      IncidentSeverity
+  confidentiality               IncidentConfidentiality @default(StaffOnly)
+  status                        IncidentReportStatus    @default(Draft)
+  occurredAt                    DateTime
+  locationEnc                   String
+  activityEnc                   String?
+  offSite                       Boolean                 @default(false)
+  factualAccountEnc             String
+  directDisclosureEnc           String?
+  immediateActionsEnc           String?
+  witnessesEnc                  String?
+  injurySustained               Boolean                 @default(false)
+  bodyAreaEnc                   String?
+  firstAidGiven                 Boolean                 @default(false)
+  firstAiderId                  String?
+  emergencyServicesContacted    Boolean                 @default(false)
+  hospitalTreatment             Boolean                 @default(false)
+  parentCarerNotified           Boolean                 @default(false)
+  parentNotifiedAt              DateTime?
+  medicalNotesEnc               String?
+  dslNotified                   Boolean                 @default(false)
+  headSignOffRequired           Boolean                 @default(false)
+  pastorPrincipalEscalation     Boolean                 @default(false)
+  ladoConsidered                Boolean                 @default(false)
+  socialCarePoliceReferral      Boolean                 @default(false)
+  riddorCheck                   Boolean                 @default(false)
+  dataSharingReasonEnc          String?
+  parentVisibilityRequested     Boolean                 @default(false)
+  recordedById                  String
+  signedOffById                 String?
+  signedOffAt                   DateTime?
+  escalatedById                 String?
+  escalatedAt                   DateTime?
+  archivedAt                    DateTime?
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
+
+  recordedBy   User                       @relation("IncidentReportsRecorded", fields: [recordedById], references: [id])
+  signedOffBy  User?                      @relation("IncidentReportsSignedOff", fields: [signedOffById], references: [id], onDelete: SetNull)
+  escalatedBy  User?                      @relation("IncidentReportsEscalated", fields: [escalatedById], references: [id], onDelete: SetNull)
+  firstAider   User?                      @relation("IncidentReportsFirstAided", fields: [firstAiderId], references: [id], onDelete: SetNull)
+  students     IncidentReportStudent[]
+  staff        IncidentReportStaff[]
+  attachments  IncidentReportAttachment[]
+  parentCopies IncidentReportParentCopy[]
+  events       IncidentReportEvent[]
+
+  @@index([status, updatedAt])
+  @@index([type, severity, occurredAt])
+  @@index([recordedById, createdAt])
+  @@index([signedOffById, signedOffAt])
+  @@index([escalatedById, escalatedAt])
+}
+
+model IncidentReportStudent {
+  reportId  String
+  studentId String
+  position  Int
+  createdAt DateTime @default(now())
+
+  report  IncidentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  student Student        @relation(fields: [studentId], references: [id])
+
+  @@id([reportId, studentId])
+  @@unique([reportId, position])
+  @@index([studentId])
+}
+
+model IncidentReportStaff {
+  id           String             @id @default(cuid())
+  reportId     String
+  userId       String
+  kind         IncidentPersonKind
+  roleLabelEnc String?
+  position     Int
+  createdAt    DateTime           @default(now())
+
+  report IncidentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user   User           @relation("IncidentReportStaffUser", fields: [userId], references: [id])
+
+  @@unique([reportId, kind, position])
+  @@index([userId, kind])
+}
+
+model IncidentReportAttachment {
+  id                  String   @id @default(cuid())
+  reportId            String
+  originalFileNameEnc String
+  mimeType            String
+  sizeBytes           Int
+  storageBucket       String
+  storagePathEnc      String
+  position            Int
+  uploadedById        String
+  createdAt           DateTime @default(now())
+
+  report     IncidentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  uploadedBy User           @relation("IncidentReportAttachmentsUploaded", fields: [uploadedById], references: [id])
+
+  @@unique([reportId, position])
+  @@index([uploadedById, createdAt])
+}
+
+model IncidentReportParentCopy {
+  id                     String                   @id @default(cuid())
+  reportId               String
+  studentId              String
+  status                 IncidentParentCopyStatus @default(Draft)
+  parentSummaryEnc       String
+  redactionsEnc          String?
+  attachmentsIncludedEnc String?
+  sharingReasonEnc       String?
+  pdfBytesEnc            String?
+  pdfFileNameEnc         String?
+  generatedById          String?
+  generatedAt            DateTime?
+  sharedById             String?
+  sharedAt               DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  report      IncidentReport                  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  student     Student                         @relation(fields: [studentId], references: [id])
+  generatedBy User?                           @relation("IncidentParentCopiesGenerated", fields: [generatedById], references: [id], onDelete: SetNull)
+  sharedBy    User?                           @relation("IncidentParentCopiesShared", fields: [sharedById], references: [id], onDelete: SetNull)
+  recipients  IncidentReportParentRecipient[]
+
+  @@unique([reportId, studentId])
+  @@index([studentId, status, sharedAt])
+  @@index([generatedById, generatedAt])
+  @@index([sharedById, sharedAt])
+}
+
+model IncidentReportParentRecipient {
+  copyId         String
+  guardianId     String
+  acknowledgedAt DateTime?
+  downloadedAt   DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  copy     IncidentReportParentCopy @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  guardian User                     @relation("IncidentParentRecipients", fields: [guardianId], references: [id])
+
+  @@id([copyId, guardianId])
+  @@index([guardianId, acknowledgedAt])
+  @@index([guardianId, downloadedAt])
+}
+
+model IncidentReportEvent {
+  id        String            @id @default(cuid())
+  reportId  String
+  actorId   String?
+  type      IncidentEventType
+  noteEnc   String?
+  meta      Json?
+  createdAt DateTime          @default(now())
+
+  report IncidentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor  User?          @relation("IncidentReportEvents", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([reportId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([type, createdAt])
 }
 
 model MessageThread {

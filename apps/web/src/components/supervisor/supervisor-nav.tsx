@@ -12,6 +12,7 @@ import {
   FileText,
   Home,
   MessageSquare,
+  ShieldAlert,
   ShoppingBag,
   Star,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/admin/clubs', label: 'Club Admin', icon: Club, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
+  { href: '/supervisor/incidents', label: 'Incidents', icon: ShieldAlert, enabled: true },
   { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
   { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays, enabled: true },
   { href: '/supervisor/calendar', label: 'Calendar', icon: CalendarDays, enabled: true },
