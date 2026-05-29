@@ -147,6 +147,14 @@ function activeAcademicYearStart(referenceDate: Date): number {
   return month >= 9 ? year : year - 1;
 }
 
+export function academicYearStart(referenceDate: Date = new Date()): Date {
+  if (Number.isNaN(referenceDate.getTime())) {
+    throw new Error('referenceDate must be a valid date');
+  }
+
+  return new Date(`${String(activeAcademicYearStart(referenceDate))}-09-01T00:00:00.000Z`);
+}
+
 function ageOnCutoff(dob: Date, academicYearStart: number): number {
   const birth = utcDateParts(dob);
   const cutoff = { year: academicYearStart, month: 8, day: 31 };

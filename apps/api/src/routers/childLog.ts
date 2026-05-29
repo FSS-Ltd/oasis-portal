@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  academicYearStart,
   canUseAllStudentSupervisorWorkflow,
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
@@ -120,14 +121,6 @@ function parentDashboardTodayStatus(
   return { date: key, kind: 'unmarked', label: 'No mark' };
 }
 
-function academicYearStart(referenceDate = new Date()): Date {
-  const year =
-    referenceDate.getUTCMonth() >= 8
-      ? referenceDate.getUTCFullYear()
-      : referenceDate.getUTCFullYear() - 1;
-  return new Date(`${String(year)}-09-01T00:00:00.000Z`);
-}
-
 function percentage(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
   return Math.round((numerator / denominator) * 100);
@@ -144,6 +137,15 @@ function paceProgressKey(record: {
   subjectId: string;
 }): string {
   return `${record.studentId}:${record.subjectId}:${String(record.paceNumber)}`;
+}
+
+function countPassedFinalPaceTests(
+  records: readonly { paceTestScore: number | null }[],
+  passThreshold: number,
+): number {
+  return records.filter(
+    (record) => record.paceTestScore !== null && record.paceTestScore >= passThreshold,
+  ).length;
 }
 
 async function loadPaceStartedAtByKey(
@@ -819,7 +821,6 @@ export const childLogRouter = router({
     const [
       attendance,
       paceTests,
-      paceProgress,
       behaviour,
       notes,
       meritBalances,
@@ -840,13 +841,6 @@ export const childLogRouter = router({
         },
         include: { subject: { select: { id: true, code: true, name: true } } },
         orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.db.paceProgress.findMany({
-        where: {
-          studentId: { in: studentIds },
-          completedAt: { gte: from, lt: to },
-        },
-        select: { id: true, studentId: true },
       }),
       ctx.withRls((tx) =>
         tx.behaviourEntry.findMany({
@@ -930,9 +924,10 @@ export const childLogRouter = router({
         const todayAttendance = studentAttendance.find((row) => dateKey(row.date) === todayKey);
         const presentDays = studentAttendance.filter((row) => row.status === 'Present').length;
         const studentPace = paceTests.filter((record) => record.studentId === student.id);
-        const pacesCompletedThisAcademicYear = paceProgress.filter(
-          (row) => row.studentId === student.id,
-        ).length;
+        const pacesCompletedThisAcademicYear = countPassedFinalPaceTests(
+          studentPace,
+          passThreshold,
+        );
 
         return {
           student: mapStudentSummary(ctx, student),
@@ -1009,79 +1004,71 @@ export const childLogRouter = router({
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
       }
 
-      const [attendance, paceTests, paceProgress, behaviour, notes, meritBalances, policy] =
-        await Promise.all([
-          ctx.db.attendance.findMany({
-            where: { studentId: input.studentId, date: { gte: from, lt: to } },
-            select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
-            orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-          }),
-          ctx.db.paceRecord.findMany({
-            where: {
-              studentId: input.studentId,
-              completedAt: { gte: from, lt: to },
-              OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
-            },
-            include: {
-              subject: { select: { id: true, code: true, name: true } },
-              recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
-              advancementApproval: {
-                select: {
-                  id: true,
-                  approvedAt: true,
-                  approvedById: true,
-                  notesEnc: true,
-                  approvedBy: { select: { fullNameEnc: true, role: true } },
-                },
+      const [attendance, paceTests, behaviour, notes, meritBalances, policy] = await Promise.all([
+        ctx.db.attendance.findMany({
+          where: { studentId: input.studentId, date: { gte: from, lt: to } },
+          select: { id: true, date: true, status: true, recordedById: true, createdAt: true },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.db.paceRecord.findMany({
+          where: {
+            studentId: input.studentId,
+            completedAt: { gte: from, lt: to },
+            OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+          },
+          include: {
+            subject: { select: { id: true, code: true, name: true } },
+            recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
+            advancementApproval: {
+              select: {
+                id: true,
+                approvedAt: true,
+                approvedById: true,
+                notesEnc: true,
+                approvedBy: { select: { fullNameEnc: true, role: true } },
               },
             },
-            orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-          }),
-          ctx.db.paceProgress.findMany({
-            where: {
-              studentId: input.studentId,
-              completedAt: { gte: from, lt: to },
-            },
-            select: { id: true },
-          }),
-          ctx.withRls((tx) =>
-            tx.behaviourEntry.findMany({
-              where: {
-                studentId: input.studentId,
-                createdAt: { gte: from, lt: to },
-                ...visibleBehaviourWhere(ctx.user),
-              },
-              include: {
-                recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
-              },
-              orderBy: { createdAt: 'desc' },
-            }),
-          ),
-          ctx.db.childNote.findMany({
+          },
+          orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.withRls((tx) =>
+          tx.behaviourEntry.findMany({
             where: {
               studentId: input.studentId,
               createdAt: { gte: from, lt: to },
-              deletedAt: null,
-              ...(canReadSensitiveNotes ? {} : { sensitive: false }),
+              ...visibleBehaviourWhere(ctx.user),
             },
             include: {
-              createdBy: { select: { id: true, fullNameEnc: true, role: true } },
+              recordedBy: { select: { id: true, fullNameEnc: true, role: true } },
             },
             orderBy: { createdAt: 'desc' },
           }),
-          ctx.db.meritLedger.groupBy({
-            by: ['account'],
-            where: {
-              studentId: input.studentId,
-              account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
-            },
-            _sum: { delta: true },
-          }),
-          ctx.db.pacePolicy.findUnique({
-            where: { id: 'default' },
-            select: { passThreshold: true },
-          }),
-        ]);
+        ),
+        ctx.db.childNote.findMany({
+          where: {
+            studentId: input.studentId,
+            createdAt: { gte: from, lt: to },
+            deletedAt: null,
+            ...(canReadSensitiveNotes ? {} : { sensitive: false }),
+          },
+          include: {
+            createdBy: { select: { id: true, fullNameEnc: true, role: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        ctx.db.meritLedger.groupBy({
+          by: ['account'],
+          where: {
+            studentId: input.studentId,
+            account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+          },
+          _sum: { delta: true },
+        }),
+        ctx.db.pacePolicy.findUnique({
+          where: { id: 'default' },
+          select: { passThreshold: true },
+        }),
+      ]);
 
       const balances = {
         Spend: 0,
@@ -1102,7 +1089,7 @@ export const childLogRouter = router({
 
       const passThreshold = policy?.passThreshold ?? 80;
       const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
-      const pacesCompletedThisAcademicYear = paceProgress.length;
+      const pacesCompletedThisAcademicYear = countPassedFinalPaceTests(paceTests, passThreshold);
       const presentDays = attendance.filter((row) => row.status === 'Present').length;
       const recordedAttendanceDays = attendance.length;
       const disciplineDay = localDayBounds(new Date());
