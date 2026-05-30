@@ -3,9 +3,9 @@
 - Current pass: 1
 - Pass started: 2026-05-27
 - Eligible files at pass start: 389
-- Files reviewed so far: 15
-- Files remaining estimate: 374
-- Last run: 2026-05-29
+- Files reviewed so far: 20
+- Files remaining estimate: 369
+- Last run: 2026-05-30
 - Next selection strategy: continue pass 1 by selecting unreviewed oversized source files first, then high-churn files if no selected-file lint or type errors are present.
 
 ## Reviewed This Pass
@@ -25,3 +25,8 @@
 13. `apps/api/src/routers/behaviour.ts`
 14. `apps/api/src/routers/pace.ts`
 15. `apps/api/src/routers/childLog.ts`
+16. `apps/api/src/routers/admin.ts`
+17. `apps/api/src/routers/shop.ts`
+18. `apps/api/src/routers/attendance.ts`
+19. `apps/api/src/routers/rota.ts`
+20. `apps/api/src/routers/registration.ts`

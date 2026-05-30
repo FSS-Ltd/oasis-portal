@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { isStaff, requireStaff, type SessionUser } from '@oasis/domain';
 import { fullAdminProcedure, authedProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
+import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
 
 const STAFF_ROLES = [
   'Head',
@@ -129,14 +130,6 @@ const reviewSwapInput = z.object({
 const deleteShiftInput = z.object({
   id: z.string().min(1),
 });
-
-function normalizeDate(date: Date): Date {
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function dateKey(date: Date): string {
-  return normalizeDate(date).toISOString().slice(0, 10);
-}
 
 function dateFromKey(value: string): Date {
   const date = new Date(`${value}T00:00:00.000Z`);

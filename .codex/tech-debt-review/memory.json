@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-05-29",
+  "lastRunDate": "2026-05-30",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -179,6 +179,67 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized API router; drillthrough and sensitive review semantics were not changed."
+    },
+    "apps/api/src/routers/admin.ts": {
+      "lastReviewedAt": "2026-05-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1566,
+      "lineCountAfter": 1562,
+      "issuesFixed": [
+        "Replaced the permission tag schema's double assertion with a named typed tuple."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; admin account, invitation, and RBAC semantics were not changed."
+    },
+    "apps/api/src/routers/shop.ts": {
+      "lastReviewedAt": "2026-05-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1437,
+      "lineCountAfter": 1433,
+      "issuesFixed": [
+        "Replaced Object.keys extension narrowing with a typed shop item photo extension tuple.",
+        "Formatted the selected router file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; shop item, reservation, photo, and merit ledger semantics were not changed."
+    },
+    "apps/api/src/routers/attendance.ts": {
+      "lastReviewedAt": "2026-05-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1197,
+      "lineCountAfter": 1191,
+      "issuesFixed": [
+        "Reused existing API UTC date helpers instead of maintaining duplicate router-local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; attendance validation, export, and insight semantics were not changed."
+    },
+    "apps/api/src/routers/rota.ts": {
+      "lastReviewedAt": "2026-05-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1171,
+      "lineCountAfter": 1164,
+      "issuesFixed": [
+        "Reused existing API UTC date helpers instead of maintaining duplicate router-local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; staff availability and shift semantics were not changed."
+    },
+    "apps/api/src/routers/registration.ts": {
+      "lastReviewedAt": "2026-05-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1125,
+      "lineCountAfter": 1148,
+      "issuesFixed": [
+        "Extracted duplicated guardian, emergency, and pickup contact response mapping into typed local helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; registration request shapes, access rules, and encrypted field semantics were not changed."
     }
   },
   "deferredFiles": {},
