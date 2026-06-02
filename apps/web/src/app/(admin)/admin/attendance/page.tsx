@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import {
   canExportAttendance,
   canRecordStudentAttendance,
-  isFullAdmin,
+  canUseAdminOperations,
   isStaff,
 } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
@@ -16,6 +16,7 @@ export default async function AttendancePage() {
   const canExport = canExportAttendance(user);
   const canReadRegister = isStaff(user);
   const canRecord = canRecordStudentAttendance(user);
+  const canUseOperations = canUseAdminOperations(user);
   if (!canReadRegister && !canExport) notFound();
 
   return (
@@ -33,7 +34,7 @@ export default async function AttendancePage() {
               Student register
             </span>
           ) : null}
-          {isFullAdmin(user) ? (
+          {canUseOperations ? (
             <Link className="badge badge--blue" href="/admin/attendance/staff">
               <CalendarCheck aria-hidden="true" size={14} />
               Staff register

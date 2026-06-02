@@ -2,8 +2,8 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
   AccessDeniedError,
+  canUseAdminOperations,
   compileTermReport,
-  isFullAdmin,
   requireOwnChild,
   type CompiledReport,
   type SessionUser,
@@ -16,7 +16,7 @@ import {
   type EmailClient,
 } from '../lib/email.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
-import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
@@ -218,7 +218,7 @@ async function assertCanReadReports(
   studentId: string,
   entity: string,
 ): Promise<void> {
-  if (isFullAdmin(ctx.user)) return;
+  if (canUseAdminOperations(ctx.user)) return;
 
   if (ctx.user.role === 'Parent') {
     const guardian = await ctx.db.guardian.findUnique({
@@ -640,7 +640,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
   };
 
   return router({
-    draft: fullAdminProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
+    draft: adminOperationsProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
       const existing = await ctx.db.termReport.findUnique({
         where: { studentId_term: { studentId: input.studentId, term: input.term } },
       });
@@ -679,7 +679,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       return mapReport(ctx, report);
     }),
 
-    review: fullAdminProcedure.input(reviewInput).mutation(async ({ ctx, input }) => {
+    review: adminOperationsProcedure.input(reviewInput).mutation(async ({ ctx, input }) => {
       const existing = await loadReport(ctx, input.reportId);
       if (existing.status === 'Sent') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be reviewed' });
@@ -712,7 +712,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       return mapReport(ctx, report);
     }),
 
-    send: fullAdminProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+    send: adminOperationsProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
       const existing = await loadReport(ctx, input.reportId);
       if (existing.status === 'Sent') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'term report is already sent' });
@@ -746,7 +746,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       const reports = await ctx.db.termReport.findMany({
         where: {
           studentId: input.studentId,
-          ...(isFullAdmin(ctx.user) ? {} : { status: 'Sent' as const }),
+          ...(canUseAdminOperations(ctx.user) ? {} : { status: 'Sent' as const }),
         },
         orderBy: [{ term: 'desc' }, { createdAt: 'desc' }],
       });

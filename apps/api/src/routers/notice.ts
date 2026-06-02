@@ -5,9 +5,8 @@ import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canAnswerChildRegistrationPrompt,
-  isFullAdmin,
+  canUseAdminOperations,
   isStaff,
-  requireFullAdmin,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -114,19 +113,13 @@ function toForbidden(error: AccessDeniedError): TRPCError {
 }
 
 function requireStaffNoticeReader(user: SessionUser): void {
-  if (isStaff(user)) return;
+  if (isStaff(user) || canUseAdminOperations(user)) return;
   throw toForbidden(new AccessDeniedError('staff notices require full-admin or Supervisor'));
 }
 
 function requireNoticePoster(user: SessionUser): void {
-  try {
-    requireFullAdmin(user);
-  } catch (error) {
-    if (error instanceof AccessDeniedError) {
-      throw toForbidden(error);
-    }
-    throw error;
-  }
+  if (canUseAdminOperations(user)) return;
+  throw toForbidden(new AccessDeniedError('staff notice posting requires admin operations'));
 }
 
 function decryptRequired(
@@ -293,7 +286,7 @@ async function hasLinkedActiveChild(ctx: AuthedContext): Promise<boolean> {
 }
 
 async function canReadParentNotice(ctx: AuthedContext): Promise<boolean> {
-  if (ctx.user.role === 'Parent' || isFullAdmin(ctx.user)) return true;
+  if (ctx.user.role === 'Parent' || canUseAdminOperations(ctx.user)) return true;
   return hasLinkedActiveChild(ctx);
 }
 
@@ -308,7 +301,7 @@ async function canReadNoticeAudience(
   ctx: AuthedContext,
   audience: NoticeAudience,
 ): Promise<boolean> {
-  if (isFullAdmin(ctx.user)) return true;
+  if (canUseAdminOperations(ctx.user)) return true;
   if (audience === 'Supervisors') return isStaff(ctx.user);
   if (audience === 'Parents') return canReadParentNotice(ctx);
   return isStaff(ctx.user) || ctx.user.role === 'Parent' || hasLinkedActiveChild(ctx);

@@ -19,9 +19,10 @@ import {
   canUseStaffMessaging,
   canUseFullPaceAccess,
   canUseClubsLeadPortal,
+  canUseAdminOperations,
   canViewAuditLog,
   canManageUserAccounts,
-  isFullAdmin,
+  requireAdminOperations,
   requireClubsAdminOrFullAdmin,
   requireFullAdmin,
   requireStaff,
@@ -77,11 +78,23 @@ export async function getFullAdminUser(): Promise<SessionUser> {
   return user;
 }
 
+export async function getAdminOperationsUser(): Promise<SessionUser> {
+  const user = await getRequiredSessionUser();
+
+  try {
+    requireAdminOperations(user);
+  } catch (error) {
+    notFoundOnAccessDenied(error);
+  }
+
+  return user;
+}
+
 export async function getAdminShellUser(): Promise<SessionUser> {
   const user = await getRequiredSessionUser();
 
   if (
-    !isFullAdmin(user) &&
+    !canUseAdminOperations(user) &&
     !canViewBehaviourReports(user) &&
     !canViewAnyStudentDrillThrough(user) &&
     !canUseFullPaceAccess(user) &&

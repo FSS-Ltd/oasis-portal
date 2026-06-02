@@ -1,9 +1,9 @@
 import { MotionPage } from '@/components/admin/motion';
-import { getFullAdminUser } from '@/components/admin/require-full-admin';
+import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
 import { PeopleProfilesClient } from './people-profiles-client';
 
 export default async function PeopleProfilesPage() {
-  const user = await getFullAdminUser();
+  const user = await getAdminOperationsUser();
 
   return (
     <MotionPage>

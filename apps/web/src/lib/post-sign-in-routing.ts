@@ -17,6 +17,7 @@ type PostSignInPortal = ReturnType<typeof resolvePostSignInPortal>;
 const DESTINATION_BY_PORTAL = {
   'two-factor-required': '/2fa',
   'full-admin': '/admin',
+  'admin-operations': '/admin',
   'account-admin': '/admin/access',
   'clubs-admin': '/admin/clubs',
   'clubs-lead': '/clubs-lead',

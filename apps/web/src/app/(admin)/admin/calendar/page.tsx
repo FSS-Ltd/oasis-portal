@@ -1,4 +1,4 @@
-import { canManageCalendar, isFullAdmin } from '@oasis/domain';
+import { canManageCalendar, canUseAdminOperations } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminShellUser } from '@/components/admin/require-full-admin';
 import { SharedCalendar } from '@/components/calendar/shared-calendar';
@@ -10,7 +10,7 @@ export default async function AdminCalendarPage() {
   return (
     <MotionPage>
       <SharedCalendar
-        canAssignRequiredPeople={isFullAdmin(user)}
+        canAssignRequiredPeople={canUseAdminOperations(user)}
         canManage={canManage}
         mode="admin"
       />

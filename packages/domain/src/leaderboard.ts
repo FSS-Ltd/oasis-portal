@@ -8,7 +8,7 @@
  * Pure functions — take pre-fetched rows, return ranked lists.
  * Ties: older students first (earlier enrolmentDate), then student id.
  */
-import { hasTag, isFullAdmin, type SessionUser } from './rbac.js';
+import { canUseAdminOperations, hasTag, type SessionUser } from './rbac.js';
 
 export const LEADERBOARD_KINDS = [
   'TopTithers',
@@ -43,7 +43,7 @@ export interface LeaderboardRow {
 }
 
 export function canViewDemeritLeaderboard(user: SessionUser): boolean {
-  return isFullAdmin(user) || hasTag(user, 'leaderboard-admin');
+  return canUseAdminOperations(user) || hasTag(user, 'leaderboard-admin');
 }
 
 export function isPublicLeaderboard(kind: LeaderboardKind): boolean {

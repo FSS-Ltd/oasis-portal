@@ -17,11 +17,12 @@ const user = (role: SessionUser['role']): SessionUser => ({
 });
 
 describe('permission slip roles', () => {
-  it('limits permission slip management to Head and Pastor', () => {
+  it('allows operational admins to manage permission slips', () => {
     expect(canManagePermissionSlips(user('Head'))).toBe(true);
     expect(canManagePermissionSlips(user('Pastor'))).toBe(true);
-    expect(canManagePermissionSlips(user('Principal'))).toBe(false);
-    expect(canManagePermissionSlips(user('HeadOfDiscipline'))).toBe(false);
+    expect(canManagePermissionSlips(user('Principal'))).toBe(true);
+    expect(canManagePermissionSlips(user('HeadOfDiscipline'))).toBe(true);
+    expect(canManagePermissionSlips(user('TechnicalSupport'))).toBe(true);
     expect(canManagePermissionSlips(user('Supervisor'))).toBe(false);
     expect(canManagePermissionSlips(user('Parent'))).toBe(false);
   });

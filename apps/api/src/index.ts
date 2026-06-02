@@ -4,6 +4,7 @@ export {
   router,
   publicProcedure,
   authedProcedure,
+  adminOperationsProcedure,
   fullAdminProcedure,
   userAccountAdminProcedure,
   roleProcedure,

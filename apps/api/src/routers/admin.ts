@@ -6,7 +6,8 @@
  * - `admin.linkGuardian`: idempotent guardian-student link via `create` +
  *   P2002 catch (atomic, no TOCTOU race).
  *
- * Most RBAC is enforced by `fullAdminProcedure`; safe account-shell operations
+ * Most RBAC is enforced by the shared admin procedures; operational admin
+ * workflows use `adminOperationsProcedure`, while safe account-shell operations
  * use `userAccountAdminProcedure`. Audit rows are written manually
  * (entity-specific) rather than via `auditedProcedure`'s generic Update row.
  */
@@ -35,7 +36,13 @@ import {
   updateSubjectInput,
   updateYearGroupBandInput,
 } from '@oasis/domain';
-import { authedProcedure, fullAdminProcedure, router, userAccountAdminProcedure } from '../trpc.js';
+import {
+  adminOperationsProcedure,
+  authedProcedure,
+  fullAdminProcedure,
+  router,
+  userAccountAdminProcedure,
+} from '../trpc.js';
 import {
   createDefaultClerkInvitationClient,
   createDefaultClerkUserEmailClient,
@@ -104,6 +111,7 @@ const updateUserAccountStatusInput = z.object({
 const resendUserInvitationInput = z.object({
   id: z.string().min(1),
 });
+const deleteUserInvitationInput = resendUserInvitationInput;
 
 const adminUserProfileSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
@@ -689,7 +697,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
   };
 
   return router({
-    listYearGroupBands: fullAdminProcedure.query(async ({ ctx }) => {
+    listYearGroupBands: adminOperationsProcedure.query(async ({ ctx }) => {
       return ctx.db.yearGroupBand.findMany({
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         select: {
@@ -705,7 +713,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       });
     }),
 
-    createYearGroupBand: fullAdminProcedure
+    createYearGroupBand: adminOperationsProcedure
       .input(createYearGroupBandInput)
       .mutation(async ({ ctx, input }) => {
         await assertUniqueBandName(ctx, input.name);
@@ -750,7 +758,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    updateYearGroupBand: fullAdminProcedure
+    updateYearGroupBand: adminOperationsProcedure
       .input(updateYearGroupBandInput)
       .mutation(async ({ ctx, input }) => {
         if (input.name !== undefined) {
@@ -808,7 +816,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    deactivateYearGroupBand: fullAdminProcedure
+    deactivateYearGroupBand: adminOperationsProcedure
       .input(deactivateYearGroupBandInput)
       .mutation(async ({ ctx, input }) => {
         try {
@@ -841,14 +849,14 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    listSubjects: fullAdminProcedure.query(async ({ ctx }) => {
+    listSubjects: adminOperationsProcedure.query(async ({ ctx }) => {
       return ctx.db.subject.findMany({
         orderBy: [{ code: 'asc' }],
         select: { id: true, code: true, name: true, active: true },
       });
     }),
 
-    createSubject: fullAdminProcedure.input(createSubjectInput).mutation(async ({ ctx, input }) => {
+    createSubject: adminOperationsProcedure.input(createSubjectInput).mutation(async ({ ctx, input }) => {
       try {
         const subject = await ctx.db.subject.create({
           data: { code: input.code, name: input.name },
@@ -877,7 +885,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       }
     }),
 
-    updateSubject: fullAdminProcedure.input(updateSubjectInput).mutation(async ({ ctx, input }) => {
+    updateSubject: adminOperationsProcedure.input(updateSubjectInput).mutation(async ({ ctx, input }) => {
       try {
         const subject = await ctx.db.subject.update({
           where: { id: input.id },
@@ -904,7 +912,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       }
     }),
 
-    deactivateSubject: fullAdminProcedure
+    deactivateSubject: adminOperationsProcedure
       .input(deactivateSubjectInput)
       .mutation(async ({ ctx, input }) => {
         try {
@@ -937,7 +945,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    getPacePolicy: fullAdminProcedure.query(async ({ ctx }) => {
+    getPacePolicy: adminOperationsProcedure.query(async ({ ctx }) => {
       const policy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
       if (!policy) {
         return {
@@ -951,7 +959,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return policy;
     }),
 
-    updatePacePolicy: fullAdminProcedure
+    updatePacePolicy: adminOperationsProcedure
       .input(updatePacePolicyInput)
       .mutation(async ({ ctx, input }) => {
         const policy = await ctx.db.pacePolicy.upsert({
@@ -997,7 +1005,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         return policy;
       }),
 
-    listActiveSubjects: fullAdminProcedure.query(async ({ ctx }) => {
+    listActiveSubjects: adminOperationsProcedure.query(async ({ ctx }) => {
       const subjects = await ctx.db.subject.findMany({
         where: { active: true },
         orderBy: [{ code: 'asc' }],
@@ -1140,7 +1148,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    listUsers: fullAdminProcedure.query(async ({ ctx }) => {
+    listUsers: adminOperationsProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
@@ -1162,7 +1170,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return rows;
     }),
 
-    updateUserProfile: fullAdminProcedure
+    updateUserProfile: adminOperationsProcedure
       .input(updateUserProfileInput)
       .mutation(async ({ ctx, input }) => {
         const { data } = userProfileUpdateData(ctx, input);
@@ -1311,7 +1319,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    searchParents: fullAdminProcedure.input(searchParentsInput).query(async ({ ctx, input }) => {
+    searchParents: adminOperationsProcedure.input(searchParentsInput).query(async ({ ctx, input }) => {
       const where: Prisma.UserWhereInput = { role: 'Parent', active: true };
       if (input?.search) where.emailBidx = ctx.db.$enc.blindIndex(input.search);
 
@@ -1346,7 +1354,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       return rows;
     }),
 
-    searchGuardianAccounts: fullAdminProcedure
+    searchGuardianAccounts: adminOperationsProcedure
       .input(searchParentsInput)
       .query(async ({ ctx, input }) => {
         const where: Prisma.UserWhereInput = {
@@ -1497,7 +1505,45 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         });
       }),
 
-    linkGuardian: fullAdminProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
+    deleteUserInvitation: userAccountAdminProcedure
+      .input(deleteUserInvitationInput)
+      .mutation(async ({ ctx, input }) => {
+        const storedInvitation = await ctx.db.userInvitation.findFirst({
+          where: { ...invitationScopeWhereFor(ctx.user), id: input.id, status: 'Pending' },
+          select: userInvitationSelect,
+        });
+        if (!storedInvitation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'pending invitation not found' });
+        }
+
+        const current = await getClerk().findInvitation(storedInvitation.clerkInvitationId);
+        let clerkInvitationStatus = current?.status ?? 'not_found';
+        if (current?.status === 'pending') {
+          const revoked = await getClerk().revokeInvitation(current.id);
+          clerkInvitationStatus = revoked.status;
+        }
+
+        await ctx.db.userInvitation.delete({ where: { id: storedInvitation.id } });
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'UserInvitation',
+            entityId: storedInvitation.id,
+            meta: {
+              role: storedInvitation.role,
+              tags: storedInvitation.tags,
+              clerkInvitationId: storedInvitation.clerkInvitationId,
+              clerkInvitationStatus,
+              source: 'admin.deleteUserInvitation',
+            },
+          },
+        });
+
+        return { id: storedInvitation.id, deleted: true };
+      }),
+
+    linkGuardian: adminOperationsProcedure.input(linkGuardianInput).mutation(async ({ ctx, input }) => {
       const [targetUser, student] = await Promise.all([
         ctx.db.user.findUnique({
           where: { id: input.userId },

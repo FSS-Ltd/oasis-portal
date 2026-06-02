@@ -1,7 +1,7 @@
 import { BarChart3, CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { canExportAttendance, isFullAdmin } from '@oasis/domain';
+import { canExportAttendance, canUseAdminOperations } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminShellUser } from '@/components/admin/require-full-admin';
 import { AttendanceExportCentre } from '../attendance-export-centre';
@@ -24,7 +24,7 @@ export default async function AttendanceCenterPage() {
             <CalendarCheck aria-hidden="true" size={14} />
             Student register
           </Link>
-          {isFullAdmin(user) ? (
+          {canUseAdminOperations(user) ? (
             <Link className="badge badge--blue" href="/admin/attendance/staff">
               <CalendarCheck aria-hidden="true" size={14} />
               Staff register

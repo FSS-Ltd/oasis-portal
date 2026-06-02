@@ -1,4 +1,4 @@
-import { canViewStudentFinance, isFullAdmin } from '@oasis/domain';
+import { canUseAdminOperations, canViewStudentFinance } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getStudentDrillThroughAdminUser } from '@/components/admin/require-full-admin';
 import { StudentDetail } from './student-detail';
@@ -10,7 +10,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
   return (
     <MotionPage>
       <StudentDetail
-        canEdit={isFullAdmin(user)}
+        canEdit={canUseAdminOperations(user)}
         canViewFinance={canViewStudentFinance(user)}
         studentId={id}
       />

@@ -2,7 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { buildSmokeTestEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
-import { fullAdminProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, router } from '../trpc.js';
 
 export interface EmailRouterDeps {
   emailClient?: EmailClient;
@@ -61,12 +61,12 @@ export function createEmailRouter(deps: EmailRouterDeps = {}) {
   };
 
   return router({
-    sendSmokeTest: fullAdminProcedure
+    sendSmokeTest: adminOperationsProcedure
       .input(sendSmokeTestInput)
       .mutation(async ({ ctx, input }) =>
         sendAuditedSmokeTestEmail(ctx, input, getEmailClient(), 'email.sendSmokeTest'),
       ),
-    sendHelloWorld: fullAdminProcedure
+    sendHelloWorld: adminOperationsProcedure
       .input(sendSmokeTestInput)
       .mutation(async ({ ctx, input }) =>
         sendAuditedSmokeTestEmail(ctx, input, getEmailClient(), 'email.sendHelloWorld'),

@@ -16,7 +16,7 @@ import {
   type RegistrationConsentType,
   type Role,
 } from '@oasis/domain';
-import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 const answerChildRegistrationPromptInput = z.object({
   hasChildren: z.boolean(),
@@ -1120,7 +1120,7 @@ export const registrationRouter = router({
       }
     }),
 
-  byStudent: fullAdminProcedure
+  byStudent: adminOperationsProcedure
     .input(z.object({ studentId: z.string().min(1) }))
     .query(async ({ ctx, input }) => {
       const row = await ctx.db.studentRegistrationProfile.findUnique({

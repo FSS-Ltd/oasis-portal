@@ -133,6 +133,7 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
   };
   student: { findUnique: ReturnType<typeof vi.fn> };
   guardian: { create: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
@@ -252,6 +253,9 @@ function makeFakeDb(): FakeDb {
           ),
       ),
       update: vi.fn().mockResolvedValue({ id: 'invite_row_1' }),
+      delete: vi.fn(({ where }: { where: { id: string } }) =>
+        Promise.resolve(makeInvitationRow({ id: where.id })),
+      ),
     },
     student: { findUnique: vi.fn() },
     guardian: { create: vi.fn(), findUnique: vi.fn() },
@@ -563,16 +567,27 @@ describe('admin.searchParents', () => {
     });
   });
 
-  it('rejects non-full-admin parent lookup as FORBIDDEN', async () => {
+  it('rejects unsupported parent lookup and allows Technical Support operations', async () => {
     const { caller, db } = makeCaller(supervisorUser);
 
     await expect(caller.admin.searchParents()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
 
-    const support = makeCaller(technicalSupportUser);
-    await expect(support.caller.admin.searchParents()).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(support.db.user.findMany).not.toHaveBeenCalled();
+    const supportDb = makeFakeDb();
+    supportDb.user.findMany.mockResolvedValue([
+      { id: 'u_parent', fullNameEnc: 'enc:Jane Parent', emailEnc: 'enc:jane@example.com' },
+    ]);
+    const support = makeCaller(technicalSupportUser, { db: supportDb });
+    await expect(support.caller.admin.searchParents()).resolves.toEqual([
+      { id: 'u_parent', fullName: 'Jane Parent', email: 'jane@example.com' },
+    ]);
+    expect(supportDb.user.findMany).toHaveBeenCalledWith({
+      where: { role: 'Parent', active: true },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: { id: true, fullNameEnc: true, emailEnc: true },
+    });
   });
 });
 
@@ -1261,7 +1276,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     });
   });
 
-  it('rejects tag management for non-full-admin callers', async () => {
+  it('keeps tag management full-admin-only while allowing Technical Support profile operations', async () => {
     const { caller, db } = makeCaller(supervisorUser);
 
     await expect(caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -1274,16 +1289,23 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     expect(db.user.findMany).not.toHaveBeenCalled();
     expect(db.user.update).not.toHaveBeenCalled();
 
-    const support = makeCaller(technicalSupportUser);
-    await expect(support.caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    const supportDb = makeFakeDb();
+    supportDb.user.findMany.mockResolvedValue([
+      makeAdminUserRow({ id: 'u_parent', role: 'Parent', tags: [] }),
+    ]);
+    supportDb.user.update.mockResolvedValue(
+      makeAdminUserRow({ id: 'u_sup', phoneEnc: 'enc:07700 900000' }),
+    );
+    const support = makeCaller(technicalSupportUser, { db: supportDb });
+    await expect(support.caller.admin.listUsers()).resolves.toHaveLength(1);
     await expect(
       support.caller.admin.updateUserTags({ userId: 'u_sup', tags: ['audit-viewer'] }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     await expect(
       support.caller.admin.updateUserProfile({ userId: 'u_sup', phone: '07700 900000' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(support.db.user.findMany).not.toHaveBeenCalled();
-    expect(support.db.user.update).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ id: 'u_sup', phone: '07700 900000' });
+    expect(supportDb.user.findMany).toHaveBeenCalled();
+    expect(supportDb.user.update).toHaveBeenCalled();
 
     const parent = makeCaller(parentUser);
     await expect(parent.caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -2357,20 +2379,90 @@ describe('admin.resendUserInvitation', () => {
   });
 });
 
+describe('admin.deleteUserInvitation', () => {
+  it('lets Technical Support revoke and delete a scoped pending invitation', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow());
+    const clerk = makeFakeClerk(undefined, {
+      findResult: {
+        id: 'inv_xyz',
+        emailAddress: 'jane@example.com',
+        status: 'pending',
+        url: 'https://clerk.example/invite/abc',
+      },
+    });
+    const { caller, db: usedDb, revokeInvitation } = makeCaller(technicalSupportUser, {
+      clerk,
+      db,
+    });
+
+    await expect(caller.admin.deleteUserInvitation({ id: 'invite_row_1' })).resolves.toEqual({
+      id: 'invite_row_1',
+      deleted: true,
+    });
+
+    expect(usedDb.userInvitation.findFirst).toHaveBeenCalledWith({
+      where: {
+        role: { in: ['Parent', 'TechnicalSupport'] },
+        id: 'invite_row_1',
+        status: 'Pending',
+      },
+      select: {
+        id: true,
+        clerkInvitationId: true,
+        role: true,
+        tags: true,
+        emailEnc: true,
+        status: true,
+        emailStatus: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    expect(revokeInvitation).toHaveBeenCalledWith('inv_xyz');
+    expect(usedDb.userInvitation.delete).toHaveBeenCalledWith({
+      where: { id: 'invite_row_1' },
+    });
+    expect(usedDb.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Delete',
+        entity: 'UserInvitation',
+        entityId: 'invite_row_1',
+        meta: {
+          role: 'Parent',
+          tags: [],
+          clerkInvitationId: 'inv_xyz',
+          clerkInvitationStatus: 'revoked',
+          source: 'admin.deleteUserInvitation',
+        },
+      },
+    });
+  });
+
+  it('does not allow full admins to delete User Access pending invitations', async () => {
+    const db = makeFakeDb();
+    db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow());
+    const { caller, db: usedDb, revokeInvitation } = makeCaller(headUser, { db });
+
+    await expect(caller.admin.deleteUserInvitation({ id: 'invite_row_1' })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+
+    expect(usedDb.userInvitation.findFirst).not.toHaveBeenCalled();
+    expect(revokeInvitation).not.toHaveBeenCalled();
+    expect(usedDb.userInvitation.delete).not.toHaveBeenCalled();
+  });
+});
+
 describe('admin.linkGuardian', () => {
-  it('rejects non-full-admin callers as FORBIDDEN', async () => {
+  it('rejects unsupported callers as FORBIDDEN', async () => {
     const { caller, db } = makeCaller(supervisorUser);
     await expect(
       caller.admin.linkGuardian({ userId: 'u_parent', studentId: 's_kid' }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.guardian.create).not.toHaveBeenCalled();
     expect(db.auditLog.create).not.toHaveBeenCalled();
-
-    const support = makeCaller(technicalSupportUser);
-    await expect(
-      support.caller.admin.linkGuardian({ userId: 'u_parent', studentId: 's_kid' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(support.db.guardian.create).not.toHaveBeenCalled();
   });
 
   it('happy path: creates guardian + writes one audit row', async () => {
@@ -2399,6 +2491,18 @@ describe('admin.linkGuardian', () => {
       },
     });
     expect(result).toEqual({ created: true, guardianId: 'g_new' });
+  });
+
+  it('allows Technical Support to link guardians for troubleshooting', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent', active: true });
+    db.student.findUnique.mockResolvedValue({ id: 's_kid' });
+    db.guardian.create.mockResolvedValue({ id: 'g_support' });
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.linkGuardian({ userId: 'u_parent', studentId: 's_kid' }),
+    ).resolves.toEqual({ created: true, guardianId: 'g_support' });
   });
 
   it('allows active non-parent accounts to be linked as guardians', async () => {

@@ -661,9 +661,15 @@ describe('notice.listForAdmin', () => {
       expect.objectContaining({ id: parentNotice.id, audience: 'Parents' }),
       expect.objectContaining({ id: supervisorNotice.id, audience: 'Supervisors' }),
     ]);
+    await expect(
+      makeCaller(
+        technicalSupportUser,
+        makeFakeDb([supervisorNotice, parentNotice, bothNotice]),
+      ).caller.notice.listForAdmin(),
+    ).resolves.toHaveLength(3);
   });
 
-  it.each([supervisorUser, parentUser, studentUser, clubsAdminUser, technicalSupportUser])(
+  it.each([supervisorUser, parentUser, studentUser, clubsAdminUser])(
     'denies %s callers',
     async (user) => {
       await expect(makeCaller(user).caller.notice.listForAdmin()).rejects.toMatchObject({
@@ -813,9 +819,18 @@ describe('notice.listForStaff', () => {
         audience: 'Supervisors',
       }),
     ]);
+    await expect(
+      makeCaller(technicalSupportUser, makeFakeDb([notice])).caller.notice.listForStaff(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: notice.id,
+        title: 'Club staff update',
+        audience: 'Supervisors',
+      }),
+    ]);
   });
 
-  it.each([parentUser, studentUser, technicalSupportUser])('denies %s callers', async (user) => {
+  it.each([parentUser, studentUser])('denies %s callers', async (user) => {
     await expect(makeCaller(user).caller.notice.listForStaff()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -905,7 +920,7 @@ describe('notice.listForParents', () => {
     ]);
   });
 
-  it.each([supervisorUser, studentUser, clubsAdminUser, technicalSupportUser])(
+  it.each([supervisorUser, studentUser, clubsAdminUser])(
     'denies %s callers',
     async (user) => {
       await expect(makeCaller(user).caller.notice.listForParents()).rejects.toMatchObject({

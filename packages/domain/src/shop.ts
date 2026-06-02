@@ -9,9 +9,9 @@
  */
 import {
   AccessDeniedError,
+  canUseAdminOperations,
   canUseClubsLeadPortal,
   hasTag,
-  isFullAdmin,
   type SessionUser,
 } from './rbac.js';
 import type { LedgerRow } from './meritLedger.js';
@@ -128,12 +128,12 @@ export function assertCanSellInShop(user: SessionUser): void {
 
 export function canManageShop(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || hasTag(user, 'shopadmin');
+  return canUseAdminOperations(user) || hasTag(user, 'shopadmin');
 }
 
 export function canSellInShop(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || hasTag(user, 'shopkeeper');
+  return canUseAdminOperations(user) || hasTag(user, 'shopkeeper');
 }
 
 export interface PurchaseInput {
