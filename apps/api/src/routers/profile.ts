@@ -10,6 +10,7 @@ import {
   type ClerkUserEmailClient,
 } from '../lib/clerk.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
+import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent } from '../lib/observability.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -95,11 +96,7 @@ function decryptRequired(
   value: string,
   entity: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, entity);
 }
 
 function normaliseNullableText(value: string | null | undefined): string | null | undefined {

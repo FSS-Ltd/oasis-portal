@@ -122,6 +122,10 @@ export interface ParsedSchoolFeeInvoice {
 }
 
 const moneyPattern = /(?:£\s*)?([0-9][0-9,]*(?:\.[0-9]{2})?)/u;
+const issuedDateLabels = ['issued', 'invoice date', 'date'] as const;
+const dueDateLabels = ['due date', 'payment due', 'due'] as const;
+const invoiceMetadataWordsPattern =
+  /\b(invoice|child|fee|discount|amount|total|payment|reference|frequency)\b/iu;
 const monthNumbers: Record<string, number> = {
   jan: 1,
   january: 1,
@@ -543,11 +547,11 @@ function parseInvoiceNumber(text: string): string | null {
 }
 
 function parseIssuedDate(text: string): string | null {
-  return parseDateAfterLabel(text, ['issued', 'invoice date', 'date']) ?? parseFirstDateValue(text);
+  return parseDateAfterLabel(text, issuedDateLabels) ?? parseFirstDateValue(text);
 }
 
 function parseDueDate(text: string, issuedOn: string | null): string | null {
-  const labelled = parseDateAfterLabel(text, ['due date', 'payment due', 'due']);
+  const labelled = parseDateAfterLabel(text, dueDateLabels);
   if (labelled) return labelled;
   if (!issuedOn) return null;
   const withinDays = /\bwithin\s+([0-9]{1,2})\s+days\b/iu.exec(text);
@@ -654,9 +658,7 @@ function sanitizeFamilyLabel(value: string): string | null {
 function isLikelyFamilyLabel(value: string): boolean {
   const normalized = value.replace(/\s+/gu, ' ').trim();
   if (normalized.length < 2 || normalized.length > 160) return false;
-  return !/\b(invoice|child|fee|discount|amount|total|payment|reference|frequency)\b/iu.test(
-    normalized,
-  );
+  return !invoiceMetadataWordsPattern.test(normalized);
 }
 
 function titleCase(value: string): string {

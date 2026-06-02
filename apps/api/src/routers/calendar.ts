@@ -9,6 +9,8 @@ import {
 } from '@oasis/domain';
 import type { Prisma } from '@oasis/db';
 import type { AppContext } from '../context.js';
+import { dateFromKey, dateKey, minutesFromTime, timeFromMinutes } from '../lib/date-time-keys.js';
+import { decryptOptionalText, decryptRequiredText, optionalText } from '../lib/encrypted-text.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -139,34 +141,8 @@ function requireParentCalendarReader(user: SessionUser): void {
   throw toForbidden(new AccessDeniedError('parent calendar requires Parent or full-admin'));
 }
 
-function dateFromKey(value: string): Date {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime()) || dateKey(date) !== value) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter a valid date' });
-  }
-  return date;
-}
-
-function dateKey(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function timeFromMinutes(value: number | null): string | null {
-  if (value === null) return null;
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-function minutesFromTime(value: string): number {
-  const [hoursValue, minutesValue] = value.split(':');
-  return Number(hoursValue) * 60 + Number(minutesValue);
-}
-
 function normaliseDescription(value: string | undefined): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return optionalText(value);
 }
 
 function validateDateRange(startDate: Date, endDate: Date): void {
@@ -223,8 +199,7 @@ function decryptOptional(
   decrypt: (value: string | null | undefined) => string | null,
   value: string | null,
 ): string | null {
-  if (!value) return null;
-  return decrypt(value);
+  return decryptOptionalText({ decrypt }, value);
 }
 
 function mapRequiredPeople(ctx: AuthedContext, event: CalendarEventRow) {
@@ -448,11 +423,7 @@ function decryptRequired(
   value: string,
   entity: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, entity);
 }
 
 function birthdayDateForYear(dob: string, year: number): string | null {

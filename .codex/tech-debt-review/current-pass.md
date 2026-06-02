@@ -3,10 +3,11 @@
 - Current pass: 1
 - Pass started: 2026-05-27
 - Eligible files at pass start: 389
-- Files reviewed so far: 20
-- Files remaining estimate: 369
-- Last run: 2026-05-30
-- Next selection strategy: continue pass 1 by selecting unreviewed oversized source files first, then high-churn files if no selected-file lint or type errors are present.
+- Current eligible files detected: 430
+- Files reviewed so far: 30
+- Files remaining estimate: 400
+- Last run: 2026-06-02
+- Next selection strategy: continue pass 1 by selecting unreviewed oversized production source files first; defer broad test-suite splitting unless lint or type errors make a test file the narrowest safe target.
 
 ## Reviewed This Pass
 
@@ -30,3 +31,13 @@
 18. `apps/api/src/routers/attendance.ts`
 19. `apps/api/src/routers/rota.ts`
 20. `apps/api/src/routers/registration.ts`
+21. `apps/web/src/components/incidents/incident-staff-workflow.tsx`
+22. `apps/api/src/routers/permissionSlip.ts`
+23. `apps/api/src/routers/incident.ts`
+24. `packages/domain/src/invoice.ts`
+25. `apps/api/src/routers/calendar.ts`
+26. `apps/api/src/routers/report.ts`
+27. `apps/api/src/routers/message.ts`
+28. `apps/api/src/routers/notice.ts`
+29. `apps/api/src/routers/profile.ts`
+30. `apps/api/src/routers/investment.ts`

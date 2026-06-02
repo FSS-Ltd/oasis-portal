@@ -1,9 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import type {
-  PermissionSlipCategory,
-  Prisma,
-} from '@oasis/db';
+import type { PermissionSlipCategory, Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   assertPermissionSlipCanBeParentMarkedPaid,
@@ -16,6 +13,19 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
+import {
+  dateFromKey,
+  dateKey,
+  minutesFromTime,
+  timeFromMinutes,
+  todayKey,
+} from '../lib/date-time-keys.js';
+import {
+  decryptOptionalText,
+  decryptRequiredText,
+  encryptOptionalText,
+  optionalText,
+} from '../lib/encrypted-text.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -45,11 +55,19 @@ const permissionSlipInput = z.object({
   location: z.string().trim().max(240, 'Location is too long').optional(),
   transport: z.string().trim().max(160, 'Transport is too long').optional(),
   cost: z.string().trim().max(80, 'Cost is too long').optional(),
-  consentText: z.string().trim().min(1, 'Enter the consent text').max(2000, 'Consent text is too long'),
+  consentText: z
+    .string()
+    .trim()
+    .min(1, 'Enter the consent text')
+    .max(2000, 'Consent text is too long'),
   requireMedical: z.boolean().default(false),
   requireEmergencyContact: z.boolean().default(false),
   requirePayment: z.boolean().default(false),
-  recipientLabel: z.string().trim().min(1, 'Enter a recipient label').max(160, 'Recipient label is too long'),
+  recipientLabel: z
+    .string()
+    .trim()
+    .min(1, 'Enter a recipient label')
+    .max(160, 'Recipient label is too long'),
   studentIds: z.array(z.string().min(1)).min(1, 'Choose at least one student').max(500),
   bringItems: z.array(z.string().trim().min(1).max(120)).max(30).default([]),
   questions: z.array(questionInput).max(20).default([]),
@@ -126,50 +144,15 @@ function requirePermissionSlipManager(user: SessionUser): void {
   }
 }
 
-function dateFromKey(value: string): Date {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime()) || dateKey(date) !== value) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Enter a valid date' });
-  }
-  return date;
-}
-
-function dateKey(value: Date): string {
-  return value.toISOString().slice(0, 10);
-}
-
-function todayKey(now = new Date()): string {
-  return now.toISOString().slice(0, 10);
-}
-
-function minutesFromTime(value: string): number {
-  const [hoursValue, minutesValue] = value.split(':');
-  return Number(hoursValue) * 60 + Number(minutesValue);
-}
-
-function timeFromMinutes(value: number | null): string | null {
-  if (value === null) return null;
-  const hours = Math.floor(value / 60);
-  const minutes = value % 60;
-  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-}
-
-function optionalText(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? '';
-  return trimmed.length > 0 ? trimmed : null;
-}
-
 function encryptOptional(ctx: AuthedContext, value: string | undefined): string | null {
-  const normalized = optionalText(value);
-  return normalized ? ctx.db.$enc.encrypt(normalized) : null;
+  return encryptOptionalText(ctx.db.$enc, value);
 }
 
 function decryptOptional(
   decrypt: (value: string | null | undefined) => string | null,
   value: string | null,
 ): string | null {
-  if (!value) return null;
-  return decrypt(value);
+  return decryptOptionalText({ decrypt }, value);
 }
 
 function decryptRequired(
@@ -177,11 +160,7 @@ function decryptRequired(
   value: string,
   entity: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, entity);
 }
 
 function parseTimeRange(input: {
@@ -757,87 +736,93 @@ export const permissionSlipRouter = router({
     return mapSlip(ctx, slip);
   }),
 
-  archive: authedProcedure.input(z.object({ id: z.string().min(1) })).mutation(async ({ ctx, input }) => {
-    requirePermissionSlipManager(ctx.user);
-    const slip = await ctx.withRls(async (tx) => {
-      const existing = await tx.permissionSlip.findUnique({
-        where: { id: input.id },
-        select: { id: true, calendarEventId: true },
-      });
-      if (!existing) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'permission slip not found' });
-      }
-      if (existing.calendarEventId) {
-        await tx.calendarEvent.update({
-          where: { id: existing.calendarEventId },
+  archive: authedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      requirePermissionSlipManager(ctx.user);
+      const slip = await ctx.withRls(async (tx) => {
+        const existing = await tx.permissionSlip.findUnique({
+          where: { id: input.id },
+          select: { id: true, calendarEventId: true },
+        });
+        if (!existing) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'permission slip not found' });
+        }
+        if (existing.calendarEventId) {
+          await tx.calendarEvent.update({
+            where: { id: existing.calendarEventId },
+            data: { active: false },
+          });
+        }
+        const updated = await tx.permissionSlip.update({
+          where: { id: input.id },
           data: { active: false },
         });
-      }
-      const updated = await tx.permissionSlip.update({
-        where: { id: input.id },
-        data: { active: false },
-      });
-      await tx.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'PermissionSlip',
-          entityId: updated.id,
-          meta: { source: 'permissionSlip.archive', calendarEventId: existing.calendarEventId },
-        },
-      });
-      return loadSlip(tx, updated.id);
-    });
-    return mapSlip(ctx, slip);
-  }),
-
-  submitParentResponse: authedProcedure.input(parentResponseInput).mutation(async ({ ctx, input }) => {
-    await assertLinkedChildGuardianRecipientAccess(ctx, input);
-    const slip = await ctx.withRls(async (tx) => {
-      const current = await loadSlip(tx, input.slipId);
-      validateParentResponse(current, input);
-      const paymentStatus = current.requirePayment && input.decision === 'Signed' ? 'Unpaid' : 'NotRequired';
-      await tx.permissionSlipRecipient.update({
-        where: { slipId_studentId: { slipId: input.slipId, studentId: input.studentId } },
-        data: {
-          responseStatus: input.decision,
-          signatureSource: input.decision === 'Signed' ? 'ParentPortal' : null,
-          parentNameEnc: ctx.db.$enc.encrypt(input.parentName),
-          signedAt: new Date(),
-          medicalInfoEnc: input.decision === 'Signed' ? encryptOptional(ctx, input.medicalInfo) : null,
-          emergencyContactEnc:
-            input.decision === 'Signed' ? encryptOptional(ctx, input.emergencyContact) : null,
-          declineReasonEnc:
-            input.decision === 'Declined' ? encryptOptional(ctx, input.declineReason) : null,
-          parentRespondedById: ctx.user.id,
-          paymentStatus,
-        },
-      });
-      if (input.decision === 'Signed' && input.answers.length > 0) {
-        await tx.permissionSlipAnswer.createMany({
-          data: input.answers
-            .filter((answer) => optionalText(answer.answer))
-            .map((answer) => ({
-              questionId: answer.questionId,
-              slipId: input.slipId,
-              studentId: input.studentId,
-              answerEnc: ctx.db.$enc.encrypt(answer.answer),
-            })),
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'PermissionSlip',
+            entityId: updated.id,
+            meta: { source: 'permissionSlip.archive', calendarEventId: existing.calendarEventId },
+          },
         });
-      }
-      await tx.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'PermissionSlipRecipient',
-          entityId: `${input.slipId}:${input.studentId}`,
-          meta: { source: 'permissionSlip.submitParentResponse', decision: input.decision },
-        },
+        return loadSlip(tx, updated.id);
       });
-      return loadSlip(tx, input.slipId);
-    });
-    return mapSlip(ctx, slip);
-  }),
+      return mapSlip(ctx, slip);
+    }),
+
+  submitParentResponse: authedProcedure
+    .input(parentResponseInput)
+    .mutation(async ({ ctx, input }) => {
+      await assertLinkedChildGuardianRecipientAccess(ctx, input);
+      const slip = await ctx.withRls(async (tx) => {
+        const current = await loadSlip(tx, input.slipId);
+        validateParentResponse(current, input);
+        const paymentStatus =
+          current.requirePayment && input.decision === 'Signed' ? 'Unpaid' : 'NotRequired';
+        await tx.permissionSlipRecipient.update({
+          where: { slipId_studentId: { slipId: input.slipId, studentId: input.studentId } },
+          data: {
+            responseStatus: input.decision,
+            signatureSource: input.decision === 'Signed' ? 'ParentPortal' : null,
+            parentNameEnc: ctx.db.$enc.encrypt(input.parentName),
+            signedAt: new Date(),
+            medicalInfoEnc:
+              input.decision === 'Signed' ? encryptOptional(ctx, input.medicalInfo) : null,
+            emergencyContactEnc:
+              input.decision === 'Signed' ? encryptOptional(ctx, input.emergencyContact) : null,
+            declineReasonEnc:
+              input.decision === 'Declined' ? encryptOptional(ctx, input.declineReason) : null,
+            parentRespondedById: ctx.user.id,
+            paymentStatus,
+          },
+        });
+        if (input.decision === 'Signed' && input.answers.length > 0) {
+          await tx.permissionSlipAnswer.createMany({
+            data: input.answers
+              .filter((answer) => optionalText(answer.answer))
+              .map((answer) => ({
+                questionId: answer.questionId,
+                slipId: input.slipId,
+                studentId: input.studentId,
+                answerEnc: ctx.db.$enc.encrypt(answer.answer),
+              })),
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'PermissionSlipRecipient',
+            entityId: `${input.slipId}:${input.studentId}`,
+            meta: { source: 'permissionSlip.submitParentResponse', decision: input.decision },
+          },
+        });
+        return loadSlip(tx, input.slipId);
+      });
+      return mapSlip(ctx, slip);
+    }),
 
   parentMarkPaid: authedProcedure.input(recipientInput).mutation(async ({ ctx, input }) => {
     await assertLinkedChildGuardianRecipientAccess(ctx, input);
@@ -896,10 +881,16 @@ export const permissionSlipRouter = router({
         const current = await loadSlip(tx, input.slipId);
         const recipient = current.recipients.find((row) => row.studentId === input.studentId);
         if (!recipient) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'permission slip recipient not found' });
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'permission slip recipient not found',
+          });
         }
         if (recipient.responseStatus !== 'Pending') {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'permission slip has already been answered' });
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'permission slip has already been answered',
+          });
         }
         await tx.permissionSlipRecipient.update({
           where: { slipId_studentId: { slipId: input.slipId, studentId: input.studentId } },
@@ -980,7 +971,10 @@ export const permissionSlipRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'permission slip recipient not found' });
       }
       if (recipient.paymentStatus !== 'PaymentPending') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'only pending payments can be rejected' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'only pending payments can be rejected',
+        });
       }
       await tx.permissionSlipRecipient.update({
         where: { slipId_studentId: input },
