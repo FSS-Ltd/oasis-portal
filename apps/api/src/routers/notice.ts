@@ -10,6 +10,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { assertUploadedNoticeAttachments } from '../services/notice-attachment-storage.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -126,11 +127,7 @@ function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
   value: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'staff notice decrypt failed' });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, 'staff notice');
 }
 
 function safeOriginalFileName(value: string): string {

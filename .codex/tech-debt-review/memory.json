@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-05-30",
+  "lastRunDate": "2026-06-02",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -10,7 +10,9 @@
       "status": "reviewed",
       "lineCountBefore": 1503,
       "lineCountAfter": 1503,
-      "issuesFixed": ["Prior automation pass reviewed shop workflow client."],
+      "issuesFixed": [
+        "Prior automation pass reviewed shop workflow client."
+      ],
       "validationStatus": "pass",
       "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
     },
@@ -20,7 +22,9 @@
       "status": "reviewed",
       "lineCountBefore": 1204,
       "lineCountAfter": 1204,
-      "issuesFixed": ["Prior automation pass reviewed admin invoice create modal."],
+      "issuesFixed": [
+        "Prior automation pass reviewed admin invoice create modal."
+      ],
       "validationStatus": "pass",
       "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
     },
@@ -30,7 +34,9 @@
       "status": "reviewed",
       "lineCountBefore": 1157,
       "lineCountAfter": 1157,
-      "issuesFixed": ["Prior automation pass reviewed child snapshot client."],
+      "issuesFixed": [
+        "Prior automation pass reviewed child snapshot client."
+      ],
       "validationStatus": "pass",
       "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
     },
@@ -40,7 +46,9 @@
       "status": "reviewed",
       "lineCountBefore": 1232,
       "lineCountAfter": 1232,
-      "issuesFixed": ["Prior automation pass reviewed student drillthrough content."],
+      "issuesFixed": [
+        "Prior automation pass reviewed student drillthrough content."
+      ],
       "validationStatus": "pass",
       "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
     },
@@ -50,7 +58,9 @@
       "status": "reviewed",
       "lineCountBefore": 978,
       "lineCountAfter": 978,
-      "issuesFixed": ["Prior automation pass reviewed behaviour log client."],
+      "issuesFixed": [
+        "Prior automation pass reviewed behaviour log client."
+      ],
       "validationStatus": "pass",
       "notes": "Carried forward from automation memory because repo memory was not present on origin/main."
     },
@@ -240,6 +250,128 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized API router; registration request shapes, access rules, and encrypted field semantics were not changed."
+    },
+    "apps/web/src/components/incidents/incident-staff-workflow.tsx": {
+      "lastReviewedAt": "2026-05-31",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1279,
+      "lineCountAfter": 1143,
+      "issuesFixed": [
+        "Extracted incident form state, payload mapping, date-time helpers, progress calculation, and reportability constants into a focused state helper module."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized incident staff workflow UI; no route, API, or workflow semantics changed."
+    },
+    "apps/api/src/routers/permissionSlip.ts": {
+      "lastReviewedAt": "2026-05-31",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1008,
+      "lineCountAfter": 1001,
+      "issuesFixed": [
+        "Reused shared API date/time key helpers.",
+        "Reused shared encrypted text helpers for optional and required PII fields."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized permission slip router; endpoint contracts, validation messages, and auth semantics were preserved."
+    },
+    "apps/api/src/routers/incident.ts": {
+      "lastReviewedAt": "2026-05-31",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 999,
+      "lineCountAfter": 1021,
+      "issuesFixed": [
+        "Reused shared encrypted text helpers for optional and required PII fields."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized incident router; formatting expanded some long lines while preserving API and safeguarding semantics."
+    },
+    "packages/domain/src/invoice.ts": {
+      "lastReviewedAt": "2026-05-31",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 937,
+      "lineCountAfter": 939,
+      "issuesFixed": [
+        "Named repeated invoice date-label arrays and invoice metadata word pattern used by parsing helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized invoice domain parser; parsing behaviour and public exports were preserved."
+    },
+    "apps/api/src/routers/calendar.ts": {
+      "lastReviewedAt": "2026-05-31",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 790,
+      "lineCountAfter": 761,
+      "issuesFixed": [
+        "Reused shared API date/time key helpers.",
+        "Reused shared encrypted text helpers and optional text normalization."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized calendar router; audience, visibility, and validation semantics were preserved."
+    },
+    "apps/api/src/routers/report.ts": {
+      "lastReviewedAt": "2026-06-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 777,
+      "lineCountAfter": 774,
+      "issuesFixed": [
+        "Reused shared API required-decryption helper for term report PII decrypt failures."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized report router; endpoint contracts, notification flow, and report compilation semantics were preserved."
+    },
+    "apps/api/src/routers/message.ts": {
+      "lastReviewedAt": "2026-06-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 750,
+      "lineCountAfter": 747,
+      "issuesFixed": [
+        "Reused shared API required-decryption helper for message/user PII decrypt failures."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized message router; thread access, notification, and read semantics were preserved."
+    },
+    "apps/api/src/routers/notice.ts": {
+      "lastReviewedAt": "2026-06-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 710,
+      "lineCountAfter": 707,
+      "issuesFixed": [
+        "Reused shared API required-decryption helper while preserving staff notice decrypt failure wording."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized notice router; attachment, audience, and read receipt semantics were preserved."
+    },
+    "apps/api/src/routers/profile.ts": {
+      "lastReviewedAt": "2026-06-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 636,
+      "lineCountAfter": 633,
+      "issuesFixed": [
+        "Reused shared API required-decryption helper for profile and invitation PII decrypt failures."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized profile router; invitation, Clerk email update, and profile response semantics were preserved."
+    },
+    "apps/api/src/routers/investment.ts": {
+      "lastReviewedAt": "2026-06-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 569,
+      "lineCountAfter": 569,
+      "issuesFixed": [
+        "Reviewed for lint, type safety, and oversized structure; no safe local code change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized investment router; no obvious safe refactor was made without increasing churn."
     }
   },
   "deferredFiles": {},

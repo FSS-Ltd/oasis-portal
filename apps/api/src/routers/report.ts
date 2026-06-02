@@ -15,6 +15,7 @@ import {
   REPORT_NOTIFICATION_EMAIL_SUBJECT,
   type EmailClient,
 } from '../lib/email.js';
+import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
@@ -147,11 +148,7 @@ function decryptRequired(
   value: string,
   entity: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, entity);
 }
 
 function encryptRequired(

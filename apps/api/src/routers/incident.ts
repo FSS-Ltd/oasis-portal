@@ -22,6 +22,11 @@ import {
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { generateIncidentParentPdf } from '../incidents/incident-report-pdf.js';
+import {
+  decryptOptionalText,
+  decryptRequiredText,
+  encryptOptionalText,
+} from '../lib/encrypted-text.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -219,7 +224,11 @@ const shareParentCopyInput = copyIdInput.extend({
 const attachmentMetadataInput = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(120),
-  sizeBytes: z.number().int().positive().max(10 * 1024 * 1024),
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(10 * 1024 * 1024),
 });
 
 const prepareAttachmentsInput = z.object({
@@ -283,7 +292,8 @@ function assertParentVisibilityOverride(
   if (!overrideVisibility || !canOverrideIncidentParentVisibility(user)) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'parent copies require signed-off incident reports unless senior visibility override is confirmed',
+      message:
+        'parent copies require signed-off incident reports unless senior visibility override is confirmed',
     });
   }
   if (report.status !== 'HeadReview' && report.status !== 'Escalated') {
@@ -292,11 +302,6 @@ function assertParentVisibilityOverride(
       message: 'parent visibility override requires a report in Head review or escalation',
     });
   }
-}
-
-function optionalText(value: string | undefined): string | null {
-  const trimmed = value?.trim() ?? '';
-  return trimmed.length > 0 ? trimmed : null;
 }
 
 function encryptRequired(ctx: AuthedContext, value: string, entity: string): string {
@@ -308,8 +313,7 @@ function encryptRequired(ctx: AuthedContext, value: string, entity: string): str
 }
 
 function encryptOptional(ctx: AuthedContext, value: string | undefined): string | null {
-  const normalized = optionalText(value);
-  return normalized ? ctx.db.$enc.encrypt(normalized) : null;
+  return encryptOptionalText(ctx.db.$enc, value);
 }
 
 function decryptRequired(
@@ -317,22 +321,20 @@ function decryptRequired(
   value: string,
   entity: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${entity} decrypt failed` });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, entity);
 }
 
 function decryptOptional(
   decrypt: (value: string | null | undefined) => string | null,
   value: string | null,
 ): string | null {
-  if (!value) return null;
-  return decrypt(value);
+  return decryptOptionalText({ decrypt }, value);
 }
 
-async function assertActiveStudents(db: Pick<IncidentRlsReadClient, 'student'>, studentIds: readonly string[]) {
+async function assertActiveStudents(
+  db: Pick<IncidentRlsReadClient, 'student'>,
+  studentIds: readonly string[],
+) {
   const uniqueStudentIds = [...new Set(studentIds)];
   const students = await db.student.findMany({
     where: { id: { in: uniqueStudentIds }, active: true },
@@ -344,7 +346,10 @@ async function assertActiveStudents(db: Pick<IncidentRlsReadClient, 'student'>, 
   return uniqueStudentIds;
 }
 
-async function assertActiveStaffUsers(db: Pick<IncidentRlsReadClient, 'user'>, staffIds: readonly string[]) {
+async function assertActiveStaffUsers(
+  db: Pick<IncidentRlsReadClient, 'user'>,
+  staffIds: readonly string[],
+) {
   const uniqueStaffIds = [...new Set(staffIds)];
   if (uniqueStaffIds.length === 0) return uniqueStaffIds;
 
@@ -353,7 +358,10 @@ async function assertActiveStaffUsers(db: Pick<IncidentRlsReadClient, 'user'>, s
     select: { id: true },
   });
   if (staff.length !== uniqueStaffIds.length) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'one or more staff witnesses were not found' });
+    throw new TRPCError({
+      code: 'NOT_FOUND',
+      message: 'one or more staff witnesses were not found',
+    });
   }
   return uniqueStaffIds;
 }
@@ -501,7 +509,10 @@ function mapParentCopy(ctx: AuthedContext, recipient: IncidentParentRecipientRow
   };
 }
 
-async function reportNumber(db: Pick<IncidentRlsReadClient, 'incidentReport'>, occurredAt: Date): Promise<string> {
+async function reportNumber(
+  db: Pick<IncidentRlsReadClient, 'incidentReport'>,
+  occurredAt: Date,
+): Promise<string> {
   const year = occurredAt.getUTCFullYear();
   const count = await db.incidentReport.count({
     where: {
@@ -705,7 +716,10 @@ export const incidentRouter = router({
     const updated = await ctx.withRls(async (tx) => {
       const report = await loadIncident(tx, input.reportId);
       if (report.status !== 'Draft') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'only draft incidents can be updated' });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'only draft incidents can be updated',
+        });
       }
       if (ctx.user.role === 'Supervisor' && report.recordedById !== ctx.user.id) {
         throw toForbidden(new AccessDeniedError('supervisors can only update their own drafts'));
@@ -798,7 +812,7 @@ export const incidentRouter = router({
     }
     const childName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII');
     const firstAidSummary = report.firstAidGiven
-      ? decryptOptional(ctx.db.$enc.decrypt, report.medicalNotesEnc) ?? 'First aid was recorded.'
+      ? (decryptOptional(ctx.db.$enc.decrypt, report.medicalNotesEnc) ?? 'First aid was recorded.')
       : null;
     const pdf = await generateIncidentParentPdf({
       reportNumber: report.reportNumber,
@@ -861,7 +875,10 @@ export const incidentRouter = router({
     );
     if (!copy) throw new TRPCError({ code: 'NOT_FOUND', message: 'parent copy not found' });
     if (copy.status !== 'Generated' || !copy.pdfBytesEnc) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'generate the parent PDF before sharing' });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'generate the parent PDF before sharing',
+      });
     }
     const report = await ctx.withRls((tx) => loadIncident(tx, copy.reportId));
     assertParentVisibilityOverride(ctx.user, report, input.overrideVisibility);
@@ -972,8 +989,9 @@ export const incidentRouter = router({
     };
   }),
 
-  downloadAttachment: authedProcedure.input(z.object({ attachmentId: z.string().min(1) })).query(
-    async ({ ctx, input }) => {
+  downloadAttachment: authedProcedure
+    .input(z.object({ attachmentId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
       requireIncidentCreator(ctx.user);
       const attachment = await ctx.withRls(
         async (tx) =>
@@ -984,15 +1002,18 @@ export const incidentRouter = router({
       if (!attachment) throw new TRPCError({ code: 'NOT_FOUND', message: 'attachment not found' });
       return {
         storageBucket: attachment.storageBucket,
-        storagePath: decryptRequired(ctx.db.$enc.decrypt, attachment.storagePathEnc, 'storage path'),
+        storagePath: decryptRequired(
+          ctx.db.$enc.decrypt,
+          attachment.storagePathEnc,
+          'storage path',
+        ),
         fileName: decryptRequired(
           ctx.db.$enc.decrypt,
           attachment.originalFileNameEnc,
           'attachment file name',
         ),
       };
-    },
-  ),
+    }),
 });
 
 function safeStorageFileName(fileName: string): string {

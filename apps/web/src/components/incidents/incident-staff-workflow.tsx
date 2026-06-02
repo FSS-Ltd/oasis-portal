@@ -28,7 +28,7 @@ import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { Panel } from '@/components/ui/panel';
 import { StatCard } from '@/components/ui/stat-card';
 import { showErrorToast, showSuccessToast } from '@/lib/notifications';
-import { api, type RouterOutputs } from '@/lib/trpc';
+import { api } from '@/lib/trpc';
 import {
   formatIncidentDate,
   formatIncidentDateTime,
@@ -38,138 +38,25 @@ import {
   incidentTypeLabels,
   statusTone,
 } from './incident-format';
-
-type StaffIncident = RouterOutputs['incident']['listStaff'][number];
-type IncidentType = keyof typeof incidentTypeLabels;
-type IncidentSeverity = keyof typeof incidentSeverityLabels;
-type IncidentConfidentiality = keyof typeof incidentConfidentialityLabels;
-type IncidentBooleanField = {
-  [K in keyof IncidentFormState]: IncidentFormState[K] extends boolean ? K : never;
-}[keyof IncidentFormState];
+import {
+  defaultIncidentForm,
+  emptyCopyForm,
+  incidentFormInput,
+  incidentFormProgress,
+  joinLocalDateTime,
+  parentVisibilityRoles,
+  reportabilityChecks,
+  splitLocalDateTime,
+  type IncidentConfidentiality,
+  type IncidentFormState,
+  type IncidentSeverity,
+  type IncidentType,
+  type ParentCopyFormState,
+  type StaffIncident,
+} from './incident-staff-workflow-state';
 
 interface StaffIncidentWorkflowProps {
   portal: 'admin' | 'supervisor';
-}
-
-interface IncidentFormState {
-  activity: string;
-  bodyArea: string;
-  confidentiality: IncidentConfidentiality;
-  dataSharingReason: string;
-  directDisclosure: string;
-  dslNotified: boolean;
-  emergencyServicesContacted: boolean;
-  factualAccount: string;
-  firstAidGiven: boolean;
-  firstAiderId: string;
-  headSignOffRequired: boolean;
-  hospitalTreatment: boolean;
-  immediateActions: string;
-  injurySustained: boolean;
-  ladoConsidered: boolean;
-  location: string;
-  medicalNotes: string;
-  occurredAt: string;
-  offSite: boolean;
-  parentCarerNotified: boolean;
-  parentNotifiedAt: string;
-  parentVisibilityRequested: boolean;
-  pastorPrincipalEscalation: boolean;
-  riddorCheck: boolean;
-  severity: IncidentSeverity;
-  socialCarePoliceReferral: boolean;
-  staffIds: string[];
-  studentIds: string[];
-  type: IncidentType;
-  witnesses: string;
-  witnessStaffIds: string[];
-}
-
-const defaultForm: IncidentFormState = {
-  activity: '',
-  bodyArea: '',
-  confidentiality: 'StaffOnly',
-  dataSharingReason: '',
-  directDisclosure: '',
-  dslNotified: false,
-  emergencyServicesContacted: false,
-  factualAccount: '',
-  firstAidGiven: false,
-  firstAiderId: '',
-  headSignOffRequired: true,
-  hospitalTreatment: false,
-  immediateActions: '',
-  injurySustained: false,
-  ladoConsidered: false,
-  location: '',
-  medicalNotes: '',
-  occurredAt: new Date().toISOString().slice(0, 16),
-  offSite: false,
-  parentCarerNotified: false,
-  parentNotifiedAt: '',
-  parentVisibilityRequested: false,
-  pastorPrincipalEscalation: false,
-  riddorCheck: false,
-  severity: 'Medium',
-  socialCarePoliceReferral: false,
-  staffIds: [],
-  studentIds: [],
-  type: 'SafeguardingConcern',
-  witnesses: '',
-  witnessStaffIds: [],
-};
-
-interface ParentCopyFormState {
-  parentSummary: string;
-  sharingReason: string;
-  studentId: string;
-}
-
-function emptyCopyForm(report: StaffIncident | null): ParentCopyFormState {
-  const student = report?.students[0];
-  return {
-    parentSummary: '',
-    sharingReason: report?.dataSharingReason ?? '',
-    studentId: student?.studentId ?? '',
-  };
-}
-
-function formInput(form: IncidentFormState) {
-  return {
-    activity: form.activity || undefined,
-    bodyArea: form.bodyArea || undefined,
-    confidentiality: form.confidentiality,
-    dataSharingReason: form.dataSharingReason || undefined,
-    directDisclosure: form.directDisclosure || undefined,
-    dslNotified: form.dslNotified,
-    emergencyServicesContacted: form.emergencyServicesContacted,
-    factualAccount: form.factualAccount,
-    firstAidGiven: form.firstAidGiven,
-    headSignOffRequired: form.headSignOffRequired,
-    hospitalTreatment: form.hospitalTreatment,
-    immediateActions: form.immediateActions || undefined,
-    injurySustained: form.injurySustained,
-    ladoConsidered: form.ladoConsidered,
-    location: form.location,
-    medicalNotes: form.medicalNotes || undefined,
-    occurredAt: new Date(form.occurredAt),
-    offSite: form.offSite,
-    parentCarerNotified: form.parentCarerNotified,
-    parentNotifiedAt: form.parentNotifiedAt
-      ? new Date(joinLocalDateTime(splitLocalDateTime(form.occurredAt).date, form.parentNotifiedAt))
-      : undefined,
-    parentVisibilityRequested: form.parentVisibilityRequested,
-    pastorPrincipalEscalation: form.pastorPrincipalEscalation,
-    riddorCheck: form.riddorCheck,
-    severity: form.severity,
-    socialCarePoliceReferral: form.socialCarePoliceReferral,
-    staffIds: form.staffIds,
-    studentIds: form.studentIds,
-    type: form.type,
-    witnesses: form.witnesses || undefined,
-    witnessStaffIds: form.witnessStaffIds,
-    firstAiderId: form.firstAiderId || undefined,
-  };
 }
 
 function IncidentStatusBadge({ status }: { status: StaffIncident['status'] }) {
@@ -262,65 +149,6 @@ function SwitchRow({
       </span>
     </label>
   );
-}
-
-function splitLocalDateTime(value: string): { date: string; time: string } {
-  const [date = '', time = ''] = value.split('T');
-  return { date, time };
-}
-
-function joinLocalDateTime(date: string, time: string): string {
-  return `${date || new Date().toISOString().slice(0, 10)}T${time || '09:00'}`;
-}
-
-const reportabilityChecks = [
-  {
-    field: 'dslNotified',
-    label: 'DSL notified for safeguarding concern',
-    help: 'Use this when the concern has been passed to the Designated Safeguarding Lead for review.',
-  },
-  {
-    field: 'headSignOffRequired',
-    label: 'Head sign-off required',
-    help: 'Use this when a senior leader must approve the report before any parent-safe copy is released.',
-  },
-  {
-    field: 'pastorPrincipalEscalation',
-    label: 'Escalate to Pastor/Principal',
-    help: 'Use this for serious safeguarding, reputational, or operational concerns that need senior escalation.',
-  },
-  {
-    field: 'ladoConsidered',
-    label: 'Consider LADO if allegation involves staff/adult',
-    help: 'LADO means Local Authority Designated Officer. Consider this where an allegation involves an adult working with children.',
-  },
-  {
-    field: 'socialCarePoliceReferral',
-    label: "Consider children's social care / police referral",
-    help: 'Use this when the facts may meet the threshold for external safeguarding or police advice.',
-  },
-  {
-    field: 'riddorCheck',
-    label: 'HSE/RIDDOR check if serious injury, hospital treatment, or dangerous occurrence',
-    help: 'HSE is the Health and Safety Executive. RIDDOR is the legal reporting regime for specified workplace injuries and dangerous occurrences.',
-  },
-] satisfies Array<{ field: IncidentBooleanField; label: string; help: string }>;
-
-const parentVisibilityRoles = new Set(['Head', 'Pastor', 'HeadOfDiscipline', 'Principal']);
-
-function incidentFormProgress(form: IncidentFormState): { completed: number; total: number } {
-  const checks = [
-    form.type.length > 0,
-    form.severity.length > 0,
-    form.occurredAt.length > 0,
-    form.location.trim().length > 0,
-    form.studentIds.length > 0,
-    form.factualAccount.trim().length > 0,
-    form.immediateActions.trim().length > 0,
-    reportabilityChecks.some(({ field }) => form[field]),
-  ];
-
-  return { completed: checks.filter(Boolean).length, total: checks.length };
 }
 
 function IncidentProgressRail({
@@ -484,10 +312,14 @@ function IncidentForm({
     <Panel body className="incident-form-panel">
       <form className="incident-form" id={formId} onSubmit={onSubmit}>
         <section className="incident-form-section">
-          <h3><span>1</span> Incident classification</h3>
+          <h3>
+            <span>1</span> Incident classification
+          </h3>
           <div className="incident-form-grid incident-form-grid--split">
             <div className="incident-option-group">
-              <span className="field__label">Incident type <em>Required</em></span>
+              <span className="field__label">
+                Incident type <em>Required</em>
+              </span>
               <div className="incident-choice-grid">
                 {Object.entries(incidentTypeLabels).map(([value, label]) => (
                   <ChoiceButton
@@ -504,7 +336,11 @@ function IncidentForm({
             </div>
             <div className="incident-option-group">
               <span className="field__label">Severity</span>
-              <div className="incident-segment incident-segment--severity" role="group" aria-label="Severity">
+              <div
+                className="incident-segment incident-segment--severity"
+                role="group"
+                aria-label="Severity"
+              >
                 {Object.entries(incidentSeverityLabels).map(([value, label]) => (
                   <button
                     className={form.severity === value ? 'is-selected' : ''}
@@ -537,7 +373,9 @@ function IncidentForm({
         </section>
 
         <section className="incident-form-section">
-          <h3><span>2</span> When and where</h3>
+          <h3>
+            <span>2</span> When and where
+          </h3>
           <div className="incident-form-grid incident-form-grid--four">
             <Field label="Date" required>
               <TextInput
@@ -584,7 +422,9 @@ function IncidentForm({
         </section>
 
         <section className="incident-form-section">
-          <h3><span>3</span> People involved</h3>
+          <h3>
+            <span>3</span> People involved
+          </h3>
           <div className="incident-form-grid">
             <BehaviourStudentSelector
               chooseLabel="Choose children"
@@ -643,7 +483,9 @@ function IncidentForm({
         </section>
 
         <section className="incident-form-section">
-          <h3><span>4</span> Factual account</h3>
+          <h3>
+            <span>4</span> Factual account
+          </h3>
           <div className="incident-form-grid incident-form-grid--wide">
             <Field label="What happened?" required>
               <textarea
@@ -676,7 +518,9 @@ function IncidentForm({
         </section>
 
         <section className="incident-form-section">
-          <h3><span>5</span> Injury, first aid and medical</h3>
+          <h3>
+            <span>5</span> Injury, first aid and medical
+          </h3>
           <div className="incident-form-grid">
             <BooleanSegment
               label="Injury sustained?"
@@ -794,7 +638,8 @@ function ParentCopyPanel({
   const selectedCopy = report.parentCopies.find((copy) => copy.studentId === form.studentId);
   const overrideRequired = report.status !== 'SignedOff';
   const overrideAvailable =
-    canOverrideParentVisibility && (report.status === 'HeadReview' || report.status === 'Escalated');
+    canOverrideParentVisibility &&
+    (report.status === 'HeadReview' || report.status === 'Escalated');
   const canGenerate =
     Boolean(form.studentId && form.parentSummary.trim()) &&
     (report.status === 'SignedOff' || overrideAvailable);
@@ -871,7 +716,11 @@ function ParentCopyPanel({
           Share
         </Button>
       </div>
-      {selectedCopy ? <Badge tone={selectedCopy.status === 'Shared' ? 'green' : 'blue'}>{selectedCopy.status}</Badge> : null}
+      {selectedCopy ? (
+        <Badge tone={selectedCopy.status === 'Shared' ? 'green' : 'blue'}>
+          {selectedCopy.status}
+        </Badge>
+      ) : null}
     </Panel>
   );
 }
@@ -957,18 +806,28 @@ function IncidentDetail({
                 <small>{formatIncidentDateTime(report.createdAt)}</small>
               </div>
             </div>
-            <div className={`incident-overview-timeline__item${report.status !== 'Draft' ? ' is-active' : ''}`}>
+            <div
+              className={`incident-overview-timeline__item${report.status !== 'Draft' ? ' is-active' : ''}`}
+            >
               <span />
               <div>
                 <strong>Head reviewed</strong>
-                <small>{report.signedOffAt ? formatIncidentDateTime(report.signedOffAt) : 'Awaiting review'}</small>
+                <small>
+                  {report.signedOffAt
+                    ? formatIncidentDateTime(report.signedOffAt)
+                    : 'Awaiting review'}
+                </small>
               </div>
             </div>
-            <div className={`incident-overview-timeline__item${report.status === 'Escalated' ? ' is-warning' : ''}`}>
+            <div
+              className={`incident-overview-timeline__item${report.status === 'Escalated' ? ' is-warning' : ''}`}
+            >
               <span />
               <div>
                 <strong>Escalated to Pastor/Principal</strong>
-                <small>{report.escalatedAt ? formatIncidentDateTime(report.escalatedAt) : 'Optional'}</small>
+                <small>
+                  {report.escalatedAt ? formatIncidentDateTime(report.escalatedAt) : 'Optional'}
+                </small>
               </div>
             </div>
           </div>
@@ -1028,7 +887,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   const [mode, setMode] = useState<'dashboard' | 'form'>('dashboard');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [form, setForm] = useState<IncidentFormState>(defaultForm);
+  const [form, setForm] = useState<IncidentFormState>(defaultIncidentForm);
   const incidents = api.incident.listStaff.useQuery();
   const profile = api.profile.me.useQuery(undefined, { retry: false });
   const students = api.student.list.useQuery(undefined, { retry: false });
@@ -1036,7 +895,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   const utils = api.useUtils();
   const createDraft = api.incident.createDraft.useMutation({
     async onSuccess(data) {
-      setForm(defaultForm);
+      setForm(defaultIncidentForm);
       setMode('dashboard');
       setSelectedId(data.id);
       await utils.incident.listStaff.invalidate();
@@ -1095,7 +954,9 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
       id: 'type',
       header: 'Incident type',
       render: (report) => (
-        <span className="incident-table-title">{incidentTypeLabels[report.type as IncidentType]}</span>
+        <span className="incident-table-title">
+          {incidentTypeLabels[report.type as IncidentType]}
+        </span>
       ),
     },
     {
@@ -1127,7 +988,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
 
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    createDraft.mutate(formInput(form));
+    createDraft.mutate(incidentFormInput(form));
   }
 
   if (mode === 'form') {
@@ -1137,7 +998,9 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
           <div>
             <p>{formatIncidentDate(new Date())}</p>
             <h1>New Incident Report</h1>
-            <span>Record factual details, reportability checks, sign-off, and parent PDF visibility.</span>
+            <span>
+              Record factual details, reportability checks, sign-off, and parent PDF visibility.
+            </span>
           </div>
           <div className="incident-page__actions">
             <Button
@@ -1234,7 +1097,9 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
         />
       </div>
 
-      <div className={`incident-layout${selected ? ' incident-layout--split' : ' incident-layout--full'}`}>
+      <div
+        className={`incident-layout${selected ? ' incident-layout--split' : ' incident-layout--full'}`}
+      >
         <Panel body className="incident-list-panel">
           <div className="incident-toolbar">
             <label className="incident-search">
@@ -1263,12 +1128,12 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
             rows={rows}
           />
         </Panel>
-          {selected ? (
-            <IncidentDetail
-              canOverrideParentVisibility={parentVisibilityAllowed}
-              onClose={() => {
-                setSelectedId(null);
-              }}
+        {selected ? (
+          <IncidentDetail
+            canOverrideParentVisibility={parentVisibilityAllowed}
+            onClose={() => {
+              setSelectedId(null);
+            }}
             portal={portal}
             report={selected}
           />

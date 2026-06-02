@@ -14,6 +14,7 @@ import {
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   type EmailClient,
 } from '../lib/email.js';
+import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -186,11 +187,7 @@ function decryptRequired(
   value: string,
   label: string,
 ): string {
-  const decrypted = decrypt(value);
-  if (!decrypted) {
-    throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: `${label} decrypt failed` });
-  }
-  return decrypted;
+  return decryptRequiredText({ decrypt }, value, label);
 }
 
 function displayUser(ctx: AuthedContext, user: UserDisplayRow) {
