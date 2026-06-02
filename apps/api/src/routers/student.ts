@@ -419,6 +419,11 @@ export const studentRouter = router({
   deleteArchived: adminOperationsProcedure
     .input(deleteArchivedInput)
     .mutation(async ({ ctx, input }) =>
-      deleteArchivedStudent(ctx.db, { actorUserId: ctx.user.id, studentId: input.id }),
+      deleteArchivedStudent(
+        {
+          $transaction: (callback) => ctx.db.$transaction((tx) => callback(tx)),
+        },
+        { actorUserId: ctx.user.id, studentId: input.id },
+      ),
     ),
 });

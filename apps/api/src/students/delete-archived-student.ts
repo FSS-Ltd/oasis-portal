@@ -1,5 +1,4 @@
 import { TRPCError } from '@trpc/server';
-import type { AppContext } from '../context.js';
 
 interface DeleteManyDelegate {
   deleteMany(args: { where: Record<string, unknown> }): Promise<{ count: number }>;
@@ -72,7 +71,9 @@ interface DeleteArchivedStudentTx {
   user: StudentUserDelegate;
 }
 
-export type DeleteArchivedStudentDb = Pick<AppContext['db'], '$transaction'>;
+export interface DeleteArchivedStudentDb {
+  $transaction<T>(callback: (tx: DeleteArchivedStudentTx) => Promise<T>): Promise<T>;
+}
 
 export interface DeleteArchivedStudentInput {
   actorUserId: string;

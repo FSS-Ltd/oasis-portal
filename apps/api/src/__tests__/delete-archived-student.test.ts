@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { deleteArchivedStudent } from '../students/delete-archived-student.js';
+import {
+  deleteArchivedStudent,
+  type DeleteArchivedStudentDb,
+} from '../students/delete-archived-student.js';
 
 function delegate() {
   return {
@@ -46,11 +49,13 @@ function makeTx() {
 }
 
 function makeDb(tx = makeTx()) {
+  const db: DeleteArchivedStudentDb = {
+    $transaction: (callback) => callback(tx),
+  };
+
   return {
     tx,
-    db: {
-      $transaction: vi.fn(async <T>(callback: (innerTx: typeof tx) => Promise<T>) => callback(tx)),
-    },
+    db,
   };
 }
 
