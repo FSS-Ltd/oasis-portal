@@ -71,6 +71,7 @@ const HEAD_ONLY_PERMISSION_TAGS = [
   'calendar-manager',
   'parent-message-responder',
 ] as const satisfies readonly PermissionTag[];
+const permissionTagOptions = PERMISSION_TAGS as readonly [PermissionTag, ...PermissionTag[]];
 
 const searchParentsInput = z
   .object({
@@ -79,12 +80,7 @@ const searchParentsInput = z
   })
   .optional();
 
-const permissionTagSchema = z.enum(
-  PERMISSION_TAGS as unknown as readonly [
-    (typeof PERMISSION_TAGS)[number],
-    ...(typeof PERMISSION_TAGS)[number][],
-  ],
-);
+const permissionTagSchema = z.enum(permissionTagOptions);
 
 const updateUserTagsInput = z.object({
   userId: z.string().min(1),

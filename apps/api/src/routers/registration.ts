@@ -206,6 +206,34 @@ type EncryptionContext = {
   };
 };
 
+type RegistrationDecrypt = (value: string | null | undefined) => string | null;
+
+type GuardianContactRow = {
+  fullNameEnc: string;
+  relationshipEnc: string;
+  primaryPhoneEnc: string;
+  secondaryPhoneEnc: string | null;
+  emailEnc: string | null;
+  workPhoneEnc: string | null;
+  addressEnc: string | null;
+};
+
+type EmergencyContactRow = {
+  fullNameEnc: string;
+  relationshipEnc: string;
+  primaryPhoneEnc: string;
+  secondaryPhoneEnc: string | null;
+  emailEnc: string | null;
+  canPickUp: boolean;
+};
+
+type PickupContactRow = {
+  fullNameEnc: string;
+  relationshipEnc: string;
+  phoneEnc: string;
+  idPasswordNoteEnc: string | null;
+};
+
 function guardianContactData(
   ctx: EncryptionContext,
   contact: ParentInitialRegistrationInput['guardianContacts'][number],
@@ -317,10 +345,45 @@ function studentProfileData(
   };
 }
 
-function mapConsents(
-  decrypt: (value: string | null | undefined) => string | null,
-  consents: RegistrationStudentRow['consents'],
+function mapGuardianContacts(
+  decrypt: RegistrationDecrypt,
+  contacts: readonly GuardianContactRow[],
 ) {
+  return contacts.map((contact) => ({
+    fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration guardian PII'),
+    relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration guardian PII'),
+    primaryPhone: decryptRequired(decrypt, contact.primaryPhoneEnc, 'registration guardian PII'),
+    secondaryPhone: decryptOptional(decrypt, contact.secondaryPhoneEnc),
+    email: decryptOptional(decrypt, contact.emailEnc),
+    workPhone: decryptOptional(decrypt, contact.workPhoneEnc),
+    address: decryptOptional(decrypt, contact.addressEnc),
+  }));
+}
+
+function mapEmergencyContacts(
+  decrypt: RegistrationDecrypt,
+  contacts: readonly EmergencyContactRow[],
+) {
+  return contacts.map((contact) => ({
+    fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration emergency PII'),
+    relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration emergency PII'),
+    primaryPhone: decryptRequired(decrypt, contact.primaryPhoneEnc, 'registration emergency PII'),
+    secondaryPhone: decryptOptional(decrypt, contact.secondaryPhoneEnc),
+    email: decryptOptional(decrypt, contact.emailEnc),
+    canPickUp: contact.canPickUp,
+  }));
+}
+
+function mapPickupContacts(decrypt: RegistrationDecrypt, contacts: readonly PickupContactRow[]) {
+  return contacts.map((contact) => ({
+    fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration pickup PII'),
+    relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration pickup PII'),
+    phone: decryptRequired(decrypt, contact.phoneEnc, 'registration pickup PII'),
+    idPasswordNote: decryptOptional(decrypt, contact.idPasswordNoteEnc),
+  }));
+}
+
+function mapConsents(decrypt: RegistrationDecrypt, consents: RegistrationStudentRow['consents']) {
   return Object.fromEntries(
     REGISTRATION_CONSENT_TYPES.map((type) => {
       const consent = consents.find((row) => row.consentType === type);
@@ -358,29 +421,9 @@ function mapParentRegistration(
       guardianName: decryptRequired(decrypt, registration.agreementNameEnc, 'registration PII'),
       agreementDate: dateOnly(registration.agreementDate),
     },
-    guardianContacts: registration.guardianContacts.map((contact) => ({
-      fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration guardian PII'),
-      relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration guardian PII'),
-      primaryPhone: decryptRequired(decrypt, contact.primaryPhoneEnc, 'registration guardian PII'),
-      secondaryPhone: decryptOptional(decrypt, contact.secondaryPhoneEnc),
-      email: decryptOptional(decrypt, contact.emailEnc),
-      workPhone: decryptOptional(decrypt, contact.workPhoneEnc),
-      address: decryptOptional(decrypt, contact.addressEnc),
-    })),
-    emergencyContacts: registration.emergencyContacts.map((contact) => ({
-      fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration emergency PII'),
-      relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration emergency PII'),
-      primaryPhone: decryptRequired(decrypt, contact.primaryPhoneEnc, 'registration emergency PII'),
-      secondaryPhone: decryptOptional(decrypt, contact.secondaryPhoneEnc),
-      email: decryptOptional(decrypt, contact.emailEnc),
-      canPickUp: contact.canPickUp,
-    })),
-    pickupContacts: registration.pickupContacts.map((contact) => ({
-      fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration pickup PII'),
-      relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration pickup PII'),
-      phone: decryptRequired(decrypt, contact.phoneEnc, 'registration pickup PII'),
-      idPasswordNote: decryptOptional(decrypt, contact.idPasswordNoteEnc),
-    })),
+    guardianContacts: mapGuardianContacts(decrypt, registration.guardianContacts),
+    emergencyContacts: mapEmergencyContacts(decrypt, registration.emergencyContacts),
+    pickupContacts: mapPickupContacts(decrypt, registration.pickupContacts),
     students: registration.studentProfiles.map((profile) => ({
       studentId: profile.student.id,
       fullName: decryptRequired(decrypt, profile.student.fullNameEnc, 'student PII'),
@@ -424,29 +467,9 @@ function mapRegistrationByStudent(
       agreementDate: dateOnly(registration.agreementDate),
     },
     homeAddress,
-    guardianContacts: registration.guardianContacts.map((contact) => ({
-      fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration guardian PII'),
-      relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration guardian PII'),
-      primaryPhone: decryptRequired(decrypt, contact.primaryPhoneEnc, 'registration guardian PII'),
-      secondaryPhone: decryptOptional(decrypt, contact.secondaryPhoneEnc),
-      email: decryptOptional(decrypt, contact.emailEnc),
-      workPhone: decryptOptional(decrypt, contact.workPhoneEnc),
-      address: decryptOptional(decrypt, contact.addressEnc),
-    })),
-    emergencyContacts: registration.emergencyContacts.map((contact) => ({
-      fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration emergency PII'),
-      relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration emergency PII'),
-      primaryPhone: decryptRequired(decrypt, contact.primaryPhoneEnc, 'registration emergency PII'),
-      secondaryPhone: decryptOptional(decrypt, contact.secondaryPhoneEnc),
-      email: decryptOptional(decrypt, contact.emailEnc),
-      canPickUp: contact.canPickUp,
-    })),
-    pickupContacts: registration.pickupContacts.map((contact) => ({
-      fullName: decryptRequired(decrypt, contact.fullNameEnc, 'registration pickup PII'),
-      relationship: decryptRequired(decrypt, contact.relationshipEnc, 'registration pickup PII'),
-      phone: decryptRequired(decrypt, contact.phoneEnc, 'registration pickup PII'),
-      idPasswordNote: decryptOptional(decrypt, contact.idPasswordNoteEnc),
-    })),
+    guardianContacts: mapGuardianContacts(decrypt, registration.guardianContacts),
+    emergencyContacts: mapEmergencyContacts(decrypt, registration.emergencyContacts),
+    pickupContacts: mapPickupContacts(decrypt, registration.pickupContacts),
     student: {
       id: row.student.id,
       fullName: decryptRequired(decrypt, row.student.fullNameEnc, 'student PII'),

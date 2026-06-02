@@ -9,6 +9,7 @@ import {
   INCIDENT_TYPES,
   assertIncidentTransition,
   canOverrideIncidentParentVisibility,
+  canUseLinkedChildIncidentAccess,
   incidentParentCopyIsVisible,
   nextIncidentStatus,
   requireCanCreateIncidentReport,
@@ -262,6 +263,14 @@ function requireParentCopyShare(user: SessionUser): void {
   } catch (error) {
     if (error instanceof AccessDeniedError) throw toForbidden(error);
     throw error;
+  }
+}
+
+function requireLinkedChildIncidentAccess(user: SessionUser): void {
+  if (!canUseLinkedChildIncidentAccess(user)) {
+    throw toForbidden(
+      new AccessDeniedError('incident parent copies require linked-child guardian access'),
+    );
   }
 }
 
@@ -884,9 +893,7 @@ export const incidentRouter = router({
   }),
 
   listParent: authedProcedure.query(async ({ ctx }) => {
-    if (ctx.user.role !== 'Parent') {
-      throw toForbidden(new AccessDeniedError('incident parent copies require parent access'));
-    }
+    requireLinkedChildIncidentAccess(ctx.user);
     const recipients = await ctx.withRls(
       async (tx) =>
         (await tx.incidentReportParentRecipient.findMany({
@@ -901,16 +908,12 @@ export const incidentRouter = router({
   }),
 
   getParentCopy: authedProcedure.input(copyIdInput).query(async ({ ctx, input }) => {
-    if (ctx.user.role !== 'Parent') {
-      throw toForbidden(new AccessDeniedError('incident parent copies require parent access'));
-    }
+    requireLinkedChildIncidentAccess(ctx.user);
     return mapParentCopy(ctx, await assertParentRecipient(ctx, input.copyId));
   }),
 
   acknowledgeParentCopy: authedProcedure.input(copyIdInput).mutation(async ({ ctx, input }) => {
-    if (ctx.user.role !== 'Parent') {
-      throw toForbidden(new AccessDeniedError('incident parent copies require parent access'));
-    }
+    requireLinkedChildIncidentAccess(ctx.user);
     await assertParentRecipient(ctx, input.copyId);
     const acknowledgedAt = new Date();
     const recipient = await ctx.withRls(
@@ -937,9 +940,7 @@ export const incidentRouter = router({
   }),
 
   downloadParentPdf: authedProcedure.input(copyIdInput).query(async ({ ctx, input }) => {
-    if (ctx.user.role !== 'Parent') {
-      throw toForbidden(new AccessDeniedError('incident parent copies require parent access'));
-    }
+    requireLinkedChildIncidentAccess(ctx.user);
     const recipient = await assertParentRecipient(ctx, input.copyId);
     const copy = recipient.copy;
     if (!copy?.pdfBytesEnc || !copy.pdfFileNameEnc) {

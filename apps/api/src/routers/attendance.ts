@@ -9,7 +9,9 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
+  dateKey,
   loadDailyYearBandScope,
+  normalizeDate,
   studentMatchesDailyScope,
   studentWhereForDailyScope,
 } from '../lib/daily-year-band-scope.js';
@@ -136,14 +138,6 @@ function requireAbsenceReason(
 
 function validateDateRange(input: { from: Date; to: Date }): boolean {
   return normalizeDate(input.from).getTime() <= normalizeDate(input.to).getTime();
-}
-
-function normalizeDate(date: Date): Date {
-  return new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function dateKey(date: Date): string {
-  return normalizeDate(date).toISOString().slice(0, 10);
 }
 
 function absenceReasonForStatus(

@@ -169,6 +169,28 @@ interface StoredAttendance {
   createdAt: Date;
 }
 
+interface StoredPaceRecord {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  paceNumber: number;
+  paceTestScore: number | null;
+  selfTestScore: number | null;
+  completedAt: Date;
+  createdAt: Date;
+  subject: { id: string; code: string; name: string };
+  recordedById: string;
+  recordedBy: { id: string; fullNameEnc: string; role: string } | undefined;
+}
+
+interface StoredPaceProgress {
+  studentId: string;
+  subjectId: string;
+  paceNumber: number;
+  startedAt: Date;
+  completedAt: Date | null;
+}
+
 interface StoredCalendarEvent {
   id: string;
   active: boolean;
@@ -192,6 +214,8 @@ interface CalendarEventFindManyInput {
 interface FakeDbOptions {
   attendanceRows?: StoredAttendance[];
   calendarEvents?: StoredCalendarEvent[];
+  paceProgressRows?: StoredPaceProgress[];
+  paceRecordRows?: StoredPaceRecord[];
 }
 
 const today = day('2026-04-30');
@@ -341,6 +365,85 @@ function makeFakeDb(options: FakeDbOptions = {}) {
       role: sensitiveViewerUser.role,
     },
   ];
+  const defaultPaceRecords = [
+    {
+      id: 'pace_pass_april',
+      studentId: 'student_1',
+      subjectId: 'subject_1',
+      paceNumber: 1004,
+      paceTestScore: 90,
+      selfTestScore: null,
+      completedAt: day('2026-04-29'),
+      createdAt: day('2026-04-29'),
+      subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+      recordedById: supervisorUser.id,
+      recordedBy: users.find((user) => user.id === supervisorUser.id),
+    },
+    {
+      id: 'pace_self_march',
+      studentId: 'student_1',
+      subjectId: 'subject_1',
+      paceNumber: 1004,
+      paceTestScore: null,
+      selfTestScore: 100,
+      completedAt: day('2026-03-20'),
+      createdAt: day('2026-03-20'),
+      subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+      recordedById: supervisorUser.id,
+      recordedBy: users.find((user) => user.id === supervisorUser.id),
+    },
+    {
+      id: 'pace_failed_march',
+      studentId: 'student_1',
+      subjectId: 'subject_1',
+      paceNumber: 1003,
+      paceTestScore: 75,
+      selfTestScore: null,
+      completedAt: day('2026-03-10'),
+      createdAt: day('2026-03-10'),
+      subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+      recordedById: supervisorUser.id,
+      recordedBy: users.find((user) => user.id === supervisorUser.id),
+    },
+    {
+      id: 'pace_pass_february',
+      studentId: 'student_1',
+      subjectId: 'subject_1',
+      paceNumber: 1002,
+      paceTestScore: 82,
+      selfTestScore: null,
+      completedAt: day('2026-02-01'),
+      createdAt: day('2026-02-01'),
+      subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+      recordedById: supervisorUser.id,
+      recordedBy: users.find((user) => user.id === supervisorUser.id),
+    },
+    {
+      id: 'pace_old_pass',
+      studentId: 'student_1',
+      subjectId: 'subject_1',
+      paceNumber: 1001,
+      paceTestScore: 95,
+      selfTestScore: null,
+      completedAt: day('2025-08-31'),
+      createdAt: day('2025-08-31'),
+      subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
+      recordedById: supervisorUser.id,
+      recordedBy: users.find((user) => user.id === supervisorUser.id),
+    },
+  ] satisfies StoredPaceRecord[];
+  const paceRecordRows = options.paceRecordRows ?? defaultPaceRecords;
+  const paceProgressRows =
+    options.paceProgressRows ??
+    ([
+      {
+        studentId: 'student_1',
+        subjectId: 'subject_1',
+        paceNumber: 1004,
+        startedAt: day('2026-04-22'),
+        completedAt: day('2026-04-29'),
+      },
+    ] satisfies StoredPaceProgress[]);
   const behaviourEntries: StoredBehaviourEntry[] = [
     {
       id: 'behaviour_1',
@@ -577,23 +680,8 @@ function makeFakeDb(options: FakeDbOptions = {}) {
             completedAt?: { gte: Date; lt: Date };
           };
         } = {}) => {
-          const rows = [
-            {
-              id: 'pace_1',
-              studentId: 'student_1',
-              subjectId: 'subject_1',
-              paceNumber: 1001,
-              paceTestScore: 90,
-              selfTestScore: null,
-              completedAt: day('2026-04-29'),
-              createdAt: day('2026-04-29'),
-              subject: { id: 'subject_1', code: 'MATH', name: 'Maths' },
-              recordedById: supervisorUser.id,
-              recordedBy: users.find((user) => user.id === supervisorUser.id),
-            },
-          ];
           return Promise.resolve(
-            rows
+            paceRecordRows
               .filter(
                 (row) =>
                   where?.studentId === undefined ||
@@ -616,27 +704,34 @@ function makeFakeDb(options: FakeDbOptions = {}) {
         }: {
           where?: {
             OR?: Array<{ paceNumber: number; studentId: string; subjectId: string }>;
+            completedAt?: { gte: Date; lt: Date };
+            studentId?: string | { in: string[] };
           };
         } = {}) => {
-          const rows = [
-            {
-              studentId: 'student_1',
-              subjectId: 'subject_1',
-              paceNumber: 1001,
-              startedAt: day('2026-04-22'),
-            },
-          ];
           return Promise.resolve(
-            rows.filter(
-              (row) =>
-                !where?.OR?.length ||
-                where.OR.some(
-                  (candidate) =>
-                    candidate.studentId === row.studentId &&
-                    candidate.subjectId === row.subjectId &&
-                    candidate.paceNumber === row.paceNumber,
-                ),
-            ),
+            paceProgressRows
+              .filter(
+                (row) =>
+                  where?.studentId === undefined ||
+                  matchesStudentId(where.studentId, row.studentId),
+              )
+              .filter(
+                (row) =>
+                  where?.completedAt === undefined ||
+                  (row.completedAt !== null &&
+                    row.completedAt >= where.completedAt.gte &&
+                    row.completedAt < where.completedAt.lt),
+              )
+              .filter(
+                (row) =>
+                  !where?.OR?.length ||
+                  where.OR.some(
+                    (candidate) =>
+                      candidate.studentId === row.studentId &&
+                      candidate.subjectId === row.subjectId &&
+                      candidate.paceNumber === row.paceNumber,
+                  ),
+              ),
           );
         },
       ),
@@ -1218,7 +1313,7 @@ describe('childLog.snapshot', () => {
       student: { id: 'student_1', fullName: 'Jane Learner', active: true },
       metrics: {
         attendanceRate: 0,
-        pacesCompletedThisAcademicYear: 1,
+        pacesCompletedThisAcademicYear: 2,
         tithePercentage: 15,
         totalMerits: 17,
       },
@@ -1238,7 +1333,11 @@ describe('childLog.snapshot', () => {
         },
       ],
       notes: [{ note: 'Parent-visible note' }],
-      pace: [{ subjectCode: 'MATH', score: 90, passed: true }],
+      pace: [
+        { subjectCode: 'MATH', score: 90, passed: true, testType: 'PACE Test' },
+        { subjectCode: 'MATH', score: 100, passed: true, testType: 'Self-Test' },
+        { subjectCode: 'MATH', score: 75, passed: false, testType: 'PACE Test' },
+      ],
     });
     expect(dashboard.children[0]?.behaviour).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ note: 'Sensitive behaviour' })]),
@@ -1415,7 +1514,7 @@ describe('childLog.snapshot', () => {
       Investment: 2,
       ShopReserved: 0,
     });
-    expect(headView.metrics.pacesCompletedThisAcademicYear).toBe(1);
+    expect(headView.metrics.pacesCompletedThisAcademicYear).toBe(2);
     expect(headView.behaviour).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ visibility: 'General', note: 'Focused well' }),
