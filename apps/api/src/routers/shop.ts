@@ -317,14 +317,16 @@ const updateItemPhotoInput = z.object({
   photo: shopItemPhotoInput,
 });
 
+const SHOP_ITEM_PHOTO_EXTENSIONS = ['.jpeg', '.jpg', '.png', '.webp'] as const;
+
+type AllowedShopItemPhotoExtension = (typeof SHOP_ITEM_PHOTO_EXTENSIONS)[number];
+
 const shopItemPhotoMimeByExtension = {
   '.jpeg': 'image/jpeg',
   '.jpg': 'image/jpeg',
   '.png': 'image/png',
   '.webp': 'image/webp',
-} as const;
-
-type AllowedShopItemPhotoExtension = keyof typeof shopItemPhotoMimeByExtension;
+} as const satisfies Record<AllowedShopItemPhotoExtension, string>;
 
 function categoryDetails(category: ShopCategory) {
   return SHOP_CATEGORY_DETAILS[category];
@@ -341,10 +343,8 @@ function safeOriginalFileName(value: string): string {
 
 function shopItemPhotoExtension(fileName: string): AllowedShopItemPhotoExtension | null {
   const lowerName = fileName.toLowerCase();
-  const extension = Object.keys(shopItemPhotoMimeByExtension).find((candidate) =>
-    lowerName.endsWith(candidate),
-  );
-  return extension ? (extension as AllowedShopItemPhotoExtension) : null;
+  const extension = SHOP_ITEM_PHOTO_EXTENSIONS.find((candidate) => lowerName.endsWith(candidate));
+  return extension ?? null;
 }
 
 function safeStorageFileName(fileName: string): string {
@@ -1176,135 +1176,131 @@ export const shopRouter = router({
     return mapReservation(ctx, reservation);
   }),
 
-  collectReservation: authedProcedure
-    .input(reservationIdInput)
-    .mutation(async ({ ctx, input }) => {
-      await requireCanSellInShop(ctx, 'shop.collectReservation', input.reservationId);
+  collectReservation: authedProcedure.input(reservationIdInput).mutation(async ({ ctx, input }) => {
+    await requireCanSellInShop(ctx, 'shop.collectReservation', input.reservationId);
 
-      await ctx.db.$transaction(
-        async (tx: Prisma.TransactionClient) => {
-          const reservation = await tx.shopReservation.findUnique({
-            where: { id: input.reservationId },
-            include: { lines: true },
-          });
-          if (!reservation) {
-            throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
-          }
-          if (reservation.status !== 'Ready') {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
-          }
+    await ctx.db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const reservation = await tx.shopReservation.findUnique({
+          where: { id: input.reservationId },
+          include: { lines: true },
+        });
+        if (!reservation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
+        }
+        if (reservation.status !== 'Ready') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
+        }
 
-          const statusUpdate = await tx.shopReservation.updateMany({
-            where: { id: reservation.id, status: 'Ready' },
-            data: { status: 'Collected', collectedAt: new Date(), collectedById: ctx.user.id },
-          });
-          if (statusUpdate.count !== 1) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
-          }
+        const statusUpdate = await tx.shopReservation.updateMany({
+          where: { id: reservation.id, status: 'Ready' },
+          data: { status: 'Collected', collectedAt: new Date(), collectedById: ctx.user.id },
+        });
+        if (statusUpdate.count !== 1) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
+        }
 
-          await tx.shopPurchase.createMany({
-            data: reservation.lines.map((line) => ({
+        await tx.shopPurchase.createMany({
+          data: reservation.lines.map((line) => ({
+            studentId: reservation.studentId,
+            itemId: line.itemId,
+            unitsBought: line.unitsReserved,
+            totalPriceMerits: line.totalPriceMerits,
+            shopkeeperId: ctx.user.id,
+          })),
+        });
+        await tx.meritLedger.createMany({
+          data: rowsForReservationCollection({
+            studentId: reservation.studentId,
+            reservationId: reservation.id,
+            totalPriceMerits: reservation.totalPriceMerits,
+          }),
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'ShopReservation',
+            entityId: reservation.id,
+            meta: {
+              source: 'shop.collectReservation',
               studentId: reservation.studentId,
-              itemId: line.itemId,
-              unitsBought: line.unitsReserved,
-              totalPriceMerits: line.totalPriceMerits,
-              shopkeeperId: ctx.user.id,
-            })),
-          });
-          await tx.meritLedger.createMany({
-            data: rowsForReservationCollection({
-              studentId: reservation.studentId,
-              reservationId: reservation.id,
               totalPriceMerits: reservation.totalPriceMerits,
-            }),
-          });
-          await tx.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Update',
-              entity: 'ShopReservation',
-              entityId: reservation.id,
-              meta: {
-                source: 'shop.collectReservation',
-                studentId: reservation.studentId,
-                totalPriceMerits: reservation.totalPriceMerits,
-              },
             },
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    const reservation = await loadReservationById(ctx, input.reservationId);
+    return mapReservation(ctx, reservation);
+  }),
+
+  cancelReservation: authedProcedure.input(reservationIdInput).mutation(async ({ ctx, input }) => {
+    const existing = await ctx.db.shopReservation.findUnique({
+      where: { id: input.reservationId },
+      include: { student: { select: { id: true, userId: true } } },
+    });
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
+    }
+    await requireCanCancelReservation(ctx, existing);
+
+    await ctx.db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const reservation = await tx.shopReservation.findUnique({
+          where: { id: input.reservationId },
+          include: { lines: true },
+        });
+        if (!reservation) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
+        }
+        if (reservation.status !== 'Ready') {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
+        }
+
+        const statusUpdate = await tx.shopReservation.updateMany({
+          where: { id: reservation.id, status: 'Ready' },
+          data: { status: 'Cancelled', cancelledAt: new Date(), cancelledById: ctx.user.id },
+        });
+        if (statusUpdate.count !== 1) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
+        }
+
+        for (const line of reservation.lines) {
+          await tx.shopItem.update({
+            where: { id: line.itemId },
+            data: { stockCount: { increment: line.unitsReserved } },
           });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
-
-      const reservation = await loadReservationById(ctx, input.reservationId);
-      return mapReservation(ctx, reservation);
-    }),
-
-  cancelReservation: authedProcedure
-    .input(reservationIdInput)
-    .mutation(async ({ ctx, input }) => {
-      const existing = await ctx.db.shopReservation.findUnique({
-        where: { id: input.reservationId },
-        include: { student: { select: { id: true, userId: true } } },
-      });
-      if (!existing) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
-      }
-      await requireCanCancelReservation(ctx, existing);
-
-      await ctx.db.$transaction(
-        async (tx: Prisma.TransactionClient) => {
-          const reservation = await tx.shopReservation.findUnique({
-            where: { id: input.reservationId },
-            include: { lines: true },
-          });
-          if (!reservation) {
-            throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
-          }
-          if (reservation.status !== 'Ready') {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
-          }
-
-          const statusUpdate = await tx.shopReservation.updateMany({
-            where: { id: reservation.id, status: 'Ready' },
-            data: { status: 'Cancelled', cancelledAt: new Date(), cancelledById: ctx.user.id },
-          });
-          if (statusUpdate.count !== 1) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
-          }
-
-          for (const line of reservation.lines) {
-            await tx.shopItem.update({
-              where: { id: line.itemId },
-              data: { stockCount: { increment: line.unitsReserved } },
-            });
-          }
-          await tx.meritLedger.createMany({
-            data: rowsForReservationCancellation({
+        }
+        await tx.meritLedger.createMany({
+          data: rowsForReservationCancellation({
+            studentId: reservation.studentId,
+            reservationId: reservation.id,
+            totalPriceMerits: reservation.totalPriceMerits,
+          }),
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'ShopReservation',
+            entityId: reservation.id,
+            meta: {
+              source: 'shop.cancelReservation',
               studentId: reservation.studentId,
-              reservationId: reservation.id,
               totalPriceMerits: reservation.totalPriceMerits,
-            }),
-          });
-          await tx.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Update',
-              entity: 'ShopReservation',
-              entityId: reservation.id,
-              meta: {
-                source: 'shop.cancelReservation',
-                studentId: reservation.studentId,
-                totalPriceMerits: reservation.totalPriceMerits,
-              },
             },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
-      const reservation = await loadReservationById(ctx, input.reservationId);
-      return mapReservation(ctx, reservation);
-    }),
+    const reservation = await loadReservationById(ctx, input.reservationId);
+    return mapReservation(ctx, reservation);
+  }),
 
   purchase: authedProcedure
     .input(

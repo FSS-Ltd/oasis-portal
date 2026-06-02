@@ -73,3 +73,42 @@
 
 ### Follow-Ups Deferred
 - Larger router splits remain warranted, especially for invoice and club, but were deferred because they would require broader service extraction and deeper regression coverage.
+
+## 2026-05-30 - Pass 1
+
+### Selected Files
+1. `apps/api/src/routers/admin.ts`
+2. `apps/api/src/routers/shop.ts`
+3. `apps/api/src/routers/attendance.ts`
+4. `apps/api/src/routers/rota.ts`
+5. `apps/api/src/routers/registration.ts`
+
+### Baseline Findings
+- Lint: `pnpm exec eslint apps/api/src/routers/admin.ts apps/api/src/routers/shop.ts apps/api/src/routers/attendance.ts apps/api/src/routers/rota.ts apps/api/src/routers/registration.ts` passed before edits.
+- Typecheck: `pnpm --filter @oasis/api typecheck` passed before edits.
+- Tests: Not run at baseline; targeted router tests were run after the behaviour-preserving cleanup.
+
+### Changes Made
+- `apps/api/src/routers/admin.ts`: replaced the permission tag schema's double assertion with a named typed tuple.
+- `apps/api/src/routers/shop.ts`: replaced dynamic object-key extension narrowing with a typed shop item photo extension tuple and formatted the selected file.
+- `apps/api/src/routers/attendance.ts`: reused existing API UTC date helpers instead of router-local duplicates.
+- `apps/api/src/routers/rota.ts`: reused existing API UTC date helpers instead of router-local duplicates.
+- `apps/api/src/routers/registration.ts`: extracted duplicated guardian, emergency, and pickup contact response mapping into typed local helpers.
+
+### Validation
+- lint command: pass, `pnpm --filter @oasis/api lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/admin.router.test.ts src/__tests__/shop.router.test.ts src/__tests__/attendance.router.test.ts src/__tests__/rota.router.test.ts src/__tests__/registration.router.test.ts`
+- formatting: pass, `pnpm exec prettier --check apps/api/src/routers/admin.ts apps/api/src/routers/shop.ts apps/api/src/routers/attendance.ts apps/api/src/routers/rota.ts apps/api/src/routers/registration.ts`
+- diff whitespace: pass, `git diff --check`
+- graph update: pass with warning, `graphify update .` reported a lower node count than the previous graph before updating generated graph output; no graph files remained changed in git status.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger API router splits remain warranted, but were deferred because this run was limited to small local cleanups and targeted router coverage.
