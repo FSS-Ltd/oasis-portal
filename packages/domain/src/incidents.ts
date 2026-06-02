@@ -1,4 +1,9 @@
-import { AccessDeniedError, canAnswerChildRegistrationPrompt, isFullAdmin, type SessionUser } from './rbac.js';
+import {
+  AccessDeniedError,
+  canAnswerChildRegistrationPrompt,
+  canUseAdminOperations,
+  type SessionUser,
+} from './rbac.js';
 
 export const INCIDENT_REPORT_STATUSES = [
   'Draft',
@@ -40,7 +45,7 @@ export const INCIDENT_CONFIDENTIALITIES = ['StaffOnly', 'HeadDsl', 'ParentViewab
 export type IncidentConfidentiality = (typeof INCIDENT_CONFIDENTIALITIES)[number];
 
 export function canCreateIncidentReport(user: Pick<SessionUser, 'role'>): boolean {
-  return isFullAdmin(user) || user.role === 'Supervisor';
+  return canUseAdminOperations(user) || user.role === 'Supervisor';
 }
 
 export function canSignOffIncidentReport(user: Pick<SessionUser, 'role'>): boolean {

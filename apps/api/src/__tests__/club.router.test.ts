@@ -1146,7 +1146,7 @@ describe('club management', () => {
     );
   });
 
-  it.each([parentUser, supervisorUser, studentUser, technicalSupportUser])(
+  it.each([parentUser, supervisorUser, studentUser])(
     'blocks %s from managing clubs',
     async (user) => {
       const { caller } = makeCaller(user);
@@ -1261,6 +1261,7 @@ describe('club.list', () => {
 
     await expect(makeCaller(headUser, db).caller.club.list()).resolves.toHaveLength(2);
     await expect(makeCaller(clubsAdminUser, db).caller.club.list()).resolves.toHaveLength(2);
+    await expect(makeCaller(technicalSupportUser, db).caller.club.list()).resolves.toHaveLength(2);
     await expect(makeCaller(parentUser, db).caller.club.list()).resolves.toEqual([
       expect.objectContaining({
         id: defaultClubId,
@@ -1271,7 +1272,7 @@ describe('club.list', () => {
     ]);
   });
 
-  it.each([supervisorUser, studentUser, technicalSupportUser])(
+  it.each([supervisorUser, studentUser])(
     'blocks %s from listing clubs',
     async (user) => {
       await expect(makeCaller(user).caller.club.list()).rejects.toMatchObject({
@@ -1972,9 +1973,15 @@ describe('club.roster', () => {
     await expect(
       makeCaller(clubsLeadUser, db).caller.club.roster({ clubId: inactiveClubId }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(technicalSupportUser, db).caller.club.roster({ clubId: defaultClubId }),
+    ).resolves.toEqual({
+      clubId: defaultClubId,
+      signups: [expect.objectContaining({ studentId: linkedStudentId })],
+    });
   });
 
-  it.each([parentUser, supervisorUser, studentUser, technicalSupportUser])(
+  it.each([parentUser, supervisorUser, studentUser])(
     'blocks %s from roster reads',
     async (user) => {
       await expect(

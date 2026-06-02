@@ -9,6 +9,7 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
 import {
   AccessDeniedError,
+  requireAdminOperations,
   requireFullAdmin,
   requireRole,
   requireUserAccountAdmin,
@@ -69,6 +70,15 @@ function toTrpcError(err: unknown): TRPCError {
 export const fullAdminProcedure = authedProcedure.use(({ ctx, next }) => {
   try {
     requireFullAdmin(ctx.user);
+  } catch (err) {
+    throw toTrpcError(err);
+  }
+  return next();
+});
+
+export const adminOperationsProcedure = authedProcedure.use(({ ctx, next }) => {
+  try {
+    requireAdminOperations(ctx.user);
   } catch (err) {
     throw toTrpcError(err);
   }

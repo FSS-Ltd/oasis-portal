@@ -13,7 +13,7 @@ import {
   studentMatchesDailyScope,
   studentWhereForDailyScope,
 } from '../lib/daily-year-band-scope.js';
-import { authedProcedure, fullAdminProcedure, roleProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
@@ -685,7 +685,7 @@ export const attendanceRouter = router({
     }));
   }),
 
-  staffForDate: fullAdminProcedure
+  staffForDate: adminOperationsProcedure
     .input(z.object({ date: z.coerce.date() }))
     .query(async ({ ctx, input }) => {
       const date = normalizeDate(input.date);
@@ -832,7 +832,7 @@ export const attendanceRouter = router({
       };
     }),
 
-  markStaff: fullAdminProcedure.input(staffAttendanceMarkInput).mutation(async ({ ctx, input }) => {
+  markStaff: adminOperationsProcedure.input(staffAttendanceMarkInput).mutation(async ({ ctx, input }) => {
     const date = normalizeDate(input.date);
     const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
     await assertActiveStaffUser(ctx, input.staffUserId);

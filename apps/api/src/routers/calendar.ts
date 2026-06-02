@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
   AccessDeniedError,
   canManageCalendar,
-  isFullAdmin,
+  canUseAdminOperations,
   isStaff,
   type SessionUser,
 } from '@oasis/domain';
@@ -112,7 +112,7 @@ function requireCalendarManager(user: SessionUser): void {
 }
 
 function requireHeadAudienceManager(user: SessionUser, audience: CalendarAudience): void {
-  if (audience !== 'Heads' || isFullAdmin(user)) return;
+  if (audience !== 'Heads' || canUseAdminOperations(user)) return;
   throw toForbidden(
     new AccessDeniedError(
       'head-only calendar dates require Head, Principal, Pastor, or Head of Discipline',
@@ -121,7 +121,7 @@ function requireHeadAudienceManager(user: SessionUser, audience: CalendarAudienc
 }
 
 function requireCustomAudienceManager(user: SessionUser, audience: CalendarAudience): void {
-  if (audience !== 'Custom' || isFullAdmin(user)) return;
+  if (audience !== 'Custom' || canUseAdminOperations(user)) return;
   throw toForbidden(
     new AccessDeniedError(
       'custom calendar dates require Head, Principal, Pastor, or Head of Discipline',
@@ -130,12 +130,12 @@ function requireCustomAudienceManager(user: SessionUser, audience: CalendarAudie
 }
 
 function requireStaffCalendarReader(user: SessionUser): void {
-  if (isStaff(user)) return;
+  if (isStaff(user) || canUseAdminOperations(user)) return;
   throw toForbidden(new AccessDeniedError('staff calendar requires full-admin or Supervisor'));
 }
 
 function requireParentCalendarReader(user: SessionUser): void {
-  if (user.role === 'Parent' || isFullAdmin(user)) return;
+  if (user.role === 'Parent' || canUseAdminOperations(user)) return;
   throw toForbidden(new AccessDeniedError('parent calendar requires Parent or full-admin'));
 }
 
@@ -294,13 +294,13 @@ function activeAudienceWhere(audiences: readonly CalendarAudience[]) {
 
 function visibleAudiencesFor(user: SessionUser): readonly CalendarAudience[] {
   if (user.role === 'Parent') return ['All', 'Parents'];
-  if (isFullAdmin(user)) return ['All', 'Supervisors', 'Heads'];
+  if (canUseAdminOperations(user)) return ['All', 'Supervisors', 'Heads'];
   if (isStaff(user)) return ['All', 'Supervisors'];
   return ['All'];
 }
 
 function adminEventWhere(user: SessionUser): Prisma.CalendarEventWhereInput | undefined {
-  if (isFullAdmin(user)) return undefined;
+  if (canUseAdminOperations(user)) return undefined;
   return {
     OR: [
       { audience: { notIn: hiddenFromCalendarManagers } },
@@ -334,7 +334,7 @@ async function resolveRequiredPersonIds(
   input: z.infer<typeof calendarEventInput>,
 ): Promise<string[] | undefined> {
   if (!hasRequiredPersonInput(input)) return undefined;
-  if (!isFullAdmin(ctx.user)) {
+  if (!canUseAdminOperations(ctx.user)) {
     throw toForbidden(
       new AccessDeniedError(
         'calendar required people can only be changed by Head, Principal, Pastor, or Head of Discipline',
@@ -501,7 +501,7 @@ function mapBirthdayEvent(input: {
 }
 
 async function listBirthdayEvents(ctx: AuthedContext) {
-  if (!isFullAdmin(ctx.user)) return [];
+  if (!canUseAdminOperations(ctx.user)) return [];
   const [students, supervisors] = await Promise.all([
     ctx.db.student.findMany({
       where: { active: true },
@@ -622,7 +622,7 @@ export const calendarRouter = router({
   }),
 
   listVisible: authedProcedure.query(async ({ ctx }) => {
-    if (isStaff(ctx.user)) {
+    if (isStaff(ctx.user) || canUseAdminOperations(ctx.user)) {
       const events = await ctx.db.calendarEvent.findMany({
         where: activeVisibleEventWhere(ctx.user),
         include: requiredPeopleInclude,
@@ -649,7 +649,7 @@ export const calendarRouter = router({
   }),
 
   listRequiredPersonCandidates: authedProcedure.query(async ({ ctx }) => {
-    if (!isFullAdmin(ctx.user)) {
+    if (!canUseAdminOperations(ctx.user)) {
       throw toForbidden(
         new AccessDeniedError('calendar required people candidates require full-admin access'),
       );

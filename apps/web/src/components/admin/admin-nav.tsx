@@ -69,6 +69,7 @@ type AdminNavProps = {
   canManageInvoices: boolean;
   canManagePermissionSlips: boolean;
   canUseShop: boolean;
+  canUseAdminOperations: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
   fullAdmin: boolean;
@@ -103,6 +104,7 @@ function visibleForUser(
     | 'canManageInvoices'
     | 'canManagePermissionSlips'
     | 'canUseShop'
+    | 'canUseAdminOperations'
     | 'clubsOnly'
     | 'canViewAudit'
     | 'canViewBehaviour'
@@ -124,6 +126,9 @@ function visibleForUser(
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
   }
+  if (access.canUseAdminOperations) {
+    return !['Supervisor', 'Invoices', 'Sensitive Review', 'Audit'].includes(item.label);
+  }
   if (item.label === 'Attendance') return access.canExportAttendance;
   if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
@@ -143,6 +148,7 @@ export function AdminSidebarNav({
   canManageInvoices,
   canManagePermissionSlips,
   canUseShop,
+  canUseAdminOperations,
   clubsOnly,
   canExportAttendance,
   fullAdmin,
@@ -158,6 +164,7 @@ export function AdminSidebarNav({
       canManageInvoices,
       canManagePermissionSlips,
       canUseShop,
+      canUseAdminOperations,
       clubsOnly,
       canViewAudit,
       canViewBehaviour,
@@ -207,6 +214,7 @@ export function AdminBottomNav({
   canManageInvoices,
   canManagePermissionSlips,
   canUseShop,
+  canUseAdminOperations,
   clubsOnly,
   canExportAttendance,
   fullAdmin,
@@ -222,6 +230,7 @@ export function AdminBottomNav({
       canManageInvoices,
       canManagePermissionSlips,
       canUseShop,
+      canUseAdminOperations,
       clubsOnly,
       canViewAudit,
       canViewBehaviour,

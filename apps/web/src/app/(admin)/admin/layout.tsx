@@ -10,6 +10,7 @@ import {
   canManageInvoices,
   canManagePermissionSlips,
   canManageShop,
+  canUseAdminOperations,
   canRespondToParentMessages,
   canUseStaffMessaging,
   canUseFullPaceAccess,
@@ -36,6 +37,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canViewAudit = canViewAuditLog(user);
   const canViewBehaviour = canViewBehaviourReports(user);
   const fullAdmin = isFullAdmin(user);
+  const adminOperations = canUseAdminOperations(user);
   const canViewStudents = canViewAnyStudentDrillThrough(user);
   const canViewPace = canUseFullPaceAccess(user);
   const canManageAccounts = canManageUserAccounts(user);
@@ -63,7 +65,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const hasLinkedChildren = linkedChildren > 0;
   const staffHref = staffPortalHrefForUser(user);
   const userRoleLabel = roleLabel(user.role);
-  const homeHref = fullAdmin
+  const homeHref = adminOperations
     ? '/admin'
     : canManageAccounts
       ? '/admin/access'
@@ -90,6 +92,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     canManageInvoices: canManageInvoiceModule,
     canManagePermissionSlips: canManagePermissionSlipModule,
     canUseShop,
+    canUseAdminOperations: adminOperations,
     canManageUserAccounts: canManageAccounts,
     canUseMessages,
     canViewAudit,

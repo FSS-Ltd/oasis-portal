@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
   AccessDeniedError,
+  canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   canViewSensitiveChildNotes,
   isStaff,
@@ -9,7 +10,7 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import { loadDailyYearBandScope, studentMatchesDailyScope } from '../lib/daily-year-band-scope.js';
-import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
@@ -26,7 +27,7 @@ function decryptRequired(
 }
 
 async function requireChildNoteWorkflow(ctx: AuthedContext, entity: string): Promise<void> {
-  if (isStaff(ctx.user)) return;
+  if (isStaff(ctx.user) || canUseAdminOperations(ctx.user)) return;
   const denied = new AccessDeniedError('child notes require full-admin or Supervisor');
   await ctx.db.auditLog.create({
     data: {
@@ -204,7 +205,7 @@ export const childNotesRouter = router({
       };
     }),
 
-  update: fullAdminProcedure
+  update: adminOperationsProcedure
     .input(
       z.object({
         id: z.string().min(1),
@@ -224,6 +225,12 @@ export const childNotesRouter = router({
       });
       if (!existing || existing.deletedAt !== null) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'child note not found' });
+      }
+      if ((existing.sensitive || input.sensitive) && !canViewSensitiveChildNotes(ctx.user)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'sensitive child notes require sensitive-note access',
+        });
       }
 
       const note = await ctx.db.childNote.update({
@@ -260,7 +267,7 @@ export const childNotesRouter = router({
       return note;
     }),
 
-  delete: fullAdminProcedure
+  delete: adminOperationsProcedure
     .input(z.object({ id: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
       const existing = await ctx.db.childNote.findUnique({
@@ -274,6 +281,12 @@ export const childNotesRouter = router({
       });
       if (!existing || existing.deletedAt !== null) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'child note not found' });
+      }
+      if (existing.sensitive && !canViewSensitiveChildNotes(ctx.user)) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'sensitive child notes require sensitive-note access',
+        });
       }
 
       const note = await ctx.db.childNote.update({

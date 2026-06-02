@@ -126,6 +126,10 @@ export function isFullAdmin(user: Pick<SessionUser, 'role'>): boolean {
   return FULL_ADMIN_ROLES.has(user.role);
 }
 
+export function canUseAdminOperations(user: Pick<SessionUser, 'role'>): boolean {
+  return isFullAdmin(user) || user.role === 'TechnicalSupport';
+}
+
 export function isStaff(user: Pick<SessionUser, 'role'>): boolean {
   return isFullAdmin(user) || user.role === 'ClubsAdmin' || user.role === 'Supervisor';
 }
@@ -135,7 +139,7 @@ export function canUseStaffMessaging(user: Pick<SessionUser, 'role'>): boolean {
 }
 
 export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'ClubsAdmin' || isFullAdmin(user);
+  return user.role === 'ClubsAdmin' || canUseAdminOperations(user);
 }
 
 export function canUseClubsLeadPortal(user: Pick<SessionUser, 'role'>): boolean {
@@ -144,7 +148,12 @@ export function canUseClubsLeadPortal(user: Pick<SessionUser, 'role'>): boolean 
 
 export function canManageInvoices(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
   if (isFullAdmin(user)) return true;
-  if (user.role === 'Parent' || user.role === 'Student' || user.role === 'ClubsLead') {
+  if (
+    user.role === 'Parent' ||
+    user.role === 'Student' ||
+    user.role === 'ClubsLead' ||
+    user.role === 'TechnicalSupport'
+  ) {
     return false;
   }
   return hasTag(user, 'finance-admin');
@@ -185,6 +194,12 @@ export function requireFullAdmin(user: SessionUser): void {
   }
 }
 
+export function requireAdminOperations(user: SessionUser): void {
+  if (!canUseAdminOperations(user)) {
+    throw new AccessDeniedError(`role ${user.role} cannot use admin operations`);
+  }
+}
+
 export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean {
   return user.role === 'TechnicalSupport';
 }
@@ -192,6 +207,7 @@ export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean 
 export type PostSignInPortal =
   | 'two-factor-required'
   | 'full-admin'
+  | 'admin-operations'
   | 'account-admin'
   | 'clubs-admin'
   | 'clubs-lead'
@@ -204,6 +220,7 @@ export function resolvePostSignInPortal(user: SessionUser | null): PostSignInPor
   if (user.requires2fa) return 'two-factor-required';
 
   if (isFullAdmin(user)) return 'full-admin';
+  if (canUseAdminOperations(user)) return 'admin-operations';
   if (canManageUserAccounts(user)) return 'account-admin';
   if (canManageClubs(user)) return 'clubs-admin';
   if (canUseClubsLeadPortal(user)) return 'clubs-lead';
@@ -259,12 +276,12 @@ export function requireCanManageInvoices(user: SessionUser): void {
 
 export function canRecordStudentAttendance(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || hasTag(user, 'attendance-recorder');
+  return canUseAdminOperations(user) || hasTag(user, 'attendance-recorder');
 }
 
 export function canExportAttendance(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || hasTag(user, 'attendance-exporter');
+  return canUseAdminOperations(user) || hasTag(user, 'attendance-exporter');
 }
 
 export function canViewSensitiveChildNotes(user: SessionUser): boolean {
@@ -274,7 +291,7 @@ export function canViewSensitiveChildNotes(user: SessionUser): boolean {
 
 export function canViewBehaviourReports(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || hasTag(user, 'behaviour-viewer');
+  return canUseAdminOperations(user) || hasTag(user, 'behaviour-viewer');
 }
 
 export function canViewAuditLog(user: SessionUser): boolean {
@@ -319,29 +336,29 @@ export function canCreateSensitiveBehaviour(
 
 export function canViewAnyStudentDrillThrough(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'));
+  return canUseAdminOperations(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'));
 }
 
 export function canUseFullPaceAccess(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return isFullAdmin(user) || hasTag(user, 'pace-full-access');
+  return canUseAdminOperations(user) || hasTag(user, 'pace-full-access');
 }
 
 export function canUseAllStudentSupervisorWorkflow(user: SessionUser): boolean {
   return (
-    isFullAdmin(user) ||
+    canUseAdminOperations(user) ||
     ((user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
       hasTag(user, 'supervisor-all-students'))
   );
 }
 
 export function canManageCalendar(user: SessionUser): boolean {
-  return isFullAdmin(user) || (isStaff(user) && hasTag(user, 'calendar-manager'));
+  return canUseAdminOperations(user) || (isStaff(user) && hasTag(user, 'calendar-manager'));
 }
 
 export function canRespondToParentMessages(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
   if (user.role === 'ClubsLead') return false;
-  return isFullAdmin(user) || hasTag(user, 'parent-message-responder');
+  return canUseAdminOperations(user) || hasTag(user, 'parent-message-responder');
 }
 
 export function canViewStudentDrillThrough(user: SessionUser): boolean {

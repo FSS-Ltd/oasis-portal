@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { isStaff, requireStaff, type SessionUser } from '@oasis/domain';
-import { fullAdminProcedure, authedProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
 
 const STAFF_ROLES = [
@@ -604,11 +604,11 @@ export const rotaRouter = router({
     return listScheduleWithStaff(ctx, input, 'rota.teamSchedule', true);
   }),
 
-  weekSchedule: fullAdminProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+  weekSchedule: adminOperationsProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     return listScheduleWithStaff(ctx, input, 'rota.weekSchedule');
   }),
 
-  listStaff: fullAdminProcedure.query(async ({ ctx }) => {
+  listStaff: adminOperationsProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.user.findMany({
       where: { active: true, role: { in: [...STAFF_ROLES] } },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
@@ -634,7 +634,7 @@ export const rotaRouter = router({
     return staff;
   }),
 
-  staffAvailability: fullAdminProcedure
+  staffAvailability: adminOperationsProcedure
     .input(staffAvailabilityInput)
     .query(async ({ ctx, input }) => {
       const staffRows = await ctx.db.user.findMany({
@@ -688,7 +688,7 @@ export const rotaRouter = router({
       return staff;
     }),
 
-  staffMonthlyAvailability: fullAdminProcedure
+  staffMonthlyAvailability: adminOperationsProcedure
     .input(staffMonthlyAvailabilityInput)
     .query(async ({ ctx, input }) => {
       const from = normalizeDate(input.from);
@@ -747,7 +747,7 @@ export const rotaRouter = router({
       return staff;
     }),
 
-  createShift: fullAdminProcedure.input(shiftInput).mutation(async ({ ctx, input }) => {
+  createShift: adminOperationsProcedure.input(shiftInput).mutation(async ({ ctx, input }) => {
     const date = normalizeDate(input.date);
     assertShiftKindBand({ kind: input.kind, yearGroupBandId: input.yearGroupBandId ?? null });
     await assertActiveStaffUser(ctx, input.staffUserId);
@@ -790,7 +790,7 @@ export const rotaRouter = router({
     return mapShift(shift);
   }),
 
-  updateShift: fullAdminProcedure.input(updateShiftInput).mutation(async ({ ctx, input }) => {
+  updateShift: adminOperationsProcedure.input(updateShiftInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.staffShift.findUnique({
       where: { id: input.id },
       select: {
@@ -865,7 +865,7 @@ export const rotaRouter = router({
     return mapShift(shift);
   }),
 
-  deleteShift: fullAdminProcedure.input(deleteShiftInput).mutation(async ({ ctx, input }) => {
+  deleteShift: adminOperationsProcedure.input(deleteShiftInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.staffShift.findUnique({
       where: { id: input.id },
       select: { id: true, staffUserId: true, date: true },
@@ -907,7 +907,7 @@ export const rotaRouter = router({
     return { id: shift.id };
   }),
 
-  pendingSwapRequests: fullAdminProcedure.query(async ({ ctx }) => {
+  pendingSwapRequests: adminOperationsProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.shiftSwapRequest.findMany({
       where: { status: 'Pending' },
       orderBy: [{ createdAt: 'asc' }],
@@ -1070,7 +1070,7 @@ export const rotaRouter = router({
     return request;
   }),
 
-  approveSwap: fullAdminProcedure.input(reviewSwapInput).mutation(async ({ ctx, input }) => {
+  approveSwap: adminOperationsProcedure.input(reviewSwapInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.shiftSwapRequest.findUnique({
       where: { id: input.id },
       include: {
@@ -1131,7 +1131,7 @@ export const rotaRouter = router({
     return request;
   }),
 
-  rejectSwap: fullAdminProcedure.input(reviewSwapInput).mutation(async ({ ctx, input }) => {
+  rejectSwap: adminOperationsProcedure.input(reviewSwapInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.shiftSwapRequest.findUnique({
       where: { id: input.id },
       select: { id: true, status: true },

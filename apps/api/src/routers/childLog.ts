@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
@@ -225,7 +226,7 @@ function mapPaceApproval(
 }
 
 async function requireSnapshotWorkflow(ctx: AuthedContext): Promise<void> {
-  if (isStaff(ctx.user)) return;
+  if (isStaff(ctx.user) || canUseAdminOperations(ctx.user)) return;
   const denied = new AccessDeniedError('child snapshot requires full-admin or Supervisor');
   await ctx.db.auditLog.create({
     data: {
@@ -994,7 +995,7 @@ export const childLogRouter = router({
       if (!student) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
       }
-      if (!student.active && !isFullAdmin(ctx.user)) {
+      if (!student.active && !canUseAdminOperations(ctx.user)) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
       }
 

@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import { AccessDeniedError, type SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import {
+  adminOperationsProcedure,
   auditedProcedure,
   authedProcedure,
   fullAdminProcedure,
@@ -90,6 +91,24 @@ describe('fullAdminProcedure', () => {
     const { ctx } = makeCtx(supervisorUser);
     const caller = appRouter.createCaller(ctx);
     await expect(caller.adminOnly()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('adminOperationsProcedure', () => {
+  it('allows full admins and Technical Support while blocking Supervisor', async () => {
+    const appRouter = router({
+      operationalAdminOnly: adminOperationsProcedure.query(() => 'ok'),
+    });
+
+    await expect(
+      appRouter.createCaller(makeCtx(headUser).ctx).operationalAdminOnly(),
+    ).resolves.toBe('ok');
+    await expect(
+      appRouter.createCaller(makeCtx(technicalSupportUser).ctx).operationalAdminOnly(),
+    ).resolves.toBe('ok');
+    await expect(
+      appRouter.createCaller(makeCtx(supervisorUser).ctx).operationalAdminOnly(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

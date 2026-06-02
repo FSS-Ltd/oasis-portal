@@ -11,6 +11,7 @@ import {
   canRecordStudentAttendance,
   canRespondToParentMessages,
   canCreateSensitiveBehaviour,
+  canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
   canUseStaffMessaging,
@@ -32,6 +33,7 @@ import {
   requireCanViewSensitive,
   requireCanManageInvoices,
   requireClubsAdminOrFullAdmin,
+  requireAdminOperations,
   requireUserAccountAdmin,
   requireFullAdmin,
   requireOwnChild,
@@ -93,6 +95,28 @@ describe('requireFullAdmin', () => {
   });
 });
 
+describe('admin operations access', () => {
+  it('allows full-admin roles and TechnicalSupport without changing full-admin semantics', () => {
+    for (const user of [head, principal, pastor, hod, technicalSupport]) {
+      expect(canUseAdminOperations(user)).toBe(true);
+      expect(() => {
+        requireAdminOperations(user);
+      }).not.toThrow();
+    }
+
+    expect(isFullAdmin(technicalSupport)).toBe(false);
+  });
+
+  it('blocks non-operational roles', () => {
+    for (const user of [clubsAdmin, clubsLead, supervisor, parent, student]) {
+      expect(canUseAdminOperations(user)).toBe(false);
+      expect(() => {
+        requireAdminOperations(user);
+      }).toThrow(AccessDeniedError);
+    }
+  });
+});
+
 describe('TechnicalSupport account administration', () => {
   it('is the only User Access account-admin role', () => {
     expect(canManageUserAccounts(technicalSupport)).toBe(true);
@@ -124,7 +148,7 @@ describe('invoice finance administration', () => {
     expect(canManageInvoices(head)).toBe(true);
     expect(canManageInvoices(principal)).toBe(true);
     expect(canManageInvoices({ ...supervisor, tags: ['finance-admin'] })).toBe(true);
-    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(true);
+    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(false);
     expect(canManageInvoices(supervisor)).toBe(false);
     expect(canManageInvoices({ ...parent, tags: ['finance-admin'] })).toBe(false);
     expect(canManageInvoices({ ...student, tags: ['finance-admin'] })).toBe(false);
@@ -196,8 +220,8 @@ describe('resolvePostSignInPortal', () => {
     expect(resolvePostSignInPortal(principal)).toBe('full-admin');
   });
 
-  it('sends account admins to the access portal', () => {
-    expect(resolvePostSignInPortal(technicalSupport)).toBe('account-admin');
+  it('sends Technical Support to the normal admin operations portal', () => {
+    expect(resolvePostSignInPortal(technicalSupport)).toBe('admin-operations');
   });
 
   it('sends supervisors and parents to their portals', () => {
@@ -407,20 +431,21 @@ describe('workflow tags', () => {
     }).toThrow(AccessDeniedError);
   });
 
-  it('limits attendance recording to full-admin or attendance-recorder', () => {
+  it('allows attendance recording for operational admins or attendance-recorder', () => {
     expect(canRecordStudentAttendance(head)).toBe(true);
     expect(canRecordStudentAttendance(principal)).toBe(true);
     expect(canRecordStudentAttendance(pastor)).toBe(true);
+    expect(canRecordStudentAttendance(technicalSupport)).toBe(true);
     expect(canRecordStudentAttendance(supervisor)).toBe(false);
     expect(canRecordStudentAttendance({ ...supervisor, tags: ['attendance-recorder'] })).toBe(true);
   });
 
-  it('limits attendance exports to full-admin or attendance-exporter', () => {
+  it('allows attendance exports for operational admins or attendance-exporter', () => {
     expect(canExportAttendance(head)).toBe(true);
     expect(canExportAttendance(principal)).toBe(true);
     expect(canExportAttendance(supervisor)).toBe(false);
     expect(canExportAttendance({ ...supervisor, tags: ['attendance-exporter'] })).toBe(true);
-    expect(canExportAttendance(technicalSupport)).toBe(false);
+    expect(canExportAttendance(technicalSupport)).toBe(true);
   });
 
   it('limits sensitive child notes to full-admin or sensitive-note-viewer', () => {
@@ -439,7 +464,7 @@ describe('workflow tags', () => {
     expect(canViewBehaviourReports(hod)).toBe(true);
     expect(canViewBehaviourReports(supervisor)).toBe(false);
     expect(canViewBehaviourReports({ ...supervisor, tags: ['behaviour-viewer'] })).toBe(true);
-    expect(canViewBehaviourReports(technicalSupport)).toBe(false);
+    expect(canViewBehaviourReports(technicalSupport)).toBe(true);
   });
 
   it('limits scoped student drill-through reads to adults who can be linked to children', () => {
@@ -468,14 +493,14 @@ describe('workflow tags', () => {
     expect(canViewSensitiveStudentDrillThrough(technicalSupport)).toBe(false);
   });
 
-  it('allows full PACE access for full-admin roles or the pace-full-access tag', () => {
+  it('allows full PACE access for operational admins or the pace-full-access tag', () => {
     expect(canUseFullPaceAccess(head)).toBe(true);
     expect(canUseFullPaceAccess(hod)).toBe(true);
     expect(canUseFullPaceAccess(supervisor)).toBe(false);
     expect(canUseFullPaceAccess({ ...supervisor, tags: ['pace-full-access'] })).toBe(true);
     expect(canUseFullPaceAccess(parent)).toBe(false);
     expect(canUseFullPaceAccess({ ...parent, tags: ['pace-full-access'] })).toBe(true);
-    expect(canUseFullPaceAccess(technicalSupport)).toBe(false);
+    expect(canUseFullPaceAccess(technicalSupport)).toBe(true);
   });
 
   it('limits all-student supervisor workflow access to full admins or tagged staff operators', () => {
@@ -500,9 +525,10 @@ describe('workflow tags', () => {
         tags: ['supervisor-all-students'],
       }),
     ).toBe(false);
+    expect(canUseAllStudentSupervisorWorkflow(technicalSupport)).toBe(true);
   });
 
-  it('limits calendar management to full-admin or tagged staff', () => {
+  it('allows calendar management for operational admins or tagged staff', () => {
     expect(canManageCalendar(head)).toBe(true);
     expect(canManageCalendar(principal)).toBe(true);
     expect(canManageCalendar(pastor)).toBe(true);
@@ -512,7 +538,7 @@ describe('workflow tags', () => {
     expect(canManageCalendar({ ...supervisor, tags: ['calendar-manager'] })).toBe(true);
     expect(canManageCalendar({ ...parent, tags: ['calendar-manager'] })).toBe(false);
     expect(canManageCalendar({ ...student, tags: ['calendar-manager'] })).toBe(false);
-    expect(canManageCalendar({ ...technicalSupport, tags: ['calendar-manager'] })).toBe(false);
+    expect(canManageCalendar(technicalSupport)).toBe(true);
   });
 
   it('allows parent message response for full-admin users or tagged users', () => {
@@ -526,6 +552,7 @@ describe('workflow tags', () => {
     expect(canRespondToParentMessages({ ...parent, tags: ['parent-message-responder'] })).toBe(
       true,
     );
+    expect(canRespondToParentMessages(technicalSupport)).toBe(true);
   });
 });
 

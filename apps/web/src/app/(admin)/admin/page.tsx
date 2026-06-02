@@ -6,7 +6,7 @@ import { applyRlsTx } from '@oasis/api/context';
 import { prisma } from '@oasis/db';
 import { canViewSensitiveBehaviour } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
-import { getFullAdminUser } from '@/components/admin/require-full-admin';
+import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
 
 function todayBounds(): { start: Date; end: Date } {
   const key = new Date().toISOString().slice(0, 10);
@@ -50,7 +50,7 @@ function decrypt(value: string | null | undefined): string {
 }
 
 export default async function AdminIndexPage() {
-  const user = await getFullAdminUser();
+  const user = await getAdminOperationsUser();
   const { start, end } = todayBounds();
   const canReadSensitiveBehaviour = canViewSensitiveBehaviour(user);
   const [attendanceRows, activityRows, meritAwardedToday] = await applyRlsTx(prisma, user, (tx) =>

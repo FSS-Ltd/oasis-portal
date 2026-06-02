@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Archive, Link2, RotateCcw, Save, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -54,10 +55,12 @@ function initials(name: string) {
 }
 
 export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
+  const router = useRouter();
   const utils = api.useUtils();
   const studentQuery = api.student.byId.useQuery({ id: studentId }, { retry: false });
   const subjectsQuery = api.admin.listActiveSubjects.useQuery(undefined, { retry: false });
   const [statusAction, setStatusAction] = useState<'archive' | 'restore' | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const updateStudent = api.student.update.useMutation({
     async onSuccess() {
       await Promise.all([
@@ -83,6 +86,20 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
     },
     onError(error) {
       showErrorToast(error, 'Student status could not be updated.');
+    },
+  });
+  const deleteArchivedStudent = api.student.deleteArchived.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.student.list.invalidate(),
+        utils.childLog.listAccessibleStudents.invalidate(),
+        utils.childLog.drillThrough.invalidate({ studentId }),
+      ]);
+      showSuccessToast('Archived student deleted.');
+      router.push('/admin/students');
+    },
+    onError(error) {
+      showErrorToast(error, 'Archived student could not be deleted.');
     },
   });
   const assignSubject = api.student.assignSubject.useMutation({
@@ -519,17 +536,30 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
                       Archive student
                     </Button>
                   ) : (
-                    <Button
-                      onClick={() => {
-                        setStatusAction('restore');
-                      }}
-                      pending={updateStudentStatus.isPending}
-                      type="button"
-                      variant="secondary"
-                    >
-                      <RotateCcw aria-hidden="true" size={16} />
-                      Restore student
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => {
+                          setStatusAction('restore');
+                        }}
+                        pending={updateStudentStatus.isPending}
+                        type="button"
+                        variant="secondary"
+                      >
+                        <RotateCcw aria-hidden="true" size={16} />
+                        Restore student
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setDeleteOpen(true);
+                        }}
+                        pending={deleteArchivedStudent.isPending}
+                        type="button"
+                        variant="danger"
+                      >
+                        <Trash2 aria-hidden="true" size={16} />
+                        Delete student
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -562,6 +592,26 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
           {statusAction === 'archive'
             ? 'This will remove the student from active workflows while keeping their profile, history, and audit records.'
             : 'This will return the student to active workflows and student directories.'}
+        </p>
+      </ConfirmationDialog>
+      <ConfirmationDialog
+        confirmLabel="Delete student"
+        errorMessage={
+          deleteArchivedStudent.error ? friendlyErrorMessage(deleteArchivedStudent.error) : undefined
+        }
+        onCancel={() => {
+          if (!deleteArchivedStudent.isPending) setDeleteOpen(false);
+        }}
+        onConfirm={() => {
+          deleteArchivedStudent.mutate({ id: student.id });
+        }}
+        open={deleteOpen}
+        pending={deleteArchivedStudent.isPending}
+        title={`Delete ${student.fullName}?`}
+      >
+        <p>
+          This permanently removes the archived student record and student-owned records while
+          preserving user and audit history.
         </p>
       </ConfirmationDialog>
       <ConfirmationDialog

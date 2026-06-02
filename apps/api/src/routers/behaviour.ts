@@ -3,6 +3,7 @@ import { TRPCError } from '@trpc/server';
 import {
   AccessDeniedError,
   canCreateSensitiveBehaviour,
+  canUseAdminOperations,
   canUseClubsLeadPortal,
   canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
@@ -10,7 +11,6 @@ import {
   demeritMeritDeltaForCategory,
   demeritPolicyStatusForEntries,
   demeritPolicyTransitionForEntries,
-  isFullAdmin,
   isStaff,
   rowsForDemerit,
   rowsForMerit,
@@ -34,7 +34,7 @@ import {
 } from '../lib/email.js';
 import { localDayBounds } from '../lib/local-day.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
-import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
@@ -108,7 +108,7 @@ type CreatedBehaviourEntry = {
 };
 
 function canUseBehaviourWorkflow(user: SessionUser): boolean {
-  return isFullAdmin(user) || isStaff(user) || canUseClubsLeadPortal(user);
+  return canUseAdminOperations(user) || isStaff(user) || canUseClubsLeadPortal(user);
 }
 
 async function auditPermissionDenied(
@@ -1452,7 +1452,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         };
       }),
 
-    updateEntry: fullAdminProcedure
+    updateEntry: adminOperationsProcedure
       .input(
         z.object({
           id: z.string().min(1),
@@ -1487,6 +1487,15 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
 
           const nextCategory = input.category ?? existing.category;
           const nextVisibility = input.visibility ?? existing.visibility;
+          if (
+            (existing.visibility === 'Sensitive' || nextVisibility === 'Sensitive') &&
+            !canViewSensitiveBehaviour(ctx.user)
+          ) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: 'sensitive behaviour requires full-admin access',
+            });
+          }
           const nextNote =
             input.note === undefined ? undefined : input.note === null ? null : input.note.trim();
           if (
@@ -1570,7 +1579,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         return updated;
       }),
 
-    deleteEntry: fullAdminProcedure
+    deleteEntry: adminOperationsProcedure
       .input(z.object({ id: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
         const { correctionRows, deleted, existing } = await ctx.withRls(async (tx) => {
@@ -1585,6 +1594,12 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           });
           if (!existing || existing.deletedAt !== null) {
             throw new TRPCError({ code: 'NOT_FOUND', message: 'behaviour entry not found' });
+          }
+          if (existing.visibility === 'Sensitive' && !canViewSensitiveBehaviour(ctx.user)) {
+            throw new TRPCError({
+              code: 'FORBIDDEN',
+              message: 'sensitive behaviour requires full-admin access',
+            });
           }
 
           const correctionRows = existing.ledgerRows

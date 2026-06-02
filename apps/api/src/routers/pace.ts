@@ -17,7 +17,7 @@ import {
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
-import { authedProcedure, fullAdminProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 const DEFAULT_POLICY = {
   dailyTestLimitEnabled: false,
@@ -1599,7 +1599,7 @@ export const paceRouter = router({
     };
   }),
 
-  deleteRecord: fullAdminProcedure.input(paceRecordByIdInput).mutation(async ({ ctx, input }) => {
+  deleteRecord: adminOperationsProcedure.input(paceRecordByIdInput).mutation(async ({ ctx, input }) => {
     const existing = await ctx.db.paceRecord.findUnique({
       where: { id: input.recordId },
       select: {

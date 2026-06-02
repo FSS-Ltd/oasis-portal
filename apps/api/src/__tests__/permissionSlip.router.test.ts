@@ -6,15 +6,9 @@ import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
 const pastorUser: SessionUser = { id: 'u_pastor', role: 'Pastor', tags: [], requires2fa: false };
-const principalUser: SessionUser = {
-  id: 'u_principal',
-  role: 'Principal',
-  tags: [],
-  requires2fa: false,
-};
-const headOfDisciplineUser: SessionUser = {
-  id: 'u_hod',
-  role: 'HeadOfDiscipline',
+const technicalSupportUser: SessionUser = {
+  id: 'u_support',
+  role: 'TechnicalSupport',
   tags: [],
   requires2fa: false,
 };
@@ -832,7 +826,7 @@ describe('permissionSlip parent access', () => {
 });
 
 describe('permissionSlip Head/Pastor actions', () => {
-  it('allows Head and Pastor to confirm payments and mark physical slips', async () => {
+  it('allows operational admins to confirm payments and mark physical slips', async () => {
     const paymentSlip = makeSlip({ id: 'slip_confirm', title: 'Payment trip' });
     const paymentDb = makeFakeDb({
       slips: [paymentSlip],
@@ -882,10 +876,32 @@ describe('permissionSlip Head/Pastor actions', () => {
         }),
       ],
     });
+
+    const supportSlip = makeSlip({ id: 'slip_support_confirm', title: 'Support payment trip' });
+    const supportDb = makeFakeDb({
+      slips: [supportSlip],
+      recipients: [
+        makeRecipient({
+          slipId: supportSlip.id,
+          studentId: 's_child_1',
+          position: 1,
+          responseStatus: 'Signed',
+          paymentStatus: 'PaymentPending',
+        }),
+      ],
+    });
+    await expect(
+      makeCaller(technicalSupportUser, supportDb).caller.permissionSlip.confirmPayment({
+        slipId: supportSlip.id,
+        studentId: 's_child_1',
+      }),
+    ).resolves.toMatchObject({
+      recipients: [expect.objectContaining({ paymentStatus: 'Paid' })],
+    });
   });
 
-  it('denies Principal, Head of Discipline, Supervisor, and Parent approval actions', async () => {
-    for (const user of [principalUser, headOfDisciplineUser, supervisorUser, parentUser]) {
+  it('denies Supervisor and Parent approval actions', async () => {
+    for (const user of [supervisorUser, parentUser]) {
       const slip = makeSlip({ id: `slip_${user.role}`, title: 'Denied trip' });
       const db = makeFakeDb({
         slips: [slip],

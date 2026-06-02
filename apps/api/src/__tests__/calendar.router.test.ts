@@ -451,7 +451,7 @@ describe('calendar.create', () => {
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
-  it('allows full admins and denies untagged staff and unsupported roles', async () => {
+  it('allows operational admins and denies untagged staff', async () => {
     await expect(
       makeCaller(principalUser).caller.calendar.create({
         title: 'Principal date',
@@ -475,7 +475,7 @@ describe('calendar.create', () => {
         category: 'OasisDays',
         startDate: '2026-05-25',
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toMatchObject({ title: 'Support date', createdById: technicalSupportUser.id });
   });
 
   it('rejects birthday as a manual category and invalid time ranges', async () => {
