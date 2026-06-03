@@ -80,7 +80,7 @@ export {
 } from './routers/behaviour.js';
 export { clubRouter, createClubRouter, type ClubRouterDeps } from './routers/club.js';
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
-export { invoiceRouter, createInvoiceRouter } from './routers/invoice.js';
+export { invoiceRouter, createInvoiceRouter, type InvoiceRouterDeps } from './routers/invoice.js';
 export { permissionSlipRouter } from './routers/permissionSlip.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {

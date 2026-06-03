@@ -8,6 +8,7 @@ import {
   DEFAULT_RESEND_FROM,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
   REPORT_NOTIFICATION_EMAIL_SUBJECT,
@@ -18,6 +19,7 @@ import {
   buildBehaviourNotificationEmail,
   buildClubNotificationEmail,
   buildHelloWorldEmail,
+  buildInvoicePaymentNotificationEmail,
   buildMessageNotificationEmail,
   buildReportNotificationEmail,
   buildSmokeTestEmail,
@@ -288,6 +290,47 @@ describe('email builders', () => {
     expect(html).toContain('Jane Learner');
     expect(html).toContain('2026-Summer');
     expect(html).not.toContain('Head summary');
+  });
+
+  it('builds an invoice payment notification email without embedding invoice contents', async () => {
+    const originalAppUrl = process.env.APP_URL;
+    process.env.APP_URL = 'https://portal.example.com';
+
+    try {
+      const email = buildInvoicePaymentNotificationEmail({
+        to: 'pastor@example.com',
+        recipientName: 'Pastor User',
+        familyLabel: 'Parent family',
+        invoiceNumber: 'INV-2026-001',
+        invoicePath: '/admin/invoices',
+      });
+
+      expect(email.to).toBe('pastor@example.com');
+      expect(email.subject).toBe(INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT);
+      expect(email.text).toContain('The Parent family has marked Invoice INV-2026-001 as paid.');
+      expect(email.text).toContain('It is awaiting your confirmation in Oasis Portal.');
+      expect(email.text).toContain('https://portal.example.com/admin/invoices');
+      expect(email.text).not.toContain('Talia Parent');
+      expect(email.text).not.toContain('Tuition');
+      expect(email.text).not.toContain('420.00');
+      expect('react' in email).toBe(true);
+      expect('html' in email).toBe(false);
+
+      if (!('react' in email)) throw new Error('expected react email payload');
+      const html = await render(email.react);
+      expect(html).toContain('Invoice payment awaiting confirmation');
+      expect(html).toContain('Parent family');
+      expect(html).toContain('INV-2026-001');
+      expect(html).toContain('https://portal.example.com/admin/invoices');
+      expect(html).not.toContain('Talia Parent');
+      expect(html).not.toContain('Tuition');
+    } finally {
+      if (originalAppUrl === undefined) {
+        delete process.env.APP_URL;
+      } else {
+        process.env.APP_URL = originalAppUrl;
+      }
+    }
   });
 });
 

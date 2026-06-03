@@ -66,6 +66,41 @@ Notes:
 - Existing build warnings remain: Prisma config deprecation/driverAdapters
   warnings and the Next.js ESLint-plugin warning.
 
+## Current session - 2026-06-03 Pastor invoice payment notification
+
+Working branch: `feat/invoice-paid-pastor-email`.
+
+**PR scope:** Notify active Pastor users by email when a parent marks a school
+fee invoice as paid, while keeping the invoice in `PaymentPending` until staff
+confirmation.
+
+Completed:
+
+- Added a branded invoice payment notification email template and builder.
+- Extended the invoice router to accept an injected email client and lazily use
+  Resend in production.
+- Notifies active `Pastor` users after `invoice.parentMarkPaid` succeeds.
+- Kept notification emails minimal: family label, invoice number, and portal
+  confirmation link only when `APP_URL` is configured.
+- Added sent/failed email audit metadata and operational failure logging without
+  writing decrypted family labels, invoice line items, amounts, or PDF contents
+  into audit metadata.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- invoice.router.test.ts email.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check apps/api/src/__tests__/email.router.test.ts apps/api/src/__tests__/invoice.router.test.ts apps/api/src/emails/invoice-payment-notification-email.tsx apps/api/src/index.ts apps/api/src/lib/email.ts apps/api/src/routers/invoice.ts`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- No database migration is required.
+- The isolated implementation worktree required `pnpm install --frozen-lockfile`
+  because dependencies were not present in that worktree.
+
 ## Current session - 2026-06-03 PACE self-test duplicate guard
 
 Working branch: `fix/pace-self-test-updates`.

@@ -10,6 +10,10 @@ import {
   ClubNotificationEmail,
 } from '../emails/club-notification-email.js';
 import {
+  buildInvoicePaymentNotificationEmailText,
+  InvoicePaymentNotificationEmail,
+} from '../emails/invoice-payment-notification-email.js';
+import {
   buildMessageNotificationEmailText,
   MessageNotificationEmail,
 } from '../emails/message-notification-email.js';
@@ -32,6 +36,8 @@ export const USER_INVITE_EMAIL_SUBJECT = 'Your Oasis Portal invitation';
 export const MESSAGE_NOTIFICATION_EMAIL_SUBJECT = 'New Oasis Portal message';
 export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour update';
 export const CLUB_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal club notification';
+export const INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT =
+  'Oasis Portal invoice payment awaiting confirmation';
 export const REPORT_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal term report ready';
 
 export interface EmailEnv {
@@ -314,6 +320,46 @@ export function buildClubNotificationEmail(input: ClubNotificationEmailInput): S
   };
 }
 
+export interface InvoicePaymentNotificationEmailInput {
+  familyLabel: string;
+  invoiceNumber: string;
+  invoicePath?: string;
+  logoUrl?: string;
+  recipientName?: string;
+  to: string;
+}
+
+function buildInvoiceUrl(invoicePath: string | undefined, appUrl = process.env.APP_URL) {
+  const normalisedAppUrl = normaliseAppUrl(appUrl);
+  if (!normalisedAppUrl || !invoicePath) return undefined;
+  return new URL(invoicePath, normalisedAppUrl).toString();
+}
+
+export function buildInvoicePaymentNotificationEmail(
+  input: InvoicePaymentNotificationEmailInput,
+): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const invoiceUrl = buildInvoiceUrl(input.invoicePath);
+  const invoiceUrlProps = invoiceUrl ? { invoiceUrl } : {};
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    familyLabel: input.familyLabel,
+    invoiceNumber: input.invoiceNumber,
+    ...invoiceUrlProps,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(InvoicePaymentNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildInvoicePaymentNotificationEmailText(commonProps),
+  };
+}
+
 export interface ReportNotificationEmailInput {
   childName: string;
   logoUrl?: string;
@@ -329,9 +375,7 @@ function buildReportUrl(reportPath: string | undefined, appUrl = process.env.APP
   return new URL(reportPath, normalisedAppUrl).toString();
 }
 
-export function buildReportNotificationEmail(
-  input: ReportNotificationEmailInput,
-): SendEmailInput {
+export function buildReportNotificationEmail(input: ReportNotificationEmailInput): SendEmailInput {
   const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
   const reportUrl = buildReportUrl(input.reportPath);
   const reportUrlProps = reportUrl ? { reportUrl } : {};
