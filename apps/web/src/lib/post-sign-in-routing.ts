@@ -9,6 +9,7 @@ export type PostSignInDestination =
   | '/children-check'
   | '/supervisor'
   | '/parent'
+  | '/student'
   | '/registration'
   | '/not-ready';
 
@@ -23,6 +24,7 @@ const DESTINATION_BY_PORTAL = {
   'clubs-lead': '/clubs-lead',
   supervisor: '/supervisor',
   parent: '/parent',
+  student: '/student',
   'not-ready': '/not-ready',
 } satisfies Record<PostSignInPortal, PostSignInDestination>;
 

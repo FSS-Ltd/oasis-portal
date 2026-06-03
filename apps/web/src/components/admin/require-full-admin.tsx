@@ -234,6 +234,16 @@ export async function getParentUser(): Promise<SessionUser> {
   return user;
 }
 
+export async function getStudentUser(): Promise<SessionUser> {
+  const user = await getSessionUser({ ensureDevHead: false });
+  if (!user || user.role !== 'Student') {
+    notFound();
+  }
+  if (user.requires2fa) redirect('/2fa');
+
+  return user;
+}
+
 export async function getRegistrationUser(): Promise<SessionUser> {
   const user = await getSessionUser({ ensureDevHead: false });
   if (!user) notFound();

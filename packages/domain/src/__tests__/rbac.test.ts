@@ -243,8 +243,8 @@ describe('resolvePostSignInPortal', () => {
     expect(resolvePostSignInPortal(clubsLead)).toBe('clubs-lead');
   });
 
-  it('sends signed-in users without a ready local portal to not-ready', () => {
-    expect(resolvePostSignInPortal(student)).toBe('not-ready');
+  it('sends students to the student portal', () => {
+    expect(resolvePostSignInPortal(student)).toBe('student');
   });
 
   it('sends missing local users to not-ready', () => {

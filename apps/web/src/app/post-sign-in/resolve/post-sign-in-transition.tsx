@@ -12,6 +12,7 @@ const PORTAL_COPY_BY_DESTINATION = {
   '/children-check': 'Preparing your Oasis portal',
   '/supervisor': 'Preparing your supervisor portal',
   '/parent': 'Preparing your parent portal',
+  '/student': 'Preparing your student portal',
   '/registration': 'Preparing registration',
   '/2fa': 'Preparing two-factor setup',
   '/not-ready': 'Preparing your Oasis portal',

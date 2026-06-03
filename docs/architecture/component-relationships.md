@@ -264,9 +264,11 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/web/src/app/(admin)/`
   - `apps/web/src/app/(clubs-lead)/`
   - `apps/web/src/app/(parent)/`
+  - `apps/web/src/app/(student)/`
   - `apps/web/src/app/(supervisor)/`
   - `apps/web/src/app/registration/`
   - `apps/web/src/components/navigation/`
+  - `apps/web/src/components/student/`
   - `apps/web/src/components/supervisor/`
 - Mobile surfaces:
   - `apps/mobile/app/`
