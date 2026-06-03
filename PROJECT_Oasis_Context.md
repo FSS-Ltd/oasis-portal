@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-03
 **Agent:** Technical Agent (Codex)
-**Phase:** Parent tithe wallet and Friday settlement.
+**Phase:** Public portal landing page.
 
 ---
 
@@ -28,6 +28,43 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-03 Portal landing page
+
+Working branch: `feat/portal-landing-page`.
+
+**PR scope:** Recreate the updated public landing-page design from
+`design/Oasis Learning Center.zip`, keep authenticated users routed to
+`/post-sign-in`, and wire the term at-a-glance section to live calendar and
+attendance data.
+
+Completed:
+
+- Added typed Oasis term helpers for Spring, Summer, and Autumn boundary dates.
+- Replaced the public `/` route with the recreated landing-page design and kept
+  signed-in users redirected to `/post-sign-in`.
+- Added a server-side landing data loader for current-term calendar events,
+  centre-wide attendance percentage, and last-six-week attendance bars.
+- Added a static verse placeholder until a DB-backed verse source is introduced.
+- Scoped landing-page CSS through the app layout so portal dashboard styles stay
+  isolated.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `graphify update .`
+
+Notes:
+
+- Browser verification of `/` was attempted on the local dev server, but dynamic
+  app routes such as `/` and `/post-sign-in` timed out in the existing Clerk dev
+  runtime while static assets served normally. Production build verification
+  passed.
+- Existing build warnings remain: Prisma config deprecation/driverAdapters
+  warnings and the Next.js ESLint-plugin warning.
 
 ## Current session - 2026-06-03 PACE self-test duplicate guard
 

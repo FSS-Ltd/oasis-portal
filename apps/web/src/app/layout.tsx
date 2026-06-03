@@ -5,6 +5,7 @@ import { hasClerkPublishableKey } from './(auth)/clerk-config';
 import { TrpcProvider } from '@/components/providers/trpc-provider';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
+import './landing.css';
 
 export const metadata = {
   title: 'Oasis Learning Centre',
