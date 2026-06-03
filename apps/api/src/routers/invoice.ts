@@ -38,6 +38,13 @@ import {
   type GeneratedInvoiceLine,
 } from '../invoices/school-fee-pdf.js';
 import type { AppContext, RlsTx } from '../context.js';
+import {
+  buildInvoicePaymentNotificationEmail,
+  createResendEmailClient,
+  INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+  type EmailClient,
+} from '../lib/email.js';
+import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { authedProcedure, router } from '../trpc.js';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -56,11 +63,13 @@ const invoiceAdminStatusFilters = [
   'Paid',
 ] as const;
 const parentStatusFilters = ['All', 'Unpaid', 'PaymentPending', 'Overdue', 'Paid'] as const;
+const PASTOR_INVOICE_NOTIFICATION_PATH = '/admin/invoices';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type PdfTextExtractor = (pdfBytes: Uint8Array) => Promise<string>;
 
-interface InvoiceRouterDeps {
+export interface InvoiceRouterDeps {
+  emailClient?: EmailClient;
   extractPdfText?: PdfTextExtractor;
 }
 
@@ -145,6 +154,13 @@ type InvoiceDownloadRow = Pick<
 > & {
   pdfBytesEnc: string;
 };
+
+interface PastorInvoicePaymentNotificationRecipient {
+  id: string;
+  role: SessionUser['role'];
+  fullNameEnc: string;
+  emailEnc: string;
+}
 
 export interface SchoolFeeInvoiceLineDto {
   id: string;
@@ -1665,6 +1681,136 @@ async function assertParentInvoiceAccess(
   );
 }
 
+async function auditInvoicePaymentNotificationFailure(
+  ctx: AuthedContext,
+  invoice: Pick<InvoiceRow, 'id' | 'status'>,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'SchoolFeeInvoice',
+        entityId: invoice.id,
+        meta: {
+          source: 'invoice.parentMarkPaid.notification',
+          emailStatus: 'Failed',
+          invoiceId: invoice.id,
+          invoiceStatus: invoice.status,
+          subject: INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+          ...meta,
+        },
+      },
+    });
+  } catch (auditErr) {
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Invoice payment notification failure audit failed',
+      meta: {
+        error: operationalErrorMessage(auditErr),
+        invoiceId: invoice.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+  }
+}
+
+async function notifyPastorsOfParentMarkedPayment({
+  ctx,
+  getEmailClient,
+  invoice,
+}: {
+  ctx: AuthedContext;
+  getEmailClient: () => EmailClient;
+  invoice: Pick<InvoiceRow, 'id' | 'invoiceNumber' | 'familyLabelEnc' | 'status'>;
+}): Promise<void> {
+  let familyLabel: string;
+  let pastors: PastorInvoicePaymentNotificationRecipient[];
+
+  try {
+    familyLabel = decryptOptional(ctx.db.$enc.decrypt, invoice.familyLabelEnc) ?? 'linked family';
+    pastors = await ctx.db.user.findMany({
+      where: { active: true, role: 'Pastor' },
+      select: {
+        id: true,
+        role: true,
+        fullNameEnc: true,
+        emailEnc: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  } catch (err) {
+    logOperationalEvent({
+      event: 'email.recipient_resolution_failed',
+      level: 'error',
+      message: 'Invoice payment notification recipient resolution failed',
+      meta: {
+        error: operationalErrorMessage(err),
+        invoiceId: invoice.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+    await auditInvoicePaymentNotificationFailure(ctx, invoice, {
+      reason: 'recipient-resolution',
+    });
+    return;
+  }
+
+  for (const pastor of pastors) {
+    try {
+      const recipientName = decryptRequired(ctx.db.$enc.decrypt, pastor.fullNameEnc, 'pastor name');
+      const recipientEmail = decryptRequired(ctx.db.$enc.decrypt, pastor.emailEnc, 'pastor email');
+      const email = buildInvoicePaymentNotificationEmail({
+        to: recipientEmail,
+        recipientName,
+        familyLabel,
+        invoiceNumber: invoice.invoiceNumber ?? 'un-numbered invoice',
+        invoicePath: PASTOR_INVOICE_NOTIFICATION_PATH,
+      });
+      const result = await getEmailClient().send(email);
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'Email',
+          entityId: result.id,
+          meta: {
+            source: 'invoice.parentMarkPaid.notification',
+            emailStatus: 'Sent',
+            invoiceId: invoice.id,
+            invoiceStatus: invoice.status,
+            subject: INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+            toUserId: pastor.id,
+            toRole: pastor.role,
+          },
+        },
+      });
+    } catch (err) {
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Invoice payment notification email delivery failed',
+        meta: {
+          error: operationalErrorMessage(err),
+          invoiceId: invoice.id,
+          toUserId: pastor.id,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
+      });
+      await auditInvoicePaymentNotificationFailure(ctx, invoice, {
+        toUserId: pastor.id,
+        toRole: pastor.role,
+      });
+    }
+  }
+}
+
 function feeConfigDto(config: {
   schoolYear: number;
   annualAmountPence: number;
@@ -1861,6 +2007,12 @@ function familyNameFromStudentName(fullName: string): string {
 
 export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
   const extractPdfText = deps.extractPdfText ?? defaultExtractPdfText;
+  let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
+  const getEmailClient = (): EmailClient => {
+    if (cachedEmailClient) return cachedEmailClient;
+    cachedEmailClient = createResendEmailClient();
+    return cachedEmailClient;
+  };
 
   return router({
     listAdmin: authedProcedure.input(adminListInput).query(async ({ ctx, input }) => {
@@ -2753,6 +2905,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         });
         return updated;
       })) as InvoiceRow;
+
+      await notifyPastorsOfParentMarkedPayment({ ctx, getEmailClient, invoice });
 
       return mapInvoice(ctx, invoice, new Date());
     }),

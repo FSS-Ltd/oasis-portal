@@ -15,6 +15,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
+  ADULT_USER_ACCOUNT_ROLES,
   CHILD_REGISTRATION_PROMPT_ROLES,
   PERMISSION_TAGS,
   TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
@@ -71,6 +72,7 @@ const HEAD_ONLY_PERMISSION_TAGS = [
   'calendar-manager',
   'parent-message-responder',
 ] as const satisfies readonly PermissionTag[];
+const SUPPORT_MANAGED_PERMISSION_TAG_SET: ReadonlySet<PermissionTag> = new Set(['club-lead']);
 const permissionTagOptions = PERMISSION_TAGS as readonly [PermissionTag, ...PermissionTag[]];
 
 const searchParentsInput = z
@@ -145,6 +147,7 @@ type AdminUserProfileRow = Prisma.UserGetPayload<{ select: typeof adminUserProfi
 const userAccountSelect = Prisma.validator<Prisma.UserSelect>()({
   id: true,
   role: true,
+  tags: true,
   fullNameEnc: true,
   emailEnc: true,
   phoneEnc: true,
@@ -196,6 +199,55 @@ function assertCanChangeHeadOnlyTags(
     code: 'FORBIDDEN',
     message: `${changedTag} tag can only be changed by Head`,
   });
+}
+
+function changedPermissionTags(
+  currentTags: readonly string[],
+  nextTags: readonly string[],
+): PermissionTag[] {
+  return PERMISSION_TAGS.filter((tag) => currentTags.includes(tag) !== nextTags.includes(tag));
+}
+
+function assertCanChangeUserTags(
+  actor: SessionUser,
+  target: { active: boolean; id: string; role: Role; tags: readonly string[] },
+  nextTags: readonly PermissionTag[],
+) {
+  if (isFullAdmin(actor)) {
+    assertCanChangeHeadOnlyTags(actor.role, target.tags, nextTags);
+    return;
+  }
+
+  if (actor.role !== 'TechnicalSupport') {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'only admin operations users can change permission tags',
+    });
+  }
+  if (!target.active) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'permission tags can only be changed for active users',
+    });
+  }
+  if (target.id === actor.id) return;
+  if (
+    !ADULT_USER_ACCOUNT_ROLES.includes(target.role as (typeof ADULT_USER_ACCOUNT_ROLES)[number])
+  ) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'club lead tags can only be assigned to adult users',
+    });
+  }
+
+  const changedTags = changedPermissionTags(target.tags, nextTags);
+  const invalidTag = changedTags.find((tag) => !SUPPORT_MANAGED_PERMISSION_TAG_SET.has(tag));
+  if (invalidTag) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Technical Support can only change the club lead tag',
+    });
+  }
 }
 
 function assertCanInviteUser(actor: SessionUser, role: Role, tags: readonly string[]) {
@@ -448,6 +500,7 @@ function mapUserAccount(
   return {
     id: user.id,
     role: user.role,
+    tags: user.tags,
     fullName: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'user PII'),
     email: decryptRequired(ctx.db.$enc.decrypt, user.emailEnc, 'user PII'),
     phone: ctx.db.$enc.decrypt(user.phoneEnc),
@@ -1280,18 +1333,19 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    updateUserTags: fullAdminProcedure
+    updateUserTags: adminOperationsProcedure
       .input(updateUserTagsInput)
       .mutation(async ({ ctx, input }) => {
-        const tags = [...new Set(input.tags)].sort();
+        const requestedTags = new Set(input.tags);
+        const tags = PERMISSION_TAGS.filter((tag) => requestedTags.has(tag));
         const existingUser = await ctx.db.user.findUnique({
           where: { id: input.userId },
-          select: { id: true, tags: true },
+          select: { id: true, role: true, tags: true, active: true },
         });
         if (!existingUser) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'user not found' });
         }
-        assertCanChangeHeadOnlyTags(ctx.user.role, existingUser.tags, tags);
+        assertCanChangeUserTags(ctx.user, existingUser, tags);
 
         try {
           const user = await ctx.db.user.update({

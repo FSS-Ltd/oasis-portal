@@ -25,6 +25,7 @@ import {
   canViewStudentFinance,
   canViewStudentDrillThrough,
   canSubmitInitialRegistration,
+  canUseClubLeadAccess,
   canUseClubsLeadPortal,
   hasCompletedTwoFactor,
   isFullAdmin,
@@ -144,17 +145,22 @@ describe('TechnicalSupport account administration', () => {
 });
 
 describe('invoice finance administration', () => {
-  it('allows full admins and finance tagged non-parent staff to manage invoices', () => {
+  it('allows full admins and finance tagged staff to manage invoices', () => {
     expect(canManageInvoices(head)).toBe(true);
     expect(canManageInvoices(principal)).toBe(true);
     expect(canManageInvoices({ ...supervisor, tags: ['finance-admin'] })).toBe(true);
-    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(false);
+    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(true);
     expect(canManageInvoices(supervisor)).toBe(false);
+    expect(canManageInvoices(technicalSupport)).toBe(false);
+    expect(canManageInvoices({ ...clubsLead, tags: ['finance-admin'] })).toBe(false);
     expect(canManageInvoices({ ...parent, tags: ['finance-admin'] })).toBe(false);
     expect(canManageInvoices({ ...student, tags: ['finance-admin'] })).toBe(false);
 
     expect(() => {
       requireCanManageInvoices({ ...supervisor, tags: ['finance-admin'] });
+    }).not.toThrow();
+    expect(() => {
+      requireCanManageInvoices({ ...technicalSupport, tags: ['finance-admin'] });
     }).not.toThrow();
     expect(() => {
       requireCanManageInvoices(parent);
@@ -414,6 +420,7 @@ describe('workflow tags', () => {
 
     expect(isStaff(taggedClubsLead)).toBe(false);
     expect(canUseClubsLeadPortal(taggedClubsLead)).toBe(true);
+    expect(canUseClubLeadAccess(taggedClubsLead)).toBe(true);
     expect(canRecordStudentAttendance(taggedClubsLead)).toBe(false);
     expect(canExportAttendance(taggedClubsLead)).toBe(false);
     expect(canViewSensitiveChildNotes(taggedClubsLead)).toBe(false);
@@ -429,6 +436,18 @@ describe('workflow tags', () => {
     expect(() => {
       requireClubsLead(supervisor);
     }).toThrow(AccessDeniedError);
+  });
+
+  it('allows the club-lead tag without changing normal supervisor permissions', () => {
+    const taggedSupervisor: SessionUser = {
+      ...supervisor,
+      tags: ['club-lead', 'attendance-recorder'],
+    };
+
+    expect(canUseClubsLeadPortal(taggedSupervisor)).toBe(false);
+    expect(canUseClubLeadAccess(taggedSupervisor)).toBe(true);
+    expect(isStaff(taggedSupervisor)).toBe(true);
+    expect(canRecordStudentAttendance(taggedSupervisor)).toBe(true);
   });
 
   it('allows attendance recording for operational admins or attendance-recorder', () => {

@@ -20,11 +20,7 @@ export function useDailyDemeritStatusMap(date: Date, enabled = true, clubId?: st
   return { ...query, statusByStudentId };
 }
 
-export function DailyDemeritBadge({
-  status,
-}: {
-  status: DailyDemeritStatus | null | undefined;
-}) {
+export function DailyDemeritBadge({ status }: { status: DailyDemeritStatus | null | undefined }) {
   if (!status) return null;
 
   const label = `${String(status.demeritUnits)} daily demerit${
@@ -32,11 +28,7 @@ export function DailyDemeritBadge({
   } - ${status.stageLabel}`;
 
   return (
-    <span
-      aria-label={label}
-      className={`daily-demerit-badge is-${status.badgeTone}`}
-      title={label}
-    >
+    <span aria-label={label} className={`daily-demerit-badge is-${status.badgeTone}`} title={label}>
       <span>D</span>
       <strong>{String(status.demeritUnits)}</strong>
     </span>

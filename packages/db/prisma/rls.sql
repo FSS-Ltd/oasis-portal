@@ -868,6 +868,7 @@ ALTER TABLE "IncidentReportEvent" FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS incident_staff_select ON "IncidentReport";
 DROP POLICY IF EXISTS incident_staff_insert ON "IncidentReport";
 DROP POLICY IF EXISTS incident_staff_update ON "IncidentReport";
+DROP POLICY IF EXISTS incident_staff_delete ON "IncidentReport";
 DROP POLICY IF EXISTS incident_report_student_staff_select ON "IncidentReportStudent";
 DROP POLICY IF EXISTS incident_report_student_staff_write ON "IncidentReportStudent";
 DROP POLICY IF EXISTS incident_report_staff_staff_select ON "IncidentReportStaff";
@@ -915,19 +916,42 @@ CREATE POLICY incident_staff_insert ON "IncidentReport"
 CREATE POLICY incident_staff_update ON "IncidentReport"
   FOR UPDATE
   USING (
-    current_setting('app.full_admin', true) = 'true'
+    (
+      current_setting('app.full_admin', true) = 'true'
+      AND "status" <> 'Draft'
+    )
     OR (
-      current_setting('app.user_role', true) = 'Supervisor'
-      AND "recordedById" = current_setting('app.user_id', true)
-      AND "status" IN ('Draft', 'HeadReview')
+      "recordedById" = current_setting('app.user_id', true)
+      AND "status" = 'Draft'
+      AND (
+        current_setting('app.full_admin', true) = 'true'
+        OR current_setting('app.user_role', true) = 'Supervisor'
+      )
     )
   )
   WITH CHECK (
-    current_setting('app.full_admin', true) = 'true'
+    (
+      current_setting('app.full_admin', true) = 'true'
+      AND "status" <> 'Draft'
+    )
     OR (
-      current_setting('app.user_role', true) = 'Supervisor'
-      AND "recordedById" = current_setting('app.user_id', true)
+      "recordedById" = current_setting('app.user_id', true)
       AND "status" IN ('Draft', 'HeadReview')
+      AND (
+        current_setting('app.full_admin', true) = 'true'
+        OR current_setting('app.user_role', true) = 'Supervisor'
+      )
+    )
+  );
+
+CREATE POLICY incident_staff_delete ON "IncidentReport"
+  FOR DELETE
+  USING (
+    "recordedById" = current_setting('app.user_id', true)
+    AND "status" = 'Draft'
+    AND (
+      current_setting('app.full_admin', true) = 'true'
+      OR current_setting('app.user_role', true) = 'Supervisor'
     )
   );
 
@@ -941,8 +965,7 @@ CREATE POLICY incident_report_student_staff_select ON "IncidentReportStudent"
 CREATE POLICY incident_report_student_staff_write ON "IncidentReportStudent"
   FOR ALL
   USING (
-    current_setting('app.full_admin', true) = 'true'
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM "IncidentReport" ir
       WHERE ir."id" = "IncidentReportStudent"."reportId"
         AND ir."recordedById" = current_setting('app.user_id', true)
@@ -950,8 +973,7 @@ CREATE POLICY incident_report_student_staff_write ON "IncidentReportStudent"
     )
   )
   WITH CHECK (
-    current_setting('app.full_admin', true) = 'true'
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM "IncidentReport" ir
       WHERE ir."id" = "IncidentReportStudent"."reportId"
         AND ir."recordedById" = current_setting('app.user_id', true)
@@ -969,8 +991,7 @@ CREATE POLICY incident_report_staff_staff_select ON "IncidentReportStaff"
 CREATE POLICY incident_report_staff_staff_write ON "IncidentReportStaff"
   FOR ALL
   USING (
-    current_setting('app.full_admin', true) = 'true'
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM "IncidentReport" ir
       WHERE ir."id" = "IncidentReportStaff"."reportId"
         AND ir."recordedById" = current_setting('app.user_id', true)
@@ -978,8 +999,7 @@ CREATE POLICY incident_report_staff_staff_write ON "IncidentReportStaff"
     )
   )
   WITH CHECK (
-    current_setting('app.full_admin', true) = 'true'
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM "IncidentReport" ir
       WHERE ir."id" = "IncidentReportStaff"."reportId"
         AND ir."recordedById" = current_setting('app.user_id', true)
@@ -997,8 +1017,7 @@ CREATE POLICY incident_attachment_staff_select ON "IncidentReportAttachment"
 CREATE POLICY incident_attachment_staff_write ON "IncidentReportAttachment"
   FOR ALL
   USING (
-    current_setting('app.full_admin', true) = 'true'
-    OR EXISTS (
+    EXISTS (
       SELECT 1 FROM "IncidentReport" ir
       WHERE ir."id" = "IncidentReportAttachment"."reportId"
         AND ir."recordedById" = current_setting('app.user_id', true)
@@ -1006,15 +1025,12 @@ CREATE POLICY incident_attachment_staff_write ON "IncidentReportAttachment"
     )
   )
   WITH CHECK (
-    current_setting('app.full_admin', true) = 'true'
-    OR (
-      "uploadedById" = current_setting('app.user_id', true)
-      AND EXISTS (
-        SELECT 1 FROM "IncidentReport" ir
-        WHERE ir."id" = "IncidentReportAttachment"."reportId"
-          AND ir."recordedById" = current_setting('app.user_id', true)
-          AND ir."status" = 'Draft'
-      )
+    "uploadedById" = current_setting('app.user_id', true)
+    AND EXISTS (
+      SELECT 1 FROM "IncidentReport" ir
+      WHERE ir."id" = "IncidentReportAttachment"."reportId"
+        AND ir."recordedById" = current_setting('app.user_id', true)
+        AND ir."status" = 'Draft'
     )
   );
 

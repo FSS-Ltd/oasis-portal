@@ -293,6 +293,7 @@ function makeFakeDb(
               some: {
                 club: {
                   active?: boolean;
+                  id?: string;
                   leadAssignments: { some: { userId: string } };
                 };
                 status?: 'Active' | 'Withdrawn';
@@ -324,6 +325,7 @@ function makeFakeDb(
                   return (
                     signup.studentId === student.id &&
                     (signupWhere.status === undefined || signup.status === signupWhere.status) &&
+                    (signupWhere.club.id === undefined || signup.clubId === signupWhere.club.id) &&
                     (signupWhere.club.active === undefined ||
                       signup.clubActive === signupWhere.club.active) &&
                     hasLeadAssignment
@@ -377,6 +379,7 @@ function makeFakeDb(
           where: {
             club?: {
               active?: boolean;
+              id?: string;
               leadAssignments?: { some: { userId: string } };
             };
             status?: 'Active' | 'Withdrawn';
@@ -399,6 +402,7 @@ function makeFakeDb(
                 (where.studentId === undefined || candidate.studentId === where.studentId) &&
                 (where.status === undefined || candidate.status === where.status) &&
                 (where.student?.active === undefined || student?.active === where.student.active) &&
+                (where.club?.id === undefined || candidate.clubId === where.club.id) &&
                 (where.club?.active === undefined || candidate.clubActive === where.club.active) &&
                 hasLeadAssignment
               );
@@ -2309,6 +2313,51 @@ describe('behaviour.recentEntries', () => {
       category: 'Leadership',
     });
     expect(behaviour[0]).toMatchObject({ clubId: assignedClubId });
+  });
+
+  it('allows club-lead tagged users to log only for explicitly assigned clubs', async () => {
+    const taggedParentLead: SessionUser = {
+      ...parentUser,
+      tags: ['club-lead'],
+    };
+    const { db } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: taggedParentLead.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+    const caller = makeCaller(taggedParentLead, db).behaviour;
+
+    await expect(
+      caller.log({
+        clubId: assignedClubId,
+        studentId: activeStudentId,
+        type: 'Merit',
+        category: 'Leadership',
+        visibility: 'General',
+        amount: 2,
+      }),
+    ).resolves.toMatchObject({
+      studentId: activeStudentId,
+      category: 'Leadership',
+      recordedById: taggedParentLead.id,
+    });
+
+    await expect(
+      caller.log({
+        clubId: 'ckclubunassigned00000001',
+        studentId: activeStudentId,
+        type: 'Merit',
+        category: 'Leadership',
+        visibility: 'General',
+        amount: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('filters club-scoped recent entries to rows logged for that club', async () => {

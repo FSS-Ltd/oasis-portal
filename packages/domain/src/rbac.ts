@@ -13,7 +13,7 @@
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
  * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`,
  * `pace-full-access`, `supervisor-all-students`, `calendar-manager`,
- * `parent-message-responder`.
+ * `parent-message-responder`, `club-lead`.
  */
 
 export const ROLES = [
@@ -78,6 +78,7 @@ export const PERMISSION_TAGS = [
   'supervisor-all-students',
   'calendar-manager',
   'parent-message-responder',
+  'club-lead',
 ] as const;
 export type PermissionTag = (typeof PERMISSION_TAGS)[number];
 
@@ -146,14 +147,13 @@ export function canUseClubsLeadPortal(user: Pick<SessionUser, 'role'>): boolean 
   return user.role === 'ClubsLead';
 }
 
+export function canUseClubLeadAccess(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
+  return canUseClubsLeadPortal(user) || hasTag(user, 'club-lead');
+}
+
 export function canManageInvoices(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
   if (isFullAdmin(user)) return true;
-  if (
-    user.role === 'Parent' ||
-    user.role === 'Student' ||
-    user.role === 'ClubsLead' ||
-    user.role === 'TechnicalSupport'
-  ) {
+  if (user.role === 'Parent' || user.role === 'Student' || user.role === 'ClubsLead') {
     return false;
   }
   return hasTag(user, 'finance-admin');
@@ -336,7 +336,9 @@ export function canCreateSensitiveBehaviour(
 
 export function canViewAnyStudentDrillThrough(user: SessionUser): boolean {
   if (canUseClubsLeadPortal(user)) return false;
-  return canUseAdminOperations(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'));
+  return (
+    canUseAdminOperations(user) || (isStaff(user) && hasTag(user, 'student-drillthrough-viewer'))
+  );
 }
 
 export function canUseFullPaceAccess(user: SessionUser): boolean {

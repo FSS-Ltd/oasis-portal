@@ -11,6 +11,7 @@ import {
   canManagePermissionSlips,
   canManageShop,
   canUseAdminOperations,
+  canUseClubLeadAccess,
   canRespondToParentMessages,
   canUseStaffMessaging,
   canUseFullPaceAccess,
@@ -26,7 +27,13 @@ import { LogoutButton } from '@/components/auth/logout-button';
 import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
-import { staffPortalHrefForUser } from '@/lib/portal-view-routing';
+import { ProfilePortalMenu } from '@/components/profile/profile-portal-menu';
+import {
+  clubPortalView,
+  parentPortalView,
+  portalSwitchViewsFrom,
+  staffPortalViewForUser,
+} from '@/lib/portal-view-routing';
 import { roleLabel } from '@/lib/profile-display';
 import './admin.css';
 
@@ -48,8 +55,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const canManagePermissionSlipModule = canManagePermissionSlips(user);
   const canUseShop = canManageShop(user) || canSellInShop(user);
   const canUseMessages = canRespondToParentMessages(user) || canUseStaffMessaging(user);
-  const [linkedChildren, unreadMessageCount] = await Promise.all([
+  const [linkedChildren, assignedClubLeadCount, unreadMessageCount] = await Promise.all([
     linkedChildCount(user.id),
+    canUseClubLeadAccess(user)
+      ? prisma.clubLeadAssignment.count({
+          where: { userId: user.id, club: { active: true } },
+        })
+      : Promise.resolve(0),
     canUseMessages
       ? prisma.message.count({
           where: {
@@ -63,7 +75,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       : Promise.resolve(0),
   ]);
   const hasLinkedChildren = linkedChildren > 0;
-  const staffHref = staffPortalHrefForUser(user);
+  const hasAssignedClub = assignedClubLeadCount > 0;
+  const staffView = staffPortalViewForUser(user);
+  const portalViews = [
+    ...(staffView ? [staffView] : []),
+    ...(hasLinkedChildren ? [parentPortalView] : []),
+    ...(hasAssignedClub ? [clubPortalView] : []),
+  ];
+  const portalSwitchViews = portalSwitchViewsFrom(portalViews);
+  const showProfilePortalMenu = portalViews.length > 2;
   const userRoleLabel = roleLabel(user.role);
   const homeHref = adminOperations
     ? '/admin'
@@ -122,9 +142,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           <p>Supervisor Portal</p>
           <strong>{userRoleLabel}</strong>
           <span>Centre operations</span>
-          <ProfileBadgeLink href="/admin/profile" />
-          {hasLinkedChildren && staffHref ? (
-            <PortalViewSwitch activeView="staff" variant="sidebar" />
+          {showProfilePortalMenu ? (
+            <ProfilePortalMenu profileHref="/admin/profile" views={portalViews} />
+          ) : (
+            <ProfileBadgeLink href="/admin/profile" />
+          )}
+          {portalSwitchViews ? (
+            <PortalViewSwitch activeView="staff" variant="sidebar" views={portalSwitchViews} />
           ) : null}
         </div>
         <AdminSidebarNav {...adminNavProps} />
@@ -151,10 +175,18 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
-            {hasLinkedChildren && staffHref ? (
-              <PortalViewSwitch activeView="staff" variant="mobile" />
+            {portalSwitchViews ? (
+              <PortalViewSwitch activeView="staff" variant="mobile" views={portalSwitchViews} />
             ) : null}
-            <ProfileBadgeLink href="/admin/profile" variant="mobile" />
+            {showProfilePortalMenu ? (
+              <ProfilePortalMenu
+                profileHref="/admin/profile"
+                variant="mobile"
+                views={portalViews}
+              />
+            ) : (
+              <ProfileBadgeLink href="/admin/profile" variant="mobile" />
+            )}
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>
         </header>

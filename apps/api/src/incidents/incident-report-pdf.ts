@@ -4,6 +4,7 @@ import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const PAD = 42;
+const CONTENT_BOTTOM = 135;
 const NAVY = rgb(0.106, 0.169, 0.369);
 const CRIMSON = rgb(0.49, 0.11, 0.173);
 const MUTED = rgb(0.353, 0.416, 0.541);
@@ -14,10 +15,24 @@ export interface GenerateIncidentParentPdfInput {
   reportNumber: string;
   childName: string;
   incidentType: string;
+  severity: string;
+  confidentiality: string;
   occurredAt: Date;
+  location: string;
+  activity: string | null;
+  offSite: boolean;
+  factualAccount: string;
+  immediateActions: string | null;
+  injurySustained: boolean;
+  bodyArea: string | null;
+  firstAidGiven: boolean;
+  firstAiderName: string | null;
+  emergencyServicesContacted: boolean;
+  hospitalTreatment: boolean;
+  parentCarerNotified: boolean;
+  parentNotifiedAt: Date | null;
+  medicalNotes: string | null;
   parentSummary: string;
-  firstAidSummary: string | null;
-  followUp: string | null;
   signedOffBy: string | null;
   signedOffAt: Date | null;
   sharingReason: string;
@@ -34,6 +49,11 @@ interface PdfFonts {
   bold: PDFFont;
 }
 
+interface DrawCursor {
+  page: PDFPage;
+  y: number;
+}
+
 export async function generateIncidentParentPdf(
   input: GenerateIncidentParentPdfInput,
 ): Promise<GeneratedIncidentParentPdf> {
@@ -42,15 +62,19 @@ export async function generateIncidentParentPdf(
     regular: await pdf.embedFont(StandardFonts.Helvetica),
     bold: await pdf.embedFont(StandardFonts.HelveticaBold),
   };
-  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let cursor: DrawCursor = { page: pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]), y: PAGE_HEIGHT - 235 };
 
-  drawHeader(page, fonts, input);
-  drawMeta(page, fonts, input);
-  drawSection(page, fonts, 'Summary shared with parent', input.parentSummary, PAGE_HEIGHT - 235);
-  drawSection(page, fonts, 'First aid / immediate action', input.firstAidSummary ?? 'Not recorded', PAGE_HEIGHT - 360);
-  drawSection(page, fonts, 'Follow-up requested', input.followUp ?? 'No follow-up recorded', PAGE_HEIGHT - 485);
-  drawSection(page, fonts, 'Sharing reason', input.sharingReason, PAGE_HEIGHT - 610);
-  drawFooter(page, fonts, input);
+  drawHeader(cursor.page, fonts, input);
+  drawMeta(cursor.page, fonts, input);
+
+  for (const section of parentCopySections(input)) {
+    cursor = drawSection(pdf, cursor, fonts, input, section.title, section.body);
+  }
+
+  if (cursor.y < 130) {
+    cursor = { page: addContinuationPage(pdf, fonts, input), y: PAGE_HEIGHT - 128 };
+  }
+  drawFooter(cursor.page, fonts, input);
 
   const bytes = await pdf.save();
   return {
@@ -58,6 +82,65 @@ export async function generateIncidentParentPdf(
     mimeType: 'application/pdf',
     pdfBase64: Buffer.from(bytes).toString('base64'),
   };
+}
+
+function parentCopySections(input: GenerateIncidentParentPdfInput) {
+  return [
+    {
+      title: 'Incident classification',
+      body: lines([
+        `Type: ${input.incidentType}`,
+        `Severity: ${input.severity}`,
+        `Confidentiality: ${input.confidentiality}`,
+      ]),
+    },
+    {
+      title: 'When and where',
+      body: lines([
+        `Date / time: ${formatDateTime(input.occurredAt)}`,
+        `Location: ${input.location}`,
+        `Activity / context: ${input.activity ?? 'Not recorded'}`,
+        `Off-site activity: ${yesNo(input.offSite)}`,
+      ]),
+    },
+    {
+      title: 'Factual account',
+      body: lines([
+        input.factualAccount,
+        `Immediate actions: ${input.immediateActions ?? 'Not recorded'}`,
+      ]),
+    },
+    {
+      title: 'Injury, first aid and medical',
+      body: lines([
+        `Injury sustained: ${yesNo(input.injurySustained)}`,
+        `Body area / injury: ${input.bodyArea ?? 'Not recorded'}`,
+        `First aid given: ${yesNo(input.firstAidGiven)}`,
+        `First aider: ${input.firstAiderName ?? 'Not recorded'}`,
+        `Hospital / 111 / 999 contacted: ${yesNo(input.emergencyServicesContacted)}`,
+        `Hospital treatment: ${yesNo(input.hospitalTreatment)}`,
+        `Parent / carer notified: ${yesNo(input.parentCarerNotified)}`,
+        `Time notified: ${input.parentNotifiedAt ? formatDateTime(input.parentNotifiedAt) : 'Not recorded'}`,
+        `Medical notes: ${input.medicalNotes ?? 'Not recorded'}`,
+      ]),
+    },
+    {
+      title: 'Summary shared with parent',
+      body: input.parentSummary,
+    },
+    {
+      title: 'Sharing reason',
+      body: input.sharingReason,
+    },
+  ];
+}
+
+function lines(values: readonly string[]): string {
+  return values.join('\n');
+}
+
+function yesNo(value: boolean): string {
+  return value ? 'Yes' : 'No';
 }
 
 function drawHeader(page: PDFPage, fonts: PdfFonts, input: GenerateIncidentParentPdfInput) {
@@ -72,7 +155,15 @@ function drawHeader(page: PDFPage, fonts: PdfFonts, input: GenerateIncidentParen
   drawText(page, 'OASIS LEARNING CENTRE', PAD, PAGE_HEIGHT - 48, 13, fonts.bold, NAVY);
   drawText(page, 'Parent copy', PAD, PAGE_HEIGHT - 66, 9, fonts.bold, CRIMSON);
   drawText(page, 'Incident Report', PAD, PAGE_HEIGHT - 104, 24, fonts.bold, NAVY);
-  drawText(page, input.reportNumber, PAGE_WIDTH - PAD - 120, PAGE_HEIGHT - 48, 12, fonts.bold, CRIMSON);
+  drawText(
+    page,
+    input.reportNumber,
+    PAGE_WIDTH - PAD - 120,
+    PAGE_HEIGHT - 48,
+    12,
+    fonts.bold,
+    CRIMSON,
+  );
 }
 
 function drawMeta(page: PDFPage, fonts: PdfFonts, input: GenerateIncidentParentPdfInput) {
@@ -94,9 +185,46 @@ function drawMeta(page: PDFPage, fonts: PdfFonts, input: GenerateIncidentParentP
   drawText(page, formatDateTime(input.occurredAt), PAD + 78, y + 4, 9, fonts.bold, NAVY);
 }
 
-function drawSection(page: PDFPage, fonts: PdfFonts, title: string, body: string, y: number) {
+function drawSection(
+  pdf: PDFDocument,
+  cursor: DrawCursor,
+  fonts: PdfFonts,
+  input: GenerateIncidentParentPdfInput,
+  title: string,
+  body: string,
+): DrawCursor {
+  let { page, y } = cursor;
+  if (y < CONTENT_BOTTOM + 48) {
+    page = addContinuationPage(pdf, fonts, input);
+    y = PAGE_HEIGHT - 128;
+  }
+
   drawText(page, title, PAD, y, 11, fonts.bold, NAVY);
-  drawWrappedText(page, body, PAD, y - 20, 9, fonts.regular, MUTED, PAGE_WIDTH - PAD * 2, 15);
+  y -= 20;
+
+  for (const line of wrapText(body, fonts.regular, 9, PAGE_WIDTH - PAD * 2)) {
+    if (y < CONTENT_BOTTOM) {
+      page = addContinuationPage(pdf, fonts, input);
+      y = PAGE_HEIGHT - 128;
+    }
+    if (line.length > 0) {
+      drawText(page, line, PAD, y, 9, fonts.regular, MUTED);
+    }
+    y -= 15;
+  }
+
+  return { page, y: y - 18 };
+}
+
+function addContinuationPage(
+  pdf: PDFDocument,
+  fonts: PdfFonts,
+  input: GenerateIncidentParentPdfInput,
+): PDFPage {
+  const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  drawHeader(page, fonts, input);
+  drawText(page, 'Continued parent copy', PAD, PAGE_HEIGHT - 126, 10, fonts.bold, MUTED);
+  return page;
 }
 
 function drawFooter(page: PDFPage, fonts: PdfFonts, input: GenerateIncidentParentPdfInput) {
@@ -113,7 +241,17 @@ function drawFooter(page: PDFPage, fonts: PdfFonts, input: GenerateIncidentParen
     ? `Signed off by ${input.signedOffBy}${input.signedOffAt ? ` on ${formatDate(input.signedOffAt)}` : ''}.`
     : 'Signed off by Oasis Learning Centre.';
   drawText(page, 'Head sign-off', PAD + 12, 94, 9, fonts.bold, NAVY);
-  drawWrappedText(page, signOff, PAD + 12, 78, 8.5, fonts.regular, MUTED, PAGE_WIDTH - PAD * 2 - 24, 13);
+  drawWrappedText(
+    page,
+    signOff,
+    PAD + 12,
+    78,
+    8.5,
+    fonts.regular,
+    MUTED,
+    PAGE_WIDTH - PAD * 2 - 24,
+    13,
+  );
 }
 
 function drawText(
@@ -141,20 +279,35 @@ function drawWrappedText(
   maxWidth: number,
   lineHeight: number,
 ) {
-  const words = value.split(/\s+/u).filter(Boolean);
-  let line = '';
   let cursorY = y;
-  for (const word of words) {
-    const next = line ? `${line} ${word}` : word;
-    if (font.widthOfTextAtSize(next, size) > maxWidth && line) {
-      page.drawText(line, { x, y: cursorY, size, font, color });
-      cursorY -= lineHeight;
-      line = word;
-    } else {
-      line = next;
-    }
+  for (const line of wrapText(value, font, size, maxWidth)) {
+    if (line.length > 0) page.drawText(line, { x, y: cursorY, size, font, color });
+    cursorY -= lineHeight;
   }
-  if (line) page.drawText(line, { x, y: cursorY, size, font, color });
+}
+
+function wrapText(value: string, font: PDFFont, size: number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of value.split(/\r?\n/u)) {
+    const words = paragraph.split(/\s+/u).filter(Boolean);
+    if (words.length === 0) {
+      lines.push('');
+      continue;
+    }
+
+    let line = '';
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(next, size) > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = next;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines;
 }
 
 function trimToWidth(value: string, font: PDFFont, size: number, maxWidth: number): string {
@@ -187,5 +340,10 @@ function formatDateTime(value: Date): string {
 }
 
 function safeFileName(value: string): string {
-  return value.trim().replace(/[^a-zA-Z0-9._-]/gu, '-').replace(/-+/gu, '-') || 'child';
+  return (
+    value
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/gu, '-')
+      .replace(/-+/gu, '-') || 'child'
+  );
 }

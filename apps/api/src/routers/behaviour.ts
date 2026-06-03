@@ -4,6 +4,7 @@ import {
   AccessDeniedError,
   canCreateSensitiveBehaviour,
   canUseAdminOperations,
+  canUseClubLeadAccess,
   canUseClubsLeadPortal,
   canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
@@ -108,8 +109,17 @@ type CreatedBehaviourEntry = {
   createdAt: Date;
 };
 
-function canUseBehaviourWorkflow(user: SessionUser): boolean {
-  return canUseAdminOperations(user) || isStaff(user) || canUseClubsLeadPortal(user);
+function usesClubLeadScope(user: SessionUser, clubId?: string): boolean {
+  return canUseClubsLeadPortal(user) || (clubId !== undefined && canUseClubLeadAccess(user));
+}
+
+function canUseBehaviourWorkflow(user: SessionUser, clubId?: string): boolean {
+  return (
+    canUseAdminOperations(user) ||
+    isStaff(user) ||
+    canUseClubsLeadPortal(user) ||
+    (clubId !== undefined && canUseClubLeadAccess(user))
+  );
 }
 
 async function auditPermissionDenied(
@@ -131,9 +141,13 @@ async function auditPermissionDenied(
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-async function requireBehaviourWorkflow(ctx: AuthedContext, entity: string): Promise<void> {
-  if (canUseBehaviourWorkflow(ctx.user)) return;
-  await auditPermissionDenied(ctx, entity, { role: ctx.user.role });
+async function requireBehaviourWorkflow(
+  ctx: AuthedContext,
+  entity: string,
+  clubId?: string,
+): Promise<void> {
+  if (canUseBehaviourWorkflow(ctx.user, clubId)) return;
+  await auditPermissionDenied(ctx, entity, { role: ctx.user.role, clubId });
 }
 
 async function requireCanRequestSensitive(ctx: AuthedContext, studentId: string): Promise<void> {
@@ -267,7 +281,7 @@ function clubLeadStudentWhere(user: SessionUser, clubId?: string) {
 
 function visibleBehaviourWhere(user: SessionUser, clubId?: string) {
   if (canViewSensitiveBehaviour(user)) return { deletedAt: null };
-  if (canUseClubsLeadPortal(user)) {
+  if (usesClubLeadScope(user, clubId)) {
     return {
       deletedAt: null,
       visibility: 'General' as const,
@@ -354,7 +368,7 @@ async function loadActiveScopedStudent(
   if (!student.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
   }
-  if (canUseClubsLeadPortal(ctx.user)) {
+  if (usesClubLeadScope(ctx.user, input.clubId)) {
     await assertAssignedClubLeadStudent(ctx, {
       studentId: input.studentId,
       entity: input.entity,
@@ -535,8 +549,12 @@ async function assertDemeritStageNotes(
   }
 }
 
-function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser) {
-  if (canUseClubsLeadPortal(user)) return {};
+function scopedStudentRelationWhere(
+  scope: DailyYearBandScope,
+  user: SessionUser,
+  clubId?: string,
+) {
+  if (usesClubLeadScope(user, clubId)) return {};
   if (canUseAllStudentSupervisorWorkflow(user) || scope.scopedYears === null) return {};
   return { student: studentWhereForDailyScope(scope) };
 }
@@ -910,10 +928,10 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     dailyDemeritStatuses: authedProcedure
       .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses');
+        await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses', input.clubId);
         const day = localDayBounds(input.date);
         const scope = await loadDailyYearBandScope(ctx, input.date);
-        const scopedStudentWhere = canUseClubsLeadPortal(ctx.user)
+        const scopedStudentWhere = usesClubLeadScope(ctx.user, input.clubId)
           ? clubLeadStudentWhere(ctx.user, input.clubId)
           : { active: true, ...studentWhereForDailyScope(scope) };
 
@@ -980,7 +998,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     recentEntries: authedProcedure
       .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries');
+        await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries', input.clubId);
         const from = normalizeDate(input.date);
         const to = dayEnd(input.date);
         const scope = await loadDailyYearBandScope(ctx, from);
@@ -990,7 +1008,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             where: {
               createdAt: { gte: from, lt: to },
               ...visibleBehaviourWhere(ctx.user, input.clubId),
-              ...scopedStudentRelationWhere(scope, ctx.user),
+              ...scopedStudentRelationWhere(scope, ctx.user, input.clubId),
               ...clubBehaviourWhere(input.clubId),
             },
             include: {
@@ -1193,7 +1211,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.log');
+        await requireBehaviourWorkflow(ctx, 'behaviour.log', input.clubId);
         validateSingleBehaviourInput(input);
 
         const visibility = input.visibility ?? (input.type === 'General' ? 'Sensitive' : 'General');
@@ -1330,7 +1348,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.logForStudents');
+        await requireBehaviourWorkflow(ctx, 'behaviour.logForStudents', input.clubId);
         requireUniqueStudentIds(input.studentIds);
         validateSingleBehaviourInput(input);
 

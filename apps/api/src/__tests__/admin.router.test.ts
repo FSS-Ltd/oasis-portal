@@ -1009,7 +1009,12 @@ describe('admin.listUsers and admin.updateUserTags', () => {
 
   it('updates permission tags and writes an audit row', async () => {
     const db = makeFakeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: [] });
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: [],
+      active: true,
+    });
     db.user.update.mockResolvedValue({
       id: 'u_sup',
       tags: ['attendance-exporter', 'audit-viewer'],
@@ -1216,7 +1221,12 @@ describe('admin.listUsers and admin.updateUserTags', () => {
 
   it('limits Head-only permission tag changes to Head', async () => {
     const db = makeFakeDb();
-    db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: [] });
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: [],
+      active: true,
+    });
     const blocked = makeCaller(principalUser, { db });
 
     await expect(
@@ -1251,7 +1261,12 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.user.update).not.toHaveBeenCalled();
 
-    db.user.findUnique.mockResolvedValue({ id: 'u_sup', tags: ['calendar-manager'] });
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: ['calendar-manager'],
+      active: true,
+    });
     await expect(
       blocked.caller.admin.updateUserTags({
         userId: 'u_sup',
@@ -1276,7 +1291,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     });
   });
 
-  it('keeps tag management full-admin-only while allowing Technical Support profile operations', async () => {
+  it('limits Technical Support tag management to the club lead tag', async () => {
     const { caller, db } = makeCaller(supervisorUser);
 
     await expect(caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -1298,9 +1313,28 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     );
     const support = makeCaller(technicalSupportUser, { db: supportDb });
     await expect(support.caller.admin.listUsers()).resolves.toHaveLength(1);
+    supportDb.user.findUnique.mockResolvedValueOnce({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: [],
+      active: true,
+    });
     await expect(
       support.caller.admin.updateUserTags({ userId: 'u_sup', tags: ['audit-viewer'] }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    supportDb.user.findUnique.mockResolvedValueOnce({
+      id: 'u_parent',
+      role: 'Parent',
+      tags: [],
+      active: true,
+    });
+    supportDb.user.update.mockResolvedValueOnce({
+      id: 'u_parent',
+      tags: ['club-lead'],
+    });
+    await expect(
+      support.caller.admin.updateUserTags({ userId: 'u_parent', tags: ['club-lead'] }),
+    ).resolves.toEqual({ id: 'u_parent', tags: ['club-lead'] });
     await expect(
       support.caller.admin.updateUserProfile({ userId: 'u_sup', phone: '07700 900000' }),
     ).resolves.toMatchObject({ id: 'u_sup', phone: '07700 900000' });
@@ -1311,15 +1345,80 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     await expect(parent.caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(parent.db.user.findMany).not.toHaveBeenCalled();
   });
+
+  it('lets Technical Support change any permission tag on their own active account', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: technicalSupportUser.id,
+      role: 'TechnicalSupport',
+      tags: [],
+      active: true,
+    });
+    db.user.update.mockResolvedValue({
+      id: technicalSupportUser.id,
+      tags: ['audit-viewer', 'calendar-manager', 'student-drillthrough-viewer'],
+    });
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.updateUserTags({
+        userId: technicalSupportUser.id,
+        tags: ['student-drillthrough-viewer', 'audit-viewer', 'calendar-manager'],
+      }),
+    ).resolves.toEqual({
+      id: technicalSupportUser.id,
+      tags: ['audit-viewer', 'calendar-manager', 'student-drillthrough-viewer'],
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: technicalSupportUser.id },
+      data: { tags: ['audit-viewer', 'student-drillthrough-viewer', 'calendar-manager'] },
+      select: { id: true, tags: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: technicalSupportUser.id,
+        meta: {
+          tags: ['audit-viewer', 'calendar-manager', 'student-drillthrough-viewer'],
+          source: 'admin.updateUserTags',
+        },
+      },
+    });
+  });
+
+  it('blocks Technical Support permission tag changes for inactive accounts', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: technicalSupportUser.id,
+      role: 'TechnicalSupport',
+      tags: [],
+      active: false,
+    });
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.updateUserTags({
+        userId: technicalSupportUser.id,
+        tags: ['audit-viewer'],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'permission tags can only be changed for active users',
+    });
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('admin.listUserAccounts and account support updates', () => {
-  it('lists safe account rows for Technical Support without tags or child links', async () => {
+  it('lists safe account rows for Technical Support with tags but without child links', async () => {
     const db = makeFakeDb();
     db.user.findMany.mockResolvedValue([
       {
         id: 'u_parent',
         role: 'Parent',
+        tags: ['club-lead'],
         fullNameEnc: 'enc:Jane Parent',
         emailEnc: 'enc:jane@example.com',
         phoneEnc: 'enc:07700 900456',
@@ -1331,6 +1430,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       {
         id: 'u_support',
         role: 'TechnicalSupport',
+        tags: [],
         fullNameEnc: 'enc:Tech Support',
         emailEnc: 'enc:support@example.com',
         phoneEnc: null,
@@ -1348,6 +1448,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       {
         id: 'u_parent',
         role: 'Parent',
+        tags: ['club-lead'],
         fullName: 'Jane Parent',
         email: 'jane@example.com',
         phone: '07700 900456',
@@ -1359,6 +1460,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       {
         id: 'u_support',
         role: 'TechnicalSupport',
+        tags: [],
         fullName: 'Tech Support',
         email: 'support@example.com',
         phone: null,
@@ -1369,7 +1471,6 @@ describe('admin.listUserAccounts and account support updates', () => {
       },
     ]);
     expect(result[0]).not.toHaveProperty('children');
-    expect(result[0]).not.toHaveProperty('tags');
     expect(db.user.findMany).toHaveBeenCalledWith({
       where: { role: { in: ['Parent', 'TechnicalSupport'] } },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
@@ -1377,6 +1478,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       select: {
         id: true,
         role: true,
+        tags: true,
         fullNameEnc: true,
         emailEnc: true,
         phoneEnc: true,
@@ -1459,6 +1561,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       .mockResolvedValueOnce({
         id: 'u_parent',
         role: 'Parent',
+        tags: [],
         fullNameEnc: 'enc:Jane Parent',
         emailEnc: 'enc:jane@example.com',
         phoneEnc: 'enc:07700 900456',
@@ -1470,6 +1573,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       .mockResolvedValueOnce({
         id: 'u_parent',
         role: 'Parent',
+        tags: [],
         fullNameEnc: 'enc:Jane Parent',
         emailEnc: 'enc:jane@example.com',
         phoneEnc: 'enc:07700 900456',
@@ -1481,6 +1585,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       .mockResolvedValueOnce({
         id: 'u_parent',
         role: 'Parent',
+        tags: [],
         fullNameEnc: 'enc:Jane Parent',
         emailEnc: 'enc:jane@example.com',
         phoneEnc: 'enc:07700 900456',
@@ -1514,6 +1619,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       select: {
         id: true,
         role: true,
+        tags: true,
         fullNameEnc: true,
         emailEnc: true,
         phoneEnc: true,
@@ -1536,6 +1642,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       select: {
         id: true,
         role: true,
+        tags: true,
         fullNameEnc: true,
         emailEnc: true,
         phoneEnc: true,
@@ -1551,6 +1658,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       select: {
         id: true,
         role: true,
+        tags: true,
         fullNameEnc: true,
         emailEnc: true,
         phoneEnc: true,
@@ -2391,7 +2499,11 @@ describe('admin.deleteUserInvitation', () => {
         url: 'https://clerk.example/invite/abc',
       },
     });
-    const { caller, db: usedDb, revokeInvitation } = makeCaller(technicalSupportUser, {
+    const {
+      caller,
+      db: usedDb,
+      revokeInvitation,
+    } = makeCaller(technicalSupportUser, {
       clerk,
       db,
     });

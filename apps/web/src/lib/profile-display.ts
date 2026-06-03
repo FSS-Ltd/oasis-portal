@@ -47,6 +47,7 @@ export function permissionTagLabel(tag: string): string {
     'supervisor-all-students': 'Supervisor All Students',
     'calendar-manager': 'Calendar Manager',
     'parent-message-responder': 'Parent Message Responder',
+    'club-lead': 'Club Lead',
   };
   return labels[tag as PermissionTag] ?? tag;
 }

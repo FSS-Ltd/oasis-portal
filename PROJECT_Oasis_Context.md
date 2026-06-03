@@ -68,6 +68,166 @@ Notes:
   environment. The migration file was added but still needs applying where the
   configured migration database is reachable.
 
+## Current session - 2026-06-03 Incident draft ownership and review detail
+
+Working branch: `fix/incident-draft-edit-delete`.
+
+**PR scope:** Fix incident draft edit/update/delete ownership, add Head/admin
+read-only incident form detail, and expand parent PDF default sections.
+
+Completed:
+
+- Added creator-only draft ownership checks for draft update, submit, and delete
+  in the incident API, with audit rows for draft update and delete.
+- Replaced draft child, staff, and witness links on update so editing a draft
+  preserves the full form state.
+- Added a draft delete mutation and wired supervisor UI controls so only the
+  report creator sees edit/delete actions for Draft reports.
+- Added the Head/admin read-only incident report detail section for the
+  supervisor-entered classification, when/where, people, factual account,
+  direct disclosure, actions, witnesses, injury/medical fields, and
+  reportability checks.
+- Expanded parent PDF defaults with parent-safe classification, when/where,
+  factual account, and injury/first-aid/medical sections while keeping direct
+  disclosure out of the parent PDF by default.
+- Tightened incident RLS write policies so draft update/delete writes are scoped
+  to the report creator at the database policy layer.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- incident.router.test.ts`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/incident.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/db test`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm exec prettier --check` on changed supported TypeScript and CSS files.
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- `pnpm --filter @oasis/db rls:apply` reached Prisma outside the sandbox but
+  could not run because `DATABASE_URL` is not configured in this worktree
+  environment.
+- `pnpm db:integration` was not run outside the sandbox because the approval
+  reviewer blocked it as potentially destructive unless pointed at a confirmed
+  disposable database.
+- The isolated worktree uses local ignored `node_modules` symlinks to reuse the
+  existing install while resolving `@oasis/api` to this branch.
+
+## Current session - 2026-06-03 Portal landing page
+
+Working branch: `feat/portal-landing-page`.
+
+**PR scope:** Recreate the updated public landing-page design from
+`design/Oasis Learning Center.zip`, keep authenticated users routed to
+`/post-sign-in`, and wire the term at-a-glance section to live calendar and
+attendance data.
+
+Completed:
+
+- Added typed Oasis term helpers for Spring, Summer, and Autumn boundary dates.
+- Replaced the public `/` route with the recreated landing-page design and kept
+  signed-in users redirected to `/post-sign-in`.
+- Added a server-side landing data loader for current-term calendar events,
+  centre-wide attendance percentage, and last-six-week attendance bars.
+- Added a static verse placeholder until a DB-backed verse source is introduced.
+- Scoped landing-page CSS through the app layout so portal dashboard styles stay
+  isolated.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `graphify update .`
+
+Notes:
+
+- Browser verification of `/` was attempted on the local dev server, but dynamic
+  app routes such as `/` and `/post-sign-in` timed out in the existing Clerk dev
+  runtime while static assets served normally. Production build verification
+  passed.
+- Existing build warnings remain: Prisma config deprecation/driverAdapters
+  warnings and the Next.js ESLint-plugin warning.
+
+## Current session - 2026-06-03 Pastor invoice payment notification
+
+Working branch: `feat/invoice-paid-pastor-email`.
+
+**PR scope:** Notify active Pastor users by email when a parent marks a school
+fee invoice as paid, while keeping the invoice in `PaymentPending` until staff
+confirmation.
+
+Completed:
+
+- Added a branded invoice payment notification email template and builder.
+- Extended the invoice router to accept an injected email client and lazily use
+  Resend in production.
+- Notifies active `Pastor` users after `invoice.parentMarkPaid` succeeds.
+- Kept notification emails minimal: family label, invoice number, and portal
+  confirmation link only when `APP_URL` is configured.
+- Added sent/failed email audit metadata and operational failure logging without
+  writing decrypted family labels, invoice line items, amounts, or PDF contents
+  into audit metadata.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- invoice.router.test.ts email.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check apps/api/src/__tests__/email.router.test.ts apps/api/src/__tests__/invoice.router.test.ts apps/api/src/emails/invoice-payment-notification-email.tsx apps/api/src/index.ts apps/api/src/lib/email.ts apps/api/src/routers/invoice.ts`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- No database migration is required.
+- The isolated implementation worktree required `pnpm install --frozen-lockfile`
+  because dependencies were not present in that worktree.
+
+## Current session - 2026-06-03 PACE self-test duplicate guard
+
+Working branch: `fix/pace-self-test-updates`.
+
+**PR scope:** Prevent duplicate PACE Self-Test records for the same
+student/subject/PACE number and refresh PACE workflow views after PACE
+corrections from child drill-through surfaces.
+
+Completed:
+
+- Added API guards so `pace.record` and `pace.updateRecord` reject duplicate
+  Self-Test rows for the same student, subject, and PACE number while still
+  allowing multiple PACE Test attempts.
+- Changed PACE score creation to default to PACE Test when a Self-Test already
+  exists for the current PACE, and disabled duplicate Self-Test saves in the
+  score modal.
+- Broadened PACE mutation invalidation from PACE workflow, student
+  drill-through, and child snapshot surfaces so PACE workflow, roster,
+  drill-through, snapshot, centre snapshot, and parent dashboard data refresh
+  together.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- pace.router.test.ts`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- No database unique index was added because production already contains
+  duplicate Self-Test rows. Existing duplicates, such as repeated 1041 rows,
+  still need a separate cleanup after the correct historical record is
+  confirmed.
+
 ## Current session - 2026-05-29 Parent tithe wallet
 
 Working branch: `feat/parent-tithe-wallet`.

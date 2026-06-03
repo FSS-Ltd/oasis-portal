@@ -134,7 +134,9 @@
 
 .incident-table-row.is-selected td {
   background: #eef5ff;
-  box-shadow: inset 0 1px 0 rgba(91, 144, 197, 0.16), inset 0 -1px 0 rgba(91, 144, 197, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(91, 144, 197, 0.16),
+    inset 0 -1px 0 rgba(91, 144, 197, 0.16);
 }
 
 .incident-table-row.is-selected td:first-child {
@@ -482,9 +484,7 @@
 }
 
 .incident-page .switch-input:checked {
-  background:
-    radial-gradient(circle at 70% 50%, #fff 0 9px, transparent 10px),
-    var(--crimson);
+  background: radial-gradient(circle at 70% 50%, #fff 0 9px, transparent 10px), var(--crimson);
   border-color: var(--crimson);
 }
 
@@ -526,6 +526,87 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.incident-report-detail {
+  display: grid;
+  gap: 14px;
+}
+
+.incident-report-detail__section {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+.incident-report-detail__section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.incident-report-detail__section h3 {
+  color: var(--navy);
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.incident-report-detail__grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.incident-report-detail__grid div,
+.incident-report-detail__copy {
+  background: #f8fbff;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.incident-report-detail__grid dt,
+.incident-report-detail__copy span,
+.incident-report-detail__checks span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.incident-report-detail__grid dd {
+  color: var(--navy);
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.incident-report-detail__copy p {
+  color: var(--navy);
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+
+.incident-report-detail__checks {
+  display: grid;
+  gap: 8px;
+}
+
+.incident-report-detail__checks div {
+  align-items: center;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
 }
 
 .incident-form-rail {
@@ -621,7 +702,9 @@
   right: 0;
   text-align: left;
   transform: translateY(4px);
-  transition: opacity 150ms ease, transform 150ms ease;
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
   width: min(280px, 72vw);
   z-index: 40;
 }
@@ -1002,6 +1085,7 @@
   .incident-form-grid--split,
   .incident-form-grid--four,
   .incident-form-grid--wide,
+  .incident-report-detail__grid,
   .incident-check-grid {
     grid-template-columns: 1fr;
   }
@@ -1146,6 +1230,62 @@
 .profile-badge--mobile .profile-badge__text strong {
   max-width: 86px;
   font-size: 0.72rem;
+}
+
+.profile-portal-menu {
+  position: relative;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.profile-portal-menu .profile-badge {
+  margin-top: 0;
+}
+
+.profile-portal-menu--mobile,
+.profile-portal-menu--topbar {
+  width: auto;
+  margin-top: 0;
+}
+
+.profile-portal-menu__content {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  min-width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(212, 229, 245, 0.22);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(7, 13, 34, 0.22);
+}
+
+.profile-portal-menu--topbar .profile-portal-menu__content,
+.profile-portal-menu--mobile .profile-portal-menu__content {
+  right: 0;
+  left: auto;
+  min-width: 178px;
+}
+
+.profile-portal-menu__item {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 9px 12px;
+  color: var(--oasis-navy);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.profile-portal-menu__item:hover,
+.profile-portal-menu__item:focus-visible {
+  background: var(--oasis-bg);
+  color: var(--oasis-crimson);
+  outline: none;
 }
 
 .admin-shell__mobile-actions {
@@ -6536,8 +6676,7 @@ button.club-assignment-row {
 }
 
 .monthly-availability-editor .availability-editor__row {
-  grid-template-columns:
-    minmax(130px, 0.9fr) minmax(104px, auto) minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(130px, 0.9fr) minmax(104px, auto) minmax(180px, 1fr) auto;
 }
 
 .monthly-availability-editor__all-day-toggle {
