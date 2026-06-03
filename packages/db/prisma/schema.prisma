@@ -220,6 +220,7 @@ model Student {
   incidentParentCopies     IncidentReportParentCopy[]
   registrationProfile      StudentRegistrationProfile?
   portalSettings           StudentPortalSettings?
+  portalUsageMinutes       StudentPortalUsageMinute[]
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -273,6 +274,22 @@ model StudentPortalSettings {
   @@index([parentLockUpdatedById, parentLockUpdatedAt])
   @@index([headLockUpdatedById, headLockUpdatedAt])
   @@index([shopBlockUpdatedById, shopBlockUpdatedAt])
+}
+
+model StudentPortalUsageMinute {
+  id              String   @id @default(cuid())
+  studentId       String
+  minuteStartedAt DateTime
+  sessionKey      String?
+  firstSeenAt     DateTime @default(now())
+  lastSeenAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, minuteStartedAt])
+  @@index([studentId, minuteStartedAt])
 }
 
 model Subject {
@@ -1413,45 +1430,45 @@ enum IncidentEventType {
 }
 
 model IncidentReport {
-  id                            String                  @id @default(cuid())
-  reportNumber                  String                  @unique
-  type                          IncidentType
-  severity                      IncidentSeverity
-  confidentiality               IncidentConfidentiality @default(StaffOnly)
-  status                        IncidentReportStatus    @default(Draft)
-  occurredAt                    DateTime
-  locationEnc                   String
-  activityEnc                   String?
-  offSite                       Boolean                 @default(false)
-  factualAccountEnc             String
-  directDisclosureEnc           String?
-  immediateActionsEnc           String?
-  witnessesEnc                  String?
-  injurySustained               Boolean                 @default(false)
-  bodyAreaEnc                   String?
-  firstAidGiven                 Boolean                 @default(false)
-  firstAiderId                  String?
-  emergencyServicesContacted    Boolean                 @default(false)
-  hospitalTreatment             Boolean                 @default(false)
-  parentCarerNotified           Boolean                 @default(false)
-  parentNotifiedAt              DateTime?
-  medicalNotesEnc               String?
-  dslNotified                   Boolean                 @default(false)
-  headSignOffRequired           Boolean                 @default(false)
-  pastorPrincipalEscalation     Boolean                 @default(false)
-  ladoConsidered                Boolean                 @default(false)
-  socialCarePoliceReferral      Boolean                 @default(false)
-  riddorCheck                   Boolean                 @default(false)
-  dataSharingReasonEnc          String?
-  parentVisibilityRequested     Boolean                 @default(false)
-  recordedById                  String
-  signedOffById                 String?
-  signedOffAt                   DateTime?
-  escalatedById                 String?
-  escalatedAt                   DateTime?
-  archivedAt                    DateTime?
-  createdAt                     DateTime                @default(now())
-  updatedAt                     DateTime                @updatedAt
+  id                         String                  @id @default(cuid())
+  reportNumber               String                  @unique
+  type                       IncidentType
+  severity                   IncidentSeverity
+  confidentiality            IncidentConfidentiality @default(StaffOnly)
+  status                     IncidentReportStatus    @default(Draft)
+  occurredAt                 DateTime
+  locationEnc                String
+  activityEnc                String?
+  offSite                    Boolean                 @default(false)
+  factualAccountEnc          String
+  directDisclosureEnc        String?
+  immediateActionsEnc        String?
+  witnessesEnc               String?
+  injurySustained            Boolean                 @default(false)
+  bodyAreaEnc                String?
+  firstAidGiven              Boolean                 @default(false)
+  firstAiderId               String?
+  emergencyServicesContacted Boolean                 @default(false)
+  hospitalTreatment          Boolean                 @default(false)
+  parentCarerNotified        Boolean                 @default(false)
+  parentNotifiedAt           DateTime?
+  medicalNotesEnc            String?
+  dslNotified                Boolean                 @default(false)
+  headSignOffRequired        Boolean                 @default(false)
+  pastorPrincipalEscalation  Boolean                 @default(false)
+  ladoConsidered             Boolean                 @default(false)
+  socialCarePoliceReferral   Boolean                 @default(false)
+  riddorCheck                Boolean                 @default(false)
+  dataSharingReasonEnc       String?
+  parentVisibilityRequested  Boolean                 @default(false)
+  recordedById               String
+  signedOffById              String?
+  signedOffAt                DateTime?
+  escalatedById              String?
+  escalatedAt                DateTime?
+  archivedAt                 DateTime?
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
 
   recordedBy   User                       @relation("IncidentReportsRecorded", fields: [recordedById], references: [id])
   signedOffBy  User?                      @relation("IncidentReportsSignedOff", fields: [signedOffById], references: [id], onDelete: SetNull)
@@ -1554,8 +1571,8 @@ model IncidentReportParentRecipient {
   guardianId     String
   acknowledgedAt DateTime?
   downloadedAt   DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   copy     IncidentReportParentCopy @relation(fields: [copyId], references: [id], onDelete: Cascade)
   guardian User                     @relation("IncidentParentRecipients", fields: [guardianId], references: [id])

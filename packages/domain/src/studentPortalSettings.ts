@@ -28,6 +28,23 @@ export interface StudentPortalUsageLimits {
   weeklyUsageLimitMinutes: number | null;
 }
 
+export type StudentPortalUsageWindow = 'Hourly' | 'Daily' | 'Weekly';
+
+export interface StudentPortalUsageCounts {
+  hourlyUsageMinutes: number;
+  dailyUsageMinutes: number;
+  weeklyUsageMinutes: number;
+}
+
+export interface StudentPortalUsageLimitReached {
+  allowed: false;
+  window: StudentPortalUsageWindow;
+  limitMinutes: number;
+  usedMinutes: number;
+}
+
+export type StudentPortalUsageLimitStatus = { allowed: true } | StudentPortalUsageLimitReached;
+
 export type StudentMeritShopBlockReason = 'AccountLocked' | 'ParentShopBlock';
 
 export interface StudentMeritShopAccessInput extends StudentPortalLockInput {
@@ -94,6 +111,49 @@ export function validateStudentPortalUsageLimits(
       10_080,
     ),
   };
+}
+
+export function studentPortalUsageLimitStatus(
+  limits: StudentPortalUsageLimits,
+  usage: StudentPortalUsageCounts,
+): StudentPortalUsageLimitStatus {
+  if (
+    limits.hourlyUsageLimitMinutes !== null &&
+    usage.hourlyUsageMinutes >= limits.hourlyUsageLimitMinutes
+  ) {
+    return {
+      allowed: false,
+      window: 'Hourly',
+      limitMinutes: limits.hourlyUsageLimitMinutes,
+      usedMinutes: usage.hourlyUsageMinutes,
+    };
+  }
+
+  if (
+    limits.dailyUsageLimitMinutes !== null &&
+    usage.dailyUsageMinutes >= limits.dailyUsageLimitMinutes
+  ) {
+    return {
+      allowed: false,
+      window: 'Daily',
+      limitMinutes: limits.dailyUsageLimitMinutes,
+      usedMinutes: usage.dailyUsageMinutes,
+    };
+  }
+
+  if (
+    limits.weeklyUsageLimitMinutes !== null &&
+    usage.weeklyUsageMinutes >= limits.weeklyUsageLimitMinutes
+  ) {
+    return {
+      allowed: false,
+      window: 'Weekly',
+      limitMinutes: limits.weeklyUsageLimitMinutes,
+      usedMinutes: usage.weeklyUsageMinutes,
+    };
+  }
+
+  return { allowed: true };
 }
 
 export function studentMeritShopAccess(input: StudentMeritShopAccessInput): StudentMeritShopAccess {

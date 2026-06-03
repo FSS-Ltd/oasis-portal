@@ -24,8 +24,8 @@ import {
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import {
+  assertStudentPortalAccess,
   assertStudentMeritShopAccess,
-  assertStudentPortalUnlocked,
 } from '../lib/student-portal-access.js';
 import {
   assertUploadedShopItemPhoto,
@@ -874,7 +874,7 @@ export const shopRouter = router({
     }
     if (ctx.user.role === 'Student') {
       const student = await loadOwnActiveStudent(ctx);
-      await assertStudentPortalUnlocked(ctx, { entity: 'shop.listItems', studentId: student.id });
+      await assertStudentPortalAccess(ctx, { entity: 'shop.listItems', studentId: student.id });
     }
 
     const items = (await ctx.db.shopItem.findMany({
@@ -918,7 +918,7 @@ export const shopRouter = router({
     const baseWhere = requireReservationListAccess(ctx);
     if (ctx.user.role === 'Student') {
       const student = await loadOwnActiveStudent(ctx);
-      await assertStudentPortalUnlocked(ctx, {
+      await assertStudentPortalAccess(ctx, {
         entity: 'shop.listReservations',
         studentId: student.id,
       });
@@ -1116,6 +1116,9 @@ export const shopRouter = router({
     const student = await loadActiveStudent(ctx, input.studentId);
     await requireCanReserveForStudent(ctx, student);
     await assertStudentMeritShopAccess(ctx, { entity: 'shop.reserve', studentId: student.id });
+    if (ctx.user.role === 'Student') {
+      await assertStudentPortalAccess(ctx, { entity: 'shop.reserve', studentId: student.id });
+    }
     const requestedLines = aggregateReservationLines(input.lines);
 
     const reservationId = await ctx.db.$transaction(

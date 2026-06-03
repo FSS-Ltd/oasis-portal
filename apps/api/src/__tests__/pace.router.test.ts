@@ -128,6 +128,9 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
+  studentPortalSettings: {
+    findUnique: ReturnType<typeof vi.fn>;
+  };
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
     findUnique: ReturnType<typeof vi.fn>;
@@ -628,6 +631,9 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
         );
       }),
       findUnique: vi.fn().mockResolvedValue(defaultStudent),
+    },
+    studentPortalSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
     },
     subject: {
       findUnique: vi.fn().mockResolvedValue({ id: SUBJECT_ID, active: true }),

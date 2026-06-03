@@ -161,6 +161,9 @@ function makeFakeDb(
         Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
       ),
     },
+    studentPortalSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     guardian: {
       findUnique: vi.fn((args: FakeGuardianFindUniqueArgs) =>
         Promise.resolve(
@@ -336,9 +339,11 @@ describe('meritLedger.balances', () => {
   it('denies unsupported roles and audits the permission failure', async () => {
     const { caller, db } = makeCaller(supervisorUser);
 
-    await expect(caller.meritLedger.balances({ studentId: linkedStudentId })).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    });
+    await expect(caller.meritLedger.balances({ studentId: linkedStudentId })).rejects.toMatchObject(
+      {
+        code: 'FORBIDDEN',
+      },
+    );
     expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
       expect.objectContaining({
         action: 'PermissionDenied',
@@ -392,35 +397,37 @@ describe('meritLedger.activity', () => {
     });
     const { caller } = makeCaller(headUser, db);
 
-    await expect(caller.meritLedger.activity({ studentId: linkedStudentId, range: 'week' }))
-      .resolves.toMatchObject({
-        studentId: linkedStudentId,
-        range: 'week',
-        period: {
-          from: day('2026-05-11'),
-          to: day('2026-05-18'),
-        },
-        activity: {
-          meritsEarned: 10,
-          demeritsCount: 1,
-          demeritsMerits: 5,
-          net: 5,
-        },
-      });
+    await expect(
+      caller.meritLedger.activity({ studentId: linkedStudentId, range: 'week' }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      range: 'week',
+      period: {
+        from: day('2026-05-11'),
+        to: day('2026-05-18'),
+      },
+      activity: {
+        meritsEarned: 10,
+        demeritsCount: 1,
+        demeritsMerits: 5,
+        net: 5,
+      },
+    });
 
-    await expect(caller.meritLedger.activity({ studentId: linkedStudentId, range: 'month' }))
-      .resolves.toMatchObject({
-        period: {
-          from: day('2026-05-01'),
-          to: day('2026-06-01'),
-        },
-        activity: {
-          meritsEarned: 112,
-          demeritsCount: 1,
-          demeritsMerits: 5,
-          net: 107,
-        },
-      });
+    await expect(
+      caller.meritLedger.activity({ studentId: linkedStudentId, range: 'month' }),
+    ).resolves.toMatchObject({
+      period: {
+        from: day('2026-05-01'),
+        to: day('2026-06-01'),
+      },
+      activity: {
+        meritsEarned: 112,
+        demeritsCount: 1,
+        demeritsMerits: 5,
+        net: 107,
+      },
+    });
   });
 });
 

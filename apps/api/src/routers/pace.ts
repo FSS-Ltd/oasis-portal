@@ -17,6 +17,7 @@ import {
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 const DEFAULT_POLICY = {
@@ -656,6 +657,7 @@ async function loadPaceScopeForStudentRead(
 
   try {
     requireSelfStudent(ctx.user, student.id, student.userId);
+    await assertStudentPortalAccess(ctx, { entity, studentId: student.id });
   } catch (err) {
     if (err instanceof AccessDeniedError) {
       await denyPaceAccess(ctx, entity, err.message, { studentId: student.id });
@@ -1664,158 +1666,160 @@ export const paceRouter = router({
     };
   }),
 
-  deleteRecord: adminOperationsProcedure.input(paceRecordByIdInput).mutation(async ({ ctx, input }) => {
-    const existing = await ctx.db.paceRecord.findUnique({
-      where: { id: input.recordId },
-      select: {
-        id: true,
-        studentId: true,
-        subjectId: true,
-        paceNumber: true,
-        selfTestScore: true,
-        paceTestScore: true,
-        completedAt: true,
-        createdAt: true,
-        advancementApproval: { select: { id: true } },
-        student: { select: { id: true, active: true, yearGroup: true } },
-        subject: { select: { id: true, active: true } },
-      },
-    });
-    if (!existing) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'PACE record not found' });
-    }
-    if (existing.advancementApproval) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'approved advancement records cannot be deleted',
-      });
-    }
-    if (!existing.student.active) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
-    }
-    if (!existing.subject.active) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
-    }
-
-    const assignment = await ctx.db.studentSubject.findUnique({
-      where: {
-        studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
-      },
-      select: { id: true, currentPaceNumber: true },
-    });
-    if (!assignment) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: 'student is not assigned to this subject',
-      });
-    }
-
-    const [storedPolicy, progress] = await Promise.all([
-      ctx.db.pacePolicy.findUnique({ where: { id: 'default' } }),
-      ctx.db.paceProgress.findUnique({
-        where: {
-          studentId_subjectId_paceNumber: {
-            studentId: existing.studentId,
-            subjectId: existing.subjectId,
-            paceNumber: existing.paceNumber,
-          },
-        },
-        select: { startedAt: true },
-      }),
-    ]);
-    const policy = storedPolicy ?? DEFAULT_POLICY;
-    const testType = testTypeForRecord(existing);
-    const previousScore = scoreForRecord(existing);
-    const startedAt = progress?.startedAt ?? existing.completedAt ?? existing.createdAt;
-
-    const [deleted, meritResult, lifecycle] = await ctx.withRls(async (tx) => {
-      const nextMeritResult = await reverseAutomaticPaceMerit(tx, {
-        paceRecordId: existing.id,
-        deletedById: ctx.user.id,
-      });
-      const removed = await tx.paceRecord.delete({
-        where: { id: existing.id },
+  deleteRecord: adminOperationsProcedure
+    .input(paceRecordByIdInput)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.paceRecord.findUnique({
+        where: { id: input.recordId },
         select: {
           id: true,
           studentId: true,
           subjectId: true,
           paceNumber: true,
+          selfTestScore: true,
+          paceTestScore: true,
           completedAt: true,
           createdAt: true,
+          advancementApproval: { select: { id: true } },
+          student: { select: { id: true, active: true, yearGroup: true } },
+          subject: { select: { id: true, active: true } },
         },
       });
-      const nextLifecycle = await recalculatePaceLifecycle(tx, {
-        assignmentCurrentPaceNumber: assignment.currentPaceNumber,
-        passThreshold: policy.passThreshold,
-        paceNumber: existing.paceNumber,
-        startedAt,
-        studentId: existing.studentId,
-        subjectId: existing.subjectId,
-      });
-      return [removed, nextMeritResult, nextLifecycle] as const;
-    });
+      if (!existing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'PACE record not found' });
+      }
+      if (existing.advancementApproval) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'approved advancement records cannot be deleted',
+        });
+      }
+      if (!existing.student.active) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
+      }
+      if (!existing.subject.active) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'subject is not active' });
+      }
 
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'Delete',
-        entity: 'PaceRecord',
-        entityId: deleted.id,
-        meta: {
+      const assignment = await ctx.db.studentSubject.findUnique({
+        where: {
+          studentId_subjectId: { studentId: existing.studentId, subjectId: existing.subjectId },
+        },
+        select: { id: true, currentPaceNumber: true },
+      });
+      if (!assignment) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'student is not assigned to this subject',
+        });
+      }
+
+      const [storedPolicy, progress] = await Promise.all([
+        ctx.db.pacePolicy.findUnique({ where: { id: 'default' } }),
+        ctx.db.paceProgress.findUnique({
+          where: {
+            studentId_subjectId_paceNumber: {
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              paceNumber: existing.paceNumber,
+            },
+          },
+          select: { startedAt: true },
+        }),
+      ]);
+      const policy = storedPolicy ?? DEFAULT_POLICY;
+      const testType = testTypeForRecord(existing);
+      const previousScore = scoreForRecord(existing);
+      const startedAt = progress?.startedAt ?? existing.completedAt ?? existing.createdAt;
+
+      const [deleted, meritResult, lifecycle] = await ctx.withRls(async (tx) => {
+        const nextMeritResult = await reverseAutomaticPaceMerit(tx, {
+          paceRecordId: existing.id,
+          deletedById: ctx.user.id,
+        });
+        const removed = await tx.paceRecord.delete({
+          where: { id: existing.id },
+          select: {
+            id: true,
+            studentId: true,
+            subjectId: true,
+            paceNumber: true,
+            completedAt: true,
+            createdAt: true,
+          },
+        });
+        const nextLifecycle = await recalculatePaceLifecycle(tx, {
+          assignmentCurrentPaceNumber: assignment.currentPaceNumber,
+          passThreshold: policy.passThreshold,
+          paceNumber: existing.paceNumber,
+          startedAt,
           studentId: existing.studentId,
           subjectId: existing.subjectId,
-          paceNumber: existing.paceNumber,
-          testType,
-          previousScore,
-          previousCompletedAt: existing.completedAt,
-          automaticMeritReversed: meritResult !== null,
-          ledgerCorrectionRows: meritResult?.correctionRows ?? 0,
-        },
-      },
-    });
+        });
+        return [removed, nextMeritResult, nextLifecycle] as const;
+      });
 
-    if (meritResult) {
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
           action: 'Delete',
-          entity: 'BehaviourEntry',
-          entityId: meritResult.behaviourEntryId,
-          meta: {
-            studentId: existing.studentId,
-            source: 'pace.deleteRecord',
-            paceRecordId: existing.id,
-            ledgerCorrectionRows: meritResult.correctionRows,
-          },
-        },
-      });
-    }
-
-    if (lifecycle.newPaceNumber !== undefined) {
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'StudentSubject',
-          entityId: assignment.id,
+          entity: 'PaceRecord',
+          entityId: deleted.id,
           meta: {
             studentId: existing.studentId,
             subjectId: existing.subjectId,
-            previousPaceNumber: assignment.currentPaceNumber,
-            newPaceNumber: lifecycle.newPaceNumber,
-            triggeredBy: deleted.id,
-            source: 'pace.deleteRecord',
+            paceNumber: existing.paceNumber,
+            testType,
+            previousScore,
+            previousCompletedAt: existing.completedAt,
+            automaticMeritReversed: meritResult !== null,
+            ledgerCorrectionRows: meritResult?.correctionRows ?? 0,
           },
         },
       });
-    }
 
-    return {
-      ...deleted,
-      deleted: true,
-      newPaceNumber: lifecycle.newPaceNumber,
-    };
-  }),
+      if (meritResult) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'BehaviourEntry',
+            entityId: meritResult.behaviourEntryId,
+            meta: {
+              studentId: existing.studentId,
+              source: 'pace.deleteRecord',
+              paceRecordId: existing.id,
+              ledgerCorrectionRows: meritResult.correctionRows,
+            },
+          },
+        });
+      }
+
+      if (lifecycle.newPaceNumber !== undefined) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'StudentSubject',
+            entityId: assignment.id,
+            meta: {
+              studentId: existing.studentId,
+              subjectId: existing.subjectId,
+              previousPaceNumber: assignment.currentPaceNumber,
+              newPaceNumber: lifecycle.newPaceNumber,
+              triggeredBy: deleted.id,
+              source: 'pace.deleteRecord',
+            },
+          },
+        });
+      }
+
+      return {
+        ...deleted,
+        deleted: true,
+        newPaceNumber: lifecycle.newPaceNumber,
+      };
+    }),
 
   approveFailedFinalTestAdvance: authedProcedure
     .input(paceApprovalInput)

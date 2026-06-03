@@ -240,6 +240,9 @@ function makeFakeDb(
         Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
       ),
     },
+    studentPortalSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     guardian: {
       findUnique: vi.fn((args: FakeGuardianFindUniqueArgs) =>
         Promise.resolve(
