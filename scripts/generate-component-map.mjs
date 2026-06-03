@@ -119,7 +119,7 @@ const PRODUCT_MODULES = [
   {
     name: 'Registration, parent, student, supervisor, and admin shells',
     owns: 'Portal shells, registration form flow, role-specific navigation, and cross-role dashboard entry points.',
-    apiRouters: ['registration', 'student', 'profile'],
+    apiRouters: ['registration', 'student', 'studentSettings', 'profile'],
     domainFiles: [
       'packages/domain/src/registration.ts',
       'packages/domain/src/studentPortalSettings.ts',

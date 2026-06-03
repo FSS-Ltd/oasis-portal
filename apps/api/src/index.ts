@@ -82,6 +82,12 @@ export { clubRouter, createClubRouter, type ClubRouterDeps } from './routers/clu
 export { emailRouter, createEmailRouter, type EmailRouterDeps } from './routers/email.js';
 export { invoiceRouter, createInvoiceRouter, type InvoiceRouterDeps } from './routers/invoice.js';
 export { permissionSlipRouter } from './routers/permissionSlip.js';
+export {
+  studentSettingsRouter,
+  createStudentSettingsRouter,
+  type StudentCredentialAdapter,
+  type StudentSettingsRouterDeps,
+} from './routers/studentSettings.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {
   handleClerkWebhookRequest,
