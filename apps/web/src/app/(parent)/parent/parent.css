@@ -573,6 +573,283 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.parent-settings-page {
+  display: grid;
+  gap: 22px;
+}
+
+.parent-settings-title-row {
+  margin-bottom: 0;
+}
+
+.parent-settings-title-row .parent-home-intro h2 {
+  margin: 0;
+  color: var(--oasis-navy);
+  font-size: 1.35rem;
+  font-weight: 850;
+  line-height: 1.15;
+}
+
+.parent-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.parent-settings-sidebar {
+  position: sticky;
+  top: 80px;
+  display: grid;
+  gap: 14px;
+}
+
+.parent-settings-status,
+.parent-settings-panel,
+.parent-settings-denied {
+  display: grid;
+  gap: 16px;
+}
+
+.parent-settings-status__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.parent-settings-status__head strong,
+.parent-settings-status__head span {
+  display: block;
+  min-width: 0;
+}
+
+.parent-settings-status__head strong {
+  overflow: hidden;
+  color: var(--oasis-navy);
+  font-size: 0.96rem;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.parent-settings-status__head span {
+  margin-top: 2px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.parent-settings-state-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.parent-settings-state-grid > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 40px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.parent-settings-state-grid span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.parent-settings-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(91, 144, 197, 0.2);
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.parent-settings-notice svg {
+  margin-top: 2px;
+  color: var(--oasis-blue);
+}
+
+.parent-settings-notice.is-academic {
+  border-color: rgba(153, 27, 27, 0.18);
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.parent-settings-notice.is-academic svg {
+  color: var(--oasis-danger);
+}
+
+.parent-settings-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.parent-settings-panel-title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.parent-settings-panel-title > span {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--oasis-crimson-light);
+  color: var(--oasis-crimson);
+}
+
+.parent-settings-panel-title h2,
+.parent-settings-panel-title p {
+  margin: 0;
+}
+
+.parent-settings-panel-title h2 {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.parent-settings-panel-title p {
+  margin-top: 3px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.parent-settings-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.parent-settings-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 56px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.parent-settings-switch > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.parent-settings-switch strong {
+  color: var(--oasis-navy);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.parent-settings-switch small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.parent-settings-limit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.parent-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.parent-settings-success {
+  margin: 0;
+  color: var(--oasis-success);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.parent-settings-textarea {
+  min-height: 92px;
+  padding-block: 10px;
+  resize: vertical;
+}
+
+.parent-settings-lock-box {
+  display: grid;
+  gap: 12px;
+}
+
+.parent-settings-shop-summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.parent-settings-shop-summary span {
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--oasis-crimson-light);
+  color: var(--oasis-crimson);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.parent-settings-shop-summary p {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.parent-settings-denied {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  border-color: rgba(146, 64, 14, 0.2);
+  background: var(--oasis-warning-bg);
+}
+
+.parent-settings-denied svg {
+  color: var(--oasis-warning);
+}
+
+.parent-settings-denied strong,
+.parent-settings-denied span {
+  display: block;
+}
+
+.parent-settings-denied strong {
+  color: var(--oasis-warning);
+  font-size: 0.9rem;
+}
+
+.parent-settings-denied span {
+  margin-top: 2px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 @media (max-width: 1100px) {
   .parent-topbar {
     padding-inline: 20px;
@@ -673,8 +950,13 @@
   .parent-shell .parent-child-hero,
   .parent-home-feature-grid,
   .parent-merit-wallet__detail-grid,
+  .parent-settings-layout,
   .parent-shell .parent-dashboard-panels {
     grid-template-columns: 1fr;
+  }
+
+  .parent-settings-sidebar {
+    position: static;
   }
 
   .parent-page-title-row {
@@ -709,5 +991,19 @@
 @media (max-width: 560px) {
   .parent-shell .parent-child-hero__stats {
     grid-template-columns: 1fr;
+  }
+
+  .parent-settings-form-row,
+  .parent-settings-limit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .parent-settings-actions {
+    justify-content: stretch;
+  }
+
+  .parent-settings-actions .button,
+  .parent-settings-form-row .button {
+    width: 100%;
   }
 }
