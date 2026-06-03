@@ -36,6 +36,8 @@ type IncidentRlsReadClient = Pick<
   | 'incidentReportAttachment'
   | 'incidentReportParentCopy'
   | 'incidentReportParentRecipient'
+  | 'incidentReportStaff'
+  | 'incidentReportStudent'
   | 'student'
   | 'user'
 >;
@@ -49,6 +51,31 @@ const INCIDENT_STAFF_ROLES = [
   'ClubsAdmin',
   'Supervisor',
 ] as const;
+
+const INCIDENT_TYPE_LABELS = {
+  AccidentFirstAid: 'Accident / first aid',
+  BehaviourIncident: 'Behaviour incident',
+  BullyingPeerOnPeer: 'Bullying / peer-on-peer abuse',
+  MedicalMedication: 'Medical / medication',
+  NearMiss: 'Near miss',
+  OffSiteTrip: 'Off-site trip',
+  OnlineSafety: 'Online safety',
+  PhysicalIntervention: 'Physical intervention',
+  SafeguardingConcern: 'Safeguarding concern',
+} as const satisfies Record<(typeof INCIDENT_TYPES)[number], string>;
+
+const INCIDENT_SEVERITY_LABELS = {
+  Critical: 'Critical',
+  High: 'High',
+  Low: 'Low',
+  Medium: 'Medium',
+} as const satisfies Record<(typeof INCIDENT_SEVERITIES)[number], string>;
+
+const INCIDENT_CONFIDENTIALITY_LABELS = {
+  HeadDsl: 'Head / DSL',
+  ParentViewableAfterSignOff: 'Parent viewable after sign-off',
+  StaffOnly: 'Staff only',
+} as const satisfies Record<(typeof INCIDENT_CONFIDENTIALITIES)[number], string>;
 
 interface IncidentStudentLink {
   studentId: string;
@@ -283,6 +310,22 @@ function requireLinkedChildIncidentAccess(user: SessionUser): void {
   }
 }
 
+function assertOwnDraft(
+  user: SessionUser,
+  report: Pick<IncidentReportRow, 'recordedById' | 'status'>,
+  action: 'delete' | 'submit' | 'update',
+): void {
+  if (report.status !== 'Draft') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `only draft incidents can be ${action === 'submit' ? 'submitted' : `${action}d`}`,
+    });
+  }
+  if (report.recordedById !== user.id) {
+    throw toForbidden(new AccessDeniedError('only the report creator can manage draft incidents'));
+  }
+}
+
 function assertParentVisibilityOverride(
   user: SessionUser,
   report: Pick<IncidentReportRow, 'status'>,
@@ -418,6 +461,9 @@ function mapIncident(ctx: AuthedContext, report: IncidentReportRow) {
     bodyArea: decryptOptional(decrypt, report.bodyAreaEnc),
     firstAidGiven: report.firstAidGiven,
     firstAiderId: report.firstAiderId,
+    firstAiderName: report.firstAider
+      ? decryptRequired(decrypt, report.firstAider.fullNameEnc, 'first aider PII')
+      : null,
     emergencyServicesContacted: report.emergencyServicesContacted,
     hospitalTreatment: report.hospitalTreatment,
     parentCarerNotified: report.parentCarerNotified,
@@ -558,6 +604,25 @@ function draftData(ctx: AuthedContext, input: z.infer<typeof incidentDraftInput>
   };
 }
 
+function draftStudentLinks(studentIds: readonly string[]) {
+  return studentIds.map((studentId, index) => ({ studentId, position: index + 1 }));
+}
+
+function draftStaffLinks(staffIds: readonly string[], witnessStaffIds: readonly string[]) {
+  return [
+    ...staffIds.map((userId, index) => ({
+      userId,
+      kind: 'StaffInvolved' as const,
+      position: index + 1,
+    })),
+    ...witnessStaffIds.map((userId, index) => ({
+      userId,
+      kind: 'Witness' as const,
+      position: index + 1,
+    })),
+  ];
+}
+
 async function logEvent(
   db: IncidentRlsEventClient,
   actorId: string,
@@ -673,23 +738,12 @@ export const incidentRouter = router({
           recordedById: ctx.user.id,
           students: {
             createMany: {
-              data: studentIds.map((studentId, index) => ({ studentId, position: index + 1 })),
+              data: draftStudentLinks(studentIds),
             },
           },
           staff: {
             createMany: {
-              data: [
-                ...staffIds.map((userId, index) => ({
-                  userId,
-                  kind: 'StaffInvolved' as const,
-                  position: index + 1,
-                })),
-                ...witnessStaffIds.map((userId, index) => ({
-                  userId,
-                  kind: 'Witness' as const,
-                  position: index + 1,
-                })),
-              ],
+              data: draftStaffLinks(staffIds, witnessStaffIds),
             },
           },
         },
@@ -715,25 +769,36 @@ export const incidentRouter = router({
     const draft = draftData(ctx, input);
     const updated = await ctx.withRls(async (tx) => {
       const report = await loadIncident(tx, input.reportId);
-      if (report.status !== 'Draft') {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'only draft incidents can be updated',
-        });
-      }
-      if (ctx.user.role === 'Supervisor' && report.recordedById !== ctx.user.id) {
-        throw toForbidden(new AccessDeniedError('supervisors can only update their own drafts'));
-      }
-      await assertActiveStudents(tx, input.studentIds);
-      await assertActiveStaffUsers(tx, input.staffIds);
-      await assertActiveStaffUsers(tx, input.witnessStaffIds);
+      assertOwnDraft(ctx.user, report, 'update');
+      const studentIds = await assertActiveStudents(tx, input.studentIds);
+      const staffIds = await assertActiveStaffUsers(tx, input.staffIds);
+      const witnessStaffIds = await assertActiveStaffUsers(tx, input.witnessStaffIds);
       const row = (await tx.incidentReport.update({
         where: { id: input.reportId },
-        data: draft,
+        data: {
+          ...draft,
+          students: {
+            deleteMany: {},
+            createMany: { data: draftStudentLinks(studentIds) },
+          },
+          staff: {
+            deleteMany: {},
+            createMany: { data: draftStaffLinks(staffIds, witnessStaffIds) },
+          },
+        },
         include: incidentInclude,
       })) as IncidentReportRow;
       await logEvent(tx, ctx.user.id, row.id, 'DraftSaved', { source: 'incident.updateDraft' });
       return row;
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'IncidentReport',
+        entityId: updated.id,
+        meta: { source: 'incident.updateDraft', reportNumber: updated.reportNumber },
+      },
     });
     return mapIncident(ctx, updated);
   }),
@@ -742,10 +807,8 @@ export const incidentRouter = router({
     requireIncidentCreator(ctx.user);
     const updated = await ctx.withRls(async (tx) => {
       const report = await loadIncident(tx, input.reportId);
+      assertOwnDraft(ctx.user, report, 'submit');
       assertIncidentTransition(report.status, 'submitForHeadReview');
-      if (ctx.user.role === 'Supervisor' && report.recordedById !== ctx.user.id) {
-        throw toForbidden(new AccessDeniedError('supervisors can only submit their own incidents'));
-      }
       const row = (await tx.incidentReport.update({
         where: { id: input.reportId },
         data: { status: nextIncidentStatus(report.status, 'submitForHeadReview') },
@@ -755,6 +818,26 @@ export const incidentRouter = router({
       return row;
     });
     return mapIncident(ctx, updated);
+  }),
+
+  deleteDraft: authedProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
+    requireIncidentCreator(ctx.user);
+    const deleted = await ctx.withRls(async (tx) => {
+      const report = await loadIncident(tx, input.reportId);
+      assertOwnDraft(ctx.user, report, 'delete');
+      await tx.incidentReport.delete({ where: { id: input.reportId } });
+      return { id: report.id, reportNumber: report.reportNumber };
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Delete',
+        entity: 'IncidentReport',
+        entityId: deleted.id,
+        meta: { source: 'incident.deleteDraft', reportNumber: deleted.reportNumber },
+      },
+    });
+    return deleted;
   }),
 
   signOff: authedProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
@@ -811,17 +894,37 @@ export const incidentRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not available' });
     }
     const childName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII');
-    const firstAidSummary = report.firstAidGiven
-      ? (decryptOptional(ctx.db.$enc.decrypt, report.medicalNotesEnc) ?? 'First aid was recorded.')
-      : null;
     const pdf = await generateIncidentParentPdf({
       reportNumber: report.reportNumber,
       childName,
-      incidentType: report.type,
+      incidentType: INCIDENT_TYPE_LABELS[report.type as (typeof INCIDENT_TYPES)[number]],
+      severity: INCIDENT_SEVERITY_LABELS[report.severity as (typeof INCIDENT_SEVERITIES)[number]],
+      confidentiality:
+        INCIDENT_CONFIDENTIALITY_LABELS[
+          report.confidentiality as (typeof INCIDENT_CONFIDENTIALITIES)[number]
+        ],
       occurredAt: report.occurredAt,
+      location: decryptRequired(ctx.db.$enc.decrypt, report.locationEnc, 'incident location'),
+      activity: decryptOptional(ctx.db.$enc.decrypt, report.activityEnc),
+      offSite: report.offSite,
+      factualAccount: decryptRequired(
+        ctx.db.$enc.decrypt,
+        report.factualAccountEnc,
+        'incident account',
+      ),
+      immediateActions: decryptOptional(ctx.db.$enc.decrypt, report.immediateActionsEnc),
+      injurySustained: report.injurySustained,
+      bodyArea: decryptOptional(ctx.db.$enc.decrypt, report.bodyAreaEnc),
+      firstAidGiven: report.firstAidGiven,
+      firstAiderName: report.firstAider
+        ? decryptRequired(ctx.db.$enc.decrypt, report.firstAider.fullNameEnc, 'first aider PII')
+        : null,
+      emergencyServicesContacted: report.emergencyServicesContacted,
+      hospitalTreatment: report.hospitalTreatment,
+      parentCarerNotified: report.parentCarerNotified,
+      parentNotifiedAt: report.parentNotifiedAt,
+      medicalNotes: decryptOptional(ctx.db.$enc.decrypt, report.medicalNotesEnc),
       parentSummary: input.parentSummary,
-      firstAidSummary,
-      followUp: decryptOptional(ctx.db.$enc.decrypt, report.immediateActionsEnc),
       signedOffBy: report.signedOffBy
         ? decryptRequired(ctx.db.$enc.decrypt, report.signedOffBy.fullNameEnc, 'sign-off PII')
         : null,
