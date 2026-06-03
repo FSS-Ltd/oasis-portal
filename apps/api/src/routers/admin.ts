@@ -230,12 +230,7 @@ function assertCanChangeUserTags(
       message: 'permission tags can only be changed for active users',
     });
   }
-  if (target.id === actor.id) {
-    throw new TRPCError({
-      code: 'FORBIDDEN',
-      message: 'Technical Support cannot change their own permission tags',
-    });
-  }
+  if (target.id === actor.id) return;
   if (
     !ADULT_USER_ACCOUNT_ROLES.includes(target.role as (typeof ADULT_USER_ACCOUNT_ROLES)[number])
   ) {
