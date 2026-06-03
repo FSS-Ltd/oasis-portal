@@ -21,6 +21,20 @@ const otherParentUser: SessionUser = {
   requires2fa: false,
 };
 
+const supervisorUser: SessionUser = {
+  id: 'user_supervisor',
+  role: 'Supervisor',
+  tags: [],
+  requires2fa: false,
+};
+
+const unlinkedSupervisorUser: SessionUser = {
+  id: 'user_unlinked_supervisor',
+  role: 'Supervisor',
+  tags: [],
+  requires2fa: false,
+};
+
 const studentUser: SessionUser = {
   id: 'user_student',
   role: 'Student',
@@ -180,6 +194,7 @@ function makeFakeDb() {
   const guardianLinks = [
     { userId: parentUser.id, studentId: childStudentId },
     { userId: parentUser.id, studentId: adultStudentId },
+    { userId: supervisorUser.id, studentId: childStudentId },
     { userId: otherParentUser.id, studentId: unlinkedStudentId },
   ];
   const settings = new Map<string, StoredSettings>();
@@ -368,6 +383,54 @@ describe('studentSettings parent procedures', () => {
           call.data.meta?.source === 'studentSettings.setUsageLimits',
       ),
     ).toBe(true);
+  });
+
+  it('allows supervisors with linked children to manage under-18 student settings', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(supervisorUser, db);
+
+    await expect(caller.studentSettings.listLinkedChildren()).resolves.toEqual([
+      expect.objectContaining({
+        studentId: childStudentId,
+        fullName: 'Jamie Learner',
+        parentControlAllowed: true,
+      }),
+    ]);
+
+    await expect(
+      caller.studentSettings.setMeritShopBlock({
+        studentId: childStudentId,
+        blocked: true,
+      }),
+    ).resolves.toMatchObject({
+      studentId: childStudentId,
+      parentMeritShopBlocked: true,
+    });
+
+    expect(
+      auditCalls(db).some(
+        (call) =>
+          call.data.userId === supervisorUser.id &&
+          call.data.action === 'Update' &&
+          call.data.entity === 'StudentPortalSettings' &&
+          call.data.entityId === childStudentId &&
+          call.data.meta?.source === 'studentSettings.setMeritShopBlock',
+      ),
+    ).toBe(true);
+  });
+
+  it('blocks supervisors from managing unlinked children', async () => {
+    const { db } = makeFakeDb();
+    const caller = makeCaller(unlinkedSupervisorUser, db);
+
+    await expect(caller.studentSettings.listLinkedChildren()).resolves.toEqual([]);
+    await expect(
+      caller.studentSettings.setParentLock({
+        studentId: childStudentId,
+        locked: true,
+        reason: 'Not linked',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('updates login handles without storing raw handles in audit metadata', async () => {

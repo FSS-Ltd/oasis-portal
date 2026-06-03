@@ -4,13 +4,14 @@ import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
   canParentControlStudent,
+  canUseLinkedChildStudentSettingsAccess,
   effectiveStudentPortalLock,
   isStudentAdult,
   validateStudentPortalUsageLimits,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
-import { roleProcedure, router } from '../trpc.js';
+import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 export interface StudentCredentialAdapter {
   setPassword(input: { clerkUserId: string; password: string }): Promise<void>;
@@ -329,10 +330,18 @@ async function upsertSettings(
 
 export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}) {
   const credentialAdapter = () => deps.credentialAdapter ?? createDefaultStudentCredentialAdapter();
-  const parentProcedure = roleProcedure('Parent');
+  const linkedChildGuardianProcedure = authedProcedure.use(({ ctx, next }) => {
+    if (!canUseLinkedChildStudentSettingsAccess(ctx.user)) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'student settings require linked-child guardian access',
+      });
+    }
+    return next();
+  });
 
   return router({
-    listLinkedChildren: parentProcedure.query(async ({ ctx }) => {
+    listLinkedChildren: linkedChildGuardianProcedure.query(async ({ ctx }) => {
       const students = await ctx.db.student.findMany({
         where: {
           active: true,
@@ -344,44 +353,50 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
       return students.map((student) => mapParentSettings(ctx, student));
     }),
 
-    getChildSettings: parentProcedure.input(studentIdInput).query(async ({ ctx, input }) => {
-      const student = await loadLinkedStudent(ctx, input.studentId);
-      return mapParentSettings(ctx, student);
-    }),
+    getChildSettings: linkedChildGuardianProcedure
+      .input(studentIdInput)
+      .query(async ({ ctx, input }) => {
+        const student = await loadLinkedStudent(ctx, input.studentId);
+        return mapParentSettings(ctx, student);
+      }),
 
-    setLoginHandle: parentProcedure.input(loginHandleInput).mutation(async ({ ctx, input }) => {
-      const student = await loadParentControlledStudent(ctx, input.studentId);
-      const loginHandle = optionalText(input.loginHandle);
-      const now = new Date();
-      const settings = await upsertSettings(ctx, student.id, {
-        loginHandleEnc: loginHandle ? ctx.db.$enc.encrypt(loginHandle) : null,
-        loginHandleBidx: loginHandle ? ctx.db.$enc.blindIndex(loginHandle) : null,
-        settingsUpdatedById: ctx.user.id,
-        settingsUpdatedAt: now,
-      });
-      await auditSettingsUpdate(ctx, {
-        studentId: student.id,
-        source: 'studentSettings.setLoginHandle',
-        fields: ['loginHandle'],
-      });
-      return mapParentSettings(ctx, student, settings);
-    }),
+    setLoginHandle: linkedChildGuardianProcedure
+      .input(loginHandleInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        const loginHandle = optionalText(input.loginHandle);
+        const now = new Date();
+        const settings = await upsertSettings(ctx, student.id, {
+          loginHandleEnc: loginHandle ? ctx.db.$enc.encrypt(loginHandle) : null,
+          loginHandleBidx: loginHandle ? ctx.db.$enc.blindIndex(loginHandle) : null,
+          settingsUpdatedById: ctx.user.id,
+          settingsUpdatedAt: now,
+        });
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.setLoginHandle',
+          fields: ['loginHandle'],
+        });
+        return mapParentSettings(ctx, student, settings);
+      }),
 
-    setChildPassword: parentProcedure.input(childPasswordInput).mutation(async ({ ctx, input }) => {
-      const student = await loadParentControlledStudent(ctx, input.studentId);
-      await credentialAdapter().setPassword({
-        clerkUserId: requireStudentClerkId(student),
-        password: input.password,
-      });
-      await auditSettingsUpdate(ctx, {
-        studentId: student.id,
-        source: 'studentSettings.setChildPassword',
-        fields: ['password'],
-      });
-      return { ok: true };
-    }),
+    setChildPassword: linkedChildGuardianProcedure
+      .input(childPasswordInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        await credentialAdapter().setPassword({
+          clerkUserId: requireStudentClerkId(student),
+          password: input.password,
+        });
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.setChildPassword',
+          fields: ['password'],
+        });
+        return { ok: true };
+      }),
 
-    setPasswordControl: parentProcedure
+    setPasswordControl: linkedChildGuardianProcedure
       .input(passwordControlInput)
       .mutation(async ({ ctx, input }) => {
         const student = await loadParentControlledStudent(ctx, input.studentId);
@@ -399,60 +414,66 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
         return mapParentSettings(ctx, student, settings);
       }),
 
-    setUsageLimits: parentProcedure.input(usageLimitsInput).mutation(async ({ ctx, input }) => {
-      const student = await loadParentControlledStudent(ctx, input.studentId);
-      const limits = validateStudentPortalUsageLimits({
-        hourlyUsageLimitMinutes: input.hourlyUsageLimitMinutes ?? null,
-        dailyUsageLimitMinutes: input.dailyUsageLimitMinutes ?? null,
-        weeklyUsageLimitMinutes: input.weeklyUsageLimitMinutes ?? null,
-      });
-      const now = new Date();
-      const settings = await upsertSettings(ctx, student.id, {
-        ...limits,
-        settingsUpdatedById: ctx.user.id,
-        settingsUpdatedAt: now,
-      });
-      await auditSettingsUpdate(ctx, {
-        studentId: student.id,
-        source: 'studentSettings.setUsageLimits',
-        fields: ['hourlyUsageLimitMinutes', 'dailyUsageLimitMinutes', 'weeklyUsageLimitMinutes'],
-      });
-      return mapParentSettings(ctx, student, settings);
-    }),
+    setUsageLimits: linkedChildGuardianProcedure
+      .input(usageLimitsInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        const limits = validateStudentPortalUsageLimits({
+          hourlyUsageLimitMinutes: input.hourlyUsageLimitMinutes ?? null,
+          dailyUsageLimitMinutes: input.dailyUsageLimitMinutes ?? null,
+          weeklyUsageLimitMinutes: input.weeklyUsageLimitMinutes ?? null,
+        });
+        const now = new Date();
+        const settings = await upsertSettings(ctx, student.id, {
+          ...limits,
+          settingsUpdatedById: ctx.user.id,
+          settingsUpdatedAt: now,
+        });
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.setUsageLimits',
+          fields: ['hourlyUsageLimitMinutes', 'dailyUsageLimitMinutes', 'weeklyUsageLimitMinutes'],
+        });
+        return mapParentSettings(ctx, student, settings);
+      }),
 
-    setParentLock: parentProcedure.input(parentLockInput).mutation(async ({ ctx, input }) => {
-      const student = await loadParentControlledStudent(ctx, input.studentId);
-      const reason = optionalText(input.reason);
-      const now = new Date();
-      const settings = await upsertSettings(ctx, student.id, {
-        parentAccountLocked: input.locked,
-        parentLockReasonEnc: input.locked && reason ? ctx.db.$enc.encrypt(reason) : null,
-        parentLockUpdatedById: ctx.user.id,
-        parentLockUpdatedAt: now,
-      });
-      await auditSettingsUpdate(ctx, {
-        studentId: student.id,
-        source: 'studentSettings.setParentLock',
-        fields: ['parentAccountLocked', 'parentLockReason'],
-      });
-      return mapParentSettings(ctx, student, settings);
-    }),
+    setParentLock: linkedChildGuardianProcedure
+      .input(parentLockInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        const reason = optionalText(input.reason);
+        const now = new Date();
+        const settings = await upsertSettings(ctx, student.id, {
+          parentAccountLocked: input.locked,
+          parentLockReasonEnc: input.locked && reason ? ctx.db.$enc.encrypt(reason) : null,
+          parentLockUpdatedById: ctx.user.id,
+          parentLockUpdatedAt: now,
+        });
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.setParentLock',
+          fields: ['parentAccountLocked', 'parentLockReason'],
+        });
+        return mapParentSettings(ctx, student, settings);
+      }),
 
-    setMeritShopBlock: parentProcedure.input(shopBlockInput).mutation(async ({ ctx, input }) => {
-      const student = await loadParentControlledStudent(ctx, input.studentId);
-      const now = new Date();
-      const settings = await upsertSettings(ctx, student.id, {
-        parentMeritShopBlocked: input.blocked,
-        shopBlockUpdatedById: ctx.user.id,
-        shopBlockUpdatedAt: now,
-      });
-      await auditSettingsUpdate(ctx, {
-        studentId: student.id,
-        source: 'studentSettings.setMeritShopBlock',
-        fields: ['parentMeritShopBlocked'],
-      });
-      return mapParentSettings(ctx, student, settings);
-    }),
+    setMeritShopBlock: linkedChildGuardianProcedure
+      .input(shopBlockInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        const now = new Date();
+        const settings = await upsertSettings(ctx, student.id, {
+          parentMeritShopBlocked: input.blocked,
+          shopBlockUpdatedById: ctx.user.id,
+          shopBlockUpdatedAt: now,
+        });
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.setMeritShopBlock',
+          fields: ['parentMeritShopBlocked'],
+        });
+        return mapParentSettings(ctx, student, settings);
+      }),
 
     mySettings: roleProcedure('Student').query(async ({ ctx }) => {
       const student = await loadOwnStudent(ctx);
