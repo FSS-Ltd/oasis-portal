@@ -20,7 +20,8 @@
     "./permissionSlips": "./src/permissionSlips.ts",
     "./incidents": "./src/incidents.ts",
     "./report": "./src/report.ts",
-    "./schoolYears": "./src/schoolYears.ts"
+    "./schoolYears": "./src/schoolYears.ts",
+    "./studentPortalSettings": "./src/studentPortalSettings.ts"
   },
   "scripts": {
     "lint": "eslint src",

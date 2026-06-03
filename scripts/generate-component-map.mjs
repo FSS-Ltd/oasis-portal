@@ -122,6 +122,7 @@ const PRODUCT_MODULES = [
     apiRouters: ['registration', 'student', 'profile'],
     domainFiles: [
       'packages/domain/src/registration.ts',
+      'packages/domain/src/studentPortalSettings.ts',
       'packages/domain/src/users.ts',
       'packages/domain/src/rbac.ts',
     ],

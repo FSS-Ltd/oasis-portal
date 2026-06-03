@@ -138,6 +138,10 @@ model User {
   acceptedInvitations              UserInvitation[]                 @relation("AcceptedUserInvitations")
   spouseInvitationsSent            UserInvitation[]                 @relation("GuardianLinkInviterInvitations")
   parentRegistration               ParentRegistration?              @relation("ParentRegistrationParent")
+  studentPortalSettingsUpdated     StudentPortalSettings[]          @relation("StudentPortalSettingsUpdated")
+  studentPortalParentLocksUpdated  StudentPortalSettings[]          @relation("StudentPortalParentLocksUpdated")
+  studentPortalHeadLocksUpdated    StudentPortalSettings[]          @relation("StudentPortalHeadLocksUpdated")
+  studentPortalShopBlocksUpdated   StudentPortalSettings[]          @relation("StudentPortalShopBlocksUpdated")
 
   @@index([role])
 }
@@ -215,6 +219,7 @@ model Student {
   incidentReports          IncidentReportStudent[]
   incidentParentCopies     IncidentReportParentCopy[]
   registrationProfile      StudentRegistrationProfile?
+  portalSettings           StudentPortalSettings?
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -231,6 +236,43 @@ model Guardian {
 
   @@unique([userId, studentId])
   @@index([studentId])
+}
+
+model StudentPortalSettings {
+  id                        String    @id @default(cuid())
+  studentId                 String    @unique
+  loginHandleEnc            String?
+  loginHandleBidx           String?   @unique
+  studentCanManagePassword  Boolean   @default(false)
+  hourlyUsageLimitMinutes   Int?
+  dailyUsageLimitMinutes    Int?
+  weeklyUsageLimitMinutes   Int?
+  parentAccountLocked       Boolean   @default(false)
+  parentLockReasonEnc       String?
+  headAcademicLocked        Boolean   @default(false)
+  headAcademicLockReasonEnc String?
+  parentMeritShopBlocked    Boolean   @default(false)
+  settingsUpdatedById       String?
+  settingsUpdatedAt         DateTime?
+  parentLockUpdatedById     String?
+  parentLockUpdatedAt       DateTime?
+  headLockUpdatedById       String?
+  headLockUpdatedAt         DateTime?
+  shopBlockUpdatedById      String?
+  shopBlockUpdatedAt        DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  student             Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  settingsUpdatedBy   User?   @relation("StudentPortalSettingsUpdated", fields: [settingsUpdatedById], references: [id], onDelete: SetNull)
+  parentLockUpdatedBy User?   @relation("StudentPortalParentLocksUpdated", fields: [parentLockUpdatedById], references: [id], onDelete: SetNull)
+  headLockUpdatedBy   User?   @relation("StudentPortalHeadLocksUpdated", fields: [headLockUpdatedById], references: [id], onDelete: SetNull)
+  shopBlockUpdatedBy  User?   @relation("StudentPortalShopBlocksUpdated", fields: [shopBlockUpdatedById], references: [id], onDelete: SetNull)
+
+  @@index([settingsUpdatedById, settingsUpdatedAt])
+  @@index([parentLockUpdatedById, parentLockUpdatedAt])
+  @@index([headLockUpdatedById, headLockUpdatedAt])
+  @@index([shopBlockUpdatedById, shopBlockUpdatedAt])
 }
 
 model Subject {
