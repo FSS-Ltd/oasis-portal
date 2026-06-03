@@ -8,7 +8,12 @@ import {
   standardSchoolYearSchema,
 } from '@oasis/domain';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
-import { assertStudentPortalUnlocked } from '../lib/student-portal-access.js';
+import {
+  assertStudentPortalAccess,
+  loadStudentPortalUsageStatus,
+  recordStudentPortalUsageHeartbeat,
+} from '../lib/student-portal-access.js';
+import type { AppContext } from '../context.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 import { deleteArchivedStudent } from '../students/delete-archived-student.js';
 
@@ -78,6 +83,12 @@ const setCurrentPaceInput = z.object({
   currentPaceNumber: z.number().int().positive(),
 });
 
+const portalHeartbeatInput = z
+  .object({
+    sessionKey: z.string().trim().min(1).max(128).optional(),
+  })
+  .optional();
+
 const unassignSubjectInput = z.object({
   studentId: z.string().min(1),
   subjectId: z.string().min(1),
@@ -142,10 +153,29 @@ async function auditDecryptPii(
   });
 }
 
+async function loadOwnActiveStudent(ctx: {
+  db: AppContext['db'];
+  user: NonNullable<AppContext['user']>;
+}): Promise<{ id: string; active: boolean; userId: string | null }> {
+  const student = await ctx.db.student.findUnique({
+    where: { userId: ctx.user.id },
+    select: { id: true, active: true, userId: true },
+  });
+
+  if (!student?.active) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+  }
+
+  return student;
+}
+
 export const studentRouter = router({
   me: roleProcedure('Student').query(async ({ ctx }) => {
+    const ownStudent = await loadOwnActiveStudent(ctx);
+    await assertStudentPortalAccess(ctx, { entity: 'student.me', studentId: ownStudent.id });
+
     const student = await ctx.db.student.findUnique({
-      where: { userId: ctx.user.id },
+      where: { id: ownStudent.id },
       select: {
         id: true,
         userId: true,
@@ -155,28 +185,53 @@ export const studentRouter = router({
         active: true,
       },
     });
-
-    if (!student?.active) {
-      throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+    if (!student) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student profile missing' });
     }
-    await assertStudentPortalUnlocked(ctx, { entity: 'student.me', studentId: student.id });
 
     const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
     if (!fullName) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
     }
 
-    await auditDecryptPii(ctx, { count: 1, source: 'student.me' }, student.id);
+    await auditDecryptPii(ctx, { count: 1, source: 'student.me' }, ownStudent.id);
 
     return {
-      id: student.id,
-      userId: student.userId,
+      id: ownStudent.id,
+      userId: ownStudent.userId,
       fullName,
       yearGroup: student.yearGroup,
       enrolmentDate: student.enrolmentDate,
-      active: student.active,
+      active: ownStudent.active,
     };
   }),
+
+  portalUsage: roleProcedure('Student').query(async ({ ctx }) => {
+    const student = await loadOwnActiveStudent(ctx);
+    await assertStudentPortalAccess(ctx, {
+      entity: 'student.portalUsage',
+      studentId: student.id,
+    });
+    return {
+      studentId: student.id,
+      usage: await loadStudentPortalUsageStatus(ctx, { studentId: student.id }),
+    };
+  }),
+
+  heartbeat: roleProcedure('Student')
+    .input(portalHeartbeatInput)
+    .mutation(async ({ ctx, input }) => {
+      const student = await loadOwnActiveStudent(ctx);
+      const heartbeatInput = {
+        entity: 'student.heartbeat',
+        studentId: student.id,
+        ...(input?.sessionKey ? { sessionKey: input.sessionKey } : {}),
+      };
+      return {
+        studentId: student.id,
+        usage: await recordStudentPortalUsageHeartbeat(ctx, heartbeatInput),
+      };
+    }),
 
   list: roleProcedure(...STUDENT_READ_ROLES)
     .input(listInput)

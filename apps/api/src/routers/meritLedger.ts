@@ -12,9 +12,14 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import { authedProcedure, router } from '../trpc.js';
 
-const WALLET_ACCOUNTS = ['Spend', 'Saving', 'Investment'] as const satisfies readonly MeritAccount[];
+const WALLET_ACCOUNTS = [
+  'Spend',
+  'Saving',
+  'Investment',
+] as const satisfies readonly MeritAccount[];
 
 type AuthedContext = AppContext & { user: SessionUser };
 type WalletAccount = (typeof WALLET_ACCOUNTS)[number];
@@ -185,6 +190,7 @@ async function assertCanReadWallet(
   if (ctx.user.role === 'Student') {
     try {
       requireSelfStudent(ctx.user, student.id, student.userId);
+      await assertStudentPortalAccess(ctx, { entity, studentId: student.id });
       return;
     } catch (err) {
       if (err instanceof AccessDeniedError) {
@@ -194,18 +200,24 @@ async function assertCanReadWallet(
     }
   }
 
-  await auditPermissionDenied(ctx, entity, student.id, `role ${ctx.user.role} cannot access wallet`);
+  await auditPermissionDenied(
+    ctx,
+    entity,
+    student.id,
+    `role ${ctx.user.role} cannot access wallet`,
+  );
 }
 
-async function assertCanTransfer(
-  ctx: AuthedContext,
-  student: ActiveStudent,
-): Promise<void> {
+async function assertCanTransfer(ctx: AuthedContext, student: ActiveStudent): Promise<void> {
   if (isFullAdmin(ctx.user)) return;
 
   if (ctx.user.role === 'Student') {
     try {
       requireSelfStudent(ctx.user, student.id, student.userId);
+      await assertStudentPortalAccess(ctx, {
+        entity: 'meritLedger.transfer',
+        studentId: student.id,
+      });
       return;
     } catch (err) {
       if (err instanceof AccessDeniedError) {

@@ -62,6 +62,17 @@ interface StoredStudentPortalSettings {
   headAcademicLocked: boolean;
   headAcademicLockReasonEnc: string | null;
   parentMeritShopBlocked: boolean;
+  hourlyUsageLimitMinutes: number | null;
+  dailyUsageLimitMinutes: number | null;
+  weeklyUsageLimitMinutes: number | null;
+}
+
+interface StoredStudentPortalUsageMinute {
+  studentId: string;
+  minuteStartedAt: Date;
+  sessionKey: string | null;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
 }
 
 interface StudentRow extends StoredStudent {
@@ -93,6 +104,10 @@ interface FakeDb {
   };
   studentPortalSettings: {
     findUnique: ReturnType<typeof vi.fn>;
+  };
+  studentPortalUsageMinute: {
+    count: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
   };
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
@@ -159,6 +174,22 @@ function makePortalSettings(
     headAcademicLocked: false,
     headAcademicLockReasonEnc: null,
     parentMeritShopBlocked: false,
+    hourlyUsageLimitMinutes: null,
+    dailyUsageLimitMinutes: null,
+    weeklyUsageLimitMinutes: null,
+    ...input,
+  };
+}
+
+function makeUsageMinute(
+  input: Partial<StoredStudentPortalUsageMinute> &
+    Pick<StoredStudentPortalUsageMinute, 'minuteStartedAt'>,
+): StoredStudentPortalUsageMinute {
+  return {
+    studentId,
+    sessionKey: null,
+    firstSeenAt: input.minuteStartedAt,
+    lastSeenAt: input.minuteStartedAt,
     ...input,
   };
 }
@@ -168,10 +199,15 @@ function makeFakeDb(
     portalSettings?: Array<
       Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
     >;
+    usageMinutes?: Array<
+      Partial<StoredStudentPortalUsageMinute> &
+        Pick<StoredStudentPortalUsageMinute, 'minuteStartedAt'>
+    >;
   } = {},
 ) {
   const students: StoredStudent[] = [];
   const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
+  const usageMinutes = (input.usageMinutes ?? []).map(makeUsageMinute);
   const subjects: StoredSubject[] = [
     { id: subjectId, code: 'MATH', name: 'Mathematics', active: true },
   ];
@@ -278,6 +314,43 @@ function makeFakeDb(
         ),
       ),
     },
+    studentPortalUsageMinute: {
+      count: vi.fn(
+        ({ where }: { where: { studentId: string; minuteStartedAt: { gte: Date; lt: Date } } }) =>
+          Promise.resolve(
+            usageMinutes.filter(
+              (minute) =>
+                minute.studentId === where.studentId &&
+                minute.minuteStartedAt >= where.minuteStartedAt.gte &&
+                minute.minuteStartedAt < where.minuteStartedAt.lt,
+            ).length,
+          ),
+      ),
+      upsert: vi.fn(
+        ({
+          where,
+          create,
+          update,
+        }: {
+          where: { studentId_minuteStartedAt: { studentId: string; minuteStartedAt: Date } };
+          create: StoredStudentPortalUsageMinute;
+          update: Partial<Pick<StoredStudentPortalUsageMinute, 'lastSeenAt' | 'sessionKey'>>;
+        }) => {
+          const existing = usageMinutes.find(
+            (minute) =>
+              minute.studentId === where.studentId_minuteStartedAt.studentId &&
+              minute.minuteStartedAt.getTime() ===
+                where.studentId_minuteStartedAt.minuteStartedAt.getTime(),
+          );
+          if (existing) {
+            Object.assign(existing, update);
+            return Promise.resolve(existing);
+          }
+          usageMinutes.push(create);
+          return Promise.resolve(create);
+        },
+      ),
+    },
     subject: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(subjects.find((subject) => subject.id === where.id) ?? null),
@@ -371,7 +444,7 @@ function makeFakeDb(
     },
   };
 
-  return { db, students, subjects, assignments, portalSettings };
+  return { db, students, subjects, assignments, portalSettings, usageMinutes };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -599,6 +672,181 @@ describe('student.me', () => {
         },
       },
     });
+  });
+});
+
+describe('student portal usage limits', () => {
+  async function linkCreatedStudent(db: FakeDb, students: StoredStudent[]) {
+    await createStudent(makeCaller(headUser, db));
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.userId = studentUser.id;
+  }
+
+  it('records heartbeat minutes for students without configured limits', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
+    try {
+      const { db, students, usageMinutes } = makeFakeDb();
+      await linkCreatedStudent(db, students);
+
+      await expect(
+        makeCaller(studentUser, db).student.heartbeat({ sessionKey: 'mobile-session-1' }),
+      ).resolves.toMatchObject({
+        studentId,
+        usage: {
+          allowed: true,
+          blockedWindow: null,
+          hourly: { limitMinutes: null, usedMinutes: 1, remainingMinutes: null },
+        },
+      });
+      expect(usageMinutes).toHaveLength(1);
+      expect(usageMinutes[0]).toMatchObject({
+        studentId,
+        minuteStartedAt: new Date('2026-06-03T10:15:00.000Z'),
+        sessionKey: 'mobile-session-1',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('allows student portal access while usage remains under configured limits', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
+    try {
+      const { db, students } = makeFakeDb({
+        portalSettings: [
+          {
+            studentId,
+            hourlyUsageLimitMinutes: 3,
+            dailyUsageLimitMinutes: 10,
+            weeklyUsageLimitMinutes: 30,
+          },
+        ],
+        usageMinutes: [
+          { minuteStartedAt: new Date('2026-06-03T10:10:00.000Z') },
+          { minuteStartedAt: new Date('2026-06-03T09:10:00.000Z') },
+        ],
+      });
+      await linkCreatedStudent(db, students);
+
+      await expect(makeCaller(studentUser, db).student.me()).resolves.toMatchObject({
+        id: studentId,
+        fullName: 'Jane Learner',
+      });
+      await expect(makeCaller(studentUser, db).student.portalUsage()).resolves.toMatchObject({
+        studentId,
+        usage: {
+          allowed: true,
+          hourly: { limitMinutes: 3, usedMinutes: 1, remainingMinutes: 2 },
+          daily: { limitMinutes: 10, usedMinutes: 2, remainingMinutes: 8 },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('blocks student portal access when the hourly usage limit is reached', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
+    try {
+      const { db, students } = makeFakeDb({
+        portalSettings: [{ studentId, hourlyUsageLimitMinutes: 2 }],
+        usageMinutes: [
+          { minuteStartedAt: new Date('2026-06-03T10:05:00.000Z') },
+          { minuteStartedAt: new Date('2026-06-03T10:10:00.000Z') },
+        ],
+      });
+      await linkCreatedStudent(db, students);
+
+      await expect(makeCaller(studentUser, db).student.me()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'Hourly student portal usage limit reached.',
+      });
+      expect(db.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: studentUser.id,
+          action: 'PermissionDenied',
+          entity: 'student.me',
+          entityId: studentId,
+          meta: {
+            role: 'Student',
+            reason: 'UsageLimit',
+            usageWindow: 'Hourly',
+          },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('blocks student portal access when daily or weekly usage limits are reached', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
+    try {
+      const daily = makeFakeDb({
+        portalSettings: [{ studentId, dailyUsageLimitMinutes: 2 }],
+        usageMinutes: [
+          { minuteStartedAt: new Date('2026-06-03T08:05:00.000Z') },
+          { minuteStartedAt: new Date('2026-06-03T09:10:00.000Z') },
+        ],
+      });
+      await linkCreatedStudent(daily.db, daily.students);
+      await expect(makeCaller(studentUser, daily.db).student.me()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'Daily student portal usage limit reached.',
+      });
+
+      const weekly = makeFakeDb({
+        portalSettings: [{ studentId, weeklyUsageLimitMinutes: 2 }],
+        usageMinutes: [
+          { minuteStartedAt: new Date('2026-06-01T08:05:00.000Z') },
+          { minuteStartedAt: new Date('2026-06-02T09:10:00.000Z') },
+        ],
+      });
+      await linkCreatedStudent(weekly.db, weekly.students);
+      await expect(makeCaller(studentUser, weekly.db).student.me()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'Weekly student portal usage limit reached.',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps account locks ahead of usage-limit denials', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
+    try {
+      const { db, students } = makeFakeDb({
+        portalSettings: [{ studentId, headAcademicLocked: true, hourlyUsageLimitMinutes: 1 }],
+        usageMinutes: [{ minuteStartedAt: new Date('2026-06-03T10:05:00.000Z') }],
+      });
+      await linkCreatedStudent(db, students);
+
+      await expect(makeCaller(studentUser, db).student.me()).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        message: 'Student portal is locked by Oasis Learning Centre for academic reasons.',
+      });
+      expect(db.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: studentUser.id,
+          action: 'PermissionDenied',
+          entity: 'student.me',
+          entityId: studentId,
+          meta: {
+            role: 'Student',
+            reason: 'AccountLocked',
+            lockSource: 'HeadAcademic',
+          },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

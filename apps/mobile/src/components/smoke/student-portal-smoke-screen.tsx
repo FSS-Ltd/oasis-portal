@@ -1,18 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterInputs, type RouterOutputs } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { displaySchoolYearLabel } from './parent-smoke-children';
-import {
-  Badge,
-  Card,
-  ErrorText,
-  InlineSpinner,
-  MutedText,
-  SectionTitle,
-} from './smoke-ui';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
 import { StudentLeaderboardPanel } from './student-smoke-leaderboard';
 import { StudentPacePanel } from './student-smoke-pace';
 import { StudentShopPanel } from './student-smoke-shop';
@@ -28,10 +21,7 @@ type StudentProfile = RouterOutputs['student']['me'];
 type MeritBalances = RouterOutputs['meritLedger']['balances'];
 type PaceDetail = RouterOutputs['pace']['forStudent'];
 type LeaderboardInput = NonNullable<Exclude<RouterInputs['leaderboard']['get'], void>>;
-type LeaderboardKind = Exclude<
-  NonNullable<LeaderboardInput['kind']>,
-  'HighestDemerits'
->;
+type LeaderboardKind = Exclude<NonNullable<LeaderboardInput['kind']>, 'HighestDemerits'>;
 type StudentMobileTab = 'home' | 'wallet' | 'pace' | 'leaderboard' | 'shop';
 type TransferAccount = 'Spend' | 'Saving';
 
@@ -45,6 +35,10 @@ const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
 
 function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
+}
+
+function isUsageLimitMessage(message: string | null | undefined): message is string {
+  return Boolean(message?.includes('student portal usage limit reached'));
 }
 
 function initials(name: string): string {
@@ -140,14 +134,28 @@ function HeroStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function UsageLimitReachedPanel({ message }: { message: string }) {
+  return (
+    <Card style={styles.compactCard}>
+      <SectionTitle>Usage limit reached</SectionTitle>
+      <MutedText>{message}</MutedText>
+    </Card>
+  );
+}
+
 export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
   const utils = api.useUtils();
   const today = useMemo(() => new Date(), []);
+  const sessionKey = useMemo(
+    () => `student-mobile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+    [],
+  );
   const [activeTab, setActiveTab] = useState<StudentMobileTab>('home');
   const [leaderboardKind, setLeaderboardKind] = useState<LeaderboardKind>('TopSavers');
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [usageLimitNotice, setUsageLimitNotice] = useState<string | null>(null);
 
   const student = api.student.me.useQuery(undefined, { retry: false });
   const studentId = student.data?.id ?? '';
@@ -177,6 +185,16 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
   );
   const shopItems = api.shop.listItems.useQuery(undefined, { retry: false });
   const transfer = api.meritLedger.transfer.useMutation();
+  const heartbeat = api.student.heartbeat.useMutation({
+    onError(error) {
+      if (isUsageLimitMessage(error.message)) setUsageLimitNotice(error.message);
+    },
+    onSuccess(data) {
+      if (!data.usage.allowed && data.usage.message) {
+        setUsageLimitNotice(data.usage.message);
+      }
+    },
+  });
 
   const loading =
     student.isFetching ||
@@ -188,6 +206,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     leaderboard.isFetching ||
     shopItems.isFetching;
   const queryError = firstError(
+    usageLimitNotice ?? undefined,
     student.error?.message,
     balances.error?.message,
     weekActivity.error?.message,
@@ -197,6 +216,31 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     leaderboard.error?.message,
     shopItems.error?.message,
   );
+  const usageLimitMessage = [
+    usageLimitNotice,
+    student.error?.message,
+    heartbeat.error?.message,
+    balances.error?.message,
+    weekActivity.error?.message,
+    monthActivity.error?.message,
+    investment.error?.message,
+    pace.error?.message,
+    leaderboard.error?.message,
+    shopItems.error?.message,
+  ].find(isUsageLimitMessage);
+
+  useEffect(() => {
+    if (!studentId || usageLimitNotice) return undefined;
+
+    heartbeat.mutate({ sessionKey });
+    const intervalId = setInterval(() => {
+      heartbeat.mutate({ sessionKey });
+    }, 55_000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [studentId, sessionKey, usageLimitNotice]);
 
   async function refresh() {
     await student.refetch();
@@ -260,9 +304,11 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
         }
         style={styles.scroller}
       >
-        {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+        {!usageLimitMessage && queryError ? <ErrorText>{queryError}</ErrorText> : null}
 
-        {activeTab === 'home' ? (
+        {usageLimitMessage ? <UsageLimitReachedPanel message={usageLimitMessage} /> : null}
+
+        {!usageLimitMessage && activeTab === 'home' ? (
           <StudentHomePanel
             balances={balances.data}
             loading={student.isLoading}
@@ -271,7 +317,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
           />
         ) : null}
 
-        {activeTab === 'wallet' ? (
+        {!usageLimitMessage && activeTab === 'wallet' ? (
           <StudentWalletPanel
             balances={balances.data}
             investment={investment.data}
@@ -287,11 +333,11 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
           />
         ) : null}
 
-        {activeTab === 'pace' ? (
+        {!usageLimitMessage && activeTab === 'pace' ? (
           <StudentPacePanel loading={pace.isFetching} pace={pace.data} />
         ) : null}
 
-        {activeTab === 'leaderboard' ? (
+        {!usageLimitMessage && activeTab === 'leaderboard' ? (
           <StudentLeaderboardPanel
             kind={leaderboardKind}
             loading={leaderboard.isFetching}
@@ -300,7 +346,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
           />
         ) : null}
 
-        {activeTab === 'shop' ? (
+        {!usageLimitMessage && activeTab === 'shop' ? (
           <StudentShopPanel
             heldMerits={balances.data?.balances.ShopReserved ?? 0}
             items={shopItems.data ?? []}

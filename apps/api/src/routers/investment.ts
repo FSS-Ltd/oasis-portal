@@ -12,6 +12,7 @@ import {
 import { generateNavSeries } from '@oasis/domain/investmentSim';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import { authedProcedure, router } from '../trpc.js';
 
 const DEFAULT_NAV_SEED = 'oasis-v1';
@@ -159,6 +160,7 @@ async function assertCanReadInvestment(
   if (ctx.user.role === 'Student') {
     try {
       requireSelfStudent(ctx.user, student.id, student.userId);
+      await assertStudentPortalAccess(ctx, { entity, studentId: student.id });
       return;
     } catch (err) {
       if (err instanceof AccessDeniedError) {
@@ -186,6 +188,7 @@ async function assertCanTransactInvestment(
   if (ctx.user.role === 'Student') {
     try {
       requireSelfStudent(ctx.user, student.id, student.userId);
+      await assertStudentPortalAccess(ctx, { entity, studentId: student.id });
       return;
     } catch (err) {
       if (err instanceof AccessDeniedError) {

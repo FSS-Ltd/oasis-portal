@@ -9,7 +9,7 @@ import {
   validateStudentPortalUsageLimits,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
-import { assertStudentPortalUnlocked } from '../lib/student-portal-access.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import { roleProcedure, router } from '../trpc.js';
 
 export interface StudentCredentialAdapter {
@@ -463,7 +463,7 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
       .input(myPasswordInput)
       .mutation(async ({ ctx, input }) => {
         const student = await loadOwnStudent(ctx);
-        await assertStudentPortalUnlocked(ctx, {
+        await assertStudentPortalAccess(ctx, {
           entity: 'studentSettings.setMyPassword',
           studentId: student.id,
         });

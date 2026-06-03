@@ -14,6 +14,7 @@ import {
 } from '@oasis/domain';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -74,10 +75,18 @@ async function auditPermissionDenied(
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-async function requireCanViewLeaderboard(
-  ctx: AuthedContext,
-  kind: LeaderboardKind,
-): Promise<void> {
+async function requireCanViewLeaderboard(ctx: AuthedContext, kind: LeaderboardKind): Promise<void> {
+  if (ctx.user.role === 'Student') {
+    const student = await ctx.db.student.findUnique({
+      where: { userId: ctx.user.id },
+      select: { id: true, active: true },
+    });
+    if (!student?.active) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+    }
+    await assertStudentPortalAccess(ctx, { entity: 'leaderboard.get', studentId: student.id });
+  }
+
   if (kind !== 'HighestDemerits' || canViewDemeritLeaderboard(ctx.user)) return;
 
   await auditPermissionDenied(
@@ -156,9 +165,7 @@ async function loadLatestNav(ctx: AuthedContext): Promise<number | null> {
   return row ? toNumber(row.nav) : null;
 }
 
-async function loadInvestmentCandidates(
-  ctx: AuthedContext,
-): Promise<LeaderboardMetricCandidate[]> {
+async function loadInvestmentCandidates(ctx: AuthedContext): Promise<LeaderboardMetricCandidate[]> {
   const [latestNav, accounts] = await Promise.all([
     loadLatestNav(ctx),
     ctx.db.investmentAccount.findMany({

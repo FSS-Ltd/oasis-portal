@@ -4,6 +4,7 @@ import {
   effectiveStudentPortalLock,
   isStudentAdult,
   studentMeritShopAccess,
+  studentPortalUsageLimitStatus,
   validateStudentPortalUsageLimits,
 } from '../studentPortalSettings.js';
 
@@ -82,6 +83,89 @@ describe('validateStudentPortalUsageLimits', () => {
     expect(() => validateStudentPortalUsageLimits({ weeklyUsageLimitMinutes: 10081 })).toThrow(
       /weeklyUsageLimitMinutes/,
     );
+  });
+});
+
+describe('studentPortalUsageLimitStatus', () => {
+  it('allows usage when no configured limit has been reached', () => {
+    expect(
+      studentPortalUsageLimitStatus(
+        {
+          hourlyUsageLimitMinutes: 30,
+          dailyUsageLimitMinutes: 90,
+          weeklyUsageLimitMinutes: 300,
+        },
+        {
+          hourlyUsageMinutes: 12,
+          dailyUsageMinutes: 45,
+          weeklyUsageMinutes: 120,
+        },
+      ),
+    ).toEqual({ allowed: true });
+  });
+
+  it('reports the shortest reached usage window first', () => {
+    expect(
+      studentPortalUsageLimitStatus(
+        {
+          hourlyUsageLimitMinutes: 30,
+          dailyUsageLimitMinutes: 90,
+          weeklyUsageLimitMinutes: 300,
+        },
+        {
+          hourlyUsageMinutes: 30,
+          dailyUsageMinutes: 90,
+          weeklyUsageMinutes: 300,
+        },
+      ),
+    ).toEqual({
+      allowed: false,
+      window: 'Hourly',
+      limitMinutes: 30,
+      usedMinutes: 30,
+    });
+  });
+
+  it('checks daily and weekly limits independently when shorter limits are not configured', () => {
+    expect(
+      studentPortalUsageLimitStatus(
+        {
+          hourlyUsageLimitMinutes: null,
+          dailyUsageLimitMinutes: 90,
+          weeklyUsageLimitMinutes: 300,
+        },
+        {
+          hourlyUsageMinutes: 60,
+          dailyUsageMinutes: 90,
+          weeklyUsageMinutes: 120,
+        },
+      ),
+    ).toEqual({
+      allowed: false,
+      window: 'Daily',
+      limitMinutes: 90,
+      usedMinutes: 90,
+    });
+
+    expect(
+      studentPortalUsageLimitStatus(
+        {
+          hourlyUsageLimitMinutes: null,
+          dailyUsageLimitMinutes: null,
+          weeklyUsageLimitMinutes: 300,
+        },
+        {
+          hourlyUsageMinutes: 60,
+          dailyUsageMinutes: 120,
+          weeklyUsageMinutes: 300,
+        },
+      ),
+    ).toEqual({
+      allowed: false,
+      window: 'Weekly',
+      limitMinutes: 300,
+      usedMinutes: 300,
+    });
   });
 });
 
