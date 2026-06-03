@@ -175,6 +175,59 @@ export function joinLocalDateTime(date: string, time: string): string {
   return `${date || new Date().toISOString().slice(0, 10)}T${time || '09:00'}`;
 }
 
+function dateTimeInputValue(value: Date | string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 16);
+  return date.toISOString().slice(0, 16);
+}
+
+function timeInputValue(value: Date | string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(11, 16);
+}
+
+export function incidentFormFromReport(report: StaffIncident): IncidentFormState {
+  return {
+    activity: report.activity ?? '',
+    bodyArea: report.bodyArea ?? '',
+    confidentiality: report.confidentiality as IncidentConfidentiality,
+    dataSharingReason: report.dataSharingReason ?? '',
+    directDisclosure: report.directDisclosure ?? '',
+    dslNotified: report.dslNotified,
+    emergencyServicesContacted: report.emergencyServicesContacted,
+    factualAccount: report.factualAccount,
+    firstAidGiven: report.firstAidGiven,
+    firstAiderId: report.firstAiderId ?? '',
+    headSignOffRequired: report.headSignOffRequired,
+    hospitalTreatment: report.hospitalTreatment,
+    immediateActions: report.immediateActions ?? '',
+    injurySustained: report.injurySustained,
+    ladoConsidered: report.ladoConsidered,
+    location: report.location,
+    medicalNotes: report.medicalNotes ?? '',
+    occurredAt: dateTimeInputValue(report.occurredAt),
+    offSite: report.offSite,
+    parentCarerNotified: report.parentCarerNotified,
+    parentNotifiedAt: timeInputValue(report.parentNotifiedAt),
+    parentVisibilityRequested: report.parentVisibilityRequested,
+    pastorPrincipalEscalation: report.pastorPrincipalEscalation,
+    riddorCheck: report.riddorCheck,
+    severity: report.severity as IncidentSeverity,
+    socialCarePoliceReferral: report.socialCarePoliceReferral,
+    staffIds: report.staff
+      .filter((staffMember) => staffMember.kind === 'StaffInvolved')
+      .map((staffMember) => staffMember.userId),
+    studentIds: report.students.map((student) => student.studentId),
+    type: report.type as IncidentType,
+    witnesses: report.witnesses ?? '',
+    witnessStaffIds: report.staff
+      .filter((staffMember) => staffMember.kind === 'Witness')
+      .map((staffMember) => staffMember.userId),
+  };
+}
+
 export function incidentFormProgress(form: IncidentFormState): {
   completed: number;
   total: number;

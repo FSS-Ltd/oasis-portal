@@ -29,6 +29,57 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
 
+## Current session - 2026-06-03 Incident draft ownership and review detail
+
+Working branch: `fix/incident-draft-edit-delete`.
+
+**PR scope:** Fix incident draft edit/update/delete ownership, add Head/admin
+read-only incident form detail, and expand parent PDF default sections.
+
+Completed:
+
+- Added creator-only draft ownership checks for draft update, submit, and delete
+  in the incident API, with audit rows for draft update and delete.
+- Replaced draft child, staff, and witness links on update so editing a draft
+  preserves the full form state.
+- Added a draft delete mutation and wired supervisor UI controls so only the
+  report creator sees edit/delete actions for Draft reports.
+- Added the Head/admin read-only incident report detail section for the
+  supervisor-entered classification, when/where, people, factual account,
+  direct disclosure, actions, witnesses, injury/medical fields, and
+  reportability checks.
+- Expanded parent PDF defaults with parent-safe classification, when/where,
+  factual account, and injury/first-aid/medical sections while keeping direct
+  disclosure out of the parent PDF by default.
+- Tightened incident RLS write policies so draft update/delete writes are scoped
+  to the report creator at the database policy layer.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- incident.router.test.ts`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/incident.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/db test`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm exec prettier --check` on changed supported TypeScript and CSS files.
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- `pnpm --filter @oasis/db rls:apply` reached Prisma outside the sandbox but
+  could not run because `DATABASE_URL` is not configured in this worktree
+  environment.
+- `pnpm db:integration` was not run outside the sandbox because the approval
+  reviewer blocked it as potentially destructive unless pointed at a confirmed
+  disposable database.
+- The isolated worktree uses local ignored `node_modules` symlinks to reuse the
+  existing install while resolving `@oasis/api` to this branch.
+
 ## Current session - 2026-06-03 Portal landing page
 
 Working branch: `feat/portal-landing-page`.

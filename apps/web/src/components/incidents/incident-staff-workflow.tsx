@@ -9,14 +9,17 @@ import {
   Eye,
   FileText,
   Info,
+  Pencil,
   Plus,
   Save,
   Search,
   Send,
   ShieldCheck,
+  Trash2,
   Users,
   X,
 } from 'lucide-react';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import {
   BehaviourStudentSelector,
   type BehaviourStudentOption,
@@ -27,7 +30,7 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { Panel } from '@/components/ui/panel';
 import { StatCard } from '@/components/ui/stat-card';
-import { showErrorToast, showSuccessToast } from '@/lib/notifications';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import {
   formatIncidentDate,
@@ -38,9 +41,11 @@ import {
   incidentTypeLabels,
   statusTone,
 } from './incident-format';
+import { IncidentReportDetail } from './incident-report-detail';
 import {
   defaultIncidentForm,
   emptyCopyForm,
+  incidentFormFromReport,
   incidentFormInput,
   incidentFormProgress,
   joinLocalDateTime,
@@ -726,13 +731,19 @@ function ParentCopyPanel({
 }
 
 function IncidentDetail({
+  canManageDraft,
   canOverrideParentVisibility,
   onClose,
+  onDeleteDraft,
+  onEditDraft,
   portal,
   report,
 }: {
+  canManageDraft: boolean;
   canOverrideParentVisibility: boolean;
   onClose: () => void;
+  onDeleteDraft: (report: StaffIncident) => void;
+  onEditDraft: (report: StaffIncident) => void;
   portal: StaffIncidentWorkflowProps['portal'];
   report: StaffIncident;
 }) {
@@ -833,8 +844,32 @@ function IncidentDetail({
           </div>
         </div>
         <div className="incident-detail__actions">
+          {canManageDraft ? (
+            <>
+              <Button
+                onClick={() => {
+                  onEditDraft(report);
+                }}
+                type="button"
+                variant="secondary"
+              >
+                <Pencil aria-hidden="true" size={15} />
+                Edit draft
+              </Button>
+              <Button
+                onClick={() => {
+                  onDeleteDraft(report);
+                }}
+                type="button"
+                variant="danger"
+              >
+                <Trash2 aria-hidden="true" size={15} />
+                Delete draft
+              </Button>
+            </>
+          ) : null}
           <Button
-            disabled={report.status !== 'Draft'}
+            disabled={report.status !== 'Draft' || !canManageDraft}
             onClick={() => {
               submit.mutate({ reportId: report.id });
             }}
@@ -873,6 +908,10 @@ function IncidentDetail({
           ) : null}
         </div>
       </Panel>
+      <Panel body className="incident-side-panel">
+        <h3>Report details</h3>
+        <IncidentReportDetail report={report} />
+      </Panel>
       {portal === 'admin' ? (
         <ParentCopyPanel
           canOverrideParentVisibility={canOverrideParentVisibility}
@@ -887,6 +926,8 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   const [mode, setMode] = useState<'dashboard' | 'form'>('dashboard');
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [deleteDraftReport, setDeleteDraftReport] = useState<StaffIncident | null>(null);
   const [form, setForm] = useState<IncidentFormState>(defaultIncidentForm);
   const incidents = api.incident.listStaff.useQuery();
   const profile = api.profile.me.useQuery(undefined, { retry: false });
@@ -903,6 +944,30 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
     },
     onError(error) {
       showErrorToast(error, 'Incident draft could not be saved.');
+    },
+  });
+  const updateDraft = api.incident.updateDraft.useMutation({
+    async onSuccess(data) {
+      setForm(defaultIncidentForm);
+      setEditingReportId(null);
+      setMode('dashboard');
+      setSelectedId(data.id);
+      await utils.incident.listStaff.invalidate();
+      showSuccessToast('Incident draft updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Incident draft could not be updated.');
+    },
+  });
+  const deleteDraft = api.incident.deleteDraft.useMutation({
+    async onSuccess() {
+      setDeleteDraftReport(null);
+      setSelectedId(null);
+      await utils.incident.listStaff.invalidate();
+      showSuccessToast('Incident draft deleted.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Incident draft could not be deleted.');
     },
   });
   const rows = useMemo(() => {
@@ -941,6 +1006,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   );
   const selected = selectedId ? (rows.find((report) => report.id === selectedId) ?? null) : null;
   const parentVisibilityAllowed = parentVisibilityRoles.has(profile.data?.role ?? '');
+  const savePending = createDraft.isPending || updateDraft.isPending;
   const stats = {
     escalated: (incidents.data ?? []).filter((report) => report.status === 'Escalated').length,
     open: (incidents.data ?? []).filter((report) => report.status !== 'SignedOff').length,
@@ -986,9 +1052,34 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
     },
   ];
 
+  function startNewDraft() {
+    setForm(defaultIncidentForm);
+    setEditingReportId(null);
+    setSelectedId(null);
+    setMode('form');
+  }
+
+  function startEditDraft(report: StaffIncident) {
+    setForm(incidentFormFromReport(report));
+    setEditingReportId(report.id);
+    setSelectedId(report.id);
+    setMode('form');
+  }
+
+  function cancelForm() {
+    setForm(defaultIncidentForm);
+    setEditingReportId(null);
+    setMode('dashboard');
+  }
+
   function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    createDraft.mutate(incidentFormInput(form));
+    const input = incidentFormInput(form);
+    if (editingReportId) {
+      updateDraft.mutate({ ...input, reportId: editingReportId });
+      return;
+    }
+    createDraft.mutate(input);
   }
 
   if (mode === 'form') {
@@ -997,7 +1088,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
         <header className="incident-page__header incident-page__header--form">
           <div>
             <p>{formatIncidentDate(new Date())}</p>
-            <h1>New Incident Report</h1>
+            <h1>{editingReportId ? 'Edit Incident Report' : 'New Incident Report'}</h1>
             <span>
               Record factual details, reportability checks, sign-off, and parent PDF visibility.
             </span>
@@ -1005,16 +1096,16 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
           <div className="incident-page__actions">
             <Button
               onClick={() => {
-                setMode('dashboard');
+                cancelForm();
               }}
               type="button"
               variant="secondary"
             >
               Cancel
             </Button>
-            <Button form="incident-report-form" pending={createDraft.isPending} type="submit">
+            <Button form="incident-report-form" pending={savePending} type="submit">
               <Save aria-hidden="true" size={16} />
-              Save draft
+              {editingReportId ? 'Update draft' : 'Save draft'}
             </Button>
           </div>
         </header>
@@ -1039,7 +1130,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
               setForm((current) => ({ ...current, ...patch }));
             }}
             parentVisibilityAllowed={parentVisibilityAllowed}
-            pending={createDraft.isPending}
+            pending={savePending}
           />
         </div>
       </section>
@@ -1047,98 +1138,119 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
   }
 
   return (
-    <section className="incident-page">
-      <header className="incident-page__header">
-        <div>
-          <p>{formatIncidentDate(new Date())}</p>
-          <h1>Incident Reports</h1>
-          <span>Record, sign off, escalate, and share parent-viewable reports.</span>
-        </div>
-        <Button
-          onClick={() => {
-            setSelectedId(null);
-            setMode('form');
-          }}
-          type="button"
-        >
-          <Plus aria-hidden="true" size={16} />
-          New Incident
-        </Button>
-      </header>
-
-      <div className="dashboard-grid incident-stat-grid">
-        <StatCard
-          accent="#8B1E2D"
-          icon={<CircleAlert aria-hidden="true" size={28} />}
-          label="Open"
-          sub="Require attention"
-          value={stats.open}
-        />
-        <StatCard
-          accent="#166534"
-          icon={<CheckCircle2 aria-hidden="true" size={28} />}
-          label="Head sign-off"
-          sub="Completed"
-          value={stats.signedOff}
-        />
-        <StatCard
-          accent="#92400E"
-          icon={<AlertTriangle aria-hidden="true" size={28} />}
-          label="Escalated"
-          sub="With Pastor/Principal"
-          value={stats.escalated}
-        />
-        <StatCard
-          accent="#5B90C5"
-          icon={<Users aria-hidden="true" size={28} />}
-          label="Parent viewable"
-          sub="Shared with parents"
-          value={stats.parentViewable}
-        />
-      </div>
-
-      <div
-        className={`incident-layout${selected ? ' incident-layout--split' : ' incident-layout--full'}`}
-      >
-        <Panel body className="incident-list-panel">
-          <div className="incident-toolbar">
-            <label className="incident-search">
-              <Search aria-hidden="true" size={16} />
-              <TextInput
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                placeholder="Search reports"
-                value={query}
-              />
-            </label>
+    <>
+      <section className="incident-page">
+        <header className="incident-page__header">
+          <div>
+            <p>{formatIncidentDate(new Date())}</p>
+            <h1>Incident Reports</h1>
+            <span>Record, sign off, escalate, and share parent-viewable reports.</span>
           </div>
-          <DataTable
-            columns={columns}
-            empty="No incident reports found."
-            errorMessage={incidents.error?.message}
-            getRowClassName={(report) =>
-              report.id === selectedId ? 'incident-table-row is-selected' : 'incident-table-row'
-            }
-            getRowKey={(report) => report.id}
-            loading={incidents.isLoading}
-            onRowClick={(report) => {
-              setSelectedId(report.id);
+          <Button
+            onClick={() => {
+              startNewDraft();
             }}
-            rows={rows}
+            type="button"
+          >
+            <Plus aria-hidden="true" size={16} />
+            New Incident
+          </Button>
+        </header>
+
+        <div className="dashboard-grid incident-stat-grid">
+          <StatCard
+            accent="#8B1E2D"
+            icon={<CircleAlert aria-hidden="true" size={28} />}
+            label="Open"
+            sub="Require attention"
+            value={stats.open}
           />
-        </Panel>
-        {selected ? (
-          <IncidentDetail
-            canOverrideParentVisibility={parentVisibilityAllowed}
-            onClose={() => {
-              setSelectedId(null);
-            }}
-            portal={portal}
-            report={selected}
+          <StatCard
+            accent="#166534"
+            icon={<CheckCircle2 aria-hidden="true" size={28} />}
+            label="Head sign-off"
+            sub="Completed"
+            value={stats.signedOff}
           />
-        ) : null}
-      </div>
-    </section>
+          <StatCard
+            accent="#92400E"
+            icon={<AlertTriangle aria-hidden="true" size={28} />}
+            label="Escalated"
+            sub="With Pastor/Principal"
+            value={stats.escalated}
+          />
+          <StatCard
+            accent="#5B90C5"
+            icon={<Users aria-hidden="true" size={28} />}
+            label="Parent viewable"
+            sub="Shared with parents"
+            value={stats.parentViewable}
+          />
+        </div>
+
+        <div
+          className={`incident-layout${selected ? ' incident-layout--split' : ' incident-layout--full'}`}
+        >
+          <Panel body className="incident-list-panel">
+            <div className="incident-toolbar">
+              <label className="incident-search">
+                <Search aria-hidden="true" size={16} />
+                <TextInput
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="Search reports"
+                  value={query}
+                />
+              </label>
+            </div>
+            <DataTable
+              columns={columns}
+              empty="No incident reports found."
+              errorMessage={incidents.error?.message}
+              getRowClassName={(report) =>
+                report.id === selectedId ? 'incident-table-row is-selected' : 'incident-table-row'
+              }
+              getRowKey={(report) => report.id}
+              loading={incidents.isLoading}
+              onRowClick={(report) => {
+                setSelectedId(report.id);
+              }}
+              rows={rows}
+            />
+          </Panel>
+          {selected ? (
+            <IncidentDetail
+              canManageDraft={
+                selected.status === 'Draft' && selected.recordedById === profile.data?.id
+              }
+              canOverrideParentVisibility={parentVisibilityAllowed}
+              onClose={() => {
+                setSelectedId(null);
+              }}
+              onDeleteDraft={setDeleteDraftReport}
+              onEditDraft={startEditDraft}
+              portal={portal}
+              report={selected}
+            />
+          ) : null}
+        </div>
+      </section>
+      <ConfirmationDialog
+        confirmLabel="Delete draft"
+        errorMessage={deleteDraft.error ? friendlyErrorMessage(deleteDraft.error) : undefined}
+        onCancel={() => {
+          if (!deleteDraft.isPending) setDeleteDraftReport(null);
+        }}
+        onConfirm={() => {
+          if (deleteDraftReport) deleteDraft.mutate({ reportId: deleteDraftReport.id });
+        }}
+        open={deleteDraftReport !== null}
+        pending={deleteDraft.isPending}
+        title="Delete incident draft?"
+      >
+        <p>This removes the draft report before Head review and keeps an audit record.</p>
+      </ConfirmationDialog>
+    </>
   );
 }
