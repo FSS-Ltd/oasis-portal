@@ -145,17 +145,22 @@ describe('TechnicalSupport account administration', () => {
 });
 
 describe('invoice finance administration', () => {
-  it('allows full admins and finance tagged non-parent staff to manage invoices', () => {
+  it('allows full admins and finance tagged staff to manage invoices', () => {
     expect(canManageInvoices(head)).toBe(true);
     expect(canManageInvoices(principal)).toBe(true);
     expect(canManageInvoices({ ...supervisor, tags: ['finance-admin'] })).toBe(true);
-    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(false);
+    expect(canManageInvoices({ ...technicalSupport, tags: ['finance-admin'] })).toBe(true);
     expect(canManageInvoices(supervisor)).toBe(false);
+    expect(canManageInvoices(technicalSupport)).toBe(false);
+    expect(canManageInvoices({ ...clubsLead, tags: ['finance-admin'] })).toBe(false);
     expect(canManageInvoices({ ...parent, tags: ['finance-admin'] })).toBe(false);
     expect(canManageInvoices({ ...student, tags: ['finance-admin'] })).toBe(false);
 
     expect(() => {
       requireCanManageInvoices({ ...supervisor, tags: ['finance-admin'] });
+    }).not.toThrow();
+    expect(() => {
+      requireCanManageInvoices({ ...technicalSupport, tags: ['finance-admin'] });
     }).not.toThrow();
     expect(() => {
       requireCanManageInvoices(parent);
