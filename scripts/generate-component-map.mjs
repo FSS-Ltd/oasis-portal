@@ -136,7 +136,7 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/supervisor/',
     ],
     mobileSurfaces: ['apps/mobile/app/', 'apps/mobile/src/components/'],
-    sharedSurfaces: ['apps/web/src/components/ui/'],
+    sharedSurfaces: ['apps/api/src/lib/student-portal-access.ts', 'apps/web/src/components/ui/'],
   },
   {
     name: 'Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email',

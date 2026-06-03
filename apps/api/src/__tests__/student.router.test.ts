@@ -55,6 +55,15 @@ interface StoredStudent {
   updatedAt: Date;
 }
 
+interface StoredStudentPortalSettings {
+  studentId: string;
+  parentAccountLocked: boolean;
+  parentLockReasonEnc: string | null;
+  headAcademicLocked: boolean;
+  headAcademicLockReasonEnc: string | null;
+  parentMeritShopBlocked: boolean;
+}
+
 interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
@@ -80,6 +89,9 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  studentPortalSettings: {
     findUnique: ReturnType<typeof vi.fn>;
   };
   subject: { findUnique: ReturnType<typeof vi.fn> };
@@ -138,8 +150,28 @@ function selectedStudent(student: StoredStudent, select: StudentSelect): Partial
   return row;
 }
 
-function makeFakeDb() {
+function makePortalSettings(
+  input: Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>,
+): StoredStudentPortalSettings {
+  return {
+    parentAccountLocked: false,
+    parentLockReasonEnc: null,
+    headAcademicLocked: false,
+    headAcademicLockReasonEnc: null,
+    parentMeritShopBlocked: false,
+    ...input,
+  };
+}
+
+function makeFakeDb(
+  input: {
+    portalSettings?: Array<
+      Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
+    >;
+  } = {},
+) {
   const students: StoredStudent[] = [];
+  const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
   const subjects: StoredSubject[] = [
     { id: subjectId, code: 'MATH', name: 'Mathematics', active: true },
   ];
@@ -239,6 +271,13 @@ function makeFakeDb() {
         },
       ),
     },
+    studentPortalSettings: {
+      findUnique: vi.fn(({ where }: { where: { studentId: string } }) =>
+        Promise.resolve(
+          portalSettings.find((settings) => settings.studentId === where.studentId) ?? null,
+        ),
+      ),
+    },
     subject: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(subjects.find((subject) => subject.id === where.id) ?? null),
@@ -332,7 +371,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, students, subjects, assignments };
+  return { db, students, subjects, assignments, portalSettings };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -530,6 +569,35 @@ describe('student.me', () => {
     await expect(makeCaller(studentUser, db).student.me()).rejects.toMatchObject({
       code: 'NOT_FOUND',
       message: 'student profile not found',
+    });
+  });
+
+  it('blocks locked Student users from loading their portal profile', async () => {
+    const { db, students } = makeFakeDb({
+      portalSettings: [{ studentId, headAcademicLocked: true }],
+    });
+    const headCaller = makeCaller(headUser, db);
+    await createStudent(headCaller);
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.userId = studentUser.id;
+
+    await expect(makeCaller(studentUser, db).student.me()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Student portal is locked by Oasis Learning Centre for academic reasons.',
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: studentUser.id,
+        action: 'PermissionDenied',
+        entity: 'student.me',
+        entityId: studentId,
+        meta: {
+          role: 'Student',
+          reason: 'AccountLocked',
+          lockSource: 'HeadAcademic',
+        },
+      },
     });
   });
 });

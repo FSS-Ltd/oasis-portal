@@ -24,6 +24,10 @@ import {
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import {
+  assertStudentMeritShopAccess,
+  assertStudentPortalUnlocked,
+} from '../lib/student-portal-access.js';
+import {
   assertUploadedShopItemPhoto,
   type UploadedShopItemPhoto,
 } from '../services/shop-item-photo-storage.js';
@@ -714,6 +718,19 @@ async function loadActiveStudent(ctx: AuthedContext, studentId: string): Promise
   return student;
 }
 
+async function loadOwnActiveStudent(ctx: AuthedContext): Promise<ActiveStudent> {
+  const student = await ctx.db.student.findUnique({
+    where: { userId: ctx.user.id },
+    select: { id: true, active: true, userId: true },
+  });
+
+  if (!student?.active) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+  }
+
+  return student;
+}
+
 async function loadSpendBalance(
   store: Pick<AppContext['db'], 'meritLedger'>,
   studentId: string,
@@ -855,6 +872,10 @@ export const shopRouter = router({
     if (includeInactive) {
       await requireCanManageShop(ctx, 'shop.listItems');
     }
+    if (ctx.user.role === 'Student') {
+      const student = await loadOwnActiveStudent(ctx);
+      await assertStudentPortalUnlocked(ctx, { entity: 'shop.listItems', studentId: student.id });
+    }
 
     const items = (await ctx.db.shopItem.findMany({
       where: includeInactive ? {} : { active: true },
@@ -895,6 +916,13 @@ export const shopRouter = router({
 
   listReservations: authedProcedure.input(listReservationsInput).query(async ({ ctx, input }) => {
     const baseWhere = requireReservationListAccess(ctx);
+    if (ctx.user.role === 'Student') {
+      const student = await loadOwnActiveStudent(ctx);
+      await assertStudentPortalUnlocked(ctx, {
+        entity: 'shop.listReservations',
+        studentId: student.id,
+      });
+    }
     const where: Prisma.ShopReservationWhereInput = {
       ...baseWhere,
       ...(input?.status ? { status: input.status } : {}),
@@ -1087,6 +1115,7 @@ export const shopRouter = router({
   reserve: authedProcedure.input(reserveInput).mutation(async ({ ctx, input }) => {
     const student = await loadActiveStudent(ctx, input.studentId);
     await requireCanReserveForStudent(ctx, student);
+    await assertStudentMeritShopAccess(ctx, { entity: 'shop.reserve', studentId: student.id });
     const requestedLines = aggregateReservationLines(input.lines);
 
     const reservationId = await ctx.db.$transaction(
@@ -1178,6 +1207,20 @@ export const shopRouter = router({
 
   collectReservation: authedProcedure.input(reservationIdInput).mutation(async ({ ctx, input }) => {
     await requireCanSellInShop(ctx, 'shop.collectReservation', input.reservationId);
+    const existing = await ctx.db.shopReservation.findUnique({
+      where: { id: input.reservationId },
+      select: { studentId: true, status: true },
+    });
+    if (!existing) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'shop reservation not found' });
+    }
+    if (existing.status !== 'Ready') {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'reservation is not ready' });
+    }
+    await assertStudentMeritShopAccess(ctx, {
+      entity: 'shop.collectReservation',
+      studentId: existing.studentId,
+    });
 
     await ctx.db.$transaction(
       async (tx: Prisma.TransactionClient) => {
@@ -1313,6 +1356,7 @@ export const shopRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireCanSellInShop(ctx, 'shop.purchase', input.studentId);
       const student = await loadActiveStudent(ctx, input.studentId);
+      await assertStudentMeritShopAccess(ctx, { entity: 'shop.purchase', studentId: student.id });
 
       const result = await ctx.db.$transaction(
         async (tx: Prisma.TransactionClient) => {

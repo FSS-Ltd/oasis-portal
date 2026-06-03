@@ -98,6 +98,7 @@ interface FakeDb {
     findUnique: ReturnType<typeof vi.fn>;
   };
   studentPortalSettings: {
+    findUnique: ReturnType<typeof vi.fn>;
     upsert: ReturnType<typeof vi.fn>;
   };
 }
@@ -234,6 +235,9 @@ function makeFakeDb() {
       }),
     },
     studentPortalSettings: {
+      findUnique: vi.fn(({ where }: { where: { studentId: string } }) =>
+        Promise.resolve(settings.get(where.studentId) ?? null),
+      ),
       upsert: vi.fn(
         ({
           where,
@@ -435,6 +439,40 @@ describe('studentSettings student and Head procedures', () => {
       clerkUserId: 'clerk_student',
       password: 'student password 123',
     });
+  });
+
+  it('blocks student password changes while the portal account is locked', async () => {
+    const { db } = makeFakeDb();
+    const setPassword = vi.fn().mockResolvedValue(undefined);
+    const credentialAdapter: StudentCredentialAdapter = { setPassword };
+    const parentCaller = makeCaller(parentUser, db, credentialAdapter);
+    await parentCaller.studentSettings.setPasswordControl({
+      studentId: childStudentId,
+      studentCanManagePassword: true,
+    });
+    await parentCaller.studentSettings.setParentLock({
+      studentId: childStudentId,
+      locked: true,
+      reason: 'Paused by parent',
+    });
+
+    await expect(
+      makeCaller(studentUser, db, credentialAdapter).studentSettings.setMyPassword({
+        password: 'student password 123',
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Student portal is locked by a parent or carer.',
+    });
+    expect(setPassword).not.toHaveBeenCalled();
+    expect(
+      auditCalls(db).some(
+        (call) =>
+          call.data.action === 'PermissionDenied' &&
+          call.data.entity === 'studentSettings.setMyPassword' &&
+          call.data.entityId === childStudentId,
+      ),
+    ).toBe(true);
   });
 
   it('lets adult students control their own password without parent policy', async () => {
