@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { canManageClubs, canManageShop, canSellInShop, canUseClubLeadAccess } from '@oasis/domain';
+import {
+  canManageClubs,
+  canManageInvoices,
+  canManageShop,
+  canSellInShop,
+  canUseClubLeadAccess,
+} from '@oasis/domain';
 import { prisma } from '@oasis/db';
 import { SupervisorBottomNav, SupervisorSidebarNav } from '@/components/supervisor/supervisor-nav';
 import { getStaffUser, linkedChildCount } from '@/components/admin/require-full-admin';
@@ -65,6 +71,7 @@ export default async function SupervisorLayout({ children }: { children: ReactNo
   const showProfilePortalMenu = portalViews.length > 2;
   const supervisorNavProps = {
     canManageClubs: canManageClubs(user),
+    canManageInvoices: canManageInvoices(user),
     canUseShop: canManageShop(user) || canSellInShop(user),
     unreadMessageCount,
     unreadNoticeCount,
