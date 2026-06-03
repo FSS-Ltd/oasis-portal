@@ -923,6 +923,18 @@ export function StudentDrillThroughContent({
   const [noteDelete, setNoteDelete] = useState<NoteEntry | null>(null);
   const [paceDraft, setPaceDraft] = useState<PaceEntry | null>(null);
   const [paceDelete, setPaceDelete] = useState<PaceEntry | null>(null);
+
+  async function invalidatePaceMutationViews(): Promise<void> {
+    await Promise.all([
+      utils.childLog.drillThrough.invalidate({ studentId }),
+      utils.childLog.snapshot.invalidate(),
+      utils.childLog.centreSnapshot.invalidate(),
+      utils.childLog.parentDashboard.invalidate(),
+      utils.pace.forStudent.invalidate({ studentId }),
+      utils.pace.roster.invalidate(),
+    ]);
+  }
+
   const updateBehaviour = api.behaviour.updateEntry.useMutation({
     onSuccess: async () => {
       setBehaviourDraft(null);
@@ -967,7 +979,7 @@ export function StudentDrillThroughContent({
     onSuccess: async () => {
       setPaceDraft(null);
       showSuccessToast('PACE test updated.');
-      await utils.childLog.drillThrough.invalidate({ studentId });
+      await invalidatePaceMutationViews();
     },
     onError: (error) => {
       showErrorToast(error, 'PACE test could not be updated.');
@@ -977,7 +989,7 @@ export function StudentDrillThroughContent({
     onSuccess: async () => {
       setPaceDelete(null);
       showSuccessToast('PACE test deleted.');
-      await utils.childLog.drillThrough.invalidate({ studentId });
+      await invalidatePaceMutationViews();
     },
     onError: (error) => {
       showErrorToast(error, 'PACE test could not be deleted.');

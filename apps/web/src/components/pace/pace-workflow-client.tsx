@@ -13,7 +13,6 @@ import { PaceProgressTable } from './pace-progress-table';
 import { PaceScoreModal } from './pace-score-modal';
 import {
   asDate,
-  dateInputValue,
   todayKey,
   type PaceRosterStudent,
   type PaceSubject,
@@ -60,9 +59,7 @@ function paceUpdateStatus(result: {
 }
 
 function nextRecordTestType(subject: PaceSubject): PaceTestType {
-  if (!subject.latestSelfTest) return 'SelfTest';
-  if (!subject.latestFinalTest) return 'FinalTest';
-  return 'SelfTest';
+  return subject.latestSelfTest ? 'FinalTest' : 'SelfTest';
 }
 
 export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProps) {
@@ -75,6 +72,17 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
   } | null>(null);
   const date = useMemo(() => asDate(selectedDate), [selectedDate]);
   const utils = api.useUtils();
+
+  async function invalidatePaceMutationViews(studentId: string): Promise<void> {
+    await Promise.all([
+      utils.pace.forStudent.invalidate(),
+      utils.pace.roster.invalidate(),
+      utils.childLog.drillThrough.invalidate({ studentId }),
+      utils.childLog.snapshot.invalidate(),
+      utils.childLog.centreSnapshot.invalidate(),
+      utils.childLog.parentDashboard.invalidate(),
+    ]);
+  }
 
   const rosterQuery = api.pace.roster.useQuery({ date }, { retry: false });
   const roster = rosterQuery.data;
@@ -92,10 +100,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     async onSuccess(result) {
       showSuccessToast(paceRecordStatus(result));
       setScoreModal(null);
-      await Promise.all([
-        utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
-        utils.pace.roster.invalidate({ date }),
-      ]);
+      await invalidatePaceMutationViews(result.studentId);
     },
     onError(error) {
       showErrorToast(error, 'PACE score could not be saved.');
@@ -105,13 +110,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     async onSuccess(result) {
       showSuccessToast(paceUpdateStatus(result));
       setScoreModal(null);
-      const completedDate = asDate(dateInputValue(result.completedAt));
-      await Promise.all([
-        utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
-        utils.pace.forStudent.invalidate({ studentId: result.studentId, date: completedDate }),
-        utils.pace.roster.invalidate({ date }),
-        utils.pace.roster.invalidate({ date: completedDate }),
-      ]);
+      await invalidatePaceMutationViews(result.studentId);
     },
     onError(error) {
       showErrorToast(error, 'PACE score could not be updated.');
@@ -121,10 +120,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
     async onSuccess(result) {
       showSuccessToast(`Advance approved. Current PACE is ${String(result.newPaceNumber)}.`);
       setApprovalModal(null);
-      await Promise.all([
-        utils.pace.forStudent.invalidate({ studentId: result.studentId, date }),
-        utils.pace.roster.invalidate({ date }),
-      ]);
+      await invalidatePaceMutationViews(result.studentId);
     },
     onError(error) {
       showErrorToast(error, 'PACE advance could not be approved.');
@@ -209,7 +205,11 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
               disabled={!selectedStudent || subjects.length === 0}
               onClick={() => {
                 const subject = subjects.find((item) => item.active) ?? subjects[0] ?? null;
-                setScoreModal(subject ? { mode: 'create', subject } : null);
+                setScoreModal(
+                  subject
+                    ? { initialTestType: nextRecordTestType(subject), mode: 'create', subject }
+                    : null,
+                );
               }}
               type="button"
             >
