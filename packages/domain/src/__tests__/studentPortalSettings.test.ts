@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   canParentControlStudent,
+  canUseLinkedChildStudentSettingsAccess,
   effectiveStudentPortalLock,
   isStudentAdult,
   studentMeritShopAccess,
@@ -22,6 +23,20 @@ describe('student portal parent control eligibility', () => {
 
   it('keeps parent control disabled after the student is over 18', () => {
     expect(canParentControlStudent({ dateOfBirth: '2008-06-02', asOf })).toBe(false);
+  });
+});
+
+describe('canUseLinkedChildStudentSettingsAccess', () => {
+  it('allows parents and adult linked-child guardian roles', () => {
+    expect(canUseLinkedChildStudentSettingsAccess({ role: 'Parent' })).toBe(true);
+    expect(canUseLinkedChildStudentSettingsAccess({ role: 'Supervisor' })).toBe(true);
+    expect(canUseLinkedChildStudentSettingsAccess({ role: 'ClubsAdmin' })).toBe(true);
+    expect(canUseLinkedChildStudentSettingsAccess({ role: 'Head' })).toBe(true);
+  });
+
+  it('rejects student and clubs-lead roles', () => {
+    expect(canUseLinkedChildStudentSettingsAccess({ role: 'Student' })).toBe(false);
+    expect(canUseLinkedChildStudentSettingsAccess({ role: 'ClubsLead' })).toBe(false);
   });
 });
 

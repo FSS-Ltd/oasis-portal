@@ -1,3 +1,5 @@
+import { canAnswerChildRegistrationPrompt, type SessionUser } from './rbac.js';
+
 export type StudentPortalLockSource = 'Parent' | 'HeadAcademic';
 
 export interface StudentPortalLockInput {
@@ -71,6 +73,10 @@ export function isStudentAdult(input: StudentPortalEligibilityInput): boolean {
 
 export function canParentControlStudent(input: StudentPortalEligibilityInput): boolean {
   return !isStudentAdult(input);
+}
+
+export function canUseLinkedChildStudentSettingsAccess(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
 }
 
 export function effectiveStudentPortalLock(
