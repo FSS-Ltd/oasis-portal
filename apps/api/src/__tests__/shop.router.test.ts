@@ -85,6 +85,15 @@ interface StoredStudent {
   createdAt: Date;
 }
 
+interface StoredStudentPortalSettings {
+  studentId: string;
+  parentAccountLocked: boolean;
+  parentLockReasonEnc: string | null;
+  headAcademicLocked: boolean;
+  headAcademicLockReasonEnc: string | null;
+  parentMeritShopBlocked: boolean;
+}
+
 interface StoredLedgerRow {
   studentId: string;
   account: MeritAccount;
@@ -184,7 +193,7 @@ interface FakeShopItemUpdateManyArgs {
 }
 
 interface FakeStudentFindUniqueArgs {
-  where: { id: string };
+  where: { id?: string; userId?: string };
   select: { id: true; active: true; userId?: true };
 }
 
@@ -245,6 +254,11 @@ interface FakeShopReservationFindManyArgs {
 
 interface FakeShopReservationFindUniqueArgs {
   where: { id: string };
+  select?: { studentId: true; status: true };
+}
+
+interface FakeStudentPortalSettingsFindUniqueArgs {
+  where: { studentId: string };
 }
 
 interface FakeShopReservationCreateArgs {
@@ -310,6 +324,19 @@ function makeStudent(input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>):
     fullNameEnc: 'Joshua Johnson',
     yearGroup: 'Y9',
     createdAt: new Date('2026-05-15T09:00:00.000Z'),
+    ...input,
+  };
+}
+
+function makePortalSettings(
+  input: Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>,
+): StoredStudentPortalSettings {
+  return {
+    parentAccountLocked: false,
+    parentLockReasonEnc: null,
+    headAcademicLocked: false,
+    headAcademicLockReasonEnc: null,
+    parentMeritShopBlocked: false,
     ...input,
   };
 }
@@ -382,6 +409,9 @@ function makeFakeDb(
     reservations?: StoredShopReservation[];
     reservationLines?: StoredShopReservationLine[];
     guardians?: Array<{ userId: string; studentId: string }>;
+    portalSettings?: Array<
+      Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
+    >;
     forceStockConflict?: boolean;
   } = {},
 ) {
@@ -392,6 +422,7 @@ function makeFakeDb(
   const reservations = input.reservations ?? [];
   const reservationLines = input.reservationLines ?? [];
   const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
+  const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
   const forceStockConflict = input.forceStockConflict ?? false;
   let nextItem = items.length + 1;
   let nextPurchase = purchases.length + 1;
@@ -430,7 +461,13 @@ function makeFakeDb(
     },
     student: {
       findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
-        Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
+        Promise.resolve(
+          students.find(
+            (student) =>
+              (args.where.id !== undefined && student.id === args.where.id) ||
+              (args.where.userId !== undefined && student.userId === args.where.userId),
+          ) ?? null,
+        ),
       ),
       findMany: vi.fn((args: FakeStudentFindManyArgs) => {
         const filtered = students.filter((student) => student.active === args.where.active);
@@ -454,6 +491,13 @@ function makeFakeDb(
         );
         return Promise.resolve(match ? { studentId: match.studentId } : null);
       }),
+    },
+    studentPortalSettings: {
+      findUnique: vi.fn((args: FakeStudentPortalSettingsFindUniqueArgs) =>
+        Promise.resolve(
+          portalSettings.find((settings) => settings.studentId === args.where.studentId) ?? null,
+        ),
+      ),
     },
     meritLedger: {
       aggregate: vi.fn((args: FakeLedgerAggregateArgs) => {
@@ -693,6 +737,7 @@ function makeFakeDb(
     reservations,
     reservationLines,
     guardians,
+    portalSettings,
   };
 
   db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
@@ -835,6 +880,31 @@ describe('shop.listItems', () => {
         soldCount: 3,
       },
     ]);
+  });
+
+  it('blocks locked Student users from reading shop items', async () => {
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, active: true })],
+      portalSettings: [{ studentId: linkedStudentId, headAcademicLocked: true }],
+      students: [{ id: linkedStudentId, userId: studentUser.id }],
+    });
+
+    await expect(makeCaller(studentUser, db).caller.shop.listItems()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Student portal is locked by Oasis Learning Centre for academic reasons.',
+    });
+    expect(db.shopItem.findMany).not.toHaveBeenCalled();
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.listItems',
+        entityId: linkedStudentId,
+        meta: expect.objectContaining({
+          reason: 'AccountLocked',
+          lockSource: 'HeadAcademic',
+        }) as unknown,
+      }),
+    );
   });
 });
 
@@ -1291,6 +1361,57 @@ describe('shop reservations', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('blocks parent and student reservations when portal policy blocks shop use', async () => {
+    const parentDb = makeFakeDb({
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+      ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      portalSettings: [{ studentId: linkedStudentId, parentMeritShopBlocked: true }],
+    });
+
+    await expect(
+      makeCaller(parentUser, parentDb).caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Merit Shop access is blocked by a parent or carer.',
+    });
+    expect(parentDb.reservations).toHaveLength(0);
+    expect(parentDb.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' },
+    ]);
+
+    const studentDb = makeFakeDb({
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+      ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      portalSettings: [{ studentId: linkedStudentId, parentAccountLocked: true }],
+      students: [{ id: linkedStudentId, userId: studentUser.id }],
+    });
+
+    await expect(
+      makeCaller(studentUser, studentDb).caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Student portal is locked by a parent or carer.',
+    });
+    expect(studentDb.reservations).toHaveLength(0);
+    expect(auditCreates(studentDb).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.reserve',
+        entityId: linkedStudentId,
+        meta: expect.objectContaining({
+          reason: 'AccountLocked',
+          lockSource: 'Parent',
+        }) as unknown,
+      }),
+    );
+  });
+
   it('lets shop staff list, collect, and cancel reservations with balanced ledger rows', async () => {
     const reservationId = 'ckshopreserve000000001';
     const cancelReservationId = 'ckshopreserve000000002';
@@ -1386,6 +1507,44 @@ describe('shop reservations', () => {
       delta: 20,
       reason: `shop-reservation:${cancelReservationId}:cancelled`,
     });
+  });
+
+  it('blocks reservation collection when the student shop policy becomes blocked', async () => {
+    const reservationId = 'ckshopreserve000000001';
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 1 })],
+      ledger: [{ studentId: linkedStudentId, account: 'ShopReserved', delta: 20, reason: 'hold' }],
+      portalSettings: [{ studentId: linkedStudentId, parentMeritShopBlocked: true }],
+      reservations: [
+        makeReservation({
+          id: reservationId,
+          studentId: linkedStudentId,
+          totalPriceMerits: 20,
+        }),
+      ],
+      reservationLines: [
+        makeReservationLine({
+          id: 'ckshopresline000000001',
+          reservationId,
+          itemId: shopItemId,
+          unitsReserved: 1,
+          unitPriceMerits: 20,
+          totalPriceMerits: 20,
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(shopkeeperUser, db).caller.shop.collectReservation({ reservationId }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Merit Shop access is blocked by a parent or carer.',
+    });
+    expect(db.reservations[0]).toMatchObject({ status: 'Ready' });
+    expect(db.purchases).toHaveLength(0);
+    expect(db.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'ShopReserved', delta: 20, reason: 'hold' },
+    ]);
   });
 
   it('lets parents see their own reservations without exposing other parent holds', async () => {
@@ -1507,6 +1666,64 @@ describe('shop.purchase', () => {
         unitsBought: 1,
       }),
     ).resolves.toMatchObject({ totalPriceMerits: 10 });
+  });
+
+  it('blocks direct shop purchases when account or shop policy blocks the student', async () => {
+    const shopBlocked = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 3 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+        portalSettings: [{ studentId: linkedStudentId, parentMeritShopBlocked: true }],
+      }),
+    );
+
+    await expect(
+      shopBlocked.caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Merit Shop access is blocked by a parent or carer.',
+    });
+    expect(shopBlocked.db.purchases).toHaveLength(0);
+    expect(shopBlocked.db.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' },
+    ]);
+
+    const academicallyLocked = makeCaller(
+      shopkeeperUser,
+      makeFakeDb({
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 3 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+        portalSettings: [{ studentId: linkedStudentId, headAcademicLocked: true }],
+      }),
+    );
+
+    await expect(
+      academicallyLocked.caller.shop.purchase({
+        studentId: linkedStudentId,
+        itemId: shopItemId,
+        unitsBought: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Student portal is locked by Oasis Learning Centre for academic reasons.',
+    });
+    expect(academicallyLocked.db.purchases).toHaveLength(0);
+    expect(auditCreates(academicallyLocked.db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.purchase',
+        entityId: linkedStudentId,
+        meta: expect.objectContaining({
+          reason: 'AccountLocked',
+          lockSource: 'HeadAcademic',
+        }) as unknown,
+      }),
+    );
   });
 
   it('rejects unauthorized purchase attempts before writing purchases', async () => {

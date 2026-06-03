@@ -9,6 +9,7 @@ import {
   validateStudentPortalUsageLimits,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
+import { assertStudentPortalUnlocked } from '../lib/student-portal-access.js';
 import { roleProcedure, router } from '../trpc.js';
 
 export interface StudentCredentialAdapter {
@@ -462,6 +463,10 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
       .input(myPasswordInput)
       .mutation(async ({ ctx, input }) => {
         const student = await loadOwnStudent(ctx);
+        await assertStudentPortalUnlocked(ctx, {
+          entity: 'studentSettings.setMyPassword',
+          studentId: student.id,
+        });
         const dob = decryptRequired(ctx, student.dobEnc, 'student PII');
         const settings = defaultsFor(student.portalSettings);
         if (!isStudentAdult({ dateOfBirth: dob }) && !settings.studentCanManagePassword) {

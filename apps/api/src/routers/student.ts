@@ -8,6 +8,7 @@ import {
   standardSchoolYearSchema,
 } from '@oasis/domain';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
+import { assertStudentPortalUnlocked } from '../lib/student-portal-access.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 import { deleteArchivedStudent } from '../students/delete-archived-student.js';
 
@@ -158,6 +159,7 @@ export const studentRouter = router({
     if (!student?.active) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
     }
+    await assertStudentPortalUnlocked(ctx, { entity: 'student.me', studentId: student.id });
 
     const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
     if (!fullName) {
