@@ -7,6 +7,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
+import { INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
 import { createInvoiceRouter } from '../routers/invoice.js';
 import { router } from '../trpc.js';
 
@@ -91,6 +92,15 @@ interface StoredGuardian {
   studentId: string;
 }
 
+interface StoredUser {
+  id: string;
+  role: SessionUser['role'];
+  active: boolean;
+  fullNameEnc: string;
+  emailEnc: string;
+  createdAt: Date;
+}
+
 interface FakeGuardianFindManyArgs {
   where: {
     userId?: string | { in: string[] };
@@ -127,6 +137,14 @@ interface FakeInvoiceFindFirstArgs {
     invoiceNumber?: string | null;
     NOT?: { id?: string };
   };
+}
+
+interface FakeUserFindManyArgs {
+  where?: {
+    active?: boolean;
+    role?: SessionUser['role'];
+  };
+  orderBy?: { createdAt: 'asc' | 'desc' };
 }
 
 interface FakeInvoiceCreateArgs {
@@ -326,6 +344,16 @@ function makeStudent(input: Pick<StoredStudent, 'id'> & Partial<StoredStudent>):
   };
 }
 
+function makeUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>): StoredUser {
+  return {
+    active: true,
+    fullNameEnc: encrypt(`${input.role} User`),
+    emailEnc: encrypt(`${input.id}@example.com`),
+    createdAt: new Date('2026-05-01T08:00:00.000Z'),
+    ...input,
+  };
+}
+
 function makeInvoice(input: Pick<StoredInvoice, 'id'> & Partial<StoredInvoice>): StoredInvoice {
   return {
     invoiceNumber: 'INV-2026-001',
@@ -397,6 +425,7 @@ function makeDiscount(
 
 function makeFakeDb({
   initialStudents,
+  initialUsers = [],
   initialGuardians = [{ userId: parentUser.id, studentId: linkedStudentId }],
   initialInvoices = [],
   initialLines = [],
@@ -405,6 +434,7 @@ function makeFakeDb({
   decryptImpl = decrypt,
 }: {
   initialStudents?: StoredStudent[];
+  initialUsers?: StoredUser[];
   initialGuardians?: StoredGuardian[];
   initialInvoices?: StoredInvoice[];
   initialLines?: StoredLine[];
@@ -416,6 +446,7 @@ function makeFakeDb({
     makeStudent({ id: linkedStudentId }),
     makeStudent({ id: otherStudentId }),
   ];
+  const users = [...initialUsers];
   const guardians = [...initialGuardians];
   const invoices = [...initialInvoices];
   const lines = [...initialLines];
@@ -488,6 +519,23 @@ function makeFakeDb({
       encrypt: vi.fn(encrypt),
       decrypt: vi.fn(decryptImpl),
       blindIndex: vi.fn((value: string) => value.toLowerCase()),
+    },
+    user: {
+      findMany: vi.fn((args: FakeUserFindManyArgs = {}) => {
+        const rows = users
+          .filter((user) =>
+            args.where?.active === undefined ? true : user.active === args.where.active,
+          )
+          .filter((user) => (args.where?.role ? user.role === args.where.role : true));
+        if (args.orderBy?.createdAt === 'desc') {
+          return [...rows].sort(
+            (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+          );
+        }
+        return [...rows].sort(
+          (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
+        );
+      }),
     },
     guardian: {
       findMany: vi.fn(({ where }: FakeGuardianFindManyArgs) =>
@@ -752,15 +800,29 @@ function makeFakeDb({
     },
   };
 
-  return { db, invoices, lines, invoiceStudents, discounts, feeConfigs };
+  return { db, users, invoices, lines, invoiceStudents, discounts, feeConfigs };
 }
 
-function createCaller(user: SessionUser, fakeDb = makeFakeDb(), useDefaultExtractor = false) {
+function makeFakeEmailClient(result = { id: 'invoice_email_123' }) {
+  const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
+  const client: EmailClient = { send };
+  return { client, send };
+}
+
+function createCaller(
+  user: SessionUser,
+  fakeDb = makeFakeDb(),
+  useDefaultExtractor = false,
+  emailClient?: EmailClient,
+) {
   const testRouter = router({
     invoice: createInvoiceRouter(
       useDefaultExtractor
-        ? undefined
+        ? emailClient
+          ? { emailClient }
+          : undefined
         : {
+            ...(emailClient ? { emailClient } : {}),
             extractPdfText: () =>
               Promise.resolve(`
         Invoice No: INV-2026-011
@@ -2016,6 +2078,169 @@ describe('invoiceRouter', () => {
     const rejected = await adminCaller.invoice.rejectPayment({ invoiceId: rejectInvoice.id });
     expect(rejected.status).toBe('Unpaid');
     expect(rejected.parentMarkedPaidAt).toBeNull();
+  });
+
+  it('notifies active pastors when a parent marks an invoice paid', async () => {
+    const ownInvoice = makeInvoice({
+      id: invoiceId,
+      familyLabelEnc: encrypt('Parent family'),
+      invoiceNumber: 'INV-2026-001',
+      totalAmountPence: 24500,
+      subtotalAmountPence: 24500,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [ownInvoice],
+      initialLines: [
+        makeLine({
+          invoiceId: ownInvoice.id,
+          descriptionEnc: encrypt('Monthly fee - Talia Parent'),
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+      ],
+      initialUsers: [
+        makeUser({
+          id: 'cpastor000000000101',
+          role: 'Pastor',
+          fullNameEnc: encrypt('Pastor One'),
+          emailEnc: encrypt('pastor.one@example.com'),
+          createdAt: new Date('2026-05-01T08:00:00.000Z'),
+        }),
+        makeUser({
+          id: 'cpastor000000000102',
+          role: 'Pastor',
+          fullNameEnc: encrypt('Pastor Two'),
+          emailEnc: encrypt('pastor.two@example.com'),
+          createdAt: new Date('2026-05-01T09:00:00.000Z'),
+        }),
+        makeUser({
+          id: 'cpastor000000000103',
+          role: 'Pastor',
+          active: false,
+          emailEnc: encrypt('inactive.pastor@example.com'),
+        }),
+        makeUser({
+          id: financeUser.id,
+          role: financeUser.role,
+          emailEnc: encrypt('finance@example.com'),
+        }),
+      ],
+    });
+    const email = makeFakeEmailClient();
+    const { caller } = createCaller(parentUser, fakeDb, false, email.client);
+
+    const pending = await caller.invoice.parentMarkPaid({ invoiceId });
+
+    expect(pending.status).toBe('PaymentPending');
+    expect(email.send).toHaveBeenCalledTimes(2);
+    expect(email.send.mock.calls.map(([payload]) => payload.to)).toEqual([
+      'pastor.one@example.com',
+      'pastor.two@example.com',
+    ]);
+    const firstEmail = email.send.mock.calls[0]?.[0];
+    if (!firstEmail) throw new Error('expected pastor notification email');
+    expect(firstEmail.subject).toBe(INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT);
+    expect(firstEmail.text).toContain('The Parent family has marked Invoice INV-2026-001 as paid.');
+    expect(firstEmail.text).toContain('It is awaiting your confirmation in Oasis Portal.');
+    expect(firstEmail.text).not.toContain('Talia Parent');
+    expect(firstEmail.text).not.toContain('Monthly fee');
+    expect(firstEmail.text).not.toContain('24500');
+
+    const emailAudits = fakeDb.db.auditLog.create.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args.data.entity === 'Email');
+    expect(emailAudits).toHaveLength(2);
+    expect(emailAudits.map((args) => args.data.meta?.['toUserId'])).toEqual([
+      'cpastor000000000101',
+      'cpastor000000000102',
+    ]);
+    expect(emailAudits[0]?.data.meta).toMatchObject({
+      source: 'invoice.parentMarkPaid.notification',
+      emailStatus: 'Sent',
+      invoiceId,
+      invoiceStatus: 'PaymentPending',
+      subject: INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+      toRole: 'Pastor',
+    });
+    const auditJson = JSON.stringify(fakeDb.db.auditLog.create.mock.calls);
+    expect(auditJson).not.toContain('Parent family');
+    expect(auditJson).not.toContain('Monthly fee');
+    expect(auditJson).not.toContain('24500');
+  });
+
+  it('does not notify pastors when parent mark-paid is rejected', async () => {
+    const pendingInvoice = makeInvoice({
+      id: invoiceId,
+      status: 'PaymentPending',
+      parentMarkedPaidAt: new Date('2026-05-02T08:00:00.000Z'),
+      parentMarkedPaidById: parentUser.id,
+    });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [pendingInvoice],
+      initialLines: [makeLine({ invoiceId: pendingInvoice.id })],
+      initialUsers: [
+        makeUser({
+          id: 'cpastor000000000101',
+          role: 'Pastor',
+          emailEnc: encrypt('pastor.one@example.com'),
+        }),
+      ],
+    });
+    const email = makeFakeEmailClient();
+    const { caller } = createCaller(parentUser, fakeDb, false, email.client);
+
+    await expect(caller.invoice.parentMarkPaid({ invoiceId })).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only unpaid invoices can be marked paid',
+    });
+
+    expect(email.send).not.toHaveBeenCalled();
+    expect(fakeDb.invoices[0]?.status).toBe('PaymentPending');
+  });
+
+  it('keeps the pending payment when pastor notification delivery fails', async () => {
+    const ownInvoice = makeInvoice({ id: invoiceId, familyLabelEnc: encrypt('Parent family') });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [ownInvoice],
+      initialLines: [makeLine({ invoiceId: ownInvoice.id })],
+      initialUsers: [
+        makeUser({
+          id: 'cpastor000000000101',
+          role: 'Pastor',
+          fullNameEnc: encrypt('Pastor One'),
+          emailEnc: encrypt('pastor.one@example.com'),
+        }),
+      ],
+    });
+    const email = makeFakeEmailClient();
+    email.send.mockRejectedValueOnce(new Error('resend unavailable'));
+    const { caller } = createCaller(parentUser, fakeDb, false, email.client);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(caller.invoice.parentMarkPaid({ invoiceId })).resolves.toMatchObject({
+        status: 'PaymentPending',
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    expect(fakeDb.invoices[0]?.status).toBe('PaymentPending');
+    expect(email.send).toHaveBeenCalledTimes(1);
+    const failedEmailAudit = fakeDb.db.auditLog.create.mock.calls
+      .map(([args]) => args)
+      .find(
+        (args) =>
+          args.data.entity === 'SchoolFeeInvoice' &&
+          args.data.meta?.['source'] === 'invoice.parentMarkPaid.notification',
+      );
+    expect(failedEmailAudit?.data.meta).toMatchObject({
+      emailStatus: 'Failed',
+      invoiceId,
+      invoiceStatus: 'PaymentPending',
+      toUserId: 'cpastor000000000101',
+      toRole: 'Pastor',
+    });
   });
 
   it('lets parents opt out of discounts before payment is pending', async () => {
