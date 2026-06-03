@@ -7,8 +7,11 @@ import { api } from '@/lib/trpc';
 export type DailyDemeritStatus =
   RouterOutputs['behaviour']['dailyDemeritStatuses']['statuses'][number];
 
-export function useDailyDemeritStatusMap(date: Date, enabled = true) {
-  const query = api.behaviour.dailyDemeritStatuses.useQuery({ date }, { enabled, retry: false });
+export function useDailyDemeritStatusMap(date: Date, enabled = true, clubId?: string) {
+  const query = api.behaviour.dailyDemeritStatuses.useQuery(
+    { date, ...(clubId ? { clubId } : {}) },
+    { enabled, retry: false },
+  );
   const statusByStudentId = useMemo(
     () => new Map((query.data?.statuses ?? []).map((status) => [status.studentId, status])),
     [query.data?.statuses],
@@ -17,11 +20,7 @@ export function useDailyDemeritStatusMap(date: Date, enabled = true) {
   return { ...query, statusByStudentId };
 }
 
-export function DailyDemeritBadge({
-  status,
-}: {
-  status: DailyDemeritStatus | null | undefined;
-}) {
+export function DailyDemeritBadge({ status }: { status: DailyDemeritStatus | null | undefined }) {
   if (!status) return null;
 
   const label = `${String(status.demeritUnits)} daily demerit${
@@ -29,11 +28,7 @@ export function DailyDemeritBadge({
   } - ${status.stageLabel}`;
 
   return (
-    <span
-      aria-label={label}
-      className={`daily-demerit-badge is-${status.badgeTone}`}
-      title={label}
-    >
+    <span aria-label={label} className={`daily-demerit-badge is-${status.badgeTone}`} title={label}>
       <span>D</span>
       <strong>{String(status.demeritUnits)}</strong>
     </span>

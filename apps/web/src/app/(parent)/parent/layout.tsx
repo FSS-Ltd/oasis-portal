@@ -2,13 +2,20 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { prisma } from '@oasis/db';
+import { canUseClubLeadAccess } from '@oasis/domain';
 import { getLinkedChildPortalUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ParentBottomNav, ParentSidebarNav, ParentTopNav } from '@/components/parent/parent-nav';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
-import { staffPortalHrefForUser } from '@/lib/portal-view-routing';
+import { ProfilePortalMenu } from '@/components/profile/profile-portal-menu';
+import {
+  clubPortalView,
+  parentPortalView,
+  portalSwitchViewsFrom,
+  staffPortalViewForUser,
+} from '@/lib/portal-view-routing';
 import '../../(admin)/admin/admin.css';
 import './parent.css';
 
@@ -17,35 +24,49 @@ export const dynamic = 'force-dynamic';
 export default async function ParentLayout({ children }: { children: ReactNode }) {
   const user = await getLinkedChildPortalUser();
   const now = new Date();
-  const [linkedChildren, unreadNoticeCount, unreadMessageCount] = await Promise.all([
-    linkedChildCount(user.id),
-    prisma.staffNotice.count({
-      where: {
-        active: true,
-        audience: { in: ['Parents', 'Both'] },
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        reads: {
-          none: { userId: user.id },
+  const [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount] =
+    await Promise.all([
+      linkedChildCount(user.id),
+      canUseClubLeadAccess(user)
+        ? prisma.clubLeadAssignment.count({
+            where: { userId: user.id, club: { active: true } },
+          })
+        : Promise.resolve(0),
+      prisma.staffNotice.count({
+        where: {
+          active: true,
+          audience: { in: ['Parents', 'Both'] },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          reads: {
+            none: { userId: user.id },
+          },
         },
-      },
-    }),
-    prisma.message.count({
-      where: {
-        senderId: { not: user.id },
-        thread: {
-          kind: 'ParentStaff',
-          parentId: user.id,
-          participants: { some: { userId: user.id } },
+      }),
+      prisma.message.count({
+        where: {
+          senderId: { not: user.id },
+          thread: {
+            kind: 'ParentStaff',
+            parentId: user.id,
+            participants: { some: { userId: user.id } },
+          },
+          reads: {
+            none: { userId: user.id },
+          },
         },
-        reads: {
-          none: { userId: user.id },
-        },
-      },
-    }),
-  ]);
+      }),
+    ]);
   const parentNavProps = { unreadMessageCount, unreadNoticeCount };
-  const staffHref = staffPortalHrefForUser(user);
-  const canShowPortalViewSwitch = linkedChildren > 0;
+  const hasLinkedChildren = linkedChildren > 0;
+  const hasAssignedClub = assignedClubLeadCount > 0;
+  const staffView = staffPortalViewForUser(user);
+  const portalViews = [
+    ...(hasLinkedChildren ? [parentPortalView] : []),
+    ...(staffView ? [staffView] : []),
+    ...(hasAssignedClub ? [clubPortalView] : []),
+  ];
+  const portalSwitchViews = portalSwitchViewsFrom(portalViews);
+  const showProfilePortalMenu = portalViews.length > 2;
 
   return (
     <div className="admin-shell parent-shell">
@@ -62,10 +83,18 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </Link>
           <ParentTopNav {...parentNavProps} />
           <div className="parent-topbar__actions">
-            {canShowPortalViewSwitch && staffHref ? (
-              <PortalViewSwitch activeView="parent" variant="topbar" />
+            {portalSwitchViews ? (
+              <PortalViewSwitch activeView="parent" variant="topbar" views={portalSwitchViews} />
             ) : null}
-            <ProfileBadgeLink href="/parent/profile" variant="topbar" />
+            {showProfilePortalMenu ? (
+              <ProfilePortalMenu
+                profileHref="/parent/profile"
+                variant="topbar"
+                views={portalViews}
+              />
+            ) : (
+              <ProfileBadgeLink href="/parent/profile" variant="topbar" />
+            )}
             <LogoutButton className="parent-topbar__logout" />
           </div>
         </header>
@@ -86,10 +115,18 @@ export default async function ParentLayout({ children }: { children: ReactNode }
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
-            {canShowPortalViewSwitch && staffHref ? (
-              <PortalViewSwitch activeView="parent" variant="mobile" />
+            {portalSwitchViews ? (
+              <PortalViewSwitch activeView="parent" variant="mobile" views={portalSwitchViews} />
             ) : null}
-            <ProfileBadgeLink href="/parent/profile" variant="mobile" />
+            {showProfilePortalMenu ? (
+              <ProfilePortalMenu
+                profileHref="/parent/profile"
+                variant="mobile"
+                views={portalViews}
+              />
+            ) : (
+              <ProfileBadgeLink href="/parent/profile" variant="mobile" />
+            )}
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>
         </header>

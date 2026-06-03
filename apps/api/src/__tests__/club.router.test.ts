@@ -90,6 +90,7 @@ interface StoredGuardian {
 interface StoredUser {
   id: string;
   role: Role;
+  tags: string[];
   active: boolean;
   fullNameEnc: string;
   emailEnc: string;
@@ -246,7 +247,9 @@ interface FakeUserFindManyArgs {
   where?: {
     active?: boolean;
     id?: { in: string[] };
+    OR?: Array<{ role?: Role; tags?: { has: string } }>;
     role?: Role;
+    tags?: { has: string };
   };
   select?: {
     clubLeadAssignments?: unknown;
@@ -464,6 +467,7 @@ function makeUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>):
   const label = input.role === 'Parent' ? 'Parent Guardian' : `${input.role} User`;
   return {
     active: true,
+    tags: [],
     fullNameEnc: encrypt(label),
     emailEnc: encrypt(`${input.id}@example.com`),
     ...input,
@@ -877,6 +881,20 @@ function makeFakeDb(
             .filter((user) => args.where?.active === undefined || user.active === args.where.active)
             .filter((user) => args.where?.role === undefined || user.role === args.where.role)
             .filter(
+              (user) =>
+                args.where?.tags?.has === undefined || user.tags.includes(args.where.tags.has),
+            )
+            .filter(
+              (user) =>
+                args.where?.OR === undefined ||
+                args.where.OR.some((condition) => {
+                  const roleMatches = condition.role === undefined || user.role === condition.role;
+                  const tagMatches =
+                    condition.tags?.has === undefined || user.tags.includes(condition.tags.has);
+                  return roleMatches && tagMatches;
+                }),
+            )
+            .filter(
               (user) => args.where?.id?.in === undefined || args.where.id.in.includes(user.id),
             )
             .map((user) => ({
@@ -1272,14 +1290,11 @@ describe('club.list', () => {
     ]);
   });
 
-  it.each([supervisorUser, studentUser])(
-    'blocks %s from listing clubs',
-    async (user) => {
-      await expect(makeCaller(user).caller.club.list()).rejects.toMatchObject({
-        code: 'FORBIDDEN',
-      });
-    },
-  );
+  it.each([supervisorUser, studentUser])('blocks %s from listing clubs', async (user) => {
+    await expect(makeCaller(user).caller.club.list()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 });
 
 describe('club.linkedChildSignupContext', () => {
@@ -1760,7 +1775,14 @@ describe('club.withdraw', () => {
 
 describe('club manager assignments', () => {
   it('lists student assignment candidates and lead candidates for club managers', async () => {
+    const taggedSupervisorLead = makeUser({
+      id: 'csupervisor00000000002',
+      role: 'Supervisor',
+      tags: ['club-lead'],
+      fullNameEnc: encrypt('Tagged Supervisor'),
+    });
     const db = makeFakeDb({
+      users: [...defaultUsers, taggedSupervisorLead],
       signups: [
         makeSignup({
           id: 'csignup000000000000001',
@@ -1801,10 +1823,17 @@ describe('club manager assignments', () => {
         role: 'ClubsLead',
         selected: true,
       }),
+      expect.objectContaining({
+        assignedClubNames: [],
+        id: taggedSupervisorLead.id,
+        fullName: 'Tagged Supervisor',
+        role: 'Supervisor',
+        selected: false,
+      }),
     ]);
   });
 
-  it('sets club lead assignments only for active ClubsLead users', async () => {
+  it('sets club lead assignments only for active users with club lead access', async () => {
     const inactiveLead = makeUser({
       id: 'cclubslead0000000002',
       active: false,
@@ -1813,9 +1842,15 @@ describe('club manager assignments', () => {
     const supervisorLead = makeUser({
       id: 'csupervisor00000000002',
       role: 'Supervisor',
+      tags: ['club-lead'],
+      fullNameEnc: encrypt('Tagged Supervisor'),
+    });
+    const untaggedSupervisor = makeUser({
+      id: 'csupervisor00000000003',
+      role: 'Supervisor',
     });
     const db = makeFakeDb({
-      users: [...defaultUsers, inactiveLead, supervisorLead],
+      users: [...defaultUsers, inactiveLead, supervisorLead, untaggedSupervisor],
       leadAssignments: [
         {
           id: 'cleadassign000000000001',
@@ -1829,10 +1864,17 @@ describe('club manager assignments', () => {
     const caller = makeCaller(clubsAdminUser, db).caller;
 
     await expect(
-      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [clubsLeadUser.id] }),
-    ).resolves.toEqual({ clubId: defaultClubId, userIds: [clubsLeadUser.id] });
+      caller.club.setLeadAssignments({
+        clubId: defaultClubId,
+        userIds: [clubsLeadUser.id, supervisorLead.id],
+      }),
+    ).resolves.toEqual({
+      clubId: defaultClubId,
+      userIds: [clubsLeadUser.id, supervisorLead.id],
+    });
     expect(db.leadAssignments).toEqual([
       expect.objectContaining({ clubId: defaultClubId, userId: clubsLeadUser.id }),
+      expect.objectContaining({ clubId: defaultClubId, userId: supervisorLead.id }),
     ]);
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -1843,7 +1885,7 @@ describe('club manager assignments', () => {
         meta: {
           source: 'club.setLeadAssignments',
           clubId: defaultClubId,
-          leadCount: 1,
+          leadCount: 2,
         },
       },
     });
@@ -1852,7 +1894,7 @@ describe('club manager assignments', () => {
       caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [inactiveLead.id] }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     await expect(
-      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [supervisorLead.id] }),
+      caller.club.setLeadAssignments({ clubId: defaultClubId, userIds: [untaggedSupervisor.id] }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
