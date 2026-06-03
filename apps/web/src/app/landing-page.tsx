@@ -636,7 +636,6 @@ export function LandingPage({ data }: { data: LandingPageData }) {
             </span>
             <span>
               <strong>Oasis Learning Centre</strong>
-              <small>Castle Street / UK / Reg. charity</small>
             </span>
           </div>
           <div className="landing-footer__powered-by">
@@ -646,7 +645,7 @@ export function LandingPage({ data }: { data: LandingPageData }) {
           <p>
             UK/EU GDPR / eu-west-2 / v4.2.0
             <br />
-            Trouble signing in? Call the office on 01234 567 890 (Mon-Fri, 8-4)
+            Trouble signing in? Contact support at support@faithfulsoftware.dev
           </p>
         </div>
       </footer>
