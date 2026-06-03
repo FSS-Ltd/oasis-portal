@@ -98,6 +98,7 @@ const studentIdsSchema = z.array(z.string().min(1)).min(1).max(50);
 
 type CreatedBehaviourEntry = {
   id: string;
+  clubId: string | null;
   studentId: string;
   type: BehaviourType;
   category: string;
@@ -308,6 +309,10 @@ function visibleBehaviourWhere(user: SessionUser, clubId?: string) {
   return { deletedAt: null, visibility: 'General' as const };
 }
 
+function clubBehaviourWhere(clubId?: string): { clubId?: string } {
+  return clubId === undefined ? {} : { clubId };
+}
+
 async function assertAssignedClubLeadStudent(
   ctx: AuthedContext,
   input: { studentId: string; entity: string; clubId?: string | undefined },
@@ -501,6 +506,7 @@ async function assertDemeritStageNotes(
         studentId: { in: [...input.studentIds] },
         createdAt: { gte: day.from, lt: day.to },
         ...visibleBehaviourWhere(ctx.user, input.clubId),
+        ...clubBehaviourWhere(input.clubId),
       },
       select: {
         category: true,
@@ -948,6 +954,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                     createdAt: { gte: day.from, lt: day.to },
                     studentId: { in: studentIds },
                     ...visibleBehaviourWhere(ctx.user, input.clubId),
+                    ...clubBehaviourWhere(input.clubId),
                   },
                   select: {
                     category: true,
@@ -1002,6 +1009,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               createdAt: { gte: from, lt: to },
               ...visibleBehaviourWhere(ctx.user, input.clubId),
               ...scopedStudentRelationWhere(scope, ctx.user, input.clubId),
+              ...clubBehaviourWhere(input.clubId),
             },
             include: {
               student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -1036,6 +1044,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           date: dateKey(input.date),
           entries: rows.map((row) => ({
             id: row.id,
+            clubId: row.clubId,
             studentId: row.studentId,
             studentName: decryptRequired(
               ctx.db.$enc.decrypt,
@@ -1235,6 +1244,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const result = await ctx.withRls(async (tx) => {
           const behaviour = await tx.behaviourEntry.create({
             data: {
+              clubId: input.clubId ?? null,
               studentId: input.studentId,
               type: input.type,
               category,
@@ -1275,6 +1285,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             entityId: result.behaviour.id,
             meta: {
               studentId: input.studentId,
+              ...(input.clubId ? { clubId: input.clubId } : {}),
               type: input.type,
               visibility,
               meritDelta,
@@ -1313,6 +1324,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
 
         return {
           id: result.behaviour.id,
+          clubId: result.behaviour.clubId,
           studentId: result.behaviour.studentId,
           type: result.behaviour.type,
           category: result.behaviour.category,
@@ -1378,6 +1390,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           for (const studentId of input.studentIds) {
             const behaviour = await tx.behaviourEntry.create({
               data: {
+                clubId: input.clubId ?? null,
                 studentId,
                 type: input.type,
                 category,
@@ -1421,6 +1434,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             entity: 'BehaviourEntry',
             meta: {
               studentIds: input.studentIds,
+              ...(input.clubId ? { clubId: input.clubId } : {}),
               type: input.type,
               visibility,
               meritDelta,
@@ -1473,6 +1487,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         return {
           entries: result.behaviourEntries.map((entry) => ({
             id: entry.id,
+            clubId: entry.clubId,
             studentId: entry.studentId,
             type: entry.type,
             category: entry.category,

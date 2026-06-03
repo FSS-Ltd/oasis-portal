@@ -10,6 +10,12 @@ export const meritCategories = [
   'Creativity',
 ] as const;
 
+export const clubMeritCategories = [
+  ...meritCategories,
+  'Homework',
+  'General Club Merit',
+] as const;
+
 export const demeritCategories = [
   'Conduct',
   'Diligence',
@@ -26,4 +32,9 @@ export function categoriesFor(type: BehaviourType): readonly string[] {
   if (type === 'Merit') return meritCategories;
   if (type === 'Demerit') return demeritCategories;
   return generalCategories;
+}
+
+export function clubCategoriesFor(type: BehaviourType): readonly string[] {
+  if (type === 'Merit') return clubMeritCategories;
+  return categoriesFor(type);
 }

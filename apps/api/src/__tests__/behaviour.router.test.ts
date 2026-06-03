@@ -98,6 +98,7 @@ interface StoredGuardian {
 
 interface StoredBehaviour {
   id: string;
+  clubId?: string | null;
   studentId: string;
   type: BehaviourType;
   category: string;
@@ -467,6 +468,7 @@ function makeFakeDb(
               id?: { in: string[] };
               yearGroup?: { in: string[] };
             };
+            clubId?: string | null;
             studentId?: string | { in: string[] };
             deletedAt?: null;
             type?: BehaviourType;
@@ -489,6 +491,7 @@ function makeFakeDb(
               (row) =>
                 where.studentId === undefined || matchesStudentId(where.studentId, row.studentId),
             )
+            .filter((row) => where.clubId === undefined || row.clubId === where.clubId)
             .filter((row) => where.deletedAt === undefined || row.deletedAt === where.deletedAt)
             .filter((row) => where.type === undefined || row.type === where.type)
             .filter((row) => where.visibility === undefined || row.visibility === where.visibility)
@@ -2282,6 +2285,36 @@ describe('behaviour.recentEntries', () => {
     });
   });
 
+  it('stores clubId on club-scoped behaviour entries', async () => {
+    const { db, behaviour } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: clubsLeadUser.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+
+    await expect(
+      makeCaller(clubsLeadUser, db).behaviour.log({
+        clubId: assignedClubId,
+        studentId: activeStudentId,
+        type: 'Merit',
+        category: 'Leadership',
+        visibility: 'General',
+        amount: 2,
+      }),
+    ).resolves.toMatchObject({
+      clubId: assignedClubId,
+      studentId: activeStudentId,
+      category: 'Leadership',
+    });
+    expect(behaviour[0]).toMatchObject({ clubId: assignedClubId });
+  });
+
   it('allows club-lead tagged users to log only for explicitly assigned clubs', async () => {
     const taggedParentLead: SessionUser = {
       ...parentUser,
@@ -2325,5 +2358,92 @@ describe('behaviour.recentEntries', () => {
         amount: 2,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('filters club-scoped recent entries to rows logged for that club', async () => {
+    const { db } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: clubsLeadUser.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Classroom Merit',
+      visibility: 'General',
+      amount: 10,
+    });
+    await makeCaller(clubsLeadUser, db).behaviour.log({
+      clubId: assignedClubId,
+      studentId: activeStudentId,
+      type: 'Merit',
+      category: 'Club Merit',
+      visibility: 'General',
+      amount: 3,
+    });
+
+    await expect(
+      makeCaller(clubsLeadUser, db).behaviour.recentEntries({
+        date: new Date('2026-04-29T00:00:00.000Z'),
+        clubId: assignedClubId,
+      }),
+    ).resolves.toMatchObject({
+      entries: [
+        expect.objectContaining({
+          clubId: assignedClubId,
+          category: 'Club Merit',
+          meritDelta: 3,
+        }),
+      ],
+    });
+  });
+
+  it('filters club-scoped daily demerit statuses to rows logged for that club', async () => {
+    const { db } = makeFakeDb({
+      clubLeadAssignments: [{ clubId: assignedClubId, userId: clubsLeadUser.id }],
+      clubSignups: [
+        {
+          clubActive: true,
+          clubId: assignedClubId,
+          status: 'Active',
+          studentId: activeStudentId,
+        },
+      ],
+    });
+
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Honesty',
+      visibility: 'General',
+    });
+    await makeCaller(clubsLeadUser, db).behaviour.log({
+      clubId: assignedClubId,
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      visibility: 'General',
+    });
+
+    await expect(
+      makeCaller(clubsLeadUser, db).behaviour.dailyDemeritStatuses({
+        date: new Date('2026-04-29T00:00:00.000Z'),
+        clubId: assignedClubId,
+      }),
+    ).resolves.toMatchObject({
+      statuses: [
+        expect.objectContaining({
+          studentId: activeStudentId,
+          demeritUnits: 1,
+        }),
+      ],
+    });
   });
 });
