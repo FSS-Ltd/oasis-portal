@@ -5,6 +5,7 @@ import {
   canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   deriveEnglandWalesSchoolYear,
+  displaySchoolYearLabel,
   standardSchoolYearSchema,
 } from '@oasis/domain';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
@@ -28,6 +29,23 @@ const STUDENT_READ_ROLES = [
 ] as const;
 
 const DEFAULT_CURRENT_PACE_NUMBER = 1001;
+const DASHBOARD_ATTENDANCE_DAYS = 30;
+
+const MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
+
+export interface MeritBalances {
+  Spend: number;
+  Saving: number;
+  Investment: number;
+  ShopReserved: number;
+}
+
+export interface AttendanceSummary {
+  total: number;
+  Present: number;
+  Late: number;
+  Absent: number;
+}
 
 const studentInclude = Prisma.validator<Prisma.StudentInclude>()({
   subjects: {
@@ -100,6 +118,66 @@ function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+function firstNameFrom(fullName: string): string {
+  return fullName.trim().split(/\s+/u).find(Boolean) ?? 'Student';
+}
+
+function studentIconInitials(firstName: string): string {
+  return firstName.slice(0, 2).toUpperCase();
+}
+
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}
+
+function ageBandFromDob(dob: string, asOf = new Date()): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(dob);
+  if (!match) return 'Student';
+  const [, yearValue, monthValue, dayValue] = match;
+  const birthYear = Number(yearValue);
+  const birthMonth = Number(monthValue);
+  const birthDay = Number(dayValue);
+  let age = asOf.getUTCFullYear() - birthYear;
+  const month = asOf.getUTCMonth() + 1;
+  const day = asOf.getUTCDate();
+  if (month < birthMonth || (month === birthMonth && day < birthDay)) {
+    age -= 1;
+  }
+  if (age < 11) return 'Under 11';
+  if (age < 14) return '11-13';
+  if (age < 16) return '14-15';
+  return '16+';
+}
+
+function emptyMeritBalances(): MeritBalances {
+  return {
+    Spend: 0,
+    Saving: 0,
+    Investment: 0,
+    ShopReserved: 0,
+  };
+}
+
+function emptyAttendanceSummary(): AttendanceSummary {
+  return {
+    total: 0,
+    Present: 0,
+    Late: 0,
+    Absent: 0,
+  };
+}
+
+function attendanceRate(summary: AttendanceSummary): number | null {
+  if (summary.total === 0) return null;
+  return Math.round((summary.Present / summary.total) * 100);
+}
+
 function decryptStudent(
   ctx: { db: { $enc: { decrypt: (value: string | null | undefined) => string | null } } },
   student: StudentWithSubjects,
@@ -137,7 +215,10 @@ async function auditDecryptPii(
     db: { auditLog: { create: (args: Prisma.AuditLogCreateArgs) => Promise<unknown> } };
     user: { id: string };
   },
-  meta: { count: number; source: 'student.list' | 'student.byId' | 'student.me' },
+  meta: {
+    count: number;
+    source: 'student.list' | 'student.byId' | 'student.me' | 'student.dashboard';
+  },
   entityId?: string,
 ) {
   const data: Prisma.AuditLogUncheckedCreateInput = {
@@ -167,6 +248,89 @@ async function loadOwnActiveStudent(ctx: {
   }
 
   return student;
+}
+
+async function loadMeritBalances(ctx: AppContext, studentId: string): Promise<MeritBalances> {
+  const rows = await Promise.all(
+    MERIT_ACCOUNTS.map(async (account) => ({
+      account,
+      total: (
+        await ctx.db.meritLedger.aggregate({
+          where: { studentId, account },
+          _sum: { delta: true },
+        })
+      )._sum.delta,
+    })),
+  );
+  return rows.reduce<MeritBalances>((balances, row) => {
+    balances[row.account] = row.total ?? 0;
+    return balances;
+  }, emptyMeritBalances());
+}
+
+async function loadPaceDashboard(ctx: AppContext, studentId: string) {
+  const [assignments, completedPaces] = await Promise.all([
+    ctx.db.studentSubject.findMany({
+      where: { studentId, subject: { active: true } },
+      include: { subject: true },
+      orderBy: { subject: { code: 'asc' } },
+    }),
+    ctx.db.paceProgress.count({
+      where: { studentId, completedAt: { not: null } },
+    }),
+  ]);
+
+  return {
+    assignedSubjectCount: assignments.length,
+    completedPaceCount: completedPaces,
+    currentPaces: assignments.slice(0, 4).map((assignment) => ({
+      subjectCode: assignment.subject.code,
+      subjectName: assignment.subject.name,
+      currentPaceNumber: assignment.currentPaceNumber,
+    })),
+  };
+}
+
+async function loadAttendanceDashboard(ctx: AppContext, studentId: string) {
+  const to = addUtcDays(startOfUtcDay(new Date()), 1);
+  const from = addUtcDays(to, -DASHBOARD_ATTENDANCE_DAYS);
+  const rows = await ctx.db.attendance.findMany({
+    where: { studentId, date: { gte: from, lt: to } },
+    select: { status: true },
+  });
+  const summary = rows.reduce<AttendanceSummary>((current, row) => {
+    current.total += 1;
+    current[row.status] += 1;
+    return current;
+  }, emptyAttendanceSummary());
+
+  return {
+    days: DASHBOARD_ATTENDANCE_DAYS,
+    ...summary,
+    attendanceRate: attendanceRate(summary),
+  };
+}
+
+function emptyNotificationPreview() {
+  return {
+    count: 0,
+    unreadCount: 0,
+    latest: [] as Array<{ id: string; title: string; createdAt: Date; read: boolean }>,
+  };
+}
+
+async function loadShortcutDashboard(ctx: AppContext, studentId: string) {
+  const [activeClubCount, activeShopItemCount] = await Promise.all([
+    ctx.db.clubSignup.count({
+      where: { studentId, status: 'Active', club: { active: true } },
+    }),
+    ctx.db.shopItem.count({ where: { active: true } }),
+  ]);
+
+  return {
+    activeClubCount,
+    activeShopItemCount,
+  };
 }
 
 export const studentRouter = router({
@@ -215,6 +379,66 @@ export const studentRouter = router({
     return {
       studentId: student.id,
       usage: await loadStudentPortalUsageStatus(ctx, { studentId: student.id }),
+    };
+  }),
+
+  dashboard: roleProcedure('Student').query(async ({ ctx }) => {
+    const ownStudent = await loadOwnActiveStudent(ctx);
+    await assertStudentPortalAccess(ctx, { entity: 'student.dashboard', studentId: ownStudent.id });
+
+    const student = await ctx.db.student.findUnique({
+      where: { id: ownStudent.id },
+      select: {
+        id: true,
+        fullNameEnc: true,
+        dobEnc: true,
+        yearGroup: true,
+      },
+    });
+    if (!student) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student profile missing' });
+    }
+
+    const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
+    const dob = ctx.db.$enc.decrypt(student.dobEnc);
+    if (!fullName || !dob) {
+      throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
+    }
+    const firstName = firstNameFrom(fullName);
+    const [balances, pace, attendance, shortcuts] = await Promise.all([
+      loadMeritBalances(ctx, ownStudent.id),
+      loadPaceDashboard(ctx, ownStudent.id),
+      loadAttendanceDashboard(ctx, ownStudent.id),
+      loadShortcutDashboard(ctx, ownStudent.id),
+    ]);
+    const totalMerits =
+      balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved;
+
+    await auditDecryptPii(ctx, { count: 1, source: 'student.dashboard' }, ownStudent.id);
+
+    return {
+      profile: {
+        studentId: ownStudent.id,
+        firstName,
+        iconInitials: studentIconInitials(firstName),
+        yearGroup: student.yearGroup,
+        yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
+        ageBand: ageBandFromDob(dob),
+      },
+      merits: {
+        balances,
+        totalMerits,
+        hasActivity: totalMerits !== 0,
+      },
+      pace,
+      attendance,
+      notifications: emptyNotificationPreview(),
+      shortcuts,
+      faithCorner: {
+        title: 'Faith Corner',
+        body: 'A weekly encouragement and Scripture memory prompt will appear here.',
+        ready: false,
+      },
     };
   }),
 

@@ -75,6 +75,33 @@ interface StoredStudentPortalUsageMinute {
   lastSeenAt: Date;
 }
 
+interface StoredMeritLedger {
+  studentId: string;
+  account: 'Spend' | 'Saving' | 'Investment' | 'ShopReserved';
+  delta: number;
+}
+
+interface StoredPaceProgress {
+  studentId: string;
+  completedAt: Date | null;
+}
+
+interface StoredAttendance {
+  studentId: string;
+  date: Date;
+  status: 'Present' | 'Late' | 'Absent';
+}
+
+interface StoredClubSignup {
+  studentId: string;
+  status: 'Active' | 'Withdrawn';
+  club: { active: boolean };
+}
+
+interface StoredShopItem {
+  active: boolean;
+}
+
 interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
@@ -109,11 +136,17 @@ interface FakeDb {
     count: ReturnType<typeof vi.fn>;
     upsert: ReturnType<typeof vi.fn>;
   };
+  meritLedger: { aggregate: ReturnType<typeof vi.fn> };
+  paceProgress: { count: ReturnType<typeof vi.fn> };
+  attendance: { findMany: ReturnType<typeof vi.fn> };
+  clubSignup: { count: ReturnType<typeof vi.fn> };
+  shopItem: { count: ReturnType<typeof vi.fn> };
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
     create: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
@@ -196,9 +229,14 @@ function makeUsageMinute(
 
 function makeFakeDb(
   input: {
+    attendance?: StoredAttendance[];
+    clubSignups?: StoredClubSignup[];
+    meritLedger?: StoredMeritLedger[];
+    paceProgress?: StoredPaceProgress[];
     portalSettings?: Array<
       Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
     >;
+    shopItems?: StoredShopItem[];
     usageMinutes?: Array<
       Partial<StoredStudentPortalUsageMinute> &
         Pick<StoredStudentPortalUsageMinute, 'minuteStartedAt'>
@@ -206,7 +244,12 @@ function makeFakeDb(
   } = {},
 ) {
   const students: StoredStudent[] = [];
+  const attendance = input.attendance ?? [];
+  const clubSignups = input.clubSignups ?? [];
+  const meritLedger = input.meritLedger ?? [];
+  const paceProgress = input.paceProgress ?? [];
   const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
+  const shopItems = input.shopItems ?? [];
   const usageMinutes = (input.usageMinutes ?? []).map(makeUsageMinute);
   const subjects: StoredSubject[] = [
     { id: subjectId, code: 'MATH', name: 'Mathematics', active: true },
@@ -351,6 +394,68 @@ function makeFakeDb(
         },
       ),
     },
+    meritLedger: {
+      aggregate: vi.fn(
+        ({ where }: { where: { studentId: string; account: StoredMeritLedger['account'] } }) =>
+          Promise.resolve({
+            _sum: {
+              delta:
+                meritLedger
+                  .filter(
+                    (row) => row.studentId === where.studentId && row.account === where.account,
+                  )
+                  .reduce((sum, row) => sum + row.delta, 0) || null,
+            },
+          }),
+      ),
+    },
+    paceProgress: {
+      count: vi.fn(({ where }: { where: { studentId: string; completedAt: { not: null } } }) =>
+        Promise.resolve(
+          paceProgress.filter(
+            (row) => row.studentId === where.studentId && row.completedAt !== where.completedAt.not,
+          ).length,
+        ),
+      ),
+    },
+    attendance: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: { studentId: string; date: { gte: Date; lt: Date } };
+          select: { status: true };
+        }) =>
+          Promise.resolve(
+            attendance
+              .filter(
+                (row) =>
+                  row.studentId === where.studentId &&
+                  row.date >= where.date.gte &&
+                  row.date < where.date.lt,
+              )
+              .map((row) => ({ status: row.status })),
+          ),
+      ),
+    },
+    clubSignup: {
+      count: vi.fn(
+        ({ where }: { where: { studentId: string; status: 'Active'; club: { active: true } } }) =>
+          Promise.resolve(
+            clubSignups.filter(
+              (signup) =>
+                signup.studentId === where.studentId &&
+                signup.status === where.status &&
+                signup.club.active === where.club.active,
+            ).length,
+          ),
+      ),
+    },
+    shopItem: {
+      count: vi.fn(({ where }: { where: { active: true } }) =>
+        Promise.resolve(shopItems.filter((item) => item.active === where.active).length),
+      ),
+    },
     subject: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(subjects.find((subject) => subject.id === where.id) ?? null),
@@ -422,6 +527,20 @@ function makeFakeDb(
           return Promise.resolve(assignment);
         },
       ),
+      findMany: vi.fn(({ where }: { where: { studentId: string; subject: { active: true } } }) =>
+        Promise.resolve(
+          assignments
+            .filter((assignment) => assignment.studentId === where.studentId)
+            .map((assignment) => {
+              const subject = subjects.find((candidate) => candidate.id === assignment.subjectId);
+              if (!subject || subject.active !== where.subject.active) return null;
+              return { ...assignment, subject };
+            })
+            .filter((assignment): assignment is StoredAssignment & { subject: StoredSubject } =>
+              Boolean(assignment),
+            ),
+        ),
+      ),
       findUnique: vi.fn(
         ({ where }: { where: { studentId_subjectId: { studentId: string; subjectId: string } } }) =>
           Promise.resolve(
@@ -444,7 +563,19 @@ function makeFakeDb(
     },
   };
 
-  return { db, students, subjects, assignments, portalSettings, usageMinutes };
+  return {
+    db,
+    students,
+    subjects,
+    assignments,
+    attendance,
+    clubSignups,
+    meritLedger,
+    paceProgress,
+    portalSettings,
+    shopItems,
+    usageMinutes,
+  };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -670,6 +801,154 @@ describe('student.me', () => {
           reason: 'AccountLocked',
           lockSource: 'HeadAcademic',
         },
+      },
+    });
+  });
+});
+
+describe('student.dashboard', () => {
+  async function linkCreatedStudent(db: FakeDb, students: StoredStudent[]) {
+    const headCaller = makeCaller(headUser, db);
+    await createStudent(headCaller);
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.userId = studentUser.id;
+    return headCaller;
+  }
+
+  it('returns student-safe dashboard summary data for the signed-in student', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T12:00:00.000Z'));
+    try {
+      const { db, students } = makeFakeDb({
+        attendance: [
+          { studentId, date: new Date('2026-06-01T09:00:00.000Z'), status: 'Present' },
+          { studentId, date: new Date('2026-06-02T09:00:00.000Z'), status: 'Late' },
+        ],
+        clubSignups: [{ studentId, status: 'Active', club: { active: true } }],
+        meritLedger: [
+          { studentId, account: 'Spend', delta: 25 },
+          { studentId, account: 'Saving', delta: 15 },
+          { studentId, account: 'Investment', delta: 10 },
+          { studentId, account: 'ShopReserved', delta: -5 },
+        ],
+        paceProgress: [
+          { studentId, completedAt: new Date('2026-05-01T10:00:00.000Z') },
+          { studentId, completedAt: null },
+        ],
+        shopItems: [{ active: true }, { active: false }],
+      });
+      const headCaller = await linkCreatedStudent(db, students);
+      await headCaller.student.assignSubject({ studentId, subjectId, currentPaceNumber: 1034 });
+
+      const dashboard = await makeCaller(studentUser, db).student.dashboard();
+
+      expect(dashboard).toEqual({
+        profile: {
+          studentId,
+          firstName: 'Jane',
+          iconInitials: 'JA',
+          yearGroup: 'Year 6',
+          yearGroupLabel: 'Level 6',
+          ageBand: '11-13',
+        },
+        merits: {
+          balances: {
+            Spend: 25,
+            Saving: 15,
+            Investment: 10,
+            ShopReserved: -5,
+          },
+          totalMerits: 45,
+          hasActivity: true,
+        },
+        pace: {
+          assignedSubjectCount: 1,
+          completedPaceCount: 1,
+          currentPaces: [
+            {
+              subjectCode: 'MATH',
+              subjectName: 'Mathematics',
+              currentPaceNumber: 1034,
+            },
+          ],
+        },
+        attendance: {
+          days: 30,
+          total: 2,
+          Present: 1,
+          Late: 1,
+          Absent: 0,
+          attendanceRate: 50,
+        },
+        notifications: {
+          count: 0,
+          unreadCount: 0,
+          latest: [],
+        },
+        shortcuts: {
+          activeClubCount: 1,
+          activeShopItemCount: 1,
+        },
+        faithCorner: {
+          title: 'Faith Corner',
+          body: 'A weekly encouragement and Scripture memory prompt will appear here.',
+          ready: false,
+        },
+      });
+      expect(JSON.stringify(dashboard)).not.toContain('Learner');
+      expect(JSON.stringify(dashboard)).not.toContain('2014-02-03');
+      expect(JSON.stringify(dashboard)).not.toContain('12 Oasis Road');
+      expect(JSON.stringify(dashboard)).not.toContain(supervisorUser.id);
+      expect(db.auditLog.create).toHaveBeenCalledWith({
+        data: {
+          userId: studentUser.id,
+          action: 'DecryptPii',
+          entity: 'Student',
+          entityId: studentId,
+          meta: { count: 1, source: 'student.dashboard' },
+        },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns empty dashboard states when no activity exists', async () => {
+    const { db, students } = makeFakeDb();
+    await linkCreatedStudent(db, students);
+
+    await expect(makeCaller(studentUser, db).student.dashboard()).resolves.toMatchObject({
+      merits: {
+        balances: {
+          Spend: 0,
+          Saving: 0,
+          Investment: 0,
+          ShopReserved: 0,
+        },
+        totalMerits: 0,
+        hasActivity: false,
+      },
+      pace: {
+        assignedSubjectCount: 0,
+        completedPaceCount: 0,
+        currentPaces: [],
+      },
+      attendance: {
+        total: 0,
+        Present: 0,
+        Late: 0,
+        Absent: 0,
+        attendanceRate: null,
+      },
+      notifications: {
+        count: 0,
+        unreadCount: 0,
+        latest: [],
+      },
+      shortcuts: {
+        activeClubCount: 0,
+        activeShopItemCount: 0,
       },
     });
   });
