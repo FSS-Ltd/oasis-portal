@@ -49,7 +49,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
     { clubId: club.id, date },
     { retry: false },
   );
-  const demeritStatusQuery = useDailyDemeritStatusMap(date);
+  const demeritStatusQuery = useDailyDemeritStatusMap(date, true, club.id);
   const markAttendance = api.club.markAttendance.useMutation();
   const rows = attendanceQuery.data?.students ?? [];
   const counts = rows.reduce(

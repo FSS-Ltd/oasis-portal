@@ -4,7 +4,10 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { ArrowRight, Bell, ClipboardList, Send, Star, UsersRound } from 'lucide-react';
-import { categoriesFor, type BehaviourType } from '@/components/behaviour/behaviour-categories';
+import {
+  clubCategoriesFor,
+  type BehaviourType,
+} from '@/components/behaviour/behaviour-categories';
 import {
   DailyDemeritBadge,
   type DailyDemeritStatus,
@@ -298,7 +301,7 @@ function BehaviourTab({
   const [note, setNote] = useState('');
   const [amount, setAmount] = useState('5');
   const logBehaviour = api.behaviour.log.useMutation();
-  const categories = categoriesFor(type);
+  const categories = clubCategoriesFor(type);
 
   useEffect(() => {
     setStudentId((current) =>
@@ -309,7 +312,7 @@ function BehaviourTab({
   }, [roster]);
 
   useEffect(() => {
-    const nextCategory = categoriesFor(type)[0] ?? 'Misc';
+    const nextCategory = clubCategoriesFor(type)[0] ?? 'Misc';
     setCategory(nextCategory);
     if (type === 'General') setAmount('0');
     if (type === 'Demerit') setAmount('1');
@@ -620,7 +623,11 @@ export function ClubsLeadPortalClient() {
   const [today] = useState(todayDate);
   const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? clubs[0] ?? null;
-  const demeritStatusQuery = useDailyDemeritStatusMap(today, selectedClub !== null);
+  const demeritStatusQuery = useDailyDemeritStatusMap(
+    today,
+    selectedClub !== null,
+    selectedClub?.id,
+  );
   const selectedClubIndex = Math.max(
     clubs.findIndex((club) => club.id === selectedClub?.id),
     0,
@@ -630,7 +637,7 @@ export function ClubsLeadPortalClient() {
     { enabled: selectedClub !== null, retry: false },
   );
   const recentQuery = api.behaviour.recentEntries.useQuery(
-    { date: today },
+    { date: today, ...(selectedClub ? { clubId: selectedClub.id } : {}) },
     { enabled: selectedClub !== null, retry: false },
   );
   const notificationsQuery = api.club.notifications.useQuery(

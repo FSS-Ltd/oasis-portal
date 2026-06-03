@@ -97,6 +97,7 @@ const studentIdsSchema = z.array(z.string().min(1)).min(1).max(50);
 
 type CreatedBehaviourEntry = {
   id: string;
+  clubId: string | null;
   studentId: string;
   type: BehaviourType;
   category: string;
@@ -248,24 +249,29 @@ async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string):
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-function visibleBehaviourWhere(user: SessionUser) {
+function clubLeadStudentWhere(user: SessionUser, clubId?: string) {
+  return {
+    active: true,
+    clubSignups: {
+      some: {
+        status: 'Active' as const,
+        club: {
+          active: true,
+          ...(clubId ? { id: clubId } : {}),
+          leadAssignments: { some: { userId: user.id } },
+        },
+      },
+    },
+  };
+}
+
+function visibleBehaviourWhere(user: SessionUser, clubId?: string) {
   if (canViewSensitiveBehaviour(user)) return { deletedAt: null };
   if (canUseClubsLeadPortal(user)) {
     return {
       deletedAt: null,
       visibility: 'General' as const,
-      student: {
-        active: true,
-        clubSignups: {
-          some: {
-            status: 'Active' as const,
-            club: {
-              active: true,
-              leadAssignments: { some: { userId: user.id } },
-            },
-          },
-        },
-      },
+      student: clubLeadStudentWhere(user, clubId),
     };
   }
   if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
@@ -289,9 +295,13 @@ function visibleBehaviourWhere(user: SessionUser) {
   return { deletedAt: null, visibility: 'General' as const };
 }
 
+function clubBehaviourWhere(clubId?: string): { clubId?: string } {
+  return clubId === undefined ? {} : { clubId };
+}
+
 async function assertAssignedClubLeadStudent(
   ctx: AuthedContext,
-  input: { studentId: string; entity: string },
+  input: { studentId: string; entity: string; clubId?: string | undefined },
 ): Promise<void> {
   const signup = await ctx.db.clubSignup.findFirst({
     where: {
@@ -300,6 +310,7 @@ async function assertAssignedClubLeadStudent(
       student: { active: true },
       club: {
         active: true,
+        ...(input.clubId ? { id: input.clubId } : {}),
         leadAssignments: { some: { userId: ctx.user.id } },
       },
     },
@@ -315,6 +326,7 @@ async function assertAssignedClubLeadStudent(
       entity: input.entity,
       meta: {
         studentId: input.studentId,
+        clubId: input.clubId,
         role: ctx.user.role,
         reason: denied.message,
       },
@@ -325,7 +337,12 @@ async function assertAssignedClubLeadStudent(
 
 async function loadActiveScopedStudent(
   ctx: AuthedContext,
-  input: { studentId: string; entity: string; date?: Date | undefined },
+  input: {
+    studentId: string;
+    entity: string;
+    date?: Date | undefined;
+    clubId?: string | undefined;
+  },
 ): Promise<ActiveStudent> {
   const student = await ctx.db.student.findUnique({
     where: { id: input.studentId },
@@ -341,6 +358,7 @@ async function loadActiveScopedStudent(
     await assertAssignedClubLeadStudent(ctx, {
       studentId: input.studentId,
       entity: input.entity,
+      clubId: input.clubId,
     });
     return student;
   }
@@ -358,7 +376,12 @@ async function loadActiveScopedStudent(
 
 async function loadActiveScopedStudents(
   ctx: AuthedContext,
-  input: { studentIds: readonly string[]; entity: string; date?: Date | undefined },
+  input: {
+    studentIds: readonly string[];
+    entity: string;
+    date?: Date | undefined;
+    clubId?: string | undefined;
+  },
 ): Promise<Map<string, ActiveStudent>> {
   const students = new Map<string, ActiveStudent>();
   for (const studentId of input.studentIds) {
@@ -368,6 +391,7 @@ async function loadActiveScopedStudents(
         studentId,
         entity: input.entity,
         date: input.date,
+        clubId: input.clubId,
       }),
     );
   }
@@ -452,6 +476,7 @@ function assertBatchEntryLimit(totalEntries: number): void {
 async function assertDemeritStageNotes(
   ctx: AuthedContext,
   input: {
+    clubId?: string | undefined;
     date?: Date | undefined;
     proposedEntries: readonly ProposedDemeritEntry[];
     studentIds: readonly string[];
@@ -466,7 +491,8 @@ async function assertDemeritStageNotes(
         type: 'Demerit',
         studentId: { in: [...input.studentIds] },
         createdAt: { gte: day.from, lt: day.to },
-        ...visibleBehaviourWhere(ctx.user),
+        ...visibleBehaviourWhere(ctx.user, input.clubId),
+        ...clubBehaviourWhere(input.clubId),
       },
       select: {
         category: true,
@@ -882,24 +908,13 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       }),
 
     dailyDemeritStatuses: authedProcedure
-      .input(z.object({ date: z.coerce.date() }))
+      .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
         await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses');
         const day = localDayBounds(input.date);
         const scope = await loadDailyYearBandScope(ctx, input.date);
         const scopedStudentWhere = canUseClubsLeadPortal(ctx.user)
-          ? {
-              active: true,
-              clubSignups: {
-                some: {
-                  status: 'Active' as const,
-                  club: {
-                    active: true,
-                    leadAssignments: { some: { userId: ctx.user.id } },
-                  },
-                },
-              },
-            }
+          ? clubLeadStudentWhere(ctx.user, input.clubId)
           : { active: true, ...studentWhereForDailyScope(scope) };
 
         const students = await ctx.withRls((tx) =>
@@ -920,7 +935,8 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                     type: 'Demerit',
                     createdAt: { gte: day.from, lt: day.to },
                     studentId: { in: studentIds },
-                    ...visibleBehaviourWhere(ctx.user),
+                    ...visibleBehaviourWhere(ctx.user, input.clubId),
+                    ...clubBehaviourWhere(input.clubId),
                   },
                   select: {
                     category: true,
@@ -962,7 +978,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       }),
 
     recentEntries: authedProcedure
-      .input(z.object({ date: z.coerce.date() }))
+      .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
         await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries');
         const from = normalizeDate(input.date);
@@ -973,8 +989,9 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           tx.behaviourEntry.findMany({
             where: {
               createdAt: { gte: from, lt: to },
-              ...visibleBehaviourWhere(ctx.user),
+              ...visibleBehaviourWhere(ctx.user, input.clubId),
               ...scopedStudentRelationWhere(scope, ctx.user),
+              ...clubBehaviourWhere(input.clubId),
             },
             include: {
               student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -1009,6 +1026,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           date: dateKey(input.date),
           entries: rows.map((row) => ({
             id: row.id,
+            clubId: row.clubId,
             studentId: row.studentId,
             studentName: decryptRequired(
               ctx.db.$enc.decrypt,
@@ -1164,6 +1182,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     log: authedProcedure
       .input(
         z.object({
+          clubId: z.string().min(1).optional(),
           studentId: z.string().min(1),
           type: behaviourTypeSchema,
           category: behaviourCategorySchema.optional(),
@@ -1185,6 +1204,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const student = await loadActiveScopedStudent(ctx, {
           studentId: input.studentId,
           entity: 'behaviour.log',
+          clubId: input.clubId,
         });
         const category =
           input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
@@ -1200,11 +1220,13 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               ? [{ category, meritDelta, note: input.note, type: 'Demerit' }]
               : [],
           studentIds: [input.studentId],
+          clubId: input.clubId,
         });
 
         const result = await ctx.withRls(async (tx) => {
           const behaviour = await tx.behaviourEntry.create({
             data: {
+              clubId: input.clubId ?? null,
               studentId: input.studentId,
               type: input.type,
               category,
@@ -1245,6 +1267,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             entityId: result.behaviour.id,
             meta: {
               studentId: input.studentId,
+              ...(input.clubId ? { clubId: input.clubId } : {}),
               type: input.type,
               visibility,
               meritDelta,
@@ -1283,6 +1306,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
 
         return {
           id: result.behaviour.id,
+          clubId: result.behaviour.clubId,
           studentId: result.behaviour.studentId,
           type: result.behaviour.type,
           category: result.behaviour.category,
@@ -1296,6 +1320,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     logForStudents: authedProcedure
       .input(
         z.object({
+          clubId: z.string().min(1).optional(),
           studentIds: studentIdsSchema,
           type: behaviourTypeSchema,
           category: behaviourCategorySchema.optional(),
@@ -1321,6 +1346,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const students = await loadActiveScopedStudents(ctx, {
           studentIds: input.studentIds,
           entity: 'behaviour.logForStudents',
+          clubId: input.clubId,
         });
         const category =
           input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
@@ -1336,6 +1362,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               ? [{ category, meritDelta, note: input.note, type: 'Demerit' }]
               : [],
           studentIds: input.studentIds,
+          clubId: input.clubId,
         });
 
         const result = await ctx.withRls(async (tx) => {
@@ -1345,6 +1372,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           for (const studentId of input.studentIds) {
             const behaviour = await tx.behaviourEntry.create({
               data: {
+                clubId: input.clubId ?? null,
                 studentId,
                 type: input.type,
                 category,
@@ -1388,6 +1416,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             entity: 'BehaviourEntry',
             meta: {
               studentIds: input.studentIds,
+              ...(input.clubId ? { clubId: input.clubId } : {}),
               type: input.type,
               visibility,
               meritDelta,
@@ -1440,6 +1469,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         return {
           entries: result.behaviourEntries.map((entry) => ({
             id: entry.id,
+            clubId: entry.clubId,
             studentId: entry.studentId,
             type: entry.type,
             category: entry.category,

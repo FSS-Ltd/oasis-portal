@@ -620,6 +620,7 @@ enum MessageThreadKind {
 
 model BehaviourEntry {
   id             String              @id @default(cuid())
+  clubId         String?
   studentId      String
   type           BehaviourType
   category       String
@@ -637,6 +638,7 @@ model BehaviourEntry {
   headCommentEnc String?
   createdAt      DateTime            @default(now())
 
+  club       Club?         @relation(fields: [clubId], references: [id], onDelete: SetNull)
   student    Student       @relation(fields: [studentId], references: [id])
   recordedBy User          @relation("RecordedBehaviour", fields: [recordedById], references: [id])
   deletedBy  User?         @relation("DeletedBehaviour", fields: [deletedById], references: [id], onDelete: SetNull)
@@ -644,6 +646,7 @@ model BehaviourEntry {
   paceRecord PaceRecord?   @relation("PaceRecordAutomaticMerit", fields: [paceRecordId], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
 
+  @@index([clubId, createdAt])
   @@index([studentId, createdAt])
   @@index([visibility])
   @@index([paceRecordId])
@@ -919,6 +922,7 @@ model Club {
   updatedAt           DateTime               @updatedAt
 
   createdBy           User                     @relation("ClubsCreated", fields: [createdById], references: [id])
+  behaviourEntries    BehaviourEntry[]
   signups             ClubSignup[]
   notifications       ClubNotification[]
   attendance          ClubAttendance[]

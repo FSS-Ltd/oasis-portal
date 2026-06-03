@@ -7,8 +7,11 @@ import { api } from '@/lib/trpc';
 export type DailyDemeritStatus =
   RouterOutputs['behaviour']['dailyDemeritStatuses']['statuses'][number];
 
-export function useDailyDemeritStatusMap(date: Date, enabled = true) {
-  const query = api.behaviour.dailyDemeritStatuses.useQuery({ date }, { enabled, retry: false });
+export function useDailyDemeritStatusMap(date: Date, enabled = true, clubId?: string) {
+  const query = api.behaviour.dailyDemeritStatuses.useQuery(
+    { date, ...(clubId ? { clubId } : {}) },
+    { enabled, retry: false },
+  );
   const statusByStudentId = useMemo(
     () => new Map((query.data?.statuses ?? []).map((status) => [status.studentId, status])),
     [query.data?.statuses],

@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-29
+**Last updated:** 2026-06-03
 **Agent:** Technical Agent (Codex)
-**Phase:** Parent tithe wallet and Friday settlement.
+**Phase:** Club behaviour scoping fix.
 
 ---
 
@@ -28,6 +28,45 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-03 Club merits scoping
+
+Working branch: `fix/club-merits-scope`.
+
+**PR scope:** Store club-scoped behaviour entries and use that source boundary
+so Clubs Lead merit/demerit summaries only reflect entries logged for the selected
+club.
+
+Completed:
+
+- Added nullable `BehaviourEntry.clubId` with a `Club` relation and index for
+  club-scoped behaviour reads.
+- Persisted `clubId` when club behaviour is logged and filtered
+  `recentEntries`, `dailyDemeritStatuses`, and demerit-stage checks by selected
+  club when `clubId` is supplied.
+- Updated the Clubs Lead portal to query recent entries and daily demerit badges
+  with the selected club id.
+- Added club-specific merit categories: `Homework` and `General Club Merit`.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/behaviour.router.test.ts`
+- `pnpm db:generate`
+- `set -a; source /Users/JeanFidele/Projects/oasis-portal/.env.local; set +a; pnpm --filter @oasis/db exec prisma validate`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- `pnpm db:migrate` could not be completed because local Postgres at
+  `localhost:5432` was not responding and Docker was unavailable in this
+  environment. The migration file was added but still needs applying where the
+  configured migration database is reachable.
 
 ## Current session - 2026-05-29 Parent tithe wallet
 
