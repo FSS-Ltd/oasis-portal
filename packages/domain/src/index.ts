@@ -16,3 +16,4 @@ export * from './demeritPolicy.js';
 export * from './permissionSlips.js';
 export * from './oasisCalendar.js';
 export * from './incidents.js';
+export * from './studentPortalSettings.js';
