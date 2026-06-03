@@ -8,7 +8,7 @@
  */
 import {
   canAnswerChildRegistrationPrompt,
-  canUseClubsLeadPortal,
+  canUseClubLeadAccess,
   requireClubsAdminOrFullAdmin,
   type SessionUser,
 } from './rbac.js';
@@ -41,11 +41,11 @@ export function canUseLinkedChildClubSignup(user: Pick<SessionUser, 'role'>): bo
 }
 
 export function canOperateAssignedClub(
-  user: Pick<SessionUser, 'role' | 'id'>,
+  user: Pick<SessionUser, 'role' | 'tags' | 'id'>,
   assignedClubIds: readonly string[],
   clubId: string,
 ): boolean {
-  return canUseClubsLeadPortal(user) && assignedClubIds.includes(clubId);
+  return canUseClubLeadAccess(user) && assignedClubIds.includes(clubId);
 }
 
 export function validateClubDraft(draft: ClubDraft): Required<Pick<ClubDraft, 'name'>> & ClubDraft {

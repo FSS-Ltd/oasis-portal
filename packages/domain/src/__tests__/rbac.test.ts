@@ -25,6 +25,7 @@ import {
   canViewStudentFinance,
   canViewStudentDrillThrough,
   canSubmitInitialRegistration,
+  canUseClubLeadAccess,
   canUseClubsLeadPortal,
   hasCompletedTwoFactor,
   isFullAdmin,
@@ -414,6 +415,7 @@ describe('workflow tags', () => {
 
     expect(isStaff(taggedClubsLead)).toBe(false);
     expect(canUseClubsLeadPortal(taggedClubsLead)).toBe(true);
+    expect(canUseClubLeadAccess(taggedClubsLead)).toBe(true);
     expect(canRecordStudentAttendance(taggedClubsLead)).toBe(false);
     expect(canExportAttendance(taggedClubsLead)).toBe(false);
     expect(canViewSensitiveChildNotes(taggedClubsLead)).toBe(false);
@@ -429,6 +431,18 @@ describe('workflow tags', () => {
     expect(() => {
       requireClubsLead(supervisor);
     }).toThrow(AccessDeniedError);
+  });
+
+  it('allows the club-lead tag without changing normal supervisor permissions', () => {
+    const taggedSupervisor: SessionUser = {
+      ...supervisor,
+      tags: ['club-lead', 'attendance-recorder'],
+    };
+
+    expect(canUseClubsLeadPortal(taggedSupervisor)).toBe(false);
+    expect(canUseClubLeadAccess(taggedSupervisor)).toBe(true);
+    expect(isStaff(taggedSupervisor)).toBe(true);
+    expect(canRecordStudentAttendance(taggedSupervisor)).toBe(true);
   });
 
   it('allows attendance recording for operational admins or attendance-recorder', () => {

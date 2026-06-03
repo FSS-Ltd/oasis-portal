@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { createContext } from '@oasis/api';
-import { canAnswerChildRegistrationPrompt } from '@oasis/domain';
+import { canAnswerChildRegistrationPrompt, canUseClubLeadAccess } from '@oasis/domain';
 import { redirect } from 'next/navigation';
 import {
   isTwoFactorEnforcementEnabled,
@@ -12,7 +12,7 @@ import { PostSignInTransition } from './post-sign-in-transition';
 
 export const dynamic = 'force-dynamic';
 
-type PortalSwitchTarget = 'parent' | 'staff';
+type PortalSwitchTarget = 'parent' | 'staff' | 'club';
 
 interface PostSignInResolvePageProps {
   searchParams?: Promise<{
@@ -27,7 +27,7 @@ function portalSwitchTargetFromSearchParams(
     ? searchParams.switchTo[0]
     : searchParams?.switchTo;
 
-  return value === 'parent' || value === 'staff' ? value : null;
+  return value === 'parent' || value === 'staff' || value === 'club' ? value : null;
 }
 
 export default async function PostSignInResolvePage({ searchParams }: PostSignInResolvePageProps) {
@@ -47,20 +47,28 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
   let childRegistrationPromptRequired = false;
   let childRegistrationRequired = false;
   let linkedChildrenCount = 0;
+  let assignedClubLeadCount = 0;
 
   if (ctx.user) {
-    const [registration, linkedChildrenTotal, promptUser] = await Promise.all([
-      ctx.db.parentRegistration.findUnique({
-        where: { parentUserId: ctx.user.id },
-        select: { id: true },
-      }),
-      ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
-      ctx.db.user.findUnique({
-        where: { id: ctx.user.id },
-        select: { childRegistrationPromptStatus: true },
-      }),
-    ]);
+    const [registration, linkedChildrenTotal, assignedClubLeadTotal, promptUser] =
+      await Promise.all([
+        ctx.db.parentRegistration.findUnique({
+          where: { parentUserId: ctx.user.id },
+          select: { id: true },
+        }),
+        ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
+        canUseClubLeadAccess(ctx.user)
+          ? ctx.db.clubLeadAssignment.count({
+              where: { userId: ctx.user.id, club: { active: true } },
+            })
+          : Promise.resolve(0),
+        ctx.db.user.findUnique({
+          where: { id: ctx.user.id },
+          select: { childRegistrationPromptStatus: true },
+        }),
+      ]);
     linkedChildrenCount = linkedChildrenTotal;
+    assignedClubLeadCount = assignedClubLeadTotal;
     const hasRegistrationOrLinkedChildren = Boolean(registration) || linkedChildrenCount > 0;
 
     if (ctx.user.role === 'Parent') {
@@ -79,6 +87,9 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
 
   if (switchTarget === 'parent' && linkedChildrenCount > 0) {
     return <PostSignInTransition destination="/parent" />;
+  }
+  if (switchTarget === 'club' && assignedClubLeadCount > 0) {
+    return <PostSignInTransition destination="/clubs-lead" />;
   }
 
   return <PostSignInTransition destination={destination} />;

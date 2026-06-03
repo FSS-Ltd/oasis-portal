@@ -323,6 +323,7 @@ function BehaviourTab({
     if (!studentId) return;
     try {
       await logBehaviour.mutateAsync({
+        clubId: club.id,
         studentId,
         type,
         category,
@@ -620,7 +621,11 @@ export function ClubsLeadPortalClient() {
   const [today] = useState(todayDate);
   const clubs = useMemo(() => clubsQuery.data ?? [], [clubsQuery.data]);
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? clubs[0] ?? null;
-  const demeritStatusQuery = useDailyDemeritStatusMap(today, selectedClub !== null);
+  const demeritStatusQuery = useDailyDemeritStatusMap(
+    today,
+    selectedClub !== null,
+    selectedClub?.id,
+  );
   const selectedClubIndex = Math.max(
     clubs.findIndex((club) => club.id === selectedClub?.id),
     0,
@@ -630,7 +635,7 @@ export function ClubsLeadPortalClient() {
     { enabled: selectedClub !== null, retry: false },
   );
   const recentQuery = api.behaviour.recentEntries.useQuery(
-    { date: today },
+    { date: today, clubId: selectedClub?.id },
     { enabled: selectedClub !== null, retry: false },
   );
   const notificationsQuery = api.club.notifications.useQuery(

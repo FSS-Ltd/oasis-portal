@@ -4,6 +4,7 @@ import {
   AccessDeniedError,
   canCreateSensitiveBehaviour,
   canUseAdminOperations,
+  canUseClubLeadAccess,
   canUseClubsLeadPortal,
   canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
@@ -107,8 +108,17 @@ type CreatedBehaviourEntry = {
   createdAt: Date;
 };
 
-function canUseBehaviourWorkflow(user: SessionUser): boolean {
-  return canUseAdminOperations(user) || isStaff(user) || canUseClubsLeadPortal(user);
+function usesClubLeadScope(user: SessionUser, clubId?: string): boolean {
+  return canUseClubsLeadPortal(user) || (clubId !== undefined && canUseClubLeadAccess(user));
+}
+
+function canUseBehaviourWorkflow(user: SessionUser, clubId?: string): boolean {
+  return (
+    canUseAdminOperations(user) ||
+    isStaff(user) ||
+    canUseClubsLeadPortal(user) ||
+    (clubId !== undefined && canUseClubLeadAccess(user))
+  );
 }
 
 async function auditPermissionDenied(
@@ -130,9 +140,13 @@ async function auditPermissionDenied(
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-async function requireBehaviourWorkflow(ctx: AuthedContext, entity: string): Promise<void> {
-  if (canUseBehaviourWorkflow(ctx.user)) return;
-  await auditPermissionDenied(ctx, entity, { role: ctx.user.role });
+async function requireBehaviourWorkflow(
+  ctx: AuthedContext,
+  entity: string,
+  clubId?: string,
+): Promise<void> {
+  if (canUseBehaviourWorkflow(ctx.user, clubId)) return;
+  await auditPermissionDenied(ctx, entity, { role: ctx.user.role, clubId });
 }
 
 async function requireCanRequestSensitive(ctx: AuthedContext, studentId: string): Promise<void> {
@@ -248,24 +262,29 @@ async function requireBehaviourReportAccess(ctx: AuthedContext, entity: string):
   throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
-function visibleBehaviourWhere(user: SessionUser) {
+function clubLeadStudentWhere(user: SessionUser, clubId?: string) {
+  return {
+    active: true,
+    clubSignups: {
+      some: {
+        status: 'Active' as const,
+        club: {
+          active: true,
+          ...(clubId ? { id: clubId } : {}),
+          leadAssignments: { some: { userId: user.id } },
+        },
+      },
+    },
+  };
+}
+
+function visibleBehaviourWhere(user: SessionUser, clubId?: string) {
   if (canViewSensitiveBehaviour(user)) return { deletedAt: null };
-  if (canUseClubsLeadPortal(user)) {
+  if (usesClubLeadScope(user, clubId)) {
     return {
       deletedAt: null,
       visibility: 'General' as const,
-      student: {
-        active: true,
-        clubSignups: {
-          some: {
-            status: 'Active' as const,
-            club: {
-              active: true,
-              leadAssignments: { some: { userId: user.id } },
-            },
-          },
-        },
-      },
+      student: clubLeadStudentWhere(user, clubId),
     };
   }
   if (user.role === 'Supervisor' || user.role === 'ClubsAdmin') {
@@ -291,7 +310,7 @@ function visibleBehaviourWhere(user: SessionUser) {
 
 async function assertAssignedClubLeadStudent(
   ctx: AuthedContext,
-  input: { studentId: string; entity: string },
+  input: { studentId: string; entity: string; clubId?: string | undefined },
 ): Promise<void> {
   const signup = await ctx.db.clubSignup.findFirst({
     where: {
@@ -300,6 +319,7 @@ async function assertAssignedClubLeadStudent(
       student: { active: true },
       club: {
         active: true,
+        ...(input.clubId ? { id: input.clubId } : {}),
         leadAssignments: { some: { userId: ctx.user.id } },
       },
     },
@@ -315,6 +335,7 @@ async function assertAssignedClubLeadStudent(
       entity: input.entity,
       meta: {
         studentId: input.studentId,
+        clubId: input.clubId,
         role: ctx.user.role,
         reason: denied.message,
       },
@@ -325,7 +346,12 @@ async function assertAssignedClubLeadStudent(
 
 async function loadActiveScopedStudent(
   ctx: AuthedContext,
-  input: { studentId: string; entity: string; date?: Date | undefined },
+  input: {
+    studentId: string;
+    entity: string;
+    date?: Date | undefined;
+    clubId?: string | undefined;
+  },
 ): Promise<ActiveStudent> {
   const student = await ctx.db.student.findUnique({
     where: { id: input.studentId },
@@ -337,10 +363,11 @@ async function loadActiveScopedStudent(
   if (!student.active) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
   }
-  if (canUseClubsLeadPortal(ctx.user)) {
+  if (usesClubLeadScope(ctx.user, input.clubId)) {
     await assertAssignedClubLeadStudent(ctx, {
       studentId: input.studentId,
       entity: input.entity,
+      clubId: input.clubId,
     });
     return student;
   }
@@ -358,7 +385,12 @@ async function loadActiveScopedStudent(
 
 async function loadActiveScopedStudents(
   ctx: AuthedContext,
-  input: { studentIds: readonly string[]; entity: string; date?: Date | undefined },
+  input: {
+    studentIds: readonly string[];
+    entity: string;
+    date?: Date | undefined;
+    clubId?: string | undefined;
+  },
 ): Promise<Map<string, ActiveStudent>> {
   const students = new Map<string, ActiveStudent>();
   for (const studentId of input.studentIds) {
@@ -368,6 +400,7 @@ async function loadActiveScopedStudents(
         studentId,
         entity: input.entity,
         date: input.date,
+        clubId: input.clubId,
       }),
     );
   }
@@ -452,6 +485,7 @@ function assertBatchEntryLimit(totalEntries: number): void {
 async function assertDemeritStageNotes(
   ctx: AuthedContext,
   input: {
+    clubId?: string | undefined;
     date?: Date | undefined;
     proposedEntries: readonly ProposedDemeritEntry[];
     studentIds: readonly string[];
@@ -466,7 +500,7 @@ async function assertDemeritStageNotes(
         type: 'Demerit',
         studentId: { in: [...input.studentIds] },
         createdAt: { gte: day.from, lt: day.to },
-        ...visibleBehaviourWhere(ctx.user),
+        ...visibleBehaviourWhere(ctx.user, input.clubId),
       },
       select: {
         category: true,
@@ -509,8 +543,12 @@ async function assertDemeritStageNotes(
   }
 }
 
-function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser) {
-  if (canUseClubsLeadPortal(user)) return {};
+function scopedStudentRelationWhere(
+  scope: DailyYearBandScope,
+  user: SessionUser,
+  clubId?: string,
+) {
+  if (usesClubLeadScope(user, clubId)) return {};
   if (canUseAllStudentSupervisorWorkflow(user) || scope.scopedYears === null) return {};
   return { student: studentWhereForDailyScope(scope) };
 }
@@ -882,24 +920,13 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       }),
 
     dailyDemeritStatuses: authedProcedure
-      .input(z.object({ date: z.coerce.date() }))
+      .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses');
+        await requireBehaviourWorkflow(ctx, 'behaviour.dailyDemeritStatuses', input.clubId);
         const day = localDayBounds(input.date);
         const scope = await loadDailyYearBandScope(ctx, input.date);
-        const scopedStudentWhere = canUseClubsLeadPortal(ctx.user)
-          ? {
-              active: true,
-              clubSignups: {
-                some: {
-                  status: 'Active' as const,
-                  club: {
-                    active: true,
-                    leadAssignments: { some: { userId: ctx.user.id } },
-                  },
-                },
-              },
-            }
+        const scopedStudentWhere = usesClubLeadScope(ctx.user, input.clubId)
+          ? clubLeadStudentWhere(ctx.user, input.clubId)
           : { active: true, ...studentWhereForDailyScope(scope) };
 
         const students = await ctx.withRls((tx) =>
@@ -920,7 +947,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                     type: 'Demerit',
                     createdAt: { gte: day.from, lt: day.to },
                     studentId: { in: studentIds },
-                    ...visibleBehaviourWhere(ctx.user),
+                    ...visibleBehaviourWhere(ctx.user, input.clubId),
                   },
                   select: {
                     category: true,
@@ -962,9 +989,9 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
       }),
 
     recentEntries: authedProcedure
-      .input(z.object({ date: z.coerce.date() }))
+      .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries');
+        await requireBehaviourWorkflow(ctx, 'behaviour.recentEntries', input.clubId);
         const from = normalizeDate(input.date);
         const to = dayEnd(input.date);
         const scope = await loadDailyYearBandScope(ctx, from);
@@ -973,8 +1000,8 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           tx.behaviourEntry.findMany({
             where: {
               createdAt: { gte: from, lt: to },
-              ...visibleBehaviourWhere(ctx.user),
-              ...scopedStudentRelationWhere(scope, ctx.user),
+              ...visibleBehaviourWhere(ctx.user, input.clubId),
+              ...scopedStudentRelationWhere(scope, ctx.user, input.clubId),
             },
             include: {
               student: { select: { id: true, fullNameEnc: true, yearGroup: true } },
@@ -1164,6 +1191,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     log: authedProcedure
       .input(
         z.object({
+          clubId: z.string().min(1).optional(),
           studentId: z.string().min(1),
           type: behaviourTypeSchema,
           category: behaviourCategorySchema.optional(),
@@ -1174,7 +1202,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.log');
+        await requireBehaviourWorkflow(ctx, 'behaviour.log', input.clubId);
         validateSingleBehaviourInput(input);
 
         const visibility = input.visibility ?? (input.type === 'General' ? 'Sensitive' : 'General');
@@ -1185,6 +1213,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const student = await loadActiveScopedStudent(ctx, {
           studentId: input.studentId,
           entity: 'behaviour.log',
+          clubId: input.clubId,
         });
         const category =
           input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
@@ -1200,6 +1229,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               ? [{ category, meritDelta, note: input.note, type: 'Demerit' }]
               : [],
           studentIds: [input.studentId],
+          clubId: input.clubId,
         });
 
         const result = await ctx.withRls(async (tx) => {
@@ -1296,6 +1326,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
     logForStudents: authedProcedure
       .input(
         z.object({
+          clubId: z.string().min(1).optional(),
           studentIds: studentIdsSchema,
           type: behaviourTypeSchema,
           category: behaviourCategorySchema.optional(),
@@ -1305,7 +1336,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        await requireBehaviourWorkflow(ctx, 'behaviour.logForStudents');
+        await requireBehaviourWorkflow(ctx, 'behaviour.logForStudents', input.clubId);
         requireUniqueStudentIds(input.studentIds);
         validateSingleBehaviourInput(input);
 
@@ -1321,6 +1352,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         const students = await loadActiveScopedStudents(ctx, {
           studentIds: input.studentIds,
           entity: 'behaviour.logForStudents',
+          clubId: input.clubId,
         });
         const category =
           input.type === 'General' ? (input.category ?? 'Misc') : (input.category ?? '');
@@ -1336,6 +1368,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               ? [{ category, meritDelta, note: input.note, type: 'Demerit' }]
               : [],
           studentIds: input.studentIds,
+          clubId: input.clubId,
         });
 
         const result = await ctx.withRls(async (tx) => {

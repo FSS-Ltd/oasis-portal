@@ -96,4 +96,16 @@ describe('canOperateAssignedClub', () => {
     expect(canOperateAssignedClub(clubsLead, ['club-a', 'club-b'], 'club-c')).toBe(false);
     expect(canOperateAssignedClub(clubsAdmin, ['club-a'], 'club-a')).toBe(false);
   });
+
+  it('allows tagged adult users to operate assigned clubs', () => {
+    const taggedSupervisor: SessionUser = {
+      id: 'u12',
+      role: 'Supervisor',
+      tags: ['club-lead'],
+      requires2fa: false,
+    };
+
+    expect(canOperateAssignedClub(taggedSupervisor, ['club-a'], 'club-a')).toBe(true);
+    expect(canOperateAssignedClub(taggedSupervisor, ['club-a'], 'club-b')).toBe(false);
+  });
 });

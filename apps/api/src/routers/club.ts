@@ -6,7 +6,7 @@ import {
   assertCanManageClub,
   canManageClubs,
   canSignUpForClub,
-  canUseClubsLeadPortal,
+  canUseClubLeadAccess,
   canUseLinkedChildClubSignup,
   formatClubSchedule,
   type ClubScheduleDraft,
@@ -387,7 +387,7 @@ async function requireClubManagerOrAssignedLead(
   clubId: string,
 ): Promise<'manager' | 'lead'> {
   if (canManageClubs(ctx.user)) return 'manager';
-  if (!canUseClubsLeadPortal(ctx.user)) {
+  if (!canUseClubLeadAccess(ctx.user)) {
     throw toForbidden(new AccessDeniedError('club access requires club manager or assigned lead'));
   }
 
@@ -1144,8 +1144,8 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
     }),
 
     leadClubs: authedProcedure.query(async ({ ctx }) => {
-      if (!canUseClubsLeadPortal(ctx.user)) {
-        throw toForbidden(new AccessDeniedError('club lead portal requires ClubsLead'));
+      if (!canUseClubLeadAccess(ctx.user)) {
+        throw toForbidden(new AccessDeniedError('club lead portal requires club lead access'));
       }
 
       const rows = await ctx.db.clubLeadAssignment.findMany({
@@ -1400,7 +1400,10 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
 
       const selectedUserIds = new Set(club.leadAssignments.map((assignment) => assignment.userId));
       const users = await ctx.db.user.findMany({
-        where: { active: true, role: 'ClubsLead' },
+        where: {
+          active: true,
+          OR: [{ role: 'ClubsLead' }, { tags: { has: 'club-lead' } }],
+        },
         orderBy: [{ createdAt: 'desc' }],
         select: {
           id: true,
@@ -1452,7 +1455,11 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
           uniqueUserIds.length === 0
             ? []
             : await ctx.db.user.findMany({
-                where: { id: { in: uniqueUserIds }, active: true, role: 'ClubsLead' },
+                where: {
+                  id: { in: uniqueUserIds },
+                  active: true,
+                  OR: [{ role: 'ClubsLead' }, { tags: { has: 'club-lead' } }],
+                },
                 select: { id: true },
               });
         const eligibleUserIds = new Set(eligibleUsers.map((user) => user.id));
@@ -1460,7 +1467,7 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         if (invalidUserId) {
           throw new TRPCError({
             code: 'BAD_REQUEST',
-            message: 'club leads must be active ClubsLead users',
+            message: 'club leads must be active users with club lead access',
           });
         }
 
