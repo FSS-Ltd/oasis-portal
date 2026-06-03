@@ -1346,7 +1346,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     expect(parent.db.user.findMany).not.toHaveBeenCalled();
   });
 
-  it('blocks Technical Support from changing their own permission tags', async () => {
+  it('lets Technical Support change any permission tag on their own active account', async () => {
     const db = makeFakeDb();
     db.user.findUnique.mockResolvedValue({
       id: technicalSupportUser.id,
@@ -1354,15 +1354,38 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       tags: [],
       active: true,
     });
+    db.user.update.mockResolvedValue({
+      id: technicalSupportUser.id,
+      tags: ['audit-viewer', 'calendar-manager', 'student-drillthrough-viewer'],
+    });
     const { caller } = makeCaller(technicalSupportUser, { db });
 
     await expect(
       caller.admin.updateUserTags({
         userId: technicalSupportUser.id,
-        tags: ['club-lead'],
+        tags: ['student-drillthrough-viewer', 'audit-viewer', 'calendar-manager'],
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(db.user.update).not.toHaveBeenCalled();
+    ).resolves.toEqual({
+      id: technicalSupportUser.id,
+      tags: ['audit-viewer', 'calendar-manager', 'student-drillthrough-viewer'],
+    });
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: technicalSupportUser.id },
+      data: { tags: ['audit-viewer', 'student-drillthrough-viewer', 'calendar-manager'] },
+      select: { id: true, tags: true },
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: technicalSupportUser.id,
+        action: 'Update',
+        entity: 'User',
+        entityId: technicalSupportUser.id,
+        meta: {
+          tags: ['audit-viewer', 'calendar-manager', 'student-drillthrough-viewer'],
+          source: 'admin.updateUserTags',
+        },
+      },
+    });
   });
 
   it('blocks Technical Support permission tag changes for inactive accounts', async () => {
