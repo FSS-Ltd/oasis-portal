@@ -180,6 +180,52 @@ async function denyPaceAccess(
   throw new TRPCError({ code: 'FORBIDDEN', message });
 }
 
+async function assertNoDuplicateSelfTest(
+  ctx: AuthedContext,
+  params: {
+    excludeRecordId?: string | undefined;
+    paceNumber: number;
+    source: string;
+    studentId: string;
+    subjectId: string;
+  },
+): Promise<void> {
+  const [existing] = await ctx.db.paceRecord.findMany({
+    where: {
+      ...(params.excludeRecordId ? { id: { not: params.excludeRecordId } } : {}),
+      studentId: params.studentId,
+      subjectId: params.subjectId,
+      paceNumber: params.paceNumber,
+      selfTestScore: { not: null },
+    },
+    select: { id: true },
+    take: 1,
+  });
+  if (!existing) return;
+
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'PaceRecord',
+      meta: {
+        reason: 'duplicate-self-test',
+        studentId: params.studentId,
+        subjectId: params.subjectId,
+        paceNumber: params.paceNumber,
+        testType: 'SelfTest',
+        source: params.source,
+        existingRecordId: existing.id,
+        ...(params.excludeRecordId ? { recordId: params.excludeRecordId } : {}),
+      },
+    },
+  });
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: 'a Self-Test already exists for this subject PACE number',
+  });
+}
+
 type PaceBand = {
   id: string;
   name: string;
@@ -1060,6 +1106,15 @@ export const paceRouter = router({
       }
     }
 
+    if (testType === 'SelfTest') {
+      await assertNoDuplicateSelfTest(ctx, {
+        studentId,
+        subjectId,
+        paceNumber,
+        source: 'pace.record',
+      });
+    }
+
     // Same-pace same-day self/final block
     if (policy.samePaceSameDayBlockEnabled) {
       const oppositeType = testType === 'SelfTest' ? 'FinalTest' : 'SelfTest';
@@ -1413,6 +1468,16 @@ export const paceRouter = router({
           message: 'cannot update PACE Test without a Self-Test for the same subject PACE number',
         });
       }
+    }
+
+    if (testType === 'SelfTest') {
+      await assertNoDuplicateSelfTest(ctx, {
+        excludeRecordId: existing.id,
+        studentId: existing.studentId,
+        subjectId,
+        paceNumber,
+        source: 'pace.updateRecord',
+      });
     }
 
     if (policy.samePaceSameDayBlockEnabled) {

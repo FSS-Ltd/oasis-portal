@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-05-29
+**Last updated:** 2026-06-03
 **Agent:** Technical Agent (Codex)
 **Phase:** Parent tithe wallet and Friday settlement.
 
@@ -28,6 +28,43 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-03 PACE self-test duplicate guard
+
+Working branch: `fix/pace-self-test-updates`.
+
+**PR scope:** Prevent duplicate PACE Self-Test records for the same
+student/subject/PACE number and refresh PACE workflow views after PACE
+corrections from child drill-through surfaces.
+
+Completed:
+
+- Added API guards so `pace.record` and `pace.updateRecord` reject duplicate
+  Self-Test rows for the same student, subject, and PACE number while still
+  allowing multiple PACE Test attempts.
+- Changed PACE score creation to default to PACE Test when a Self-Test already
+  exists for the current PACE, and disabled duplicate Self-Test saves in the
+  score modal.
+- Broadened PACE mutation invalidation from PACE workflow, student
+  drill-through, and child snapshot surfaces so PACE workflow, roster,
+  drill-through, snapshot, centre snapshot, and parent dashboard data refresh
+  together.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- pace.router.test.ts`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm lint`
+- `pnpm --filter @oasis/web build`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- No database unique index was added because production already contains
+  duplicate Self-Test rows. Existing duplicates, such as repeated 1041 rows,
+  still need a separate cleanup after the correct historical record is
+  confirmed.
 
 ## Current session - 2026-05-29 Parent tithe wallet
 

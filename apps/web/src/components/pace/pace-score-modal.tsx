@@ -81,10 +81,14 @@ export function PaceScoreModal({
   const validPaceNumber = Number.isInteger(Number(paceNumber)) && Number(paceNumber) > 0;
   const finalTestPrerequisiteMet =
     validPaceNumber && selectedSubject.selfTestPaceNumbers.includes(Number(paceNumber));
+  const selfTestAlreadyRecorded = !isUpdateMode && finalTestPrerequisiteMet;
+  const selfTestDisabled = selfTestAlreadyRecorded;
   const finalTestDisabled = !isUpdateMode && !finalTestPrerequisiteMet;
-  const testTypeHint = finalTestDisabled
-    ? 'Add a Self-Test for this subject PACE number before adding a PACE Test.'
-    : undefined;
+  const testTypeHint = selfTestDisabled
+    ? 'A Self-Test already exists for this PACE number. Record a PACE Test instead.'
+    : finalTestDisabled
+      ? 'Add a Self-Test for this subject PACE number before adding a PACE Test.'
+      : undefined;
   const tone = scoreTone(scoreNumber);
   const ringStyle = useMemo(
     () =>
@@ -95,14 +99,23 @@ export function PaceScoreModal({
   );
 
   useEffect(() => {
+    if (testType === 'SelfTest' && selfTestDisabled) {
+      setTestType('FinalTest');
+      return;
+    }
     if (testType === 'FinalTest' && finalTestDisabled) {
       setTestType('SelfTest');
     }
-  }, [finalTestDisabled, testType]);
+  }, [finalTestDisabled, selfTestDisabled, testType]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validScore || !validPaceNumber || (testType === 'FinalTest' && finalTestDisabled)) {
+    if (
+      !validScore ||
+      !validPaceNumber ||
+      (testType === 'SelfTest' && selfTestDisabled) ||
+      (testType === 'FinalTest' && finalTestDisabled)
+    ) {
       return;
     }
     await onSave({
@@ -175,7 +188,11 @@ export function PaceScoreModal({
               {(['SelfTest', 'FinalTest'] as const).map((item) => (
                 <button
                   className={testType === item ? 'is-selected' : undefined}
-                  disabled={isUpdateMode || (item === 'FinalTest' && finalTestDisabled)}
+                  disabled={
+                    isUpdateMode ||
+                    (item === 'SelfTest' && selfTestDisabled) ||
+                    (item === 'FinalTest' && finalTestDisabled)
+                  }
                   key={item}
                   onClick={() => {
                     setTestType(item);
@@ -265,7 +282,10 @@ export function PaceScoreModal({
           </Button>
           <Button
             disabled={
-              !validScore || !validPaceNumber || (testType === 'FinalTest' && finalTestDisabled)
+              !validScore ||
+              !validPaceNumber ||
+              (testType === 'SelfTest' && selfTestDisabled) ||
+              (testType === 'FinalTest' && finalTestDisabled)
             }
             pending={pending}
             type="submit"

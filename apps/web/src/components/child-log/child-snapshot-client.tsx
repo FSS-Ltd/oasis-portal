@@ -128,6 +128,18 @@ export function ChildSnapshotClient({
     (studentsQuery.data?.length ?? 0) > 0,
   );
   const utils = api.useUtils();
+
+  async function invalidatePaceMutationViews(studentId: string): Promise<void> {
+    await Promise.all([
+      utils.childLog.snapshot.invalidate(),
+      utils.childLog.centreSnapshot.invalidate(),
+      utils.childLog.drillThrough.invalidate({ studentId }),
+      utils.childLog.parentDashboard.invalidate(),
+      utils.pace.forStudent.invalidate({ studentId }),
+      utils.pace.roster.invalidate(),
+    ]);
+  }
+
   const createNote = api.childNotes.create.useMutation({
     onSuccess: async () => {
       setNote('');
@@ -192,22 +204,20 @@ export function ChildSnapshotClient({
     },
   });
   const updatePace = api.pace.updateRecord.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setEditingPace(null);
       showSuccessToast('PACE test updated.');
-      await utils.childLog.snapshot.invalidate();
-      await utils.childLog.centreSnapshot.invalidate();
+      await invalidatePaceMutationViews(result.studentId);
     },
     onError: (error) => {
       showErrorToast(error, 'PACE test could not be updated.');
     },
   });
   const deletePace = api.pace.deleteRecord.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setDeletingPace(null);
       showSuccessToast('PACE test deleted.');
-      await utils.childLog.snapshot.invalidate();
-      await utils.childLog.centreSnapshot.invalidate();
+      await invalidatePaceMutationViews(result.studentId);
     },
     onError: (error) => {
       showErrorToast(error, 'PACE test could not be deleted.');

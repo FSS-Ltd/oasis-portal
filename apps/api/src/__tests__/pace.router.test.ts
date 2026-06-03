@@ -245,14 +245,18 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
       where,
     }: {
       where?: {
+        id?: { not: string };
         studentId?: string;
         subjectId?: string | { in: string[] };
         paceNumber?: number;
         OR?: readonly unknown[];
+        selfTestScore?: { not: null };
+        paceTestScore?: { not: null };
       };
     } = {}) =>
       Promise.resolve(
         records.filter((record) => {
+          if (where?.id?.not && record.id === where.id.not) return false;
           if (where?.studentId && record.studentId !== where.studentId) return false;
           if (typeof where?.subjectId === 'string' && record.subjectId !== where.subjectId) {
             return false;
@@ -266,6 +270,8 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
           if (where?.paceNumber !== undefined && record.paceNumber !== where.paceNumber) {
             return false;
           }
+          if (where?.selfTestScore && record.selfTestScore === null) return false;
+          if (where?.paceTestScore && record.paceTestScore === null) return false;
           return true;
         }),
       ),
@@ -1377,6 +1383,65 @@ describe('pace.record policy — final test prerequisite', () => {
       selfTestScore: 90,
     });
   });
+
+  it('rejects a duplicate SelfTest for the same subject PACE number', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+
+    await caller.pace.record({
+      ...validInput,
+      testType: 'SelfTest',
+      score: 86,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+
+    await expect(
+      caller.pace.record({
+        ...validInput,
+        testType: 'SelfTest',
+        score: 92,
+        completedAt: new Date('2026-04-21T10:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.paceRecord.create).toHaveBeenCalledTimes(1);
+    const denialAudit = auditCalls(db).find(
+      (call) =>
+        call.action === 'PermissionDenied' &&
+        call.entity === 'PaceRecord' &&
+        call.meta?.reason === 'duplicate-self-test',
+    );
+    expect(denialAudit?.meta).toMatchObject({
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      paceNumber: 1001,
+      testType: 'SelfTest',
+    });
+  });
+
+  it('allows multiple FinalTest attempts for the same subject PACE number', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+
+    await caller.pace.record({
+      ...validInput,
+      testType: 'FinalTest',
+      score: 72,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+
+    await expect(
+      caller.pace.record({
+        ...validInput,
+        testType: 'FinalTest',
+        score: 91,
+        completedAt: new Date('2026-04-21T10:00:00.000Z'),
+      }),
+    ).resolves.toMatchObject({
+      paceNumber: 1001,
+      paceTestScore: 91,
+    });
+    expect(db.paceRecord.create).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('pace.record policy — daily limit', () => {
@@ -1978,6 +2043,53 @@ describe('pace.updateRecord', () => {
     });
   });
 
+  it('updates an existing SelfTest in place without creating a duplicate PaceRecord', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const created = await caller.pace.record({
+      ...validInput,
+      testType: 'SelfTest',
+      score: 84,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+    db.paceRecord.create.mockClear();
+
+    const result = await caller.pace.updateRecord({
+      recordId: created.id,
+      score: 91,
+      completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      startedAt: new Date('2026-04-19T00:00:00.000Z'),
+    });
+
+    expect(result).toMatchObject({
+      id: created.id,
+      paceNumber: 1001,
+      selfTestScore: 91,
+      paceTestScore: null,
+    });
+    expect(db.paceRecord.create).not.toHaveBeenCalled();
+    expect(db.paceRecord.update).toHaveBeenCalledWith({
+      where: { id: created.id },
+      data: {
+        selfTestScore: 91,
+        paceTestScore: null,
+        subjectId: SUBJECT_ID,
+        paceNumber: 1001,
+        completedAt: new Date('2026-04-21T00:00:00.000Z'),
+      },
+      select: {
+        id: true,
+        studentId: true,
+        subjectId: true,
+        paceNumber: true,
+        selfTestScore: true,
+        paceTestScore: true,
+        completedAt: true,
+        createdAt: true,
+      },
+    });
+  });
+
   it('updates the subject and PACE number on an existing PACE score', async () => {
     const db = makeFakeDb();
     db.subject.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
@@ -2097,6 +2209,40 @@ describe('pace.updateRecord', () => {
         startedAt: new Date('2026-04-19T00:00:00.000Z'),
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('rejects moving a SelfTest onto an existing SelfTest for the same subject PACE number', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    await caller.pace.record({
+      ...validInput,
+      testType: 'SelfTest',
+      score: 86,
+      paceNumber: 1001,
+      completedAt: new Date('2026-04-20T10:00:00.000Z'),
+    });
+    const moved = await caller.pace.record({
+      ...validInput,
+      testType: 'SelfTest',
+      score: 92,
+      paceNumber: 1002,
+      completedAt: new Date('2026-04-21T10:00:00.000Z'),
+    });
+
+    await expect(
+      caller.pace.updateRecord({
+        recordId: moved.id,
+        paceNumber: 1001,
+        score: 94,
+        completedAt: new Date('2026-04-22T00:00:00.000Z'),
+        startedAt: new Date('2026-04-19T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.paceRecord.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: moved.id },
+      }),
+    );
   });
 
   it('recalculates old and target subject progress when a record moves', async () => {
