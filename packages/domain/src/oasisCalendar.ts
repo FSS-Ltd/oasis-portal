@@ -1,8 +1,9 @@
 export type OasisTermSeason = 'Spring' | 'Summer' | 'Autumn';
+export type OasisTermId = `${string}-${OasisTermSeason}`;
 
 export interface OasisTerm {
   from: Date;
-  id: `${number}-${OasisTermSeason}`;
+  id: OasisTermId;
   label: `${OasisTermSeason} term`;
   season: OasisTermSeason;
   to: Date;
@@ -23,12 +24,13 @@ export function currentOasisTerm(referenceDate: Date = new Date()): OasisTerm {
   }
 
   const year = referenceDate.getUTCFullYear();
+  const yearText = String(year);
   const month = referenceDate.getUTCMonth() + 1;
   if (month >= 9) {
     return {
       season: 'Autumn',
       label: 'Autumn term',
-      id: `${year}-Autumn`,
+      id: `${yearText}-Autumn`,
       from: utcDate(year, 9, 1),
       to: utcDate(year + 1, 1, 1),
     };
@@ -37,7 +39,7 @@ export function currentOasisTerm(referenceDate: Date = new Date()): OasisTerm {
     return {
       season: 'Summer',
       label: 'Summer term',
-      id: `${year}-Summer`,
+      id: `${yearText}-Summer`,
       from: utcDate(year, 4, 1),
       to: utcDate(year, 9, 1),
     };
@@ -46,7 +48,7 @@ export function currentOasisTerm(referenceDate: Date = new Date()): OasisTerm {
   return {
     season: 'Spring',
     label: 'Spring term',
-    id: `${year}-Spring`,
+    id: `${yearText}-Spring`,
     from: utcDate(year, 1, 1),
     to: utcDate(year, 4, 1),
   };
