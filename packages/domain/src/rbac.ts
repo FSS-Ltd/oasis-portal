@@ -213,6 +213,7 @@ export type PostSignInPortal =
   | 'clubs-lead'
   | 'supervisor'
   | 'parent'
+  | 'student'
   | 'not-ready';
 
 export function resolvePostSignInPortal(user: SessionUser | null): PostSignInPortal {
@@ -226,6 +227,7 @@ export function resolvePostSignInPortal(user: SessionUser | null): PostSignInPor
   if (canUseClubsLeadPortal(user)) return 'clubs-lead';
   if (user.role === 'Supervisor') return 'supervisor';
   if (user.role === 'Parent') return 'parent';
+  if (user.role === 'Student') return 'student';
 
   return 'not-ready';
 }
