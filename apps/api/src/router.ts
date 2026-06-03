@@ -29,6 +29,7 @@ import { registrationRouter } from './routers/registration.js';
 import { invoiceRouter } from './routers/invoice.js';
 import { permissionSlipRouter } from './routers/permissionSlip.js';
 import { incidentRouter } from './routers/incident.js';
+import { studentSettingsRouter } from './routers/studentSettings.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -57,6 +58,7 @@ export const appRouter = router({
   invoice: invoiceRouter,
   permissionSlip: permissionSlipRouter,
   incident: incidentRouter,
+  studentSettings: studentSettingsRouter,
 });
 
 export type AppRouter = typeof appRouter;
