@@ -153,12 +153,7 @@ export function canUseClubLeadAccess(user: Pick<SessionUser, 'role' | 'tags'>): 
 
 export function canManageInvoices(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
   if (isFullAdmin(user)) return true;
-  if (
-    user.role === 'Parent' ||
-    user.role === 'Student' ||
-    user.role === 'ClubsLead' ||
-    user.role === 'TechnicalSupport'
-  ) {
+  if (user.role === 'Parent' || user.role === 'Student' || user.role === 'ClubsLead') {
     return false;
   }
   return hasTag(user, 'finance-admin');

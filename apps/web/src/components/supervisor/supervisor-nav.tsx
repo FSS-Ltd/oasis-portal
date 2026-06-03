@@ -12,6 +12,7 @@ import {
   FileText,
   Home,
   MessageSquare,
+  ReceiptText,
   ShieldAlert,
   ShoppingBag,
   Star,
@@ -20,6 +21,7 @@ import {
 const navItems = [
   { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
   { href: '/admin/clubs', label: 'Club Admin', icon: Club, enabled: true },
+  { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText, enabled: true },
   { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
   { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
   { href: '/supervisor/incidents', label: 'Incidents', icon: ShieldAlert, enabled: true },
@@ -37,6 +39,7 @@ const preferredMobileLabels = [
   'Dashboard',
   'Attendance',
   'Behaviour',
+  'Invoices',
   'Merit Shop',
   'Messages',
 ] as const;
@@ -44,6 +47,7 @@ const navIconSize = 15;
 
 type SupervisorNavProps = {
   canManageClubs: boolean;
+  canManageInvoices: boolean;
   canUseShop: boolean;
   unreadMessageCount: number;
   unreadNoticeCount: number;
@@ -76,6 +80,7 @@ function badgeForItem(
 
 export function SupervisorSidebarNav({
   canManageClubs,
+  canManageInvoices,
   canUseShop,
   unreadMessageCount,
   unreadNoticeCount,
@@ -84,6 +89,7 @@ export function SupervisorSidebarNav({
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
+      (item.label !== 'Invoices' || canManageInvoices) &&
       (item.label !== 'Merit Shop' || canUseShop),
   );
 
@@ -116,6 +122,7 @@ export function SupervisorSidebarNav({
 
 export function SupervisorBottomNav({
   canManageClubs,
+  canManageInvoices,
   canUseShop,
   unreadMessageCount,
   unreadNoticeCount,
@@ -124,6 +131,7 @@ export function SupervisorBottomNav({
   const visibleNavItems = navItems.filter(
     (item) =>
       (item.label !== 'Club Admin' || canManageClubs) &&
+      (item.label !== 'Invoices' || canManageInvoices) &&
       (item.label !== 'Merit Shop' || canUseShop),
   );
 
