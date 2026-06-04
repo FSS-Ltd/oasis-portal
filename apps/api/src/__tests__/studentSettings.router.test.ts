@@ -3,6 +3,7 @@ import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import {
   createStudentSettingsRouter,
+  type ChildIconPhotoStorageAdapter,
   type StudentCredentialAdapter,
 } from '../routers/studentSettings.js';
 import { router } from '../trpc.js';
@@ -97,6 +98,13 @@ interface StoredSettings {
   headLockUpdatedAt: Date | null;
   shopBlockUpdatedById: string | null;
   shopBlockUpdatedAt: Date | null;
+  childIconPhotoUrl: string | null;
+  childIconPhotoBucket: string | null;
+  childIconPhotoPathEnc: string | null;
+  childIconPhotoMimeType: string | null;
+  childIconPhotoSizeBytes: number | null;
+  childIconPhotoUpdatedById: string | null;
+  childIconPhotoUpdatedAt: Date | null;
 }
 
 interface FakeDb {
@@ -153,6 +161,13 @@ function makeSettings(studentId: string, overrides: Partial<StoredSettings> = {}
     headLockUpdatedAt: null,
     shopBlockUpdatedById: null,
     shopBlockUpdatedAt: null,
+    childIconPhotoUrl: null,
+    childIconPhotoBucket: null,
+    childIconPhotoPathEnc: null,
+    childIconPhotoMimeType: null,
+    childIconPhotoSizeBytes: null,
+    childIconPhotoUpdatedById: null,
+    childIconPhotoUpdatedAt: null,
     ...overrides,
   };
 }
@@ -293,9 +308,10 @@ function makeCaller(
   user: SessionUser | null,
   db: FakeDb,
   credentialAdapter: StudentCredentialAdapter = { setPassword: vi.fn() },
+  childIconPhotoStorage: ChildIconPhotoStorageAdapter = { assertUploadedPhoto: vi.fn() },
 ) {
   const appRouter = router({
-    studentSettings: createStudentSettingsRouter({ credentialAdapter }),
+    studentSettings: createStudentSettingsRouter({ childIconPhotoStorage, credentialAdapter }),
   });
   return appRouter.createCaller(makeCtx(user, db));
 }
@@ -417,6 +433,88 @@ describe('studentSettings parent procedures', () => {
           call.data.meta?.source === 'studentSettings.setMeritShopBlock',
       ),
     ).toBe(true);
+  });
+
+  it('allows linked supervisors to upload a child icon photo', async () => {
+    const previousSupabaseUrl = process.env['NEXT_PUBLIC_SUPABASE_URL'];
+    process.env['NEXT_PUBLIC_SUPABASE_URL'] = 'https://storage.example';
+    try {
+      const { db, settings } = makeFakeDb();
+      const assertUploadedPhoto = vi.fn().mockResolvedValue(undefined);
+      const caller = makeCaller(
+        supervisorUser,
+        db,
+        { setPassword: vi.fn() },
+        { assertUploadedPhoto },
+      );
+
+      const prepared = await caller.studentSettings.prepareChildIconPhotoUpload({
+        studentId: childStudentId,
+        photo: {
+          fileName: 'jamie.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: 1234,
+        },
+      });
+
+      expect(prepared).toMatchObject({
+        fileName: 'jamie.jpg',
+        mimeType: 'image/jpeg',
+        sizeBytes: 1234,
+        storageBucket: 'child-icon-photos',
+      });
+      expect(prepared.storagePath).toMatch(
+        /^student-icons\/user_supervisor\/student_child\/.+-jamie\.jpg$/u,
+      );
+
+      await expect(
+        caller.studentSettings.updateChildIconPhoto({
+          studentId: childStudentId,
+          photo: {
+            fileName: prepared.fileName,
+            mimeType: prepared.mimeType,
+            sizeBytes: prepared.sizeBytes,
+            storageBucket: prepared.storageBucket,
+            storagePath: prepared.storagePath,
+          },
+        }),
+      ).resolves.toMatchObject({
+        studentId: childStudentId,
+        childIconPhotoUrl: prepared.publicUrl,
+      });
+
+      expect(assertUploadedPhoto).toHaveBeenCalledWith({
+        fileName: prepared.fileName,
+        mimeType: prepared.mimeType,
+        sizeBytes: prepared.sizeBytes,
+        storageBucket: prepared.storageBucket,
+        storagePath: prepared.storagePath,
+      });
+      expect(settings.get(childStudentId)).toMatchObject({
+        childIconPhotoUrl: prepared.publicUrl,
+        childIconPhotoBucket: 'child-icon-photos',
+        childIconPhotoPathEnc: `enc:${prepared.storagePath}`,
+        childIconPhotoMimeType: 'image/jpeg',
+        childIconPhotoSizeBytes: 1234,
+        childIconPhotoUpdatedById: supervisorUser.id,
+      });
+      expect(
+        auditCalls(db).some(
+          (call) =>
+            call.data.userId === supervisorUser.id &&
+            call.data.action === 'Update' &&
+            call.data.entity === 'StudentPortalSettings' &&
+            call.data.entityId === childStudentId &&
+            call.data.meta?.source === 'studentSettings.updateChildIconPhoto',
+        ),
+      ).toBe(true);
+    } finally {
+      if (previousSupabaseUrl === undefined) {
+        delete process.env['NEXT_PUBLIC_SUPABASE_URL'];
+      } else {
+        process.env['NEXT_PUBLIC_SUPABASE_URL'] = previousSupabaseUrl;
+      }
+    }
   });
 
   it('blocks supervisors from managing unlinked children', async () => {

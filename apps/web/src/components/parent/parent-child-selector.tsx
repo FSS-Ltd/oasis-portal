@@ -6,6 +6,7 @@ import { avatarColour, firstName, getInitials, SNAPSHOT_AVATAR_COLOURS } from '@
 
 export interface ParentChildSelectorOption {
   fullName: string;
+  iconPhotoUrl?: string | null;
   id: string;
   yearGroup: string;
 }
@@ -44,7 +45,15 @@ export function ParentChildSelector({
               style={{ '--student-colour': colour } as CSSProperties}
               type="button"
             >
-              <small>{getInitials(child.fullName)}</small>
+              {child.iconPhotoUrl ? (
+                <span
+                  aria-hidden="true"
+                  className="parent-child-selector__photo"
+                  style={{ backgroundImage: `url("${child.iconPhotoUrl}")` }}
+                />
+              ) : (
+                <small>{getInitials(child.fullName)}</small>
+              )}
               <strong>{firstName(child.fullName)}</strong>
               <em>{displaySchoolYearLabel(child.yearGroup)}</em>
             </button>

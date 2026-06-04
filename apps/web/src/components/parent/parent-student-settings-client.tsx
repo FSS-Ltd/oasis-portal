@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   CircleSlash,
   Clock3,
+  Image as ImageIcon,
   KeyRound,
   Lock,
   ShieldCheck,
@@ -19,6 +20,10 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
 import { Panel } from '@/components/ui/panel';
+import {
+  ChildIconPhotoUploadButton,
+  type ChildIconPhotoUploadPayload,
+} from './child-icon-photo-upload';
 import { ParentChildSelector } from './parent-child-selector';
 
 type LinkedChildSettings = RouterOutputs['studentSettings']['listLinkedChildren'][number];
@@ -99,7 +104,7 @@ function SettingsStatusCard({ child }: { child: LinkedChildSettings }) {
   return (
     <Panel body className="parent-settings-status">
       <div className="parent-settings-status__head">
-        <Avatar name={child.fullName} />
+        <ChildIconPreview child={child} />
         <div>
           <strong>{child.fullName}</strong>
           <span>{displaySchoolYearLabel(child.yearGroup)}</span>
@@ -150,6 +155,20 @@ function SettingsStatusCard({ child }: { child: LinkedChildSettings }) {
       ) : null}
     </Panel>
   );
+}
+
+function ChildIconPreview({ child }: { child: LinkedChildSettings }) {
+  if (child.childIconPhotoUrl) {
+    return (
+      <span
+        aria-hidden="true"
+        className="parent-settings-child-icon__photo"
+        style={{ backgroundImage: `url("${child.childIconPhotoUrl}")` }}
+      />
+    );
+  }
+
+  return <Avatar className="parent-settings-child-icon__fallback" name={child.fullName} />;
 }
 
 function PanelTitle({ children, icon, sub }: { children: string; icon: ReactNode; sub: string }) {
@@ -477,6 +496,81 @@ function UsageLimitsPanel({
   );
 }
 
+function ChildIconPanel({
+  child,
+  disabled,
+  onSaved,
+}: {
+  child: LinkedChildSettings;
+  disabled: boolean;
+  onSaved: (child: LinkedChildSettings) => void;
+}) {
+  const utils = api.useUtils();
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    setError(null);
+    setSuccess(null);
+  }, [child.studentId, child.childIconPhotoUrl]);
+
+  const updateChildIconPhoto = api.studentSettings.updateChildIconPhoto.useMutation({
+    onError(errorValue) {
+      showErrorToast(errorValue, 'Child icon photo could not be saved.');
+    },
+    async onSuccess(updated) {
+      onSaved(updated);
+      setSuccess('Child icon photo saved.');
+      showSuccessToast('Child icon photo saved.');
+      await utils.studentSettings.listLinkedChildren.invalidate();
+    },
+  });
+
+  async function saveUploadedPhoto(photo: ChildIconPhotoUploadPayload): Promise<void> {
+    setError(null);
+    setSuccess(null);
+    await updateChildIconPhoto.mutateAsync({
+      photo: {
+        fileName: photo.fileName,
+        mimeType: photo.mimeType,
+        sizeBytes: photo.sizeBytes,
+        storageBucket: photo.storageBucket,
+        storagePath: photo.storagePath,
+      },
+      studentId: child.studentId,
+    });
+  }
+
+  return (
+    <Panel body className="parent-settings-panel parent-settings-child-icon">
+      <PanelTitle
+        icon={<ImageIcon aria-hidden="true" size={17} />}
+        sub="Upload a photo used as this child's portal icon."
+      >
+        Child icon
+      </PanelTitle>
+      <div className="parent-settings-child-icon__body">
+        <ChildIconPreview child={child} />
+        <div>
+          <strong>{child.childIconPhotoUrl ? 'Photo set' : 'Initials shown'}</strong>
+          <span>JPEG, PNG, or WebP. Maximum 5 MB.</span>
+        </div>
+        <ChildIconPhotoUploadButton
+          disabled={disabled || updateChildIconPhoto.isPending}
+          onError={(message) => {
+            setError(message);
+            showErrorToast(message, 'Child icon photo could not be uploaded.');
+          }}
+          onUploaded={saveUploadedPhoto}
+          studentId={child.studentId}
+        />
+      </div>
+      {error ? <p className="status--error">{error}</p> : null}
+      <InlineStatus error={updateChildIconPhoto.error} success={success} />
+    </Panel>
+  );
+}
+
 function AccessPanel({
   child,
   disabled,
@@ -637,6 +731,7 @@ export function ParentStudentSettingsClient() {
 
   const childOptions = children.map((child) => ({
     fullName: child.fullName,
+    iconPhotoUrl: child.childIconPhotoUrl,
     id: child.studentId,
     yearGroup: child.yearGroup,
   }));
@@ -675,6 +770,11 @@ export function ParentStudentSettingsClient() {
             onSaved={updateCachedChild}
           />
           <UsageLimitsPanel
+            child={selectedChild}
+            disabled={controlsDisabled}
+            onSaved={updateCachedChild}
+          />
+          <ChildIconPanel
             child={selectedChild}
             disabled={controlsDisabled}
             onSaved={updateCachedChild}

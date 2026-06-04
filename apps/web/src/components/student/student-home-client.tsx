@@ -52,9 +52,17 @@ function StudentHero({
   return (
     <section className="student-hero">
       <div className="student-hero__identity">
-        <span className="student-hero__icon" aria-hidden="true">
-          {profile.iconInitials}
-        </span>
+        {profile.childIconPhotoUrl ? (
+          <span
+            aria-hidden="true"
+            className="student-hero__photo"
+            style={{ backgroundImage: `url("${profile.childIconPhotoUrl}")` }}
+          />
+        ) : (
+          <span className="student-hero__icon" aria-hidden="true">
+            {profile.iconInitials}
+          </span>
+        )}
         <div>
           <p>Student Portal</p>
           <h1>Hi, {profile.firstName}</h1>

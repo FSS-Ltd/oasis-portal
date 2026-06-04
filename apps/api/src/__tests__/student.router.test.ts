@@ -65,6 +65,7 @@ interface StoredStudentPortalSettings {
   hourlyUsageLimitMinutes: number | null;
   dailyUsageLimitMinutes: number | null;
   weeklyUsageLimitMinutes: number | null;
+  childIconPhotoUrl: string | null;
 }
 
 interface StoredStudentPortalUsageMinute {
@@ -106,7 +107,9 @@ interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
 
-type StudentSelect = Partial<Record<keyof StoredStudent, boolean>>;
+type StudentSelect = Partial<Record<keyof StoredStudent, boolean>> & {
+  portalSettings?: { select: { childIconPhotoUrl?: boolean } };
+};
 
 interface StoredYearGroupBand {
   id: string;
@@ -182,8 +185,14 @@ function makeRow(
   };
 }
 
-function selectedStudent(student: StoredStudent, select: StudentSelect): Partial<StoredStudent> {
-  const row: Partial<StoredStudent> = {};
+function selectedStudent(
+  student: StoredStudent,
+  select: StudentSelect,
+  portalSettings: StoredStudentPortalSettings[],
+): Partial<StoredStudent> & { portalSettings?: { childIconPhotoUrl: string | null } | null } {
+  const row: Partial<StoredStudent> & {
+    portalSettings?: { childIconPhotoUrl: string | null } | null;
+  } = {};
   if (select.id) row.id = student.id;
   if (select.userId) row.userId = student.userId;
   if (select.fullNameEnc) row.fullNameEnc = student.fullNameEnc;
@@ -195,6 +204,10 @@ function selectedStudent(student: StoredStudent, select: StudentSelect): Partial
   if (select.active) row.active = student.active;
   if (select.createdAt) row.createdAt = student.createdAt;
   if (select.updatedAt) row.updatedAt = student.updatedAt;
+  if (select.portalSettings) {
+    const settings = portalSettings.find((item) => item.studentId === student.id) ?? null;
+    row.portalSettings = settings ? { childIconPhotoUrl: settings.childIconPhotoUrl } : null;
+  }
   return row;
 }
 
@@ -210,6 +223,7 @@ function makePortalSettings(
     hourlyUsageLimitMinutes: null,
     dailyUsageLimitMinutes: null,
     weeklyUsageLimitMinutes: null,
+    childIconPhotoUrl: null,
     ...input,
   };
 }
@@ -345,7 +359,7 @@ function makeFakeDb(
               (where.userId !== undefined && candidate.userId === where.userId),
           );
           if (!student) return Promise.resolve(null);
-          if (select) return Promise.resolve(selectedStudent(student, select));
+          if (select) return Promise.resolve(selectedStudent(student, select, portalSettings));
           return Promise.resolve(makeRow(student, assignments, subjects));
         },
       ),
@@ -836,6 +850,12 @@ describe('student.dashboard', () => {
           { studentId, completedAt: new Date('2026-05-01T10:00:00.000Z') },
           { studentId, completedAt: null },
         ],
+        portalSettings: [
+          {
+            studentId,
+            childIconPhotoUrl: 'https://storage.example/student-icons/child.jpg',
+          },
+        ],
         shopItems: [{ active: true }, { active: false }],
       });
       const headCaller = await linkCreatedStudent(db, students);
@@ -848,6 +868,7 @@ describe('student.dashboard', () => {
           studentId,
           firstName: 'Jane',
           iconInitials: 'JA',
+          childIconPhotoUrl: 'https://storage.example/student-icons/child.jpg',
           yearGroup: 'Year 6',
           yearGroupLabel: 'Level 6',
           ageBand: '11-13',

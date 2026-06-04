@@ -393,6 +393,7 @@ export const studentRouter = router({
         fullNameEnc: true,
         dobEnc: true,
         yearGroup: true,
+        portalSettings: { select: { childIconPhotoUrl: true } },
       },
     });
     if (!student) {
@@ -421,6 +422,7 @@ export const studentRouter = router({
         studentId: ownStudent.id,
         firstName,
         iconInitials: studentIconInitials(firstName),
+        childIconPhotoUrl: student.portalSettings?.childIconPhotoUrl ?? null,
         yearGroup: student.yearGroup,
         yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
         ageBand: ageBandFromDob(dob),
