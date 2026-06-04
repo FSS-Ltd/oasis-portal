@@ -1136,6 +1136,216 @@
   white-space: nowrap;
 }
 
+.student-clubs-page {
+  gap: 16px;
+}
+
+.student-clubs-hero__meta {
+  display: grid;
+  min-width: 148px;
+  place-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  text-align: center;
+}
+
+.student-clubs-hero__meta small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-clubs-hero__meta strong {
+  font-size: 1.2rem;
+}
+
+.student-clubs-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.student-clubs-list {
+  display: grid;
+  gap: 8px;
+}
+
+.student-club-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-text);
+  font: inherit;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(27, 43, 94, 0.06);
+}
+
+.student-club-card.is-active {
+  border-color: var(--oasis-blue);
+  box-shadow: 0 0 0 3px var(--oasis-blue-light);
+}
+
+.student-club-card__icon {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--oasis-navy);
+  color: #ffffff;
+}
+
+.student-club-card strong,
+.student-club-card small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-club-card strong {
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+}
+
+.student-club-card small {
+  margin-top: 2px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.student-club-detail {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-club-detail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-club-detail__head p,
+.student-club-detail__head h2,
+.student-club-detail__head span {
+  margin: 0;
+}
+
+.student-club-detail__head p {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-club-detail__head h2 {
+  margin-top: 3px;
+  color: var(--oasis-navy);
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.student-club-detail__head span {
+  display: block;
+  margin-top: 6px;
+  color: var(--oasis-text-secondary);
+  line-height: 1.5;
+}
+
+.student-club-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.student-club-facts span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f7faff;
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.student-club-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.student-club-notices {
+  display: grid;
+  gap: 10px;
+}
+
+.student-club-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.student-club-notice svg {
+  flex: 0 0 auto;
+  color: var(--oasis-blue);
+}
+
+.student-club-notice strong,
+.student-club-notice p,
+.student-club-notice time {
+  display: block;
+  margin: 0;
+}
+
+.student-club-notice strong {
+  color: var(--oasis-navy);
+  font-size: 0.92rem;
+}
+
+.student-club-notice p {
+  margin-top: 4px;
+  color: var(--oasis-text-secondary);
+  line-height: 1.55;
+}
+
+.student-club-notice time {
+  margin-top: 6px;
+  color: var(--oasis-text-muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
 .student-placeholder-page__header {
   display: grid;
   gap: 4px;
@@ -1234,7 +1444,8 @@
   }
 
   .student-dashboard-main,
-  .student-attendance-layout {
+  .student-attendance-layout,
+  .student-clubs-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1284,6 +1495,15 @@
 
   .student-attendance-record span:not(.badge) {
     white-space: normal;
+  }
+
+  .student-club-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .student-club-card,
+  .student-club-detail__head {
+    align-items: flex-start;
   }
 
   .student-state-card {
