@@ -14475,6 +14475,14 @@ button.club-assignment-row {
   min-width: 1120px;
 }
 
+.student-portal-admin-row--action {
+  cursor: pointer;
+}
+
+.student-portal-admin-row--action:hover {
+  background: #f8fbff;
+}
+
 .student-registration-table-wrap {
   overflow-x: auto;
 }
