@@ -31,7 +31,7 @@ import {
   assertUploadedShopItemPhoto,
   type UploadedShopItemPhoto,
 } from '../services/shop-item-photo-storage.js';
-import { authedProcedure, router } from '../trpc.js';
+import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 interface LooseShopItemDraft {
@@ -46,6 +46,7 @@ interface LooseShopItemDraft {
   lowStockThreshold?: number | null | undefined;
 }
 type ShopReservationStatus = 'Ready' | 'Collected' | 'Cancelled';
+const STUDENT_SHOP_HISTORY_LIMIT = 20;
 
 interface ShopItemRow {
   id: string;
@@ -75,6 +76,18 @@ interface PurchaseItemRow {
   priceIncVat: number;
   stockCount: number;
   active: boolean;
+}
+
+interface StudentShopPurchaseRow {
+  id: string;
+  itemId: string;
+  unitsBought: number;
+  totalPriceMerits: number;
+  createdAt: Date;
+  item: Pick<
+    ShopItemRow,
+    'id' | 'name' | 'photoUrl' | 'category' | 'priceIncVat' | 'active' | 'stockCount' | 'lowStockThreshold'
+  >;
 }
 
 interface PurchaserStudentRow {
@@ -204,6 +217,26 @@ export interface ShopReservationDto {
   createdAt: Date;
   updatedAt: Date;
   lines: ShopReservationLineDto[];
+}
+
+export interface StudentShopPurchaseDto {
+  id: string;
+  itemId: string;
+  itemName: string;
+  itemPhotoUrl: string | null;
+  category: ShopCategory;
+  categoryLabel: string;
+  categoryTint: string;
+  categoryInk: string;
+  unitsBought: number;
+  totalPriceMerits: number;
+  createdAt: Date;
+}
+
+export interface StudentShopHistoryDto {
+  studentId: string;
+  reservations: ShopReservationDto[];
+  purchases: StudentShopPurchaseDto[];
 }
 
 const shopCategorySchema = z.enum(SHOP_CATEGORIES);
@@ -476,13 +509,17 @@ function mapItem(row: ShopItemRow, soldCount: number): ShopItemDto {
 }
 
 function mapReservation(ctx: AuthedContext, row: ReservationRow): ShopReservationDto {
-  const studentName = decryptStudentName(ctx, row.student);
+  const fullName = decryptStudentName(ctx, row.student);
+  const studentName = ctx.user.role === 'Student' ? firstNameFrom(fullName) : fullName;
   return {
     id: row.id,
     studentId: row.studentId,
     studentName,
     studentYearGroup: row.student.yearGroup,
-    reservedById: row.reservedById,
+    reservedById:
+      ctx.user.role === 'Student' && row.reservedById !== ctx.user.id
+        ? 'parent-or-carer'
+        : row.reservedById,
     status: row.status,
     totalPriceMerits: row.totalPriceMerits,
     collectedAt: row.collectedAt,
@@ -510,12 +547,33 @@ function mapReservation(ctx: AuthedContext, row: ReservationRow): ShopReservatio
   };
 }
 
+function mapStudentShopPurchase(row: StudentShopPurchaseRow): StudentShopPurchaseDto {
+  const details = categoryDetails(row.item.category);
+  return {
+    id: row.id,
+    itemId: row.itemId,
+    itemName: row.item.name,
+    itemPhotoUrl: row.item.photoUrl,
+    category: row.item.category,
+    categoryLabel: details.label,
+    categoryTint: details.tint,
+    categoryInk: details.ink,
+    unitsBought: row.unitsBought,
+    totalPriceMerits: row.totalPriceMerits,
+    createdAt: row.createdAt,
+  };
+}
+
 function decryptStudentName(ctx: AuthedContext, student: PurchaserStudentRow): string {
   const fullName = ctx.db.$enc.decrypt(student.fullNameEnc);
   if (!fullName) {
     throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
   }
   return fullName;
+}
+
+function firstNameFrom(fullName: string): string {
+  return fullName.trim().split(/\s+/u).find(Boolean) ?? 'Student';
 }
 
 function draftInput(input: LooseShopItemDraft): ShopItemDraft {
@@ -875,6 +933,7 @@ export const shopRouter = router({
     if (ctx.user.role === 'Student') {
       const student = await loadOwnActiveStudent(ctx);
       await assertStudentPortalAccess(ctx, { entity: 'shop.listItems', studentId: student.id });
+      await assertStudentMeritShopAccess(ctx, { entity: 'shop.listItems', studentId: student.id });
     }
 
     const items = (await ctx.db.shopItem.findMany({
@@ -915,13 +974,18 @@ export const shopRouter = router({
   }),
 
   listReservations: authedProcedure.input(listReservationsInput).query(async ({ ctx, input }) => {
-    const baseWhere = requireReservationListAccess(ctx);
+    let baseWhere = requireReservationListAccess(ctx);
     if (ctx.user.role === 'Student') {
       const student = await loadOwnActiveStudent(ctx);
       await assertStudentPortalAccess(ctx, {
         entity: 'shop.listReservations',
         studentId: student.id,
       });
+      await assertStudentMeritShopAccess(ctx, {
+        entity: 'shop.listReservations',
+        studentId: student.id,
+      });
+      baseWhere = { studentId: student.id };
     }
     const where: Prisma.ShopReservationWhereInput = {
       ...baseWhere,
@@ -936,6 +1000,52 @@ export const shopRouter = router({
     const rows = reservations.map((reservation) => mapReservation(ctx, reservation));
     await auditReservationListDecrypt(ctx, rows.length);
     return rows satisfies ShopReservationDto[];
+  }),
+
+  studentHistory: roleProcedure('Student').query(async ({ ctx }) => {
+    const student = await loadOwnActiveStudent(ctx);
+    await assertStudentPortalAccess(ctx, { entity: 'shop.studentHistory', studentId: student.id });
+    await assertStudentMeritShopAccess(ctx, {
+      entity: 'shop.studentHistory',
+      studentId: student.id,
+    });
+
+    const [reservations, purchases] = await Promise.all([
+      ctx.db.shopReservation.findMany({
+        where: { studentId: student.id },
+        include: reservationInclude,
+        orderBy: { createdAt: 'desc' },
+        take: STUDENT_SHOP_HISTORY_LIMIT,
+      }),
+      ctx.db.shopPurchase.findMany({
+        where: { studentId: student.id },
+        include: {
+          item: {
+            select: {
+              id: true,
+              name: true,
+              photoUrl: true,
+              category: true,
+              priceIncVat: true,
+              active: true,
+              stockCount: true,
+              lowStockThreshold: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: STUDENT_SHOP_HISTORY_LIMIT,
+      }),
+    ]);
+    const reservationRows = (reservations as ReservationRow[]).map((reservation) =>
+      mapReservation(ctx, reservation),
+    );
+    await auditReservationListDecrypt(ctx, reservationRows.length);
+    return {
+      studentId: student.id,
+      reservations: reservationRows,
+      purchases: (purchases as StudentShopPurchaseRow[]).map(mapStudentShopPurchase),
+    } satisfies StudentShopHistoryDto;
   }),
 
   createItem: authedProcedure.input(createItemInput).mutation(async ({ ctx, input }) => {

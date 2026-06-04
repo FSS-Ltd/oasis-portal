@@ -239,8 +239,24 @@ interface FakeShopPurchaseCreateManyArgs {
 }
 
 interface FakeShopPurchaseFindManyArgs {
-  where: { itemId: { in: string[] } };
-  select: { itemId: true; unitsBought: true };
+  where: { itemId?: { in: string[] }; studentId?: string };
+  select?: { itemId: true; unitsBought: true };
+  include?: {
+    item: {
+      select: {
+        id: true;
+        name: true;
+        photoUrl: true;
+        category: true;
+        priceIncVat: true;
+        active: true;
+        stockCount: true;
+        lowStockThreshold: true;
+      };
+    };
+  };
+  orderBy?: { createdAt: 'desc' };
+  take?: number;
 }
 
 interface FakeGuardianFindUniqueArgs {
@@ -249,7 +265,8 @@ interface FakeGuardianFindUniqueArgs {
 }
 
 interface FakeShopReservationFindManyArgs {
-  where: { status?: ShopReservationStatus; reservedById?: string };
+  where: { status?: ShopReservationStatus; reservedById?: string; studentId?: string };
+  take?: number;
 }
 
 interface FakeShopReservationFindUniqueArgs {
@@ -618,14 +635,46 @@ function makeFakeDb(
     },
     shopPurchase: {
       findMany: vi.fn((args: FakeShopPurchaseFindManyArgs) => {
-        const itemIds = new Set(args.where.itemId.in);
-        return Promise.resolve(
-          purchases
-            .filter((purchase) => itemIds.has(purchase.itemId))
-            .map((purchase) => ({
+        const filtered = purchases.filter((purchase) => {
+          if (args.where.itemId) return args.where.itemId.in.includes(purchase.itemId);
+          if (args.where.studentId) return purchase.studentId === args.where.studentId;
+          return true;
+        });
+        const sorted =
+          args.orderBy?.createdAt === 'desc'
+            ? [...filtered].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            : filtered;
+        const rows = args.take === undefined ? sorted : sorted.slice(0, args.take);
+        if (args.select) {
+          return Promise.resolve(
+            rows.map((purchase) => ({
               itemId: purchase.itemId,
               unitsBought: purchase.unitsBought,
             })),
+          );
+        }
+        return Promise.resolve(
+          rows.map((purchase) => {
+            const item = items.find((row) => row.id === purchase.itemId);
+            if (!item) throw new Error('missing purchase item');
+            return {
+              id: purchase.id,
+              itemId: purchase.itemId,
+              unitsBought: purchase.unitsBought,
+              totalPriceMerits: purchase.totalPriceMerits,
+              createdAt: purchase.createdAt,
+              item: {
+                id: item.id,
+                name: item.name,
+                photoUrl: item.photoUrl,
+                category: item.category,
+                priceIncVat: item.priceIncVat,
+                active: item.active,
+                stockCount: item.stockCount,
+                lowStockThreshold: item.lowStockThreshold,
+              },
+            };
+          }),
         );
       }),
       create: vi.fn((args: FakeShopPurchaseCreateArgs) => {
@@ -670,12 +719,14 @@ function makeFakeDb(
           if (args.where.reservedById && reservation.reservedById !== args.where.reservedById) {
             return false;
           }
+          if (args.where.studentId && reservation.studentId !== args.where.studentId) return false;
           return true;
         });
+        const rows = filtered
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .map(selectReservation);
         return Promise.resolve(
-          filtered
-            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .map(selectReservation),
+          args.take === undefined ? rows : rows.slice(0, args.take),
         );
       }),
       findUnique: vi.fn((args: FakeShopReservationFindUniqueArgs) => {
@@ -903,6 +954,28 @@ describe('shop.listItems', () => {
           reason: 'AccountLocked',
           lockSource: 'HeadAcademic',
         }) as unknown,
+      }),
+    );
+  });
+
+  it('blocks shop-blocked Student users from reading shop items', async () => {
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, active: true })],
+      portalSettings: [{ studentId: linkedStudentId, parentMeritShopBlocked: true }],
+      students: [{ id: linkedStudentId, userId: studentUser.id }],
+    });
+
+    await expect(makeCaller(studentUser, db).caller.shop.listItems()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Merit Shop access is blocked by a parent or carer.',
+    });
+    expect(db.shopItem.findMany).not.toHaveBeenCalled();
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.listItems',
+        entityId: linkedStudentId,
+        meta: expect.objectContaining({ reason: 'ParentShopBlock' }) as unknown,
       }),
     );
   });
@@ -1361,6 +1434,27 @@ describe('shop reservations', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
+  it('returns first-name-only reservation data to Student callers', async () => {
+    const db = makeFakeDb({
+      students: [{ id: linkedStudentId, userId: studentUser.id, fullNameEnc: 'Joshua Johnson' }],
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+      ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+    });
+
+    const reservation = await makeCaller(studentUser, db).caller.shop.reserve({
+      studentId: linkedStudentId,
+      lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+    });
+
+    expect(reservation).toMatchObject({
+      studentId: linkedStudentId,
+      reservedById: studentUser.id,
+      studentName: 'Joshua',
+      totalPriceMerits: 20,
+    });
+    expect(JSON.stringify(reservation)).not.toContain('Johnson');
+  });
+
   it('blocks parent and student reservations when portal policy blocks shop use', async () => {
     const parentDb = makeFakeDb({
       items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
@@ -1580,6 +1674,93 @@ describe('shop reservations', () => {
       {
         id: 'ckshopreserve000000001',
         reservedById: parentUser.id,
+      },
+    ]);
+  });
+
+  it('lets students see their shop history without exposing parent ids or surnames', async () => {
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 1 })],
+      students: [{ id: linkedStudentId, userId: studentUser.id, fullNameEnc: 'Joshua Johnson' }],
+      reservations: [
+        makeReservation({
+          id: 'ckshopreserve000000001',
+          studentId: linkedStudentId,
+          reservedById: parentUser.id,
+          createdAt: new Date('2026-06-01T10:00:00.000Z'),
+        }),
+        makeReservation({
+          id: 'ckshopreserve000000002',
+          studentId: linkedStudentId,
+          reservedById: studentUser.id,
+          createdAt: new Date('2026-06-02T10:00:00.000Z'),
+        }),
+      ],
+      reservationLines: [
+        makeReservationLine({
+          id: 'ckshopresline000000001',
+          reservationId: 'ckshopreserve000000001',
+          itemId: shopItemId,
+        }),
+        makeReservationLine({
+          id: 'ckshopresline000000002',
+          reservationId: 'ckshopreserve000000002',
+          itemId: shopItemId,
+        }),
+      ],
+      purchases: [
+        {
+          id: 'ckshoppurchase000000001',
+          studentId: linkedStudentId,
+          itemId: shopItemId,
+          unitsBought: 1,
+          totalPriceMerits: 20,
+          shopkeeperId: shopkeeperUser.id,
+          createdAt: new Date('2026-06-03T10:00:00.000Z'),
+        },
+      ],
+    });
+
+    const history = await makeCaller(studentUser, db).caller.shop.studentHistory();
+
+    expect(history).toMatchObject({
+      studentId: linkedStudentId,
+      reservations: [
+        {
+          id: 'ckshopreserve000000002',
+          reservedById: studentUser.id,
+          studentName: 'Joshua',
+        },
+        {
+          id: 'ckshopreserve000000001',
+          reservedById: 'parent-or-carer',
+          studentName: 'Joshua',
+        },
+      ],
+      purchases: [
+        {
+          id: 'ckshoppurchase000000001',
+          itemName: 'Notebook',
+          unitsBought: 1,
+          totalPriceMerits: 20,
+        },
+      ],
+    });
+    const historyJson = JSON.stringify(history);
+    expect(historyJson).not.toContain('Johnson');
+    expect(historyJson).not.toContain(parentUser.id);
+    expect(historyJson).not.toContain(shopkeeperUser.id);
+
+    await expect(makeCaller(studentUser, db).caller.shop.listReservations()).resolves.toMatchObject([
+      {
+        id: 'ckshopreserve000000002',
+        reservedById: studentUser.id,
+        studentName: 'Joshua',
+      },
+      {
+        id: 'ckshopreserve000000001',
+        reservedById: 'parent-or-carer',
+        studentName: 'Joshua',
       },
     ]);
   });
