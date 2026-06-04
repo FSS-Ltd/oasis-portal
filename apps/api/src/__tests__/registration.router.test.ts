@@ -125,36 +125,53 @@ function validStudentSelfRegistrationPayload(registrationCode: string) {
     email: 'student@example.com',
     yearGroup: 'Year 6' as const,
     registrationCode,
+    parentLinks: [
+      {
+        parentName: 'Parent One',
+        parentEmail: 'parent@example.com',
+        existingAccount: false,
+      },
+    ],
   };
 }
 
 function makeFakeDb() {
   const users: Array<{
     id: string;
+    role: SessionUser['role'];
+    active: boolean;
     emailBidx?: string | undefined;
     childRegistrationPromptStatus: string;
     childRegistrationPromptAnsweredAt: Date | null;
   }> = [
     {
       id: parentUser.id,
-      emailBidx: undefined,
+      role: parentUser.role,
+      active: true,
+      emailBidx: blindIndex('parent@example.com'),
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
     {
       id: otherParentUser.id,
-      emailBidx: undefined,
+      role: otherParentUser.role,
+      active: true,
+      emailBidx: blindIndex('other-parent@example.com'),
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
     {
       id: headUser.id,
+      role: headUser.role,
+      active: true,
       emailBidx: undefined,
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
     {
       id: studentUser.id,
+      role: studentUser.role,
+      active: true,
       emailBidx: undefined,
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
@@ -170,6 +187,7 @@ function makeFakeDb() {
   const consents: Array<Record<string, unknown>> = [];
   const studentRegistrationCodes: Array<Record<string, unknown>> = [];
   const studentSelfRegistrations: Array<Record<string, unknown>> = [];
+  const studentParentLinkRequests: Array<Record<string, unknown>> = [];
   const userInvitations: Array<Record<string, unknown>> = [];
 
   function buildRegistrationRow(registration: Record<string, unknown>) {
@@ -222,6 +240,22 @@ function makeFakeDb() {
         userInvitations.find(
           (invitation) => invitation.studentSelfRegistrationId === registration.id,
         ) ?? null,
+      parentLinkRequests: studentParentLinkRequests.filter(
+        (request) => request.studentSelfRegistrationId === registration.id,
+      ),
+    };
+  }
+
+  function buildParentLinkRequestRow(request: Record<string, unknown>) {
+    const registration = studentSelfRegistrations.find(
+      (candidate) => candidate.id === request.studentSelfRegistrationId,
+    );
+    const student = students.find((candidate) => candidate.id === request.studentId);
+    if (!registration) throw new Error('self registration not found for link request');
+    return {
+      ...request,
+      studentSelfRegistration: registration,
+      student: student ?? null,
     };
   }
 
@@ -351,6 +385,20 @@ function makeFakeDb() {
         guardians.push(guardian);
         return Promise.resolve({ id: guardian.id });
       }),
+      createMany: vi.fn(
+        ({ data }: { data: Array<Record<string, unknown>>; skipDuplicates: true }) => {
+          let count = 0;
+          for (const row of data) {
+            const duplicate = guardians.some(
+              (guardian) => guardian.userId === row.userId && guardian.studentId === row.studentId,
+            );
+            if (duplicate) continue;
+            guardians.push({ id: `guardian_${String(guardians.length + 1)}`, ...row });
+            count += 1;
+          }
+          return Promise.resolve({ count });
+        },
+      ),
     },
     student: {
       create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -450,6 +498,33 @@ function makeFakeDb() {
           ...data,
         };
         studentSelfRegistrations.push(registration);
+        const parentLinkCreate = data.parentLinkRequests as
+          | { create?: Array<Record<string, unknown>> }
+          | undefined;
+        for (const request of parentLinkCreate?.create ?? []) {
+          studentParentLinkRequests.push({
+            id: `parent_link_${String(studentParentLinkRequests.length + 1)}`,
+            studentSelfRegistrationId: registration.id,
+            studentId: null,
+            status: 'Pending',
+            confirmedAt: null,
+            rejectedAt: null,
+            invitedAt: null,
+            createdAt: new Date('2026-04-27T10:00:00.000Z'),
+            updatedAt: new Date('2026-04-27T10:00:00.000Z'),
+            targetUserId:
+              typeof request.targetUser === 'object' &&
+              request.targetUser !== null &&
+              'connect' in request.targetUser &&
+              typeof request.targetUser.connect === 'object' &&
+              request.targetUser.connect !== null &&
+              'id' in request.targetUser.connect
+                ? request.targetUser.connect.id
+                : null,
+            ...request,
+            targetUser: undefined,
+          });
+        }
         return Promise.resolve(registration);
       }),
       findFirst: vi.fn(({ where }: { where: { emailBidx: string; status?: { in: string[] } } }) =>
@@ -530,6 +605,108 @@ function makeFakeDb() {
           if (!invitation) return Promise.reject(new Error('invitation not found'));
           Object.assign(invitation, data);
           return Promise.resolve({ id: invitation.id });
+        },
+      ),
+    },
+    studentParentLinkRequest: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            targetUserId?: string | { not: null };
+            status?: string;
+            studentSelfRegistrationId?: string;
+            studentId?: string | null;
+            existingAccount?: boolean;
+          };
+        }) =>
+          Promise.resolve(
+            studentParentLinkRequests
+              .filter((request) => {
+                if (where?.targetUserId !== undefined) {
+                  if (typeof where.targetUserId === 'object' && 'not' in where.targetUserId) {
+                    if (request.targetUserId === where.targetUserId.not) return false;
+                  } else if (request.targetUserId !== where.targetUserId) {
+                    return false;
+                  }
+                }
+                if (where?.status !== undefined && request.status !== where.status) return false;
+                if (
+                  where?.studentSelfRegistrationId !== undefined &&
+                  request.studentSelfRegistrationId !== where.studentSelfRegistrationId
+                ) {
+                  return false;
+                }
+                if (where?.studentId !== undefined && request.studentId !== where.studentId) {
+                  return false;
+                }
+                if (
+                  where?.existingAccount !== undefined &&
+                  request.existingAccount !== where.existingAccount
+                ) {
+                  return false;
+                }
+                return true;
+              })
+              .map(buildParentLinkRequestRow),
+          ),
+      ),
+      findFirst: vi.fn(
+        ({ where }: { where: { id?: string; targetUserId?: string; status?: string } }) =>
+          Promise.resolve(
+            (() => {
+              const request = studentParentLinkRequests.find(
+                (candidate) =>
+                  (where.id === undefined || candidate.id === where.id) &&
+                  (where.targetUserId === undefined ||
+                    candidate.targetUserId === where.targetUserId) &&
+                  (where.status === undefined || candidate.status === where.status),
+              );
+              return request ? buildParentLinkRequestRow(request) : null;
+            })(),
+          ),
+      ),
+      update: vi.fn(({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const request = studentParentLinkRequests.find((candidate) => candidate.id === where.id);
+        if (!request) return Promise.reject(new Error('parent link request not found'));
+        const next = { ...data };
+        if (
+          typeof data.student === 'object' &&
+          data.student !== null &&
+          'connect' in data.student &&
+          typeof data.student.connect === 'object' &&
+          data.student.connect !== null &&
+          'id' in data.student.connect
+        ) {
+          next.studentId = data.student.connect.id;
+        }
+        delete next.student;
+        Object.assign(request, next);
+        return Promise.resolve(buildParentLinkRequestRow(request));
+      }),
+      updateMany: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { studentSelfRegistrationId?: string; id?: { in: string[] }; status?: string };
+          data: Record<string, unknown>;
+        }) => {
+          let count = 0;
+          for (const request of studentParentLinkRequests) {
+            if (
+              where.studentSelfRegistrationId !== undefined &&
+              request.studentSelfRegistrationId !== where.studentSelfRegistrationId
+            ) {
+              continue;
+            }
+            if (where.id?.in && !where.id.in.includes(String(request.id))) continue;
+            if (where.status !== undefined && request.status !== where.status) continue;
+            Object.assign(request, data);
+            count += 1;
+          }
+          return Promise.resolve({ count });
         },
       ),
     },
@@ -634,6 +811,7 @@ function makeFakeDb() {
     consents,
     studentRegistrationCodes,
     studentSelfRegistrations,
+    studentParentLinkRequests,
     userInvitations,
   };
 }
@@ -723,9 +901,203 @@ describe('registration student self-registration', () => {
     });
 
     expect(store.studentSelfRegistrations).toHaveLength(1);
+    expect(store.studentParentLinkRequests).toEqual([
+      expect.objectContaining({
+        id: 'parent_link_1',
+        studentSelfRegistrationId: 'self_reg_1',
+        parentEmailEnc: 'enc:parent@example.com',
+        parentNameEnc: 'enc:Parent One',
+        existingAccount: false,
+        status: 'Pending',
+      }),
+    ]);
     expect(store.studentRegistrationCodes[0]).toMatchObject({ usedCount: 1 });
     expect(store.students).toHaveLength(0);
     expect(store.userInvitations).toHaveLength(0);
+  });
+
+  it('rejects duplicate parent link requests on one submission', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Duplicate parent links',
+      maxUses: 3,
+    });
+    const payload = validStudentSelfRegistrationPayload(code.code);
+
+    await expect(
+      makeStudentSelfRegistrationCaller(
+        null,
+        store.db,
+      ).caller.registration.submitStudentSelfRegistration({
+        ...payload,
+        parentLinks: [
+          ...payload.parentLinks,
+          {
+            parentName: 'Duplicate Parent',
+            parentEmail: 'PARENT@example.com',
+            existingAccount: false,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'duplicate parent/carer link request',
+    });
+    expect(store.studentSelfRegistrations).toHaveLength(0);
+    expect(store.studentParentLinkRequests).toHaveLength(0);
+  });
+
+  it('supports multiple parent link requests and limits confirmation to the targeted account', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Multiple guardians',
+    });
+    const payload = {
+      ...validStudentSelfRegistrationPayload(code.code),
+      parentLinks: [
+        {
+          parentName: 'Parent One',
+          parentEmail: 'parent@example.com',
+          existingAccount: true,
+        },
+        {
+          parentName: 'Other Parent',
+          parentEmail: 'other-parent@example.com',
+          existingAccount: true,
+        },
+      ],
+    };
+    await makeStudentSelfRegistrationCaller(
+      null,
+      store.db,
+    ).caller.registration.submitStudentSelfRegistration(payload);
+
+    await expect(
+      makeStudentSelfRegistrationCaller(
+        studentUser,
+        store.db,
+      ).caller.registration.confirmStudentParentLinkRequest({ id: 'parent_link_1' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    await makeStudentSelfRegistrationCaller(
+      parentUser,
+      store.db,
+    ).caller.registration.confirmStudentParentLinkRequest({ id: 'parent_link_1' });
+    await makeStudentSelfRegistrationCaller(
+      otherParentUser,
+      store.db,
+    ).caller.registration.confirmStudentParentLinkRequest({ id: 'parent_link_2' });
+
+    expect(store.guardians).toHaveLength(0);
+    const result = await admin.caller.registration.approveStudentSelfRegistration({
+      id: 'self_reg_1',
+      parentConsentConfirmed: true,
+    });
+
+    expect(result).toMatchObject({ status: 'Activated', studentId: 'student_1' });
+    expect(store.guardians).toEqual([
+      { id: 'guardian_1', userId: parentUser.id, studentId: 'student_1' },
+      { id: 'guardian_2', userId: otherParentUser.id, studentId: 'student_1' },
+    ]);
+  });
+
+  it('does not activate rejected parent link requests', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Rejected guardian',
+    });
+    await makeStudentSelfRegistrationCaller(
+      null,
+      store.db,
+    ).caller.registration.submitStudentSelfRegistration({
+      ...validStudentSelfRegistrationPayload(code.code),
+      parentLinks: [
+        {
+          parentName: 'Parent One',
+          parentEmail: 'parent@example.com',
+          existingAccount: true,
+        },
+      ],
+    });
+
+    await makeStudentSelfRegistrationCaller(
+      parentUser,
+      store.db,
+    ).caller.registration.rejectStudentParentLinkRequest({ id: 'parent_link_1' });
+    await admin.caller.registration.approveStudentSelfRegistration({
+      id: 'self_reg_1',
+      parentConsentConfirmed: true,
+    });
+
+    expect(store.studentParentLinkRequests[0]).toMatchObject({
+      status: 'Rejected',
+      studentId: 'student_1',
+    });
+    expect(store.guardians).toHaveLength(0);
+  });
+
+  it('sends a parent invitation for unregistered parent links after student activation', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    admin.clerk.createInvitation
+      .mockResolvedValueOnce({
+        id: 'clerk_student_invite',
+        emailAddress: 'student@example.com',
+        status: 'pending',
+        url: 'https://accounts.example.test/student-invite',
+      })
+      .mockResolvedValueOnce({
+        id: 'clerk_parent_invite',
+        emailAddress: 'parent@example.com',
+        status: 'pending',
+        url: 'https://accounts.example.test/parent-invite',
+      });
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Parent invite',
+    });
+    await makeStudentSelfRegistrationCaller(
+      null,
+      store.db,
+    ).caller.registration.submitStudentSelfRegistration({
+      ...validStudentSelfRegistrationPayload(code.code),
+      parentLinks: [
+        {
+          parentName: 'Parent One',
+          parentEmail: 'parent@example.com',
+          existingAccount: false,
+        },
+      ],
+    });
+
+    await admin.caller.registration.approveStudentSelfRegistration({
+      id: 'self_reg_1',
+      parentConsentConfirmed: true,
+    });
+
+    expect(store.guardians).toHaveLength(0);
+    expect(store.studentParentLinkRequests[0]).toMatchObject({
+      status: 'Invited',
+      studentId: 'student_1',
+    });
+    expect(store.studentParentLinkRequests[0]?.invitedAt).toBeInstanceOf(Date);
+    expect(store.userInvitations).toEqual([
+      expect.objectContaining({ role: 'Student', studentSelfRegistrationId: 'self_reg_1' }),
+      expect.objectContaining({
+        role: 'Parent',
+        guardianLinkStudentIds: ['student_1'],
+        studentParentLinkRequestId: 'parent_link_1',
+        emailStatus: 'Sent',
+      }),
+    ]);
+    expect(admin.clerk.createInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailAddress: 'parent@example.com',
+        publicMetadata: { role: 'Parent', tags: [] },
+      }),
+    );
   });
 
   it('keeps approved registrations awaiting consent inactive', async () => {
@@ -737,9 +1109,16 @@ describe('registration student self-registration', () => {
     await makeStudentSelfRegistrationCaller(
       null,
       store.db,
-    ).caller.registration.submitStudentSelfRegistration(
-      validStudentSelfRegistrationPayload(code.code),
-    );
+    ).caller.registration.submitStudentSelfRegistration({
+      ...validStudentSelfRegistrationPayload(code.code),
+      parentLinks: [
+        {
+          parentName: 'Parent One',
+          parentEmail: 'parent@example.com',
+          existingAccount: true,
+        },
+      ],
+    });
 
     const result = await admin.caller.registration.approveStudentSelfRegistration({
       id: 'self_reg_1',
@@ -766,9 +1145,16 @@ describe('registration student self-registration', () => {
     await makeStudentSelfRegistrationCaller(
       null,
       store.db,
-    ).caller.registration.submitStudentSelfRegistration(
-      validStudentSelfRegistrationPayload(code.code),
-    );
+    ).caller.registration.submitStudentSelfRegistration({
+      ...validStudentSelfRegistrationPayload(code.code),
+      parentLinks: [
+        {
+          parentName: 'Parent One',
+          parentEmail: 'parent@example.com',
+          existingAccount: true,
+        },
+      ],
+    });
 
     const result = await admin.caller.registration.approveStudentSelfRegistration({
       id: 'self_reg_1',

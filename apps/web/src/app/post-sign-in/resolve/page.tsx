@@ -46,29 +46,39 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
   let parentNeedsRegistration = false;
   let childRegistrationPromptRequired = false;
   let childRegistrationRequired = false;
+  let pendingParentLinkRequests = false;
   let linkedChildrenCount = 0;
   let assignedClubLeadCount = 0;
 
   if (ctx.user) {
-    const [registration, linkedChildrenTotal, assignedClubLeadTotal, promptUser] =
-      await Promise.all([
-        ctx.db.parentRegistration.findUnique({
-          where: { parentUserId: ctx.user.id },
-          select: { id: true },
-        }),
-        ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
-        canUseClubLeadAccess(ctx.user)
-          ? ctx.db.clubLeadAssignment.count({
-              where: { userId: ctx.user.id, club: { active: true } },
-            })
-          : Promise.resolve(0),
-        ctx.db.user.findUnique({
-          where: { id: ctx.user.id },
-          select: { childRegistrationPromptStatus: true },
-        }),
-      ]);
+    const [
+      registration,
+      linkedChildrenTotal,
+      assignedClubLeadTotal,
+      promptUser,
+      pendingParentLinkRequestTotal,
+    ] = await Promise.all([
+      ctx.db.parentRegistration.findUnique({
+        where: { parentUserId: ctx.user.id },
+        select: { id: true },
+      }),
+      ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
+      canUseClubLeadAccess(ctx.user)
+        ? ctx.db.clubLeadAssignment.count({
+            where: { userId: ctx.user.id, club: { active: true } },
+          })
+        : Promise.resolve(0),
+      ctx.db.user.findUnique({
+        where: { id: ctx.user.id },
+        select: { childRegistrationPromptStatus: true },
+      }),
+      ctx.db.studentParentLinkRequest.count({
+        where: { targetUserId: ctx.user.id, status: 'Pending' },
+      }),
+    ]);
     linkedChildrenCount = linkedChildrenTotal;
     assignedClubLeadCount = assignedClubLeadTotal;
+    pendingParentLinkRequests = pendingParentLinkRequestTotal > 0;
     const hasRegistrationOrLinkedChildren = Boolean(registration) || linkedChildrenCount > 0;
 
     if (ctx.user.role === 'Parent') {
@@ -82,6 +92,7 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
   const destination = resolvePostSignInDestinationForState(ctx.user, {
     childRegistrationPromptRequired,
     childRegistrationRequired,
+    pendingParentLinkRequests,
     parentNeedsRegistration,
   });
 

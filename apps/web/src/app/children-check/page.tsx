@@ -28,18 +28,23 @@ export default async function ChildrenCheckPage() {
   if (!ctx.user) redirect('/not-ready');
   if (!canAnswerChildRegistrationPrompt(ctx.user)) redirect('/post-sign-in/resolve');
 
-  const [registration, linkedChildrenCount, promptUser] = await Promise.all([
-    ctx.db.parentRegistration.findUnique({
-      where: { parentUserId: ctx.user.id },
-      select: { id: true },
-    }),
-    ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
-    ctx.db.user.findUnique({
-      where: { id: ctx.user.id },
-      select: { childRegistrationPromptStatus: true },
-    }),
-  ]);
+  const [registration, linkedChildrenCount, promptUser, pendingParentLinkRequestCount] =
+    await Promise.all([
+      ctx.db.parentRegistration.findUnique({
+        where: { parentUserId: ctx.user.id },
+        select: { id: true },
+      }),
+      ctx.db.guardian.count({ where: { userId: ctx.user.id } }),
+      ctx.db.user.findUnique({
+        where: { id: ctx.user.id },
+        select: { childRegistrationPromptStatus: true },
+      }),
+      ctx.db.studentParentLinkRequest.count({
+        where: { targetUserId: ctx.user.id, status: 'Pending' },
+      }),
+    ]);
   if (!promptUser) redirect('/not-ready');
+  if (pendingParentLinkRequestCount > 0) redirect('/parent-link-requests');
   if (registration || linkedChildrenCount > 0) {
     redirect(resolvePostSignInDestination(ctx.user));
   }

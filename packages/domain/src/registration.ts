@@ -212,6 +212,14 @@ export const parentRegistrationSiblingsInput = z
 export type ParentRegistrationSiblingsInput = z.infer<typeof parentRegistrationSiblingsInput>;
 
 const registrationCodeInput = z.string().trim().min(6).max(64);
+const studentParentLinkInput = z
+  .object({
+    parentName: optionalText(120),
+    parentEmail: z.string().trim().toLowerCase().email(),
+    existingAccount: z.boolean(),
+  })
+  .strict();
+export type StudentParentLinkInput = z.infer<typeof studentParentLinkInput>;
 
 export const createStudentRegistrationCodeInput = z
   .object({
@@ -232,6 +240,7 @@ export const submitStudentSelfRegistrationInput = z
     email: z.string().trim().toLowerCase().email(),
     yearGroup: standardSchoolYearSchema,
     registrationCode: registrationCodeInput,
+    parentLinks: z.array(studentParentLinkInput).min(1).max(4),
   })
   .strict();
 export type SubmitStudentSelfRegistrationInput = z.infer<typeof submitStudentSelfRegistrationInput>;

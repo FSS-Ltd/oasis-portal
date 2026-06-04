@@ -1,8 +1,8 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Send } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { Plus, Send, Trash2 } from 'lucide-react';
+import { useFieldArray, useForm } from 'react-hook-form';
 import {
   STANDARD_SCHOOL_YEARS,
   displaySchoolYearLabel,
@@ -15,6 +15,12 @@ import { showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 
 type FormValues = SubmitStudentSelfRegistrationInput;
+
+const emptyParentLink = {
+  parentName: '',
+  parentEmail: '',
+  existingAccount: false,
+};
 
 function todayDateInput(): string {
   return new Date().toISOString().slice(0, 10);
@@ -31,6 +37,7 @@ export function StudentSelfRegistrationForm() {
         email: '',
         yearGroup: 'Year 1',
         registrationCode: '',
+        parentLinks: [emptyParentLink],
       });
     },
     onError(error) {
@@ -42,6 +49,7 @@ export function StudentSelfRegistrationForm() {
     handleSubmit,
     register,
     reset,
+    control,
   } = useForm<FormValues>({
     resolver: zodResolver(submitStudentSelfRegistrationInput),
     defaultValues: {
@@ -51,7 +59,16 @@ export function StudentSelfRegistrationForm() {
       email: '',
       yearGroup: 'Year 1',
       registrationCode: '',
+      parentLinks: [emptyParentLink],
     },
+  });
+  const {
+    fields: parentLinkFields,
+    append: appendParentLink,
+    remove: removeParentLink,
+  } = useFieldArray({
+    control,
+    name: 'parentLinks',
   });
 
   return (
@@ -104,6 +121,75 @@ export function StudentSelfRegistrationForm() {
             <TextInput autoComplete="one-time-code" {...register('registrationCode')} />
           </Field>
         </div>
+      </section>
+
+      <section className="registration-section">
+        <div className="registration-section-label">
+          <h2>Parent / carer links</h2>
+          <span className="registration-badge">Required</span>
+        </div>
+        <p className="registration-draft-note">
+          Add each parent or carer who should confirm this student account.
+        </p>
+
+        {parentLinkFields.map((field, index) => {
+          const parentErrors = errors.parentLinks?.[index];
+          const canRemove = parentLinkFields.length > 1;
+          const parentNamePath =
+            `parentLinks.${String(index)}.parentName` as `parentLinks.${number}.parentName`;
+          const parentEmailPath =
+            `parentLinks.${String(index)}.parentEmail` as `parentLinks.${number}.parentEmail`;
+          const existingAccountPath =
+            `parentLinks.${String(index)}.existingAccount` as `parentLinks.${number}.existingAccount`;
+          return (
+            <div className="registration-subsection" key={field.id}>
+              <div className="registration-subsection__header">
+                <strong>Parent / carer {String(index + 1)}</strong>
+                {canRemove ? (
+                  <Button
+                    onClick={() => {
+                      removeParentLink(index);
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Trash2 aria-hidden="true" size={15} />
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+              <div className="form-grid form-grid--two">
+                <Field error={parentErrors?.parentName?.message} label="Name">
+                  <TextInput autoComplete="name" {...register(parentNamePath)} />
+                </Field>
+                <Field error={parentErrors?.parentEmail?.message} label="Email" required>
+                  <TextInput autoComplete="email" type="email" {...register(parentEmailPath)} />
+                </Field>
+              </div>
+              <label className="registration-check-row">
+                <input type="checkbox" {...register(existingAccountPath)} />
+                <span>Already has an Oasis Portal account</span>
+              </label>
+            </div>
+          );
+        })}
+
+        {errors.parentLinks?.message ? (
+          <p className="field__error">{errors.parentLinks.message}</p>
+        ) : null}
+
+        <Button
+          disabled={parentLinkFields.length >= 4}
+          onClick={() => {
+            appendParentLink(emptyParentLink);
+          }}
+          type="button"
+          variant="secondary"
+        >
+          <Plus aria-hidden="true" size={16} />
+          Add parent / carer
+        </Button>
       </section>
 
       {submitRegistration.data ? (

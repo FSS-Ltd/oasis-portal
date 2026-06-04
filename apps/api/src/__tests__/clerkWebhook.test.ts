@@ -47,6 +47,7 @@ interface PendingInvitationRow {
   tags: PermissionTag[];
   guardianLinkStudentIds: string[];
   studentSelfRegistrationId: string | null;
+  studentParentLinkRequestId: string | null;
 }
 
 type FakeInvitationFindMany = (args: {
@@ -55,6 +56,7 @@ type FakeInvitationFindMany = (args: {
     tags: true;
     guardianLinkStudentIds: true;
     studentSelfRegistrationId: true;
+    studentParentLinkRequestId: true;
   };
   where: {
     emailBidx: string;
@@ -71,6 +73,17 @@ type FakeInvitationUpdateMany = (args: {
   where: {
     emailBidx: string;
     status: 'Pending';
+  };
+}) => Promise<{ count: number }>;
+
+type FakeParentLinkRequestUpdateMany = (args: {
+  data: {
+    confirmedAt: Date;
+    status: 'Confirmed';
+  };
+  where: {
+    id: { in: string[] };
+    status: 'Invited';
   };
 }) => Promise<{ count: number }>;
 
@@ -195,6 +208,9 @@ describe('createPrismaClerkUserStore', () => {
     const createMany = vi.fn().mockResolvedValue({ count: 0 });
     const findStudentSelfRegistrations = vi.fn().mockResolvedValue([]);
     const updateStudents = vi.fn().mockResolvedValue({ count: 0 });
+    const updateParentLinkRequests = vi
+      .fn<FakeParentLinkRequestUpdateMany>()
+      .mockResolvedValue({ count: 0 });
     const db = {
       $enc: {
         encrypt: fakeEncrypt,
@@ -207,6 +223,7 @@ describe('createPrismaClerkUserStore', () => {
       guardian: { createMany },
       studentSelfRegistration: { findMany: findStudentSelfRegistrations },
       student: { updateMany: updateStudents },
+      studentParentLinkRequest: { updateMany: updateParentLinkRequests },
     };
     return {
       db: db as unknown as PrismaClerkUserStoreDb,
@@ -218,6 +235,7 @@ describe('createPrismaClerkUserStore', () => {
       createMany,
       findStudentSelfRegistrations,
       updateStudents,
+      updateParentLinkRequests,
     };
   }
 
@@ -266,7 +284,13 @@ describe('createPrismaClerkUserStore', () => {
     const { db, create, findMany } = makeDb(null);
     create.mockResolvedValue({ id: 'cuid_new' });
     findMany.mockResolvedValue([
-      { role: 'Pastor', tags: [], guardianLinkStudentIds: [], studentSelfRegistrationId: null },
+      {
+        role: 'Pastor',
+        tags: [],
+        guardianLinkStudentIds: [],
+        studentSelfRegistrationId: null,
+        studentParentLinkRequestId: null,
+      },
     ]);
     const store = createPrismaClerkUserStore(db);
 
@@ -286,6 +310,7 @@ describe('createPrismaClerkUserStore', () => {
         tags: true,
         guardianLinkStudentIds: true,
         studentSelfRegistrationId: true,
+        studentParentLinkRequestId: true,
       },
     });
     expect(create).toHaveBeenCalledWith({
@@ -312,6 +337,7 @@ describe('createPrismaClerkUserStore', () => {
         tags: [],
         guardianLinkStudentIds: ['s_child_1', 's_child_2', 's_child_1'],
         studentSelfRegistrationId: null,
+        studentParentLinkRequestId: null,
       },
     ]);
     const store = createPrismaClerkUserStore(db);
@@ -343,6 +369,7 @@ describe('createPrismaClerkUserStore', () => {
         tags: [],
         guardianLinkStudentIds: [],
         studentSelfRegistrationId: 'self_reg_1',
+        studentParentLinkRequestId: null,
       },
     ]);
     findStudentSelfRegistrations.mockResolvedValue([{ studentId: 'student_1' }]);
@@ -369,6 +396,35 @@ describe('createPrismaClerkUserStore', () => {
       where: { id: { in: ['student_1'] }, userId: null },
       data: { userId: 'cuid_new' },
     });
+  });
+
+  it('confirms invited student parent link requests after accepted parent invitations', async () => {
+    const { db, create, findMany, updateParentLinkRequests } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_new' });
+    findMany.mockResolvedValue([
+      {
+        role: 'Parent',
+        tags: [],
+        guardianLinkStudentIds: ['student_1'],
+        studentSelfRegistrationId: null,
+        studentParentLinkRequestId: 'parent_link_1',
+      },
+    ]);
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Parent One',
+      email: 'parent@example.com',
+      phone: null,
+      role: 'Parent',
+      tags: [],
+    });
+
+    const updateArgs = updateParentLinkRequests.mock.calls[0]?.[0];
+    expect(updateArgs?.where).toEqual({ id: { in: ['parent_link_1'] }, status: 'Invited' });
+    expect(updateArgs?.data).toMatchObject({ status: 'Confirmed' });
+    expect(updateArgs?.data.confirmedAt).toBeInstanceOf(Date);
   });
 
   it('links an existing email-matched local user without overwriting role or tags', async () => {

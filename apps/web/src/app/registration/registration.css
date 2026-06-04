@@ -138,6 +138,15 @@
   font-weight: 650;
 }
 
+.registration-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
 .registration-consent-initials {
   display: grid;
   gap: 6px;

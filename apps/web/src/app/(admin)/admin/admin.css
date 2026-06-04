@@ -13974,13 +13974,31 @@ button.club-assignment-row {
   font-weight: 700;
 }
 
+.student-registration-parent-links {
+  display: grid;
+  gap: 6px;
+}
+
+.student-registration-parent-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.student-registration-parent-link > span:first-child {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .student-registration-table-wrap {
   overflow-x: auto;
 }
 
 .student-registration-table {
   width: 100%;
-  min-width: 860px;
+  min-width: 980px;
   border-collapse: collapse;
   font-size: 0.84rem;
 }
