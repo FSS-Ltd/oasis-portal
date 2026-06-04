@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-06-04
 **Agent:** Technical Agent (Codex)
-**Phase:** Club behaviour scoping fix.
+**Phase:** Student account provisioning fix.
 
 ---
 
@@ -28,6 +28,68 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-04 Student account provisioning
+
+Working branch: `feat/student-account-provisioning`.
+
+**PR scope:** Fix student login provisioning through the parent student settings
+workflow without mixing unrelated product changes.
+
+Completed:
+
+- Updated the default Clerk student credential adapter to use the SDK `ClerkClient`
+  type instead of a hand-written user API cast.
+- Added `skipLegalChecks: true` when creating provisioned no-email Student
+  users, so Clerk legal-consent settings do not block parent/admin-created
+  student logins.
+- Added focused tests for the default Clerk create-user payload and for mapping
+  legal-consent provider failures without linking a local user.
+- Mapped Clerk-style credential provider `400` errors so username format
+  rejections return an actionable login-handle message instead of an opaque bad
+  request/internal error.
+- Mapped Clerk email-required provider errors to an explicit configuration
+  message, since this branch's student login flow intentionally creates no-email
+  username/password accounts.
+- Added rollback cleanup for failed student login linking: if Clerk creates the
+  no-email Student user but the local transaction fails, the router now deletes
+  the just-created Clerk account so the username/password are not left orphaned.
+- Fixed the Clerk webhook race in `studentSettings.createChildLogin`: when the
+  webhook has already inserted the local `User` for the newly created Clerk ID,
+  the router now reuses that row instead of failing on the unique `clerkId`
+  constraint and deleting the provider account during cleanup.
+- Moved the create-login `StudentPortalSettings` audit row into the same local
+  transaction so an audit failure cannot report an error after the student has
+  already been linked locally.
+- Kept the parent create-login form in a pending state until the linked-children
+  query refetch confirms the child is `accountLinked`, so the username/password
+  controls are only displayed after the created login is confirmed locally.
+- Enabled tRPC method override end to end: the web client sends batched tRPC
+  operations by POST and the Next route handler explicitly allows POST query
+  calls, preventing create-login from reaching the mutation route as an
+  unsupported GET request without breaking normal query batches.
+- Kept the existing branch changes that restrict child login handles to 4-64
+  alphanumeric characters and map provider duplicate-login, username, and
+  password policy failures.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/studentSettings.router.test.ts`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/web lint`
+- `pnpm exec prettier --check apps/api/src/routers/studentSettings.ts apps/api/src/__tests__/studentSettings.router.test.ts apps/web/src/components/parent/parent-student-settings-client.tsx PROJECT_Oasis_Context.md`
+- `git diff --check`
+- `graphify update .`
+
+Notes:
+
+- `graphify update .` completed, but reported a node-count mismatch before the
+  watch rebuild updated `graphify-out` outputs.
+- Local untracked environment files contain Clerk-looking secrets. Treat them as
+  sensitive and rotate/review them if they were ever committed, shared, or used
+  outside this machine.
 
 ## Current session - 2026-06-03 Club merits scoping
 

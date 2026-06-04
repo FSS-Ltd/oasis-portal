@@ -1,12 +1,18 @@
+import { createClerkClient } from '@clerk/backend';
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import {
+  createDefaultStudentCredentialAdapter,
   createStudentSettingsRouter,
   type ChildIconPhotoStorageAdapter,
   type StudentCredentialAdapter,
 } from '../routers/studentSettings.js';
 import { router } from '../trpc.js';
+
+vi.mock('@clerk/backend', () => ({
+  createClerkClient: vi.fn(),
+}));
 
 const parentUser: SessionUser = {
   id: 'user_parent',
@@ -116,7 +122,7 @@ interface FakeDb {
     blindIndex: ReturnType<typeof vi.fn>;
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
-  user: { create: ReturnType<typeof vi.fn> };
+  user: { create: ReturnType<typeof vi.fn>; upsert: ReturnType<typeof vi.fn> };
   student: {
     findMany: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
@@ -280,15 +286,53 @@ function makeFakeDb() {
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     user: {
-      create: vi.fn(({ data, select }: { data: { clerkId: string; role: SessionUser['role'] }; select?: { id?: boolean } }) => {
-        const user: StoredUser = {
-          id: `user_created_${String(users.length + 1)}`,
-          clerkId: data.clerkId,
-          role: data.role,
-        };
-        users.push(user);
-        return Promise.resolve(select?.id ? { id: user.id } : user);
-      }),
+      create: vi.fn(
+        ({
+          data,
+          select,
+        }: {
+          data: { clerkId: string; role: SessionUser['role'] };
+          select?: { id?: boolean };
+        }) => {
+          const existing = users.find((candidate) => candidate.clerkId === data.clerkId);
+          if (existing) {
+            throw new Error(`Unique constraint failed on User.clerkId: ${data.clerkId}`);
+          }
+          const user: StoredUser = {
+            id: `user_created_${String(users.length + 1)}`,
+            clerkId: data.clerkId,
+            role: data.role,
+          };
+          users.push(user);
+          return Promise.resolve(select?.id ? { id: user.id } : user);
+        },
+      ),
+      upsert: vi.fn(
+        ({
+          where,
+          create,
+          update,
+          select,
+        }: {
+          where: { clerkId: string };
+          create: { clerkId: string; role: SessionUser['role'] };
+          update: { role?: SessionUser['role'] };
+          select?: { id?: boolean };
+        }) => {
+          const existing = users.find((candidate) => candidate.clerkId === where.clerkId);
+          if (existing) {
+            if (update.role !== undefined) existing.role = update.role;
+            return Promise.resolve(select?.id ? { id: existing.id } : existing);
+          }
+          const user: StoredUser = {
+            id: `user_created_${String(users.length + 1)}`,
+            clerkId: create.clerkId,
+            role: create.role,
+          };
+          users.push(user);
+          return Promise.resolve(select?.id ? { id: user.id } : user);
+        },
+      ),
     },
     student: {
       findMany: vi.fn(({ where }: { where?: { guardians?: { some?: { userId?: string } } } }) => {
@@ -331,7 +375,8 @@ function makeFakeDb() {
     studentPortalSettings: {
       findUnique: vi.fn(
         ({ where }: { where: { studentId?: string; loginHandleBidx?: string | null } }) => {
-          if (where.studentId !== undefined) return Promise.resolve(settings.get(where.studentId) ?? null);
+          if (where.studentId !== undefined)
+            return Promise.resolve(settings.get(where.studentId) ?? null);
           if (where.loginHandleBidx !== undefined && where.loginHandleBidx !== null) {
             return Promise.resolve(
               [...settings.values()].find(
@@ -431,7 +476,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, settings };
+  return { db, settings, users };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -473,6 +518,47 @@ function auditCalls(db: FakeDb): AuditCall[] {
 }
 
 describe('studentSettings parent procedures', () => {
+  it('creates default Clerk student accounts with legal checks skipped for provisioned logins', async () => {
+    const previousSecret = process.env['CLERK_SECRET_KEY'];
+    process.env['CLERK_SECRET_KEY'] = 'sk_test_unit';
+    const createUser = vi.fn().mockResolvedValue({ id: 'clerk_student_created' });
+    const updateUser = vi.fn();
+    const deleteUser = vi.fn().mockResolvedValue({ id: 'clerk_student_created' });
+    vi.mocked(createClerkClient).mockReturnValue({
+      users: { createUser, deleteUser, updateUser },
+    } as unknown as ReturnType<typeof createClerkClient>);
+
+    try {
+      const adapter = createDefaultStudentCredentialAdapter();
+
+      await expect(
+        adapter.createNoEmailStudentAccount({
+          fullName: 'Unlinked Learner',
+          username: 'unlinkedchild',
+          password: 'correct horse battery staple',
+        }),
+      ).resolves.toEqual({ clerkUserId: 'clerk_student_created' });
+
+      expect(createUser).toHaveBeenCalledWith({
+        firstName: 'Unlinked',
+        lastName: 'Learner',
+        username: 'unlinkedchild',
+        password: 'correct horse battery staple',
+        publicMetadata: { role: 'Student', tags: [] },
+        skipLegalChecks: true,
+      });
+
+      await adapter.deleteStudentAccount?.({ clerkUserId: 'clerk_student_created' });
+      expect(deleteUser).toHaveBeenCalledWith('clerk_student_created');
+    } finally {
+      if (previousSecret === undefined) {
+        delete process.env['CLERK_SECRET_KEY'];
+      } else {
+        process.env['CLERK_SECRET_KEY'] = previousSecret;
+      }
+    }
+  });
+
   it('lists linked children with decrypted settings summaries', async () => {
     const { db, settings } = makeFakeDb();
     settings.set(
@@ -705,23 +791,23 @@ describe('studentSettings parent procedures', () => {
     await expect(
       caller.studentSettings.createChildLogin({
         studentId: unlinkedStudentId,
-        loginHandle: '  Unlinked.Child  ',
+        loginHandle: '  UnlinkedChild  ',
         password: 'correct horse battery staple',
       }),
     ).resolves.toMatchObject({
       studentId: unlinkedStudentId,
       accountLinked: true,
-      loginHandle: 'unlinked.child',
+      loginHandle: 'unlinkedchild',
     });
 
     expect(createNoEmailStudentAccount).toHaveBeenCalledWith({
       fullName: 'Unlinked Learner',
-      username: 'unlinked.child',
+      username: 'unlinkedchild',
       password: 'correct horse battery staple',
     });
     expect(settings.get(unlinkedStudentId)).toMatchObject({
-      loginHandleEnc: 'enc:unlinked.child',
-      loginHandleBidx: 'bidx:unlinked.child',
+      loginHandleEnc: 'enc:unlinkedchild',
+      loginHandleBidx: 'bidx:unlinkedchild',
       settingsUpdatedById: otherParentUser.id,
     });
     expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain(
@@ -729,13 +815,87 @@ describe('studentSettings parent procedures', () => {
     );
   });
 
+  it('deletes the created Clerk account when local student linking fails', async () => {
+    const { db, settings } = makeFakeDb();
+    const createNoEmailStudentAccount = vi
+      .fn()
+      .mockResolvedValue({ clerkUserId: 'clerk_unlinked_created' });
+    const deleteStudentAccount = vi.fn().mockResolvedValue(undefined);
+    db.$transaction.mockRejectedValueOnce(new Error('local link failed'));
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      deleteStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toThrow('local link failed');
+
+    expect(createNoEmailStudentAccount).toHaveBeenCalledWith({
+      fullName: 'Unlinked Learner',
+      username: 'unlinkedchild',
+      password: 'correct horse battery staple',
+    });
+    expect(deleteStudentAccount).toHaveBeenCalledWith({
+      clerkUserId: 'clerk_unlinked_created',
+    });
+    expect(settings.get(unlinkedStudentId)).toBeUndefined();
+  });
+
+  it('links a Clerk webhook-created local user instead of deleting the Clerk account', async () => {
+    const { db, settings, users } = makeFakeDb();
+    users.push({
+      id: 'user_webhook_student',
+      clerkId: 'clerk_unlinked_created',
+      role: 'Student',
+    });
+    const createNoEmailStudentAccount = vi
+      .fn()
+      .mockResolvedValue({ clerkUserId: 'clerk_unlinked_created' });
+    const deleteStudentAccount = vi.fn().mockResolvedValue(undefined);
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      deleteStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).resolves.toMatchObject({
+      studentId: unlinkedStudentId,
+      accountLinked: true,
+      loginHandle: 'unlinkedchild',
+    });
+
+    expect(deleteStudentAccount).not.toHaveBeenCalled();
+    expect(db.student.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { userId: 'user_webhook_student' },
+      }),
+    );
+    expect(settings.get(unlinkedStudentId)).toMatchObject({
+      loginHandleEnc: 'enc:unlinkedchild',
+      loginHandleBidx: 'bidx:unlinkedchild',
+      settingsUpdatedById: otherParentUser.id,
+    });
+  });
+
   it('rejects duplicate handles and already-linked student logins', async () => {
     const { db, settings } = makeFakeDb();
     settings.set(
       childStudentId,
       makeSettings(childStudentId, {
-        loginHandleEnc: encrypt('jamie.login'),
-        loginHandleBidx: blindIndex('jamie.login'),
+        loginHandleEnc: encrypt('jamielogin'),
+        loginHandleBidx: blindIndex('jamielogin'),
       }),
     );
     const caller = makeCaller(otherParentUser, db);
@@ -743,7 +903,7 @@ describe('studentSettings parent procedures', () => {
     await expect(
       caller.studentSettings.createChildLogin({
         studentId: unlinkedStudentId,
-        loginHandle: 'Jamie.Login',
+        loginHandle: 'JamieLogin',
         password: 'correct horse battery staple',
       }),
     ).rejects.toMatchObject({
@@ -754,13 +914,179 @@ describe('studentSettings parent procedures', () => {
     await expect(
       makeCaller(parentUser, db).studentSettings.createChildLogin({
         studentId: childStudentId,
-        loginHandle: 'jamie.other',
+        loginHandle: 'jamieother',
         password: 'correct horse battery staple',
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'student account is already linked to a login user',
     });
+  });
+
+  it('rejects dotted child login handles before calling the credential adapter', async () => {
+    const { db } = makeFakeDb();
+    const createNoEmailStudentAccount = vi.fn().mockResolvedValue({
+      clerkUserId: 'clerk_unlinked_created',
+    });
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'jamie.learner',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(createNoEmailStudentAccount).not.toHaveBeenCalled();
+  });
+
+  it('maps credential provider duplicate-login failures without linking a local user', async () => {
+    const { db, settings } = makeFakeDb();
+    const createNoEmailStudentAccount = vi.fn().mockRejectedValue({
+      status: 422,
+      errors: [{ code: 'form_identifier_exists', message: 'Identifier already exists.' }],
+    });
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'login handle is already in use',
+    });
+
+    expect(createNoEmailStudentAccount).toHaveBeenCalledWith({
+      fullName: 'Unlinked Learner',
+      username: 'unlinkedchild',
+      password: 'correct horse battery staple',
+    });
+    expect(db.user.create).not.toHaveBeenCalled();
+    expect(db.student.update).not.toHaveBeenCalled();
+    expect(settings.get(unlinkedStudentId)).toBeUndefined();
+  });
+
+  it('maps credential provider username configuration failures', async () => {
+    const { db, settings } = makeFakeDb();
+    const createNoEmailStudentAccount = vi.fn().mockRejectedValue({
+      statusCode: 422,
+      errors: [{ message: 'Username is disabled for this instance.' }],
+    });
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'student username login is not enabled; contact an administrator',
+    });
+    expect(settings.get(unlinkedStudentId)).toBeUndefined();
+  });
+
+  it('maps credential provider username format failures returned as bad requests', async () => {
+    const { db, settings } = makeFakeDb();
+    const createNoEmailStudentAccount = vi.fn().mockRejectedValue({
+      status: 400,
+      errors: [
+        {
+          code: 'form_param_format_invalid',
+          longMessage: 'Username is invalid.',
+          meta: { paramName: 'username' },
+        },
+      ],
+    });
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'login handle was rejected by the sign-in provider',
+    });
+    expect(db.user.create).not.toHaveBeenCalled();
+    expect(db.student.update).not.toHaveBeenCalled();
+    expect(settings.get(unlinkedStudentId)).toBeUndefined();
+  });
+
+  it('maps credential provider email-required failures to a Clerk configuration message', async () => {
+    const { db, settings } = makeFakeDb();
+    const createNoEmailStudentAccount = vi.fn().mockRejectedValue({
+      status: 422,
+      errors: [
+        {
+          code: 'form_param_missing',
+          message: 'is missing',
+          meta: { paramName: 'email_address' },
+        },
+      ],
+    });
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'student login requires username sign-in to be enabled in Clerk',
+    });
+    expect(db.user.create).not.toHaveBeenCalled();
+    expect(db.student.update).not.toHaveBeenCalled();
+    expect(settings.get(unlinkedStudentId)).toBeUndefined();
+  });
+
+  it('maps credential provider legal consent failures without linking a local user', async () => {
+    const { db, settings } = makeFakeDb();
+    const createNoEmailStudentAccount = vi.fn().mockRejectedValue({
+      status: 422,
+      errors: [{ code: 'form_legal_not_accepted', message: 'Legal requirements not accepted.' }],
+    });
+    const caller = makeCaller(otherParentUser, db, {
+      createNoEmailStudentAccount,
+      setPassword: vi.fn(),
+    });
+
+    await expect(
+      caller.studentSettings.createChildLogin({
+        studentId: unlinkedStudentId,
+        loginHandle: 'unlinkedchild',
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'student login could not be created because legal consent is required',
+    });
+    expect(db.user.create).not.toHaveBeenCalled();
+    expect(db.student.update).not.toHaveBeenCalled();
+    expect(settings.get(unlinkedStudentId)).toBeUndefined();
   });
 
   it('allows linked parents to pass password resets through the credential adapter only for under-18 children', async () => {
@@ -792,6 +1118,28 @@ describe('studentSettings parent procedures', () => {
     expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain(
       'correct horse battery staple',
     );
+  });
+
+  it('maps credential provider password policy failures for parent password resets', async () => {
+    const { db } = makeFakeDb();
+    const credentialAdapter: StudentCredentialAdapter = {
+      createNoEmailStudentAccount: vi.fn().mockResolvedValue({ clerkUserId: 'clerk_created' }),
+      setPassword: vi.fn().mockRejectedValue({
+        status: 422,
+        errors: [{ code: 'form_password_pwned', message: 'Password has been found in a breach.' }],
+      }),
+    };
+    const caller = makeCaller(parentUser, db, credentialAdapter);
+
+    await expect(
+      caller.studentSettings.setChildPassword({
+        studentId: childStudentId,
+        password: 'correct horse battery staple',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'password does not meet the sign-in requirements',
+    });
   });
 });
 
