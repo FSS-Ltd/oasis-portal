@@ -2,9 +2,9 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
   AccessDeniedError,
+  canUseLinkedChildGuardianAccess,
   canUseAdminOperations,
   compileTermReport,
-  requireOwnChild,
   type CompiledReport,
   type SessionUser,
 } from '@oasis/domain';
@@ -217,20 +217,18 @@ async function assertCanReadReports(
 ): Promise<void> {
   if (canUseAdminOperations(ctx.user)) return;
 
-  if (ctx.user.role === 'Parent') {
+  if (canUseLinkedChildGuardianAccess(ctx.user)) {
     const guardian = await ctx.db.guardian.findUnique({
       where: { userId_studentId: { userId: ctx.user.id, studentId } },
       select: { studentId: true },
     });
-    try {
-      requireOwnChild(ctx.user, studentId, guardian ? [guardian.studentId] : []);
-      return;
-    } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        await auditPermissionDenied(ctx, entity, studentId, err);
-      }
-      throw err;
-    }
+    if (guardian) return;
+    await auditPermissionDenied(
+      ctx,
+      entity,
+      studentId,
+      new AccessDeniedError('linked-child guardian is not linked to this student'),
+    );
   }
 
   await auditPermissionDenied(

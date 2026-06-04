@@ -105,6 +105,11 @@ interface StoredMessageThreadParticipant {
   createdAt: Date;
 }
 
+interface StoredGuardian {
+  userId: string;
+  studentId: string;
+}
+
 interface FakeThreadFindManyArgs {
   where?: {
     kind?: 'ParentStaff' | 'SupervisorHead' | 'StaffDirect' | 'Staffroom';
@@ -260,11 +265,16 @@ function makeFakeDb(
   initialUsers: StoredUser[] = defaultUsers,
   initialReads: StoredMessageRead[] = [],
   initialParticipants?: StoredMessageThreadParticipant[],
+  initialGuardians: StoredGuardian[] = [
+    { userId: parentUser.id, studentId: 'cstudentlinked000000001' },
+    { userId: supervisorUser.id, studentId: 'cstudentlinked000000001' },
+  ],
 ) {
   const threads = [...initialThreads];
   const messages = [...initialMessages];
   const users = [...initialUsers];
   const reads = [...initialReads];
+  const guardians = [...initialGuardians];
   const participants =
     initialParticipants ??
     initialThreads.flatMap((thread) => {
@@ -329,6 +339,15 @@ function makeFakeDb(
                   )),
             )
             .sort((a, b) => a.id.localeCompare(b.id)),
+        ),
+      ),
+    },
+    guardian: {
+      count: vi.fn(({ where }: { where: { userId: string; student: { active: boolean } } }) =>
+        Promise.resolve(
+          where.student.active
+            ? guardians.filter((guardian) => guardian.userId === where.userId).length
+            : 0,
         ),
       ),
     },
@@ -481,6 +500,7 @@ function makeFakeDb(
     messages,
     reads,
     participants,
+    guardians,
   };
 }
 
@@ -531,6 +551,45 @@ describe('message.openThread', () => {
         meta: { source: 'message.openThread', recipientId: headUser.id, kind: 'ParentStaff' },
       },
     });
+  });
+
+  it('allows a linked supervisor to open a parent-staff thread as a linked-child guardian', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(
+      caller.message.openThread({
+        adminId: headUser.id,
+        subject: 'Linked child question',
+      }),
+    ).resolves.toMatchObject({
+      id: 'cthread000000000000001',
+      kind: 'ParentStaff',
+      parentId: supervisorUser.id,
+      supervisorId: null,
+      adminId: headUser.id,
+      subject: 'Linked child question',
+    });
+
+    expect(db.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ threadId: 'cthread000000000000001', userId: supervisorUser.id }),
+        expect.objectContaining({ threadId: 'cthread000000000000001', userId: headUser.id }),
+      ]),
+    );
+  });
+
+  it('blocks unlinked supervisors from opening parent-staff threads', async () => {
+    const { caller } = makeCaller(
+      supervisorUser,
+      makeFakeDb([], [], defaultUsers, [], undefined, []),
+    );
+
+    await expect(
+      caller.message.openThread({
+        adminId: headUser.id,
+        subject: 'Linked child question',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('denies non-parent users', async () => {
@@ -752,7 +811,11 @@ describe('message.send', () => {
       adminId: null,
     });
     const participants = [
-      { threadId: staffDirectThread.id, userId: headUser.id, createdAt: staffDirectThread.createdAt },
+      {
+        threadId: staffDirectThread.id,
+        userId: headUser.id,
+        createdAt: staffDirectThread.createdAt,
+      },
       {
         threadId: staffDirectThread.id,
         userId: supervisorUser.id,
@@ -858,7 +921,25 @@ describe('message.listRecipients', () => {
     ]);
   });
 
-  it('denies non-parent users', async () => {
+  it('returns active full-admin recipients for linked supervisor parent-staff threads', async () => {
+    const { caller } = makeCaller(supervisorUser);
+
+    await expect(caller.message.listRecipients()).resolves.toEqual([
+      expect.objectContaining({ id: headUser.id, role: 'Head' }),
+      expect.objectContaining({ id: principalUser.id, role: 'Principal' }),
+    ]);
+  });
+
+  it('denies unlinked supervisors from parent-staff recipients', async () => {
+    const { caller } = makeCaller(
+      supervisorUser,
+      makeFakeDb([], [], defaultUsers, [], undefined, []),
+    );
+
+    await expect(caller.message.listRecipients()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('denies users without linked-child guardian access', async () => {
     const { caller } = makeCaller(headUser);
 
     await expect(caller.message.listRecipients()).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -968,6 +1049,39 @@ describe('message.listThreads', () => {
       makeCaller(headOfDisciplineUser, db).caller.message.listThreads(),
     ).resolves.toHaveLength(0);
   });
+
+  it('scopes linked supervisor parent-staff threads by current user participation', async () => {
+    const linkedSupervisorThread = makeThread({
+      id: 'cthread000000000000205',
+      parentId: supervisorUser.id,
+      updatedAt: new Date('2026-05-09T13:00:00.000Z'),
+    });
+    const parentThread = makeThread({
+      id: 'cthread000000000000206',
+      parentId: parentUser.id,
+      updatedAt: new Date('2026-05-09T14:00:00.000Z'),
+    });
+    const db = makeFakeDb([linkedSupervisorThread, parentThread]);
+
+    await expect(makeCaller(supervisorUser, db).caller.message.listThreads()).resolves.toEqual([
+      expect.objectContaining({
+        id: linkedSupervisorThread.id,
+        kind: 'ParentStaff',
+        parentId: supervisorUser.id,
+      }),
+    ]);
+  });
+
+  it('does not expose parent-staff threads for unlinked supervisors even when they are participants', async () => {
+    const linkedSupervisorThread = makeThread({
+      id: 'cthread000000000000207',
+      parentId: supervisorUser.id,
+      updatedAt: new Date('2026-05-09T15:00:00.000Z'),
+    });
+    const db = makeFakeDb([linkedSupervisorThread], [], defaultUsers, [], undefined, []);
+
+    await expect(makeCaller(supervisorUser, db).caller.message.listThreads()).resolves.toEqual([]);
+  });
 });
 
 describe('message.openStaffroom', () => {
@@ -1007,7 +1121,9 @@ describe('message.openStaffroom', () => {
     const staffroom = await headCaller.message.openStaffroom();
     await headCaller.message.send({ threadId: staffroom.id, body: 'Team update.' });
 
-    await expect(makeCaller(supervisorUser, db, email).caller.message.listThreads()).resolves.toEqual(
+    await expect(
+      makeCaller(supervisorUser, db, email).caller.message.listThreads(),
+    ).resolves.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: staffroom.id,

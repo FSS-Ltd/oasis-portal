@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
-import { canAnswerChildRegistrationPrompt, type SessionUser } from '@oasis/domain';
+import { canUseLinkedChildGuardianAccess, type SessionUser } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
   createDefaultClerkInvitationClient,
@@ -107,7 +107,7 @@ function normaliseNullableText(value: string | null | undefined): string | null 
 }
 
 function canInviteSpouse(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+  return canUseLinkedChildGuardianAccess(user);
 }
 
 function sanitizeEmailDeliveryError(err: unknown) {

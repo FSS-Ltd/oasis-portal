@@ -368,7 +368,16 @@ CREATE POLICY invoice_staff_select ON "SchoolFeeInvoice"
 CREATE POLICY invoice_parent_own_child_select ON "SchoolFeeInvoice"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "status" <> 'Draft'
     AND EXISTS (
       SELECT 1
@@ -382,7 +391,16 @@ CREATE POLICY invoice_parent_own_child_select ON "SchoolFeeInvoice"
 CREATE POLICY invoice_parent_payment_update ON "SchoolFeeInvoice"
   FOR UPDATE
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "status" = 'Unpaid'
     AND EXISTS (
       SELECT 1
@@ -393,7 +411,16 @@ CREATE POLICY invoice_parent_payment_update ON "SchoolFeeInvoice"
     )
   )
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "status"::text IN ('Unpaid', 'PaymentPending')
     AND EXISTS (
       SELECT 1
@@ -545,7 +572,18 @@ CREATE POLICY invoice_fee_config_staff_select ON "SchoolFeeYearFeeConfig"
 
 CREATE POLICY invoice_fee_config_parent_select ON "SchoolFeeYearFeeConfig"
   FOR SELECT
-  USING (current_setting('app.user_role', true) = 'Parent');
+  USING (
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+  );
 
 CREATE POLICY invoice_fee_config_staff_insert ON "SchoolFeeYearFeeConfig"
   FOR INSERT
@@ -607,7 +645,16 @@ CREATE POLICY invoice_student_staff_select ON "SchoolFeeInvoiceStudent"
 CREATE POLICY invoice_student_parent_select ON "SchoolFeeInvoiceStudent"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
       WHERE g."studentId" = "SchoolFeeInvoiceStudent"."studentId"
@@ -663,7 +710,16 @@ CREATE POLICY invoice_discount_staff_select ON "SchoolFeeInvoiceDiscount"
 CREATE POLICY invoice_discount_parent_select ON "SchoolFeeInvoiceDiscount"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1
       FROM "SchoolFeeInvoiceStudent" link
@@ -718,7 +774,16 @@ CREATE POLICY invoice_discount_staff_update ON "SchoolFeeInvoiceDiscount"
 CREATE POLICY invoice_discount_parent_update ON "SchoolFeeInvoiceDiscount"
   FOR UPDATE
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1
       FROM "SchoolFeeInvoice" i
@@ -730,7 +795,16 @@ CREATE POLICY invoice_discount_parent_update ON "SchoolFeeInvoiceDiscount"
     )
   )
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1
       FROM "SchoolFeeInvoice" i
@@ -804,7 +878,16 @@ CREATE POLICY permission_slip_parent_select ON "PermissionSlip"
   FOR SELECT
   USING (
     "active" = true
-    AND current_setting('app.user_role', true) = 'Parent'
+    AND current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1
       FROM "PermissionSlipRecipient" psr
@@ -834,7 +917,16 @@ CREATE POLICY permission_slip_recipient_manager_select ON "PermissionSlipRecipie
 CREATE POLICY permission_slip_recipient_parent_select ON "PermissionSlipRecipient"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1
       FROM "PermissionSlip" ps
@@ -857,7 +949,16 @@ CREATE POLICY permission_slip_recipient_manager_update ON "PermissionSlipRecipie
 CREATE POLICY permission_slip_recipient_parent_response_update ON "PermissionSlipRecipient"
   FOR UPDATE
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "responseStatus" = 'Pending'
     AND EXISTS (
       SELECT 1
@@ -869,7 +970,16 @@ CREATE POLICY permission_slip_recipient_parent_response_update ON "PermissionSli
     )
   )
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "responseStatus" IN ('Signed', 'Declined')
     AND "paymentStatus" IN ('NotRequired', 'Unpaid')
     AND (
@@ -889,7 +999,16 @@ CREATE POLICY permission_slip_recipient_parent_response_update ON "PermissionSli
 CREATE POLICY permission_slip_recipient_parent_payment_update ON "PermissionSlipRecipient"
   FOR UPDATE
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "responseStatus" = 'Signed'
     AND "paymentStatus" = 'Unpaid'
     AND EXISTS (
@@ -903,7 +1022,16 @@ CREATE POLICY permission_slip_recipient_parent_payment_update ON "PermissionSlip
     )
   )
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND "responseStatus" = 'Signed'
     AND "paymentStatus" = 'PaymentPending'
     AND ("signatureSource" IS NULL OR "signatureSource" IN ('ParentPortal', 'Physical'))
@@ -982,7 +1110,16 @@ CREATE POLICY permission_slip_answer_accessible_select ON "PermissionSlipAnswer"
 CREATE POLICY permission_slip_answer_parent_insert ON "PermissionSlipAnswer"
   FOR INSERT
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1
       FROM "PermissionSlip" ps
@@ -1047,7 +1184,16 @@ CREATE POLICY incident_staff_select ON "IncidentReport"
     current_setting('app.full_admin', true) = 'true'
     OR current_setting('app.user_role', true) = 'Supervisor'
     OR (
-      current_setting('app.user_role', true) = 'Parent'
+      current_setting('app.user_role', true) IN (
+        'Parent',
+        'Head',
+        'Principal',
+        'Pastor',
+        'HeadOfDiscipline',
+        'TechnicalSupport',
+        'ClubsAdmin',
+        'Supervisor'
+      )
       AND EXISTS (
         SELECT 1
         FROM "IncidentReportParentCopy" ipc
@@ -1202,6 +1348,10 @@ CREATE POLICY incident_parent_copy_parent_select ON "IncidentReportParentCopy"
   USING (
     current_setting('app.user_role', true) IN (
       'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
       'TechnicalSupport',
       'ClubsAdmin',
       'Supervisor'
@@ -1232,6 +1382,10 @@ CREATE POLICY incident_parent_recipient_parent_select ON "IncidentReportParentRe
   USING (
     current_setting('app.user_role', true) IN (
       'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
       'TechnicalSupport',
       'ClubsAdmin',
       'Supervisor'
@@ -1257,6 +1411,10 @@ CREATE POLICY incident_parent_recipient_parent_ack_update ON "IncidentReportPare
   USING (
     current_setting('app.user_role', true) IN (
       'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
       'TechnicalSupport',
       'ClubsAdmin',
       'Supervisor'
@@ -1274,6 +1432,10 @@ CREATE POLICY incident_parent_recipient_parent_ack_update ON "IncidentReportPare
   WITH CHECK (
     current_setting('app.user_role', true) IN (
       'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
       'TechnicalSupport',
       'ClubsAdmin',
       'Supervisor'

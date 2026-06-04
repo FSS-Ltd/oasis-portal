@@ -378,13 +378,22 @@ describe('tithe.getConfig', () => {
     );
   });
 
-  it('blocks students and supervisors from reading tithe config', async () => {
+  it('allows linked supervisors to read linked child tithe config only', async () => {
     await expect(
-      makeCaller(studentUser).caller.tithe.getConfig({ studentId: linkedStudentId }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+      makeCaller(
+        supervisorUser,
+        makeFakeDb({ guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }] }),
+      ).caller.tithe.getConfig({ studentId: linkedStudentId }),
+    ).resolves.toMatchObject({ studentId: linkedStudentId });
 
     await expect(
       makeCaller(supervisorUser).caller.tithe.getConfig({ studentId: linkedStudentId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('blocks students from reading tithe config', async () => {
+    await expect(
+      makeCaller(studentUser).caller.tithe.getConfig({ studentId: linkedStudentId }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 

@@ -53,15 +53,23 @@ export function SharedCalendar({
     enabled: canManage,
     retry: false,
   });
+  const parentEventsQuery = api.calendar.listForParents.useQuery(undefined, {
+    enabled: !canManage && mode === 'parent',
+    retry: false,
+  });
   const visibleEventsQuery = api.calendar.listVisible.useQuery(undefined, {
-    enabled: !canManage,
+    enabled: !canManage && mode !== 'parent',
     retry: false,
   });
   const requiredPeopleQuery = api.calendar.listRequiredPersonCandidates.useQuery(undefined, {
     enabled: canAssignRequiredPeople,
     retry: false,
   });
-  const eventsQuery = canManage ? adminEventsQuery : visibleEventsQuery;
+  const eventsQuery = canManage
+    ? adminEventsQuery
+    : mode === 'parent'
+      ? parentEventsQuery
+      : visibleEventsQuery;
 
   const invalidateCalendar = async () => {
     await Promise.all([

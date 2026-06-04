@@ -75,6 +75,11 @@ interface StoredBirthdaySupervisor {
   dobEnc: string | null;
 }
 
+interface StoredGuardian {
+  userId: string;
+  studentId: string;
+}
+
 interface StoredUser {
   id: string;
   role: SessionUser['role'];
@@ -186,12 +191,14 @@ function makeFakeDb(
   } = {},
   initialUsers: StoredUser[] = [],
   initialRequiredPeople: StoredRequiredPerson[] = [],
+  initialGuardians: StoredGuardian[] = [],
 ) {
   const events = [...initialEvents];
   const students = [...(birthdayRows.students ?? [])];
   const supervisors = [...(birthdayRows.supervisors ?? [])];
   const users = [...initialUsers];
   const requiredPeople = [...initialRequiredPeople];
+  const guardians = [...initialGuardians];
   const auditCreate = vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args));
 
   function eventMatchesWhere(event: StoredCalendarEvent, where: FakeCalendarFindManyArgs['where']) {
@@ -323,6 +330,15 @@ function makeFakeDb(
     student: {
       findMany: vi.fn(() => Promise.resolve(students)),
     },
+    guardian: {
+      count: vi.fn(({ where }: { where: { userId: string; student: { active: boolean } } }) =>
+        Promise.resolve(
+          where.student.active
+            ? guardians.filter((guardian) => guardian.userId === where.userId).length
+            : 0,
+        ),
+      ),
+    },
     user: {
       findMany: vi.fn((args: { where?: Record<string, unknown>; select?: unknown } = {}) => {
         if (args.where?.dobEnc) return Promise.resolve(supervisors);
@@ -331,6 +347,7 @@ function makeFakeDb(
     },
     events,
     requiredPeople,
+    guardians,
   };
   db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
   return db;
@@ -698,6 +715,24 @@ describe('calendar reader lists', () => {
     );
   });
 
+  it('returns Parents and All events for linked supervisors in the parent portal', async () => {
+    const { caller } = makeCaller(
+      supervisorUser,
+      makeFakeDb(events, {}, [], [], [{ userId: supervisorUser.id, studentId: 'student_linked' }]),
+    );
+
+    await expect(caller.calendar.listForParents()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'event_all' }),
+        expect.objectContaining({ id: 'event_parent' }),
+      ]),
+    );
+    const result = await caller.calendar.listForParents();
+    expect(result).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'event_staff' })]),
+    );
+  });
+
   it('returns Supervisors and All events for supervisors', async () => {
     const { caller } = makeCaller(supervisorUser, makeFakeDb(events));
 
@@ -779,6 +814,11 @@ describe('calendar reader lists', () => {
     await expect(makeCaller(parentUser).caller.calendar.listForStaff()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+    await expect(makeCaller(supervisorUser).caller.calendar.listForParents()).rejects.toMatchObject(
+      {
+        code: 'FORBIDDEN',
+      },
+    );
   });
 
   it('adds virtual birthday events only for full-admin head roles', async () => {

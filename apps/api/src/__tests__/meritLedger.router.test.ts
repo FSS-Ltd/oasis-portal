@@ -311,6 +311,25 @@ describe('meritLedger.balances', () => {
     );
   });
 
+  it('allows linked supervisors to read linked child balances only', async () => {
+    const linked = makeCaller(
+      supervisorUser,
+      makeFakeDb({ guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }] }),
+    );
+
+    await expect(
+      linked.caller.meritLedger.balances({ studentId: linkedStudentId }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      balances: { Spend: 0, Saving: 0, Investment: 0, ShopReserved: 0 },
+    });
+
+    const unlinked = makeCaller(supervisorUser);
+    await expect(
+      unlinked.caller.meritLedger.balances({ studentId: linkedStudentId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('allows student self access and rejects missing or inactive students', async () => {
     await expect(
       makeCaller(studentUser).caller.meritLedger.balances({ studentId: linkedStudentId }),

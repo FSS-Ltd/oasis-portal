@@ -1,4 +1,4 @@
-import { canAnswerChildRegistrationPrompt, type SessionUser } from './rbac.js';
+import { canUseLinkedChildGuardianAccess, type SessionUser } from './rbac.js';
 
 export const SCHOOL_FEE_INVOICE_STATUSES = ['Draft', 'Unpaid', 'PaymentPending', 'Paid'] as const;
 export type SchoolFeeInvoiceStatus = (typeof SCHOOL_FEE_INVOICE_STATUSES)[number];
@@ -28,7 +28,7 @@ export const SCHOOL_FEE_DISCOUNT_PRESETS = [
 ] as const;
 
 export function canUseLinkedChildInvoiceAccess(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+  return canUseLinkedChildGuardianAccess(user);
 }
 
 export interface SchoolFeeYearFeeConfigInput {

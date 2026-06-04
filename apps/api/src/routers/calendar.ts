@@ -4,6 +4,7 @@ import {
   AccessDeniedError,
   canManageCalendar,
   canUseAdminOperations,
+  canUseLinkedChildGuardianAccess,
   isStaff,
   type SessionUser,
 } from '@oasis/domain';
@@ -136,9 +137,15 @@ function requireStaffCalendarReader(user: SessionUser): void {
   throw toForbidden(new AccessDeniedError('staff calendar requires full-admin or Supervisor'));
 }
 
-function requireParentCalendarReader(user: SessionUser): void {
-  if (user.role === 'Parent' || canUseAdminOperations(user)) return;
-  throw toForbidden(new AccessDeniedError('parent calendar requires Parent or full-admin'));
+async function requireParentCalendarReader(ctx: AuthedContext): Promise<void> {
+  if (ctx.user.role === 'Parent' || canUseAdminOperations(ctx.user)) return;
+  if (canUseLinkedChildGuardianAccess(ctx.user)) {
+    const linkedChildCount = await ctx.db.guardian.count({
+      where: { userId: ctx.user.id, student: { active: true } },
+    });
+    if (linkedChildCount > 0) return;
+  }
+  throw toForbidden(new AccessDeniedError('parent calendar requires linked-child guardian access'));
 }
 
 function normaliseDescription(value: string | undefined): string | null {
@@ -582,7 +589,7 @@ export const calendarRouter = router({
   }),
 
   listForParents: authedProcedure.query(async ({ ctx }) => {
-    requireParentCalendarReader(ctx.user);
+    await requireParentCalendarReader(ctx);
 
     const events = await ctx.db.calendarEvent.findMany({
       where: activeAudienceWhere(['All', 'Parents']),

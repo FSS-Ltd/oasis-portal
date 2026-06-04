@@ -1,7 +1,7 @@
 import {
   AccessDeniedError,
-  canAnswerChildRegistrationPrompt,
   canUseAdminOperations,
+  canUseLinkedChildGuardianAccess,
   type SessionUser,
 } from './rbac.js';
 
@@ -41,7 +41,11 @@ export type IncidentType = (typeof INCIDENT_TYPES)[number];
 export const INCIDENT_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'] as const;
 export type IncidentSeverity = (typeof INCIDENT_SEVERITIES)[number];
 
-export const INCIDENT_CONFIDENTIALITIES = ['StaffOnly', 'HeadDsl', 'ParentViewableAfterSignOff'] as const;
+export const INCIDENT_CONFIDENTIALITIES = [
+  'StaffOnly',
+  'HeadDsl',
+  'ParentViewableAfterSignOff',
+] as const;
 export type IncidentConfidentiality = (typeof INCIDENT_CONFIDENTIALITIES)[number];
 
 export function canCreateIncidentReport(user: Pick<SessionUser, 'role'>): boolean {
@@ -65,7 +69,7 @@ export function canOverrideIncidentParentVisibility(user: Pick<SessionUser, 'rol
 }
 
 export function canUseLinkedChildIncidentAccess(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+  return canUseLinkedChildGuardianAccess(user);
 }
 
 export function requireCanCreateIncidentReport(user: SessionUser): void {

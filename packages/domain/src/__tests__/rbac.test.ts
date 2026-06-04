@@ -27,6 +27,7 @@ import {
   canSubmitInitialRegistration,
   canUseClubLeadAccess,
   canUseClubsLeadPortal,
+  canUseLinkedChildGuardianAccess,
   hasCompletedTwoFactor,
   isFullAdmin,
   isStaff,
@@ -212,6 +213,26 @@ describe('child registration prompt roles', () => {
     expect(canSubmitInitialRegistration(supervisor, 'Unanswered')).toBe(false);
     expect(canSubmitInitialRegistration(supervisor, 'NoChildren')).toBe(false);
     expect(canSubmitInitialRegistration(student, 'HasChildren')).toBe(false);
+  });
+});
+
+describe('linked-child guardian access', () => {
+  it('allows Parent and adult child-registration roles while excluding Student and ClubsLead', () => {
+    for (const user of [
+      head,
+      principal,
+      pastor,
+      hod,
+      technicalSupport,
+      clubsAdmin,
+      supervisor,
+      parent,
+    ]) {
+      expect(canUseLinkedChildGuardianAccess(user)).toBe(true);
+    }
+
+    expect(canUseLinkedChildGuardianAccess(clubsLead)).toBe(false);
+    expect(canUseLinkedChildGuardianAccess(student)).toBe(false);
   });
 });
 

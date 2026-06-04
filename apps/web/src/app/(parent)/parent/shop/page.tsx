@@ -1,7 +1,10 @@
 import { MotionPage } from '@/components/admin/motion';
+import { getLinkedChildPortalUser } from '@/components/admin/require-full-admin';
 import { ParentShopClient } from '@/components/shop/parent-shop-client';
 
-export default function ParentShopPage() {
+export default async function ParentShopPage() {
+  await getLinkedChildPortalUser();
+
   return (
     <MotionPage>
       <ParentShopClient />

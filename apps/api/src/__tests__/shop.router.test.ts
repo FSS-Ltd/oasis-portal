@@ -729,9 +729,7 @@ function makeFakeDb(
         const rows = filtered
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .map(selectReservation);
-        return Promise.resolve(
-          args.take === undefined ? rows : rows.slice(0, args.take),
-        );
+        return Promise.resolve(args.take === undefined ? rows : rows.slice(0, args.take));
       }),
       findUnique: vi.fn((args: FakeShopReservationFindUniqueArgs) => {
         const reservation = reservations.find((row) => row.id === args.where.id);
@@ -1387,6 +1385,34 @@ describe('shop reservations', () => {
     );
   });
 
+  it('lets a linked supervisor reserve stock and Spend for a linked child', async () => {
+    const { caller, db } = makeCaller(
+      supervisorUser,
+      makeFakeDb({
+        guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }],
+        items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 2 }],
+      }),
+    ).resolves.toMatchObject({
+      studentId: linkedStudentId,
+      reservedById: supervisorUser.id,
+      status: 'Ready',
+      totalPriceMerits: 40,
+    });
+
+    expect(db.reservations[0]).toMatchObject({
+      studentId: linkedStudentId,
+      reservedById: supervisorUser.id,
+    });
+  });
+
   it('limits parent and student reservation access to linked children or self', async () => {
     const parentDb = makeFakeDb({
       guardians: [],
@@ -1401,6 +1427,20 @@ describe('shop reservations', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(parentDb.reservations).toHaveLength(0);
+
+    const supervisorDb = makeFakeDb({
+      guardians: [],
+      items: [makeItem({ id: shopItemId, priceIncVat: 20, stockCount: 4 })],
+      ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+    });
+
+    await expect(
+      makeCaller(supervisorUser, supervisorDb).caller.shop.reserve({
+        studentId: linkedStudentId,
+        lines: [{ itemId: shopItemId, unitsReserved: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(supervisorDb.reservations).toHaveLength(0);
 
     const studentDb = makeFakeDb({
       students: [{ id: linkedStudentId, userId: studentUser.id }],
@@ -1752,18 +1792,20 @@ describe('shop reservations', () => {
     expect(historyJson).not.toContain(parentUser.id);
     expect(historyJson).not.toContain(shopkeeperUser.id);
 
-    await expect(makeCaller(studentUser, db).caller.shop.listReservations()).resolves.toMatchObject([
-      {
-        id: 'ckshopreserve000000002',
-        reservedById: studentUser.id,
-        studentName: 'Joshua',
-      },
-      {
-        id: 'ckshopreserve000000001',
-        reservedById: 'parent-or-carer',
-        studentName: 'Joshua',
-      },
-    ]);
+    await expect(makeCaller(studentUser, db).caller.shop.listReservations()).resolves.toMatchObject(
+      [
+        {
+          id: 'ckshopreserve000000002',
+          reservedById: studentUser.id,
+          studentName: 'Joshua',
+        },
+        {
+          id: 'ckshopreserve000000001',
+          reservedById: 'parent-or-carer',
+          studentName: 'Joshua',
+        },
+      ],
+    );
   });
 });
 
