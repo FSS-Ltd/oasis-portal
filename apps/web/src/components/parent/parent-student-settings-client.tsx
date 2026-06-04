@@ -219,6 +219,23 @@ function CredentialsPanel({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordPolicySuccess, setPasswordPolicySuccess] = useState<string | null>(null);
 
+  function patchCachedChild(
+    studentId: string,
+    patcher: (current: LinkedChildSettings) => LinkedChildSettings,
+  ): void {
+    utils.studentSettings.listLinkedChildren.setData(undefined, (current) =>
+      current?.map((currentChild) =>
+        currentChild.studentId === studentId ? patcher(currentChild) : currentChild,
+      ),
+    );
+  }
+
+  function cachedChild(studentId: string): LinkedChildSettings | undefined {
+    return utils.studentSettings.listLinkedChildren
+      .getData()
+      ?.find((currentChild) => currentChild.studentId === studentId);
+  }
+
   useEffect(() => {
     setLoginHandle(child.loginHandle ?? '');
     setPassword('');
@@ -252,14 +269,35 @@ function CredentialsPanel({
     },
   });
   const setPasswordControl = api.studentSettings.setPasswordControl.useMutation({
-    onError(error) {
+    async onMutate(input) {
+      await utils.studentSettings.listLinkedChildren.cancel();
+      const previousChild = cachedChild(input.studentId);
+      patchCachedChild(input.studentId, (current) => ({
+        ...current,
+        studentCanManagePassword: input.studentCanManagePassword,
+      }));
+      return { previousChild };
+    },
+    onError(error, _input, context) {
+      const previousChild = context?.previousChild;
+      if (previousChild) {
+        patchCachedChild(previousChild.studentId, (current) => ({
+          ...current,
+          studentCanManagePassword: previousChild.studentCanManagePassword,
+        }));
+      }
       showErrorToast(error, 'Password policy could not be updated.');
     },
-    async onSuccess(updated) {
-      onSaved(updated);
+    onSuccess(updated) {
+      patchCachedChild(
+        updated.studentId,
+        (current): LinkedChildSettings => ({
+          ...current,
+          studentCanManagePassword: updated.studentCanManagePassword,
+        }),
+      );
       setPasswordPolicySuccess('Password policy updated.');
       showSuccessToast('Password policy updated.');
-      await utils.studentSettings.listLinkedChildren.invalidate();
     },
   });
 
