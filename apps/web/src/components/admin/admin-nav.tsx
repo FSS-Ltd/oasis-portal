@@ -21,6 +21,7 @@ import {
   ShoppingBag,
   Star,
   UserCog,
+  UserRoundPlus,
   UsersRound,
 } from 'lucide-react';
 
@@ -43,6 +44,7 @@ const navItems = [
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
   { href: '/admin/faith-corner', label: 'Faith Corner', icon: BookOpenText },
   { href: '/admin/student-notifications', label: 'Student Alerts', icon: Bell },
+  { href: '/admin/student-registrations', label: 'Student Registrations', icon: UserRoundPlus },
   { href: '/admin/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText },
   { href: '/admin/shop', label: 'Merit Shop', icon: ShoppingBag },

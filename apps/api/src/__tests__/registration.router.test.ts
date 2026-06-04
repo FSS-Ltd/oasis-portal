@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ParentInitialRegistrationInput, SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { registrationRouter } from '../routers/registration.js';
+import { createRegistrationRouter, registrationRouter } from '../routers/registration.js';
 import { router } from '../trpc.js';
 
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
@@ -117,25 +117,45 @@ function validSiblingPayload(name = 'New Sibling') {
   };
 }
 
+function validStudentSelfRegistrationPayload(registrationCode: string) {
+  return {
+    firstName: 'Student',
+    lastName: 'Learner',
+    dob: new Date('2015-05-05T00:00:00.000Z'),
+    email: 'student@example.com',
+    yearGroup: 'Year 6' as const,
+    registrationCode,
+  };
+}
+
 function makeFakeDb() {
-  const users = [
+  const users: Array<{
+    id: string;
+    emailBidx?: string | undefined;
+    childRegistrationPromptStatus: string;
+    childRegistrationPromptAnsweredAt: Date | null;
+  }> = [
     {
       id: parentUser.id,
+      emailBidx: undefined,
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
     {
       id: otherParentUser.id,
+      emailBidx: undefined,
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
     {
       id: headUser.id,
+      emailBidx: undefined,
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
     {
       id: studentUser.id,
+      emailBidx: undefined,
       childRegistrationPromptStatus: 'Unanswered',
       childRegistrationPromptAnsweredAt: null,
     },
@@ -148,6 +168,9 @@ function makeFakeDb() {
   const guardians: Array<Record<string, unknown>> = [];
   const profiles: Array<Record<string, unknown>> = [];
   const consents: Array<Record<string, unknown>> = [];
+  const studentRegistrationCodes: Array<Record<string, unknown>> = [];
+  const studentSelfRegistrations: Array<Record<string, unknown>> = [];
+  const userInvitations: Array<Record<string, unknown>> = [];
 
   function buildRegistrationRow(registration: Record<string, unknown>) {
     return {
@@ -189,6 +212,19 @@ function makeFakeDb() {
     }
   }
 
+  function buildStudentSelfRegistrationRow(registration: Record<string, unknown>) {
+    return {
+      ...registration,
+      registrationCode: studentRegistrationCodes.find(
+        (code) => code.id === registration.registrationCodeId,
+      ),
+      invitation:
+        userInvitations.find(
+          (invitation) => invitation.studentSelfRegistrationId === registration.id,
+        ) ?? null,
+    };
+  }
+
   const db = {
     $enc: {
       encrypt: vi.fn(encrypt),
@@ -202,8 +238,14 @@ function makeFakeDb() {
       ),
     },
     user: {
-      findUnique: vi.fn(({ where }: { where: { id: string } }) =>
-        Promise.resolve(users.find((user) => user.id === where.id) ?? null),
+      findUnique: vi.fn(({ where }: { where: { id?: string; emailBidx?: string } }) =>
+        Promise.resolve(
+          users.find(
+            (user) =>
+              (where.id !== undefined && user.id === where.id) ||
+              (where.emailBidx !== undefined && user.emailBidx === where.emailBidx),
+          ) ?? null,
+        ),
       ),
       update: vi.fn(({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const user = users.find((candidate) => candidate.id === where.id);
@@ -330,6 +372,167 @@ function makeFakeDb() {
         return Promise.resolve({ id: student.id });
       }),
     },
+    studentRegistrationCode: {
+      create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+        if (studentRegistrationCodes.some((code) => code.codeBidx === data.codeBidx)) {
+          return Promise.reject(new Error('duplicate registration code'));
+        }
+        const code = {
+          id: `student_code_${String(studentRegistrationCodes.length + 1)}`,
+          active: true,
+          usedCount: 0,
+          createdAt: new Date('2026-04-27T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-27T10:00:00.000Z'),
+          ...data,
+        };
+        studentRegistrationCodes.push(code);
+        return Promise.resolve(code);
+      }),
+      findMany: vi.fn(() => Promise.resolve([...studentRegistrationCodes].reverse())),
+      findUnique: vi.fn(({ where }: { where: { codeBidx: string } }) =>
+        Promise.resolve(
+          studentRegistrationCodes.find((code) => code.codeBidx === where.codeBidx) ?? null,
+        ),
+      ),
+      updateMany: vi.fn(
+        ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const code = studentRegistrationCodes.find((candidate) => candidate.id === where.id);
+          if (!code) return Promise.resolve({ count: 0 });
+          if (
+            typeof data.usedCount === 'object' &&
+            data.usedCount !== null &&
+            'increment' in data.usedCount
+          ) {
+            code.usedCount = Number(code.usedCount ?? 0) + Number(data.usedCount.increment);
+          } else {
+            Object.assign(code, data);
+          }
+          return Promise.resolve({ count: 1 });
+        },
+      ),
+      update: vi.fn(({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const code = studentRegistrationCodes.find((candidate) => candidate.id === where.id);
+        if (!code) return Promise.reject(new Error('code not found'));
+        if (
+          typeof data.usedCount === 'object' &&
+          data.usedCount !== null &&
+          'increment' in data.usedCount
+        ) {
+          code.usedCount = Number(code.usedCount ?? 0) + Number(data.usedCount.increment);
+        } else {
+          Object.assign(code, data);
+        }
+        return Promise.resolve({ id: code.id });
+      }),
+    },
+    studentSelfRegistration: {
+      create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+        const activeDuplicate = studentSelfRegistrations.find(
+          (registration) =>
+            registration.emailBidx === data.emailBidx &&
+            ['Pending', 'AwaitingConsent', 'Activated'].includes(String(registration.status)),
+        );
+        if (activeDuplicate) return Promise.reject(new Error('duplicate self registration'));
+        const registration = {
+          id: `self_reg_${String(studentSelfRegistrations.length + 1)}`,
+          status: 'Pending',
+          parentConsentConfirmedAt: null,
+          approvedById: null,
+          approvedAt: null,
+          declinedById: null,
+          declinedAt: null,
+          declineReasonEnc: null,
+          activationEmailSentAt: null,
+          activationEmailMessageId: null,
+          studentId: null,
+          createdAt: new Date('2026-04-27T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-27T10:00:00.000Z'),
+          ...data,
+        };
+        studentSelfRegistrations.push(registration);
+        return Promise.resolve(registration);
+      }),
+      findFirst: vi.fn(({ where }: { where: { emailBidx: string; status?: { in: string[] } } }) =>
+        Promise.resolve(
+          studentSelfRegistrations.find(
+            (registration) =>
+              registration.emailBidx === where.emailBidx &&
+              (!where.status || where.status.in.includes(String(registration.status))),
+          ) ?? null,
+        ),
+      ),
+      findMany: vi.fn(() =>
+        Promise.resolve(
+          [...studentSelfRegistrations].reverse().map(buildStudentSelfRegistrationRow),
+        ),
+      ),
+      findUnique: vi.fn(({ where }: { where: { id: string } }) => {
+        const registration = studentSelfRegistrations.find(
+          (candidate) => candidate.id === where.id,
+        );
+        return Promise.resolve(registration ? buildStudentSelfRegistrationRow(registration) : null);
+      }),
+      update: vi.fn(({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const registration = studentSelfRegistrations.find(
+          (candidate) => candidate.id === where.id,
+        );
+        if (!registration) return Promise.reject(new Error('self registration not found'));
+        const invitationUpdate = data.invitation as
+          | { update?: Record<string, unknown> }
+          | undefined;
+        if (invitationUpdate?.update) {
+          const invitation = userInvitations.find(
+            (candidate) => candidate.studentSelfRegistrationId === registration.id,
+          );
+          if (invitation) Object.assign(invitation, invitationUpdate.update);
+        }
+        const next = { ...data };
+        delete next.invitation;
+        Object.assign(registration, next);
+        return Promise.resolve(buildStudentSelfRegistrationRow(registration));
+      }),
+    },
+    userInvitation: {
+      create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+        const invitation = {
+          id: `invite_${String(userInvitations.length + 1)}`,
+          acceptedUserId: null,
+          acceptedAt: null,
+          createdAt: new Date('2026-04-27T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-27T10:00:00.000Z'),
+          ...data,
+        };
+        userInvitations.push(invitation);
+        return Promise.resolve(invitation);
+      }),
+      findFirst: vi.fn(({ where }: { where: { emailBidx: string; status: string } }) =>
+        Promise.resolve(
+          userInvitations.find(
+            (invitation) =>
+              invitation.emailBidx === where.emailBidx && invitation.status === where.status,
+          ) ?? null,
+        ),
+      ),
+      update: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { studentSelfRegistrationId?: string; id?: string };
+          data: Record<string, unknown>;
+        }) => {
+          const invitation = userInvitations.find(
+            (candidate) =>
+              (where.id !== undefined && candidate.id === where.id) ||
+              (where.studentSelfRegistrationId !== undefined &&
+                candidate.studentSelfRegistrationId === where.studentSelfRegistrationId),
+          );
+          if (!invitation) return Promise.reject(new Error('invitation not found'));
+          Object.assign(invitation, data);
+          return Promise.resolve({ id: invitation.id });
+        },
+      ),
+    },
     studentRegistrationProfile: {
       create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
         const profile = {
@@ -429,6 +632,9 @@ function makeFakeDb() {
     guardians,
     profiles,
     consents,
+    studentRegistrationCodes,
+    studentSelfRegistrations,
+    userInvitations,
   };
 }
 
@@ -445,6 +651,195 @@ function makeCaller(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>[
   const appRouter = router({ registration: registrationRouter });
   return appRouter.createCaller(makeCtx(user, db));
 }
+
+function makeStudentSelfRegistrationCaller(
+  user: SessionUser | null,
+  db: ReturnType<typeof makeFakeDb>['db'],
+) {
+  const clerk = {
+    createInvitation: vi.fn(() =>
+      Promise.resolve({
+        id: 'clerk_invite_1',
+        emailAddress: 'student@example.com',
+        status: 'pending',
+        url: 'https://accounts.example.test/invite',
+      }),
+    ),
+    findInvitation: vi.fn(),
+    revokeInvitation: vi.fn(),
+  };
+  const emailClient = {
+    send: vi.fn(() => Promise.resolve({ id: 'email_1' })),
+  };
+  const appRouter = router({
+    registration: createRegistrationRouter({
+      appUrl: 'https://portal.example.test',
+      clerk,
+      emailClient,
+    }),
+  });
+
+  return {
+    caller: appRouter.createCaller(makeCtx(user, db)),
+    clerk,
+    emailClient,
+  };
+}
+
+describe('registration student self-registration', () => {
+  it('rejects submissions without a valid registration code', async () => {
+    const store = makeFakeDb();
+    const { caller } = makeStudentSelfRegistrationCaller(null, store.db);
+
+    await expect(
+      caller.registration.submitStudentSelfRegistration(
+        validStudentSelfRegistrationPayload('OASIS-MISSING'),
+      ),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'registration code is invalid',
+    });
+    expect(store.studentSelfRegistrations).toHaveLength(0);
+    expect(store.students).toHaveLength(0);
+    expect(store.userInvitations).toHaveLength(0);
+  });
+
+  it('stores pending submissions without creating a student profile or invitation', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'June intake',
+      maxUses: 3,
+    });
+    const publicCaller = makeStudentSelfRegistrationCaller(null, store.db).caller;
+
+    await expect(
+      publicCaller.registration.submitStudentSelfRegistration(
+        validStudentSelfRegistrationPayload(code.code),
+      ),
+    ).resolves.toEqual({
+      registrationId: 'self_reg_1',
+      status: 'Pending',
+    });
+
+    expect(store.studentSelfRegistrations).toHaveLength(1);
+    expect(store.studentRegistrationCodes[0]).toMatchObject({ usedCount: 1 });
+    expect(store.students).toHaveLength(0);
+    expect(store.userInvitations).toHaveLength(0);
+  });
+
+  it('keeps approved registrations awaiting consent inactive', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Consent check',
+    });
+    await makeStudentSelfRegistrationCaller(
+      null,
+      store.db,
+    ).caller.registration.submitStudentSelfRegistration(
+      validStudentSelfRegistrationPayload(code.code),
+    );
+
+    const result = await admin.caller.registration.approveStudentSelfRegistration({
+      id: 'self_reg_1',
+      parentConsentConfirmed: false,
+    });
+
+    expect(result).toMatchObject({
+      id: 'self_reg_1',
+      status: 'AwaitingConsent',
+      studentId: null,
+      activationEmailSentAt: null,
+    });
+    expect(store.students).toHaveLength(0);
+    expect(store.userInvitations).toHaveLength(0);
+    expect(admin.emailClient.send).not.toHaveBeenCalled();
+  });
+
+  it('activates approved registrations only after consent and sends the activation email', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Activation',
+    });
+    await makeStudentSelfRegistrationCaller(
+      null,
+      store.db,
+    ).caller.registration.submitStudentSelfRegistration(
+      validStudentSelfRegistrationPayload(code.code),
+    );
+
+    const result = await admin.caller.registration.approveStudentSelfRegistration({
+      id: 'self_reg_1',
+      parentConsentConfirmed: true,
+    });
+
+    expect(result).toMatchObject({
+      id: 'self_reg_1',
+      status: 'Activated',
+      studentId: 'student_1',
+      activationEmailMessageId: 'email_1',
+      invitation: { emailStatus: 'Sent', status: 'Pending' },
+    });
+    expect(store.students).toEqual([
+      expect.objectContaining({
+        id: 'student_1',
+        userId: null,
+        active: true,
+        fullNameEnc: 'enc:Student Learner',
+        dobEnc: 'enc:2015-05-05',
+        yearGroup: 'Year 6',
+      }),
+    ]);
+    expect(store.userInvitations).toEqual([
+      expect.objectContaining({
+        role: 'Student',
+        emailStatus: 'Sent',
+        studentSelfRegistrationId: 'self_reg_1',
+      }),
+    ]);
+    expect(admin.clerk.createInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailAddress: 'student@example.com',
+        publicMetadata: { role: 'Student', tags: [] },
+        notify: false,
+      }),
+    );
+    expect(admin.emailClient.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'student@example.com',
+      }),
+    );
+  });
+
+  it('allows Centre Managers to decline pending registrations without creating access', async () => {
+    const store = makeFakeDb();
+    const admin = makeStudentSelfRegistrationCaller(headUser, store.db);
+    const code = await admin.caller.registration.createStudentRegistrationCode({
+      label: 'Decline path',
+    });
+    await makeStudentSelfRegistrationCaller(
+      null,
+      store.db,
+    ).caller.registration.submitStudentSelfRegistration(
+      validStudentSelfRegistrationPayload(code.code),
+    );
+
+    const result = await admin.caller.registration.declineStudentSelfRegistration({
+      id: 'self_reg_1',
+      reason: 'Duplicate request',
+    });
+
+    expect(result).toMatchObject({
+      id: 'self_reg_1',
+      status: 'Declined',
+      declineReason: 'Duplicate request',
+    });
+    expect(store.students).toHaveLength(0);
+    expect(store.userInvitations).toHaveLength(0);
+  });
+});
 
 describe('registration.submitInitial', () => {
   it('creates one shared registration, active siblings, guardian links, encrypted data, and audits', async () => {

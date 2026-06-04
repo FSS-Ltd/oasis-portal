@@ -46,6 +46,7 @@ interface PendingInvitationRow {
   role: Role;
   tags: PermissionTag[];
   guardianLinkStudentIds: string[];
+  studentSelfRegistrationId: string | null;
 }
 
 type FakeInvitationFindMany = (args: {
@@ -53,6 +54,7 @@ type FakeInvitationFindMany = (args: {
     role: true;
     tags: true;
     guardianLinkStudentIds: true;
+    studentSelfRegistrationId: true;
   };
   where: {
     emailBidx: string;
@@ -191,6 +193,8 @@ describe('createPrismaClerkUserStore', () => {
     const findMany = vi.fn<FakeInvitationFindMany>().mockResolvedValue([]);
     const updateMany = vi.fn<FakeInvitationUpdateMany>().mockResolvedValue({ count: 1 });
     const createMany = vi.fn().mockResolvedValue({ count: 0 });
+    const findStudentSelfRegistrations = vi.fn().mockResolvedValue([]);
+    const updateStudents = vi.fn().mockResolvedValue({ count: 0 });
     const db = {
       $enc: {
         encrypt: fakeEncrypt,
@@ -201,6 +205,8 @@ describe('createPrismaClerkUserStore', () => {
       user: { findUnique, create, update },
       userInvitation: { findMany, updateMany },
       guardian: { createMany },
+      studentSelfRegistration: { findMany: findStudentSelfRegistrations },
+      student: { updateMany: updateStudents },
     };
     return {
       db: db as unknown as PrismaClerkUserStoreDb,
@@ -210,6 +216,8 @@ describe('createPrismaClerkUserStore', () => {
       findMany,
       updateMany,
       createMany,
+      findStudentSelfRegistrations,
+      updateStudents,
     };
   }
 
@@ -258,7 +266,7 @@ describe('createPrismaClerkUserStore', () => {
     const { db, create, findMany } = makeDb(null);
     create.mockResolvedValue({ id: 'cuid_new' });
     findMany.mockResolvedValue([
-      { role: 'Pastor', tags: [], guardianLinkStudentIds: [] },
+      { role: 'Pastor', tags: [], guardianLinkStudentIds: [], studentSelfRegistrationId: null },
     ]);
     const store = createPrismaClerkUserStore(db);
 
@@ -273,7 +281,12 @@ describe('createPrismaClerkUserStore', () => {
 
     expect(findMany).toHaveBeenCalledWith({
       where: { emailBidx: 'bidx:jean@example.com', status: 'Pending' },
-      select: { role: true, tags: true, guardianLinkStudentIds: true },
+      select: {
+        role: true,
+        tags: true,
+        guardianLinkStudentIds: true,
+        studentSelfRegistrationId: true,
+      },
     });
     expect(create).toHaveBeenCalledWith({
       data: {
@@ -298,6 +311,7 @@ describe('createPrismaClerkUserStore', () => {
         role: 'Parent',
         tags: [],
         guardianLinkStudentIds: ['s_child_1', 's_child_2', 's_child_1'],
+        studentSelfRegistrationId: null,
       },
     ]);
     const store = createPrismaClerkUserStore(db);
@@ -317,6 +331,43 @@ describe('createPrismaClerkUserStore', () => {
         { userId: 'cuid_new', studentId: 's_child_2' },
       ],
       skipDuplicates: true,
+    });
+  });
+
+  it('links accepted student invitations to the activated student profile', async () => {
+    const { db, create, findMany, findStudentSelfRegistrations, updateStudents } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_new' });
+    findMany.mockResolvedValue([
+      {
+        role: 'Student',
+        tags: [],
+        guardianLinkStudentIds: [],
+        studentSelfRegistrationId: 'self_reg_1',
+      },
+    ]);
+    findStudentSelfRegistrations.mockResolvedValue([{ studentId: 'student_1' }]);
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Student Learner',
+      email: 'student@example.com',
+      phone: null,
+      role: 'Student',
+      tags: [],
+    });
+
+    expect(findStudentSelfRegistrations).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['self_reg_1'] },
+        status: 'Activated',
+        studentId: { not: null },
+      },
+      select: { studentId: true },
+    });
+    expect(updateStudents).toHaveBeenCalledWith({
+      where: { id: { in: ['student_1'] }, userId: null },
+      data: { userId: 'cuid_new' },
     });
   });
 

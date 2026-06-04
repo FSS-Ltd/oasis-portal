@@ -210,3 +210,53 @@ export const parentRegistrationSiblingsInput = z
   })
   .strict();
 export type ParentRegistrationSiblingsInput = z.infer<typeof parentRegistrationSiblingsInput>;
+
+const registrationCodeInput = z.string().trim().min(6).max(64);
+
+export const createStudentRegistrationCodeInput = z
+  .object({
+    label: requiredText(120),
+    maxUses: z.number().int().min(1).max(500).optional(),
+    expiresAt: z
+      .preprocess((value) => (value === '' ? undefined : value), dateInput.optional())
+      .optional(),
+  })
+  .strict();
+export type CreateStudentRegistrationCodeInput = z.infer<typeof createStudentRegistrationCodeInput>;
+
+export const submitStudentSelfRegistrationInput = z
+  .object({
+    firstName: requiredText(80),
+    lastName: requiredText(80),
+    dob: notFutureDateInput,
+    email: z.string().trim().toLowerCase().email(),
+    yearGroup: standardSchoolYearSchema,
+    registrationCode: registrationCodeInput,
+  })
+  .strict();
+export type SubmitStudentSelfRegistrationInput = z.infer<typeof submitStudentSelfRegistrationInput>;
+
+export const studentSelfRegistrationIdInput = z
+  .object({
+    id: z.string().trim().min(1),
+  })
+  .strict();
+export type StudentSelfRegistrationIdInput = z.infer<typeof studentSelfRegistrationIdInput>;
+
+export const approveStudentSelfRegistrationInput = studentSelfRegistrationIdInput
+  .extend({
+    parentConsentConfirmed: z.boolean(),
+  })
+  .strict();
+export type ApproveStudentSelfRegistrationInput = z.infer<
+  typeof approveStudentSelfRegistrationInput
+>;
+
+export const declineStudentSelfRegistrationInput = studentSelfRegistrationIdInput
+  .extend({
+    reason: optionalText(500),
+  })
+  .strict();
+export type DeclineStudentSelfRegistrationInput = z.infer<
+  typeof declineStudentSelfRegistrationInput
+>;

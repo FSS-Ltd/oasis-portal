@@ -48,11 +48,17 @@ export interface ClerkUserStore {
 type PrismaUserDelegate = Pick<typeof prisma.user, 'create' | 'findUnique' | 'update'>;
 type PrismaUserInvitationDelegate = Pick<typeof prisma.userInvitation, 'findMany' | 'updateMany'>;
 type PrismaGuardianDelegate = Pick<typeof prisma.guardian, 'createMany'>;
+type PrismaStudentSelfRegistrationDelegate = Pick<
+  typeof prisma.studentSelfRegistration,
+  'findMany'
+>;
+type PrismaStudentDelegate = Pick<typeof prisma.student, 'updateMany'>;
 
 const pendingInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()({
   role: true,
   tags: true,
   guardianLinkStudentIds: true,
+  studentSelfRegistrationId: true,
 });
 
 type PendingInvitation = Prisma.UserInvitationGetPayload<{
@@ -68,6 +74,8 @@ export interface PrismaClerkUserStoreDb {
   user: PrismaUserDelegate;
   userInvitation: PrismaUserInvitationDelegate;
   guardian: PrismaGuardianDelegate;
+  studentSelfRegistration: PrismaStudentSelfRegistrationDelegate;
+  student: PrismaStudentDelegate;
 }
 
 export interface ClerkWebhookVerifier {
@@ -168,18 +176,48 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
     const guardianLinkStudentIds = [
       ...new Set(invitations.flatMap((invitation) => invitation.guardianLinkStudentIds)),
     ];
+    const studentSelfRegistrationIds = [
+      ...new Set(
+        invitations
+          .filter((invitation) => invitation.role === 'Student')
+          .map((invitation) => invitation.studentSelfRegistrationId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
 
     const accepted = await db.userInvitation.updateMany({
       where: { emailBidx, status: 'Pending' },
       data: { status: 'Accepted', acceptedAt: new Date(), acceptedUserId: userId },
     });
 
-    if (accepted.count === 0 || guardianLinkStudentIds.length === 0) return;
+    if (accepted.count === 0) return;
 
-    await db.guardian.createMany({
-      data: guardianLinkStudentIds.map((studentId) => ({ userId, studentId })),
-      skipDuplicates: true,
-    });
+    if (guardianLinkStudentIds.length > 0) {
+      await db.guardian.createMany({
+        data: guardianLinkStudentIds.map((studentId) => ({ userId, studentId })),
+        skipDuplicates: true,
+      });
+    }
+
+    if (studentSelfRegistrationIds.length > 0) {
+      const registrations = await db.studentSelfRegistration.findMany({
+        where: {
+          id: { in: studentSelfRegistrationIds },
+          status: 'Activated',
+          studentId: { not: null },
+        },
+        select: { studentId: true },
+      });
+      const studentIds = registrations
+        .map((registration) => registration.studentId)
+        .filter((studentId): studentId is string => Boolean(studentId));
+      if (studentIds.length > 0) {
+        await db.student.updateMany({
+          where: { id: { in: studentIds }, userId: null },
+          data: { userId },
+        });
+      }
+    }
   }
 
   return {
