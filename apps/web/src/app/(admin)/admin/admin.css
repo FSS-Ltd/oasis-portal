@@ -13930,10 +13930,89 @@ button.club-assignment-row {
   transform: rotate(180deg);
 }
 
+.student-registration-admin-page,
+.student-registration-admin-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.student-registration-admin-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  align-items: start;
+}
+
+.student-registration-code-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-registration-code-row,
+.student-registration-actions,
+.student-registration-consent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-registration-code-row {
+  justify-content: space-between;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.student-registration-code-row div,
+.student-registration-table td:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.student-registration-code-row span,
+.student-registration-table td:first-child span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.student-registration-table-wrap {
+  overflow-x: auto;
+}
+
+.student-registration-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.student-registration-table th,
+.student-registration-table td {
+  border-top: 1px solid var(--oasis-border);
+  padding: 12px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.student-registration-table th {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.student-registration-consent {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
 @media (max-width: 1020px) {
   .invoice-admin-grid,
   .invoice-stat-grid,
-  .invoice-fee-settings {
+  .invoice-fee-settings,
+  .student-registration-admin-layout {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -13966,7 +14045,8 @@ button.club-assignment-row {
   .invoice-family-summary__children,
   .parent-fee-cycle,
   .invoice-family-summary,
-  .invoice-manual-discount {
+  .invoice-manual-discount,
+  .student-registration-admin-layout {
     grid-template-columns: 1fr;
   }
 

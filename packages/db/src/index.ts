@@ -27,6 +27,7 @@ export {
   StaffNoticeAudience,
   StudentNotificationKind,
   StudentRegistrationConsentType,
+  StudentSelfRegistrationStatus,
   UserInvitationEmailStatus,
   UserInvitationStatus,
 } from '@prisma/client';
