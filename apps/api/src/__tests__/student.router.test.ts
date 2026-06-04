@@ -160,6 +160,7 @@ interface StoredUserInvitation {
   emailStatus: 'NotSent' | 'Sent' | 'Failed';
   emailMessageId: string | null;
   invitedById: string;
+  studentId: string;
 }
 
 interface FakeDb {
@@ -942,6 +943,7 @@ describe('student router CRUD', () => {
         emailBidx: 'bidx:jane@example.com',
         emailStatus: 'Sent',
         emailMessageId: 'email_student_invite',
+        studentId,
       }),
     ]);
   });

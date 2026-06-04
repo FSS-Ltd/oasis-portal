@@ -636,6 +636,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         status: 'Pending',
         emailStatus: 'NotSent',
         invitedById: ctx.user.id,
+        studentId: student.id,
       },
       select: { id: true },
     });
