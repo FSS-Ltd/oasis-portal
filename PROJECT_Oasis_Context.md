@@ -29,6 +29,51 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
 
+## Current session - 2026-06-04 Linked-child guardian parent access
+
+Working branch: `feat/student-account-provisioning`.
+
+**PR scope note:** This request was implemented on the existing branch at Jean-Fidele's
+explicit direction. The code change itself is scoped to parent-portal access for
+Guardian-linked adult roles.
+
+Completed:
+
+- Added a shared linked-child guardian RBAC helper for `Parent` plus
+  child-registration-capable adult roles.
+- Updated parent-facing API gates for reports, merit wallets, shop reservations,
+  tithe config, parent-staff messages, parent calendar, and club listings so linked
+  supervisors can act only for active children linked through `Guardian`.
+- Added parent portal server guards to the shop and incidents pages.
+- Updated RLS source and migration policies for parent-facing invoice, permission-slip,
+  student settings, and incident parent-copy access to use Guardian-linked adult roles.
+- Added regression tests proving linked supervisors pass linked-child paths and unlinked
+  supervisors remain denied.
+
+Verification:
+
+- `pnpm --filter @oasis/domain exec vitest run src/__tests__/rbac.test.ts`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/report.router.test.ts src/__tests__/meritLedger.router.test.ts src/__tests__/shop.router.test.ts src/__tests__/tithe.router.test.ts src/__tests__/message.router.test.ts src/__tests__/club.router.test.ts src/__tests__/calendar.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm exec prettier --check` on changed TypeScript/TSX files.
+- `git diff --check`
+- `pnpm db:migrate`
+- `pnpm with-env pnpm --filter @oasis/db exec prisma migrate status`
+- `graphify update .`
+
+Notes:
+
+- `pnpm db:migrate` required elevated execution because sandboxed commands could not
+  connect to the healthy Docker-mapped local Postgres instance on `localhost:5432`.
+- Existing `.codex/tech-debt-review/*` worktree changes were left untouched.
+
 ## Current session - 2026-06-04 Student account provisioning
 
 Working branch: `feat/student-account-provisioning`.

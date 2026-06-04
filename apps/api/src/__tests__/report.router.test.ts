@@ -306,12 +306,13 @@ function makeFakeDb() {
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     attendance: {
-      findMany: vi.fn(({ where }: { where: { studentId: string; date?: { gte?: Date; lt?: Date } } }) =>
-        Promise.resolve(
-          attendanceRows
-            .filter((row) => row.studentId === where.studentId && inRange(row.date, where.date))
-            .map((row) => ({ status: row.status })),
-        ),
+      findMany: vi.fn(
+        ({ where }: { where: { studentId: string; date?: { gte?: Date; lt?: Date } } }) =>
+          Promise.resolve(
+            attendanceRows
+              .filter((row) => row.studentId === where.studentId && inRange(row.date, where.date))
+              .map((row) => ({ status: row.status })),
+          ),
       ),
     },
     behaviourEntry: {
@@ -371,7 +372,8 @@ function makeFakeDb() {
       findUnique: vi.fn(
         ({ where }: { where: { userId_studentId: { userId: string; studentId: string } } }) =>
           Promise.resolve(
-            where.userId_studentId.userId === parentUser.id &&
+            (where.userId_studentId.userId === parentUser.id ||
+              where.userId_studentId.userId === supervisorUser.id) &&
               where.userId_studentId.studentId === studentId
               ? { studentId }
               : null,
@@ -435,33 +437,36 @@ function makeFakeDb() {
       ),
     },
     termReport: {
-      create: vi.fn(({ data }: { data: Omit<StoredTermReport, 'id' | 'sentAt' | 'createdAt' | 'updatedAt'> }) => {
-        const now = new Date('2026-05-20T10:00:00.000Z');
-        const report: StoredTermReport = {
-          id: reportId,
-          sentAt: null,
-          createdAt: now,
-          updatedAt: now,
-          ...data,
-        };
-        reports.push(report);
-        return Promise.resolve(report);
-      }),
-      findMany: vi.fn(
-        ({ where }: { where: { studentId: string; status?: TermReportStatus } }) =>
-          Promise.resolve(
-            reports
-              .filter((report) => report.studentId === where.studentId)
-              .filter((report) => !where.status || report.status === where.status),
-          ),
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: Omit<StoredTermReport, 'id' | 'sentAt' | 'createdAt' | 'updatedAt'>;
+        }) => {
+          const now = new Date('2026-05-20T10:00:00.000Z');
+          const report: StoredTermReport = {
+            id: reportId,
+            sentAt: null,
+            createdAt: now,
+            updatedAt: now,
+            ...data,
+          };
+          reports.push(report);
+          return Promise.resolve(report);
+        },
+      ),
+      findMany: vi.fn(({ where }: { where: { studentId: string; status?: TermReportStatus } }) =>
+        Promise.resolve(
+          reports
+            .filter((report) => report.studentId === where.studentId)
+            .filter((report) => !where.status || report.status === where.status),
+        ),
       ),
       findUnique: vi.fn(
         ({
           where,
         }: {
-          where:
-            | { id: string }
-            | { studentId_term: { studentId: string; term: string } };
+          where: { id: string } | { studentId_term: { studentId: string; term: string } };
         }) => {
           if ('id' in where) {
             return Promise.resolve(reports.find((report) => report.id === where.id) ?? null);
@@ -475,12 +480,14 @@ function makeFakeDb() {
           );
         },
       ),
-      update: vi.fn(({ where, data }: { where: { id: string }; data: Partial<StoredTermReport> }) => {
-        const report = reports.find((candidate) => candidate.id === where.id);
-        if (!report) throw new Error('report not found');
-        Object.assign(report, data, { updatedAt: new Date('2026-05-20T11:00:00.000Z') });
-        return Promise.resolve(report);
-      }),
+      update: vi.fn(
+        ({ where, data }: { where: { id: string }; data: Partial<StoredTermReport> }) => {
+          const report = reports.find((candidate) => candidate.id === where.id);
+          if (!report) throw new Error('report not found');
+          Object.assign(report, data, { updatedAt: new Date('2026-05-20T11:00:00.000Z') });
+          return Promise.resolve(report);
+        },
+      ),
     },
     reports,
     behaviourEntries,
@@ -691,6 +698,23 @@ describe('report.listForStudent', () => {
     await headCaller.report.draft({ studentId, term: '2026-Autumn' });
 
     const { caller } = makeCaller(parentUser, db);
+    const result = await caller.report.listForStudent({ studentId });
+
+    expect(result.reports).toHaveLength(1);
+    expect(result.reports[0]).toMatchObject({
+      id: reportId,
+      status: 'Sent',
+      compiled: { studentDisplayName: 'Jane Learner' },
+    });
+  });
+
+  it('allows linked supervisors to read sent reports for linked children only', async () => {
+    const { db, draft } = await createDraft();
+    const headCaller = makeCaller(headUser, db).caller;
+    await headCaller.report.send({ reportId: draft.id });
+    await headCaller.report.draft({ studentId, term: '2026-Autumn' });
+
+    const { caller } = makeCaller(supervisorUser, db);
     const result = await caller.report.listForStudent({ studentId });
 
     expect(result.reports).toHaveLength(1);

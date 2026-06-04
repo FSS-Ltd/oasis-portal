@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  canUseLinkedChildGuardianAccess,
   getMeritActivity,
   isFullAdmin,
-  requireOwnChild,
   requireSelfStudent,
   rowsForTransfer,
   type MeritAccount,
@@ -171,20 +171,18 @@ async function assertCanReadWallet(
 ): Promise<void> {
   if (isFullAdmin(ctx.user)) return;
 
-  if (ctx.user.role === 'Parent') {
+  if (canUseLinkedChildGuardianAccess(ctx.user)) {
     const guardian = await ctx.db.guardian.findUnique({
       where: { userId_studentId: { userId: ctx.user.id, studentId: student.id } },
       select: { studentId: true },
     });
-    try {
-      requireOwnChild(ctx.user, student.id, guardian ? [guardian.studentId] : []);
-      return;
-    } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        await auditAccessDenied(ctx, entity, student.id, err);
-      }
-      throw err;
-    }
+    if (guardian) return;
+    await auditAccessDenied(
+      ctx,
+      entity,
+      student.id,
+      new AccessDeniedError('linked-child guardian is not linked to this student'),
+    );
   }
 
   if (ctx.user.role === 'Student') {

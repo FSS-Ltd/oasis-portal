@@ -537,7 +537,11 @@ function makeFakeDb(
     makeClub({ id: inactiveClubId, name: 'Chess', active: false }),
   ];
   const students = input.students ?? [
-    makeStudent({ id: linkedStudentId, userId: studentUser.id, fullNameEnc: encrypt('Linked Learner') }),
+    makeStudent({
+      id: linkedStudentId,
+      userId: studentUser.id,
+      fullNameEnc: encrypt('Linked Learner'),
+    }),
     makeStudent({ id: otherStudentId, fullNameEnc: encrypt('Other Learner'), yearGroup: 'Year 8' }),
   ];
   const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
@@ -1300,6 +1304,10 @@ describe('club.managementList', () => {
 describe('club.list', () => {
   it('returns all clubs for club managers and active clubs with own signup state for parents', async () => {
     const db = makeFakeDb({
+      guardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: supervisorUser.id, studentId: linkedStudentId },
+      ],
       signups: [
         makeSignup({
           id: 'csignup000000000000001',
@@ -1330,9 +1338,24 @@ describe('club.list', () => {
         signedUpStudentIds: [linkedStudentId],
       }),
     ]);
+    await expect(makeCaller(supervisorUser, db).caller.club.list()).resolves.toEqual([
+      expect.objectContaining({
+        id: defaultClubId,
+        active: true,
+        activeSignupCount: 2,
+        signedUpStudentIds: [linkedStudentId],
+      }),
+    ]);
   });
 
-  it.each([supervisorUser, studentUser])('blocks %s from listing clubs', async (user) => {
+  it('blocks unlinked supervisors from listing clubs', async () => {
+    await expect(makeCaller(supervisorUser).caller.club.list()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
+
+  it('blocks students from listing clubs', async () => {
+    const user = studentUser;
     await expect(makeCaller(user).caller.club.list()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -1604,7 +1627,9 @@ describe('club student portal procedures', () => {
       expect.objectContaining({ action: 'Create', entity: 'ClubSignup', entityId: created.id }),
     ]);
 
-    await expect(caller.club.studentExpressInterest({ clubId: defaultClubId })).resolves.toMatchObject({
+    await expect(
+      caller.club.studentExpressInterest({ clubId: defaultClubId }),
+    ).resolves.toMatchObject({
       id: created.id,
       status: 'Pending',
       created: false,

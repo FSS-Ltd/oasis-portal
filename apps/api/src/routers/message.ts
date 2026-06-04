@@ -4,6 +4,7 @@ import { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canRespondToParentMessages,
+  canUseLinkedChildGuardianAccess,
   canUseStaffMessaging,
   type SessionUser,
 } from '@oasis/domain';
@@ -138,9 +139,23 @@ function toForbidden(error: AccessDeniedError): TRPCError {
   return new TRPCError({ code: 'FORBIDDEN', message: error.message, cause: error });
 }
 
-function requireParent(user: SessionUser): void {
-  if (user.role === 'Parent') return;
-  throw toForbidden(new AccessDeniedError('parent messaging requires Parent'));
+async function hasActiveLinkedChild(ctx: AuthedContext): Promise<boolean> {
+  const linkedChildCount = await ctx.db.guardian.count({
+    where: { userId: ctx.user.id, student: { active: true } },
+  });
+  return linkedChildCount > 0;
+}
+
+async function requireParentStaffThreadAuthor(ctx: AuthedContext): Promise<void> {
+  if (!canUseLinkedChildGuardianAccess(ctx.user)) {
+    throw toForbidden(
+      new AccessDeniedError('parent messaging requires linked-child guardian access'),
+    );
+  }
+
+  if (!(await hasActiveLinkedChild(ctx))) {
+    throw toForbidden(new AccessDeniedError('parent messaging requires an active linked child'));
+  }
 }
 
 function requireSupervisorMessageAuthor(user: SessionUser): void {
@@ -157,9 +172,19 @@ function requireMessageReader(user: SessionUser): void {
   );
 }
 
-function canAccessThread(user: SessionUser, thread: ThreadAccessRow): boolean {
+function canAccessThread(
+  user: SessionUser,
+  thread: ThreadAccessRow,
+  hasActiveGuardianChild: boolean,
+): boolean {
   const isParticipant = thread.participants.some((participant) => participant.userId === user.id);
   if (!isParticipant) return false;
+
+  if (thread.kind === 'ParentStaff' && thread.parentId === user.id) {
+    if (user.role === 'Parent') return true;
+    return canUseLinkedChildGuardianAccess(user) && hasActiveGuardianChild;
+  }
+
   if (user.role === 'Parent') {
     return thread.kind === 'ParentStaff' && thread.parentId === user.id;
   }
@@ -175,8 +200,20 @@ function scopedThreadWhere(user: SessionUser): Prisma.MessageThreadWhereInput {
   return { participants: { some: { userId: user.id } } };
 }
 
-function assertThreadAccess<T extends ThreadAccessRow>(user: SessionUser, thread: T | null): T {
-  if (!thread || !canAccessThread(user, thread)) {
+async function assertThreadAccess<T extends ThreadAccessRow>(
+  ctx: AuthedContext,
+  thread: T | null,
+): Promise<T> {
+  const hasActiveGuardianChild =
+    !!thread &&
+    thread.kind === 'ParentStaff' &&
+    thread.parentId === ctx.user.id &&
+    ctx.user.role !== 'Parent' &&
+    canUseLinkedChildGuardianAccess(ctx.user)
+      ? await hasActiveLinkedChild(ctx)
+      : false;
+
+  if (!thread || !canAccessThread(ctx.user, thread, hasActiveGuardianChild)) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'message thread not found' });
   }
   return thread;
@@ -542,7 +579,7 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
     listRecipients: authedProcedure.input(listRecipientsInput).query(async ({ ctx, input }) => {
       const kind = input?.kind ?? 'ParentStaff';
       if (kind === 'ParentStaff') {
-        requireParent(ctx.user);
+        await requireParentStaffThreadAuthor(ctx);
       } else if (kind === 'StaffDirect') {
         if (!canUseStaffMessaging(ctx.user)) {
           throw toForbidden(new AccessDeniedError('staff direct messaging requires staff access'));
@@ -584,8 +621,14 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
         include: threadSummaryInclude,
         orderBy,
       });
+      const hasActiveGuardianChild =
+        ctx.user.role !== 'Parent' && canUseLinkedChildGuardianAccess(ctx.user)
+          ? await hasActiveLinkedChild(ctx)
+          : false;
 
-      return threads.map((thread) => mapThreadSummary(ctx, thread));
+      return threads
+        .filter((thread) => canAccessThread(ctx.user, thread, hasActiveGuardianChild))
+        .map((thread) => mapThreadSummary(ctx, thread));
     }),
 
     openStaffroom: authedProcedure.mutation(async ({ ctx }) => {
@@ -604,7 +647,7 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       let supervisorId: string | null = null;
 
       if (input.kind === 'ParentStaff') {
-        requireParent(ctx.user);
+        await requireParentStaffThreadAuthor(ctx);
         await loadParentMessageAssignee(ctx, input.adminId);
         parentId = ctx.user.id;
         participantIds = [ctx.user.id, input.adminId];
@@ -660,8 +703,8 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
     send: authedProcedure.input(sendInput).mutation(async ({ ctx, input }) => {
       requireMessageReader(ctx.user);
 
-      const thread = assertThreadAccess(
-        ctx.user,
+      const thread = await assertThreadAccess(
+        ctx,
         await ctx.db.messageThread.findUnique({
           where: { id: input.threadId },
           select: threadNotificationSelect,
@@ -727,7 +770,7 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
         where: { id: input.threadId },
         include: threadMessageInclude,
       });
-      const accessibleThread = assertThreadAccess(ctx.user, thread);
+      const accessibleThread = await assertThreadAccess(ctx, thread);
       const markedReadCount = await markThreadRead(ctx, accessibleThread);
 
       if (markedReadCount > 0) {
@@ -735,7 +778,7 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
           where: { id: input.threadId },
           include: threadMessageInclude,
         });
-        return mapThreadMessages(ctx, assertThreadAccess(ctx.user, updatedThread));
+        return mapThreadMessages(ctx, await assertThreadAccess(ctx, updatedThread));
       }
 
       return mapThreadMessages(ctx, accessibleThread);

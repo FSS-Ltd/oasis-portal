@@ -1,16 +1,11 @@
 import {
   AccessDeniedError,
-  canAnswerChildRegistrationPrompt,
   canUseAdminOperations,
+  canUseLinkedChildGuardianAccess,
   type SessionUser,
 } from './rbac.js';
 
-export const PERMISSION_SLIP_CATEGORIES = [
-  'SchoolTrip',
-  'Activity',
-  'Reward',
-  'Consent',
-] as const;
+export const PERMISSION_SLIP_CATEGORIES = ['SchoolTrip', 'Activity', 'Reward', 'Consent'] as const;
 export type PermissionSlipCategory = (typeof PERMISSION_SLIP_CATEGORIES)[number];
 
 export const PERMISSION_SLIP_RESPONSE_STATUSES = ['Pending', 'Signed', 'Declined'] as const;
@@ -32,7 +27,7 @@ export function canManagePermissionSlips(user: Pick<SessionUser, 'role'>): boole
 }
 
 export function canUseLinkedChildPermissionSlipAccess(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+  return canUseLinkedChildGuardianAccess(user);
 }
 
 export function requireCanManagePermissionSlips(user: SessionUser): void {

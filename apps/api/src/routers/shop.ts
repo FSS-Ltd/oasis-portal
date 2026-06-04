@@ -9,9 +9,9 @@ import {
   assertCanSellInShop,
   canManageShop,
   canSellInShop,
+  canUseLinkedChildGuardianAccess,
   prepareShopPurchase,
   prepareShopReservation,
-  requireOwnChild,
   requireSelfStudent,
   rowsForReservationCancellation,
   rowsForReservationCollection,
@@ -87,7 +87,14 @@ interface StudentShopPurchaseRow {
   createdAt: Date;
   item: Pick<
     ShopItemRow,
-    'id' | 'name' | 'photoUrl' | 'category' | 'priceIncVat' | 'active' | 'stockCount' | 'lowStockThreshold'
+    | 'id'
+    | 'name'
+    | 'photoUrl'
+    | 'category'
+    | 'priceIncVat'
+    | 'active'
+    | 'stockCount'
+    | 'lowStockThreshold'
   >;
 }
 
@@ -662,7 +669,7 @@ async function requireCanUploadShopItemPhoto(
 
 function requireReservationListAccess(ctx: AuthedContext): Prisma.ShopReservationWhereInput {
   if (canManageShop(ctx.user) || canSellInShop(ctx.user)) return {};
-  if (ctx.user.role === 'Parent' || ctx.user.role === 'Student') {
+  if (canUseLinkedChildGuardianAccess(ctx.user) || ctx.user.role === 'Student') {
     return { reservedById: ctx.user.id };
   }
   throw new TRPCError({
@@ -675,20 +682,18 @@ async function requireCanReserveForStudent(
   ctx: AuthedContext,
   student: ActiveStudent,
 ): Promise<void> {
-  if (ctx.user.role === 'Parent') {
+  if (canUseLinkedChildGuardianAccess(ctx.user)) {
     const guardian = await ctx.db.guardian.findUnique({
       where: { userId_studentId: { userId: ctx.user.id, studentId: student.id } },
       select: { studentId: true },
     });
-    try {
-      requireOwnChild(ctx.user, student.id, guardian ? [guardian.studentId] : []);
-      return;
-    } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        await auditPermissionDenied(ctx, 'shop.reserve', err, student.id);
-      }
-      throw err;
-    }
+    if (guardian) return;
+    await auditPermissionDenied(
+      ctx,
+      'shop.reserve',
+      new AccessDeniedError('linked-child guardian is not linked to this student'),
+      student.id,
+    );
   }
 
   if (ctx.user.role === 'Student') {
@@ -720,20 +725,18 @@ async function requireCanCancelReservation(
   if (canManageShop(ctx.user) || canSellInShop(ctx.user)) return;
   if (reservation.reservedById === ctx.user.id) return;
 
-  if (ctx.user.role === 'Parent') {
+  if (canUseLinkedChildGuardianAccess(ctx.user)) {
     const guardian = await ctx.db.guardian.findUnique({
       where: { userId_studentId: { userId: ctx.user.id, studentId: reservation.studentId } },
       select: { studentId: true },
     });
-    try {
-      requireOwnChild(ctx.user, reservation.studentId, guardian ? [guardian.studentId] : []);
-      return;
-    } catch (err) {
-      if (err instanceof AccessDeniedError) {
-        await auditPermissionDenied(ctx, 'shop.cancelReservation', err, reservation.studentId);
-      }
-      throw err;
-    }
+    if (guardian) return;
+    await auditPermissionDenied(
+      ctx,
+      'shop.cancelReservation',
+      new AccessDeniedError('linked-child guardian is not linked to this student'),
+      reservation.studentId,
+    );
   }
 
   if (ctx.user.role === 'Student') {

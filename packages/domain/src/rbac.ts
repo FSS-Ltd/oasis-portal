@@ -167,6 +167,10 @@ export function canAnswerChildRegistrationPrompt(user: Pick<SessionUser, 'role'>
   return CHILD_REGISTRATION_PROMPT_ROLE_SET.has(user.role);
 }
 
+export function canUseLinkedChildGuardianAccess(user: Pick<SessionUser, 'role'>): boolean {
+  return user.role === 'Parent' || canAnswerChildRegistrationPrompt(user);
+}
+
 export function canSubmitInitialRegistration(
   user: Pick<SessionUser, 'role'>,
   promptStatus: ChildRegistrationPromptStatus,
