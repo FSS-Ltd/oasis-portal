@@ -107,6 +107,19 @@ interface StoredShopItem {
   active: boolean;
 }
 
+interface StoredFaithCornerContent {
+  id: string;
+  weeklyTheme: string;
+  memoryVerseReference: string;
+  memoryVerseTextEnc: string;
+  reflectionPromptEnc: string;
+  verseOfDayReference: string | null;
+  verseOfDayTextEnc: string | null;
+  active: boolean;
+  publishedAt: Date;
+  createdAt: Date;
+}
+
 interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
@@ -147,6 +160,7 @@ interface FakeDb {
   paceProgress: { count: ReturnType<typeof vi.fn> };
   attendance: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { count: ReturnType<typeof vi.fn> };
+  faithCornerContent: { findFirst: ReturnType<typeof vi.fn> };
   shopItem: { count: ReturnType<typeof vi.fn> };
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
@@ -245,10 +259,28 @@ function makeUsageMinute(
   };
 }
 
+function makeFaithCornerContent(
+  input: Partial<StoredFaithCornerContent> &
+    Pick<StoredFaithCornerContent, 'id' | 'weeklyTheme'>,
+): StoredFaithCornerContent {
+  return {
+    memoryVerseReference: 'John 3:16',
+    memoryVerseTextEnc: encrypt('Memory verse') ?? '',
+    reflectionPromptEnc: encrypt('Reflection prompt') ?? '',
+    verseOfDayReference: null,
+    verseOfDayTextEnc: null,
+    active: true,
+    publishedAt: new Date('2026-06-03T09:00:00.000Z'),
+    createdAt: new Date('2026-06-03T09:00:00.000Z'),
+    ...input,
+  };
+}
+
 function makeFakeDb(
   input: {
     attendance?: StoredAttendance[];
     clubSignups?: StoredClubSignup[];
+    faithCornerContent?: StoredFaithCornerContent[];
     meritLedger?: StoredMeritLedger[];
     paceProgress?: StoredPaceProgress[];
     portalSettings?: Array<
@@ -264,6 +296,7 @@ function makeFakeDb(
   const students: StoredStudent[] = [];
   const attendance = input.attendance ?? [];
   const clubSignups = input.clubSignups ?? [];
+  const faithCornerContent = input.faithCornerContent ?? [];
   const meritLedger = input.meritLedger ?? [];
   const paceProgress = input.paceProgress ?? [];
   const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
@@ -491,6 +524,32 @@ function makeFakeDb(
           ),
       ),
     },
+    faithCornerContent: {
+      findFirst: vi.fn(() => {
+        const row =
+          [...faithCornerContent]
+            .filter((content) => content.active)
+            .sort(
+              (left, right) =>
+                right.publishedAt.getTime() - left.publishedAt.getTime() ||
+                right.createdAt.getTime() - left.createdAt.getTime(),
+            )[0] ?? null;
+        return Promise.resolve(
+          row
+            ? {
+                id: row.id,
+                weeklyTheme: row.weeklyTheme,
+                memoryVerseReference: row.memoryVerseReference,
+                memoryVerseTextEnc: row.memoryVerseTextEnc,
+                reflectionPromptEnc: row.reflectionPromptEnc,
+                verseOfDayReference: row.verseOfDayReference,
+                verseOfDayTextEnc: row.verseOfDayTextEnc,
+                publishedAt: row.publishedAt,
+              }
+            : null,
+        );
+      }),
+    },
     shopItem: {
       count: vi.fn(({ where }: { where: { active: true } }) =>
         Promise.resolve(shopItems.filter((item) => item.active === where.active).length),
@@ -610,6 +669,7 @@ function makeFakeDb(
     assignments,
     attendance,
     clubSignups,
+    faithCornerContent,
     meritLedger,
     paceProgress,
     portalSettings,
@@ -866,6 +926,15 @@ describe('student.dashboard', () => {
           { studentId, date: new Date('2026-06-02T09:00:00.000Z'), status: 'Late' },
         ],
         clubSignups: [{ studentId, status: 'Active', club: { active: true } }],
+        faithCornerContent: [
+          makeFaithCornerContent({
+            id: 'faithdashboard000001',
+            weeklyTheme: 'Walk in wisdom',
+            memoryVerseReference: 'Proverbs 3:5',
+            memoryVerseTextEnc: encrypt('Trust in the Lord.') ?? '',
+            reflectionPromptEnc: encrypt('What does trust look like today?') ?? '',
+          }),
+        ],
         meritLedger: [
           { studentId, account: 'Spend', delta: 25 },
           { studentId, account: 'Saving', delta: 15 },
@@ -938,9 +1007,17 @@ describe('student.dashboard', () => {
           activeShopItemCount: 1,
         },
         faithCorner: {
-          title: 'Faith Corner',
-          body: 'A weekly encouragement and Scripture memory prompt will appear here.',
-          ready: false,
+          id: 'faithdashboard000001',
+          weeklyTheme: 'Walk in wisdom',
+          memoryVerse: {
+            reference: 'Proverbs 3:5',
+            text: 'Trust in the Lord.',
+            translation: 'NKJV',
+          },
+          reflectionPrompt: 'What does trust look like today?',
+          verseOfDay: null,
+          publishedAt: new Date('2026-06-03T09:00:00.000Z'),
+          ready: true,
         },
       });
       expect(JSON.stringify(dashboard)).not.toContain('Learner');
@@ -996,6 +1073,15 @@ describe('student.dashboard', () => {
       shortcuts: {
         activeClubCount: 0,
         activeShopItemCount: 0,
+      },
+      faithCorner: {
+        id: null,
+        weeklyTheme: 'Faith Corner',
+        memoryVerse: null,
+        reflectionPrompt: null,
+        verseOfDay: null,
+        publishedAt: null,
+        ready: false,
       },
     });
   });

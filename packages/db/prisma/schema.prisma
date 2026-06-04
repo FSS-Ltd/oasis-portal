@@ -143,6 +143,8 @@ model User {
   studentPortalHeadLocksUpdated    StudentPortalSettings[]          @relation("StudentPortalHeadLocksUpdated")
   studentPortalShopBlocksUpdated   StudentPortalSettings[]          @relation("StudentPortalShopBlocksUpdated")
   studentPortalIconPhotosUpdated   StudentPortalSettings[]          @relation("StudentPortalIconPhotosUpdated")
+  faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
+  faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
 
   @@index([role])
 }
@@ -1036,6 +1038,29 @@ model ClubNotification {
   sentBy User @relation("ClubNotificationsSent", fields: [sentById], references: [id])
 
   @@index([clubId, sentAt])
+}
+
+model FaithCornerContent {
+  id                   String   @id @default(cuid())
+  weeklyTheme          String
+  memoryVerseReference String
+  memoryVerseTextEnc   String
+  reflectionPromptEnc  String
+  verseOfDayReference  String?
+  verseOfDayTextEnc    String?
+  active               Boolean  @default(true)
+  publishedAt          DateTime @default(now())
+  createdById          String
+  updatedById          String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  createdBy User  @relation("FaithCornerCreated", fields: [createdById], references: [id])
+  updatedBy User? @relation("FaithCornerUpdated", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([active, publishedAt])
+  @@index([createdById, publishedAt])
+  @@index([updatedById, updatedAt])
 }
 
 model ClubAttendance {

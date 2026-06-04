@@ -153,11 +153,20 @@ function FaithPanel({ faithCorner }: { faithCorner: StudentDashboard['faithCorne
       <div className="student-dashboard-panel__head">
         <div>
           <p>Faith Corner</p>
-          <h2 id="student-faith-title">{faithCorner.title}</h2>
+          <h2 id="student-faith-title">{faithCorner.weeklyTheme}</h2>
         </div>
         <Sparkles aria-hidden="true" size={20} />
       </div>
-      <p className="student-dashboard-panel__copy">{faithCorner.body}</p>
+      {faithCorner.memoryVerse ? (
+        <div className="student-faith-preview">
+          <strong>{faithCorner.memoryVerse.reference}</strong>
+          <p>{faithCorner.memoryVerse.text}</p>
+          <small>{faithCorner.memoryVerse.translation}</small>
+        </div>
+      ) : null}
+      {faithCorner.reflectionPrompt ? (
+        <p className="student-dashboard-panel__copy">{faithCorner.reflectionPrompt}</p>
+      ) : null}
       {!faithCorner.ready ? (
         <span className="student-dashboard-muted">Managed content will appear here when ready.</span>
       ) : null}
