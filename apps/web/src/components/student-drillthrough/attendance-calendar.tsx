@@ -3,11 +3,12 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { isOasisOperatingDay } from '@oasis/domain';
-import type { RouterOutputs } from '@/lib/trpc';
 
-type DrillThrough = RouterOutputs['childLog']['drillThrough'];
-type AttendanceEntry = DrillThrough['attendance'][number];
-type AttendanceStatus = AttendanceEntry['status'];
+type AttendanceStatus = 'Present' | 'Absent' | 'Late';
+interface AttendanceEntry {
+  date: string;
+  status: AttendanceStatus;
+}
 
 const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
 

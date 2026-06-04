@@ -57,6 +57,7 @@ type AbsenceReason = 'Sick' | 'Holiday' | 'NotScheduled' | 'Excused' | 'Unexcuse
 
 interface StoredStudent {
   id: string;
+  userId: string | null;
   fullNameEnc: string;
   yearGroup: string;
   active: boolean;
@@ -141,6 +142,12 @@ interface FakeDb {
   staffShift: {
     findMany: ReturnType<typeof vi.fn>;
   };
+  studentPortalSettings: {
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  studentPortalUsageMinute: {
+    count: ReturnType<typeof vi.fn>;
+  };
 }
 
 function day(value: string): Date {
@@ -160,6 +167,7 @@ function makeFakeDb() {
   const students: StoredStudent[] = [
     {
       id: activeStudentId,
+      userId: studentUser.id,
       fullNameEnc: 'enc:Jane Learner',
       yearGroup: 'Year 6',
       active: true,
@@ -167,6 +175,7 @@ function makeFakeDb() {
     },
     {
       id: secondStudentId,
+      userId: null,
       fullNameEnc: 'enc:Amos Scholar',
       yearGroup: 'Year 5',
       active: true,
@@ -174,6 +183,7 @@ function makeFakeDb() {
     },
     {
       id: inactiveStudentId,
+      userId: null,
       fullNameEnc: 'enc:Former Student',
       yearGroup: 'Year 7',
       active: false,
@@ -319,11 +329,14 @@ function makeFakeDb() {
           );
         },
       ),
-      findUnique: vi.fn(({ where }: { where: { id: string } }) => {
-        const student = students.find((candidate) => candidate.id === where.id);
+      findUnique: vi.fn(({ where }: { where: { id?: string; userId?: string } }) => {
+        const student = students.find((candidate) =>
+          where.id !== undefined ? candidate.id === where.id : candidate.userId === where.userId,
+        );
         if (!student) return Promise.resolve(null);
         return Promise.resolve({
           id: student.id,
+          userId: student.userId,
           active: student.active,
           yearGroup: student.yearGroup,
         });
@@ -611,6 +624,12 @@ function makeFakeDb() {
               }),
           ),
       ),
+    },
+    studentPortalSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    studentPortalUsageMinute: {
+      count: vi.fn().mockResolvedValue(0),
     },
   };
 
@@ -1406,6 +1425,121 @@ describe('attendance.studentHistory', () => {
     await expect(
       makeCaller(headUser, db).attendance.studentHistory({
         studentId: activeStudentId,
+        from: day('2026-04-29'),
+        to: day('2026-04-28'),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+});
+
+describe('attendance.studentSummary', () => {
+  it('returns student-safe own attendance with absence reason labels only when entered', async () => {
+    const { attendance, db } = makeFakeDb();
+    attendance.push(
+      {
+        id: 'ckattendanceown0000001',
+        studentId: activeStudentId,
+        date: day('2026-04-28'),
+        status: 'Absent',
+        absenceReason: 'Sick',
+        recordedById: attendanceRecorderUser.id,
+        createdAt: new Date('2026-04-28T09:30:00.000Z'),
+      },
+      {
+        id: 'ckattendanceown0000002',
+        studentId: activeStudentId,
+        date: day('2026-04-29'),
+        status: 'Late',
+        absenceReason: null,
+        recordedById: attendanceRecorderUser.id,
+        createdAt: new Date('2026-04-29T09:30:00.000Z'),
+      },
+      {
+        id: 'ckattendanceother000001',
+        studentId: secondStudentId,
+        date: day('2026-04-29'),
+        status: 'Present',
+        absenceReason: null,
+        recordedById: headUser.id,
+        createdAt: new Date('2026-04-29T09:30:00.000Z'),
+      },
+    );
+
+    const summary = await makeCaller(studentUser, db).attendance.studentSummary({
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+    });
+
+    expect(summary).toEqual({
+      studentId: activeStudentId,
+      from: '2026-04-28',
+      to: '2026-04-29',
+      summary: {
+        total: 2,
+        present: 0,
+        absent: 1,
+        late: 1,
+        attendanceRate: 0,
+      },
+      records: [
+        {
+          id: 'ckattendanceown0000002',
+          date: '2026-04-29',
+          status: 'Late',
+          absenceReason: null,
+          absenceReasonLabel: null,
+        },
+        {
+          id: 'ckattendanceown0000001',
+          date: '2026-04-28',
+          status: 'Absent',
+          absenceReason: 'Sick',
+          absenceReasonLabel: 'Sick',
+        },
+      ],
+    });
+    expect(JSON.stringify(summary)).not.toContain(attendanceRecorderUser.id);
+    expect(JSON.stringify(summary)).not.toContain(secondStudentId);
+  });
+
+  it('returns an empty summary when the student has no attendance records in range', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(studentUser, db).attendance.studentSummary({
+        from: day('2026-05-01'),
+        to: day('2026-05-31'),
+      }),
+    ).resolves.toEqual({
+      studentId: activeStudentId,
+      from: '2026-05-01',
+      to: '2026-05-31',
+      summary: {
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0,
+        attendanceRate: null,
+      },
+      records: [],
+    });
+  });
+
+  it('is student-only and rejects invalid ranges', async () => {
+    const { db } = makeFakeDb();
+    const input = {
+      from: day('2026-04-28'),
+      to: day('2026-04-29'),
+    };
+
+    await expect(makeCaller(parentUser, db).attendance.studentSummary(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(makeCaller(headUser, db).attendance.studentSummary(input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      makeCaller(studentUser, db).attendance.studentSummary({
         from: day('2026-04-29'),
         to: day('2026-04-28'),
       }),

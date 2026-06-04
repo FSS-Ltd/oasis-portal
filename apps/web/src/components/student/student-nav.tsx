@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpenCheck, Home, Medal, ShoppingBag, Wallet } from 'lucide-react';
+import { BookOpenCheck, CalendarCheck, Home, Medal, ShoppingBag, Wallet } from 'lucide-react';
 
 const studentNavItems = [
   { href: '/student', label: 'Home', icon: Home },
   { href: '/student/wallet', label: 'Wallet', icon: Wallet },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
+  { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/student/ranks', label: 'Ranks', icon: Medal },
   { href: '/student/shop', label: 'Shop', icon: ShoppingBag },
 ] as const;

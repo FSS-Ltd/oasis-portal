@@ -8,6 +8,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
   dateKey,
   loadDailyYearBandScope,
@@ -106,6 +107,13 @@ const insightsInput = z
     path: ['to'],
   });
 
+const studentSummaryInput = z
+  .object({
+    from: z.coerce.date().optional(),
+    to: z.coerce.date().optional(),
+  })
+  .optional();
+
 type AttendanceStatus = z.infer<typeof attendanceStatusSchema>;
 type AbsenceReason = z.infer<typeof absenceReasonSchema>;
 type InsightKind = z.infer<typeof insightKindSchema>;
@@ -159,6 +167,12 @@ function attendanceRate(summary: Pick<AttendanceSummary, 'Present' | 'total'>): 
 function incrementSummary(summary: AttendanceSummary, status: AttendanceStatus): void {
   summary.total += 1;
   summary[status] += 1;
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
 }
 
 function absenceBucket(
@@ -334,6 +348,17 @@ async function assertActiveStaffUser(
   if (!user.active || !isStaff(user)) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'user is not an active supervisor' });
   }
+}
+
+async function loadOwnActiveStudent(ctx: AuthedContext): Promise<{ id: string; active: boolean }> {
+  const student = await ctx.db.student.findUnique({
+    where: { userId: ctx.user.id },
+    select: { id: true, active: true },
+  });
+  if (!student?.active) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+  }
+  return student;
 }
 
 export const attendanceRouter = router({
@@ -677,6 +702,62 @@ export const attendanceRouter = router({
       recordedById: row.recordedById,
       recordedAt: row.createdAt,
     }));
+  }),
+
+  studentSummary: roleProcedure('Student').input(studentSummaryInput).query(async ({ ctx, input }) => {
+    const student = await loadOwnActiveStudent(ctx);
+    await assertStudentPortalAccess(ctx, {
+      entity: 'attendance.studentSummary',
+      studentId: student.id,
+    });
+
+    const to = normalizeDate(input?.to ?? new Date());
+    const from = normalizeDate(input?.from ?? addUtcDays(to, -89));
+    if (!validateDateRange({ from, to })) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'from must be on or before to' });
+    }
+
+    const rows = await ctx.db.attendance.findMany({
+      where: {
+        studentId: student.id,
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+        absenceReason: true,
+        createdAt: true,
+      },
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+    });
+    const summary = rows.reduce<AttendanceSummary>((current, row) => {
+      incrementSummary(current, row.status);
+      return current;
+    }, emptySummary());
+
+    return {
+      studentId: student.id,
+      from: dateKey(from),
+      to: dateKey(to),
+      summary: {
+        total: summary.total,
+        present: summary.Present,
+        absent: summary.Absent,
+        late: summary.Late,
+        attendanceRate: attendanceRate(summary),
+      },
+      records: rows.map((row) => ({
+        id: row.id,
+        date: dateKey(row.date),
+        status: row.status,
+        absenceReason: row.status === 'Absent' ? row.absenceReason : null,
+        absenceReasonLabel: row.status === 'Absent' ? reasonLabel(row.absenceReason) : null,
+      })),
+    };
   }),
 
   staffForDate: adminOperationsProcedure
