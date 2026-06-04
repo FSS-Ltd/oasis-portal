@@ -11,6 +11,7 @@ export type PostSignInDestination =
   | '/parent'
   | '/student'
   | '/registration'
+  | '/parent-link-requests'
   | '/not-ready';
 
 type PostSignInPortal = ReturnType<typeof resolvePostSignInPortal>;
@@ -32,6 +33,7 @@ export function resolvePostSignInDestination(user: SessionUser | null): PostSign
   return resolvePostSignInDestinationForState(user, {
     childRegistrationPromptRequired: false,
     childRegistrationRequired: false,
+    pendingParentLinkRequests: false,
     parentNeedsRegistration: false,
   });
 }
@@ -41,9 +43,11 @@ export function resolvePostSignInDestinationForState(
   state: {
     childRegistrationPromptRequired: boolean;
     childRegistrationRequired: boolean;
+    pendingParentLinkRequests: boolean;
     parentNeedsRegistration: boolean;
   },
 ): PostSignInDestination {
+  if (state.pendingParentLinkRequests) return '/parent-link-requests';
   if (user?.role === 'Parent' && state.parentNeedsRegistration) return '/registration';
   if (state.childRegistrationRequired) return '/registration';
   if (state.childRegistrationPromptRequired) return '/children-check';

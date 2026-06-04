@@ -14,6 +14,7 @@ const PORTAL_COPY_BY_DESTINATION = {
   '/parent': 'Preparing your parent portal',
   '/student': 'Preparing your student portal',
   '/registration': 'Preparing registration',
+  '/parent-link-requests': 'Preparing student link requests',
   '/2fa': 'Preparing two-factor setup',
   '/not-ready': 'Preparing your Oasis portal',
 } satisfies Record<PostSignInDestination, string>;

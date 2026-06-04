@@ -53,12 +53,17 @@ type PrismaStudentSelfRegistrationDelegate = Pick<
   'findMany'
 >;
 type PrismaStudentDelegate = Pick<typeof prisma.student, 'updateMany'>;
+type PrismaStudentParentLinkRequestDelegate = Pick<
+  typeof prisma.studentParentLinkRequest,
+  'updateMany'
+>;
 
 const pendingInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()({
   role: true,
   tags: true,
   guardianLinkStudentIds: true,
   studentSelfRegistrationId: true,
+  studentParentLinkRequestId: true,
 });
 
 type PendingInvitation = Prisma.UserInvitationGetPayload<{
@@ -76,6 +81,7 @@ export interface PrismaClerkUserStoreDb {
   guardian: PrismaGuardianDelegate;
   studentSelfRegistration: PrismaStudentSelfRegistrationDelegate;
   student: PrismaStudentDelegate;
+  studentParentLinkRequest: PrismaStudentParentLinkRequestDelegate;
 }
 
 export interface ClerkWebhookVerifier {
@@ -184,6 +190,13 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           .filter((id): id is string => Boolean(id)),
       ),
     ];
+    const studentParentLinkRequestIds = [
+      ...new Set(
+        invitations
+          .map((invitation) => invitation.studentParentLinkRequestId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
 
     const accepted = await db.userInvitation.updateMany({
       where: { emailBidx, status: 'Pending' },
@@ -217,6 +230,13 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           data: { userId },
         });
       }
+    }
+
+    if (studentParentLinkRequestIds.length > 0) {
+      await db.studentParentLinkRequest.updateMany({
+        where: { id: { in: studentParentLinkRequestIds }, status: 'Invited' },
+        data: { status: 'Confirmed', confirmedAt: new Date() },
+      });
     }
   }
 

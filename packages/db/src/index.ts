@@ -25,6 +25,7 @@ export {
   ShopCategory,
   ShopReservationStatus,
   StaffNoticeAudience,
+  StudentParentLinkRequestStatus,
   StudentNotificationKind,
   StudentRegistrationConsentType,
   StudentSelfRegistrationStatus,

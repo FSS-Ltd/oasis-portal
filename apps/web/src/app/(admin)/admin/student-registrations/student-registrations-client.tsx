@@ -31,9 +31,35 @@ function statusTone(status: Registration['status']): string {
   return 'badge badge--blue';
 }
 
+function parentLinkStatusTone(
+  status: Registration['parentLinkRequests'][number]['status'],
+): string {
+  if (status === 'Confirmed') return 'badge badge--green';
+  if (status === 'Rejected') return 'badge badge--red';
+  if (status === 'Invited') return 'badge badge--amber';
+  return 'badge badge--blue';
+}
+
 function copyCode(code: string) {
   void navigator.clipboard.writeText(code);
   showSuccessToast('Registration code copied.');
+}
+
+function ParentLinkSummary({ registration }: { registration: Registration }) {
+  if (registration.parentLinkRequests.length === 0) {
+    return <span className="muted">No parent links</span>;
+  }
+
+  return (
+    <div className="student-registration-parent-links">
+      {registration.parentLinkRequests.map((request) => (
+        <div className="student-registration-parent-link" key={request.id}>
+          <span>{request.parentName || request.parentEmail}</span>
+          <span className={parentLinkStatusTone(request.status)}>{request.status}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function RegistrationActions({ registration }: { registration: Registration }) {
@@ -292,6 +318,7 @@ export function StudentRegistrationsClient() {
                   <th>Student</th>
                   <th>Email</th>
                   <th>Age band</th>
+                  <th>Parent links</th>
                   <th>Code</th>
                   <th>Status</th>
                   <th>Submitted</th>
@@ -307,6 +334,9 @@ export function StudentRegistrationsClient() {
                     </td>
                     <td>{registration.email}</td>
                     <td>{registration.yearGroup}</td>
+                    <td>
+                      <ParentLinkSummary registration={registration} />
+                    </td>
                     <td>{registration.registrationCode.label}</td>
                     <td>
                       <span className={statusTone(registration.status)}>{registration.status}</span>

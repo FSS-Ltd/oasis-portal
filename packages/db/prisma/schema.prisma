@@ -51,6 +51,13 @@ enum StudentSelfRegistrationStatus {
   Declined
 }
 
+enum StudentParentLinkRequestStatus {
+  Pending
+  Confirmed
+  Rejected
+  Invited
+}
+
 enum ChildRegistrationPromptStatus {
   Unanswered
   NoChildren
@@ -147,6 +154,7 @@ model User {
   studentRegistrationCodesCreated  StudentRegistrationCode[]        @relation("StudentRegistrationCodesCreated")
   studentSelfRegistrationsApproved StudentSelfRegistration[]        @relation("StudentSelfRegistrationsApproved")
   studentSelfRegistrationsDeclined StudentSelfRegistration[]        @relation("StudentSelfRegistrationsDeclined")
+  studentParentLinkRequests        StudentParentLinkRequest[]       @relation("StudentParentLinkRequestTarget")
   parentRegistration               ParentRegistration?              @relation("ParentRegistrationParent")
   studentPortalSettingsUpdated     StudentPortalSettings[]          @relation("StudentPortalSettingsUpdated")
   studentPortalParentLocksUpdated  StudentPortalSettings[]          @relation("StudentPortalParentLocksUpdated")
@@ -161,28 +169,30 @@ model User {
 }
 
 model UserInvitation {
-  id                        String                    @id @default(cuid())
-  clerkInvitationId         String                    @unique
-  role                      Role
-  tags                      String[]                  @default([])
-  emailEnc                  String
-  emailBidx                 String
-  status                    UserInvitationStatus      @default(Pending)
-  emailStatus               UserInvitationEmailStatus @default(NotSent)
-  emailMessageId            String?
-  invitedById               String
-  acceptedUserId            String?
-  acceptedAt                DateTime?
-  guardianLinkInviterId     String?
-  guardianLinkStudentIds    String[]                  @default([])
-  studentSelfRegistrationId String?                   @unique
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
+  id                         String                    @id @default(cuid())
+  clerkInvitationId          String                    @unique
+  role                       Role
+  tags                       String[]                  @default([])
+  emailEnc                   String
+  emailBidx                  String
+  status                     UserInvitationStatus      @default(Pending)
+  emailStatus                UserInvitationEmailStatus @default(NotSent)
+  emailMessageId             String?
+  invitedById                String
+  acceptedUserId             String?
+  acceptedAt                 DateTime?
+  guardianLinkInviterId      String?
+  guardianLinkStudentIds     String[]                  @default([])
+  studentSelfRegistrationId  String?                   @unique
+  studentParentLinkRequestId String?                   @unique
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
 
-  invitedBy               User                     @relation("InvitedUserInvitations", fields: [invitedById], references: [id])
-  acceptedUser            User?                    @relation("AcceptedUserInvitations", fields: [acceptedUserId], references: [id])
-  guardianLinkInviter     User?                    @relation("GuardianLinkInviterInvitations", fields: [guardianLinkInviterId], references: [id], onDelete: SetNull)
-  studentSelfRegistration StudentSelfRegistration? @relation(fields: [studentSelfRegistrationId], references: [id], onDelete: SetNull)
+  invitedBy                User                      @relation("InvitedUserInvitations", fields: [invitedById], references: [id])
+  acceptedUser             User?                     @relation("AcceptedUserInvitations", fields: [acceptedUserId], references: [id])
+  guardianLinkInviter      User?                     @relation("GuardianLinkInviterInvitations", fields: [guardianLinkInviterId], references: [id], onDelete: SetNull)
+  studentSelfRegistration  StudentSelfRegistration?  @relation(fields: [studentSelfRegistrationId], references: [id], onDelete: SetNull)
+  studentParentLinkRequest StudentParentLinkRequest? @relation(fields: [studentParentLinkRequestId], references: [id], onDelete: SetNull)
 
   @@index([emailBidx, status])
   @@index([status, role, createdAt])
@@ -190,6 +200,7 @@ model UserInvitation {
   @@index([acceptedUserId])
   @@index([guardianLinkInviterId, createdAt])
   @@index([studentSelfRegistrationId])
+  @@index([studentParentLinkRequestId])
 }
 
 // ---------------------------------------------------------------------------
@@ -240,6 +251,7 @@ model Student {
   portalUsageMinutes       StudentPortalUsageMinute[]
   notifications            StudentNotification[]
   selfRegistration         StudentSelfRegistration?
+  parentLinkRequests       StudentParentLinkRequest[]
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -287,17 +299,45 @@ model StudentSelfRegistration {
   createdAt                DateTime                      @default(now())
   updatedAt                DateTime                      @updatedAt
 
-  registrationCode StudentRegistrationCode @relation(fields: [registrationCodeId], references: [id])
-  approvedBy       User?                   @relation("StudentSelfRegistrationsApproved", fields: [approvedById], references: [id], onDelete: SetNull)
-  declinedBy       User?                   @relation("StudentSelfRegistrationsDeclined", fields: [declinedById], references: [id], onDelete: SetNull)
-  student          Student?                @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  invitation       UserInvitation?
+  registrationCode   StudentRegistrationCode    @relation(fields: [registrationCodeId], references: [id])
+  approvedBy         User?                      @relation("StudentSelfRegistrationsApproved", fields: [approvedById], references: [id], onDelete: SetNull)
+  declinedBy         User?                      @relation("StudentSelfRegistrationsDeclined", fields: [declinedById], references: [id], onDelete: SetNull)
+  student            Student?                   @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  invitation         UserInvitation?
+  parentLinkRequests StudentParentLinkRequest[]
 
   @@index([status, createdAt])
   @@index([emailBidx, status])
   @@index([registrationCodeId, createdAt])
   @@index([approvedById, approvedAt])
   @@index([declinedById, declinedAt])
+}
+
+model StudentParentLinkRequest {
+  id                        String                         @id @default(cuid())
+  studentSelfRegistrationId String
+  studentId                 String?
+  parentEmailEnc            String
+  parentEmailBidx           String
+  parentNameEnc             String?
+  existingAccount           Boolean
+  targetUserId              String?
+  status                    StudentParentLinkRequestStatus @default(Pending)
+  confirmedAt               DateTime?
+  rejectedAt                DateTime?
+  invitedAt                 DateTime?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+
+  studentSelfRegistration StudentSelfRegistration @relation(fields: [studentSelfRegistrationId], references: [id])
+  student                 Student?                @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  targetUser              User?                   @relation("StudentParentLinkRequestTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  invitation              UserInvitation?
+
+  @@unique([studentSelfRegistrationId, parentEmailBidx])
+  @@index([targetUserId, status, createdAt])
+  @@index([studentId, status])
+  @@index([parentEmailBidx, status])
 }
 
 model Guardian {

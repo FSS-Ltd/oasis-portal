@@ -34,6 +34,9 @@ import { adminOperationsProcedure, authedProcedure, publicProcedure, router } fr
 const answerChildRegistrationPromptInput = z.object({
   hasChildren: z.boolean(),
 });
+const parentLinkRequestIdInput = z.object({
+  id: z.string().trim().min(1),
+});
 const POST_SIGN_IN_PATH = '/post-sign-in';
 const STUDENT_INVITATION_TAGS: PermissionTag[] = [];
 
@@ -209,10 +212,60 @@ const studentSelfRegistrationSelect = Prisma.validator<Prisma.StudentSelfRegistr
       status: true,
     },
   },
+  parentLinkRequests: {
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      parentEmailEnc: true,
+      parentNameEnc: true,
+      existingAccount: true,
+      targetUserId: true,
+      status: true,
+      confirmedAt: true,
+      rejectedAt: true,
+      invitedAt: true,
+      createdAt: true,
+    },
+  },
 });
 
 type StudentSelfRegistrationRow = Prisma.StudentSelfRegistrationGetPayload<{
   select: typeof studentSelfRegistrationSelect;
+}>;
+
+const parentLinkRequestSelect = Prisma.validator<Prisma.StudentParentLinkRequestSelect>()({
+  id: true,
+  parentEmailEnc: true,
+  parentNameEnc: true,
+  existingAccount: true,
+  status: true,
+  confirmedAt: true,
+  rejectedAt: true,
+  invitedAt: true,
+  createdAt: true,
+  studentId: true,
+  targetUserId: true,
+  studentSelfRegistration: {
+    select: {
+      id: true,
+      fullNameEnc: true,
+      yearGroup: true,
+      studentId: true,
+      status: true,
+    },
+  },
+  student: {
+    select: {
+      id: true,
+      fullNameEnc: true,
+      yearGroup: true,
+      active: true,
+    },
+  },
+});
+
+type ParentLinkRequestRow = Prisma.StudentParentLinkRequestGetPayload<{
+  select: typeof parentLinkRequestSelect;
 }>;
 
 export interface RegistrationRouterDeps {
@@ -351,7 +404,62 @@ function mapStudentSelfRegistration(
     updatedAt: row.updatedAt,
     registrationCode: row.registrationCode,
     invitation: row.invitation,
+    parentLinkRequests: row.parentLinkRequests.map((request) => ({
+      id: request.id,
+      parentEmail: decryptRequired(
+        decrypt,
+        request.parentEmailEnc,
+        'student parent link request PII',
+      ),
+      parentName: decryptOptional(decrypt, request.parentNameEnc),
+      existingAccount: request.existingAccount,
+      targetUserId: request.targetUserId,
+      status: request.status,
+      confirmedAt: request.confirmedAt,
+      rejectedAt: request.rejectedAt,
+      invitedAt: request.invitedAt,
+      createdAt: request.createdAt,
+    })),
   };
+}
+
+function mapParentLinkRequest(
+  ctx: {
+    db: { $enc: { decrypt: (value: string | null | undefined) => string | null } };
+  },
+  row: ParentLinkRequestRow,
+) {
+  const decrypt = ctx.db.$enc.decrypt;
+  const studentNameEnc = row.student?.fullNameEnc ?? row.studentSelfRegistration.fullNameEnc;
+  return {
+    id: row.id,
+    parentEmail: decryptRequired(decrypt, row.parentEmailEnc, 'student parent link request PII'),
+    parentName: decryptOptional(decrypt, row.parentNameEnc),
+    existingAccount: row.existingAccount,
+    status: row.status,
+    confirmedAt: row.confirmedAt,
+    rejectedAt: row.rejectedAt,
+    invitedAt: row.invitedAt,
+    createdAt: row.createdAt,
+    studentId: row.studentId ?? row.studentSelfRegistration.studentId,
+    studentName: decryptRequired(decrypt, studentNameEnc, 'student PII'),
+    yearGroup: row.student?.yearGroup ?? row.studentSelfRegistration.yearGroup,
+    studentActive: row.student?.active ?? row.studentSelfRegistration.status === 'Activated',
+  };
+}
+
+function assertCanTargetParentLink(user: { active: boolean; id: string; role: Role }): void {
+  if (!user.active) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'parent/carer account is inactive',
+    });
+  }
+  if (user.role === 'Parent' || canAnswerChildRegistrationPrompt(user)) return;
+  throw new TRPCError({
+    code: 'BAD_REQUEST',
+    message: `cannot send parent link request to ${user.role} account`,
+  });
 }
 
 function consentEntries(consents: ParentInitialRegistrationInput['students'][number]['consents']) {
@@ -719,10 +827,13 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
   const getInvitationRedirectUrl = (): string =>
     buildPostSignInRedirectUrl(deps.appUrl ?? process.env.APP_URL);
 
-  const createStudentInvitation = async (email: string): Promise<ClerkInvitationResult> => {
+  const createPortalInvitation = async (
+    email: string,
+    role: 'Parent' | 'Student',
+  ): Promise<ClerkInvitationResult> => {
     const invitation = await getClerk().createInvitation({
       emailAddress: email,
-      publicMetadata: { role: 'Student', tags: STUDENT_INVITATION_TAGS },
+      publicMetadata: { role, tags: STUDENT_INVITATION_TAGS },
       redirectUrl: getInvitationRedirectUrl(),
       ignoreExisting: true,
       notify: false,
@@ -735,6 +846,12 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
     }
     return invitation;
   };
+
+  const createStudentInvitation = (email: string): Promise<ClerkInvitationResult> =>
+    createPortalInvitation(email, 'Student');
+
+  const createParentInvitation = (email: string): Promise<ClerkInvitationResult> =>
+    createPortalInvitation(email, 'Parent');
 
   return router({
     createStudentRegistrationCode: adminOperationsProcedure
@@ -842,6 +959,48 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
           });
         }
 
+        const seenParentEmails = new Set<string>();
+        const parentLinkRequests: Prisma.StudentParentLinkRequestCreateWithoutStudentSelfRegistrationInput[] =
+          [];
+        for (const link of input.parentLinks) {
+          const parentEmailBidx = ctx.db.$enc.blindIndex(link.parentEmail);
+          if (seenParentEmails.has(parentEmailBidx)) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'duplicate parent/carer link request',
+            });
+          }
+          seenParentEmails.add(parentEmailBidx);
+
+          let targetUserId: string | undefined;
+          if (link.existingAccount) {
+            const targetUser = await ctx.db.user.findUnique({
+              where: { emailBidx: parentEmailBidx },
+              select: { id: true, role: true, active: true },
+            });
+            if (!targetUser) {
+              throw new TRPCError({
+                code: 'BAD_REQUEST',
+                message: 'parent/carer account was not found',
+              });
+            }
+            assertCanTargetParentLink(targetUser);
+            targetUserId = targetUser.id;
+          }
+
+          parentLinkRequests.push({
+            parentEmailEnc: encryptRequired(
+              ctx.db.$enc.encrypt,
+              link.parentEmail,
+              'student parent link request PII',
+            ),
+            parentEmailBidx,
+            parentNameEnc: encryptOptional(ctx.db.$enc.encrypt, link.parentName),
+            existingAccount: link.existingAccount,
+            ...(targetUserId ? { targetUser: { connect: { id: targetUserId } } } : {}),
+          });
+        }
+
         try {
           return await ctx.db.$transaction(async (tx) => {
             const consumed = await tx.studentRegistrationCode.updateMany({
@@ -890,6 +1049,9 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
                 ),
                 yearGroup: input.yearGroup,
                 registrationCodeId: code.id,
+                parentLinkRequests: {
+                  create: parentLinkRequests,
+                },
               },
               select: { id: true, status: true },
             });
@@ -921,6 +1083,111 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
           }
           throw err;
         }
+      }),
+
+    listMyStudentParentLinkRequests: authedProcedure.query(async ({ ctx }) => {
+      const requests = await ctx.db.studentParentLinkRequest.findMany({
+        where: { targetUserId: ctx.user.id, status: 'Pending' },
+        orderBy: [{ createdAt: 'desc' }],
+        select: parentLinkRequestSelect,
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'StudentParentLinkRequest',
+          meta: {
+            count: requests.length,
+            source: 'registration.listMyStudentParentLinkRequests',
+          },
+        },
+      });
+
+      return requests.map((request) => mapParentLinkRequest(ctx, request));
+    }),
+
+    confirmStudentParentLinkRequest: authedProcedure
+      .input(parentLinkRequestIdInput)
+      .mutation(async ({ ctx, input }) => {
+        const request = await ctx.db.studentParentLinkRequest.findFirst({
+          where: { id: input.id, targetUserId: ctx.user.id, status: 'Pending' },
+          select: parentLinkRequestSelect,
+        });
+        if (!request) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'parent link request not found' });
+        }
+
+        const updated = await ctx.db.$transaction(async (tx) => {
+          const studentId = request.studentId ?? request.studentSelfRegistration.studentId;
+          if (studentId) {
+            await tx.guardian.createMany({
+              data: [{ userId: ctx.user.id, studentId }],
+              skipDuplicates: true,
+            });
+          }
+
+          const row = await tx.studentParentLinkRequest.update({
+            where: { id: request.id },
+            data: {
+              status: 'Confirmed',
+              confirmedAt: new Date(),
+              ...(studentId ? { student: { connect: { id: studentId } } } : {}),
+            },
+            select: parentLinkRequestSelect,
+          });
+
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'StudentParentLinkRequest',
+              entityId: request.id,
+              meta: {
+                status: 'Confirmed',
+                studentId,
+                source: 'registration.confirmStudentParentLinkRequest',
+              },
+            },
+          });
+
+          return row;
+        });
+
+        return mapParentLinkRequest(ctx, updated);
+      }),
+
+    rejectStudentParentLinkRequest: authedProcedure
+      .input(parentLinkRequestIdInput)
+      .mutation(async ({ ctx, input }) => {
+        const request = await ctx.db.studentParentLinkRequest.findFirst({
+          where: { id: input.id, targetUserId: ctx.user.id, status: 'Pending' },
+          select: { id: true },
+        });
+        if (!request) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'parent link request not found' });
+        }
+
+        const updated = await ctx.db.studentParentLinkRequest.update({
+          where: { id: request.id },
+          data: { status: 'Rejected', rejectedAt: new Date() },
+          select: parentLinkRequestSelect,
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'StudentParentLinkRequest',
+            entityId: request.id,
+            meta: {
+              status: 'Rejected',
+              source: 'registration.rejectStudentParentLinkRequest',
+            },
+          },
+        });
+
+        return mapParentLinkRequest(ctx, updated);
       }),
 
     listStudentSelfRegistrations: adminOperationsProcedure.query(async ({ ctx }) => {
@@ -1044,6 +1311,28 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
             select: { id: true },
           });
 
+          const confirmedParentLinks = await tx.studentParentLinkRequest.findMany({
+            where: {
+              studentSelfRegistrationId: existing.id,
+              status: 'Confirmed',
+              targetUserId: { not: null },
+            },
+            select: { id: true, targetUserId: true },
+          });
+          if (confirmedParentLinks.length > 0) {
+            const guardianRows = confirmedParentLinks.flatMap((request) =>
+              request.targetUserId ? [{ userId: request.targetUserId, studentId: student.id }] : [],
+            );
+            await tx.guardian.createMany({
+              data: guardianRows,
+              skipDuplicates: true,
+            });
+          }
+          await tx.studentParentLinkRequest.updateMany({
+            where: { studentSelfRegistrationId: existing.id },
+            data: { studentId: student.id },
+          });
+
           const invitation = await tx.userInvitation.create({
             data: {
               clerkInvitationId: clerkInvitation.id,
@@ -1099,6 +1388,96 @@ export function createRegistrationRouter(deps: RegistrationRouterDeps = {}) {
 
           return updated;
         });
+
+        const parentInviteRequests = await ctx.db.studentParentLinkRequest.findMany({
+          where: {
+            studentSelfRegistrationId: activated.id,
+            studentId: activated.studentId,
+            existingAccount: false,
+            status: 'Pending',
+          },
+          select: {
+            id: true,
+            parentEmailEnc: true,
+            parentEmailBidx: true,
+            studentId: true,
+          },
+        });
+
+        for (const request of parentInviteRequests) {
+          if (!request.studentId) continue;
+          const parentEmail = decryptRequired(
+            ctx.db.$enc.decrypt,
+            request.parentEmailEnc,
+            'student parent link request PII',
+          );
+          const parentInvitation = await createParentInvitation(parentEmail);
+          const parentInviteUrl = parentInvitation.url;
+          if (!parentInviteUrl) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'clerk invitation link missing',
+            });
+          }
+          const storedInvitation = await ctx.db.userInvitation.create({
+            data: {
+              clerkInvitationId: parentInvitation.id,
+              role: 'Parent',
+              tags: [],
+              emailEnc: request.parentEmailEnc,
+              emailBidx: request.parentEmailBidx,
+              status: 'Pending',
+              emailStatus: 'NotSent',
+              invitedById: ctx.user.id,
+              guardianLinkStudentIds: [request.studentId],
+              studentParentLinkRequestId: request.id,
+            },
+            select: { id: true },
+          });
+
+          const parentEmailInput = buildUserInviteEmail({
+            inviteUrl: parentInviteUrl,
+            role: 'Parent',
+            to: parentEmail,
+          });
+          try {
+            const result = await getEmailClient().send(parentEmailInput);
+            await ctx.db.userInvitation.update({
+              where: { id: storedInvitation.id },
+              data: { emailStatus: 'Sent', emailMessageId: result.id },
+              select: { id: true },
+            });
+            await ctx.db.studentParentLinkRequest.update({
+              where: { id: request.id },
+              data: { status: 'Invited', invitedAt: new Date() },
+              select: { id: true },
+            });
+            await ctx.db.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Create',
+                entity: 'Email',
+                entityId: result.id,
+                meta: {
+                  subject: parentEmailInput.subject,
+                  studentParentLinkRequestId: request.id,
+                  source: 'registration.approveStudentSelfRegistration.parentLink',
+                },
+              },
+            });
+          } catch (err) {
+            await ctx.db.userInvitation.update({
+              where: { id: storedInvitation.id },
+              data: { emailStatus: 'Failed', emailMessageId: null },
+              select: { id: true },
+            });
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'parent activation email send failed',
+              cause: err instanceof Error ? err : undefined,
+            });
+          }
+        }
 
         const emailInput = buildUserInviteEmail({
           inviteUrl,
