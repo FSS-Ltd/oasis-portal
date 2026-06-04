@@ -134,10 +134,13 @@
   gap: 16px;
 }
 
-.student-hero__avatar {
+.student-hero__icon {
+  display: inline-grid;
   width: 58px;
   height: 58px;
   flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
   background: var(--oasis-blue);
   color: #ffffff;
   font-size: 1rem;
@@ -233,6 +236,193 @@
 
 .student-shell-card--wide {
   max-width: 720px;
+}
+
+.student-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-metric-card {
+  display: flex;
+  min-width: 0;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-metric-card > span {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.student-metric-card div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.student-metric-card small,
+.student-metric-card p,
+.student-metric-card em {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.student-metric-card small {
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-metric-card strong {
+  color: var(--oasis-navy);
+  font-size: 1.45rem;
+  line-height: 1.05;
+}
+
+.student-metric-card em {
+  color: var(--oasis-blue);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.student-dashboard-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 14px;
+}
+
+.student-dashboard-panel {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-dashboard-panel:first-child {
+  grid-row: span 2;
+}
+
+.student-dashboard-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-dashboard-panel__head p,
+.student-dashboard-panel__head h2,
+.student-dashboard-panel__copy {
+  margin: 0;
+}
+
+.student-dashboard-panel__head p {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.student-dashboard-panel__head h2 {
+  color: var(--oasis-navy);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.student-dashboard-panel__head svg {
+  color: var(--oasis-blue);
+}
+
+.student-dashboard-panel__copy,
+.student-dashboard-muted {
+  color: var(--oasis-text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.student-dashboard-muted {
+  font-weight: 750;
+}
+
+.student-dashboard-empty {
+  border: 1px dashed var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+  color: var(--oasis-text-secondary);
+  font-size: 0.84rem;
+  font-weight: 750;
+  padding: 14px;
+}
+
+.student-pace-list,
+.student-notification-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-pace-row,
+.student-notification-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.student-pace-row > span {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-navy);
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.student-pace-row div,
+.student-notification-row {
+  min-width: 0;
+}
+
+.student-pace-row strong,
+.student-notification-row strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.student-pace-row small,
+.student-notification-row small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 750;
 }
 
 .student-usage-strip,
@@ -337,8 +527,17 @@
 }
 
 @media (max-width: 1080px) {
-  .student-shell-grid {
+  .student-shell-grid,
+  .student-dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-dashboard-main {
+    grid-template-columns: 1fr;
+  }
+
+  .student-dashboard-panel:first-child {
+    grid-row: auto;
   }
 }
 
@@ -364,7 +563,8 @@
     text-align: left;
   }
 
-  .student-shell-grid {
+  .student-shell-grid,
+  .student-dashboard-grid {
     grid-template-columns: 1fr;
   }
 
