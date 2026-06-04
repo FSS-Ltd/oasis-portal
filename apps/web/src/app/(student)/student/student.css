@@ -601,6 +601,115 @@
   font-weight: 900;
 }
 
+.student-shop-page {
+  gap: 16px;
+}
+
+.student-shop-balance {
+  display: grid;
+  min-width: 148px;
+  place-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--oasis-crimson-light);
+  color: var(--oasis-crimson);
+  text-align: center;
+}
+
+.student-shop-balance small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-shop-balance strong {
+  font-size: 1.65rem;
+  line-height: 1.05;
+}
+
+.student-shop-balance span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.student-shop-layout {
+  grid-template-columns: 250px minmax(0, 1fr) 330px;
+}
+
+.student-shop-history {
+  position: static;
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.student-shop-history .section-title {
+  padding-top: 12px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.student-shop-history__section {
+  display: grid;
+  gap: 8px;
+}
+
+.student-shop-history__section h3 {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-shop-history__empty {
+  margin: 0;
+  color: var(--oasis-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.student-shop-history-row,
+.student-shop-hold-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.student-shop-history-row div,
+.student-shop-hold-row div {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 3px;
+}
+
+.student-shop-history-row strong,
+.student-shop-hold-row strong {
+  overflow: hidden;
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-shop-history-row span,
+.student-shop-hold-row span {
+  overflow: hidden;
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .student-placeholder-page__header {
   display: grid;
   gap: 4px;
@@ -691,7 +800,8 @@
 @media (max-width: 1080px) {
   .student-shell-grid,
   .student-dashboard-grid,
-  .student-wallet-grid {
+  .student-wallet-grid,
+  .student-shop-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -732,7 +842,8 @@
 
   .student-shell-grid,
   .student-dashboard-grid,
-  .student-wallet-grid {
+  .student-wallet-grid,
+  .student-shop-layout {
     grid-template-columns: 1fr;
   }
 
