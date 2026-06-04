@@ -796,6 +796,128 @@
   gap: 12px;
 }
 
+.parent-settings-limit-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.parent-settings-duration-control {
+  display: grid;
+  gap: 12px;
+}
+
+.parent-settings-segmented {
+  display: inline-grid;
+  width: min(100%, 360px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+  padding: 4px;
+}
+
+.parent-settings-segmented button,
+.parent-settings-weekdays button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.parent-settings-segmented button {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.parent-settings-segmented button.is-active {
+  background: #ffffff;
+  color: var(--oasis-navy);
+  box-shadow: 0 5px 14px rgba(27, 43, 94, 0.1);
+}
+
+.parent-settings-segmented button:disabled,
+.parent-settings-weekdays button:disabled,
+.parent-settings-duration-picker select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.parent-settings-duration-picker {
+  display: grid;
+  max-width: 360px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #1d1d20;
+}
+
+.parent-settings-duration-picker > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.parent-settings-duration-picker > div + div {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.parent-settings-duration-picker span {
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 0.68rem;
+  font-weight: 850;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.parent-settings-duration-picker select {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  appearance: none;
+  background: #303034;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 1.45rem;
+  font-weight: 850;
+  line-height: 1;
+  padding: 12px 10px;
+  text-align: center;
+  text-align-last: center;
+}
+
+.parent-settings-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.parent-settings-weekdays button {
+  display: grid;
+  min-height: 44px;
+  place-items: center;
+  border: 1px solid var(--oasis-border);
+  background: #ffffff;
+}
+
+.parent-settings-weekdays button.is-active {
+  border-color: var(--oasis-crimson);
+  background: var(--oasis-crimson-light);
+  color: var(--oasis-crimson);
+}
+
+.parent-settings-segmented button:focus-visible,
+.parent-settings-weekdays button:focus-visible,
+.parent-settings-duration-picker select:focus-visible {
+  outline: 3px solid rgba(91, 144, 197, 0.35);
+  outline-offset: 2px;
+}
+
 .parent-settings-child-icon__body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1053,6 +1175,10 @@
   .parent-settings-child-icon__body,
   .parent-settings-limit-grid {
     grid-template-columns: 1fr;
+  }
+
+  .parent-settings-weekdays {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .parent-settings-actions {

@@ -15,6 +15,8 @@ type Report = RouterOutputs['studentSettings']['adminReadinessReport'];
 type ReportRow = Report['rows'][number];
 type ReportStatus = 'All' | 'Ready' | 'Exceptions';
 
+const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
 function ratio(value: number | null): string {
   return value === null ? 'No records' : `${String(value)}%`;
 }
@@ -27,14 +29,13 @@ function lockLabel(row: ReportRow): string {
 function usageLabel(row: ReportRow): string {
   if (!row.usage.hasLimits) return 'No limits';
   const parts = [
-    row.usage.hourlyUsageLimitMinutes
-      ? `${String(row.usage.hourMinutes)}/${String(row.usage.hourlyUsageLimitMinutes)} hour`
-      : null,
     row.usage.dailyUsageLimitMinutes
       ? `${String(row.usage.dayMinutes)}/${String(row.usage.dailyUsageLimitMinutes)} day`
       : null,
-    row.usage.weeklyUsageLimitMinutes
-      ? `${String(row.usage.weekMinutes)}/${String(row.usage.weeklyUsageLimitMinutes)} week`
+    row.usage.offLimitWeekdays.length > 0
+      ? `Off ${row.usage.offLimitWeekdays
+          .map((weekday) => weekdayLabels[weekday] ?? String(weekday))
+          .join(', ')}`
       : null,
   ].filter((part): part is string => Boolean(part));
   return parts.join(' · ');

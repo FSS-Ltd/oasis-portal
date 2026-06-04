@@ -62,9 +62,8 @@ interface StoredStudentPortalSettings {
   headAcademicLocked: boolean;
   headAcademicLockReasonEnc: string | null;
   parentMeritShopBlocked: boolean;
-  hourlyUsageLimitMinutes: number | null;
   dailyUsageLimitMinutes: number | null;
-  weeklyUsageLimitMinutes: number | null;
+  offLimitWeekdays: number[];
   childIconPhotoUrl: string | null;
 }
 
@@ -272,9 +271,8 @@ function makePortalSettings(
     headAcademicLocked: false,
     headAcademicLockReasonEnc: null,
     parentMeritShopBlocked: false,
-    hourlyUsageLimitMinutes: null,
     dailyUsageLimitMinutes: null,
-    weeklyUsageLimitMinutes: null,
+    offLimitWeekdays: [],
     childIconPhotoUrl: null,
     ...input,
   };
@@ -294,8 +292,7 @@ function makeUsageMinute(
 }
 
 function makeFaithCornerContent(
-  input: Partial<StoredFaithCornerContent> &
-    Pick<StoredFaithCornerContent, 'id' | 'weeklyTheme'>,
+  input: Partial<StoredFaithCornerContent> & Pick<StoredFaithCornerContent, 'id' | 'weeklyTheme'>,
 ): StoredFaithCornerContent {
   return {
     memoryVerseReference: 'John 3:16',
@@ -389,13 +386,7 @@ function makeFakeDb(
           ),
       ),
       update: vi.fn(
-        ({
-          data,
-          where,
-        }: {
-          data: Partial<StoredUserInvitation>;
-          where: { id: string };
-        }) => {
+        ({ data, where }: { data: Partial<StoredUserInvitation>; where: { id: string } }) => {
           const invitation = userInvitations.find((candidate) => candidate.id === where.id);
           if (!invitation) return Promise.resolve(null);
           Object.assign(invitation, data);
@@ -1427,7 +1418,9 @@ describe('student portal usage limits', () => {
         usage: {
           allowed: true,
           blockedWindow: null,
-          hourly: { limitMinutes: null, usedMinutes: 1, remainingMinutes: null },
+          blockedReason: null,
+          daily: { limitMinutes: null, usedMinutes: 1, remainingMinutes: null },
+          offLimitWeekdays: [],
         },
       });
       expect(usageMinutes).toHaveLength(1);
@@ -1449,9 +1442,8 @@ describe('student portal usage limits', () => {
         portalSettings: [
           {
             studentId,
-            hourlyUsageLimitMinutes: 3,
             dailyUsageLimitMinutes: 10,
-            weeklyUsageLimitMinutes: 30,
+            offLimitWeekdays: [],
           },
         ],
         usageMinutes: [
@@ -1469,8 +1461,8 @@ describe('student portal usage limits', () => {
         studentId,
         usage: {
           allowed: true,
-          hourly: { limitMinutes: 3, usedMinutes: 1, remainingMinutes: 2 },
           daily: { limitMinutes: 10, usedMinutes: 2, remainingMinutes: 8 },
+          offLimitWeekdays: [],
         },
       });
     } finally {
@@ -1478,12 +1470,12 @@ describe('student portal usage limits', () => {
     }
   });
 
-  it('blocks student portal access when the hourly usage limit is reached', async () => {
+  it('blocks student portal access on an off-limit weekday before recording usage', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
     try {
-      const { db, students } = makeFakeDb({
-        portalSettings: [{ studentId, hourlyUsageLimitMinutes: 2 }],
+      const { db, students, usageMinutes } = makeFakeDb({
+        portalSettings: [{ studentId, dailyUsageLimitMinutes: 2, offLimitWeekdays: [3] }],
         usageMinutes: [
           { minuteStartedAt: new Date('2026-06-03T10:05:00.000Z') },
           { minuteStartedAt: new Date('2026-06-03T10:10:00.000Z') },
@@ -1491,20 +1483,21 @@ describe('student portal usage limits', () => {
       });
       await linkCreatedStudent(db, students);
 
-      await expect(makeCaller(studentUser, db).student.me()).rejects.toMatchObject({
+      await expect(makeCaller(studentUser, db).student.heartbeat()).rejects.toMatchObject({
         code: 'FORBIDDEN',
-        message: 'Hourly student portal usage limit reached.',
+        message: 'Student portal is off limits today.',
       });
+      expect(usageMinutes).toHaveLength(2);
       expect(db.auditLog.create).toHaveBeenCalledWith({
         data: {
           userId: studentUser.id,
           action: 'PermissionDenied',
-          entity: 'student.me',
+          entity: 'student.heartbeat',
           entityId: studentId,
           meta: {
             role: 'Student',
-            reason: 'UsageLimit',
-            usageWindow: 'Hourly',
+            reason: 'OffLimitDay',
+            weekday: '3',
           },
         },
       });
@@ -1513,7 +1506,7 @@ describe('student portal usage limits', () => {
     }
   });
 
-  it('blocks student portal access when daily or weekly usage limits are reached', async () => {
+  it('blocks student portal access when the daily usage limit is reached', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
     try {
@@ -1529,19 +1522,6 @@ describe('student portal usage limits', () => {
         code: 'FORBIDDEN',
         message: 'Daily student portal usage limit reached.',
       });
-
-      const weekly = makeFakeDb({
-        portalSettings: [{ studentId, weeklyUsageLimitMinutes: 2 }],
-        usageMinutes: [
-          { minuteStartedAt: new Date('2026-06-01T08:05:00.000Z') },
-          { minuteStartedAt: new Date('2026-06-02T09:10:00.000Z') },
-        ],
-      });
-      await linkCreatedStudent(weekly.db, weekly.students);
-      await expect(makeCaller(studentUser, weekly.db).student.me()).rejects.toMatchObject({
-        code: 'FORBIDDEN',
-        message: 'Weekly student portal usage limit reached.',
-      });
     } finally {
       vi.useRealTimers();
     }
@@ -1552,7 +1532,7 @@ describe('student portal usage limits', () => {
     vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
     try {
       const { db, students } = makeFakeDb({
-        portalSettings: [{ studentId, headAcademicLocked: true, hourlyUsageLimitMinutes: 1 }],
+        portalSettings: [{ studentId, headAcademicLocked: true, dailyUsageLimitMinutes: 1 }],
         usageMinutes: [{ minuteStartedAt: new Date('2026-06-03T10:05:00.000Z') }],
       });
       await linkCreatedStudent(db, students);

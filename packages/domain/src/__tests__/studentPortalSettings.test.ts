@@ -65,38 +65,56 @@ describe('effectiveStudentPortalLock', () => {
 });
 
 describe('validateStudentPortalUsageLimits', () => {
-  it('accepts null limits and positive minute limits within their windows', () => {
+  it('accepts unlimited daily limits and no off-limit days by default', () => {
     expect(
       validateStudentPortalUsageLimits({
-        hourlyUsageLimitMinutes: 30,
-        dailyUsageLimitMinutes: 120,
-        weeklyUsageLimitMinutes: null,
+        dailyUsageLimitMinutes: null,
       }),
     ).toEqual({
-      hourlyUsageLimitMinutes: 30,
-      dailyUsageLimitMinutes: 120,
-      weeklyUsageLimitMinutes: null,
+      dailyUsageLimitMinutes: null,
+      offLimitWeekdays: [],
     });
   });
 
-  it('rejects zero, fractional, negative, and over-window usage limits', () => {
-    expect(() => validateStudentPortalUsageLimits({ hourlyUsageLimitMinutes: 0 })).toThrow(
-      /hourlyUsageLimitMinutes/,
+  it('accepts a daily minute limit and sorted off-limit weekdays', () => {
+    expect(
+      validateStudentPortalUsageLimits({
+        dailyUsageLimitMinutes: 120,
+        offLimitWeekdays: [6, 0, 3],
+      }),
+    ).toEqual({
+      dailyUsageLimitMinutes: 120,
+      offLimitWeekdays: [0, 3, 6],
+    });
+  });
+
+  it('rejects zero, fractional, negative, and over-window daily limits', () => {
+    expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: 0 })).toThrow(
+      /dailyUsageLimitMinutes/,
     );
     expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: 90.5 })).toThrow(
       /dailyUsageLimitMinutes/,
     );
-    expect(() => validateStudentPortalUsageLimits({ weeklyUsageLimitMinutes: -1 })).toThrow(
-      /weeklyUsageLimitMinutes/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ hourlyUsageLimitMinutes: 61 })).toThrow(
-      /hourlyUsageLimitMinutes/,
+    expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: -1 })).toThrow(
+      /dailyUsageLimitMinutes/,
     );
     expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: 1441 })).toThrow(
       /dailyUsageLimitMinutes/,
     );
-    expect(() => validateStudentPortalUsageLimits({ weeklyUsageLimitMinutes: 10081 })).toThrow(
-      /weeklyUsageLimitMinutes/,
+  });
+
+  it('rejects invalid and duplicate off-limit weekdays', () => {
+    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [-1] })).toThrow(
+      /offLimitWeekdays/,
+    );
+    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [7] })).toThrow(
+      /offLimitWeekdays/,
+    );
+    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [1.5] })).toThrow(
+      /offLimitWeekdays/,
+    );
+    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [2, 2] })).toThrow(
+      /offLimitWeekdays/,
     );
   });
 });
@@ -106,80 +124,54 @@ describe('studentPortalUsageLimitStatus', () => {
     expect(
       studentPortalUsageLimitStatus(
         {
-          hourlyUsageLimitMinutes: 30,
           dailyUsageLimitMinutes: 90,
-          weeklyUsageLimitMinutes: 300,
+          offLimitWeekdays: [],
         },
         {
-          hourlyUsageMinutes: 12,
           dailyUsageMinutes: 45,
-          weeklyUsageMinutes: 120,
         },
+        3,
       ),
     ).toEqual({ allowed: true });
   });
 
-  it('reports the shortest reached usage window first', () => {
+  it('blocks off-limit days before checking daily usage', () => {
     expect(
       studentPortalUsageLimitStatus(
         {
-          hourlyUsageLimitMinutes: 30,
           dailyUsageLimitMinutes: 90,
-          weeklyUsageLimitMinutes: 300,
+          offLimitWeekdays: [3],
         },
         {
-          hourlyUsageMinutes: 30,
           dailyUsageMinutes: 90,
-          weeklyUsageMinutes: 300,
         },
+        3,
       ),
     ).toEqual({
       allowed: false,
-      window: 'Hourly',
-      limitMinutes: 30,
-      usedMinutes: 30,
+      reason: 'OffLimitDay',
+      weekday: 3,
     });
   });
 
-  it('checks daily and weekly limits independently when shorter limits are not configured', () => {
+  it('blocks when the daily limit has been reached', () => {
     expect(
       studentPortalUsageLimitStatus(
         {
-          hourlyUsageLimitMinutes: null,
           dailyUsageLimitMinutes: 90,
-          weeklyUsageLimitMinutes: 300,
+          offLimitWeekdays: [],
         },
         {
-          hourlyUsageMinutes: 60,
           dailyUsageMinutes: 90,
-          weeklyUsageMinutes: 120,
         },
+        3,
       ),
     ).toEqual({
       allowed: false,
+      reason: 'DailyLimit',
       window: 'Daily',
       limitMinutes: 90,
       usedMinutes: 90,
-    });
-
-    expect(
-      studentPortalUsageLimitStatus(
-        {
-          hourlyUsageLimitMinutes: null,
-          dailyUsageLimitMinutes: null,
-          weeklyUsageLimitMinutes: 300,
-        },
-        {
-          hourlyUsageMinutes: 60,
-          dailyUsageMinutes: 120,
-          weeklyUsageMinutes: 300,
-        },
-      ),
-    ).toEqual({
-      allowed: false,
-      window: 'Weekly',
-      limitMinutes: 300,
-      usedMinutes: 300,
     });
   });
 });

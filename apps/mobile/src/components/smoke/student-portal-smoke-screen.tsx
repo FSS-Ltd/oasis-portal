@@ -38,7 +38,38 @@ function firstError(...messages: Array<string | undefined>): string | null {
 }
 
 function isUsageLimitMessage(message: string | null | undefined): message is string {
-  return Boolean(message?.includes('student portal usage limit reached'));
+  const normalized = message?.toLowerCase();
+  return Boolean(normalized?.includes('student portal usage limit reached'));
+}
+
+function isOffLimitDayMessage(message: string | null | undefined): message is string {
+  return Boolean(message?.toLowerCase().includes('student portal is off limits today'));
+}
+
+function studentFriendlyErrorMessage(message: string | null | undefined): string | null {
+  if (!message) return null;
+  const normalized = message.toLowerCase();
+  if (isOffLimitDayMessage(message)) return 'The student portal is off limits today.';
+  if (isUsageLimitMessage(message)) return "You have reached today's student portal time limit.";
+  if (normalized.includes('student portal is locked by oasis learning centre')) return message;
+  if (normalized.includes('student portal is locked by a parent or carer')) return message;
+  if (normalized.includes('student profile not found')) {
+    return 'No active student profile is linked to this account yet.';
+  }
+  if (
+    normalized.includes('prisma') ||
+    normalized.includes('connectorerror') ||
+    normalized.includes('queryerror') ||
+    normalized.includes('query execution') ||
+    normalized.includes('row-level security') ||
+    normalized.includes('new row violates') ||
+    normalized.includes('postgres') ||
+    normalized.includes('rls') ||
+    normalized.includes('internal')
+  ) {
+    return 'Something went wrong. Try again, or contact an administrator if it continues.';
+  }
+  return message;
 }
 
 function initials(name: string): string {
@@ -137,7 +168,9 @@ function HeroStat({ label, value }: { label: string; value: string }) {
 function UsageLimitReachedPanel({ message }: { message: string }) {
   return (
     <Card style={styles.compactCard}>
-      <SectionTitle>Usage limit reached</SectionTitle>
+      <SectionTitle>
+        {isOffLimitDayMessage(message) ? 'Student portal locked' : 'Usage limit reached'}
+      </SectionTitle>
       <MutedText>{message}</MutedText>
     </Card>
   );
@@ -187,11 +220,13 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const transfer = api.meritLedger.transfer.useMutation();
   const heartbeat = api.student.heartbeat.useMutation({
     onError(error) {
-      if (isUsageLimitMessage(error.message)) setUsageLimitNotice(error.message);
+      if (isUsageLimitMessage(error.message) || isOffLimitDayMessage(error.message)) {
+        setUsageLimitNotice(studentFriendlyErrorMessage(error.message));
+      }
     },
     onSuccess(data) {
       if (!data.usage.allowed && data.usage.message) {
-        setUsageLimitNotice(data.usage.message);
+        setUsageLimitNotice(studentFriendlyErrorMessage(data.usage.message));
       }
     },
   });
@@ -207,17 +242,16 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     shopItems.isFetching;
   const queryError = firstError(
     usageLimitNotice ?? undefined,
-    student.error?.message,
-    balances.error?.message,
-    weekActivity.error?.message,
-    monthActivity.error?.message,
-    investment.error?.message,
-    pace.error?.message,
-    leaderboard.error?.message,
-    shopItems.error?.message,
+    studentFriendlyErrorMessage(student.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(balances.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(weekActivity.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(monthActivity.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(investment.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(pace.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(leaderboard.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(shopItems.error?.message) ?? undefined,
   );
-  const usageLimitMessage = [
-    usageLimitNotice,
+  const rawUsageLimitMessage = [
     student.error?.message,
     heartbeat.error?.message,
     balances.error?.message,
@@ -227,7 +261,10 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     pace.error?.message,
     leaderboard.error?.message,
     shopItems.error?.message,
-  ].find(isUsageLimitMessage);
+  ].find((message): message is string =>
+    Boolean(message && (isUsageLimitMessage(message) || isOffLimitDayMessage(message))),
+  );
+  const usageLimitMessage = usageLimitNotice ?? studentFriendlyErrorMessage(rawUsageLimitMessage);
 
   useEffect(() => {
     if (!studentId || usageLimitNotice) return undefined;

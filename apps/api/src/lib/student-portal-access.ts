@@ -5,19 +5,12 @@ import {
   studentMeritShopAccess,
   studentPortalUsageLimitStatus,
   type StudentPortalUsageCounts,
-  type StudentPortalUsageLimitReached,
+  type StudentPortalUsageLimitStatus,
   type StudentPortalUsageWindow,
   type StudentPortalLockSource,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
-import {
-  addUtcDays,
-  addUtcMinutes,
-  startOfUtcDay,
-  startOfUtcHour,
-  startOfUtcMinute,
-  startOfUtcWeek,
-} from './utc-date.js';
+import { addUtcDays, startOfUtcDay, startOfUtcMinute } from './utc-date.js';
 
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
 
@@ -27,9 +20,8 @@ const studentPortalPolicySelect = Prisma.validator<Prisma.StudentPortalSettingsS
   headAcademicLocked: true,
   headAcademicLockReasonEnc: true,
   parentMeritShopBlocked: true,
-  hourlyUsageLimitMinutes: true,
   dailyUsageLimitMinutes: true,
-  weeklyUsageLimitMinutes: true,
+  offLimitWeekdays: true,
 });
 
 type StudentPortalPolicyRow = Prisma.StudentPortalSettingsGetPayload<{
@@ -42,9 +34,8 @@ interface StudentPortalPolicyState {
   headAcademicLocked: boolean;
   headAcademicLockReasonEnc: string | null;
   parentMeritShopBlocked: boolean;
-  hourlyUsageLimitMinutes: number | null;
   dailyUsageLimitMinutes: number | null;
-  weeklyUsageLimitMinutes: number | null;
+  offLimitWeekdays: number[];
 }
 
 interface StudentPortalLockDetails {
@@ -59,9 +50,7 @@ interface StudentPortalUsageWindowRange {
 }
 
 interface StudentPortalUsageWindows {
-  hourly: StudentPortalUsageWindowRange;
   daily: StudentPortalUsageWindowRange;
-  weekly: StudentPortalUsageWindowRange;
 }
 
 export interface StudentPortalUsageWindowStatus {
@@ -73,11 +62,11 @@ export interface StudentPortalUsageWindowStatus {
 
 export interface StudentPortalUsageStatusDto {
   allowed: boolean;
+  blockedReason: 'DailyLimit' | 'OffLimitDay' | null;
   blockedWindow: StudentPortalUsageWindow | null;
   message: string | null;
-  hourly: StudentPortalUsageWindowStatus;
   daily: StudentPortalUsageWindowStatus;
-  weekly: StudentPortalUsageWindowStatus;
+  offLimitWeekdays: number[];
 }
 
 function defaultPolicyState(settings: StudentPortalPolicyRow | null): StudentPortalPolicyState {
@@ -87,9 +76,8 @@ function defaultPolicyState(settings: StudentPortalPolicyRow | null): StudentPor
     headAcademicLocked: settings?.headAcademicLocked ?? false,
     headAcademicLockReasonEnc: settings?.headAcademicLockReasonEnc ?? null,
     parentMeritShopBlocked: settings?.parentMeritShopBlocked ?? false,
-    hourlyUsageLimitMinutes: settings?.hourlyUsageLimitMinutes ?? null,
     dailyUsageLimitMinutes: settings?.dailyUsageLimitMinutes ?? null,
-    weeklyUsageLimitMinutes: settings?.weeklyUsageLimitMinutes ?? null,
+    offLimitWeekdays: settings?.offLimitWeekdays ?? [],
   };
 }
 
@@ -112,18 +100,18 @@ function lockDetails(settings: StudentPortalPolicyRow | null): StudentPortalLock
 }
 
 function usageWindows(now: Date): StudentPortalUsageWindows {
-  const hourlyStart = startOfUtcHour(now);
   const dailyStart = startOfUtcDay(now);
-  const weeklyStart = startOfUtcWeek(now);
   return {
-    hourly: { start: hourlyStart, end: addUtcMinutes(hourlyStart, 60) },
     daily: { start: dailyStart, end: addUtcDays(dailyStart, 1) },
-    weekly: { start: weeklyStart, end: addUtcDays(weeklyStart, 7) },
   };
 }
 
-function usageLimitMessage(limit: StudentPortalUsageLimitReached): string {
-  return `${limit.window} student portal usage limit reached.`;
+function usageLimitMessage(
+  limit: Exclude<StudentPortalUsageLimitStatus, { allowed: true }>,
+): string {
+  return limit.reason === 'OffLimitDay'
+    ? 'Student portal is off limits today.'
+    : 'Daily student portal usage limit reached.';
 }
 
 function usageWindowStatus(
@@ -143,46 +131,40 @@ function buildUsageStatus(
   settings: StudentPortalPolicyRow | null,
   counts: StudentPortalUsageCounts,
   windows: StudentPortalUsageWindows,
+  weekday: number,
 ): StudentPortalUsageStatusDto {
   const state = defaultPolicyState(settings);
   const status = studentPortalUsageLimitStatus(
     {
-      hourlyUsageLimitMinutes: state.hourlyUsageLimitMinutes,
       dailyUsageLimitMinutes: state.dailyUsageLimitMinutes,
-      weeklyUsageLimitMinutes: state.weeklyUsageLimitMinutes,
+      offLimitWeekdays: state.offLimitWeekdays,
     },
     counts,
+    weekday,
   );
 
   return {
     allowed: status.allowed,
-    blockedWindow: status.allowed ? null : status.window,
+    blockedReason: status.allowed ? null : status.reason,
+    blockedWindow: status.allowed || status.reason !== 'DailyLimit' ? null : status.window,
     message: status.allowed ? null : usageLimitMessage(status),
-    hourly: usageWindowStatus(
-      state.hourlyUsageLimitMinutes,
-      counts.hourlyUsageMinutes,
-      windows.hourly.end,
-    ),
     daily: usageWindowStatus(
       state.dailyUsageLimitMinutes,
       counts.dailyUsageMinutes,
       windows.daily.end,
     ),
-    weekly: usageWindowStatus(
-      state.weeklyUsageLimitMinutes,
-      counts.weeklyUsageMinutes,
-      windows.weekly.end,
-    ),
+    offLimitWeekdays: state.offLimitWeekdays,
   };
 }
 
 function hasUsageLimits(settings: StudentPortalPolicyRow | null): boolean {
   return (
-    (settings?.hourlyUsageLimitMinutes !== null &&
-      settings?.hourlyUsageLimitMinutes !== undefined) ||
-    (settings?.dailyUsageLimitMinutes !== null && settings?.dailyUsageLimitMinutes !== undefined) ||
-    (settings?.weeklyUsageLimitMinutes !== null && settings?.weeklyUsageLimitMinutes !== undefined)
+    settings?.dailyUsageLimitMinutes !== null && settings?.dailyUsageLimitMinutes !== undefined
   );
+}
+
+function hasOffLimitWeekdays(settings: StudentPortalPolicyRow | null): boolean {
+  return (settings?.offLimitWeekdays ?? []).length > 0;
 }
 
 async function loadStudentPortalPolicy(
@@ -199,10 +181,11 @@ async function auditStudentPortalPolicyDenied(
   ctx: AuthedContext,
   input: {
     entity: string;
-    reason: 'AccountLocked' | 'ParentShopBlock' | 'UsageLimit';
+    reason: 'AccountLocked' | 'OffLimitDay' | 'ParentShopBlock' | 'UsageLimit';
     studentId: string;
     lockSource?: StudentPortalLockSource | undefined;
     usageWindow?: StudentPortalUsageWindow | undefined;
+    weekday?: number | undefined;
   },
 ): Promise<void> {
   const meta: Record<string, string | null> = {
@@ -214,6 +197,9 @@ async function auditStudentPortalPolicyDenied(
   }
   if (input.usageWindow !== undefined) {
     meta.usageWindow = input.usageWindow;
+  }
+  if (input.weekday !== undefined) {
+    meta.weekday = String(input.weekday);
   }
 
   await ctx.db.auditLog.create({
@@ -231,28 +217,16 @@ async function loadStudentPortalUsageCounts(
   ctx: AuthedContext,
   input: { studentId: string; windows: StudentPortalUsageWindows },
 ): Promise<StudentPortalUsageCounts> {
-  const [hourlyUsageMinutes, dailyUsageMinutes, weeklyUsageMinutes] = await Promise.all([
-    ctx.db.studentPortalUsageMinute.count({
-      where: {
-        studentId: input.studentId,
-        minuteStartedAt: { gte: input.windows.hourly.start, lt: input.windows.hourly.end },
-      },
-    }),
-    ctx.db.studentPortalUsageMinute.count({
+  const dailyUsageMinutes = await ctx.withRls((tx) =>
+    tx.studentPortalUsageMinute.count({
       where: {
         studentId: input.studentId,
         minuteStartedAt: { gte: input.windows.daily.start, lt: input.windows.daily.end },
       },
     }),
-    ctx.db.studentPortalUsageMinute.count({
-      where: {
-        studentId: input.studentId,
-        minuteStartedAt: { gte: input.windows.weekly.start, lt: input.windows.weekly.end },
-      },
-    }),
-  ]);
+  );
 
-  return { hourlyUsageMinutes, dailyUsageMinutes, weeklyUsageMinutes };
+  return { dailyUsageMinutes };
 }
 
 function throwStudentPortalUsageLimit(status: StudentPortalUsageStatusDto): never {
@@ -292,27 +266,28 @@ async function assertUsageLimitPolicy(
     studentId: string;
   },
 ): Promise<StudentPortalUsageStatusDto> {
-  const windows = usageWindows(input.now ?? new Date());
-  if (!hasUsageLimits(input.settings)) {
-    return buildUsageStatus(
-      input.settings,
-      { hourlyUsageMinutes: 0, dailyUsageMinutes: 0, weeklyUsageMinutes: 0 },
-      windows,
-    );
+  const now = input.now ?? new Date();
+  const windows = usageWindows(now);
+  const weekday = now.getUTCDay();
+  if (!hasUsageLimits(input.settings) && !hasOffLimitWeekdays(input.settings)) {
+    return buildUsageStatus(input.settings, { dailyUsageMinutes: 0 }, windows, weekday);
   }
-  const counts = await loadStudentPortalUsageCounts(ctx, {
-    studentId: input.studentId,
-    windows,
-  });
-  const status = buildUsageStatus(input.settings, counts, windows);
+  const counts = hasUsageLimits(input.settings)
+    ? await loadStudentPortalUsageCounts(ctx, {
+        studentId: input.studentId,
+        windows,
+      })
+    : { dailyUsageMinutes: 0 };
+  const status = buildUsageStatus(input.settings, counts, windows, weekday);
 
   if (status.allowed) return status;
 
   await auditStudentPortalPolicyDenied(ctx, {
     entity: input.entity,
-    reason: 'UsageLimit',
+    reason: status.blockedReason === 'OffLimitDay' ? 'OffLimitDay' : 'UsageLimit',
     studentId: input.studentId,
     usageWindow: status.blockedWindow ?? undefined,
+    weekday: status.blockedReason === 'OffLimitDay' ? weekday : undefined,
   });
   throwStudentPortalUsageLimit(status);
 }
@@ -375,12 +350,13 @@ export async function loadStudentPortalUsageStatus(
   input: { now?: Date | undefined; studentId: string },
 ): Promise<StudentPortalUsageStatusDto> {
   const settings = await loadStudentPortalPolicy(ctx, input.studentId);
-  const windows = usageWindows(input.now ?? new Date());
+  const now = input.now ?? new Date();
+  const windows = usageWindows(now);
   const counts = await loadStudentPortalUsageCounts(ctx, {
     studentId: input.studentId,
     windows,
   });
-  return buildUsageStatus(settings, counts, windows);
+  return buildUsageStatus(settings, counts, windows, now.getUTCDay());
 }
 
 export async function recordStudentPortalUsageHeartbeat(
@@ -393,20 +369,22 @@ export async function recordStudentPortalUsageHeartbeat(
   await assertUsageLimitPolicy(ctx, { ...input, now, settings });
   const minuteStartedAt = startOfUtcMinute(now);
 
-  await ctx.db.studentPortalUsageMinute.upsert({
-    where: { studentId_minuteStartedAt: { studentId: input.studentId, minuteStartedAt } },
-    create: {
-      studentId: input.studentId,
-      minuteStartedAt,
-      sessionKey: input.sessionKey ?? null,
-      firstSeenAt: now,
-      lastSeenAt: now,
-    },
-    update: {
-      lastSeenAt: now,
-      sessionKey: input.sessionKey ?? null,
-    },
-  });
+  await ctx.withRls((tx) =>
+    tx.studentPortalUsageMinute.upsert({
+      where: { studentId_minuteStartedAt: { studentId: input.studentId, minuteStartedAt } },
+      create: {
+        studentId: input.studentId,
+        minuteStartedAt,
+        sessionKey: input.sessionKey ?? null,
+        firstSeenAt: now,
+        lastSeenAt: now,
+      },
+      update: {
+        lastSeenAt: now,
+        sessionKey: input.sessionKey ?? null,
+      },
+    }),
+  );
 
   return loadStudentPortalUsageStatus(ctx, { now, studentId: input.studentId });
 }

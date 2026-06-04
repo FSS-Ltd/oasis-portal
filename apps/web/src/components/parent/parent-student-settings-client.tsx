@@ -26,36 +26,13 @@ import {
   type ChildIconPhotoUploadPayload,
 } from './child-icon-photo-upload';
 import { ParentChildSelector } from './parent-child-selector';
+import { DailyLimitControls, OffLimitWeekdaySelector } from './parent-usage-limit-controls';
 
 type LinkedChildSettings = RouterOutputs['studentSettings']['listLinkedChildren'][number];
-type LimitField = 'hourlyUsageLimitMinutes' | 'dailyUsageLimitMinutes' | 'weeklyUsageLimitMinutes';
-type UsageLimitForm = Record<LimitField, string>;
-
-const usageLimitFields = [
-  {
-    field: 'hourlyUsageLimitMinutes',
-    label: 'Hourly limit',
-    max: 60,
-    placeholder: '60',
-  },
-  {
-    field: 'dailyUsageLimitMinutes',
-    label: 'Daily limit',
-    max: 1440,
-    placeholder: '180',
-  },
-  {
-    field: 'weeklyUsageLimitMinutes',
-    label: 'Weekly limit',
-    max: 10080,
-    placeholder: '900',
-  },
-] as const satisfies readonly {
-  field: LimitField;
-  label: string;
-  max: number;
-  placeholder: string;
-}[];
+interface UsageLimitForm {
+  dailyUsageLimitMinutes: number | null;
+  offLimitWeekdays: number[];
+}
 
 const childLoginHandlePattern = /^[a-z0-9]+$/iu;
 const createLoginConfirmationAttempts = 8;
@@ -69,9 +46,8 @@ function wait(ms: number): Promise<void> {
 
 function emptyUsageLimitForm(): UsageLimitForm {
   return {
-    dailyUsageLimitMinutes: '',
-    hourlyUsageLimitMinutes: '',
-    weeklyUsageLimitMinutes: '',
+    dailyUsageLimitMinutes: null,
+    offLimitWeekdays: [],
   };
 }
 
@@ -79,23 +55,9 @@ function usageLimitFormFor(child: LinkedChildSettings | null): UsageLimitForm {
   if (!child) return emptyUsageLimitForm();
 
   return {
-    dailyUsageLimitMinutes:
-      child.dailyUsageLimitMinutes === null ? '' : String(child.dailyUsageLimitMinutes),
-    hourlyUsageLimitMinutes:
-      child.hourlyUsageLimitMinutes === null ? '' : String(child.hourlyUsageLimitMinutes),
-    weeklyUsageLimitMinutes:
-      child.weeklyUsageLimitMinutes === null ? '' : String(child.weeklyUsageLimitMinutes),
+    dailyUsageLimitMinutes: child.dailyUsageLimitMinutes,
+    offLimitWeekdays: child.offLimitWeekdays,
   };
-}
-
-function parseOptionalMinutes(value: string, label: string, max: number): number | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) {
-    throw new Error(`${label} must be a whole number from 1 to ${String(max)} minutes.`);
-  }
-  return parsed;
 }
 
 function lockLabel(child: LinkedChildSettings): string {
@@ -549,12 +511,7 @@ function UsageLimitsPanel({
     setLimits(usageLimitFormFor(child));
     setLocalError(null);
     setSuccess(null);
-  }, [
-    child.dailyUsageLimitMinutes,
-    child.hourlyUsageLimitMinutes,
-    child.studentId,
-    child.weeklyUsageLimitMinutes,
-  ]);
+  }, [child.dailyUsageLimitMinutes, child.offLimitWeekdays, child.studentId]);
 
   const saveUsageLimits = api.studentSettings.setUsageLimits.useMutation({
     onError(error) {
@@ -572,22 +529,9 @@ function UsageLimitsPanel({
     setLocalError(null);
     try {
       saveUsageLimits.mutate({
-        dailyUsageLimitMinutes: parseOptionalMinutes(
-          limits.dailyUsageLimitMinutes,
-          'Daily limit',
-          1440,
-        ),
-        hourlyUsageLimitMinutes: parseOptionalMinutes(
-          limits.hourlyUsageLimitMinutes,
-          'Hourly limit',
-          60,
-        ),
+        dailyUsageLimitMinutes: limits.dailyUsageLimitMinutes,
+        offLimitWeekdays: limits.offLimitWeekdays,
         studentId: child.studentId,
-        weeklyUsageLimitMinutes: parseOptionalMinutes(
-          limits.weeklyUsageLimitMinutes,
-          'Weekly limit',
-          10080,
-        ),
       });
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : 'Check the usage limits.');
@@ -598,29 +542,38 @@ function UsageLimitsPanel({
     <Panel body className="parent-settings-panel">
       <PanelTitle
         icon={<Clock3 aria-hidden="true" size={17} />}
-        sub="Optional limits are stored now and enforced when usage tracking lands."
+        sub="Students are unlimited unless you set a daily limit or off-limit day."
       >
-        Usage limits
+        Portal time limits
       </PanelTitle>
 
-      <div className="parent-settings-limit-grid">
-        {usageLimitFields.map((item) => (
-          <Field hint={`1 to ${String(item.max)} minutes`} key={item.field} label={item.label}>
-            <TextInput
-              disabled={disabled || saveUsageLimits.isPending}
-              inputMode="numeric"
-              min={1}
-              onChange={(event) => {
-                setLimits((current) => ({ ...current, [item.field]: event.target.value }));
-                setLocalError(null);
-                setSuccess(null);
-              }}
-              placeholder={item.placeholder}
-              type="number"
-              value={limits[item.field]}
-            />
-          </Field>
-        ))}
+      <div className="parent-settings-limit-stack">
+        <Field hint="Unlimited means no daily time cap." label="Daily limit">
+          <DailyLimitControls
+            dailyLimitMinutes={limits.dailyUsageLimitMinutes}
+            disabled={disabled || saveUsageLimits.isPending}
+            onChange={(dailyUsageLimitMinutes) => {
+              setLimits((current) => ({ ...current, dailyUsageLimitMinutes }));
+              setLocalError(null);
+              setSuccess(null);
+            }}
+          />
+        </Field>
+
+        <Field
+          hint="Selected days lock the student portal for the whole day."
+          label="Off-limit days"
+        >
+          <OffLimitWeekdaySelector
+            disabled={disabled || saveUsageLimits.isPending}
+            onChange={(offLimitWeekdays) => {
+              setLimits((current) => ({ ...current, offLimitWeekdays }));
+              setLocalError(null);
+              setSuccess(null);
+            }}
+            value={limits.offLimitWeekdays}
+          />
+        </Field>
       </div>
 
       <div className="parent-settings-actions">

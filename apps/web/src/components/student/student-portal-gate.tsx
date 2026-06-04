@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { AlertTriangle, Clock, Lock, Loader2 } from 'lucide-react';
+import { friendlyErrorMessage } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 
 type StudentAccessState = 'access-denied' | 'locked' | 'loading' | 'not-ready' | 'usage-limit';
@@ -14,15 +15,46 @@ function isLockedMessage(message: string | undefined): boolean {
   return Boolean(message?.toLowerCase().includes('student portal is locked'));
 }
 
+function isOffLimitDayMessage(message: string | undefined): boolean {
+  return Boolean(message?.toLowerCase().includes('student portal is off limits today'));
+}
+
 function isUsageLimitMessage(message: string | undefined): boolean {
-  return Boolean(message?.toLowerCase().includes('student portal usage limit reached'));
+  const normalized = message?.toLowerCase();
+  return Boolean(normalized?.includes('student portal usage limit reached'));
 }
 
 function accessStateFromError(message: string | undefined): StudentAccessState {
+  if (isOffLimitDayMessage(message)) return 'locked';
   if (isLockedMessage(message)) return 'locked';
   if (isUsageLimitMessage(message)) return 'usage-limit';
   if (message?.toLowerCase().includes('student profile not found')) return 'not-ready';
   return 'access-denied';
+}
+
+function studentPortalDetail(state: StudentAccessState, message: string | undefined): string {
+  const normalized = message?.toLowerCase() ?? '';
+  if (state === 'locked') {
+    if (
+      normalized.includes('student portal is locked by oasis learning centre') ||
+      normalized.includes('student portal is locked by a parent or carer')
+    ) {
+      return message ?? 'Your student portal is locked right now.';
+    }
+    return normalized.includes('student portal is off limits today')
+      ? 'The student portal is off limits today.'
+      : 'Your student portal is locked right now.';
+  }
+  if (state === 'usage-limit') {
+    return "You have reached today's student portal time limit.";
+  }
+  if (state === 'not-ready') {
+    return 'No active student profile is linked to this account yet.';
+  }
+  if (state === 'loading') {
+    return 'Preparing your student portal.';
+  }
+  return friendlyErrorMessage(message, 'This account cannot open the student portal right now.');
 }
 
 function StudentPortalStatePanel({
@@ -50,13 +82,7 @@ function StudentPortalStatePanel({
           : state === 'not-ready'
             ? 'Student portal not ready'
             : 'Student portal unavailable';
-  const body =
-    detail ??
-    (state === 'loading'
-      ? 'Preparing your student portal.'
-      : state === 'not-ready'
-        ? 'No active student profile is linked to this account yet.'
-        : 'This account cannot open the student portal.');
+  const body = detail ?? studentPortalDetail(state, undefined);
 
   return (
     <section aria-live="polite" className={`student-state-card student-state-card--${state}`}>
@@ -103,7 +129,12 @@ export function StudentPortalGate({ children }: StudentPortalGateProps) {
   }
 
   if (blockedState) {
-    return <StudentPortalStatePanel detail={errorMessage} state={blockedState} />;
+    return (
+      <StudentPortalStatePanel
+        detail={studentPortalDetail(blockedState, errorMessage)}
+        state={blockedState}
+      />
+    );
   }
 
   return <>{children}</>;

@@ -12,7 +12,7 @@ import {
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
-import { startOfUtcDay, startOfUtcHour, startOfUtcWeek } from '../lib/utc-date.js';
+import { startOfUtcDay } from '../lib/utc-date.js';
 import {
   assertUploadedChildIconPhoto,
   type UploadedChildIconPhoto,
@@ -74,9 +74,8 @@ const passwordControlInput = studentIdInput.extend({
   studentCanManagePassword: z.boolean(),
 });
 const usageLimitsInput = studentIdInput.extend({
-  hourlyUsageLimitMinutes: z.number().int().min(1).max(60).nullable().optional(),
   dailyUsageLimitMinutes: z.number().int().min(1).max(1_440).nullable().optional(),
-  weeklyUsageLimitMinutes: z.number().int().min(1).max(10_080).nullable().optional(),
+  offLimitWeekdays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
 });
 const parentLockInput = studentIdInput.extend({
   locked: z.boolean(),
@@ -104,9 +103,8 @@ const settingsSelect = Prisma.validator<Prisma.StudentPortalSettingsSelect>()({
   loginHandleEnc: true,
   loginHandleBidx: true,
   studentCanManagePassword: true,
-  hourlyUsageLimitMinutes: true,
   dailyUsageLimitMinutes: true,
-  weeklyUsageLimitMinutes: true,
+  offLimitWeekdays: true,
   parentAccountLocked: true,
   parentLockReasonEnc: true,
   headAcademicLocked: true,
@@ -164,9 +162,8 @@ interface SettingsMutationData {
   loginHandleEnc?: string | null;
   loginHandleBidx?: string | null;
   studentCanManagePassword?: boolean;
-  hourlyUsageLimitMinutes?: number | null;
   dailyUsageLimitMinutes?: number | null;
-  weeklyUsageLimitMinutes?: number | null;
+  offLimitWeekdays?: number[];
   parentAccountLocked?: boolean;
   parentLockReasonEnc?: string | null;
   headAcademicLocked?: boolean;
@@ -192,9 +189,8 @@ interface SettingsMutationData {
 interface SettingsDefaults {
   loginHandleEnc: string | null;
   studentCanManagePassword: boolean;
-  hourlyUsageLimitMinutes: number | null;
   dailyUsageLimitMinutes: number | null;
-  weeklyUsageLimitMinutes: number | null;
+  offLimitWeekdays: number[];
   parentAccountLocked: boolean;
   parentLockReasonEnc: string | null;
   headAcademicLocked: boolean;
@@ -525,9 +521,8 @@ function defaultsFor(settings: SettingsRow | null): SettingsDefaults {
   return {
     loginHandleEnc: settings?.loginHandleEnc ?? null,
     studentCanManagePassword: settings?.studentCanManagePassword ?? false,
-    hourlyUsageLimitMinutes: settings?.hourlyUsageLimitMinutes ?? null,
     dailyUsageLimitMinutes: settings?.dailyUsageLimitMinutes ?? null,
-    weeklyUsageLimitMinutes: settings?.weeklyUsageLimitMinutes ?? null,
+    offLimitWeekdays: settings?.offLimitWeekdays ?? [],
     parentAccountLocked: settings?.parentAccountLocked ?? false,
     parentLockReasonEnc: settings?.parentLockReasonEnc ?? null,
     headAcademicLocked: settings?.headAcademicLocked ?? false,
@@ -578,27 +573,22 @@ function mapAdminReadinessStudent(
     attendance: { absent: number; late: number; present: number; recorded: number };
     clubSignupCount: number;
     dayUsageMinutes: number;
-    hourUsageMinutes: number;
     meritsTotal: number;
     paceSubjects: Array<{ currentPaceNumber: number; subjectName: string }>;
     student: AdminReadinessStudentRow;
-    weekUsageMinutes: number;
   },
 ) {
   const fullName = decryptRequired(ctx, input.student.fullNameEnc, 'student PII');
   const dob = decryptRequired(ctx, input.student.dobEnc, 'student PII');
   const state = defaultsFor(input.student.portalSettings);
   const effectiveLock = effectiveStudentPortalLock(state);
-  const hasUsageLimits = Boolean(
-    state.hourlyUsageLimitMinutes || state.dailyUsageLimitMinutes || state.weeklyUsageLimitMinutes,
-  );
+  const currentWeekday = new Date().getUTCDay();
+  const offLimitsToday = state.offLimitWeekdays.includes(currentWeekday);
+  const hasUsageLimits = Boolean(state.dailyUsageLimitMinutes || state.offLimitWeekdays.length > 0);
   const usageOverLimit =
-    (state.hourlyUsageLimitMinutes !== null &&
-      input.hourUsageMinutes >= state.hourlyUsageLimitMinutes) ||
     (state.dailyUsageLimitMinutes !== null &&
       input.dayUsageMinutes >= state.dailyUsageLimitMinutes) ||
-    (state.weeklyUsageLimitMinutes !== null &&
-      input.weekUsageMinutes >= state.weeklyUsageLimitMinutes);
+    offLimitsToday;
   const readinessIssues: string[] = [];
 
   if (!input.student.userId) readinessIssues.push('Student account not linked');
@@ -609,7 +599,9 @@ function mapAdminReadinessStudent(
     );
   }
   if (state.parentMeritShopBlocked) readinessIssues.push('Merit shop blocked');
-  if (usageOverLimit) readinessIssues.push('Usage limit reached');
+  if (usageOverLimit) {
+    readinessIssues.push(offLimitsToday ? 'Off limits today' : 'Usage limit reached');
+  }
 
   return {
     studentId: input.student.id,
@@ -624,12 +616,9 @@ function mapAdminReadinessStudent(
     usage: {
       hasLimits: hasUsageLimits,
       overLimit: usageOverLimit,
-      hourlyUsageLimitMinutes: state.hourlyUsageLimitMinutes,
       dailyUsageLimitMinutes: state.dailyUsageLimitMinutes,
-      weeklyUsageLimitMinutes: state.weeklyUsageLimitMinutes,
-      hourMinutes: input.hourUsageMinutes,
+      offLimitWeekdays: state.offLimitWeekdays,
       dayMinutes: input.dayUsageMinutes,
-      weekMinutes: input.weekUsageMinutes,
     },
     meritsTotal: input.meritsTotal,
     attendance: {
@@ -661,9 +650,8 @@ function mapParentSettings(
     parentControlAllowed: canParentControlStudent({ dateOfBirth: dob }),
     loginHandle: state.loginHandleEnc ? ctx.db.$enc.decrypt(state.loginHandleEnc) : null,
     studentCanManagePassword: state.studentCanManagePassword,
-    hourlyUsageLimitMinutes: state.hourlyUsageLimitMinutes,
     dailyUsageLimitMinutes: state.dailyUsageLimitMinutes,
-    weeklyUsageLimitMinutes: state.weeklyUsageLimitMinutes,
+    offLimitWeekdays: state.offLimitWeekdays,
     parentAccountLocked: state.parentAccountLocked,
     parentLockReason: state.parentLockReasonEnc
       ? ctx.db.$enc.decrypt(state.parentLockReasonEnc)
@@ -690,9 +678,8 @@ function mapStudentSettings(
     studentId: student.id,
     adult: isStudentAdult({ dateOfBirth: dob }),
     studentCanManagePassword: state.studentCanManagePassword,
-    hourlyUsageLimitMinutes: state.hourlyUsageLimitMinutes,
     dailyUsageLimitMinutes: state.dailyUsageLimitMinutes,
-    weeklyUsageLimitMinutes: state.weeklyUsageLimitMinutes,
+    offLimitWeekdays: state.offLimitWeekdays,
     parentMeritShopBlocked: state.parentMeritShopBlocked,
     effectiveLock: effectiveStudentPortalLock(state),
   };
@@ -787,15 +774,17 @@ async function upsertSettings(
   studentId: string,
   data: SettingsMutationData,
 ): Promise<SettingsRow> {
-  return ctx.db.studentPortalSettings.upsert({
-    where: { studentId },
-    create: {
-      studentId,
-      ...data,
-    },
-    update: data,
-    select: settingsSelect,
-  });
+  return ctx.withRls((tx) =>
+    tx.studentPortalSettings.upsert({
+      where: { studentId },
+      create: {
+        studentId,
+        ...data,
+      },
+      update: data,
+      select: settingsSelect,
+    }),
+  );
 }
 
 export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}) {
@@ -826,85 +815,56 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
         });
         const studentIds = students.map((student) => student.id);
 
-        const [
-          meritRows,
-          attendanceRows,
-          paceSubjects,
-          clubSignupRows,
-          hourUsageRows,
-          dayUsageRows,
-          weekUsageRows,
-        ] = await Promise.all([
-          studentIds.length > 0
-            ? ctx.db.meritLedger.groupBy({
-                by: ['studentId'],
-                where: { studentId: { in: studentIds } },
-                _sum: { delta: true },
-              })
-            : Promise.resolve([]),
-          studentIds.length > 0
-            ? ctx.db.attendance.groupBy({
-                by: ['studentId', 'status'],
-                where: { studentId: { in: studentIds } },
-                _count: { _all: true },
-              })
-            : Promise.resolve([]),
-          studentIds.length > 0
-            ? ctx.db.studentSubject.findMany({
-                where: { studentId: { in: studentIds } },
-                select: {
-                  studentId: true,
-                  currentPaceNumber: true,
-                  subject: { select: { name: true } },
-                },
-                orderBy: [{ studentId: 'asc' }, { subject: { name: 'asc' } }],
-              })
-            : Promise.resolve([]),
-          studentIds.length > 0
-            ? ctx.db.clubSignup.groupBy({
-                by: ['studentId'],
-                where: { studentId: { in: studentIds }, status: 'Active' },
-                _count: { _all: true },
-              })
-            : Promise.resolve([]),
-          studentIds.length > 0
-            ? ctx.db.studentPortalUsageMinute.groupBy({
-                by: ['studentId'],
-                where: {
-                  studentId: { in: studentIds },
-                  minuteStartedAt: { gte: startOfUtcHour(now) },
-                },
-                _count: { _all: true },
-              })
-            : Promise.resolve([]),
-          studentIds.length > 0
-            ? ctx.db.studentPortalUsageMinute.groupBy({
-                by: ['studentId'],
-                where: {
-                  studentId: { in: studentIds },
-                  minuteStartedAt: { gte: startOfUtcDay(now) },
-                },
-                _count: { _all: true },
-              })
-            : Promise.resolve([]),
-          studentIds.length > 0
-            ? ctx.db.studentPortalUsageMinute.groupBy({
-                by: ['studentId'],
-                where: {
-                  studentId: { in: studentIds },
-                  minuteStartedAt: { gte: startOfUtcWeek(now) },
-                },
-                _count: { _all: true },
-              })
-            : Promise.resolve([]),
-        ]);
+        const [meritRows, attendanceRows, paceSubjects, clubSignupRows, dayUsageRows] =
+          await Promise.all([
+            studentIds.length > 0
+              ? ctx.db.meritLedger.groupBy({
+                  by: ['studentId'],
+                  where: { studentId: { in: studentIds } },
+                  _sum: { delta: true },
+                })
+              : Promise.resolve([]),
+            studentIds.length > 0
+              ? ctx.db.attendance.groupBy({
+                  by: ['studentId', 'status'],
+                  where: { studentId: { in: studentIds } },
+                  _count: { _all: true },
+                })
+              : Promise.resolve([]),
+            studentIds.length > 0
+              ? ctx.db.studentSubject.findMany({
+                  where: { studentId: { in: studentIds } },
+                  select: {
+                    studentId: true,
+                    currentPaceNumber: true,
+                    subject: { select: { name: true } },
+                  },
+                  orderBy: [{ studentId: 'asc' }, { subject: { name: 'asc' } }],
+                })
+              : Promise.resolve([]),
+            studentIds.length > 0
+              ? ctx.db.clubSignup.groupBy({
+                  by: ['studentId'],
+                  where: { studentId: { in: studentIds }, status: 'Active' },
+                  _count: { _all: true },
+                })
+              : Promise.resolve([]),
+            studentIds.length > 0
+              ? ctx.db.studentPortalUsageMinute.groupBy({
+                  by: ['studentId'],
+                  where: {
+                    studentId: { in: studentIds },
+                    minuteStartedAt: { gte: startOfUtcDay(now) },
+                  },
+                  _count: { _all: true },
+                })
+              : Promise.resolve([]),
+          ]);
 
         const meritsByStudent = sumMap(meritRows);
         const attendanceByStudent = attendanceMap(attendanceRows);
         const clubSignupCountByStudent = countMap(clubSignupRows);
-        const hourUsageByStudent = countMap(hourUsageRows);
         const dayUsageByStudent = countMap(dayUsageRows);
-        const weekUsageByStudent = countMap(weekUsageRows);
         const paceByStudent = new Map<
           string,
           Array<{ currentPaceNumber: number; subjectName: string }>
@@ -928,11 +888,9 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
             },
             clubSignupCount: clubSignupCountByStudent.get(student.id) ?? 0,
             dayUsageMinutes: dayUsageByStudent.get(student.id) ?? 0,
-            hourUsageMinutes: hourUsageByStudent.get(student.id) ?? 0,
             meritsTotal: meritsByStudent.get(student.id) ?? 0,
             paceSubjects: paceByStudent.get(student.id) ?? [],
             student,
-            weekUsageMinutes: weekUsageByStudent.get(student.id) ?? 0,
           }),
         );
         const filteredRows = rows.filter((row) => {
@@ -1079,7 +1037,7 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
         const now = new Date();
         let result: { settings: SettingsRow; userId: string };
         try {
-          result = await ctx.db.$transaction(async (tx) => {
+          result = await ctx.withRls(async (tx) => {
             const user = await tx.user.upsert({
               where: { clerkId: createdAccount.clerkUserId },
               create: {
@@ -1217,9 +1175,8 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
       .mutation(async ({ ctx, input }) => {
         const student = await loadParentControlledStudent(ctx, input.studentId);
         const limits = validateStudentPortalUsageLimits({
-          hourlyUsageLimitMinutes: input.hourlyUsageLimitMinutes ?? null,
           dailyUsageLimitMinutes: input.dailyUsageLimitMinutes ?? null,
-          weeklyUsageLimitMinutes: input.weeklyUsageLimitMinutes ?? null,
+          offLimitWeekdays: input.offLimitWeekdays ?? [],
         });
         const now = new Date();
         const settings = await upsertSettings(ctx, student.id, {
@@ -1230,7 +1187,7 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
         await auditSettingsUpdate(ctx, {
           studentId: student.id,
           source: 'studentSettings.setUsageLimits',
-          fields: ['hourlyUsageLimitMinutes', 'dailyUsageLimitMinutes', 'weeklyUsageLimitMinutes'],
+          fields: ['dailyUsageLimitMinutes', 'offLimitWeekdays'],
         });
         return mapParentSettings(ctx, student, settings);
       }),

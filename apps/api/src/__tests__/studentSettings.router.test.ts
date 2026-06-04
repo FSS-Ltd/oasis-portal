@@ -89,9 +89,8 @@ interface StoredSettings {
   loginHandleEnc: string | null;
   loginHandleBidx: string | null;
   studentCanManagePassword: boolean;
-  hourlyUsageLimitMinutes: number | null;
   dailyUsageLimitMinutes: number | null;
-  weeklyUsageLimitMinutes: number | null;
+  offLimitWeekdays: number[];
   parentAccountLocked: boolean;
   parentLockReasonEnc: string | null;
   headAcademicLocked: boolean;
@@ -160,9 +159,8 @@ function makeSettings(studentId: string, overrides: Partial<StoredSettings> = {}
     loginHandleEnc: null,
     loginHandleBidx: null,
     studentCanManagePassword: false,
-    hourlyUsageLimitMinutes: null,
     dailyUsageLimitMinutes: null,
-    weeklyUsageLimitMinutes: null,
+    offLimitWeekdays: [],
     parentAccountLocked: false,
     parentLockReasonEnc: null,
     headAcademicLocked: false,
@@ -484,7 +482,7 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
     db: db as unknown as AppContext['db'],
     user,
     requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
+    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
   } satisfies AppContext;
 }
 
@@ -593,15 +591,13 @@ describe('studentSettings parent procedures', () => {
     await expect(
       caller.studentSettings.setUsageLimits({
         studentId: childStudentId,
-        hourlyUsageLimitMinutes: 30,
         dailyUsageLimitMinutes: 120,
-        weeklyUsageLimitMinutes: null,
+        offLimitWeekdays: [6, 0],
       }),
     ).resolves.toMatchObject({
       studentId: childStudentId,
-      hourlyUsageLimitMinutes: 30,
       dailyUsageLimitMinutes: 120,
-      weeklyUsageLimitMinutes: null,
+      offLimitWeekdays: [0, 6],
     });
 
     await expect(
@@ -821,7 +817,7 @@ describe('studentSettings parent procedures', () => {
       .fn()
       .mockResolvedValue({ clerkUserId: 'clerk_unlinked_created' });
     const deleteStudentAccount = vi.fn().mockResolvedValue(undefined);
-    db.$transaction.mockRejectedValueOnce(new Error('local link failed'));
+    db.user.upsert.mockRejectedValueOnce(new Error('local link failed'));
     const caller = makeCaller(otherParentUser, db, {
       createNoEmailStudentAccount,
       deleteStudentAccount,

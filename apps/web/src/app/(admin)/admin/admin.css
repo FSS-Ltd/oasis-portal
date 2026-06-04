@@ -5691,11 +5691,19 @@
   font-weight: 700;
 }
 
-.parent-shop-pickup,
-.parent-shop-cart-line {
+.parent-shop-pickup {
   display: flex;
   align-items: center;
   gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.parent-shop-cart-line {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
   padding: 10px 0;
   border-top: 1px solid var(--oasis-border-light);
 }
@@ -5721,6 +5729,33 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.parent-shop-cart-line .shop-qty-stepper {
+  display: inline-flex;
+  width: max-content;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 999px;
+  background: var(--oasis-bg);
+}
+
+.parent-shop-cart-line .shop-qty-stepper .button {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border-radius: 999px;
+}
+
+.parent-shop-cart-line .shop-qty-stepper span {
+  min-width: 22px;
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: center;
 }
 
 .parent-shop-cart__empty {
@@ -11760,10 +11795,13 @@ button.club-assignment-row {
     flex: 1;
   }
 
-  .shop-pickup-card,
-  .parent-shop-cart-line {
+  .shop-pickup-card {
     align-items: start;
     grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .parent-shop-cart-line {
+    grid-template-columns: 46px minmax(0, 1fr) auto auto;
   }
 
   .shop-pickup-card__actions {
