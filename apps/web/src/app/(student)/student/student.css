@@ -134,17 +134,26 @@
   gap: 16px;
 }
 
-.student-hero__icon {
+.student-hero__icon,
+.student-hero__photo {
   display: inline-grid;
   width: 58px;
   height: 58px;
   flex: 0 0 auto;
-  place-items: center;
   border-radius: 8px;
+}
+
+.student-hero__icon {
+  place-items: center;
   background: var(--oasis-blue);
   color: #ffffff;
   font-size: 1rem;
   font-weight: 900;
+}
+
+.student-hero__photo {
+  background-position: center;
+  background-size: cover;
 }
 
 .student-hero p,

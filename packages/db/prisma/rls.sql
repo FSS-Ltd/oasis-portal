@@ -25,7 +25,16 @@ CREATE POLICY student_portal_settings_full_admin_all ON "StudentPortalSettings"
 CREATE POLICY student_portal_settings_parent_select ON "StudentPortalSettings"
   FOR SELECT
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
       WHERE g."studentId" = "StudentPortalSettings"."studentId"
@@ -47,7 +56,16 @@ CREATE POLICY student_portal_settings_student_self_select ON "StudentPortalSetti
 CREATE POLICY student_portal_settings_parent_insert ON "StudentPortalSettings"
   FOR INSERT
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
       WHERE g."studentId" = "StudentPortalSettings"."studentId"
@@ -58,7 +76,16 @@ CREATE POLICY student_portal_settings_parent_insert ON "StudentPortalSettings"
 CREATE POLICY student_portal_settings_parent_update ON "StudentPortalSettings"
   FOR UPDATE
   USING (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
       WHERE g."studentId" = "StudentPortalSettings"."studentId"
@@ -66,7 +93,16 @@ CREATE POLICY student_portal_settings_parent_update ON "StudentPortalSettings"
     )
   )
   WITH CHECK (
-    current_setting('app.user_role', true) = 'Parent'
+    current_setting('app.user_role', true) IN (
+      'Parent',
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
     AND EXISTS (
       SELECT 1 FROM "Guardian" g
       WHERE g."studentId" = "StudentPortalSettings"."studentId"

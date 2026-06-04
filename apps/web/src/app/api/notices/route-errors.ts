@@ -1,7 +1,7 @@
 import { TRPCError } from '@trpc/server';
 import { friendlyErrorMessage } from '@/lib/user-facing-errors';
 
-export function routeErrorResponse(error: unknown): Response {
+export function routeErrorResponse(error: unknown, fallback = 'Notice request failed.'): Response {
   if (error instanceof TRPCError) {
     const status =
       error.code === 'UNAUTHORIZED'
@@ -19,7 +19,7 @@ export function routeErrorResponse(error: unknown): Response {
   }
 
   return Response.json(
-    { error: friendlyErrorMessage(error, 'Notice request failed.') },
+    { error: friendlyErrorMessage(error, fallback) },
     { status: 500 },
   );
 }

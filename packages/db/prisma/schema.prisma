@@ -142,6 +142,7 @@ model User {
   studentPortalParentLocksUpdated  StudentPortalSettings[]          @relation("StudentPortalParentLocksUpdated")
   studentPortalHeadLocksUpdated    StudentPortalSettings[]          @relation("StudentPortalHeadLocksUpdated")
   studentPortalShopBlocksUpdated   StudentPortalSettings[]          @relation("StudentPortalShopBlocksUpdated")
+  studentPortalIconPhotosUpdated   StudentPortalSettings[]          @relation("StudentPortalIconPhotosUpdated")
 
   @@index([role])
 }
@@ -261,6 +262,13 @@ model StudentPortalSettings {
   headLockUpdatedAt         DateTime?
   shopBlockUpdatedById      String?
   shopBlockUpdatedAt        DateTime?
+  childIconPhotoUrl         String?
+  childIconPhotoBucket      String?
+  childIconPhotoPathEnc     String?
+  childIconPhotoMimeType    String?
+  childIconPhotoSizeBytes   Int?
+  childIconPhotoUpdatedById String?
+  childIconPhotoUpdatedAt   DateTime?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -269,11 +277,13 @@ model StudentPortalSettings {
   parentLockUpdatedBy User?   @relation("StudentPortalParentLocksUpdated", fields: [parentLockUpdatedById], references: [id], onDelete: SetNull)
   headLockUpdatedBy   User?   @relation("StudentPortalHeadLocksUpdated", fields: [headLockUpdatedById], references: [id], onDelete: SetNull)
   shopBlockUpdatedBy  User?   @relation("StudentPortalShopBlocksUpdated", fields: [shopBlockUpdatedById], references: [id], onDelete: SetNull)
+  iconPhotoUpdatedBy  User?   @relation("StudentPortalIconPhotosUpdated", fields: [childIconPhotoUpdatedById], references: [id], onDelete: SetNull)
 
   @@index([settingsUpdatedById, settingsUpdatedAt])
   @@index([parentLockUpdatedById, parentLockUpdatedAt])
   @@index([headLockUpdatedById, headLockUpdatedAt])
   @@index([shopBlockUpdatedById, shopBlockUpdatedAt])
+  @@index([childIconPhotoUpdatedById, childIconPhotoUpdatedAt])
 }
 
 model StudentPortalUsageMinute {
