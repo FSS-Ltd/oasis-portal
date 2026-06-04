@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import type { RouterInputs, RouterOutputs } from '@/lib/trpc';
@@ -47,7 +48,9 @@ export function AdminPermissionSlipForm({
   const [requireMedical, setRequireMedical] = useState(true);
   const [requireEmergencyContact, setRequireEmergencyContact] = useState(true);
   const [requirePayment, setRequirePayment] = useState(false);
-  const [studentIds, setStudentIds] = useState<string[]>(() => students.map((student) => student.id));
+  const [studentIds, setStudentIds] = useState<string[]>(() =>
+    students.map((student) => student.id),
+  );
   const [bringDraft, setBringDraft] = useState('');
   const [bringItems, setBringItems] = useState<string[]>([]);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
@@ -305,7 +308,9 @@ export function AdminPermissionSlipForm({
                     <button
                       aria-label={`Remove ${item}`}
                       onClick={() => {
-                        setBringItems((current) => current.filter((candidate) => candidate !== item));
+                        setBringItems((current) =>
+                          current.filter((candidate) => candidate !== item),
+                        );
                       }}
                       type="button"
                     >
@@ -428,7 +433,7 @@ export function AdminPermissionSlipForm({
             <div className="permission-recipient-grid">
               {Object.entries(studentsByYear).map(([yearGroup, rows]) => (
                 <div className="permission-recipient-year" key={yearGroup}>
-                  <strong>{yearGroup}</strong>
+                  <strong>{displaySchoolYearLabel(yearGroup)}</strong>
                   {rows.map((student) => (
                     <label key={student.id}>
                       <input

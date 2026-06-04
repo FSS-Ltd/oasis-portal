@@ -164,6 +164,7 @@ model User {
   faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
+  charityPotsUpdated               CharityPot[]                     @relation("CharityPotUpdated")
 
   @@index([role])
 }
@@ -978,6 +979,18 @@ model InvestmentTransaction {
   student Student @relation(fields: [studentId], references: [id])
 
   @@index([studentId, createdAt])
+}
+
+model CharityPot {
+  id          String   @id
+  goalMerits  Int      @default(0)
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  updatedBy User? @relation("CharityPotUpdated", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([updatedById])
 }
 
 // ---------------------------------------------------------------------------

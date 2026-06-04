@@ -74,7 +74,7 @@ const PRODUCT_MODULES = [
   },
   {
     name: 'Behaviour, merits, demerits, leaderboard, and child notes',
-    owns: 'Behaviour logging, sensitive behaviour visibility, child notes, merit ledger rows, and leaderboards.',
+    owns: 'Behaviour logging, sensitive behaviour visibility, child notes, merit ledger rows, leaderboards, and the charity pot goal.',
     apiRouters: ['behaviour', 'childLog', 'childNotes', 'leaderboard', 'meritLedger'],
     domainFiles: [
       'packages/domain/src/leaderboard.ts',
@@ -84,6 +84,7 @@ const PRODUCT_MODULES = [
     webSurfaces: [
       'apps/web/src/components/behaviour/',
       'apps/web/src/components/child-log/',
+      'apps/web/src/components/leaderboard/',
       'apps/web/src/components/student-drillthrough/notes-list.tsx',
     ],
     mobileSurfaces: ['apps/mobile/src/components/smoke/'],

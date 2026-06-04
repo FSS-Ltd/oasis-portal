@@ -2,6 +2,7 @@
 
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Plus, ReceiptText, UploadCloud, X } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { formatFileSize, formatPence } from './invoice-ui';
@@ -415,7 +416,7 @@ export function AdminInvoiceUploadModal({
                   />
                   <span>
                     <strong>{student.fullName}</strong>
-                    <small>{student.yearGroup}</small>
+                    <small>{displaySchoolYearLabel(student.yearGroup)}</small>
                   </span>
                 </label>
               ))}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Archive, Check, ClipboardCheck, Plus, Search, X } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Panel } from '@/components/ui/panel';
@@ -35,13 +36,7 @@ function emptyPhysicalForm(slipId: string, studentId: string): PhysicalFormState
   return { emergencyContact: '', medicalInfo: '', parentName: '', slipId, studentId };
 }
 
-function AdminSlipCard({
-  onOpen,
-  slip,
-}: {
-  onOpen: () => void;
-  slip: AdminPermissionSlip;
-}) {
+function AdminSlipCard({ onOpen, slip }: { onOpen: () => void; slip: AdminPermissionSlip }) {
   return (
     <article className="permission-slip-card">
       <button className="permission-slip-card__main" onClick={onOpen} type="button">
@@ -158,7 +153,7 @@ function RecipientRow({
     <div className="permission-recipient-row">
       <div>
         <strong>{recipient.student.fullName}</strong>
-        <span>{recipient.student.yearGroup}</span>
+        <span>{displaySchoolYearLabel(recipient.student.yearGroup)}</span>
       </div>
       <div className="permission-recipient-row__badges">
         <ResponseStatusBadge status={recipient.responseStatus} />
@@ -166,7 +161,11 @@ function RecipientRow({
         {recipient.signatureSource ? <Badge tone="grey">{recipient.signatureSource}</Badge> : null}
       </div>
       <div>
-        {recipient.parentName ? <span>Signed by {recipient.parentName}</span> : <span>No response</span>}
+        {recipient.parentName ? (
+          <span>Signed by {recipient.parentName}</span>
+        ) : (
+          <span>No response</span>
+        )}
         {recipient.signedAt ? <small>{formatSlipDateTime(recipient.signedAt)}</small> : null}
       </div>
       <div className="permission-recipient-row__actions">
@@ -224,13 +223,7 @@ function RecipientRow({
   );
 }
 
-function AdminSlipDetail({
-  onBack,
-  slip,
-}: {
-  onBack: () => void;
-  slip: AdminPermissionSlip;
-}) {
+function AdminSlipDetail({ onBack, slip }: { onBack: () => void; slip: AdminPermissionSlip }) {
   const utils = api.useUtils();
   const [physicalForm, setPhysicalForm] = useState<PhysicalFormState | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -347,7 +340,9 @@ function AdminSlipDetail({
           const rowKey = `${slip.id}:${recipient.studentId}`;
           return (
             <RecipientRow
-              confirming={pendingKey === rowKey && (confirmPayment.isPending || markPhysicalSigned.isPending)}
+              confirming={
+                pendingKey === rowKey && (confirmPayment.isPending || markPhysicalSigned.isPending)
+              }
               key={rowKey}
               onConfirmPayment={(target) => {
                 setPendingKey(rowKey);

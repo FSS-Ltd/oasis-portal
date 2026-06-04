@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   X,
 } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterInputs, type RouterOutputs } from '@/lib/trpc';
 import { downloadCsv } from '@/components/attendance/download-csv';
@@ -900,8 +901,8 @@ function CounterSalePanel({
             <option value="">Select student</option>
             {purchasers.map((student) => (
               <option key={student.id} value={student.id}>
-                {student.fullName} · {student.yearGroup} · {formatMerits(student.spendBalance)}{' '}
-                Spend
+                {student.fullName} · {displaySchoolYearLabel(student.yearGroup)} ·{' '}
+                {formatMerits(student.spendBalance)} Spend
               </option>
             ))}
           </SelectInput>

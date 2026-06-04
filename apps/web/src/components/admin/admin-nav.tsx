@@ -15,6 +15,7 @@ import {
   FileText,
   GraduationCap,
   Home,
+  Medal,
   ShieldAlert,
   MessageSquare,
   MonitorCheck,
@@ -39,6 +40,7 @@ const navItems = [
   { href: '/admin/sensitive-review', label: 'Sensitive Review', icon: ClipboardList },
   { href: '/admin/incidents', label: 'Incidents', icon: ShieldAlert },
   { href: '/admin/behaviour', label: 'Behaviour', icon: Star },
+  { href: '/admin/leaderboard', label: 'Leaderboard', icon: Medal },
   { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
@@ -122,6 +124,7 @@ function visibleForUser(
 ) {
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
+  if (item.label === 'Leaderboard') return access.canUseAdminOperations;
   if (item.label === 'Clubs') return access.canManageClubs;
   if (item.label === 'Permission Slips') return access.canManagePermissionSlips;
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;

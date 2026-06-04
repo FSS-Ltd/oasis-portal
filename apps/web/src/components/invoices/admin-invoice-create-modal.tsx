@@ -6,6 +6,7 @@ import {
   SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX,
   SCHOOL_FEE_DISCOUNT_EXPLANATION,
   calculateSchoolFeeFamilyDiscounts,
+  displaySchoolYearLabel,
   schoolFeeDiscountChildIndexPresetCode,
   type SchoolFeeDiscountInput,
 } from '@oasis/domain';
@@ -901,7 +902,7 @@ function AdminInvoiceFormModal({
                     <span>
                       <strong>{student.fullName}</strong>
                       <small>
-                        {student.yearGroup}
+                        {displaySchoolYearLabel(student.yearGroup)}
                         {summary
                           ? ` - ${String(summary.chargeableMonths)} months - ${formatPence(
                               summary.remainingAmountPence,

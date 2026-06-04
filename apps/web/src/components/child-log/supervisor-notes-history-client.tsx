@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { EmptyState } from '@/components/ui/empty-state';
 import { friendlyErrorMessage } from '@/lib/user-facing-errors';
 import { api, type RouterOutputs } from '@/lib/trpc';
@@ -43,7 +44,7 @@ function HistoryTimeline({ student }: { student: HistoryStudent }) {
       <header>
         <div>
           <h2>{student.fullName}</h2>
-          <p>{student.yearGroup}</p>
+          <p>{displaySchoolYearLabel(student.yearGroup)}</p>
         </div>
         <SnapshotBadge tone="blue">
           {student.notes.length === 1 ? '1 item' : `${String(student.notes.length)} items`}

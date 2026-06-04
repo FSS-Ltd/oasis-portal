@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckCircle2, XCircle } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -38,7 +39,7 @@ function RequestCard({ request }: { request: ParentLinkRequest }) {
       <div className="registration-subsection__header">
         <div>
           <strong>{request.studentName}</strong>
-          <span>{request.yearGroup}</span>
+          <span>{displaySchoolYearLabel(request.yearGroup)}</span>
         </div>
         <span className="badge badge--blue">Pending</span>
       </div>

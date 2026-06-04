@@ -4,8 +4,10 @@ import {
   AccessDeniedError,
   DEFAULT_LEADERBOARD,
   LEADERBOARD_KINDS,
+  canUseAdminOperations,
+  canUseLinkedChildGuardianAccess,
   canViewDemeritLeaderboard,
-  investmentReturnPct,
+  isFullAdmin,
   rankStudentMetrics,
   type LeaderboardKind,
   type LeaderboardRow,
@@ -34,15 +36,39 @@ interface LeaderboardMetricCandidate extends RankableStudentMetric {
 export interface LeaderboardResultDto {
   kind: LeaderboardKind;
   asOf: Date;
+  page: number;
+  pageSize: number;
   rows: LeaderboardRow[];
+  scope: 'public' | 'full';
+  totalRows: number;
+  viewerRows: LeaderboardRow[];
+}
+
+export interface CharityPotDto {
+  goalMerits: number;
+  currentMerits: number;
+  progressPct: number;
+  goalReached: boolean;
+  updatedAt: Date | null;
+  updatedById: string | null;
 }
 
 const getInput = z
   .object({
+    includeViewerRows: z.boolean().default(true),
     kind: z.enum(LEADERBOARD_KINDS).default(DEFAULT_LEADERBOARD),
     limit: z.number().int().positive().max(50).default(10),
+    page: z.number().int().positive().default(1),
+    pageSize: z.number().int().positive().max(50).default(20),
+    scope: z.enum(['public', 'full']).default('public'),
   })
   .optional();
+
+const charityPotGoalInput = z.object({
+  goalMerits: z.number().int().min(0).max(1_000_000),
+});
+
+const CHARITY_POT_ID = 'centre';
 
 function toNumber(value: Prisma.Decimal | number | string): number {
   return Number(value.toString());
@@ -94,6 +120,23 @@ async function requireCanViewLeaderboard(ctx: AuthedContext, kind: LeaderboardKi
     kind,
     new AccessDeniedError('demerit leaderboard requires full-admin or leaderboard-admin'),
   );
+}
+
+async function requireCanViewFullLeaderboard(ctx: AuthedContext): Promise<void> {
+  if (canUseAdminOperations(ctx.user)) return;
+
+  const denied = new AccessDeniedError(
+    'full leaderboard requires Head, Principal, Pastor, HeadOfDiscipline, or TechnicalSupport',
+  );
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'leaderboard.get',
+      meta: { role: ctx.user.role, reason: denied.message, scope: 'full' },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
 async function auditLeaderboardDecrypt(
@@ -180,22 +223,9 @@ async function loadInvestmentCandidates(ctx: AuthedContext): Promise<Leaderboard
 
   if (latestNav === null || accounts.length === 0) return [];
 
-  const costBasisRows = await ctx.db.meritLedger.groupBy({
-    by: ['studentId'],
-    where: {
-      studentId: { in: accounts.map((account) => account.studentId) },
-      account: 'Investment',
-    },
-    _sum: { delta: true },
-  });
-  const costBasisByStudent = new Map(
-    costBasisRows.map((row) => [row.studentId, row._sum.delta ?? 0]),
-  );
-
   return accounts.flatMap((account) => {
-    const costBasis = costBasisByStudent.get(account.studentId) ?? 0;
     const units = toNumber(account.units);
-    if (costBasis <= 0 || units <= 0) return [];
+    if (units <= 0) return [];
 
     return [
       {
@@ -203,10 +233,7 @@ async function loadInvestmentCandidates(ctx: AuthedContext): Promise<Leaderboard
         fullNameEnc: account.student.fullNameEnc,
         yearGroup: account.student.yearGroup,
         enrolmentDate: account.student.enrolmentDate,
-        metric: investmentReturnPct({
-          costBasis,
-          currentValue: Math.floor(units * latestNav),
-        }),
+        metric: Math.floor(units * latestNav),
       },
     ];
   });
@@ -256,37 +283,179 @@ async function loadCandidates(
   }
 }
 
-async function buildRows(
+function buildRows(
   ctx: AuthedContext,
-  kind: LeaderboardKind,
-  candidates: readonly LeaderboardMetricCandidate[],
-  limit: number,
-): Promise<LeaderboardRow[]> {
-  const ranked = rankStudentMetrics(candidates, limit);
-  const rows = ranked.map((row) => ({
+  ranked: readonly (LeaderboardMetricCandidate & { rank: number })[],
+): LeaderboardRow[] {
+  return ranked.map((row) => ({
     rank: row.rank,
     studentId: row.studentId,
     displayName: decryptRequired(ctx.db.$enc.decrypt, row.fullNameEnc),
     yearGroup: row.yearGroup,
     score: row.metric,
   }));
+}
+
+async function loadViewerStudentIds(ctx: AuthedContext): Promise<ReadonlySet<string>> {
+  if (ctx.user.role === 'Student') {
+    const student = await ctx.db.student.findUnique({
+      where: { userId: ctx.user.id },
+      select: { id: true, active: true },
+    });
+    return student?.active ? new Set([student.id]) : new Set();
+  }
+
+  if (!canUseLinkedChildGuardianAccess(ctx.user)) return new Set();
+
+  const guardians = await ctx.db.guardian.findMany({
+    where: { userId: ctx.user.id, student: { active: true } },
+    select: { studentId: true },
+  });
+  return new Set(guardians.map((guardian) => guardian.studentId));
+}
+
+async function buildLeaderboardResult(
+  ctx: AuthedContext,
+  kind: LeaderboardKind,
+  candidates: readonly LeaderboardMetricCandidate[],
+  includeViewerRows: boolean,
+  limit: number,
+): Promise<
+  Pick<LeaderboardResultDto, 'page' | 'pageSize' | 'rows' | 'scope' | 'totalRows' | 'viewerRows'>
+> {
+  const rankedTop = rankStudentMetrics(candidates, limit);
+  const viewerStudentIds = includeViewerRows ? await loadViewerStudentIds(ctx) : new Set<string>();
+  const rankedAll =
+    viewerStudentIds.size > 0 ? rankStudentMetrics(candidates, candidates.length) : [];
+  const viewerRanked = rankedAll.filter((row) => viewerStudentIds.has(row.studentId));
+
+  const rows = buildRows(ctx, rankedTop);
+  const viewerRows = buildRows(ctx, viewerRanked);
+  await auditLeaderboardDecrypt(ctx, kind, rows.length + viewerRows.length);
+  return {
+    page: 1,
+    pageSize: limit,
+    rows,
+    scope: 'public',
+    totalRows: rows.length,
+    viewerRows,
+  };
+}
+
+async function buildFullLeaderboardResult(
+  ctx: AuthedContext,
+  kind: LeaderboardKind,
+  candidates: readonly LeaderboardMetricCandidate[],
+  page: number,
+  pageSize: number,
+): Promise<
+  Pick<LeaderboardResultDto, 'page' | 'pageSize' | 'rows' | 'scope' | 'totalRows' | 'viewerRows'>
+> {
+  const rankedAll = rankStudentMetrics(candidates, candidates.length);
+  const offset = (page - 1) * pageSize;
+  const rows = buildRows(ctx, rankedAll.slice(offset, offset + pageSize));
 
   await auditLeaderboardDecrypt(ctx, kind, rows.length);
-  return rows;
+  return {
+    page,
+    pageSize,
+    rows,
+    scope: 'full',
+    totalRows: rankedAll.length,
+    viewerRows: [],
+  };
+}
+
+function charityPotDto(
+  row: { goalMerits: number; updatedAt: Date; updatedById: string | null } | null,
+): CharityPotDto {
+  const goalMerits = row?.goalMerits ?? 0;
+  const currentMerits = 0;
+  return {
+    goalMerits,
+    currentMerits,
+    progressPct: goalMerits > 0 ? Math.min(100, Math.floor((currentMerits / goalMerits) * 100)) : 0,
+    goalReached: goalMerits > 0 && currentMerits >= goalMerits,
+    updatedAt: row?.updatedAt ?? null,
+    updatedById: row?.updatedById ?? null,
+  };
+}
+
+async function loadCharityPot(ctx: AuthedContext): Promise<CharityPotDto> {
+  const row = await ctx.db.charityPot.findFirst({
+    orderBy: { updatedAt: 'desc' },
+    select: { id: true, goalMerits: true, updatedAt: true, updatedById: true },
+  });
+  return charityPotDto(row);
+}
+
+async function requireCanManageCharityPot(ctx: AuthedContext): Promise<void> {
+  if (isFullAdmin(ctx.user)) return;
+
+  const denied = new AccessDeniedError('charity pot goal requires full-admin access');
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'PermissionDenied',
+      entity: 'leaderboard.charityPot.updateGoal',
+      meta: { role: ctx.user.role, reason: denied.message },
+    },
+  });
+  throw new TRPCError({ code: 'FORBIDDEN', message: denied.message, cause: denied });
 }
 
 export const leaderboardRouter = router({
   get: authedProcedure.input(getInput).query(async ({ ctx, input }) => {
     const kind = input?.kind ?? DEFAULT_LEADERBOARD;
-    const limit = input?.limit ?? 10;
+    const includeViewerRows = input?.includeViewerRows ?? true;
+    const limit = Math.min(input?.limit ?? 10, 10);
+    const page = input?.page ?? 1;
+    const pageSize = input?.pageSize ?? 20;
+    const scope = input?.scope ?? 'public';
 
     await requireCanViewLeaderboard(ctx, kind);
+    if (scope === 'full') {
+      await requireCanViewFullLeaderboard(ctx);
+    }
     const candidates = await loadCandidates(ctx, kind);
+    const rows =
+      scope === 'full'
+        ? await buildFullLeaderboardResult(ctx, kind, candidates, page, pageSize)
+        : await buildLeaderboardResult(ctx, kind, candidates, includeViewerRows, limit);
 
     return {
       kind,
       asOf: new Date(),
-      rows: await buildRows(ctx, kind, candidates, limit),
+      ...rows,
     } satisfies LeaderboardResultDto;
+  }),
+  charityPot: router({
+    get: authedProcedure.query(async ({ ctx }) => loadCharityPot(ctx)),
+    updateGoal: authedProcedure.input(charityPotGoalInput).mutation(async ({ ctx, input }) => {
+      await requireCanManageCharityPot(ctx);
+      const row = await ctx.db.charityPot.upsert({
+        where: { id: CHARITY_POT_ID },
+        create: {
+          id: CHARITY_POT_ID,
+          goalMerits: input.goalMerits,
+          updatedById: ctx.user.id,
+        },
+        update: {
+          goalMerits: input.goalMerits,
+          updatedById: ctx.user.id,
+        },
+        select: { id: true, goalMerits: true, updatedAt: true, updatedById: true },
+      });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'CharityPot',
+          entityId: row.id,
+          meta: { goalMerits: row.goalMerits },
+        },
+      });
+      return charityPotDto(row);
+    }),
   }),
 });
