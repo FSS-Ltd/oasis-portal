@@ -64,10 +64,10 @@ Completed:
 - Kept the parent create-login form in a pending state until the linked-children
   query refetch confirms the child is `accountLinked`, so the username/password
   controls are only displayed after the created login is confirmed locally.
-- Enabled tRPC method override end to end: the web client sends batched tRPC
-  operations by POST and the Next route handler explicitly allows POST query
-  calls, preventing create-login from reaching the mutation route as an
-  unsupported GET request without breaking normal query batches.
+- Fixed the local link failure shown in dev logs: `StudentPortalSettings` writes
+  now run through `ctx.withRls`, so parent create-login and settings upserts set
+  the `app.user_id`/`app.user_role` session values required by the forced RLS
+  policies before inserting or updating settings rows.
 - Kept the existing branch changes that restrict child login handles to 4-64
   alphanumeric characters and map provider duplicate-login, username, and
   password policy failures.

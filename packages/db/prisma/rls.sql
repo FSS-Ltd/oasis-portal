@@ -110,6 +110,60 @@ CREATE POLICY student_portal_settings_parent_update ON "StudentPortalSettings"
     )
   );
 
+ALTER TABLE "StudentPortalUsageMinute" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StudentPortalUsageMinute" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS student_portal_usage_minutes_full_admin_all ON "StudentPortalUsageMinute";
+DROP POLICY IF EXISTS student_portal_usage_minutes_student_select ON "StudentPortalUsageMinute";
+DROP POLICY IF EXISTS student_portal_usage_minutes_student_insert ON "StudentPortalUsageMinute";
+DROP POLICY IF EXISTS student_portal_usage_minutes_student_update ON "StudentPortalUsageMinute";
+
+CREATE POLICY student_portal_usage_minutes_full_admin_all ON "StudentPortalUsageMinute"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY student_portal_usage_minutes_student_select ON "StudentPortalUsageMinute"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1 FROM "Student" s
+      WHERE s."id" = "StudentPortalUsageMinute"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY student_portal_usage_minutes_student_insert ON "StudentPortalUsageMinute"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1 FROM "Student" s
+      WHERE s."id" = "StudentPortalUsageMinute"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+    )
+  );
+
+CREATE POLICY student_portal_usage_minutes_student_update ON "StudentPortalUsageMinute"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1 FROM "Student" s
+      WHERE s."id" = "StudentPortalUsageMinute"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1 FROM "Student" s
+      WHERE s."id" = "StudentPortalUsageMinute"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+    )
+  );
+
 ALTER TABLE "BehaviourEntry" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "BehaviourEntry" FORCE ROW LEVEL SECURITY;
 

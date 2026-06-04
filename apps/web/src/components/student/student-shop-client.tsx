@@ -8,10 +8,7 @@ import { TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { SHOP_CATEGORY_OPTIONS, formatMerits } from '@/components/shop/shop-shared';
-import {
-  StudentShopCategoryList,
-  StudentShopItemCard,
-} from './student-shop-catalogue';
+import { StudentShopCategoryList, StudentShopItemCard } from './student-shop-catalogue';
 import { StudentShopCart } from './student-shop-cart';
 import { StudentShopHistoryPanel } from './student-shop-history';
 import type { CartLine, CartLineWithItem, CategoryFilter, ShopItem } from './student-shop-types';
@@ -79,7 +76,10 @@ export function StudentShopClient() {
   const cartTotal = cartLines.reduce((total, line) => total + line.lineTotal, 0);
   const balanceAfter = spendBalance - cartTotal;
   const canReserve =
-    Boolean(wallet.data?.studentId) && cartLines.length > 0 && balanceAfter >= 0 && !reserve.isPending;
+    Boolean(wallet.data?.studentId) &&
+    cartLines.length > 0 &&
+    balanceAfter >= 0 &&
+    !reserve.isPending;
 
   function addToCart(item: ShopItem): void {
     setLocalError(null);
@@ -115,7 +115,9 @@ export function StudentShopClient() {
       return;
     }
     if (!canReserve) {
-      setLocalError(balanceAfter < 0 ? 'There are not enough Spend merits available.' : 'Add an item.');
+      setLocalError(
+        balanceAfter < 0 ? 'There are not enough Spend merits available.' : 'Add an item.',
+      );
       return;
     }
     try {
@@ -142,64 +144,17 @@ export function StudentShopClient() {
 
   return (
     <div className="shop-page student-shop-page">
-      <section className="student-wallet-hero student-shop-hero">
-        <div>
-          <p>Merit Shop</p>
-          <h1>Reserve rewards</h1>
-          <span>Spend merits are held now. A shopkeeper completes pickup in-centre.</span>
-        </div>
-        <div className="student-shop-balance">
-          <small>Spend</small>
-          <strong>{formatMerits(spendBalance)}</strong>
-          {heldMerits > 0 ? <span>{formatMerits(heldMerits)} held</span> : null}
-        </div>
-      </section>
-
-      <div className="parent-shop-layout student-shop-layout">
-        <aside className="panel panel__body parent-shop-sidebar" aria-label="Shop categories">
-          <StudentShopCategoryList
-            activeCategory={activeCategory}
-            activeItems={activeItems}
-            categoryCounts={categoryCounts}
-            onSelect={setActiveCategory}
-          />
-          <StudentShopHistoryPanel history={historyQuery.data} />
-        </aside>
-
-        <section className="parent-shop-catalogue" aria-labelledby="student-shop-catalogue-title">
-          <div className="parent-shop-toolbar">
-            <div className="parent-shop-search">
-              <Search aria-hidden="true" size={16} />
-              <TextInput
-                aria-label="Search shop items"
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                }}
-                placeholder="Search the shop..."
-                value={search}
-              />
-            </div>
-            <Badge tone="blue">{formatMerits(visibleItems.length)} shown</Badge>
+      <div className="student-shop-shell">
+        <section className="student-wallet-hero student-shop-hero">
+          <div>
+            <p>Merit Shop</p>
+            <h1>Reserve rewards</h1>
+            <span>Spend merits are held now. A shopkeeper completes pickup in-centre.</span>
           </div>
-          <h2 id="student-shop-catalogue-title" className="sr-only">
-            Merit shop catalogue
-          </h2>
-          {itemsQuery.isLoading || wallet.isLoading ? (
-            <div className="empty-state">Loading shop items...</div>
-          ) : null}
-          {wallet.error ? <p className="status--error">{friendlyErrorMessage(wallet.error)}</p> : null}
-          {!itemsQuery.isLoading && visibleItems.length === 0 ? (
-            <div className="empty-state">No shop items match this view.</div>
-          ) : null}
-          <div className="parent-shop-grid">
-            {visibleItems.map((item) => (
-              <StudentShopItemCard
-                item={item}
-                key={item.id}
-                onAdd={addToCart}
-                spendBalance={spendBalance}
-              />
-            ))}
+          <div className="student-shop-balance">
+            <small>Spend</small>
+            <strong>{formatMerits(spendBalance)}</strong>
+            {heldMerits > 0 ? <span>{formatMerits(heldMerits)} held</span> : null}
           </div>
         </section>
 
@@ -218,6 +173,57 @@ export function StudentShopClient() {
           pending={reserve.isPending}
           spendBalance={spendBalance}
         />
+
+        <div className="parent-shop-layout student-shop-layout">
+          <aside className="panel panel__body parent-shop-sidebar" aria-label="Shop categories">
+            <StudentShopCategoryList
+              activeCategory={activeCategory}
+              activeItems={activeItems}
+              categoryCounts={categoryCounts}
+              onSelect={setActiveCategory}
+            />
+            <StudentShopHistoryPanel history={historyQuery.data} />
+          </aside>
+
+          <section className="parent-shop-catalogue" aria-labelledby="student-shop-catalogue-title">
+            <div className="parent-shop-toolbar">
+              <div className="parent-shop-search">
+                <Search aria-hidden="true" size={16} />
+                <TextInput
+                  aria-label="Search shop items"
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                  }}
+                  placeholder="Search the shop..."
+                  value={search}
+                />
+              </div>
+              <Badge tone="blue">{formatMerits(visibleItems.length)} shown</Badge>
+            </div>
+            <h2 id="student-shop-catalogue-title" className="sr-only">
+              Merit shop catalogue
+            </h2>
+            {itemsQuery.isLoading || wallet.isLoading ? (
+              <div className="empty-state">Loading shop items...</div>
+            ) : null}
+            {wallet.error ? (
+              <p className="status--error">{friendlyErrorMessage(wallet.error)}</p>
+            ) : null}
+            {!itemsQuery.isLoading && visibleItems.length === 0 ? (
+              <div className="empty-state">No shop items match this view.</div>
+            ) : null}
+            <div className="parent-shop-grid">
+              {visibleItems.map((item) => (
+                <StudentShopItemCard
+                  item={item}
+                  key={item.id}
+                  onAdd={addToCart}
+                  spendBalance={spendBalance}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );

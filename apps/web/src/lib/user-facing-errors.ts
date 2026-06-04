@@ -61,6 +61,7 @@ function isInternalFailure(message: string): boolean {
     'app_url',
     'clerk',
     'config',
+    'connectorerror',
     'decrypt',
     'encrypt',
     'env',
@@ -68,8 +69,14 @@ function isInternalFailure(message: string): boolean {
     'kms',
     'lookup failed',
     'missing id',
+    'new row violates',
     'pii',
+    'postgres',
     'prisma',
+    'query execution',
+    'queryerror',
+    'row-level security',
+    'rls',
     'source_payload',
     'unknown error',
     'webhook',
@@ -95,7 +102,10 @@ function mapKnownDomainMessage(message: string): string | null {
   if (message.includes('insufficient stock')) {
     return 'There is not enough stock available.';
   }
-  if (message.includes('insufficient spend balance') || message.includes('insufficient source balance')) {
+  if (
+    message.includes('insufficient spend balance') ||
+    message.includes('insufficient source balance')
+  ) {
     return 'There are not enough Spend merits available.';
   }
   if (message.includes('insufficient investment units')) {
@@ -184,10 +194,7 @@ function messageForCode(code: string | null, fallback: string): string | null {
   return null;
 }
 
-export function friendlyErrorMessage(
-  error: unknown,
-  fallback = GENERIC_ERROR_MESSAGE,
-): string {
+export function friendlyErrorMessage(error: unknown, fallback = GENERIC_ERROR_MESSAGE): string {
   const rawMessage = messageFromUnknown(error);
   const code = codeFromUnknown(error);
 
@@ -204,7 +211,10 @@ export function friendlyErrorMessage(
   ) {
     return NETWORK_ERROR_MESSAGE;
   }
-  if (normalizedMessage.includes('sign-in required') || normalizedMessage.includes('unauthorized')) {
+  if (
+    normalizedMessage.includes('sign-in required') ||
+    normalizedMessage.includes('unauthorized')
+  ) {
     return SIGN_IN_ERROR_MESSAGE;
   }
   if (
@@ -233,4 +243,3 @@ export function friendlyErrorMessage(
 
   return messageForCode(code, cleanMessage(rawMessage)) ?? cleanMessage(rawMessage);
 }
-

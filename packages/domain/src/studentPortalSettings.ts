@@ -19,33 +19,39 @@ export interface StudentPortalEligibilityInput {
 }
 
 export interface StudentPortalUsageLimitsInput {
-  hourlyUsageLimitMinutes?: number | null;
   dailyUsageLimitMinutes?: number | null;
-  weeklyUsageLimitMinutes?: number | null;
+  offLimitWeekdays?: readonly number[] | null;
 }
 
 export interface StudentPortalUsageLimits {
-  hourlyUsageLimitMinutes: number | null;
   dailyUsageLimitMinutes: number | null;
-  weeklyUsageLimitMinutes: number | null;
+  offLimitWeekdays: number[];
 }
 
-export type StudentPortalUsageWindow = 'Hourly' | 'Daily' | 'Weekly';
+export type StudentPortalUsageWindow = 'Daily';
 
 export interface StudentPortalUsageCounts {
-  hourlyUsageMinutes: number;
   dailyUsageMinutes: number;
-  weeklyUsageMinutes: number;
 }
 
 export interface StudentPortalUsageLimitReached {
   allowed: false;
+  reason: 'DailyLimit';
   window: StudentPortalUsageWindow;
   limitMinutes: number;
   usedMinutes: number;
 }
 
-export type StudentPortalUsageLimitStatus = { allowed: true } | StudentPortalUsageLimitReached;
+export interface StudentPortalOffLimitDayReached {
+  allowed: false;
+  reason: 'OffLimitDay';
+  weekday: number;
+}
+
+export type StudentPortalUsageLimitStatus =
+  | { allowed: true }
+  | StudentPortalUsageLimitReached
+  | StudentPortalOffLimitDayReached;
 
 export type StudentMeritShopBlockReason = 'AccountLocked' | 'ParentShopBlock';
 
@@ -101,38 +107,22 @@ export function validateStudentPortalUsageLimits(
   input: StudentPortalUsageLimitsInput,
 ): StudentPortalUsageLimits {
   return {
-    hourlyUsageLimitMinutes: validateLimit(
-      'hourlyUsageLimitMinutes',
-      input.hourlyUsageLimitMinutes,
-      60,
-    ),
     dailyUsageLimitMinutes: validateLimit(
       'dailyUsageLimitMinutes',
       input.dailyUsageLimitMinutes,
       1_440,
     ),
-    weeklyUsageLimitMinutes: validateLimit(
-      'weeklyUsageLimitMinutes',
-      input.weeklyUsageLimitMinutes,
-      10_080,
-    ),
+    offLimitWeekdays: validateWeekdays(input.offLimitWeekdays),
   };
 }
 
 export function studentPortalUsageLimitStatus(
   limits: StudentPortalUsageLimits,
   usage: StudentPortalUsageCounts,
+  weekday: number,
 ): StudentPortalUsageLimitStatus {
-  if (
-    limits.hourlyUsageLimitMinutes !== null &&
-    usage.hourlyUsageMinutes >= limits.hourlyUsageLimitMinutes
-  ) {
-    return {
-      allowed: false,
-      window: 'Hourly',
-      limitMinutes: limits.hourlyUsageLimitMinutes,
-      usedMinutes: usage.hourlyUsageMinutes,
-    };
+  if (limits.offLimitWeekdays.includes(weekday)) {
+    return { allowed: false, reason: 'OffLimitDay', weekday };
   }
 
   if (
@@ -141,21 +131,10 @@ export function studentPortalUsageLimitStatus(
   ) {
     return {
       allowed: false,
+      reason: 'DailyLimit',
       window: 'Daily',
       limitMinutes: limits.dailyUsageLimitMinutes,
       usedMinutes: usage.dailyUsageMinutes,
-    };
-  }
-
-  if (
-    limits.weeklyUsageLimitMinutes !== null &&
-    usage.weeklyUsageMinutes >= limits.weeklyUsageLimitMinutes
-  ) {
-    return {
-      allowed: false,
-      window: 'Weekly',
-      limitMinutes: limits.weeklyUsageLimitMinutes,
-      usedMinutes: usage.weeklyUsageMinutes,
     };
   }
 
@@ -184,6 +163,23 @@ function validateLimit(
     throw new Error(`${field} must be an integer from 1 to ${String(max)} minutes`);
   }
   return value;
+}
+
+function validateWeekdays(value: readonly number[] | null | undefined): number[] {
+  if (value === null || value === undefined) return [];
+
+  const seen = new Set<number>();
+  for (const weekday of value) {
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      throw new Error('offLimitWeekdays must contain integers from 0 to 6');
+    }
+    if (seen.has(weekday)) {
+      throw new Error('offLimitWeekdays must not contain duplicate days');
+    }
+    seen.add(weekday);
+  }
+
+  return [...seen].sort((left, right) => left - right);
 }
 
 interface DateParts {

@@ -26,13 +26,8 @@ function formatResetTime(value: Date): string {
 
 function nearestUsageWindow(usage: UsageStatus | undefined) {
   if (!usage) return null;
-  const windows = [
-    { label: 'Hour', status: usage.hourly },
-    { label: 'Day', status: usage.daily },
-    { label: 'Week', status: usage.weekly },
-  ];
-
-  return windows.find((window) => window.status.limitMinutes !== null) ?? null;
+  if (usage.daily.limitMinutes === null) return null;
+  return { label: 'Daily', status: usage.daily };
 }
 
 function formatMerits(value: number): string {
@@ -80,7 +75,7 @@ function StudentHero({
             {limitedWindow.label} limit resets at {formatResetTime(limitedWindow.status.resetAt)}
           </small>
         ) : (
-          <small>No portal time limit set</small>
+          <small>No daily portal time limit set</small>
         )}
       </div>
     </section>
@@ -167,7 +162,9 @@ function FaithPanel({ faithCorner }: { faithCorner: StudentDashboard['faithCorne
         <p className="student-dashboard-panel__copy">{faithCorner.reflectionPrompt}</p>
       ) : null}
       {!faithCorner.ready ? (
-        <span className="student-dashboard-muted">Managed content will appear here when ready.</span>
+        <span className="student-dashboard-muted">
+          Managed content will appear here when ready.
+        </span>
       ) : null}
     </section>
   );
@@ -191,7 +188,9 @@ export function StudentHomeClient() {
   }
 
   if (!dashboard.data) {
-    return <EmptyState detail="No student dashboard data was returned." title="No dashboard data" />;
+    return (
+      <EmptyState detail="No student dashboard data was returned." title="No dashboard data" />
+    );
   }
 
   const attendance = dashboard.data.attendance;
@@ -281,10 +280,7 @@ export function StudentHomeClient() {
       {usage.data?.usage ? (
         <section className="student-usage-strip">
           <Clock aria-hidden="true" size={16} />
-          <span>
-            Portal time used: {String(usage.data.usage.hourly.usedMinutes)} min this hour,{' '}
-            {String(usage.data.usage.daily.usedMinutes)} min today.
-          </span>
+          <span>Portal time used: {String(usage.data.usage.daily.usedMinutes)} min today.</span>
         </section>
       ) : null}
     </div>

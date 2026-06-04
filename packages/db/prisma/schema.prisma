@@ -359,9 +359,8 @@ model StudentPortalSettings {
   loginHandleEnc            String?
   loginHandleBidx           String?   @unique
   studentCanManagePassword  Boolean   @default(false)
-  hourlyUsageLimitMinutes   Int?
   dailyUsageLimitMinutes    Int?
-  weeklyUsageLimitMinutes   Int?
+  offLimitWeekdays          Int[]     @default([])
   parentAccountLocked       Boolean   @default(false)
   parentLockReasonEnc       String?
   headAcademicLocked        Boolean   @default(false)

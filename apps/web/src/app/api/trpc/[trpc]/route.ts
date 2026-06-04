@@ -17,7 +17,6 @@ const handler = (req: Request): Promise<Response> =>
     endpoint: '/api/trpc',
     req,
     router: appRouter,
-    allowMethodOverride: true,
     createContext: async () => {
       const session = await resolveClerkSession(req.headers);
       return createContext({
