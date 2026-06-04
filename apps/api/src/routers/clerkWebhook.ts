@@ -62,6 +62,7 @@ const pendingInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()(
   role: true,
   tags: true,
   guardianLinkStudentIds: true,
+  studentId: true,
   studentSelfRegistrationId: true,
   studentParentLinkRequestId: true,
 });
@@ -186,6 +187,14 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           .filter((id): id is string => Boolean(id)),
       ),
     ];
+    const directStudentInvitationIds = [
+      ...new Set(
+        invitations
+          .filter((invitation) => invitation.role === 'Student')
+          .map((invitation) => invitation.studentId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
     const studentParentLinkRequestIds = [
       ...new Set(
         invitations
@@ -226,6 +235,12 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           data: { userId },
         });
       }
+    }
+    if (directStudentInvitationIds.length > 0) {
+      await db.student.updateMany({
+        where: { id: { in: directStudentInvitationIds }, userId: null },
+        data: { userId },
+      });
     }
 
     if (studentParentLinkRequestIds.length > 0) {

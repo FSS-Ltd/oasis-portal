@@ -46,6 +46,7 @@ interface PendingInvitationRow {
   role: Role;
   tags: PermissionTag[];
   guardianLinkStudentIds: string[];
+  studentId: string | null;
   studentSelfRegistrationId: string | null;
   studentParentLinkRequestId: string | null;
 }
@@ -55,6 +56,7 @@ type FakeInvitationFindMany = (args: {
     role: true;
     tags: true;
     guardianLinkStudentIds: true;
+    studentId: true;
     studentSelfRegistrationId: true;
     studentParentLinkRequestId: true;
   };
@@ -344,6 +346,7 @@ describe('createPrismaClerkUserStore', () => {
         role: 'Pastor',
         tags: [],
         guardianLinkStudentIds: [],
+        studentId: null,
         studentSelfRegistrationId: null,
         studentParentLinkRequestId: null,
       },
@@ -365,6 +368,7 @@ describe('createPrismaClerkUserStore', () => {
         role: true,
         tags: true,
         guardianLinkStudentIds: true,
+        studentId: true,
         studentSelfRegistrationId: true,
         studentParentLinkRequestId: true,
       },
@@ -392,6 +396,7 @@ describe('createPrismaClerkUserStore', () => {
         role: 'Parent',
         tags: [],
         guardianLinkStudentIds: ['s_child_1', 's_child_2', 's_child_1'],
+        studentId: null,
         studentSelfRegistrationId: null,
         studentParentLinkRequestId: null,
       },
@@ -424,6 +429,7 @@ describe('createPrismaClerkUserStore', () => {
         role: 'Student',
         tags: [],
         guardianLinkStudentIds: [],
+        studentId: null,
         studentSelfRegistrationId: 'self_reg_1',
         studentParentLinkRequestId: null,
       },
@@ -454,6 +460,37 @@ describe('createPrismaClerkUserStore', () => {
     });
   });
 
+  it('links accepted admin-created student invitations to their student profile', async () => {
+    const { db, create, findMany, findStudentSelfRegistrations, updateStudents } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_new' });
+    findMany.mockResolvedValue([
+      {
+        role: 'Student',
+        tags: [],
+        guardianLinkStudentIds: [],
+        studentId: 'student_direct_1',
+        studentSelfRegistrationId: null,
+        studentParentLinkRequestId: null,
+      },
+    ]);
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_123',
+      fullName: 'Student Learner',
+      email: 'student@example.com',
+      phone: null,
+      role: 'Student',
+      tags: [],
+    });
+
+    expect(findStudentSelfRegistrations).not.toHaveBeenCalled();
+    expect(updateStudents).toHaveBeenCalledWith({
+      where: { id: { in: ['student_direct_1'] }, userId: null },
+      data: { userId: 'cuid_new' },
+    });
+  });
+
   it('confirms invited student parent link requests after accepted parent invitations', async () => {
     const { db, create, findMany, updateParentLinkRequests } = makeDb(null);
     create.mockResolvedValue({ id: 'cuid_new' });
@@ -462,6 +499,7 @@ describe('createPrismaClerkUserStore', () => {
         role: 'Parent',
         tags: [],
         guardianLinkStudentIds: ['student_1'],
+        studentId: null,
         studentSelfRegistrationId: null,
         studentParentLinkRequestId: 'parent_link_1',
       },

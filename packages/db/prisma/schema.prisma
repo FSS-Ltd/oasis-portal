@@ -183,6 +183,7 @@ model UserInvitation {
   acceptedAt                 DateTime?
   guardianLinkInviterId      String?
   guardianLinkStudentIds     String[]                  @default([])
+  studentId                  String?                   @unique
   studentSelfRegistrationId  String?                   @unique
   studentParentLinkRequestId String?                   @unique
   createdAt                  DateTime                  @default(now())
@@ -191,6 +192,7 @@ model UserInvitation {
   invitedBy                User                      @relation("InvitedUserInvitations", fields: [invitedById], references: [id])
   acceptedUser             User?                     @relation("AcceptedUserInvitations", fields: [acceptedUserId], references: [id])
   guardianLinkInviter      User?                     @relation("GuardianLinkInviterInvitations", fields: [guardianLinkInviterId], references: [id], onDelete: SetNull)
+  student                  Student?                  @relation("StudentLoginInvitation", fields: [studentId], references: [id], onDelete: SetNull)
   studentSelfRegistration  StudentSelfRegistration?  @relation(fields: [studentSelfRegistrationId], references: [id], onDelete: SetNull)
   studentParentLinkRequest StudentParentLinkRequest? @relation(fields: [studentParentLinkRequestId], references: [id], onDelete: SetNull)
 
@@ -199,6 +201,7 @@ model UserInvitation {
   @@index([invitedById, createdAt])
   @@index([acceptedUserId])
   @@index([guardianLinkInviterId, createdAt])
+  @@index([studentId])
   @@index([studentSelfRegistrationId])
   @@index([studentParentLinkRequestId])
 }
@@ -250,6 +253,7 @@ model Student {
   portalSettings           StudentPortalSettings?
   portalUsageMinutes       StudentPortalUsageMinute[]
   notifications            StudentNotification[]
+  loginInvitation           UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
 
