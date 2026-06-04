@@ -48,7 +48,7 @@ const behaviourPreviewRows = [
   },
 ] as const;
 
-type RoleTone = 'leads' | 'parent' | 'staff';
+type RoleTone = 'leads' | 'parent' | 'staff' | 'student';
 
 interface RoleCardContent {
   description: string;
@@ -87,6 +87,21 @@ const roleCards: RoleCardContent[] = [
       'Sign up for after-school clubs and pay club fees',
     ],
     foot: 'Used by 184 families',
+  },
+  {
+    id: 'students',
+    tone: 'student',
+    tag: 'For students',
+    title: 'Student Portal',
+    description:
+      'A focused space for students to see their work, rewards and next steps without the noise.',
+    items: [
+      'Check PACE progress, recent scores and attendance at a glance',
+      'Track merit balances across spend, save, invest and tithe pots',
+      'Open clubs, notices, faith corner and shop from one student-safe view',
+      'Respect parent and centre locks, quiet days and daily usage limits',
+    ],
+    foot: 'Student-safe access',
   },
   {
     id: 'staff',
@@ -502,6 +517,7 @@ export function LandingPage({ data }: { data: LandingPageData }) {
           </Link>
           <nav className="landing-nav__links" aria-label="Landing page">
             <a href="#parents">For Parents</a>
+            <a href="#students">For Students</a>
             <a href="#staff">For Staff</a>
             <a href="#leads">Clubs Leads</a>
             <a href="#inside">Inside the portal</a>
@@ -531,7 +547,7 @@ export function LandingPage({ data }: { data: LandingPageData }) {
             </h1>
             <p>
               Attendance, PACE progress, merits, fees, permission slips, club sign-ups and Friday
-              messages, all in a single calm portal for parents, staff and our clubs leads.
+              messages, all in a single calm portal for parents, students, staff and clubs leads.
             </p>
             <div className="landing-hero__actions">
               <ButtonLink href={signInHref}>
@@ -544,8 +560,8 @@ export function LandingPage({ data }: { data: LandingPageData }) {
             </div>
             <div className="landing-hero__meta">
               <span>
-                <strong>3 roles</strong>
-                Parent / Staff / Clubs Lead
+                <strong>4 roles</strong>
+                Parent / Student / Staff / Clubs Lead
               </span>
               <span>
                 <strong>1 sign-in</strong>
@@ -564,11 +580,11 @@ export function LandingPage({ data }: { data: LandingPageData }) {
       <section className="landing-roles-band" id="parents">
         <div className="landing-wrap">
           <SectionHead
-            eyebrow="Three portals / One centre"
+            eyebrow="Four portals / One centre"
             title="A view of Oasis built for the way you use it."
           >
-            The same data, the same crest, shaped around what parents, supervisors and clubs leads
-            each actually need to do this week.
+            The same data, the same crest, shaped around what parents, students, supervisors and
+            clubs leads each actually need to do this week.
           </SectionHead>
           <div className="landing-roles">
             {roleCards.map((role) => (
