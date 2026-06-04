@@ -13992,6 +13992,43 @@ button.club-assignment-row {
   font-weight: 700;
 }
 
+.student-portal-admin-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.student-portal-admin-stat {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.student-portal-admin-stat span,
+.student-portal-admin-stack span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.student-portal-admin-stat strong {
+  color: var(--oasis-navy);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.student-portal-admin-stack {
+  display: grid;
+  gap: 5px;
+}
+
+.student-portal-admin-table {
+  min-width: 1120px;
+}
+
 .student-registration-table-wrap {
   overflow-x: auto;
 }
@@ -14030,6 +14067,7 @@ button.club-assignment-row {
   .invoice-admin-grid,
   .invoice-stat-grid,
   .invoice-fee-settings,
+  .student-portal-admin-summary,
   .student-registration-admin-layout {
     grid-template-columns: 1fr 1fr;
   }
@@ -14053,6 +14091,7 @@ button.club-assignment-row {
 
   .invoice-stat-grid,
   .parent-fees-hero__stats,
+  .student-portal-admin-summary,
   .invoice-review-grid,
   .invoice-meta-grid,
   .invoice-file-meta,

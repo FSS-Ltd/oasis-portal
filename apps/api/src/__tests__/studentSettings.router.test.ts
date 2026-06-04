@@ -123,6 +123,12 @@ interface FakeDb {
     findUnique: ReturnType<typeof vi.fn>;
     upsert: ReturnType<typeof vi.fn>;
   };
+  studentSelfRegistration: { findMany: ReturnType<typeof vi.fn> };
+  meritLedger: { groupBy: ReturnType<typeof vi.fn> };
+  attendance: { groupBy: ReturnType<typeof vi.fn> };
+  studentSubject: { findMany: ReturnType<typeof vi.fn> };
+  clubSignup: { groupBy: ReturnType<typeof vi.fn> };
+  studentPortalUsageMinute: { groupBy: ReturnType<typeof vi.fn> };
 }
 
 function encrypt(value: string | null | undefined): string | null {
@@ -213,10 +219,55 @@ function makeFakeDb() {
     { userId: otherParentUser.id, studentId: unlinkedStudentId },
   ];
   const settings = new Map<string, StoredSettings>();
+  const pendingSelfRegistrations = [
+    {
+      id: 'self_reg_pending',
+      fullNameEnc: encrypt('Pending Learner') ?? '',
+      yearGroup: 'Year 4',
+      status: 'Pending',
+      createdAt: new Date('2026-06-04T08:00:00.000Z'),
+    },
+  ];
+  const meritLedgerRows = [
+    { studentId: childStudentId, delta: 42 },
+    { studentId: childStudentId, delta: -7 },
+    { studentId: adultStudentId, delta: 12 },
+  ];
+  const attendanceRows = [
+    { studentId: childStudentId, status: 'Present' },
+    { studentId: childStudentId, status: 'Present' },
+    { studentId: childStudentId, status: 'Late' },
+    { studentId: adultStudentId, status: 'Absent' },
+  ];
+  const studentSubjectRows = [
+    {
+      studentId: childStudentId,
+      currentPaceNumber: 1005,
+      subject: { name: 'Maths' },
+    },
+    {
+      studentId: childStudentId,
+      currentPaceNumber: 1003,
+      subject: { name: 'English' },
+    },
+  ];
+  const clubSignupRows = [
+    { studentId: childStudentId, status: 'Active' },
+    { studentId: childStudentId, status: 'Withdrawn' },
+    { studentId: adultStudentId, status: 'Active' },
+  ];
+  const usageMinuteRows = [
+    { studentId: childStudentId, minuteStartedAt: new Date() },
+    { studentId: childStudentId, minuteStartedAt: new Date() },
+    { studentId: adultStudentId, minuteStartedAt: new Date() },
+  ];
 
   function withSettings(student: StoredStudent) {
     return {
       ...student,
+      guardians: guardianLinks
+        .filter((link) => link.studentId === student.id)
+        .map((link) => ({ userId: link.userId })),
       portalSettings: settings.get(student.id) ?? null,
     };
   }
@@ -289,6 +340,74 @@ function makeFakeDb() {
           return Promise.resolve(next);
         },
       ),
+    },
+    studentSelfRegistration: {
+      findMany: vi.fn(() => Promise.resolve(pendingSelfRegistrations)),
+    },
+    meritLedger: {
+      groupBy: vi.fn(() => {
+        const totals = new Map<string, number>();
+        for (const row of meritLedgerRows) {
+          totals.set(row.studentId, (totals.get(row.studentId) ?? 0) + row.delta);
+        }
+        return Promise.resolve(
+          [...totals.entries()].map(([studentId, delta]) => ({
+            studentId,
+            _sum: { delta },
+          })),
+        );
+      }),
+    },
+    attendance: {
+      groupBy: vi.fn(() => {
+        const counts = new Map<
+          string,
+          { studentId: string; status: string; _count: { _all: number } }
+        >();
+        for (const row of attendanceRows) {
+          const key = `${row.studentId}:${row.status}`;
+          const current = counts.get(key) ?? {
+            studentId: row.studentId,
+            status: row.status,
+            _count: { _all: 0 },
+          };
+          current._count._all += 1;
+          counts.set(key, current);
+        }
+        return Promise.resolve([...counts.values()]);
+      }),
+    },
+    studentSubject: {
+      findMany: vi.fn(() => Promise.resolve(studentSubjectRows)),
+    },
+    clubSignup: {
+      groupBy: vi.fn(() => {
+        const counts = new Map<string, number>();
+        for (const row of clubSignupRows) {
+          if (row.status !== 'Active') continue;
+          counts.set(row.studentId, (counts.get(row.studentId) ?? 0) + 1);
+        }
+        return Promise.resolve(
+          [...counts.entries()].map(([studentId, count]) => ({
+            studentId,
+            _count: { _all: count },
+          })),
+        );
+      }),
+    },
+    studentPortalUsageMinute: {
+      groupBy: vi.fn(() => {
+        const counts = new Map<string, number>();
+        for (const row of usageMinuteRows) {
+          counts.set(row.studentId, (counts.get(row.studentId) ?? 0) + 1);
+        }
+        return Promise.resolve(
+          [...counts.entries()].map(([studentId, count]) => ({
+            studentId,
+            _count: { _all: count },
+          })),
+        );
+      }),
     },
   };
 
@@ -573,6 +692,98 @@ describe('studentSettings parent procedures', () => {
     expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain(
       'correct horse battery staple',
     );
+  });
+});
+
+describe('studentSettings admin readiness reporting', () => {
+  it('summarises student portal readiness and exception metrics for admin users', async () => {
+    const { db, settings } = makeFakeDb();
+    settings.set(
+      childStudentId,
+      makeSettings(childStudentId, {
+        dailyUsageLimitMinutes: 2,
+        parentMeritShopBlocked: true,
+      }),
+    );
+    settings.set(
+      adultStudentId,
+      makeSettings(adultStudentId, {
+        headAcademicLocked: true,
+        headAcademicLockReasonEnc: encrypt('PACE review'),
+      }),
+    );
+    const caller = makeCaller(headUser, db);
+
+    const report = await caller.studentSettings.adminReadinessReport({ status: 'All' });
+
+    expect(report.summary).toEqual({
+      activeStudents: 3,
+      linkedAccounts: 2,
+      pendingRegistrations: 1,
+      readyAccounts: 0,
+      exceptionAccounts: 3,
+      lockedAccounts: 1,
+      shopBlockedAccounts: 1,
+      usageLimitedAccounts: 1,
+    });
+    const childRow = report.rows.find((row) => row.studentId === childStudentId);
+    expect(childRow).toMatchObject({
+      fullName: 'Jamie Learner',
+      guardianCount: 2,
+      meritsTotal: 35,
+      parentMeritShopBlocked: true,
+      activeClubSignupCount: 1,
+      paceSubjects: [
+        { currentPaceNumber: 1005, subjectName: 'Maths' },
+        { currentPaceNumber: 1003, subjectName: 'English' },
+      ],
+      readinessIssues: ['Merit shop blocked', 'Usage limit reached'],
+    });
+    expect(childRow?.attendance).toMatchObject({
+      attendanceRate: 67,
+      late: 1,
+      present: 2,
+      recorded: 3,
+    });
+    expect(childRow?.usage).toMatchObject({
+      dailyUsageLimitMinutes: 2,
+      dayMinutes: 2,
+      hasLimits: true,
+      overLimit: true,
+    });
+
+    const adultRow = report.rows.find((row) => row.studentId === adultStudentId);
+    expect(adultRow?.lock).toMatchObject({ locked: true, primarySource: 'HeadAcademic' });
+    expect(adultRow?.readinessIssues).toEqual(['Academic lock']);
+
+    const unlinkedRow = report.rows.find((row) => row.studentId === unlinkedStudentId);
+    expect(unlinkedRow?.readinessIssues).toEqual(['Student account not linked']);
+    expect(report.pendingRegistrations).toEqual([
+      {
+        id: 'self_reg_pending',
+        fullName: 'Pending Learner',
+        yearGroup: 'Year 4',
+        status: 'Pending',
+        submittedAt: new Date('2026-06-04T08:00:00.000Z'),
+      },
+    ]);
+    expect(
+      auditCalls(db).some(
+        (call) =>
+          call.data.userId === headUser.id &&
+          call.data.action === 'DecryptPii' &&
+          call.data.entity === 'StudentPortalReadinessReport' &&
+          call.data.meta?.source === 'studentSettings.adminReadinessReport',
+      ),
+    ).toBe(true);
+  });
+
+  it('denies readiness reporting to non-admin users', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(parentUser, db).studentSettings.adminReadinessReport({ status: 'All' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

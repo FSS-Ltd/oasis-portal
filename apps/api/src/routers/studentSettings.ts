@@ -16,7 +16,7 @@ import {
   assertUploadedChildIconPhoto,
   type UploadedChildIconPhoto,
 } from '../services/child-icon-photo-storage.js';
-import { authedProcedure, roleProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
 
 export interface StudentCredentialAdapter {
   setPassword(input: { clerkUserId: string; password: string }): Promise<void>;
@@ -72,6 +72,12 @@ const childPasswordInput = studentIdInput.extend({
 const myPasswordInput = z.object({
   password: passwordInput,
 });
+const adminReadinessFilterInput = z
+  .object({
+    ageBand: z.string().trim().min(1).max(80).optional(),
+    status: z.enum(['All', 'Ready', 'Exceptions']).default('All'),
+  })
+  .optional();
 
 const settingsSelect = Prisma.validator<Prisma.StudentPortalSettingsSelect>()({
   id: true,
@@ -118,6 +124,22 @@ const studentSelect = Prisma.validator<Prisma.StudentSelect>()({
 type StudentSettingsRow = Prisma.StudentGetPayload<{ select: typeof studentSelect }>;
 type SettingsRow = Prisma.StudentPortalSettingsGetPayload<{ select: typeof settingsSelect }>;
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
+
+const adminReadinessStudentSelect = Prisma.validator<Prisma.StudentSelect>()({
+  id: true,
+  userId: true,
+  fullNameEnc: true,
+  dobEnc: true,
+  yearGroup: true,
+  active: true,
+  createdAt: true,
+  portalSettings: { select: settingsSelect },
+  guardians: { select: { userId: true } },
+});
+
+type AdminReadinessStudentRow = Prisma.StudentGetPayload<{
+  select: typeof adminReadinessStudentSelect;
+}>;
 
 interface SettingsMutationData {
   loginHandleEnc?: string | null;
@@ -275,11 +297,7 @@ function validateChildIconPhotoMetadata(
   };
 }
 
-function storagePathForChildIconPhoto(
-  userId: string,
-  studentId: string,
-  fileName: string,
-): string {
+function storagePathForChildIconPhoto(userId: string, studentId: string, fileName: string): string {
   return `student-icons/${userId}/${studentId}/${randomUUID()}-${safeStorageFileName(fileName)}`;
 }
 
@@ -341,6 +359,130 @@ function defaultsFor(settings: SettingsRow | null): SettingsDefaults {
     headAcademicLockReasonEnc: settings?.headAcademicLockReasonEnc ?? null,
     parentMeritShopBlocked: settings?.parentMeritShopBlocked ?? false,
     childIconPhotoUrl: settings?.childIconPhotoUrl ?? null,
+  };
+}
+
+function percentage(numerator: number, denominator: number): number | null {
+  if (denominator <= 0) return null;
+  return Math.round((numerator / denominator) * 100);
+}
+
+function startOfUtcHour(now: Date): Date {
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), 0, 0, 0),
+  );
+}
+
+function startOfUtcDay(now: Date): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+function startOfUtcWeek(now: Date): Date {
+  const day = startOfUtcDay(now);
+  const weekday = day.getUTCDay();
+  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
+  day.setUTCDate(day.getUTCDate() - daysSinceMonday);
+  return day;
+}
+
+function countMap(
+  rows: readonly { studentId: string; _count: { _all: number } }[],
+): Map<string, number> {
+  return new Map(rows.map((row) => [row.studentId, row._count._all]));
+}
+
+function sumMap(
+  rows: readonly { studentId: string; _sum: { delta?: number | null } }[],
+): Map<string, number> {
+  return new Map(rows.map((row) => [row.studentId, row._sum.delta ?? 0]));
+}
+
+function attendanceMap(
+  rows: readonly { studentId: string; status: string; _count: { _all: number } }[],
+): Map<string, { absent: number; late: number; present: number; recorded: number }> {
+  const map = new Map<
+    string,
+    { absent: number; late: number; present: number; recorded: number }
+  >();
+  for (const row of rows) {
+    const current = map.get(row.studentId) ?? { absent: 0, late: 0, present: 0, recorded: 0 };
+    current.recorded += row._count._all;
+    if (row.status === 'Present') current.present += row._count._all;
+    if (row.status === 'Late') current.late += row._count._all;
+    if (row.status === 'Absent') current.absent += row._count._all;
+    map.set(row.studentId, current);
+  }
+  return map;
+}
+
+function mapAdminReadinessStudent(
+  ctx: AppContext,
+  input: {
+    attendance: { absent: number; late: number; present: number; recorded: number };
+    clubSignupCount: number;
+    dayUsageMinutes: number;
+    hourUsageMinutes: number;
+    meritsTotal: number;
+    paceSubjects: Array<{ currentPaceNumber: number; subjectName: string }>;
+    student: AdminReadinessStudentRow;
+    weekUsageMinutes: number;
+  },
+) {
+  const fullName = decryptRequired(ctx, input.student.fullNameEnc, 'student PII');
+  const dob = decryptRequired(ctx, input.student.dobEnc, 'student PII');
+  const state = defaultsFor(input.student.portalSettings);
+  const effectiveLock = effectiveStudentPortalLock(state);
+  const hasUsageLimits = Boolean(
+    state.hourlyUsageLimitMinutes || state.dailyUsageLimitMinutes || state.weeklyUsageLimitMinutes,
+  );
+  const usageOverLimit =
+    (state.hourlyUsageLimitMinutes !== null &&
+      input.hourUsageMinutes >= state.hourlyUsageLimitMinutes) ||
+    (state.dailyUsageLimitMinutes !== null &&
+      input.dayUsageMinutes >= state.dailyUsageLimitMinutes) ||
+    (state.weeklyUsageLimitMinutes !== null &&
+      input.weekUsageMinutes >= state.weeklyUsageLimitMinutes);
+  const readinessIssues: string[] = [];
+
+  if (!input.student.userId) readinessIssues.push('Student account not linked');
+  if (input.student.guardians.length === 0) readinessIssues.push('No parent/carer link');
+  if (effectiveLock.locked) {
+    readinessIssues.push(
+      effectiveLock.primarySource === 'HeadAcademic' ? 'Academic lock' : 'Parent lock',
+    );
+  }
+  if (state.parentMeritShopBlocked) readinessIssues.push('Merit shop blocked');
+  if (usageOverLimit) readinessIssues.push('Usage limit reached');
+
+  return {
+    studentId: input.student.id,
+    fullName,
+    yearGroup: input.student.yearGroup,
+    accountLinked: Boolean(input.student.userId),
+    active: input.student.active,
+    guardianCount: input.student.guardians.length,
+    parentControlAllowed: canParentControlStudent({ dateOfBirth: dob }),
+    lock: effectiveLock,
+    parentMeritShopBlocked: state.parentMeritShopBlocked,
+    usage: {
+      hasLimits: hasUsageLimits,
+      overLimit: usageOverLimit,
+      hourlyUsageLimitMinutes: state.hourlyUsageLimitMinutes,
+      dailyUsageLimitMinutes: state.dailyUsageLimitMinutes,
+      weeklyUsageLimitMinutes: state.weeklyUsageLimitMinutes,
+      hourMinutes: input.hourUsageMinutes,
+      dayMinutes: input.dayUsageMinutes,
+      weekMinutes: input.weekUsageMinutes,
+    },
+    meritsTotal: input.meritsTotal,
+    attendance: {
+      ...input.attendance,
+      attendanceRate: percentage(input.attendance.present, input.attendance.recorded),
+    },
+    paceSubjects: input.paceSubjects,
+    activeClubSignupCount: input.clubSignupCount,
+    readinessIssues,
+    ready: readinessIssues.length === 0,
   };
 }
 
@@ -514,6 +656,182 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
   });
 
   return router({
+    adminReadinessReport: adminOperationsProcedure
+      .input(adminReadinessFilterInput)
+      .query(async ({ ctx, input }) => {
+        const now = new Date();
+        const ageBand = input?.ageBand;
+        const students = await ctx.db.student.findMany({
+          where: { active: true, ...(ageBand ? { yearGroup: ageBand } : {}) },
+          select: adminReadinessStudentSelect,
+          orderBy: { createdAt: 'desc' },
+        });
+        const studentIds = students.map((student) => student.id);
+
+        const [
+          pendingRegistrations,
+          meritRows,
+          attendanceRows,
+          paceSubjects,
+          clubSignupRows,
+          hourUsageRows,
+          dayUsageRows,
+          weekUsageRows,
+        ] = await Promise.all([
+          ctx.db.studentSelfRegistration.findMany({
+            where: { status: { in: ['Pending', 'AwaitingConsent'] } },
+            select: {
+              id: true,
+              fullNameEnc: true,
+              yearGroup: true,
+              status: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 25,
+          }),
+          studentIds.length > 0
+            ? ctx.db.meritLedger.groupBy({
+                by: ['studentId'],
+                where: { studentId: { in: studentIds } },
+                _sum: { delta: true },
+              })
+            : Promise.resolve([]),
+          studentIds.length > 0
+            ? ctx.db.attendance.groupBy({
+                by: ['studentId', 'status'],
+                where: { studentId: { in: studentIds } },
+                _count: { _all: true },
+              })
+            : Promise.resolve([]),
+          studentIds.length > 0
+            ? ctx.db.studentSubject.findMany({
+                where: { studentId: { in: studentIds } },
+                select: {
+                  studentId: true,
+                  currentPaceNumber: true,
+                  subject: { select: { name: true } },
+                },
+                orderBy: [{ studentId: 'asc' }, { subject: { name: 'asc' } }],
+              })
+            : Promise.resolve([]),
+          studentIds.length > 0
+            ? ctx.db.clubSignup.groupBy({
+                by: ['studentId'],
+                where: { studentId: { in: studentIds }, status: 'Active' },
+                _count: { _all: true },
+              })
+            : Promise.resolve([]),
+          studentIds.length > 0
+            ? ctx.db.studentPortalUsageMinute.groupBy({
+                by: ['studentId'],
+                where: {
+                  studentId: { in: studentIds },
+                  minuteStartedAt: { gte: startOfUtcHour(now) },
+                },
+                _count: { _all: true },
+              })
+            : Promise.resolve([]),
+          studentIds.length > 0
+            ? ctx.db.studentPortalUsageMinute.groupBy({
+                by: ['studentId'],
+                where: {
+                  studentId: { in: studentIds },
+                  minuteStartedAt: { gte: startOfUtcDay(now) },
+                },
+                _count: { _all: true },
+              })
+            : Promise.resolve([]),
+          studentIds.length > 0
+            ? ctx.db.studentPortalUsageMinute.groupBy({
+                by: ['studentId'],
+                where: {
+                  studentId: { in: studentIds },
+                  minuteStartedAt: { gte: startOfUtcWeek(now) },
+                },
+                _count: { _all: true },
+              })
+            : Promise.resolve([]),
+        ]);
+
+        const meritsByStudent = sumMap(meritRows);
+        const attendanceByStudent = attendanceMap(attendanceRows);
+        const clubSignupCountByStudent = countMap(clubSignupRows);
+        const hourUsageByStudent = countMap(hourUsageRows);
+        const dayUsageByStudent = countMap(dayUsageRows);
+        const weekUsageByStudent = countMap(weekUsageRows);
+        const paceByStudent = new Map<
+          string,
+          Array<{ currentPaceNumber: number; subjectName: string }>
+        >();
+        for (const row of paceSubjects) {
+          const current = paceByStudent.get(row.studentId) ?? [];
+          current.push({
+            currentPaceNumber: row.currentPaceNumber,
+            subjectName: row.subject.name,
+          });
+          paceByStudent.set(row.studentId, current);
+        }
+
+        const rows = students.map((student) =>
+          mapAdminReadinessStudent(ctx, {
+            attendance: attendanceByStudent.get(student.id) ?? {
+              absent: 0,
+              late: 0,
+              present: 0,
+              recorded: 0,
+            },
+            clubSignupCount: clubSignupCountByStudent.get(student.id) ?? 0,
+            dayUsageMinutes: dayUsageByStudent.get(student.id) ?? 0,
+            hourUsageMinutes: hourUsageByStudent.get(student.id) ?? 0,
+            meritsTotal: meritsByStudent.get(student.id) ?? 0,
+            paceSubjects: paceByStudent.get(student.id) ?? [],
+            student,
+            weekUsageMinutes: weekUsageByStudent.get(student.id) ?? 0,
+          }),
+        );
+        const filteredRows = rows.filter((row) => {
+          if (input?.status === 'Ready') return row.ready;
+          if (input?.status === 'Exceptions') return !row.ready;
+          return true;
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'StudentPortalReadinessReport',
+            meta: {
+              source: 'studentSettings.adminReadinessReport',
+              status: input?.status ?? 'All',
+              ageBand: ageBand ?? null,
+              count: filteredRows.length,
+            },
+          },
+        });
+
+        return {
+          summary: {
+            activeStudents: students.length,
+            linkedAccounts: rows.filter((row) => row.accountLinked).length,
+            pendingRegistrations: pendingRegistrations.length,
+            readyAccounts: rows.filter((row) => row.ready).length,
+            exceptionAccounts: rows.filter((row) => !row.ready).length,
+            lockedAccounts: rows.filter((row) => row.lock.locked).length,
+            shopBlockedAccounts: rows.filter((row) => row.parentMeritShopBlocked).length,
+            usageLimitedAccounts: rows.filter((row) => row.usage.hasLimits).length,
+          },
+          rows: filteredRows,
+          pendingRegistrations: pendingRegistrations.map((registration) => ({
+            id: registration.id,
+            fullName: decryptRequired(ctx, registration.fullNameEnc, 'student registration PII'),
+            yearGroup: registration.yearGroup,
+            status: registration.status,
+            submittedAt: registration.createdAt,
+          })),
+        };
+      }),
+
     listLinkedChildren: linkedChildGuardianProcedure.query(async ({ ctx }) => {
       const students = await ctx.db.student.findMany({
         where: {
@@ -530,8 +848,8 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
       .input(studentIdInput)
       .query(async ({ ctx, input }) => {
         const student = await loadLinkedStudent(ctx, input.studentId);
-      return mapParentSettings(ctx, student);
-    }),
+        return mapParentSettings(ctx, student);
+      }),
 
     prepareChildIconPhotoUpload: linkedChildGuardianProcedure
       .input(prepareChildIconPhotoUploadInput)
