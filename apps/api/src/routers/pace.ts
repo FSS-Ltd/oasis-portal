@@ -164,6 +164,10 @@ function decryptRequired(
   return decrypted;
 }
 
+function firstNameFrom(fullName: string): string {
+  return fullName.trim().split(/\s+/u).find(Boolean) ?? 'Student';
+}
+
 async function denyPaceAccess(
   ctx: AuthedContext,
   entity: string,
@@ -856,6 +860,18 @@ export const paceRouter = router({
       const completedProgress = (progressBySubject.get(assignment.subjectId) ?? []).filter(
         (row) => row.completedAt !== null,
       );
+      const completedPaces = [...completedProgress]
+        .sort((left, right) => {
+          const leftCompletedAt = left.completedAt ?? left.startedAt;
+          const rightCompletedAt = right.completedAt ?? right.startedAt;
+          return rightCompletedAt.getTime() - leftCompletedAt.getTime();
+        })
+        .slice(0, 5)
+        .map((row) => ({
+          id: row.id,
+          paceNumber: row.paceNumber,
+          completedAt: row.completedAt,
+        }));
       const completionDurations = completedProgress.map((row) =>
         daysBetween(row.startedAt, row.completedAt ?? row.startedAt),
       );
@@ -913,6 +929,7 @@ export const paceRouter = router({
             : daysBetween(currentProgress.startedAt, scope.selectedDate),
         currentFinalTestAttempts: currentProgress?.finalTestAttempts ?? 0,
         completedPaceCount: completedProgress.length,
+        completedPaces,
         averagePaceCompletionDays,
         selfTestPaceNumbers: [
           ...new Set(
@@ -957,7 +974,8 @@ export const paceRouter = router({
     const remaining = policy.dailyTestLimitEnabled
       ? Math.max(policy.maxTestsPerStudentPerDay - todayCount, 0)
       : null;
-    const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+    const fullName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+    const studentName = ctx.user.role === 'Student' ? firstNameFrom(fullName) : fullName;
 
     await ctx.db.auditLog.create({
       data: {
