@@ -73,8 +73,8 @@ model User {
   childRegistrationPromptAnsweredAt DateTime?
   // --- PII (encrypted, ADR-005) ---
   fullNameEnc                       String
-  emailEnc                          String
-  emailBidx                         String                        @unique
+  emailEnc                          String?
+  emailBidx                         String?                       @unique
   dobEnc                            String?
   phoneEnc                          String?
   addressEnc                        String?

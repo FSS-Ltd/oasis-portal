@@ -12,6 +12,7 @@ import {
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
+import { startOfUtcDay, startOfUtcHour, startOfUtcWeek } from '../lib/utc-date.js';
 import {
   assertUploadedChildIconPhoto,
   type UploadedChildIconPhoto,
@@ -19,6 +20,11 @@ import {
 import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
 
 export interface StudentCredentialAdapter {
+  createNoEmailStudentAccount(input: {
+    fullName: string;
+    password: string;
+    username: string;
+  }): Promise<{ clerkUserId: string }>;
   setPassword(input: { clerkUserId: string; password: string }): Promise<void>;
 }
 
@@ -48,8 +54,20 @@ const prepareChildIconPhotoUploadInput = studentIdInput.extend({
 const updateChildIconPhotoInput = studentIdInput.extend({
   photo: childIconPhotoInput,
 });
+const requiredLoginHandleInput = z
+  .string()
+  .trim()
+  .min(3)
+  .max(80)
+  .regex(/^[a-z0-9][a-z0-9._-]*$/iu, {
+    message: 'login handle can use letters, numbers, dots, underscores, and hyphens',
+  });
 const loginHandleInput = studentIdInput.extend({
   loginHandle: z.string().trim().min(1).max(80).nullable(),
+});
+const childLoginInput = studentIdInput.extend({
+  loginHandle: requiredLoginHandleInput,
+  password: passwordInput,
 });
 const passwordControlInput = studentIdInput.extend({
   studentCanManagePassword: z.boolean(),
@@ -205,6 +223,13 @@ function createDefaultStudentCredentialAdapter(): StudentCredentialAdapter {
   }
   const client = createClerkClient({ secretKey });
   const users = client.users as unknown as {
+    createUser(input: {
+      firstName?: string;
+      lastName?: string;
+      password: string;
+      publicMetadata: { role: 'Student'; tags: [] };
+      username: string;
+    }): Promise<{ id: string }>;
     updateUser(
       clerkUserId: string,
       input: { password: string; signOutOfOtherSessions: boolean },
@@ -212,6 +237,21 @@ function createDefaultStudentCredentialAdapter(): StudentCredentialAdapter {
   };
 
   return {
+    async createNoEmailStudentAccount(input) {
+      const [firstName, ...lastNameParts] = input.fullName.trim().split(/\s+/u);
+      const lastName = lastNameParts.join(' ').trim();
+      const nameProps = {
+        ...(firstName ? { firstName } : {}),
+        ...(lastName ? { lastName } : {}),
+      };
+      const user = await users.createUser({
+        ...nameProps,
+        username: input.username,
+        password: input.password,
+        publicMetadata: { role: 'Student', tags: [] },
+      });
+      return { clerkUserId: user.id };
+    },
     async setPassword(input) {
       await users.updateUser(input.clerkUserId, {
         password: input.password,
@@ -232,6 +272,10 @@ function decryptRequired(ctx: AppContext, value: string, entity: string): string
 function optionalText(value: string | null | undefined): string | null {
   const trimmed = value?.trim() ?? '';
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function normaliseLoginHandle(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function childIconPhotoBucket(): string {
@@ -367,24 +411,6 @@ function percentage(numerator: number, denominator: number): number | null {
   return Math.round((numerator / denominator) * 100);
 }
 
-function startOfUtcHour(now: Date): Date {
-  return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), 0, 0, 0),
-  );
-}
-
-function startOfUtcDay(now: Date): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
-function startOfUtcWeek(now: Date): Date {
-  const day = startOfUtcDay(now);
-  const weekday = day.getUTCDay();
-  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
-  day.setUTCDate(day.getUTCDate() - daysSinceMonday);
-  return day;
-}
-
 function countMap(
   rows: readonly { studentId: string; _count: { _all: number } }[],
 ): Map<string, number> {
@@ -500,6 +526,7 @@ function mapParentSettings(
     studentId: student.id,
     fullName,
     yearGroup: student.yearGroup,
+    accountLinked: Boolean(student.userId),
     parentControlAllowed: canParentControlStudent({ dateOfBirth: dob }),
     loginHandle: state.loginHandleEnc ? ctx.db.$enc.decrypt(state.loginHandleEnc) : null,
     studentCanManagePassword: state.studentCanManagePassword,
@@ -669,7 +696,6 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
         const studentIds = students.map((student) => student.id);
 
         const [
-          pendingRegistrations,
           meritRows,
           attendanceRows,
           paceSubjects,
@@ -678,18 +704,6 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
           dayUsageRows,
           weekUsageRows,
         ] = await Promise.all([
-          ctx.db.studentSelfRegistration.findMany({
-            where: { status: { in: ['Pending', 'AwaitingConsent'] } },
-            select: {
-              id: true,
-              fullNameEnc: true,
-              yearGroup: true,
-              status: true,
-              createdAt: true,
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 25,
-          }),
           studentIds.length > 0
             ? ctx.db.meritLedger.groupBy({
                 by: ['studentId'],
@@ -814,7 +828,6 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
           summary: {
             activeStudents: students.length,
             linkedAccounts: rows.filter((row) => row.accountLinked).length,
-            pendingRegistrations: pendingRegistrations.length,
             readyAccounts: rows.filter((row) => row.ready).length,
             exceptionAccounts: rows.filter((row) => !row.ready).length,
             lockedAccounts: rows.filter((row) => row.lock.locked).length,
@@ -822,13 +835,6 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
             usageLimitedAccounts: rows.filter((row) => row.usage.hasLimits).length,
           },
           rows: filteredRows,
-          pendingRegistrations: pendingRegistrations.map((registration) => ({
-            id: registration.id,
-            fullName: decryptRequired(ctx, registration.fullNameEnc, 'student registration PII'),
-            yearGroup: registration.yearGroup,
-            status: registration.status,
-            submittedAt: registration.createdAt,
-          })),
         };
       }),
 
@@ -906,6 +912,103 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
           fields: ['loginHandle'],
         });
         return mapParentSettings(ctx, student, settings);
+      }),
+
+    createChildLogin: linkedChildGuardianProcedure
+      .input(childLoginInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        if (student.userId) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'student account is already linked to a login user',
+          });
+        }
+
+        const fullName = decryptRequired(ctx, student.fullNameEnc, 'student PII');
+        const loginHandle = normaliseLoginHandle(input.loginHandle);
+        const loginHandleBidx = ctx.db.$enc.blindIndex(loginHandle);
+        const existingHandle = await ctx.db.studentPortalSettings.findUnique({
+          where: { loginHandleBidx },
+          select: { studentId: true },
+        });
+        if (existingHandle && existingHandle.studentId !== student.id) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'login handle is already in use',
+          });
+        }
+
+        const createdAccount = await credentialAdapter().createNoEmailStudentAccount({
+          fullName,
+          username: loginHandle,
+          password: input.password,
+        });
+        const now = new Date();
+        const result = await ctx.db.$transaction(async (tx) => {
+          const user = await tx.user.create({
+            data: {
+              clerkId: createdAccount.clerkUserId,
+              role: 'Student',
+              tags: [],
+              fullNameEnc: student.fullNameEnc,
+              emailEnc: null,
+              emailBidx: null,
+              phoneEnc: null,
+              active: true,
+            },
+            select: { id: true },
+          });
+          await tx.student.update({
+            where: { id: student.id },
+            data: { userId: user.id },
+            select: { id: true },
+          });
+          const settings = await tx.studentPortalSettings.upsert({
+            where: { studentId: student.id },
+            create: {
+              studentId: student.id,
+              loginHandleEnc: ctx.db.$enc.encrypt(loginHandle),
+              loginHandleBidx,
+              settingsUpdatedById: ctx.user.id,
+              settingsUpdatedAt: now,
+            },
+            update: {
+              loginHandleEnc: ctx.db.$enc.encrypt(loginHandle),
+              loginHandleBidx,
+              settingsUpdatedById: ctx.user.id,
+              settingsUpdatedAt: now,
+            },
+            select: settingsSelect,
+          });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'User',
+              entityId: user.id,
+              meta: { role: 'Student', source: 'studentSettings.createChildLogin' },
+            },
+          });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Update',
+              entity: 'Student',
+              entityId: student.id,
+              meta: { fields: ['userId'], source: 'studentSettings.createChildLogin' },
+            },
+          });
+          return { settings, userId: user.id };
+        });
+
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.createChildLogin',
+          fields: ['loginHandle', 'userId'],
+        });
+
+        return { ...mapParentSettings(ctx, { ...student, userId: result.userId }, result.settings) };
       }),
 
     setChildPassword: linkedChildGuardianProcedure

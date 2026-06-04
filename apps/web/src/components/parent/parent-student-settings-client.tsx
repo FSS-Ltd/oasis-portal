@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   UserCog,
+  UserPlus,
 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -118,7 +119,9 @@ function SettingsStatusCard({ child }: { child: LinkedChildSettings }) {
         </div>
         <div>
           <span>Portal account</span>
-          <Badge tone={locked ? 'red' : 'green'}>{lockLabel(child)}</Badge>
+          <Badge tone={!child.accountLinked ? 'amber' : locked ? 'red' : 'green'}>
+            {child.accountLinked ? lockLabel(child) : 'Login needed'}
+          </Badge>
         </div>
         <div>
           <span>Password changes</span>
@@ -383,6 +386,116 @@ function CredentialsPanel({
         error={setPasswordControl.error ?? setChildPassword.error}
         success={passwordPolicySuccess}
       />
+    </Panel>
+  );
+}
+
+function CreateLoginPanel({
+  child,
+  disabled,
+  onSaved,
+}: {
+  child: LinkedChildSettings;
+  disabled: boolean;
+  onSaved: (child: LinkedChildSettings) => void;
+}) {
+  const utils = api.useUtils();
+  const [loginHandle, setLoginHandle] = useState(child.loginHandle ?? '');
+  const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoginHandle(child.loginHandle ?? '');
+    setPassword('');
+    setLocalError(null);
+    setSuccess(null);
+  }, [child.studentId, child.loginHandle]);
+
+  const createChildLogin = api.studentSettings.createChildLogin.useMutation({
+    onError(error) {
+      showErrorToast(error, 'Student login could not be created.');
+    },
+    async onSuccess(updated) {
+      onSaved(updated);
+      setPassword('');
+      setSuccess('Student login created.');
+      showSuccessToast('Student login created.');
+      await utils.studentSettings.listLinkedChildren.invalidate();
+    },
+  });
+
+  function submit(): void {
+    setLocalError(null);
+    const trimmedHandle = loginHandle.trim();
+    if (trimmedHandle.length < 3) {
+      setLocalError('Login handle must be at least 3 characters.');
+      return;
+    }
+    if (password.length < 12 || password.length > 128) {
+      setLocalError('Password must be 12 to 128 characters.');
+      return;
+    }
+    createChildLogin.mutate({
+      loginHandle: trimmedHandle,
+      password,
+      studentId: child.studentId,
+    });
+  }
+
+  return (
+    <Panel body className="parent-settings-panel">
+      <PanelTitle
+        icon={<UserPlus aria-hidden="true" size={17} />}
+        sub="Create a username and starting password for this child's student portal."
+      >
+        Create login
+      </PanelTitle>
+
+      <div className="parent-settings-form-row">
+        <Field label="Login handle">
+          <TextInput
+            autoComplete="username"
+            disabled={disabled || createChildLogin.isPending}
+            maxLength={80}
+            onChange={(event) => {
+              setLoginHandle(event.target.value);
+              setLocalError(null);
+              setSuccess(null);
+            }}
+            placeholder="jamie.learner"
+            value={loginHandle}
+          />
+        </Field>
+        <Field label="Initial password">
+          <TextInput
+            autoComplete="new-password"
+            disabled={disabled || createChildLogin.isPending}
+            maxLength={128}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setLocalError(null);
+              setSuccess(null);
+            }}
+            placeholder="New secure password"
+            type="password"
+            value={password}
+          />
+        </Field>
+      </div>
+
+      <div className="parent-settings-actions">
+        <Button
+          disabled={disabled || loginHandle.trim().length === 0 || password.length === 0}
+          onClick={submit}
+          pending={createChildLogin.isPending}
+          type="button"
+        >
+          Create login
+        </Button>
+      </div>
+      {localError ? <p className="status--error">{localError}</p> : null}
+      <InlineStatus error={createChildLogin.error} success={success} />
     </Panel>
   );
 }
@@ -764,11 +877,19 @@ export function ParentStudentSettingsClient() {
         </aside>
 
         <div className="parent-settings-stack">
-          <CredentialsPanel
-            child={selectedChild}
-            disabled={controlsDisabled}
-            onSaved={updateCachedChild}
-          />
+          {selectedChild.accountLinked ? (
+            <CredentialsPanel
+              child={selectedChild}
+              disabled={controlsDisabled}
+              onSaved={updateCachedChild}
+            />
+          ) : (
+            <CreateLoginPanel
+              child={selectedChild}
+              disabled={controlsDisabled}
+              onSaved={updateCachedChild}
+            />
+          )}
           <UsageLimitsPanel
             child={selectedChild}
             disabled={controlsDisabled}

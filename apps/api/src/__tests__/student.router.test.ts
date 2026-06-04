@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@oasis/db';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { studentRouter } from '../routers/student.js';
+import { createStudentRouter } from '../routers/student.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = {
@@ -144,6 +144,24 @@ interface StoredYearGroupBand {
   active: boolean;
 }
 
+interface StoredUser {
+  id: string;
+  emailBidx: string;
+}
+
+interface StoredUserInvitation {
+  id: string;
+  clerkInvitationId: string;
+  role: 'Student';
+  tags: string[];
+  emailEnc: string;
+  emailBidx: string;
+  status: 'Pending' | 'Accepted' | 'Revoked';
+  emailStatus: 'NotSent' | 'Sent' | 'Failed';
+  emailMessageId: string | null;
+  invitedById: string;
+}
+
 interface FakeDb {
   $enc: {
     encrypt: ReturnType<typeof vi.fn>;
@@ -151,6 +169,12 @@ interface FakeDb {
     blindIndex: ReturnType<typeof vi.fn>;
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
+  user: { findUnique: ReturnType<typeof vi.fn> };
+  userInvitation: {
+    create: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   student: {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
@@ -304,6 +328,8 @@ function makeFakeDb(
   } = {},
 ) {
   const students: StoredStudent[] = [];
+  const users: StoredUser[] = [];
+  const userInvitations: StoredUserInvitation[] = [];
   const attendance = input.attendance ?? [];
   const clubSignups = input.clubSignups ?? [];
   const faithCornerContent = input.faithCornerContent ?? [];
@@ -334,12 +360,56 @@ function makeFakeDb(
       blindIndex: vi.fn(blindIndex),
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    user: {
+      findUnique: vi.fn(({ where }: { where: { emailBidx?: string | null } }) =>
+        Promise.resolve(
+          where.emailBidx
+            ? (users.find((user) => user.emailBidx === where.emailBidx) ?? null)
+            : null,
+        ),
+      ),
+    },
+    userInvitation: {
+      create: vi.fn(({ data }: { data: Omit<StoredUserInvitation, 'id'> }) => {
+        const invitation: StoredUserInvitation = {
+          id: `invite_${String(userInvitations.length + 1)}`,
+          ...data,
+        };
+        userInvitations.push(invitation);
+        return Promise.resolve({ id: invitation.id });
+      }),
+      findFirst: vi.fn(
+        ({ where }: { where: { emailBidx: string; status: StoredUserInvitation['status'] } }) =>
+          Promise.resolve(
+            userInvitations.find(
+              (invitation) =>
+                invitation.emailBidx === where.emailBidx && invitation.status === where.status,
+            ) ?? null,
+          ),
+      ),
+      update: vi.fn(
+        ({
+          data,
+          where,
+        }: {
+          data: Partial<StoredUserInvitation>;
+          where: { id: string };
+        }) => {
+          const invitation = userInvitations.find((candidate) => candidate.id === where.id);
+          if (!invitation) return Promise.resolve(null);
+          Object.assign(invitation, data);
+          return Promise.resolve({ id: invitation.id });
+        },
+      ),
+    },
     student: {
       create: vi.fn(
         ({
           data,
+          select,
         }: {
           data: Omit<StoredStudent, 'id' | 'userId' | 'active' | 'createdAt' | 'updatedAt'>;
+          select?: { id?: boolean };
         }) => {
           const now = new Date('2026-04-27T10:00:00.000Z');
           const student: StoredStudent = {
@@ -351,7 +421,7 @@ function makeFakeDb(
             ...data,
           };
           students.push(student);
-          return Promise.resolve(student);
+          return Promise.resolve(select?.id ? { id: student.id } : student);
         },
       ),
       update: vi.fn(({ where, data }: { where: { id: string }; data: Partial<StoredStudent> }) => {
@@ -715,6 +785,8 @@ function makeFakeDb(
     portalSettings,
     shopItems,
     usageMinutes,
+    userInvitations,
+    users,
   };
 }
 
@@ -728,13 +800,63 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
 }
 
 function makeCaller(user: SessionUser | null, db: FakeDb) {
-  const appRouter = router({ student: studentRouter });
+  const appRouter = router({
+    student: createStudentRouter({
+      appUrl: 'https://portal.example.test',
+      clerk: {
+        createInvitation: vi.fn(() =>
+          Promise.resolve({
+            id: 'clerk_invite_student',
+            emailAddress: 'jane@example.com',
+            status: 'pending',
+            url: 'https://accounts.example.test/invite',
+          }),
+        ),
+        findInvitation: vi.fn(),
+        revokeInvitation: vi.fn(),
+      },
+      emailClient: {
+        send: vi.fn(() => Promise.resolve({ id: 'email_student_invite' })),
+      },
+    }),
+  });
   return appRouter.createCaller(makeCtx(user, db));
+}
+
+function makeStudentCreateCaller(user: SessionUser | null, db: FakeDb) {
+  const clerk = {
+    createInvitation: vi.fn(() =>
+      Promise.resolve({
+        id: 'clerk_invite_student',
+        emailAddress: 'jane@example.com',
+        status: 'pending',
+        url: 'https://accounts.example.test/invite',
+      }),
+    ),
+    findInvitation: vi.fn(),
+    revokeInvitation: vi.fn(),
+  };
+  const emailClient = {
+    send: vi.fn(() => Promise.resolve({ id: 'email_student_invite' })),
+  };
+  const appRouter = router({
+    student: createStudentRouter({
+      appUrl: 'https://portal.example.test',
+      clerk,
+      emailClient,
+    }),
+  });
+  return {
+    caller: appRouter.createCaller(makeCtx(user, db)),
+    clerk,
+    emailClient,
+  };
 }
 
 async function createStudent(caller: ReturnType<typeof makeCaller>) {
   return caller.student.create({
     fullName: 'Jane Learner',
+    email: 'jane@example.com',
     dob: new Date('2014-02-03T00:00:00.000Z'),
     yearGroup: 'Year 6',
     enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
@@ -747,7 +869,10 @@ describe('student router CRUD', () => {
     const { db, students } = makeFakeDb();
     const caller = makeCaller(headUser, db);
 
-    await expect(createStudent(caller)).resolves.toEqual({ id: studentId });
+    await expect(createStudent(caller)).resolves.toEqual({
+      id: studentId,
+      invitationEmailStatus: 'Sent',
+    });
 
     expect(students[0]).toMatchObject({
       fullNameEnc: 'enc:Jane Learner',
@@ -774,7 +899,7 @@ describe('student router CRUD', () => {
         action: 'Create',
         entity: 'Student',
         entityId: studentId,
-        meta: { yearGroup: 'Year 6' },
+        meta: { yearGroup: 'Year 6', invitationEmailStatus: 'Sent' },
       },
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -785,6 +910,60 @@ describe('student router CRUD', () => {
         meta: { count: 1, source: 'student.list' },
       },
     });
+  });
+
+  it('creates a Clerk student invitation and stores email delivery state', async () => {
+    const { db, userInvitations } = makeFakeDb();
+    const { caller, clerk, emailClient } = makeStudentCreateCaller(headUser, db);
+
+    await expect(createStudent(caller)).resolves.toEqual({
+      id: studentId,
+      invitationEmailStatus: 'Sent',
+    });
+
+    expect(clerk.createInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emailAddress: 'jane@example.com',
+        publicMetadata: { role: 'Student', tags: [] },
+        redirectUrl: 'https://portal.example.test/post-sign-in',
+        notify: false,
+      }),
+    );
+    expect(emailClient.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jane@example.com',
+      }),
+    );
+    expect(userInvitations).toEqual([
+      expect.objectContaining({
+        clerkInvitationId: 'clerk_invite_student',
+        role: 'Student',
+        emailEnc: 'enc:jane@example.com',
+        emailBidx: 'bidx:jane@example.com',
+        emailStatus: 'Sent',
+        emailMessageId: 'email_student_invite',
+      }),
+    ]);
+  });
+
+  it('keeps the student and marks the invitation failed when email delivery fails', async () => {
+    const { db, students, userInvitations } = makeFakeDb();
+    const { caller, emailClient } = makeStudentCreateCaller(headUser, db);
+    emailClient.send.mockRejectedValueOnce(new Error('Resend down'));
+
+    await expect(createStudent(caller)).resolves.toEqual({
+      id: studentId,
+      invitationEmailStatus: 'Failed',
+    });
+
+    expect(students).toHaveLength(1);
+    expect(userInvitations).toEqual([
+      expect.objectContaining({
+        status: 'Pending',
+        emailStatus: 'Failed',
+        emailMessageId: null,
+      }),
+    ]);
   });
 
   it('allows Supervisor reads but denies Supervisor writes', async () => {
@@ -853,10 +1032,11 @@ describe('student router CRUD', () => {
       await expect(
         caller.student.create({
           fullName: 'Default Year',
+          email: 'default-year@example.com',
           dob: new Date('2014-08-31T00:00:00.000Z'),
           enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
         }),
-      ).resolves.toEqual({ id: studentId });
+      ).resolves.toEqual({ id: studentId, invitationEmailStatus: 'Sent' });
 
       expect(students[0]?.yearGroup).toBe('Year 7');
       expect(db.auditLog.create).toHaveBeenCalledWith({
@@ -865,7 +1045,7 @@ describe('student router CRUD', () => {
           action: 'Create',
           entity: 'Student',
           entityId: studentId,
-          meta: { yearGroup: 'Year 7' },
+          meta: { yearGroup: 'Year 7', invitationEmailStatus: 'Sent' },
         },
       });
     } finally {

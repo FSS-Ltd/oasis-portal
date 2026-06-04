@@ -159,7 +159,7 @@ interface PastorInvoicePaymentNotificationRecipient {
   id: string;
   role: SessionUser['role'];
   fullNameEnc: string;
-  emailEnc: string;
+  emailEnc: string | null;
 }
 
 export interface SchoolFeeInvoiceLineDto {

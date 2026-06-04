@@ -150,7 +150,7 @@ function monthRange(month: string): { from: Date; to: Date } {
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   const decrypted = decrypt(value);
@@ -164,7 +164,7 @@ type RouterCtx = { db: AppContext['db']; user: SessionUser };
 
 function mapStaffUser(
   decrypt: AppContext['db']['$enc']['decrypt'],
-  user: { id: string; role: SessionUser['role']; fullNameEnc: string; emailEnc: string },
+  user: { id: string; role: SessionUser['role']; fullNameEnc: string; emailEnc: string | null },
 ) {
   return {
     id: user.id,
@@ -343,7 +343,7 @@ function mapShiftWithStaff(
       id: string;
       role: SessionUser['role'];
       fullNameEnc: string;
-      emailEnc: string;
+      emailEnc: string | null;
     } | null;
     yearGroupBand?: { name: string; colour: string } | null;
   },

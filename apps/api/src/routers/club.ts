@@ -68,7 +68,7 @@ interface ClubNotificationRecipient {
   childNameEncs: string[];
   role: string;
   userId: string;
-  userEmailEnc: string;
+  userEmailEnc: string | null;
   userNameEnc: string;
 }
 
@@ -513,7 +513,7 @@ function assertNoAvailabilityOverlap(windows: z.infer<typeof availabilityWindowI
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   const decrypted = decrypt(value);
@@ -644,7 +644,7 @@ function mapClubUser(
     id: string;
     role: SessionUser['role'];
     fullNameEnc: string;
-    emailEnc: string;
+    emailEnc: string | null;
   },
 ) {
   return {
@@ -670,7 +670,7 @@ function mapClubRotaShift(
       id: string;
       role: SessionUser['role'];
       fullNameEnc: string;
-      emailEnc: string;
+      emailEnc: string | null;
     } | null;
   },
 ) {

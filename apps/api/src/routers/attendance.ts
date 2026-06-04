@@ -253,7 +253,7 @@ function buildInsightsResult(
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   const decrypted = decrypt(value);

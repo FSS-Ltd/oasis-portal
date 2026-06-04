@@ -28,6 +28,7 @@ function parseStandardSchoolYear(value: string): StandardSchoolYear {
 
 const schema = z.object({
   fullName: z.string().trim().min(1, 'Enter the student name'),
+  email: z.string().trim().email('Enter a valid email address'),
   dob: z.string().min(1, 'Enter the date of birth'),
   yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
   enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
@@ -42,7 +43,11 @@ export function NewStudentForm() {
   const createStudent = api.student.create.useMutation({
     async onSuccess(result) {
       await utils.student.list.invalidate();
-      showSuccessToast('Student created.');
+      showSuccessToast(
+        result.invitationEmailStatus === 'Sent'
+          ? 'Student created and signup email sent.'
+          : 'Student created. Signup email could not be sent.',
+      );
       router.push(`/admin/students/${result.id}`);
     },
     onError(error) {
@@ -59,6 +64,7 @@ export function NewStudentForm() {
     resolver: zodResolver(schema),
     defaultValues: {
       fullName: '',
+      email: '',
       dob: '',
       yearGroup: '',
       enrolmentDate: new Date().toISOString().slice(0, 10),
@@ -85,6 +91,7 @@ export function NewStudentForm() {
         void handleSubmit((values) => {
           createStudent.mutate({
             fullName: values.fullName,
+            email: values.email,
             dob: new Date(values.dob),
             yearGroup: parseStandardSchoolYear(values.yearGroup),
             enrolmentDate: new Date(values.enrolmentDate),
@@ -97,6 +104,9 @@ export function NewStudentForm() {
         <div className="form-grid form-grid--two">
           <Field error={errors.fullName?.message} label="Full name">
             <TextInput autoComplete="name" {...register('fullName')} />
+          </Field>
+          <Field error={errors.email?.message} label="Email">
+            <TextInput autoComplete="email" type="email" {...register('email')} />
           </Field>
           <Field error={errors.yearGroup?.message} label="Year group">
             <SelectInput {...register('yearGroup')}>

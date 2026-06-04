@@ -6,14 +6,22 @@ import {
   canUseAllStudentSupervisorWorkflow,
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
+  type PermissionTag,
   standardSchoolYearSchema,
 } from '@oasis/domain';
+import {
+  createDefaultClerkInvitationClient,
+  type ClerkInvitationClient,
+  type ClerkInvitationResult,
+} from '../lib/clerk.js';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
+import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import {
   assertStudentPortalAccess,
   loadStudentPortalUsageStatus,
   recordStudentPortalUsageHeartbeat,
 } from '../lib/student-portal-access.js';
+import { addUtcDays, startOfUtcDay } from '../lib/utc-date.js';
 import { loadCurrentFaithCornerContent } from '../services/faith-corner.js';
 import { loadStudentNotificationPreview } from '../services/student-notifications.js';
 import type { AppContext } from '../context.js';
@@ -33,6 +41,8 @@ const STUDENT_READ_ROLES = [
 const DEFAULT_CURRENT_PACE_NUMBER = 1001;
 const DASHBOARD_ATTENDANCE_DAYS = 30;
 const STUDENT_WALLET_HISTORY_LIMIT = 30;
+const POST_SIGN_IN_PATH = '/post-sign-in';
+const STUDENT_INVITATION_TAGS: PermissionTag[] = [];
 
 const MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
 
@@ -65,6 +75,7 @@ const studentInclude = Prisma.validator<Prisma.StudentInclude>()({
 
 const createInput = z.object({
   fullName: z.string().trim().min(1),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
   dob: z.coerce.date(),
   yearGroup: standardSchoolYearSchema.optional(),
   enrolmentDate: z.coerce.date(),
@@ -117,8 +128,36 @@ const unassignSubjectInput = z.object({
 
 type StudentWithSubjects = Prisma.StudentGetPayload<{ include: typeof studentInclude }>;
 
+type StudentCreateEmailStatus = 'Sent' | 'Failed';
+type StudentInvitationWithUrl = ClerkInvitationResult & { url: string };
+
+export interface StudentRouterDeps {
+  appUrl?: string | undefined;
+  clerk?: ClerkInvitationClient | undefined;
+  emailClient?: EmailClient | undefined;
+}
+
 function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function buildPostSignInRedirectUrl(appUrl: string | undefined): string {
+  const trimmed = appUrl?.trim();
+  if (!trimmed) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'APP_URL is required to create invitation redirect URL',
+    });
+  }
+
+  try {
+    return new URL(POST_SIGN_IN_PATH, trimmed).toString();
+  } catch {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'APP_URL must be a valid absolute URL to create invitation redirect URL',
+    });
+  }
 }
 
 function firstNameFrom(fullName: string): string {
@@ -127,16 +166,6 @@ function firstNameFrom(fullName: string): string {
 
 function studentIconInitials(firstName: string): string {
   return firstName.slice(0, 2).toUpperCase();
-}
-
-function startOfUtcDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
-function addUtcDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
 }
 
 function ageBandFromDob(dob: string, asOf = new Date()): string {
@@ -179,6 +208,10 @@ function emptyAttendanceSummary(): AttendanceSummary {
 function attendanceRate(summary: AttendanceSummary): number | null {
   if (summary.total === 0) return null;
   return Math.round((summary.Present / summary.total) * 100);
+}
+
+function totalMeritBalance(balances: MeritBalances): number {
+  return balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved;
 }
 
 function decryptStudent(
@@ -328,7 +361,41 @@ async function loadShortcutDashboard(ctx: AppContext, studentId: string) {
   };
 }
 
-export const studentRouter = router({
+export function createStudentRouter(deps: StudentRouterDeps = {}) {
+  let cachedClerk: ClerkInvitationClient | null = deps.clerk ?? null;
+  let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
+
+  const getClerk = (): ClerkInvitationClient => {
+    if (cachedClerk) return cachedClerk;
+    cachedClerk = createDefaultClerkInvitationClient();
+    return cachedClerk;
+  };
+  const getEmailClient = (): EmailClient => {
+    if (cachedEmailClient) return cachedEmailClient;
+    cachedEmailClient = createResendEmailClient();
+    return cachedEmailClient;
+  };
+  const getInvitationRedirectUrl = (): string =>
+    buildPostSignInRedirectUrl(deps.appUrl ?? process.env.APP_URL);
+
+  const createStudentInvitation = async (email: string): Promise<StudentInvitationWithUrl> => {
+    const invitation = await getClerk().createInvitation({
+      emailAddress: email,
+      publicMetadata: { role: 'Student', tags: STUDENT_INVITATION_TAGS },
+      redirectUrl: getInvitationRedirectUrl(),
+      ignoreExisting: true,
+      notify: false,
+    });
+    if (!invitation.url) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'clerk invitation link missing',
+      });
+    }
+    return { ...invitation, url: invitation.url };
+  };
+
+  return router({
   me: roleProcedure('Student').query(async ({ ctx }) => {
     const ownStudent = await loadOwnActiveStudent(ctx);
     await assertStudentPortalAccess(ctx, { entity: 'student.me', studentId: ownStudent.id });
@@ -409,8 +476,7 @@ export const studentRouter = router({
       loadShortcutDashboard(ctx, ownStudent.id),
       loadCurrentFaithCornerContent(ctx),
     ]);
-    const totalMerits =
-      balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved;
+    const totalMerits = totalMeritBalance(balances);
 
     await auditDecryptPii(ctx, { count: 1, source: 'student.dashboard' }, ownStudent.id);
 
@@ -454,8 +520,7 @@ export const studentRouter = router({
         take: STUDENT_WALLET_HISTORY_LIMIT,
       }),
     ]);
-    const totalMerits =
-      balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved;
+    const totalMerits = totalMeritBalance(balances);
 
     return {
       studentId: ownStudent.id,
@@ -526,6 +591,29 @@ export const studentRouter = router({
 
   create: adminOperationsProcedure.input(createInput).mutation(async ({ ctx, input }) => {
     const yearGroup = input.yearGroup ?? deriveEnglandWalesSchoolYear(input.dob);
+    const emailBidx = ctx.db.$enc.blindIndex(input.email);
+    const [existingUser, existingPendingInvite] = await Promise.all([
+      ctx.db.user.findUnique({ where: { emailBidx }, select: { id: true } }),
+      ctx.db.userInvitation.findFirst({
+        where: { emailBidx, status: 'Pending' },
+        select: { id: true },
+      }),
+    ]);
+
+    if (existingUser) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'a user account already exists for this email',
+      });
+    }
+    if (existingPendingInvite) {
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message: 'a pending invitation already exists for this email',
+      });
+    }
+
+    const clerkInvitation = await createStudentInvitation(input.email);
     const student = await ctx.db.student.create({
       data: {
         fullNameEnc: ctx.db.$enc.encrypt(input.fullName),
@@ -535,7 +623,59 @@ export const studentRouter = router({
         yearGroup,
         enrolmentDate: input.enrolmentDate,
       },
+      select: { id: true },
     });
+
+    const storedInvitation = await ctx.db.userInvitation.create({
+      data: {
+        clerkInvitationId: clerkInvitation.id,
+        role: 'Student',
+        tags: STUDENT_INVITATION_TAGS,
+        emailEnc: ctx.db.$enc.encrypt(input.email),
+        emailBidx,
+        status: 'Pending',
+        emailStatus: 'NotSent',
+        invitedById: ctx.user.id,
+      },
+      select: { id: true },
+    });
+
+    let invitationEmailStatus: StudentCreateEmailStatus = 'Sent';
+    let emailMessageId: string | null = null;
+    try {
+      const email = buildUserInviteEmail({
+        to: input.email,
+        role: 'Student',
+        inviteUrl: clerkInvitation.url,
+      });
+      const emailResult = await getEmailClient().send(email);
+      emailMessageId = emailResult.id;
+      await ctx.db.userInvitation.update({
+        where: { id: storedInvitation.id },
+        data: { emailStatus: 'Sent', emailMessageId },
+        select: { id: true },
+      });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'Email',
+          entityId: emailMessageId,
+          meta: {
+            invitationId: clerkInvitation.id,
+            subject: email.subject,
+            source: 'student.create',
+          },
+        },
+      });
+    } catch {
+      invitationEmailStatus = 'Failed';
+      await ctx.db.userInvitation.update({
+        where: { id: storedInvitation.id },
+        data: { emailStatus: 'Failed', emailMessageId: null },
+        select: { id: true },
+      });
+    }
 
     await ctx.db.auditLog.create({
       data: {
@@ -543,11 +683,25 @@ export const studentRouter = router({
         action: 'Create',
         entity: 'Student',
         entityId: student.id,
-        meta: { yearGroup },
+        meta: { yearGroup, invitationEmailStatus },
+      },
+    });
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Create',
+        entity: 'UserInvitation',
+        entityId: storedInvitation.id,
+        meta: {
+          role: 'Student',
+          invitationStatus: clerkInvitation.status,
+          emailStatus: invitationEmailStatus,
+          source: 'student.create',
+        },
       },
     });
 
-    return { id: student.id };
+    return { id: student.id, invitationEmailStatus };
   }),
 
   update: adminOperationsProcedure.input(updateInput).mutation(async ({ ctx, input }) => {
@@ -734,4 +888,7 @@ export const studentRouter = router({
         { actorUserId: ctx.user.id, studentId: input.id },
       ),
     ),
-});
+  });
+}
+
+export const studentRouter = createStudentRouter();

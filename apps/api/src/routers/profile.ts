@@ -93,7 +93,7 @@ type SpouseInvitationRow = Prisma.UserInvitationGetPayload<{
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   return decryptRequiredText({ decrypt }, value, entity);
@@ -152,7 +152,7 @@ async function userEmailUpdateData(
         findUnique: (args: Prisma.UserFindUniqueArgs) => Promise<{
           id: string;
           clerkId: string;
-          emailEnc: string;
+          emailEnc: string | null;
         } | null>;
       };
     };

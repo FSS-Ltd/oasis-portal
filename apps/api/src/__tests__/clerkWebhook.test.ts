@@ -113,6 +113,29 @@ describe('mapClerkUserToUpsertInput', () => {
     expect(mapClerkUserToUpsertInput(event.data).fullName).toBe('Jean@Example.com');
   });
 
+  it('maps username-only Student users without requiring an email address', () => {
+    const event = {
+      ...userCreatedEvent,
+      data: {
+        ...userCreatedEvent.data,
+        first_name: null,
+        last_name: null,
+        username: 'jamie.learner',
+        primary_email_address_id: null,
+        email_addresses: [],
+        public_metadata: { role: 'Student', tags: [] },
+      },
+    } as unknown as WebhookEvent;
+
+    expect(mapClerkUserToUpsertInput(event.data)).toMatchObject({
+      clerkUserId: 'user_123',
+      fullName: 'jamie.learner',
+      email: null,
+      role: 'Student',
+      tags: [],
+    });
+  });
+
   it('honors pre-stamped role/tags from public_metadata', () => {
     const event = {
       ...userCreatedEvent,
@@ -201,7 +224,7 @@ describe('createPrismaClerkUserStore', () => {
       if (args.where.emailBidx !== undefined) return Promise.resolve(existingByEmail);
       return Promise.resolve(null);
     });
-    const create = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn().mockResolvedValue({ id: 'created_user' });
     const update = vi.fn().mockResolvedValue(undefined);
     const findMany = vi.fn<FakeInvitationFindMany>().mockResolvedValue([]);
     const updateMany = vi.fn<FakeInvitationUpdateMany>().mockResolvedValue({ count: 1 });
@@ -278,6 +301,39 @@ describe('createPrismaClerkUserStore', () => {
     expect(updateManyArgs?.data.status).toBe('Accepted');
     expect(updateManyArgs?.data.acceptedUserId).toBe('cuid_new');
     expect(updateManyArgs?.data.acceptedAt).toBeInstanceOf(Date);
+  });
+
+  it('creates username-only Student users without invitation lookup', async () => {
+    const { db, findUnique, create, findMany, updateMany } = makeDb(null);
+    create.mockResolvedValue({ id: 'cuid_student' });
+    const store = createPrismaClerkUserStore(db);
+
+    await store.upsertUser({
+      clerkUserId: 'user_student',
+      fullName: 'jamie.learner',
+      email: null,
+      phone: null,
+      role: 'Student',
+      tags: [],
+    });
+
+    expect(findUnique).toHaveBeenCalledWith({ where: { clerkId: 'user_student' } });
+    expect(findUnique).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        clerkId: 'user_student',
+        role: 'Student',
+        tags: [],
+        fullNameEnc: 'enc:jamie.learner',
+        emailEnc: null,
+        emailBidx: null,
+        phoneEnc: null,
+        active: true,
+      },
+      select: { id: true },
+    });
+    expect(findMany).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('uses a pending invitation role when Clerk omits invitation metadata on first sync', async () => {
