@@ -710,6 +710,188 @@
   white-space: nowrap;
 }
 
+.student-pace-page {
+  gap: 16px;
+}
+
+.student-pace-hero__meta {
+  display: grid;
+  min-width: 148px;
+  place-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  text-align: center;
+}
+
+.student-pace-hero__meta small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-pace-hero__meta strong {
+  font-size: 1rem;
+}
+
+.student-pace-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-pace-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-pace-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-pace-card__head p,
+.student-pace-card__head h2,
+.student-pace-milestones p {
+  margin: 0;
+}
+
+.student-pace-card__head p {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-pace-card__head h2 {
+  margin-top: 3px;
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.student-pace-current {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.student-pace-current span {
+  display: grid;
+  gap: 3px;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+.student-pace-current small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.student-pace-current strong {
+  color: var(--oasis-navy);
+  font-size: 1.25rem;
+  line-height: 1.1;
+}
+
+.student-pace-score--success {
+  color: var(--oasis-success) !important;
+}
+
+.student-pace-score--warning {
+  color: var(--oasis-warning) !important;
+}
+
+.student-pace-score--danger {
+  color: var(--oasis-danger) !important;
+}
+
+.student-pace-score--muted {
+  color: var(--oasis-text-muted) !important;
+}
+
+.student-pace-progress {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--oasis-bg);
+}
+
+.student-pace-progress div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--oasis-blue), var(--oasis-success));
+}
+
+.student-pace-progress__meta,
+.student-pace-milestone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.student-pace-milestones {
+  display: grid;
+  gap: 8px;
+}
+
+.student-pace-milestones__title,
+.student-pace-milestone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-pace-milestones__title {
+  color: var(--oasis-navy);
+  font-size: 0.84rem;
+}
+
+.student-pace-milestones p {
+  color: var(--oasis-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.student-pace-milestone {
+  justify-content: flex-start;
+  padding: 8px 0;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.student-pace-milestone strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+}
+
+.student-pace-milestone small {
+  margin-left: auto;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
 .student-placeholder-page__header {
   display: grid;
   gap: 4px;
@@ -801,6 +983,7 @@
   .student-shell-grid,
   .student-dashboard-grid,
   .student-wallet-grid,
+  .student-pace-grid,
   .student-shop-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -843,6 +1026,7 @@
   .student-shell-grid,
   .student-dashboard-grid,
   .student-wallet-grid,
+  .student-pace-grid,
   .student-shop-layout {
     grid-template-columns: 1fr;
   }

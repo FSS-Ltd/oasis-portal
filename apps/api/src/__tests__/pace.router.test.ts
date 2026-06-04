@@ -742,10 +742,13 @@ describe('pace.forStudent RBAC', () => {
 
   it('allows a linked Student to read their own PACE progress', async () => {
     const { caller } = makeCaller(studentUser);
-    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+    const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
+
+    expect(result).toMatchObject({
       studentId: STUDENT_ID,
-      studentName: 'Jane Learner',
+      studentName: 'Jane',
     });
+    expect(JSON.stringify(result)).not.toContain('Learner');
   });
 
   it('rejects Student reads for another student', async () => {
@@ -763,6 +766,23 @@ describe('pace.forStudent RBAC', () => {
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('returns an empty subject list for a linked Student with no assigned subjects', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      ...defaultStudent,
+      subjects: [],
+    });
+    const { caller } = makeCaller(studentUser, db);
+
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).resolves.toMatchObject({
+      studentId: STUDENT_ID,
+      studentName: 'Jane',
+      subjects: [],
+    });
+    expect(db.paceRecord.findMany).not.toHaveBeenCalled();
+    expect(db.paceProgress.findMany).not.toHaveBeenCalled();
   });
 
   it('allows ClubsAdmin users to read assigned-band PACE workflow', async () => {
@@ -1026,6 +1046,13 @@ describe('pace.forStudent read model', () => {
         currentPaceDays: 0.6,
         currentFinalTestAttempts: 0,
         completedPaceCount: 1,
+        completedPaces: [
+          {
+            id: 'progress_eng_done',
+            paceNumber: 1000,
+            completedAt: new Date('2026-04-28T10:00:00.000Z'),
+          },
+        ],
         averagePaceCompletionDays: 8,
         selfTestPaceNumbers: [1001],
         latestSelfTest: {
