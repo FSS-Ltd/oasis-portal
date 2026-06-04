@@ -13,6 +13,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
+import { effectiveStudentPortalLock } from '@oasis/domain/studentPortalSettings';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Avatar } from '@/components/ui/avatar';
@@ -671,15 +672,54 @@ function ChildIconPanel({
 function AccessPanel({
   child,
   disabled,
-  onSaved,
 }: {
   child: LinkedChildSettings;
   disabled: boolean;
-  onSaved: (child: LinkedChildSettings) => void;
 }) {
   const utils = api.useUtils();
   const [lockReason, setLockReason] = useState(child.parentLockReason ?? '');
   const [success, setSuccess] = useState<string | null>(null);
+
+  function patchCachedChild(
+    studentId: string,
+    patcher: (current: LinkedChildSettings) => LinkedChildSettings,
+  ): void {
+    utils.studentSettings.listLinkedChildren.setData(undefined, (current) =>
+      current?.map((currentChild) =>
+        currentChild.studentId === studentId ? patcher(currentChild) : currentChild,
+      ),
+    );
+  }
+
+  function cachedChild(studentId: string): LinkedChildSettings | undefined {
+    return utils.studentSettings.listLinkedChildren
+      .getData()
+      ?.find((currentChild) => currentChild.studentId === studentId);
+  }
+
+  function optimisticAccessState(
+    current: LinkedChildSettings,
+    patch: {
+      parentAccountLocked?: boolean;
+      parentLockReason?: string | null;
+      parentMeritShopBlocked?: boolean;
+    },
+  ): LinkedChildSettings {
+    const parentAccountLocked = patch.parentAccountLocked ?? current.parentAccountLocked;
+
+    return {
+      ...current,
+      parentAccountLocked,
+      parentLockReason:
+        patch.parentLockReason === undefined ? current.parentLockReason : patch.parentLockReason,
+      parentMeritShopBlocked:
+        patch.parentMeritShopBlocked ?? current.parentMeritShopBlocked,
+      effectiveLock: effectiveStudentPortalLock({
+        parentAccountLocked,
+        headAcademicLocked: current.headAcademicLocked,
+      }),
+    };
+  }
 
   useEffect(() => {
     setLockReason(child.parentLockReason ?? '');
@@ -687,25 +727,68 @@ function AccessPanel({
   }, [child.parentLockReason, child.studentId]);
 
   const setMeritShopBlock = api.studentSettings.setMeritShopBlock.useMutation({
-    onError(error) {
+    async onMutate(input) {
+      await utils.studentSettings.listLinkedChildren.cancel();
+      const previousChild = cachedChild(input.studentId);
+      patchCachedChild(input.studentId, (current) =>
+        optimisticAccessState(current, { parentMeritShopBlocked: input.blocked }),
+      );
+      return { previousChild };
+    },
+    onError(error, _input, context) {
+      const previousChild = context?.previousChild;
+      if (previousChild) {
+        patchCachedChild(previousChild.studentId, (current) =>
+          optimisticAccessState(current, {
+            parentMeritShopBlocked: previousChild.parentMeritShopBlocked,
+          }),
+        );
+      }
       showErrorToast(error, 'Merit Shop access could not be updated.');
     },
-    async onSuccess(updated) {
-      onSaved(updated);
+    onSuccess(updated) {
+      patchCachedChild(updated.studentId, (current) =>
+        optimisticAccessState(current, {
+          parentMeritShopBlocked: updated.parentMeritShopBlocked,
+        }),
+      );
       setSuccess('Merit Shop access updated.');
       showSuccessToast('Merit Shop access updated.');
-      await utils.studentSettings.listLinkedChildren.invalidate();
     },
   });
   const setParentLock = api.studentSettings.setParentLock.useMutation({
-    onError(error) {
+    async onMutate(input) {
+      await utils.studentSettings.listLinkedChildren.cancel();
+      const previousChild = cachedChild(input.studentId);
+      patchCachedChild(input.studentId, (current) =>
+        optimisticAccessState(current, {
+          parentAccountLocked: input.locked,
+          parentLockReason: input.locked ? input.reason ?? null : null,
+        }),
+      );
+      return { previousChild };
+    },
+    onError(error, _input, context) {
+      const previousChild = context?.previousChild;
+      if (previousChild) {
+        patchCachedChild(previousChild.studentId, (current) =>
+          optimisticAccessState(current, {
+            parentAccountLocked: previousChild.parentAccountLocked,
+            parentLockReason: previousChild.parentLockReason,
+          }),
+        );
+      }
       showErrorToast(error, 'Account lock could not be updated.');
     },
-    async onSuccess(updated) {
-      onSaved(updated);
+    onSuccess(updated) {
+      patchCachedChild(updated.studentId, (current) =>
+        optimisticAccessState(current, {
+          parentAccountLocked: updated.parentAccountLocked,
+          parentLockReason: updated.parentLockReason,
+        }),
+      );
       setSuccess(updated.parentAccountLocked ? 'Account locked.' : 'Account unlocked.');
       showSuccessToast(updated.parentAccountLocked ? 'Account locked.' : 'Account unlocked.');
-      await utils.studentSettings.listLinkedChildren.invalidate();
     },
   });
 
@@ -916,14 +999,13 @@ export function ParentStudentSettingsClient() {
               <p>
                 {selectedChild.parentMeritShopBlocked
                   ? `${firstName(selectedChild.fullName)} cannot use the Merit Shop.`
-                  : `${firstName(selectedChild.fullName)} can use the Merit Shop when the account is not locked.`}
+                  : `${firstName(selectedChild.fullName)} is not blocked by this Merit Shop setting.`}
               </p>
             </div>
           </Panel>
           <AccessPanel
             child={selectedChild}
             disabled={controlsDisabled}
-            onSaved={updateCachedChild}
           />
           {controlsDisabled ? (
             <Panel body className="parent-settings-panel parent-settings-denied">
