@@ -569,7 +569,7 @@
 
 .landing-roles {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
 }
 
@@ -610,6 +610,11 @@
 .landing-role-tag--staff {
   background: rgba(27, 43, 94, 0.08);
   color: var(--landing-navy);
+}
+
+.landing-role-tag--student {
+  background: rgba(14, 116, 144, 0.08);
+  color: #0e7490;
 }
 
 .landing-role-tag--leads {
@@ -669,6 +674,10 @@
 
 .landing-role-card--staff .landing-role-list__tick {
   background: var(--landing-navy);
+}
+
+.landing-role-card--student .landing-role-list__tick {
+  background: #0e7490;
 }
 
 .landing-role-card--leads .landing-role-list__tick {
@@ -1081,6 +1090,12 @@
   font-size: 11.5px;
   line-height: 1.6;
   text-align: right;
+}
+
+@media (max-width: 1180px) {
+  .landing-roles {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 980px) {
