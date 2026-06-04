@@ -77,9 +77,13 @@ interface StoredStudentPortalUsageMinute {
 }
 
 interface StoredMeritLedger {
+  id?: string;
   studentId: string;
   account: 'Spend' | 'Saving' | 'Investment' | 'ShopReserved';
   delta: number;
+  reason?: string;
+  relatedEntryId?: string;
+  createdAt?: Date;
 }
 
 interface StoredPaceProgress {
@@ -139,7 +143,7 @@ interface FakeDb {
     count: ReturnType<typeof vi.fn>;
     upsert: ReturnType<typeof vi.fn>;
   };
-  meritLedger: { aggregate: ReturnType<typeof vi.fn> };
+  meritLedger: { aggregate: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   paceProgress: { count: ReturnType<typeof vi.fn> };
   attendance: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { count: ReturnType<typeof vi.fn> };
@@ -421,6 +425,28 @@ function makeFakeDb(
                   .reduce((sum, row) => sum + row.delta, 0) || null,
             },
           }),
+      ),
+      findMany: vi.fn(
+        ({
+          take,
+          where,
+        }: {
+          where: { studentId: string };
+          select: { id: true; createdAt: true; delta: true };
+          orderBy: { createdAt: 'desc' };
+          take: number;
+        }) =>
+          Promise.resolve(
+            meritLedger
+              .filter((row) => row.studentId === where.studentId)
+              .map((row, index) => ({
+                id: row.id ?? `ledger_${String(index)}`,
+                createdAt: row.createdAt ?? new Date('2026-04-27T10:00:00.000Z'),
+                delta: row.delta,
+              }))
+              .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+              .slice(0, take),
+          ),
       ),
     },
     paceProgress: {
@@ -971,6 +997,102 @@ describe('student.dashboard', () => {
         activeClubCount: 0,
         activeShopItemCount: 0,
       },
+    });
+  });
+});
+
+describe('student.wallet', () => {
+  async function linkCreatedStudent(db: FakeDb, students: StoredStudent[]) {
+    await createStudent(makeCaller(headUser, db));
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.userId = studentUser.id;
+  }
+
+  it('returns student-safe wallet balances and date/amount history only', async () => {
+    const { db, students } = makeFakeDb({
+      meritLedger: [
+        {
+          id: 'ledger_merit',
+          studentId,
+          account: 'Spend',
+          delta: 25,
+          reason: 'Scripture Memory with supervisor private note',
+          relatedEntryId: 'behaviour_sensitive',
+          createdAt: new Date('2026-06-01T10:00:00.000Z'),
+        },
+        {
+          id: 'ledger_demerit',
+          studentId,
+          account: 'Spend',
+          delta: -5,
+          reason: 'Demerit: conduct',
+          relatedEntryId: 'behaviour_demerit',
+          createdAt: new Date('2026-06-02T10:00:00.000Z'),
+        },
+        {
+          id: 'ledger_saving',
+          studentId,
+          account: 'Saving',
+          delta: 10,
+          reason: 'transfer:Spend:to:Saving',
+          createdAt: new Date('2026-06-03T10:00:00.000Z'),
+        },
+      ],
+    });
+    await linkCreatedStudent(db, students);
+
+    const wallet = await makeCaller(studentUser, db).student.wallet();
+
+    expect(wallet).toEqual({
+      studentId,
+      balances: {
+        Spend: 20,
+        Saving: 10,
+        Investment: 0,
+        ShopReserved: 0,
+      },
+      totalMerits: 30,
+      history: [
+        {
+          id: 'ledger_saving',
+          createdAt: new Date('2026-06-03T10:00:00.000Z'),
+          amount: 10,
+        },
+        {
+          id: 'ledger_demerit',
+          createdAt: new Date('2026-06-02T10:00:00.000Z'),
+          amount: -5,
+        },
+        {
+          id: 'ledger_merit',
+          createdAt: new Date('2026-06-01T10:00:00.000Z'),
+          amount: 25,
+        },
+      ],
+    });
+    const historyJson = JSON.stringify(wallet.history);
+    expect(historyJson).not.toContain('Scripture Memory');
+    expect(historyJson).not.toContain('Demerit');
+    expect(historyJson).not.toContain('transfer:Spend');
+    expect(historyJson).not.toContain('behaviour_sensitive');
+    expect(historyJson).not.toContain('Spend');
+    expect(historyJson).not.toContain('Saving');
+  });
+
+  it('returns empty wallet history when no ledger activity exists', async () => {
+    const { db, students } = makeFakeDb();
+    await linkCreatedStudent(db, students);
+
+    await expect(makeCaller(studentUser, db).student.wallet()).resolves.toMatchObject({
+      balances: {
+        Spend: 0,
+        Saving: 0,
+        Investment: 0,
+        ShopReserved: 0,
+      },
+      totalMerits: 0,
+      history: [],
     });
   });
 });

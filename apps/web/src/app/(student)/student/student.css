@@ -448,6 +448,159 @@
   padding: 12px 14px;
 }
 
+.student-wallet-page {
+  gap: 16px;
+}
+
+.student-wallet-hero {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid rgba(91, 144, 197, 0.26);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-wallet-hero p,
+.student-wallet-hero h1,
+.student-wallet-hero span,
+.student-wallet-total small,
+.student-wallet-total strong {
+  margin: 0;
+}
+
+.student-wallet-hero p {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.student-wallet-hero h1 {
+  margin-top: 4px;
+  color: var(--oasis-navy);
+  font-size: clamp(1.55rem, 2.6vw, 2.05rem);
+  line-height: 1.05;
+}
+
+.student-wallet-hero span {
+  display: block;
+  margin-top: 6px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.student-wallet-total {
+  display: grid;
+  min-width: 148px;
+  place-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  text-align: center;
+}
+
+.student-wallet-total small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-wallet-total strong {
+  font-size: 1.65rem;
+  line-height: 1.05;
+}
+
+.student-wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-wallet-balance-card {
+  display: grid;
+  gap: 5px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-wallet-balance-card small,
+.student-wallet-balance-card span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.student-wallet-balance-card small {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-wallet-balance-card strong {
+  color: var(--oasis-navy);
+  font-size: 1.35rem;
+  line-height: 1.05;
+}
+
+.student-wallet-history {
+  display: grid;
+  gap: 10px;
+}
+
+.student-wallet-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  padding: 11px 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.student-wallet-row > span {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.student-wallet-row.is-positive > span {
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+
+.student-wallet-row.is-negative > span {
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.student-wallet-row time {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.student-wallet-row strong {
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
 .student-placeholder-page__header {
   display: grid;
   gap: 4px;
@@ -537,7 +690,8 @@
 
 @media (max-width: 1080px) {
   .student-shell-grid,
-  .student-dashboard-grid {
+  .student-dashboard-grid,
+  .student-wallet-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -566,6 +720,10 @@
     padding: 18px;
   }
 
+  .student-wallet-hero {
+    flex-direction: column;
+  }
+
   .student-hero__meta {
     flex: none;
     justify-items: start;
@@ -573,7 +731,8 @@
   }
 
   .student-shell-grid,
-  .student-dashboard-grid {
+  .student-dashboard-grid,
+  .student-wallet-grid {
     grid-template-columns: 1fr;
   }
 
