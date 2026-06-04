@@ -28,7 +28,7 @@ export function decryptOptionalText(
 
 export function decryptRequiredText(
   codec: Pick<EncryptionCodec, 'decrypt'>,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   const decrypted = codec.decrypt(value);

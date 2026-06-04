@@ -184,7 +184,7 @@ function assertThreadAccess<T extends ThreadAccessRow>(user: SessionUser, thread
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   label: string,
 ): string {
   return decryptRequiredText({ decrypt }, value, label);

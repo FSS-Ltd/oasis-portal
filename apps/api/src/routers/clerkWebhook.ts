@@ -32,7 +32,7 @@ interface ClerkUserPayload {
 export interface ClerkUserUpsertInput {
   clerkUserId: string;
   fullName: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   /** Resolved from publicMetadata; applied only on first-time create. */
   role: Role;
@@ -115,14 +115,10 @@ function asClerkUserPayload(data: WebhookEvent['data']): ClerkUserPayload {
   };
 }
 
-function primaryEmail(user: ClerkUserPayload): string {
+function primaryEmail(user: ClerkUserPayload): string | null {
   const primary = user.email_addresses.find((email) => email.id === user.primary_email_address_id);
   const fallback = user.email_addresses[0];
-  const email = primary?.email_address ?? fallback?.email_address;
-  if (!email) {
-    throw new Error(`Clerk user ${user.id} has no email address`);
-  }
-  return email;
+  return primary?.email_address ?? fallback?.email_address ?? null;
 }
 
 function primaryPhone(user: ClerkUserPayload): string | null {
@@ -130,9 +126,9 @@ function primaryPhone(user: ClerkUserPayload): string | null {
   return primary?.phone_number ?? user.phone_numbers[0]?.phone_number ?? null;
 }
 
-function displayName(user: ClerkUserPayload, email: string): string {
+function displayName(user: ClerkUserPayload, fallback: string): string {
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
-  return name || user.username || email;
+  return name || user.username || fallback;
 }
 
 export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUserUpsertInput {
@@ -144,7 +140,7 @@ export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUser
   });
   return {
     clerkUserId: user.id,
-    fullName: displayName(user, email),
+    fullName: displayName(user, email ?? user.id),
     email,
     phone: primaryPhone(user),
     role: metadata.role,
@@ -243,9 +239,9 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
   return {
     async upsertUser(input) {
       const fullNameEnc = db.$enc.encrypt(input.fullName);
-      const emailEnc = db.$enc.encrypt(input.email);
+      const emailEnc = input.email ? db.$enc.encrypt(input.email) : null;
       const phoneEnc = db.$enc.encrypt(input.phone);
-      const emailBidx = db.$enc.blindIndex(input.email);
+      const emailBidx = input.email ? db.$enc.blindIndex(input.email) : null;
 
       // Find-then-branch: role/tags are admin-managed, so re-syncs from
       // user.updated must not overwrite them with stale Clerk metadata.
@@ -262,11 +258,13 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           },
           select: { id: true },
         });
-        await acceptPendingInvitations(emailBidx, updated.id);
+        if (emailBidx) await acceptPendingInvitations(emailBidx, updated.id);
         return;
       }
 
-      const existingByEmail = await db.user.findUnique({ where: { emailBidx } });
+      const existingByEmail = emailBidx
+        ? await db.user.findUnique({ where: { emailBidx } })
+        : null;
       if (existingByEmail) {
         const updated = await db.user.update({
           where: { id: existingByEmail.id },
@@ -280,11 +278,11 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
           },
           select: { id: true },
         });
-        await acceptPendingInvitations(emailBidx, updated.id);
+        if (emailBidx) await acceptPendingInvitations(emailBidx, updated.id);
         return;
       }
 
-      const pendingInvitations = await loadPendingInvitations(emailBidx);
+      const pendingInvitations = emailBidx ? await loadPendingInvitations(emailBidx) : [];
       const createMetadata = resolveCreateMetadata(input, pendingInvitations);
       const created = await db.user.create({
         data: {
@@ -299,7 +297,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
         },
         select: { id: true },
       });
-      await acceptPendingInvitations(emailBidx, created.id, pendingInvitations);
+      if (emailBidx) await acceptPendingInvitations(emailBidx, created.id, pendingInvitations);
     },
     async deactivateUser(clerkUserId) {
       await db.user.update({

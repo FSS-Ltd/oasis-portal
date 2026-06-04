@@ -54,7 +54,7 @@ interface ReportNotificationGuardian {
     id: string;
     role: SessionUser['role'];
     fullNameEnc: string;
-    emailEnc: string;
+    emailEnc: string | null;
   };
 }
 
@@ -145,7 +145,7 @@ const compiledReportSchema = z.object({
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   return decryptRequiredText({ decrypt }, value, entity);

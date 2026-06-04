@@ -60,7 +60,7 @@ interface BehaviourNotificationGuardian {
     id: string;
     role: SessionUser['role'];
     fullNameEnc: string;
-    emailEnc: string;
+    emailEnc: string | null;
   };
 }
 
@@ -214,7 +214,7 @@ async function denyOutOfDailyScope(
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
-  value: string,
+  value: string | null | undefined,
   entity: string,
 ): string {
   const decrypted = decrypt(value);

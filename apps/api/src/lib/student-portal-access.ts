@@ -10,6 +10,14 @@ import {
   type StudentPortalLockSource,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
+import {
+  addUtcDays,
+  addUtcMinutes,
+  startOfUtcDay,
+  startOfUtcHour,
+  startOfUtcMinute,
+  startOfUtcWeek,
+} from './utc-date.js';
 
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
 
@@ -103,51 +111,14 @@ function lockDetails(settings: StudentPortalPolicyRow | null): StudentPortalLock
   };
 }
 
-function startOfUtcMinute(date: Date): Date {
-  return new Date(
-    Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate(),
-      date.getUTCHours(),
-      date.getUTCMinutes(),
-    ),
-  );
-}
-
-function startOfUtcHour(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours()),
-  );
-}
-
-function startOfUtcDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-}
-
-function startOfUtcWeek(date: Date): Date {
-  const start = startOfUtcDay(date);
-  const daysSinceMonday = (start.getUTCDay() + 6) % 7;
-  start.setUTCDate(start.getUTCDate() - daysSinceMonday);
-  return start;
-}
-
-function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000);
-}
-
-function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 24 * 60 * 60_000);
-}
-
 function usageWindows(now: Date): StudentPortalUsageWindows {
   const hourlyStart = startOfUtcHour(now);
   const dailyStart = startOfUtcDay(now);
   const weeklyStart = startOfUtcWeek(now);
   return {
-    hourly: { start: hourlyStart, end: addMinutes(hourlyStart, 60) },
-    daily: { start: dailyStart, end: addDays(dailyStart, 1) },
-    weekly: { start: weeklyStart, end: addDays(weeklyStart, 7) },
+    hourly: { start: hourlyStart, end: addUtcMinutes(hourlyStart, 60) },
+    daily: { start: dailyStart, end: addUtcDays(dailyStart, 1) },
+    weekly: { start: weeklyStart, end: addUtcDays(weeklyStart, 7) },
   };
 }
 

@@ -13,12 +13,7 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 
 type Report = RouterOutputs['studentSettings']['adminReadinessReport'];
 type ReportRow = Report['rows'][number];
-type PendingRegistration = Report['pendingRegistrations'][number];
 type ReportStatus = 'All' | 'Ready' | 'Exceptions';
-
-function formatDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value));
-}
 
 function ratio(value: number | null): string {
   return value === null ? 'No records' : `${String(value)}%`;
@@ -54,7 +49,6 @@ function StudentPortalSummary({ report }: { report: Report }) {
     ['Locked', report.summary.lockedAccounts],
     ['Shop blocked', report.summary.shopBlockedAccounts],
     ['Usage limited', report.summary.usageLimitedAccounts],
-    ['Pending requests', report.summary.pendingRegistrations],
   ] as const;
 
   return (
@@ -169,37 +163,6 @@ function StudentPortalTable({ rows }: { rows: ReportRow[] }) {
   );
 }
 
-function PendingRegistrations({ rows }: { rows: PendingRegistration[] }) {
-  return (
-    <section className="panel panel__body" aria-labelledby="student-portal-pending-title">
-      <div className="panel__header">
-        <div>
-          <p className="eyebrow">Launch queue</p>
-          <h2 id="student-portal-pending-title">Pending student requests</h2>
-        </div>
-        <span className="badge badge--blue">{String(rows.length)}</span>
-      </div>
-      {rows.length > 0 ? (
-        <div className="student-registration-code-list">
-          {rows.map((row) => (
-            <div className="student-registration-code-row" key={row.id}>
-              <div>
-                <strong>{row.fullName}</strong>
-                <span>
-                  {row.yearGroup} · {formatDate(row.submittedAt)}
-                </span>
-              </div>
-              <span className="badge badge--amber">{row.status}</span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="No pending student requests" />
-      )}
-    </section>
-  );
-}
-
 export function StudentPortalReadinessClient() {
   const [status, setStatus] = useState<ReportStatus>('All');
   const [ageBand, setAgeBand] = useState<StandardSchoolYear | 'All'>('All');
@@ -280,7 +243,6 @@ export function StudentPortalReadinessClient() {
             </div>
             <StudentPortalTable rows={report.data.rows} />
           </section>
-          <PendingRegistrations rows={report.data.pendingRegistrations} />
         </>
       ) : null}
     </div>
