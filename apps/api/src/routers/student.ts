@@ -30,6 +30,7 @@ const STUDENT_READ_ROLES = [
 
 const DEFAULT_CURRENT_PACE_NUMBER = 1001;
 const DASHBOARD_ATTENDANCE_DAYS = 30;
+const STUDENT_WALLET_HISTORY_LIMIT = 30;
 
 const MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
 
@@ -441,6 +442,38 @@ export const studentRouter = router({
         body: 'A weekly encouragement and Scripture memory prompt will appear here.',
         ready: false,
       },
+    };
+  }),
+
+  wallet: roleProcedure('Student').query(async ({ ctx }) => {
+    const ownStudent = await loadOwnActiveStudent(ctx);
+    await assertStudentPortalAccess(ctx, { entity: 'student.wallet', studentId: ownStudent.id });
+
+    const [balances, history] = await Promise.all([
+      loadMeritBalances(ctx, ownStudent.id),
+      ctx.db.meritLedger.findMany({
+        where: { studentId: ownStudent.id },
+        select: {
+          id: true,
+          createdAt: true,
+          delta: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: STUDENT_WALLET_HISTORY_LIMIT,
+      }),
+    ]);
+    const totalMerits =
+      balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved;
+
+    return {
+      studentId: ownStudent.id,
+      balances,
+      totalMerits,
+      history: history.map((entry) => ({
+        id: entry.id,
+        createdAt: entry.createdAt,
+        amount: entry.delta,
+      })),
     };
   }),
 
