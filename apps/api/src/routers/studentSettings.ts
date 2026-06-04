@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createClerkClient } from '@clerk/backend';
+import { createClerkClient, type ClerkClient } from '@clerk/backend';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
@@ -25,6 +25,7 @@ export interface StudentCredentialAdapter {
     password: string;
     username: string;
   }): Promise<{ clerkUserId: string }>;
+  deleteStudentAccount?(input: { clerkUserId: string }): Promise<void>;
   setPassword(input: { clerkUserId: string; password: string }): Promise<void>;
 }
 
@@ -57,10 +58,10 @@ const updateChildIconPhotoInput = studentIdInput.extend({
 const requiredLoginHandleInput = z
   .string()
   .trim()
-  .min(3)
-  .max(80)
-  .regex(/^[a-z0-9][a-z0-9._-]*$/iu, {
-    message: 'login handle can use letters, numbers, dots, underscores, and hyphens',
+  .min(4, { message: 'login handle must be at least 4 characters' })
+  .max(64, { message: 'login handle must be at most 64 characters' })
+  .regex(/^[a-z0-9]+$/iu, {
+    message: 'login handle can use letters and numbers only',
   });
 const loginHandleInput = studentIdInput.extend({
   loginHandle: z.string().trim().min(1).max(80).nullable(),
@@ -214,7 +215,7 @@ const childIconPhotoMimeByExtension = {
   '.webp': 'image/webp',
 } as const satisfies Record<AllowedChildIconPhotoExtension, string>;
 
-function createDefaultStudentCredentialAdapter(): StudentCredentialAdapter {
+export function createDefaultStudentCredentialAdapter(): StudentCredentialAdapter {
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     throw new Error(
@@ -222,19 +223,6 @@ function createDefaultStudentCredentialAdapter(): StudentCredentialAdapter {
     );
   }
   const client = createClerkClient({ secretKey });
-  const users = client.users as unknown as {
-    createUser(input: {
-      firstName?: string;
-      lastName?: string;
-      password: string;
-      publicMetadata: { role: 'Student'; tags: [] };
-      username: string;
-    }): Promise<{ id: string }>;
-    updateUser(
-      clerkUserId: string,
-      input: { password: string; signOutOfOtherSessions: boolean },
-    ): Promise<unknown>;
-  };
 
   return {
     async createNoEmailStudentAccount(input) {
@@ -244,19 +232,24 @@ function createDefaultStudentCredentialAdapter(): StudentCredentialAdapter {
         ...(firstName ? { firstName } : {}),
         ...(lastName ? { lastName } : {}),
       };
-      const user = await users.createUser({
+      const createUserInput: Parameters<ClerkClient['users']['createUser']>[0] = {
         ...nameProps,
         username: input.username,
         password: input.password,
         publicMetadata: { role: 'Student', tags: [] },
-      });
+        skipLegalChecks: true,
+      };
+      const user = await client.users.createUser(createUserInput);
       return { clerkUserId: user.id };
     },
     async setPassword(input) {
-      await users.updateUser(input.clerkUserId, {
+      await client.users.updateUser(input.clerkUserId, {
         password: input.password,
         signOutOfOtherSessions: true,
       });
+    },
+    async deleteStudentAccount(input) {
+      await client.users.deleteUser(input.clerkUserId);
     },
   };
 }
@@ -276,6 +269,144 @@ function optionalText(value: string | null | undefined): string | null {
 
 function normaliseLoginHandle(value: string): string {
   return value.trim().toLowerCase();
+}
+
+type StudentCredentialOperation = 'createLogin' | 'setPassword';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function numericField(record: Record<string, unknown>, field: string): number | null {
+  const value = record[field];
+  return typeof value === 'number' ? value : null;
+}
+
+function collectErrorMessages(value: unknown, messages: string[]): void {
+  if (typeof value === 'string' && value.trim()) {
+    messages.push(value.trim());
+    return;
+  }
+
+  if (value instanceof Error && value.message.trim()) {
+    messages.push(value.message.trim());
+  }
+
+  if (!isRecord(value)) return;
+
+  for (const field of ['message', 'longMessage', 'code']) {
+    const entry = value[field];
+    if (typeof entry === 'string' && entry.trim()) {
+      messages.push(entry.trim());
+    }
+  }
+
+  const errors = value['errors'];
+  if (Array.isArray(errors)) {
+    for (const error of errors) {
+      collectErrorMessages(error, messages);
+    }
+  }
+
+  const meta = value['meta'];
+  if (isRecord(meta)) {
+    for (const field of ['paramName', 'parameterName', 'field', 'name']) {
+      const entry = meta[field];
+      if (typeof entry === 'string' && entry.trim()) {
+        messages.push(entry.trim());
+      }
+    }
+  }
+}
+
+function clerkStatusCode(error: unknown): number | null {
+  if (!isRecord(error)) return null;
+  return numericField(error, 'status') ?? numericField(error, 'statusCode');
+}
+
+function mappedStudentCredentialError(
+  error: unknown,
+  operation: StudentCredentialOperation,
+): TRPCError | null {
+  const messages: string[] = [];
+  collectErrorMessages(error, messages);
+  const normalised = messages.join(' ').toLowerCase();
+  const statusCode = clerkStatusCode(error);
+
+  if (![400, 422].includes(statusCode ?? 0) && !normalised.includes('unprocessable entity')) {
+    return null;
+  }
+
+  let message: string;
+  if (
+    normalised.includes('identifier_exists') ||
+    normalised.includes('already exists') ||
+    normalised.includes('already in use') ||
+    normalised.includes('taken')
+  ) {
+    message = 'login handle is already in use';
+  } else if (normalised.includes('password')) {
+    message = 'password does not meet the sign-in requirements';
+  } else if (normalised.includes('legal') || normalised.includes('consent')) {
+    message = 'student login could not be created because legal consent is required';
+  } else if (
+    normalised.includes('email') &&
+    (normalised.includes('missing') ||
+      normalised.includes('required') ||
+      normalised.includes('not enabled') ||
+      normalised.includes('invalid'))
+  ) {
+    message = 'student login requires username sign-in to be enabled in Clerk';
+  } else if (
+    (normalised.includes('username') || normalised.includes('identifier')) &&
+    (normalised.includes('invalid') || normalised.includes('format'))
+  ) {
+    message = 'login handle was rejected by the sign-in provider';
+  } else if (
+    (normalised.includes('username') || normalised.includes('identifier')) &&
+    (normalised.includes('disabled') ||
+      normalised.includes('not enabled') ||
+      normalised.includes('not allowed') ||
+      normalised.includes('unsupported'))
+  ) {
+    message = 'student username login is not enabled; contact an administrator';
+  } else {
+    message =
+      operation === 'createLogin'
+        ? 'student login could not be created; check the login handle and password'
+        : 'password does not meet the sign-in requirements';
+  }
+
+  return new TRPCError({ code: 'BAD_REQUEST', message, cause: error });
+}
+
+async function createStudentCredentialAccount(
+  adapter: StudentCredentialAdapter,
+  input: Parameters<StudentCredentialAdapter['createNoEmailStudentAccount']>[0],
+): Promise<{ clerkUserId: string }> {
+  try {
+    return await adapter.createNoEmailStudentAccount(input);
+  } catch (error) {
+    throw mappedStudentCredentialError(error, 'createLogin') ?? error;
+  }
+}
+
+async function setStudentCredentialPassword(
+  adapter: StudentCredentialAdapter,
+  input: Parameters<StudentCredentialAdapter['setPassword']>[0],
+): Promise<void> {
+  try {
+    await adapter.setPassword(input);
+  } catch (error) {
+    throw mappedStudentCredentialError(error, 'setPassword') ?? error;
+  }
+}
+
+async function cleanupCreatedStudentCredentialAccount(
+  adapter: StudentCredentialAdapter,
+  input: { clerkUserId: string },
+): Promise<void> {
+  await adapter.deleteStudentAccount?.(input);
 }
 
 function childIconPhotoBucket(): string {
@@ -939,83 +1070,119 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
           });
         }
 
-        const createdAccount = await credentialAdapter().createNoEmailStudentAccount({
+        const credentials = credentialAdapter();
+        const createdAccount = await createStudentCredentialAccount(credentials, {
           fullName,
           username: loginHandle,
           password: input.password,
         });
         const now = new Date();
-        const result = await ctx.db.$transaction(async (tx) => {
-          const user = await tx.user.create({
-            data: {
-              clerkId: createdAccount.clerkUserId,
-              role: 'Student',
-              tags: [],
-              fullNameEnc: student.fullNameEnc,
-              emailEnc: null,
-              emailBidx: null,
-              phoneEnc: null,
-              active: true,
-            },
-            select: { id: true },
+        let result: { settings: SettingsRow; userId: string };
+        try {
+          result = await ctx.db.$transaction(async (tx) => {
+            const user = await tx.user.upsert({
+              where: { clerkId: createdAccount.clerkUserId },
+              create: {
+                clerkId: createdAccount.clerkUserId,
+                role: 'Student',
+                tags: [],
+                fullNameEnc: student.fullNameEnc,
+                emailEnc: null,
+                emailBidx: null,
+                phoneEnc: null,
+                active: true,
+              },
+              update: {
+                role: 'Student',
+                tags: [],
+                fullNameEnc: student.fullNameEnc,
+                emailEnc: null,
+                emailBidx: null,
+                phoneEnc: null,
+                active: true,
+              },
+              select: { id: true },
+            });
+            await tx.student.update({
+              where: { id: student.id },
+              data: { userId: user.id },
+              select: { id: true },
+            });
+            const settings = await tx.studentPortalSettings.upsert({
+              where: { studentId: student.id },
+              create: {
+                studentId: student.id,
+                loginHandleEnc: ctx.db.$enc.encrypt(loginHandle),
+                loginHandleBidx,
+                settingsUpdatedById: ctx.user.id,
+                settingsUpdatedAt: now,
+              },
+              update: {
+                loginHandleEnc: ctx.db.$enc.encrypt(loginHandle),
+                loginHandleBidx,
+                settingsUpdatedById: ctx.user.id,
+                settingsUpdatedAt: now,
+              },
+              select: settingsSelect,
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Create',
+                entity: 'User',
+                entityId: user.id,
+                meta: { role: 'Student', source: 'studentSettings.createChildLogin' },
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Update',
+                entity: 'Student',
+                entityId: student.id,
+                meta: { fields: ['userId'], source: 'studentSettings.createChildLogin' },
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Update',
+                entity: 'StudentPortalSettings',
+                entityId: student.id,
+                meta: {
+                  fields: ['loginHandle', 'userId'],
+                  source: 'studentSettings.createChildLogin',
+                },
+              },
+            });
+            return { settings, userId: user.id };
           });
-          await tx.student.update({
-            where: { id: student.id },
-            data: { userId: user.id },
-            select: { id: true },
-          });
-          const settings = await tx.studentPortalSettings.upsert({
-            where: { studentId: student.id },
-            create: {
-              studentId: student.id,
-              loginHandleEnc: ctx.db.$enc.encrypt(loginHandle),
-              loginHandleBidx,
-              settingsUpdatedById: ctx.user.id,
-              settingsUpdatedAt: now,
-            },
-            update: {
-              loginHandleEnc: ctx.db.$enc.encrypt(loginHandle),
-              loginHandleBidx,
-              settingsUpdatedById: ctx.user.id,
-              settingsUpdatedAt: now,
-            },
-            select: settingsSelect,
-          });
-          await tx.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Create',
-              entity: 'User',
-              entityId: user.id,
-              meta: { role: 'Student', source: 'studentSettings.createChildLogin' },
-            },
-          });
-          await tx.auditLog.create({
-            data: {
-              userId: ctx.user.id,
-              action: 'Update',
-              entity: 'Student',
-              entityId: student.id,
-              meta: { fields: ['userId'], source: 'studentSettings.createChildLogin' },
-            },
-          });
-          return { settings, userId: user.id };
-        });
+        } catch (error) {
+          try {
+            await cleanupCreatedStudentCredentialAccount(credentials, {
+              clerkUserId: createdAccount.clerkUserId,
+            });
+          } catch (cleanupError) {
+            throw new TRPCError({
+              code: 'INTERNAL_SERVER_ERROR',
+              message:
+                'student login could not be linked and the provider account could not be rolled back; contact an administrator',
+              cause: cleanupError,
+            });
+          }
+          throw error;
+        }
 
-        await auditSettingsUpdate(ctx, {
-          studentId: student.id,
-          source: 'studentSettings.createChildLogin',
-          fields: ['loginHandle', 'userId'],
-        });
-
-        return { ...mapParentSettings(ctx, { ...student, userId: result.userId }, result.settings) };
+        return {
+          ...mapParentSettings(ctx, { ...student, userId: result.userId }, result.settings),
+        };
       }),
 
     setChildPassword: linkedChildGuardianProcedure
       .input(childPasswordInput)
       .mutation(async ({ ctx, input }) => {
         const student = await loadParentControlledStudent(ctx, input.studentId);
-        await credentialAdapter().setPassword({
+        await setStudentCredentialPassword(credentialAdapter(), {
           clerkUserId: requireStudentClerkId(student),
           password: input.password,
         });
@@ -1127,7 +1294,7 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
             message: 'parent policy does not allow student-managed password changes',
           });
         }
-        await credentialAdapter().setPassword({
+        await setStudentCredentialPassword(credentialAdapter(), {
           clerkUserId: requireStudentClerkId(student),
           password: input.password,
         });

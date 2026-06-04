@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleSlash,
   Clock3,
@@ -56,6 +56,16 @@ const usageLimitFields = [
   max: number;
   placeholder: string;
 }[];
+
+const childLoginHandlePattern = /^[a-z0-9]+$/iu;
+const createLoginConfirmationAttempts = 8;
+const createLoginConfirmationDelayMs = 750;
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 function emptyUsageLimitForm(): UsageLimitForm {
   return {
@@ -393,17 +403,18 @@ function CredentialsPanel({
 function CreateLoginPanel({
   child,
   disabled,
-  onSaved,
+  onProvisioned,
 }: {
   child: LinkedChildSettings;
   disabled: boolean;
-  onSaved: (child: LinkedChildSettings) => void;
+  onProvisioned: (child: LinkedChildSettings) => Promise<LinkedChildSettings>;
 }) {
-  const utils = api.useUtils();
+  const mounted = useRef(true);
   const [loginHandle, setLoginHandle] = useState(child.loginHandle ?? '');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [confirmingProvisioning, setConfirmingProvisioning] = useState(false);
 
   useEffect(() => {
     setLoginHandle(child.loginHandle ?? '');
@@ -412,35 +423,53 @@ function CreateLoginPanel({
     setSuccess(null);
   }, [child.studentId, child.loginHandle]);
 
-  const createChildLogin = api.studentSettings.createChildLogin.useMutation({
-    onError(error) {
-      showErrorToast(error, 'Student login could not be created.');
-    },
-    async onSuccess(updated) {
-      onSaved(updated);
-      setPassword('');
-      setSuccess('Student login created.');
-      showSuccessToast('Student login created.');
-      await utils.studentSettings.listLinkedChildren.invalidate();
-    },
-  });
+  useEffect(() => {
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
-  function submit(): void {
+  const createChildLogin = api.studentSettings.createChildLogin.useMutation();
+  const busy = createChildLogin.isPending || confirmingProvisioning;
+
+  async function submit(): Promise<void> {
     setLocalError(null);
     const trimmedHandle = loginHandle.trim();
-    if (trimmedHandle.length < 3) {
-      setLocalError('Login handle must be at least 3 characters.');
+    if (
+      trimmedHandle.length < 4 ||
+      trimmedHandle.length > 64 ||
+      !childLoginHandlePattern.test(trimmedHandle)
+    ) {
+      setLocalError('Login handle must be 4 to 64 letters or numbers.');
       return;
     }
     if (password.length < 12 || password.length > 128) {
       setLocalError('Password must be 12 to 128 characters.');
       return;
     }
-    createChildLogin.mutate({
-      loginHandle: trimmedHandle,
-      password,
-      studentId: child.studentId,
-    });
+    setConfirmingProvisioning(true);
+    try {
+      const created = await createChildLogin.mutateAsync({
+        loginHandle: trimmedHandle,
+        password,
+        studentId: child.studentId,
+      });
+      await onProvisioned(created);
+      showSuccessToast('Student login created.');
+      if (mounted.current) {
+        setPassword('');
+        setSuccess('Student login created.');
+      }
+    } catch (error) {
+      showErrorToast(error, 'Student login could not be created.');
+      if (mounted.current) {
+        setLocalError(friendlyErrorMessage(error, 'Student login could not be created.'));
+      }
+    } finally {
+      if (mounted.current) {
+        setConfirmingProvisioning(false);
+      }
+    }
   }
 
   return (
@@ -456,21 +485,21 @@ function CreateLoginPanel({
         <Field label="Login handle">
           <TextInput
             autoComplete="username"
-            disabled={disabled || createChildLogin.isPending}
-            maxLength={80}
+            disabled={disabled || busy}
+            maxLength={64}
             onChange={(event) => {
               setLoginHandle(event.target.value);
               setLocalError(null);
               setSuccess(null);
             }}
-            placeholder="jamie.learner"
+            placeholder="jamielearner"
             value={loginHandle}
           />
         </Field>
         <Field label="Initial password">
           <TextInput
             autoComplete="new-password"
-            disabled={disabled || createChildLogin.isPending}
+            disabled={disabled || busy}
             maxLength={128}
             onChange={(event) => {
               setPassword(event.target.value);
@@ -487,8 +516,10 @@ function CreateLoginPanel({
       <div className="parent-settings-actions">
         <Button
           disabled={disabled || loginHandle.trim().length === 0 || password.length === 0}
-          onClick={submit}
-          pending={createChildLogin.isPending}
+          onClick={() => {
+            void submit();
+          }}
+          pending={busy}
           type="button"
         >
           Create login
@@ -820,6 +851,26 @@ export function ParentStudentSettingsClient() {
     );
   }
 
+  async function confirmProvisionedChild(
+    created: LinkedChildSettings,
+  ): Promise<LinkedChildSettings> {
+    for (let attempt = 0; attempt < createLoginConfirmationAttempts; attempt += 1) {
+      const result = await settingsQuery.refetch();
+      const confirmed = result.data?.find((child) => child.studentId === created.studentId);
+      if (confirmed?.accountLinked) {
+        updateCachedChild(confirmed);
+        return confirmed;
+      }
+      if (attempt < createLoginConfirmationAttempts - 1) {
+        await wait(createLoginConfirmationDelayMs);
+      }
+    }
+
+    throw new Error(
+      'Student login was created, but the account link is still being confirmed. Refresh in a moment before changing credentials.',
+    );
+  }
+
   if (settingsQuery.isLoading) {
     return <div className="empty-state">Loading student portal settings...</div>;
   }
@@ -887,7 +938,7 @@ export function ParentStudentSettingsClient() {
             <CreateLoginPanel
               child={selectedChild}
               disabled={controlsDisabled}
-              onSaved={updateCachedChild}
+              onProvisioned={confirmProvisionedChild}
             />
           )}
           <UsageLimitsPanel
