@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import {
-  Bell,
   BookOpenCheck,
   CalendarDays,
   Clock,
@@ -253,8 +252,18 @@ export function StudentHomeClient() {
               <p>Notifications</p>
               <h2 id="student-notifications-title">Latest updates</h2>
             </div>
-            <Bell aria-hidden="true" size={20} />
+            <Link
+              className="button button--secondary button--sm"
+              href={{ pathname: '/student/notifications' }}
+            >
+              Open updates
+            </Link>
           </div>
+          {dashboard.data.notifications.unreadCount > 0 ? (
+            <p className="student-dashboard-panel__copy">
+              {String(dashboard.data.notifications.unreadCount)} unread updates.
+            </p>
+          ) : null}
           {dashboard.data.notifications.latest.length === 0 ? (
             <div className="student-dashboard-empty">No student notifications yet.</div>
           ) : (

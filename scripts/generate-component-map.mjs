@@ -162,6 +162,23 @@ const PRODUCT_MODULES = [
     ],
   },
   {
+    name: 'Student notification centre and announcements',
+    owns: 'Student-targeted in-app notifications, unread state, manager announcements, and event-created student updates.',
+    apiRouters: ['studentNotification'],
+    domainFiles: [],
+    webSurfaces: [
+      'apps/web/src/app/(admin)/admin/student-notifications/',
+      'apps/web/src/app/(student)/student/notifications/',
+      'apps/web/src/components/student-notifications/',
+      'apps/web/src/components/student/',
+    ],
+    mobileSurfaces: [],
+    sharedSurfaces: [
+      'apps/api/src/services/student-notifications.ts',
+      'packages/db/prisma/migrations/20260604052000_student_notifications/',
+    ],
+  },
+  {
     name: 'Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email',
     owns: 'Commercial, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
     apiRouters: [

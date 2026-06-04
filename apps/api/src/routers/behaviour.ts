@@ -35,6 +35,7 @@ import {
 } from '../lib/email.js';
 import { localDayBounds } from '../lib/local-day.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { createStudentNotifications } from '../services/student-notifications.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -715,6 +716,29 @@ async function notifyBehaviourGuardians({
   }
 }
 
+async function notifyStudentMeritAwards(
+  ctx: AuthedContext,
+  awards: ReadonlyArray<{ amount: number; behaviourEntryId: string; studentId: string }>,
+): Promise<void> {
+  const positiveAwards = awards.filter((award) => award.amount > 0);
+  if (positiveAwards.length === 0) return;
+
+  await ctx.withRls((tx) =>
+    createStudentNotifications(ctx, tx, {
+      auditSource: 'behaviour.meritAward.studentNotification',
+      notifications: positiveAwards.map((award) => ({
+        studentId: award.studentId,
+        kind: 'MeritAward',
+        title: 'Merits awarded',
+        body: `You received ${String(award.amount)} merits.`,
+        sourceEntity: 'BehaviourEntry',
+        sourceId: award.behaviourEntryId,
+        createdById: ctx.user.id,
+      })),
+    }),
+  );
+}
+
 export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
   let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
   const getEmailClient = (): EmailClient => {
@@ -1306,6 +1330,15 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             },
           });
         }
+        if (input.type === 'Merit') {
+          await notifyStudentMeritAwards(ctx, [
+            {
+              studentId: result.behaviour.studentId,
+              behaviourEntryId: result.behaviour.id,
+              amount: result.behaviour.meritDelta,
+            },
+          ]);
+        }
 
         await notifyBehaviourGuardians({
           ctx,
@@ -1456,6 +1489,16 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               },
             },
           });
+        }
+        if (input.type === 'Merit') {
+          await notifyStudentMeritAwards(
+            ctx,
+            result.behaviourEntries.map((entry) => ({
+              studentId: entry.studentId,
+              behaviourEntryId: entry.id,
+              amount: entry.meritDelta,
+            })),
+          );
         }
 
         await Promise.all(
@@ -1812,6 +1855,16 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             },
           },
         });
+        if (input.type === 'Merit') {
+          await notifyStudentMeritAwards(
+            ctx,
+            result.behaviourEntries.map((entry) => ({
+              studentId: entry.studentId,
+              behaviourEntryId: entry.id,
+              amount: entry.meritDelta,
+            })),
+          );
+        }
 
         await Promise.all(
           result.behaviourEntries.map((entry, index) =>
@@ -1955,6 +2008,16 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             },
           },
         });
+        if (input.type === 'Merit') {
+          await notifyStudentMeritAwards(
+            ctx,
+            result.behaviourEntries.map((entry) => ({
+              studentId: entry.studentId,
+              behaviourEntryId: entry.id,
+              amount: entry.meritDelta,
+            })),
+          );
+        }
 
         await Promise.all(
           result.behaviourEntries.map((entry) => {

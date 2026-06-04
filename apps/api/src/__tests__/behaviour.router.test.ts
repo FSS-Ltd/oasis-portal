@@ -156,6 +156,7 @@ interface FakeDb {
     decrypt: ReturnType<typeof vi.fn>;
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
+  studentNotification: { createMany: ReturnType<typeof vi.fn> };
   student: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   user: { findUnique: ReturnType<typeof vi.fn> };
   guardian: { findMany: ReturnType<typeof vi.fn> };
@@ -282,6 +283,7 @@ function makeFakeDb(
       decrypt: vi.fn(decrypt),
     },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    studentNotification: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
     student: {
       findMany: vi.fn(
         ({

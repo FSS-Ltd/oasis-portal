@@ -15,6 +15,7 @@ import {
   recordStudentPortalUsageHeartbeat,
 } from '../lib/student-portal-access.js';
 import { loadCurrentFaithCornerContent } from '../services/faith-corner.js';
+import { loadStudentNotificationPreview } from '../services/student-notifications.js';
 import type { AppContext } from '../context.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 import { deleteArchivedStudent } from '../students/delete-archived-student.js';
@@ -313,14 +314,6 @@ async function loadAttendanceDashboard(ctx: AppContext, studentId: string) {
   };
 }
 
-function emptyNotificationPreview() {
-  return {
-    count: 0,
-    unreadCount: 0,
-    latest: [] as Array<{ id: string; title: string; createdAt: Date; read: boolean }>,
-  };
-}
-
 async function loadShortcutDashboard(ctx: AppContext, studentId: string) {
   const [activeClubCount, activeShopItemCount] = await Promise.all([
     ctx.db.clubSignup.count({
@@ -408,10 +401,11 @@ export const studentRouter = router({
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
     }
     const firstName = firstNameFrom(fullName);
-    const [balances, pace, attendance, shortcuts, faithCorner] = await Promise.all([
+    const [balances, pace, attendance, notifications, shortcuts, faithCorner] = await Promise.all([
       loadMeritBalances(ctx, ownStudent.id),
       loadPaceDashboard(ctx, ownStudent.id),
       loadAttendanceDashboard(ctx, ownStudent.id),
+      ctx.withRls((tx) => loadStudentNotificationPreview(tx, ownStudent.id)),
       loadShortcutDashboard(ctx, ownStudent.id),
       loadCurrentFaithCornerContent(ctx),
     ]);
@@ -437,7 +431,7 @@ export const studentRouter = router({
       },
       pace,
       attendance,
-      notifications: emptyNotificationPreview(),
+      notifications,
       shortcuts,
       faithCorner,
     };

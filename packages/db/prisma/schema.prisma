@@ -145,6 +145,7 @@ model User {
   studentPortalIconPhotosUpdated   StudentPortalSettings[]          @relation("StudentPortalIconPhotosUpdated")
   faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
+  studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
 
   @@index([role])
 }
@@ -224,6 +225,7 @@ model Student {
   registrationProfile      StudentRegistrationProfile?
   portalSettings           StudentPortalSettings?
   portalUsageMinutes       StudentPortalUsageMinute[]
+  notifications            StudentNotification[]
 
   @@index([yearGroup])
   @@index([nameBidx])
@@ -302,6 +304,35 @@ model StudentPortalUsageMinute {
 
   @@unique([studentId, minuteStartedAt])
   @@index([studentId, minuteStartedAt])
+}
+
+enum StudentNotificationKind {
+  MeritAward
+  ShopPurchase
+  ClubNotice
+  SystemAnnouncement
+}
+
+model StudentNotification {
+  id           String                  @id @default(cuid())
+  studentId    String
+  kind         StudentNotificationKind
+  title        String
+  bodyEnc      String
+  sourceEntity String?
+  sourceId     String?
+  createdById  String?
+  readAt       DateTime?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("StudentNotificationsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([studentId, readAt, createdAt])
+  @@index([studentId, kind, createdAt])
+  @@index([sourceEntity, sourceId])
+  @@index([createdById, createdAt])
 }
 
 model Subject {

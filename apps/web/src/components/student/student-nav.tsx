@@ -6,15 +6,18 @@ import {
   BookOpenCheck,
   BookOpenText,
   CalendarCheck,
+  Bell,
   Home,
   Medal,
   ShoppingBag,
   UsersRound,
   Wallet,
 } from 'lucide-react';
+import { api } from '@/lib/trpc';
 
 const studentNavItems = [
   { href: '/student', label: 'Home', icon: Home },
+  { href: '/student/notifications', label: 'Updates', icon: Bell, badge: true },
   { href: '/student/wallet', label: 'Wallet', icon: Wallet },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
@@ -32,24 +35,41 @@ function isActiveRoute(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function countBadge(count: number | undefined): string | null {
+  if (!count || count <= 0) return null;
+  return count > 99 ? '99+' : String(count);
+}
+
+function useStudentNotificationBadge(): string | null {
+  const unread = api.studentNotification.unreadCount.useQuery(undefined, { retry: false });
+  return countBadge(unread.data?.count);
+}
+
+function badgeForItem(item: (typeof studentNavItems)[number], unreadBadge: string | null) {
+  return 'badge' in item ? unreadBadge : null;
+}
+
 export function StudentTopNav() {
   const pathname = usePathname() ?? '';
+  const unreadBadge = useStudentNotificationBadge();
 
   return (
     <nav aria-label="Student portal sections" className="student-top-nav">
       {studentNavItems.map((item) => {
         const active = isActiveRoute(pathname, item.href);
         const Icon = item.icon;
+        const badge = badgeForItem(item, unreadBadge);
 
         return (
           <Link
             aria-current={active ? 'page' : undefined}
             className={active ? 'student-top-nav__item is-active' : 'student-top-nav__item'}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={item.href}
           >
             <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}
@@ -59,12 +79,14 @@ export function StudentTopNav() {
 
 export function StudentSidebarNav() {
   const pathname = usePathname() ?? '';
+  const unreadBadge = useStudentNotificationBadge();
 
   return (
     <nav className="admin-shell__nav">
       {studentNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
+        const badge = badgeForItem(item, unreadBadge);
         const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -73,11 +95,12 @@ export function StudentSidebarNav() {
           <Link
             aria-current={active ? 'page' : undefined}
             className={className}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={item.href}
           >
             <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}
@@ -87,12 +110,14 @@ export function StudentSidebarNav() {
 
 export function StudentBottomNav() {
   const pathname = usePathname() ?? '';
+  const unreadBadge = useStudentNotificationBadge();
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
       {studentNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
+        const badge = badgeForItem(item, unreadBadge);
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -101,11 +126,12 @@ export function StudentBottomNav() {
           <Link
             aria-current={active ? 'page' : undefined}
             className={className}
-            href={item.href}
+            href={{ pathname: item.href }}
             key={item.href}
           >
             <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
+            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}

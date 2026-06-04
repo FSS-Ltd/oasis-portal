@@ -27,19 +27,22 @@
   color: var(--oasis-text);
 }
 
-.faith-corner-admin-page {
+.faith-corner-admin-page,
+.student-notification-admin-page {
   display: grid;
   gap: 18px;
 }
 
-.faith-corner-admin-layout {
+.faith-corner-admin-layout,
+.student-notification-admin-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   gap: 16px;
   align-items: start;
 }
 
-.faith-corner-admin-form form {
+.faith-corner-admin-form form,
+.student-notification-admin-form form {
   display: grid;
   gap: 14px;
 }
@@ -55,7 +58,13 @@
   resize: vertical;
 }
 
-.faith-corner-preview-card {
+.student-notification-admin-textarea {
+  min-height: 136px;
+  resize: vertical;
+}
+
+.faith-corner-preview-card,
+.student-notification-admin-preview-card {
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -69,19 +78,24 @@
 .faith-corner-preview-card strong,
 .faith-corner-preview-card p,
 .faith-corner-preview-card span,
-.faith-corner-preview-card em {
+.faith-corner-preview-card em,
+.student-notification-admin-preview-card h3,
+.student-notification-admin-preview-card p,
+.student-notification-admin-preview-card span {
   margin: 0;
 }
 
 .faith-corner-preview-card small,
-.faith-corner-preview-card em {
+.faith-corner-preview-card em,
+.student-notification-admin-preview-card span {
   color: var(--oasis-text-muted);
   font-size: 0.76rem;
   font-weight: 750;
 }
 
 .faith-corner-preview-card h3,
-.faith-corner-preview-card strong {
+.faith-corner-preview-card strong,
+.student-notification-admin-preview-card h3 {
   color: var(--oasis-navy);
 }
 
@@ -91,7 +105,8 @@
 }
 
 .faith-corner-preview-card p,
-.faith-corner-preview-card span {
+.faith-corner-preview-card span,
+.student-notification-admin-preview-card p {
   color: var(--oasis-text-secondary);
   line-height: 1.55;
 }
@@ -104,7 +119,8 @@
 }
 
 @media (max-width: 1040px) {
-  .faith-corner-admin-layout {
+  .faith-corner-admin-layout,
+  .student-notification-admin-layout {
     grid-template-columns: 1fr;
   }
 }

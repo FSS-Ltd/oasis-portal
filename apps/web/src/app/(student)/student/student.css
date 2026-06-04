@@ -71,6 +71,17 @@
   border-bottom-color: var(--oasis-blue);
 }
 
+.student-top-nav__item b {
+  min-width: 18px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--oasis-crimson);
+  color: #ffffff;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .student-topbar__actions {
   display: inline-flex;
   flex: 0 0 auto;
@@ -431,6 +442,86 @@
 .student-notification-row small {
   color: var(--oasis-text-secondary);
   font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.student-notifications-page {
+  gap: 18px;
+}
+
+.student-notifications-hero__meta {
+  display: grid;
+  min-width: 132px;
+  align-content: center;
+  justify-items: end;
+  gap: 4px;
+  color: var(--oasis-text-secondary);
+}
+
+.student-notifications-hero__meta strong {
+  color: var(--oasis-navy);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.student-notifications-list {
+  display: grid;
+  gap: 12px;
+}
+
+.student-notifications-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.student-notifications-row.is-unread {
+  border-color: var(--oasis-blue);
+  background: #f7faff;
+}
+
+.student-notifications-row div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.student-notifications-row span {
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.student-notifications-row h3,
+.student-notifications-row p {
+  margin: 0;
+}
+
+.student-notifications-row h3 {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.student-notifications-row p {
+  color: var(--oasis-text-secondary);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.student-notifications-row time,
+.student-notifications-row small {
+  color: var(--oasis-text-muted);
+  font-size: 0.76rem;
   font-weight: 750;
 }
 
@@ -1582,6 +1673,14 @@
 
   .student-wallet-hero {
     flex-direction: column;
+  }
+
+  .student-notifications-row {
+    flex-direction: column;
+  }
+
+  .student-notifications-hero__meta {
+    justify-items: start;
   }
 
   .student-hero__meta {
