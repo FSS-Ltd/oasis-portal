@@ -24,6 +24,7 @@ import {
   type EmailClient,
 } from '../lib/email.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { createStudentNotifications } from '../services/student-notifications.js';
 import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -877,6 +878,26 @@ function notificationRecipientsFor(club: ClubForNotification): ClubNotificationR
   }
 
   return [...recipients.values()];
+}
+
+async function notifyClubStudentsInApp(
+  ctx: AuthedContext,
+  input: { club: ClubForNotification; notificationId: string; title: string },
+): Promise<void> {
+  await ctx.withRls((tx) =>
+    createStudentNotifications(ctx, tx, {
+      auditSource: 'club.notify.studentNotification',
+      notifications: input.club.signups.map((signup) => ({
+        studentId: signup.student.id,
+        kind: 'ClubNotice',
+        title: input.title,
+        body: `A new notice was posted for ${input.club.name}.`,
+        sourceEntity: 'ClubNotification',
+        sourceId: input.notificationId,
+        createdById: ctx.user.id,
+      })),
+    }),
+  );
 }
 
 async function auditClubNotificationFailure(
@@ -2694,6 +2715,11 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
             recipientCount: recipients.length,
           },
         },
+      });
+      await notifyClubStudentsInApp(ctx, {
+        club,
+        notificationId: notification.id,
+        title: notification.title,
       });
 
       const { failedCount, sentCount } =

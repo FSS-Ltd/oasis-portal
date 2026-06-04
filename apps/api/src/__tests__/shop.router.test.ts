@@ -473,7 +473,11 @@ function makeFakeDb(
     auditLog: {
       create: vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args)),
     },
+    studentNotification: {
+      create: vi.fn(() => Promise.resolve({ id: 'cshopnotification0000001' })),
+    },
     $enc: {
+      encrypt: vi.fn((value: string | null | undefined) => value ?? null),
       decrypt: vi.fn((value: string | null | undefined) => value ?? null),
     },
     student: {
@@ -801,10 +805,7 @@ function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): A
     db: db as unknown as AppContext['db'],
     user,
     requestId: 'req_test',
-    withRls: <T>(fn: (tx: RlsTx) => Promise<T>): Promise<T> => {
-      void fn;
-      return Promise.reject(new Error('withRls is not used by shop router tests'));
-    },
+    withRls: <T>(fn: (tx: RlsTx) => Promise<T>): Promise<T> => fn(db as unknown as RlsTx),
   } satisfies AppContext;
 }
 

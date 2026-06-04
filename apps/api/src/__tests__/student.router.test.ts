@@ -120,6 +120,14 @@ interface StoredFaithCornerContent {
   createdAt: Date;
 }
 
+interface StoredStudentNotification {
+  id: string;
+  studentId: string;
+  title: string;
+  readAt: Date | null;
+  createdAt: Date;
+}
+
 interface StudentRow extends StoredStudent {
   subjects: Array<StoredAssignment & { subject: StoredSubject }>;
 }
@@ -161,6 +169,7 @@ interface FakeDb {
   attendance: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { count: ReturnType<typeof vi.fn> };
   faithCornerContent: { findFirst: ReturnType<typeof vi.fn> };
+  studentNotification: { count: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   shopItem: { count: ReturnType<typeof vi.fn> };
   subject: { findUnique: ReturnType<typeof vi.fn> };
   studentSubject: {
@@ -282,6 +291,7 @@ function makeFakeDb(
     clubSignups?: StoredClubSignup[];
     faithCornerContent?: StoredFaithCornerContent[];
     meritLedger?: StoredMeritLedger[];
+    notifications?: StoredStudentNotification[];
     paceProgress?: StoredPaceProgress[];
     portalSettings?: Array<
       Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
@@ -298,6 +308,7 @@ function makeFakeDb(
   const clubSignups = input.clubSignups ?? [];
   const faithCornerContent = input.faithCornerContent ?? [];
   const meritLedger = input.meritLedger ?? [];
+  const notifications = input.notifications ?? [];
   const paceProgress = input.paceProgress ?? [];
   const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
   const shopItems = input.shopItems ?? [];
@@ -550,6 +561,34 @@ function makeFakeDb(
         );
       }),
     },
+    studentNotification: {
+      count: vi.fn(({ where }: { where: { studentId: string; readAt?: null } }) =>
+        Promise.resolve(
+          notifications.filter(
+            (notification) =>
+              notification.studentId === where.studentId &&
+              (where.readAt !== null || notification.readAt === null),
+          ).length,
+        ),
+      ),
+      findMany: vi.fn(
+        ({
+          take,
+          where,
+        }: {
+          where: { studentId: string };
+          select: { id: true; title: true; createdAt: true; readAt: true };
+          orderBy: { createdAt: 'desc' };
+          take: number;
+        }) =>
+          Promise.resolve(
+            notifications
+              .filter((notification) => notification.studentId === where.studentId)
+              .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+              .slice(0, take),
+          ),
+      ),
+    },
     shopItem: {
       count: vi.fn(({ where }: { where: { active: true } }) =>
         Promise.resolve(shopItems.filter((item) => item.active === where.active).length),
@@ -671,6 +710,7 @@ function makeFakeDb(
     clubSignups,
     faithCornerContent,
     meritLedger,
+    notifications,
     paceProgress,
     portalSettings,
     shopItems,
@@ -683,7 +723,7 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
     db: db as unknown as AppContext['db'],
     user,
     requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
+    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
   } satisfies AppContext;
 }
 

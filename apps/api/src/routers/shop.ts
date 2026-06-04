@@ -31,6 +31,7 @@ import {
   assertUploadedShopItemPhoto,
   type UploadedShopItemPhoto,
 } from '../services/shop-item-photo-storage.js';
+import { createStudentNotification } from '../services/student-notifications.js';
 import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -923,6 +924,28 @@ async function loadReservationById(
   return reservation;
 }
 
+async function notifyStudentShopPurchase(
+  ctx: AuthedContext,
+  input: {
+    sourceEntity: 'ShopPurchase' | 'ShopReservation';
+    sourceId: string;
+    studentId: string;
+    totalPriceMerits: number;
+  },
+): Promise<void> {
+  await ctx.withRls((tx) =>
+    createStudentNotification(ctx, tx, {
+      studentId: input.studentId,
+      kind: 'ShopPurchase',
+      title: 'Shop purchase confirmed',
+      body: `Your shop purchase was confirmed for ${String(input.totalPriceMerits)} merits.`,
+      sourceEntity: input.sourceEntity,
+      sourceId: input.sourceId,
+      createdById: ctx.user.id,
+    }),
+  );
+}
+
 export const shopRouter = router({
   listItems: authedProcedure.input(listItemsInput).query(async ({ ctx, input }) => {
     const includeInactive = input?.includeInactive ?? false;
@@ -1335,7 +1358,7 @@ export const shopRouter = router({
       studentId: existing.studentId,
     });
 
-    await ctx.db.$transaction(
+    const collected = await ctx.db.$transaction(
       async (tx: Prisma.TransactionClient) => {
         const reservation = await tx.shopReservation.findUnique({
           where: { id: input.reservationId },
@@ -1385,9 +1408,20 @@ export const shopRouter = router({
             },
           },
         });
+        return {
+          reservationId: reservation.id,
+          studentId: reservation.studentId,
+          totalPriceMerits: reservation.totalPriceMerits,
+        };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await notifyStudentShopPurchase(ctx, {
+      sourceEntity: 'ShopReservation',
+      sourceId: collected.reservationId,
+      studentId: collected.studentId,
+      totalPriceMerits: collected.totalPriceMerits,
+    });
 
     const reservation = await loadReservationById(ctx, input.reservationId);
     return mapReservation(ctx, reservation);
@@ -1576,6 +1610,12 @@ export const shopRouter = router({
                   : 'insufficient stock',
         });
       }
+      await notifyStudentShopPurchase(ctx, {
+        sourceEntity: 'ShopPurchase',
+        sourceId: result.purchase.id,
+        studentId: result.purchase.studentId,
+        totalPriceMerits: result.purchase.totalPriceMerits,
+      });
 
       return {
         id: result.purchase.id,

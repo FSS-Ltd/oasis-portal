@@ -366,6 +366,7 @@ interface FakeDb {
   };
   $transaction: ReturnType<typeof vi.fn>;
   auditLog: { create: ReturnType<typeof vi.fn> };
+  studentNotification: { createMany: ReturnType<typeof vi.fn> };
   club: {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -551,6 +552,9 @@ function makeFakeDb(
     $transaction: vi.fn(),
     auditLog: {
       create: vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args)),
+    },
+    studentNotification: {
+      createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     club: {
       findMany: vi.fn((args: FakeClubFindManyArgs = {}) =>
@@ -1111,7 +1115,7 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
     db: db as unknown as AppContext['db'],
     user,
     requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
+    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
   } satisfies AppContext;
 }
 
