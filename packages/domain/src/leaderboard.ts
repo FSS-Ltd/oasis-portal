@@ -1,7 +1,7 @@
 /**
  * Leaderboards.
  *
- * Public: TopTithers (default view), TopInvestors (by total return %), TopSavers
+ * Public: TopTithers (default view), TopInvestors (by invested value), TopSavers
  *   (by Saving balance). Visible to Parents, Staff, Students.
  * Admin-only: HighestDemerits — gated to full-admin or `leaderboard-admin`.
  *
@@ -67,10 +67,7 @@ export function rankStudentMetrics<T extends RankableStudentMetric>(
   }));
 }
 
-export function rankLeaderboard(
-  rows: readonly StudentMetric[],
-  limit = 10,
-): LeaderboardRow[] {
+export function rankLeaderboard(rows: readonly StudentMetric[], limit = 10): LeaderboardRow[] {
   return rankStudentMetrics(rows, limit).map((r) => ({
     rank: r.rank,
     studentId: r.studentId,
@@ -80,15 +77,7 @@ export function rankLeaderboard(
   }));
 }
 
-/**
- * Total return % on Investment = (currentValue - costBasis) / costBasis * 100.
- * costBasis = sum of merits put in (positive Buy deltas in ledger);
- * currentValue = units * latestNav.
- */
-export function investmentReturnPct(params: {
-  costBasis: number;
-  currentValue: number;
-}): number {
+export function investmentReturnPct(params: { costBasis: number; currentValue: number }): number {
   if (params.costBasis <= 0) return 0;
   return ((params.currentValue - params.costBasis) / params.costBasis) * 100;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { UsersRound } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { Badge } from '@/components/ui/badge';
 import {
   formatNumber,
@@ -85,7 +86,7 @@ export function ReportStudentSelector({
                 </span>
                 <span>
                   <strong>{student.fullName}</strong>
-                  <small>{student.yearGroup}</small>
+                  <small>{displaySchoolYearLabel(student.yearGroup)}</small>
                 </span>
                 <Badge tone={badgeTone}>{badgeLabel}</Badge>
               </button>

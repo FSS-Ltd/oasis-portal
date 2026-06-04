@@ -25,8 +25,37 @@ const supervisorUser: SessionUser = {
   requires2fa: false,
 };
 
+const pastorUser: SessionUser = {
+  id: 'leaderboard-pastor',
+  role: 'Pastor',
+  tags: [],
+  requires2fa: false,
+};
+
+const technicalSupportUser: SessionUser = {
+  id: 'leaderboard-tech-support',
+  role: 'TechnicalSupport',
+  tags: [],
+  requires2fa: false,
+};
+
+const parentUser: SessionUser = {
+  id: 'leaderboard-parent',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
+
+const studentUser: SessionUser = {
+  id: 'leaderboard-student-user',
+  role: 'Student',
+  tags: [],
+  requires2fa: false,
+};
+
 interface StoredStudent {
   id: string;
+  userId?: string | null;
   active: boolean;
   fullNameEnc: string;
   yearGroup: string;
@@ -53,6 +82,19 @@ interface StoredBehaviourEntry {
   headCommentEnc?: string | null;
 }
 
+interface StoredGuardian {
+  userId: string;
+  studentId: string;
+}
+
+interface StoredCharityPot {
+  id: string;
+  goalMerits: number;
+  updatedById: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 type AuditAction =
   | 'Create'
   | 'Update'
@@ -67,6 +109,19 @@ type AuditAction =
 interface FakeStudentFindManyArgs {
   where: { id: { in: string[] }; active: true };
   select: { id: true; fullNameEnc: true; yearGroup: true; enrolmentDate: true };
+}
+
+interface FakeStudentFindUniqueArgs {
+  where: { userId?: string; id?: string };
+  select: { id: true; active: true };
+}
+
+interface FakeGuardianFindManyArgs {
+  where: {
+    userId: string;
+    student?: { active: true };
+  };
+  select: { studentId: true };
 }
 
 interface FakeLedgerGroupByArgs {
@@ -105,6 +160,28 @@ interface FakeAuditCreateArgs {
   };
 }
 
+interface FakeCharityPotFindFirstArgs {
+  orderBy: { updatedAt: 'desc' };
+  select: {
+    id: true;
+    goalMerits: true;
+    updatedAt: true;
+    updatedById: true;
+  };
+}
+
+interface FakeCharityPotUpsertArgs {
+  where: { id: string };
+  create: { id: string; goalMerits: number; updatedById: string };
+  update: { goalMerits: number; updatedById: string };
+  select: {
+    id: true;
+    goalMerits: true;
+    updatedAt: true;
+    updatedById: true;
+  };
+}
+
 function makeStudent(input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>): StoredStudent {
   return {
     active: true,
@@ -122,6 +199,8 @@ function makeFakeDb(
     investmentAccounts?: StoredInvestmentAccount[];
     latestNav?: number | null;
     behaviourEntries?: StoredBehaviourEntry[];
+    guardians?: StoredGuardian[];
+    charityPot?: StoredCharityPot | null;
   } = {},
 ) {
   const students = input.students ?? [];
@@ -129,6 +208,8 @@ function makeFakeDb(
   const investmentAccounts = input.investmentAccounts ?? [];
   const latestNav = input.latestNav ?? null;
   const behaviourEntries = input.behaviourEntries ?? [];
+  const guardians = input.guardians ?? [];
+  let charityPot = input.charityPot ?? null;
 
   const db = {
     auditLog: {
@@ -151,12 +232,35 @@ function makeFakeDb(
             })),
         ),
       ),
+      findUnique: vi.fn((args: FakeStudentFindUniqueArgs) => {
+        const student = args.where.userId
+          ? students.find((row) => row.userId === args.where.userId)
+          : students.find((row) => row.id === args.where.id);
+        if (!student) return Promise.resolve(null);
+        return Promise.resolve({ id: student.id, active: student.active });
+      }),
+    },
+    studentPortalSettings: {
+      findUnique: vi.fn(() => Promise.resolve(null)),
+    },
+    guardian: {
+      findMany: vi.fn((args: FakeGuardianFindManyArgs) =>
+        Promise.resolve(
+          guardians
+            .filter((guardian) => guardian.userId === args.where.userId)
+            .filter((guardian) => {
+              if (!args.where.student?.active) return true;
+              return students.some(
+                (student) => student.id === guardian.studentId && student.active,
+              );
+            })
+            .map((guardian) => ({ studentId: guardian.studentId })),
+        ),
+      ),
     },
     meritLedger: {
       groupBy: vi.fn((args: FakeLedgerGroupByArgs) => {
-        const allowedStudentIds = args.where.studentId
-          ? new Set(args.where.studentId.in)
-          : null;
+        const allowedStudentIds = args.where.studentId ? new Set(args.where.studentId.in) : null;
         const totals = new Map<string, number>();
 
         for (const row of ledger) {
@@ -216,6 +320,27 @@ function makeFakeDb(
             _sum: { meritDelta },
           })),
         );
+      }),
+    },
+    charityPot: {
+      findFirst: vi.fn((args: FakeCharityPotFindFirstArgs) => {
+        void args;
+        return Promise.resolve(charityPot);
+      }),
+      upsert: vi.fn((args: FakeCharityPotUpsertArgs) => {
+        charityPot = {
+          id: args.where.id,
+          goalMerits: args.update.goalMerits,
+          updatedById: args.update.updatedById,
+          createdAt: charityPot?.createdAt ?? new Date('2026-06-04T00:00:00.000Z'),
+          updatedAt: new Date('2026-06-04T12:00:00.000Z'),
+        };
+        return Promise.resolve({
+          id: charityPot.id,
+          goalMerits: charityPot.goalMerits,
+          updatedAt: charityPot.updatedAt,
+          updatedById: charityPot.updatedById,
+        });
       }),
     },
   };
@@ -323,22 +448,22 @@ describe('leaderboard.get', () => {
     });
   });
 
-  it('ranks TopInvestors by return percentage from latest NAV and investment cost basis', async () => {
+  it('ranks TopInvestors by current invested value from latest NAV', async () => {
     const db = makeFakeDb({
       students: [
-        makeStudent({ id: 'student-gain', fullNameEnc: 'Gain Student' }),
-        makeStudent({ id: 'student-loss', fullNameEnc: 'Loss Student' }),
+        makeStudent({ id: 'student-higher-value', fullNameEnc: 'Higher Value Student' }),
+        makeStudent({ id: 'student-higher-return', fullNameEnc: 'Higher Return Student' }),
         makeStudent({ id: 'student-inactive', active: false, fullNameEnc: 'Inactive Student' }),
       ],
-      latestNav: 11,
+      latestNav: 10,
       investmentAccounts: [
-        { studentId: 'student-gain', units: 10 },
-        { studentId: 'student-loss', units: 10 },
+        { studentId: 'student-higher-value', units: 20 },
+        { studentId: 'student-higher-return', units: 10 },
         { studentId: 'student-inactive', units: 100 },
       ],
       ledger: [
-        { studentId: 'student-gain', account: 'Investment', delta: 100 },
-        { studentId: 'student-loss', account: 'Investment', delta: 200 },
+        { studentId: 'student-higher-value', account: 'Investment', delta: 200 },
+        { studentId: 'student-higher-return', account: 'Investment', delta: 10 },
         { studentId: 'student-inactive', account: 'Investment', delta: 1 },
       ],
     });
@@ -351,12 +476,262 @@ describe('leaderboard.get', () => {
     expect(result.rows).toHaveLength(2);
     expect(result.rows[0]).toMatchObject({
       rank: 1,
-      studentId: 'student-gain',
-      displayName: 'Gain Student',
-      score: 10,
+      studentId: 'student-higher-value',
+      displayName: 'Higher Value Student',
+      score: 200,
     });
-    expect(result.rows[1]?.studentId).toBe('student-loss');
-    expect(result.rows[1]?.score).toBe(-45);
+    expect(result.rows[1]?.studentId).toBe('student-higher-return');
+    expect(result.rows[1]?.score).toBe(100);
+  });
+
+  it('adds only linked guardian children as viewerRows when they rank outside the top ten', async () => {
+    const students = Array.from({ length: 12 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        fullNameEnc: `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      guardians: [{ userId: parentUser.id, studentId: 'student-12' }],
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'TithePaid',
+        delta: 120 - index,
+      })),
+    });
+
+    const result = await makeCaller(parentUser, db).caller.leaderboard.get({
+      kind: 'TopTithers',
+      limit: 10,
+    });
+
+    expect(result.rows).toHaveLength(10);
+    expect(result.rows.map((row) => row.studentId)).toEqual(
+      Array.from({ length: 10 }, (_, index) => `student-${String(index + 1).padStart(2, '0')}`),
+    );
+    expect(result.rows.map((row) => row.studentId)).not.toContain('student-11');
+    expect(result.rows.map((row) => row.studentId)).not.toContain('student-12');
+    expect(result.viewerRows).toEqual([
+      {
+        rank: 12,
+        studentId: 'student-12',
+        displayName: 'Student 12',
+        yearGroup: 'Year 8',
+        score: 109,
+      },
+    ]);
+  });
+
+  it('caps parent public leaderboard rows at the top ten even when a larger limit is requested', async () => {
+    const students = Array.from({ length: 25 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        fullNameEnc: `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      guardians: [{ userId: parentUser.id, studentId: 'student-25' }],
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'TithePaid',
+        delta: 125 - index,
+      })),
+    });
+
+    const result = await makeCaller(parentUser, db).caller.leaderboard.get({
+      kind: 'TopTithers',
+      limit: 50,
+    });
+
+    expect(result.scope).toBe('public');
+    expect(result.rows).toHaveLength(10);
+    expect(result.rows.at(-1)?.studentId).toBe('student-10');
+    expect(result.viewerRows).toEqual([
+      expect.objectContaining({ rank: 25, studentId: 'student-25' }),
+    ]);
+  });
+
+  it('returns linked guardian children as viewerRows when they rank inside the top ten', async () => {
+    const students = Array.from({ length: 10 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        fullNameEnc: index === 5 ? 'Joshua Johnson' : `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      guardians: [{ userId: parentUser.id, studentId: 'student-06' }],
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'TithePaid',
+        delta: 100 - index,
+      })),
+    });
+
+    const result = await makeCaller(parentUser, db).caller.leaderboard.get({
+      kind: 'TopTithers',
+      limit: 10,
+    });
+
+    expect(result.rows).toHaveLength(10);
+    expect(result.rows.map((row) => row.studentId)).toContain('student-06');
+    expect(result.viewerRows).toEqual([
+      {
+        rank: 6,
+        studentId: 'student-06',
+        displayName: 'Joshua Johnson',
+        yearGroup: 'Year 8',
+        score: 95,
+      },
+    ]);
+  });
+
+  it('adds only the signed-in student as a viewerRow when they rank outside the top ten', async () => {
+    const students = Array.from({ length: 12 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        userId: index === 11 ? studentUser.id : null,
+        fullNameEnc: `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'Saving',
+        delta: 120 - index,
+      })),
+    });
+
+    const result = await makeCaller(studentUser, db).caller.leaderboard.get({
+      kind: 'TopSavers',
+      limit: 10,
+    });
+
+    expect(result.rows).toHaveLength(10);
+    expect(result.viewerRows).toEqual([
+      {
+        rank: 12,
+        studentId: 'student-12',
+        displayName: 'Student 12',
+        yearGroup: 'Year 8',
+        score: 109,
+      },
+    ]);
+  });
+
+  it('does not include outside-top-ten viewerRows for staff users', async () => {
+    const students = Array.from({ length: 12 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        fullNameEnc: `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'Saving',
+        delta: 120 - index,
+      })),
+    });
+
+    const result = await makeCaller(supervisorUser, db).caller.leaderboard.get({
+      kind: 'TopSavers',
+      limit: 10,
+    });
+
+    expect(result.rows).toHaveLength(10);
+    expect(result.viewerRows).toEqual([]);
+  });
+
+  it('paginates the full leaderboard for TechnicalSupport users', async () => {
+    const students = Array.from({ length: 25 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        fullNameEnc: `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'Saving',
+        delta: 125 - index,
+      })),
+    });
+
+    const result = await makeCaller(technicalSupportUser, db).caller.leaderboard.get({
+      kind: 'TopSavers',
+      page: 2,
+      pageSize: 20,
+      scope: 'full',
+    });
+
+    expect(result).toMatchObject({
+      page: 2,
+      pageSize: 20,
+      scope: 'full',
+      totalRows: 25,
+      viewerRows: [],
+    });
+    expect(result.rows.map((row) => row.studentId)).toEqual([
+      'student-21',
+      'student-22',
+      'student-23',
+      'student-24',
+      'student-25',
+    ]);
+    expect(result.rows[0]?.rank).toBe(21);
+  });
+
+  it('denies full leaderboard scope for supervisors without reading extra pages', async () => {
+    const db = makeFakeDb({
+      students: [makeStudent({ id: 'student-01', fullNameEnc: 'Student 1' })],
+      ledger: [{ studentId: 'student-01', account: 'Saving', delta: 10 }],
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).caller.leaderboard.get({
+        kind: 'TopSavers',
+        scope: 'full',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    const deniedAudit = auditCreates(db).find(
+      (audit) =>
+        audit.data.action === 'PermissionDenied' && audit.data.entity === 'leaderboard.get',
+    );
+    expect(deniedAudit?.data.meta).toMatchObject({ role: 'Supervisor', scope: 'full' });
+    expect(db.meritLedger.groupBy).not.toHaveBeenCalled();
+  });
+
+  it('suppresses linked-child viewerRows when a staff portal opts out', async () => {
+    const students = Array.from({ length: 12 }, (_, index) =>
+      makeStudent({
+        id: `student-${String(index + 1).padStart(2, '0')}`,
+        fullNameEnc: `Student ${String(index + 1)}`,
+      }),
+    );
+    const db = makeFakeDb({
+      students,
+      guardians: [{ userId: supervisorUser.id, studentId: 'student-12' }],
+      ledger: students.map((student, index) => ({
+        studentId: student.id,
+        account: 'Saving',
+        delta: 120 - index,
+      })),
+    });
+
+    const result = await makeCaller(supervisorUser, db).caller.leaderboard.get({
+      includeViewerRows: false,
+      kind: 'TopSavers',
+      limit: 10,
+    });
+
+    expect(result.rows).toHaveLength(10);
+    expect(result.viewerRows).toEqual([]);
   });
 
   it('allows full-admin users to view HighestDemerits without returning sensitive notes', async () => {
@@ -465,5 +840,43 @@ describe('leaderboard.get', () => {
         meta: { count: 0, kind: 'TopTithers', source: 'leaderboard.get' },
       }),
     );
+  });
+});
+
+describe('leaderboard.charityPot', () => {
+  it('returns a default goal-only charity pot when no goal has been set', async () => {
+    const db = makeFakeDb();
+
+    await expect(makeCaller(parentUser, db).caller.leaderboard.charityPot.get()).resolves.toEqual({
+      goalMerits: 0,
+      currentMerits: 0,
+      progressPct: 0,
+      goalReached: false,
+      updatedAt: null,
+      updatedById: null,
+    });
+  });
+
+  it('allows Pastor/full-admin roles to update the charity pot goal', async () => {
+    const db = makeFakeDb();
+
+    await expect(
+      makeCaller(pastorUser, db).caller.leaderboard.charityPot.updateGoal({ goalMerits: 500 }),
+    ).resolves.toMatchObject({
+      goalMerits: 500,
+      currentMerits: 0,
+      progressPct: 0,
+      goalReached: false,
+      updatedById: pastorUser.id,
+    });
+  });
+
+  it('denies charity pot goal updates for non-admin parents', async () => {
+    const db = makeFakeDb();
+
+    await expect(
+      makeCaller(parentUser, db).caller.leaderboard.charityPot.updateGoal({ goalMerits: 500 }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.charityPot.upsert).not.toHaveBeenCalled();
   });
 });

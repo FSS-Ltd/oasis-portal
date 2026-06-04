@@ -107,7 +107,7 @@ function StudentPortalTable({ rows }: { rows: ReportRow[] }) {
             <tr key={row.studentId}>
               <td>
                 <strong>{row.fullName}</strong>
-                <span>{row.yearGroup}</span>
+                <span>{displaySchoolYearLabel(row.yearGroup)}</span>
               </td>
               <td>
                 <div className="student-portal-admin-stack">

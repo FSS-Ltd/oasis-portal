@@ -19,6 +19,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import {
   BehaviourStudentSelector,
@@ -991,7 +992,7 @@ export function IncidentStaffWorkflow({ portal }: StaffIncidentWorkflowProps) {
       (students.data ?? []).map((student) => ({
         id: student.id,
         label: student.fullName,
-        description: student.yearGroup,
+        description: displaySchoolYearLabel(student.yearGroup),
       })),
     [students.data],
   );

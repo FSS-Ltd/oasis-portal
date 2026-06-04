@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Edit3, Trash2 } from 'lucide-react';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -550,7 +551,7 @@ export function ChildSnapshotClient({
                               />
                             </span>
                           </td>
-                          <td>{row.student.yearGroup}</td>
+                          <td>{displaySchoolYearLabel(row.student.yearGroup)}</td>
                           <td>
                             {row.metrics.attendance.recorded
                               ? `${String(row.metrics.attendance.present)} present · ${String(

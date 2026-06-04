@@ -166,7 +166,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 
 ### Behaviour, merits, demerits, leaderboard, and child notes
 
-- Owns: Behaviour logging, sensitive behaviour visibility, child notes, merit ledger rows, and leaderboards.
+- Owns: Behaviour logging, sensitive behaviour visibility, child notes, merit ledger rows, leaderboards, and the charity pot goal.
 - API routers:
   - `apps/api/src/routers/behaviour.ts`
   - `apps/api/src/routers/childLog.ts`
@@ -180,6 +180,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Web surfaces:
   - `apps/web/src/components/behaviour/`
   - `apps/web/src/components/child-log/`
+  - `apps/web/src/components/leaderboard/`
   - `apps/web/src/components/student-drillthrough/notes-list.tsx`
 - Mobile surfaces:
   - `apps/mobile/src/components/smoke/`
