@@ -30,6 +30,7 @@ import { invoiceRouter } from './routers/invoice.js';
 import { permissionSlipRouter } from './routers/permissionSlip.js';
 import { incidentRouter } from './routers/incident.js';
 import { studentSettingsRouter } from './routers/studentSettings.js';
+import { faithCornerRouter } from './routers/faithCorner.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -59,6 +60,7 @@ export const appRouter = router({
   permissionSlip: permissionSlipRouter,
   incident: incidentRouter,
   studentSettings: studentSettingsRouter,
+  faithCorner: faithCornerRouter,
 });
 
 export type AppRouter = typeof appRouter;

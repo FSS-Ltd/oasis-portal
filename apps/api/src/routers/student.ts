@@ -14,6 +14,7 @@ import {
   loadStudentPortalUsageStatus,
   recordStudentPortalUsageHeartbeat,
 } from '../lib/student-portal-access.js';
+import { loadCurrentFaithCornerContent } from '../services/faith-corner.js';
 import type { AppContext } from '../context.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 import { deleteArchivedStudent } from '../students/delete-archived-student.js';
@@ -407,11 +408,12 @@ export const studentRouter = router({
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
     }
     const firstName = firstNameFrom(fullName);
-    const [balances, pace, attendance, shortcuts] = await Promise.all([
+    const [balances, pace, attendance, shortcuts, faithCorner] = await Promise.all([
       loadMeritBalances(ctx, ownStudent.id),
       loadPaceDashboard(ctx, ownStudent.id),
       loadAttendanceDashboard(ctx, ownStudent.id),
       loadShortcutDashboard(ctx, ownStudent.id),
+      loadCurrentFaithCornerContent(ctx),
     ]);
     const totalMerits =
       balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved;
@@ -437,11 +439,7 @@ export const studentRouter = router({
       attendance,
       notifications: emptyNotificationPreview(),
       shortcuts,
-      faithCorner: {
-        title: 'Faith Corner',
-        body: 'A weekly encouragement and Scripture memory prompt will appear here.',
-        ready: false,
-      },
+      faithCorner,
     };
   }),
 

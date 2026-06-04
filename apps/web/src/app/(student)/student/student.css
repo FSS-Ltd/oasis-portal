@@ -1346,6 +1346,115 @@
   font-weight: 750;
 }
 
+.student-faith-preview {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+.student-faith-preview strong,
+.student-faith-preview p,
+.student-faith-preview small {
+  margin: 0;
+}
+
+.student-faith-preview strong {
+  color: var(--oasis-navy);
+  font-size: 0.88rem;
+}
+
+.student-faith-preview p {
+  color: var(--oasis-text-secondary);
+  line-height: 1.5;
+}
+
+.student-faith-preview small {
+  color: var(--oasis-text-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.student-faith-page {
+  gap: 16px;
+}
+
+.student-faith-hero__meta {
+  display: grid;
+  min-width: 176px;
+  place-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  text-align: center;
+}
+
+.student-faith-hero__meta small,
+.student-faith-hero__meta strong {
+  margin: 0;
+}
+
+.student-faith-hero__meta small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-faith-hero__meta strong {
+  color: var(--oasis-navy);
+  font-size: 0.86rem;
+}
+
+.student-faith-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-faith-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-faith-card--wide {
+  grid-column: 1 / -1;
+}
+
+.student-faith-card blockquote,
+.student-faith-card p,
+.student-faith-card small {
+  margin: 0;
+}
+
+.student-faith-card blockquote {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.65;
+}
+
+.student-faith-card p {
+  color: var(--oasis-text-secondary);
+  line-height: 1.6;
+}
+
+.student-faith-card small {
+  color: var(--oasis-text-muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
 .student-placeholder-page__header {
   display: grid;
   gap: 4px;
@@ -1445,7 +1554,8 @@
 
   .student-dashboard-main,
   .student-attendance-layout,
-  .student-clubs-layout {
+  .student-clubs-layout,
+  .student-faith-layout {
     grid-template-columns: 1fr;
   }
 

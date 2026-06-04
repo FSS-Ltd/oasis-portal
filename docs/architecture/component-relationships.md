@@ -287,6 +287,30 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - Identity, Clerk sync, sessions, and post-sign-in routing (426)
   - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (413)
 
+### Faith Corner managed student content
+
+- Owns: Managed weekly Scripture memory, reflection prompts, optional verse-of-day content, and read-only student Faith Corner views.
+- API routers:
+  - `apps/api/src/routers/faithCorner.ts`
+- Domain helpers:
+  - _None configured_
+- Web surfaces:
+  - `apps/web/src/app/(admin)/admin/faith-corner/`
+  - `apps/web/src/app/(student)/student/faith/`
+  - `apps/web/src/components/faith-corner/`
+  - `apps/web/src/components/student/`
+- Mobile surfaces:
+  - _None configured_
+- Shared or infrastructure surfaces:
+  - `apps/api/src/services/faith-corner.ts`
+  - `packages/db/prisma/migrations/20260604034500_faith_corner_content/`
+- Graphify evidence: 48 nodes, 41 links, communities 1, 50, 55, 65, 66, 83, 97, 98.
+- Relationship types: contains: 35, calls: 6.
+- Confidence mix: EXTRACTED: 40, INFERRED: 1.
+- Connected modules:
+  - Registration, parent, student, supervisor, and admin shells (41)
+  - Incident reports, staff review, and parent-safe release (1)
+
 ### Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email
 
 - Owns: Commercial, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.

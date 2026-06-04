@@ -145,6 +145,23 @@ const PRODUCT_MODULES = [
     ],
   },
   {
+    name: 'Faith Corner managed student content',
+    owns: 'Managed weekly Scripture memory, reflection prompts, optional verse-of-day content, and read-only student Faith Corner views.',
+    apiRouters: ['faithCorner'],
+    domainFiles: [],
+    webSurfaces: [
+      'apps/web/src/app/(admin)/admin/faith-corner/',
+      'apps/web/src/app/(student)/student/faith/',
+      'apps/web/src/components/faith-corner/',
+      'apps/web/src/components/student/',
+    ],
+    mobileSurfaces: [],
+    sharedSurfaces: [
+      'apps/api/src/services/faith-corner.ts',
+      'packages/db/prisma/migrations/20260604034500_faith_corner_content/',
+    ],
+  },
+  {
     name: 'Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email',
     owns: 'Commercial, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
     apiRouters: [

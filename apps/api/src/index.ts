@@ -88,6 +88,7 @@ export {
   type StudentCredentialAdapter,
   type StudentSettingsRouterDeps,
 } from './routers/studentSettings.js';
+export { faithCornerRouter } from './routers/faithCorner.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
 export {
   handleClerkWebhookRequest,
