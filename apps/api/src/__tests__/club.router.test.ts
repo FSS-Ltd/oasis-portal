@@ -55,7 +55,7 @@ const studentUser: SessionUser = {
   requires2fa: false,
 };
 
-type ClubSignupStatus = 'Active' | 'Withdrawn';
+type ClubSignupStatus = 'Active' | 'Pending' | 'Withdrawn';
 
 interface StoredClub {
   id: string;
@@ -77,6 +77,7 @@ interface StoredClub {
 
 interface StoredStudent {
   id: string;
+  userId: string | null;
   fullNameEnc: string;
   yearGroup: string;
   active: boolean;
@@ -150,9 +151,16 @@ interface FakeClubFindUniqueArgs {
   };
 }
 
+interface FakeSignupWhere {
+  OR?: FakeSignupWhere[];
+  status?: ClubSignupStatus;
+  student?: { active?: boolean };
+  studentId?: string;
+}
+
 interface FakeClubInclude {
   signups?: {
-    where?: { status?: ClubSignupStatus; student?: { active?: boolean } };
+    where?: FakeSignupWhere;
     select?: { studentId?: true };
     include?: { student?: { select: { id: true; fullNameEnc: true; yearGroup: true } } };
     orderBy?: { createdAt: 'desc' };
@@ -236,7 +244,7 @@ interface FakeSignupUpdateArgs {
 }
 
 interface FakeStudentFindUniqueArgs {
-  where: { id: string };
+  where: { id?: string; userId?: string };
 }
 
 interface FakeStudentFindManyArgs {
@@ -392,6 +400,12 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
+  studentPortalSettings: {
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  studentPortalUsageMinute: {
+    count: ReturnType<typeof vi.fn>;
+  };
   clubs: StoredClub[];
   students: StoredStudent[];
   guardians: StoredGuardian[];
@@ -434,6 +448,7 @@ function makeStudent(
   input: Partial<StoredStudent> & Pick<StoredStudent, 'id' | 'fullNameEnc'>,
 ): StoredStudent {
   return {
+    userId: null,
     yearGroup: 'Year 7',
     active: true,
     ...input,
@@ -521,7 +536,7 @@ function makeFakeDb(
     makeClub({ id: inactiveClubId, name: 'Chess', active: false }),
   ];
   const students = input.students ?? [
-    makeStudent({ id: linkedStudentId, fullNameEnc: encrypt('Linked Learner') }),
+    makeStudent({ id: linkedStudentId, userId: studentUser.id, fullNameEnc: encrypt('Linked Learner') }),
     makeStudent({ id: otherStudentId, fullNameEnc: encrypt('Other Learner'), yearGroup: 'Year 8' }),
   ];
   const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
@@ -871,7 +886,13 @@ function makeFakeDb(
         ),
       ),
       findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
-        Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
+        Promise.resolve(
+          students.find((student) =>
+            args.where.id !== undefined
+              ? student.id === args.where.id
+              : student.userId === args.where.userId,
+          ) ?? null,
+        ),
       ),
     },
     user: {
@@ -962,6 +983,12 @@ function makeFakeDb(
         return Promise.resolve({ student: { id: student.id, active: student.active } });
       }),
     },
+    studentPortalSettings: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    studentPortalUsageMinute: {
+      count: vi.fn().mockResolvedValue(0),
+    },
     clubs,
     students,
     guardians,
@@ -991,13 +1018,24 @@ function withIncludedSignups(
   } = { ...club };
 
   if (include?.signups) {
-    const status = include.signups.where?.status;
-    const active = include.signups.where?.student?.active;
     included.signups = signups
-      .filter((signup) => signup.clubId === club.id && (!status || signup.status === status))
+      .filter((signup) => signup.clubId === club.id)
       .filter((signup) => {
         const student = students.find((candidate) => candidate.id === signup.studentId);
-        return active === undefined || student?.active === active;
+        const signupMatches = (where: NonNullable<FakeClubInclude['signups']>['where']) => {
+          const statusMatches = where?.status === undefined || signup.status === where.status;
+          const studentMatches =
+            where?.studentId === undefined || signup.studentId === where.studentId;
+          const activeMatches =
+            where?.student?.active === undefined || student?.active === where.student.active;
+          return statusMatches && studentMatches && activeMatches;
+        };
+
+        if (include.signups?.where?.OR) {
+          return include.signups.where.OR.some((where) => signupMatches(where));
+        }
+
+        return signupMatches(include.signups?.where);
       })
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((signup) => {
@@ -1448,6 +1486,134 @@ describe('club.linkedChildClubDetail', () => {
   });
 });
 
+describe('club student portal procedures', () => {
+  it('lists active clubs with own membership status and supervisor names', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignupmember00000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          userId: clubsLeadUser.id,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+        },
+      ],
+    });
+
+    const result = await makeCaller(studentUser, db).caller.club.studentClubs();
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: defaultClubId,
+        name: 'Choir',
+        status: 'Member',
+        activeSignupCount: 1,
+        supervisorNames: ['Clubs Lead'],
+      }),
+    ]);
+    expect(JSON.stringify(result)).not.toContain('Other Learner');
+  });
+
+  it('returns member-only notices for active student members', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignupmember00000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      notifications: [
+        makeNotification({
+          id: 'cnotice0000000000001',
+          clubId: defaultClubId,
+          title: 'Bring music folder',
+          bodyEnc: encrypt('Please bring your folder next session.'),
+        }),
+      ],
+    });
+
+    const detail = await makeCaller(studentUser, db).caller.club.studentClubDetail({
+      clubId: defaultClubId,
+    });
+
+    expect(detail.club).toMatchObject({ id: defaultClubId, status: 'Member' });
+    expect(detail.notices).toEqual([
+      {
+        id: 'cnotice0000000000001',
+        clubId: defaultClubId,
+        title: 'Bring music folder',
+        body: 'Please bring your folder next session.',
+        sentAt: new Date('2026-05-11T14:00:00.000Z'),
+      },
+    ]);
+    expect(JSON.stringify(detail)).not.toContain(clubsAdminUser.id);
+  });
+
+  it('does not return notices to non-members', async () => {
+    const db = makeFakeDb({
+      notifications: [
+        makeNotification({
+          id: 'cnotice0000000000001',
+          clubId: defaultClubId,
+          title: 'Members only',
+          bodyEnc: encrypt('Private member notice.'),
+        }),
+      ],
+    });
+
+    const detail = await makeCaller(studentUser, db).caller.club.studentClubDetail({
+      clubId: defaultClubId,
+    });
+
+    expect(detail.club.status).toBe('Available');
+    expect(detail.notices).toEqual([]);
+    expect(JSON.stringify(detail)).not.toContain('Private member notice');
+  });
+
+  it('lets a student submit interest once and keeps it pending for approval', async () => {
+    const db = makeFakeDb();
+    const caller = makeCaller(studentUser, db).caller;
+
+    const created = await caller.club.studentExpressInterest({ clubId: defaultClubId });
+
+    expect(created).toMatchObject({
+      clubId: defaultClubId,
+      studentId: linkedStudentId,
+      status: 'Pending',
+      created: true,
+    });
+    expect(db.signups).toHaveLength(1);
+    expect(db.signups[0]).toMatchObject({
+      clubId: defaultClubId,
+      studentId: linkedStudentId,
+      status: 'Pending',
+    });
+    expect(auditEntities(db)).toEqual([
+      expect.objectContaining({ action: 'Create', entity: 'ClubSignup', entityId: created.id }),
+    ]);
+
+    await expect(caller.club.studentExpressInterest({ clubId: defaultClubId })).resolves.toMatchObject({
+      id: created.id,
+      status: 'Pending',
+      created: false,
+    });
+  });
+
+  it('blocks non-students from student club interest', async () => {
+    await expect(
+      makeCaller(parentUser).caller.club.studentExpressInterest({ clubId: defaultClubId }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
 describe('club.signUp', () => {
   it('allows a parent to sign up their linked active child and audits the signup', async () => {
     const { caller, db } = makeCaller(parentUser);
@@ -1561,6 +1727,41 @@ describe('club.signUp', () => {
     });
     expect(db.signups).toHaveLength(2);
     expect(db.signups.map((signup) => signup.status)).toEqual(['Withdrawn', 'Active']);
+  });
+
+  it('approves an existing pending student interest without creating a duplicate signup', async () => {
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignuppending000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+          signedUpByUserId: studentUser.id,
+          status: 'Pending',
+        }),
+      ],
+    });
+
+    const signup = await makeCaller(headUser, db).caller.club.signUp({
+      clubId: defaultClubId,
+      studentId: linkedStudentId,
+    });
+
+    expect(signup).toMatchObject({
+      id: 'csignuppending000001',
+      clubId: defaultClubId,
+      studentId: linkedStudentId,
+      status: 'Active',
+    });
+    expect(db.signups).toHaveLength(1);
+    expect(db.signups[0]).toMatchObject({ status: 'Active' });
+    expect(auditEntities(db)).toEqual([
+      expect.objectContaining({
+        action: 'Update',
+        entity: 'ClubSignup',
+        entityId: 'csignuppending000001',
+      }),
+    ]);
   });
 
   it('allows a ClubsAdmin user to sign up a linked active child', async () => {

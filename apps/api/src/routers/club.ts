@@ -16,6 +16,7 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
+import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
   buildClubNotificationEmail,
   CLUB_NOTIFICATION_EMAIL_SUBJECT,
@@ -23,7 +24,7 @@ import {
   type EmailClient,
 } from '../lib/email.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
-import { authedProcedure, router } from '../trpc.js';
+import { authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
@@ -135,6 +136,10 @@ const clubUpdateInput = z.object({
 const clubStudentInput = z.object({
   clubId: stringIdInput,
   studentId: stringIdInput,
+});
+
+const clubInterestInput = z.object({
+  clubId: stringIdInput,
 });
 
 const clubIdInput = z.object({ clubId: stringIdInput });
@@ -826,6 +831,17 @@ async function assertFullAdminActiveStudent(
   }
 }
 
+async function loadOwnActiveStudent(ctx: AuthedContext): Promise<{ id: string; active: boolean }> {
+  const student = await ctx.db.student.findUnique({
+    where: { userId: ctx.user.id },
+    select: { id: true, active: true },
+  });
+  if (!student?.active) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
+  }
+  return student;
+}
+
 function handleSignupCreateError(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     throw new TRPCError({
@@ -1030,7 +1046,12 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         include: clubManagementInclude,
         orderBy: clubListOrderBy,
       });
-      const leadCount = clubs.reduce((total, club) => total + club.leadAssignments.length, 0);
+      const leadCount = clubs.reduce(
+        (total, club) =>
+          total +
+          club.leadAssignments.filter((assignment) => assignment.user.active).length,
+        0,
+      );
 
       await ctx.db.auditLog.create({
         data: {
@@ -1140,6 +1161,210 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         notices: notifications.map((notification) =>
           mapLinkedClubNoticeRow(ctx.db.$enc.decrypt, club.name, notification),
         ),
+      };
+    }),
+
+    studentClubs: roleProcedure('Student').query(async ({ ctx }) => {
+      const student = await loadOwnActiveStudent(ctx);
+      await assertStudentPortalAccess(ctx, { entity: 'club.studentClubs', studentId: student.id });
+
+      const clubs = await ctx.db.club.findMany({
+        where: { active: true },
+        include: {
+          signups: {
+            where: {
+              OR: [
+                { status: 'Active', student: { active: true } },
+                { status: 'Pending', studentId: student.id },
+              ],
+            },
+            select: { id: true, studentId: true, status: true, createdAt: true },
+          },
+          leadAssignments: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              user: {
+                select: { active: true, fullNameEnc: true, id: true },
+              },
+            },
+          },
+        },
+        orderBy: clubListOrderBy,
+      });
+      const leadCount = clubs.reduce((total, club) => total + club.leadAssignments.length, 0);
+      if (leadCount > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'User',
+            meta: { source: 'club.studentClubs.leads', count: leadCount },
+          },
+        });
+      }
+
+      return clubs.map((club) => {
+        const structuredSchedule = scheduleFromRow(club);
+        const activeSignupCount = club.signups.filter((signup) => signup.status === 'Active').length;
+        const ownSignup = club.signups.find(
+          (signup) =>
+            signup.studentId === student.id &&
+            (signup.status === 'Active' || signup.status === 'Pending'),
+        );
+        const status =
+          ownSignup?.status === 'Active'
+            ? 'Member'
+            : ownSignup?.status === 'Pending'
+              ? 'Interested'
+              : club.capacity !== null && activeSignupCount >= club.capacity
+                ? 'Full'
+                : 'Available';
+
+        return {
+          id: club.id,
+          name: club.name,
+          description: club.description,
+          schedule: structuredSchedule
+            ? {
+                startDate: dateKey(structuredSchedule.startDate),
+                startMinute: structuredSchedule.startMinute,
+                endMinute: structuredSchedule.endMinute,
+                frequency: structuredSchedule.frequency,
+              }
+            : null,
+          scheduleLabel: formatClubSchedule(structuredSchedule) ?? club.schedule,
+          capacity: club.capacity,
+          activeSignupCount,
+          iconKey: club.iconKey,
+          accentColor: club.accentColor,
+          status,
+          interestedAt: ownSignup?.status === 'Pending' ? ownSignup.createdAt : null,
+          supervisorNames: club.leadAssignments
+            .filter((assignment) => assignment.user.active)
+            .map((assignment) =>
+              decryptRequired(ctx.db.$enc.decrypt, assignment.user.fullNameEnc, 'user PII'),
+            ),
+        };
+      });
+    }),
+
+    studentClubDetail: roleProcedure('Student').input(clubIdInput).query(async ({ ctx, input }) => {
+      const student = await loadOwnActiveStudent(ctx);
+      await assertStudentPortalAccess(ctx, {
+        entity: 'club.studentClubDetail',
+        studentId: student.id,
+      });
+
+      const club = await ctx.db.club.findUnique({
+        where: { id: input.clubId },
+        include: {
+          signups: {
+            where: {
+              OR: [
+                { status: 'Active', student: { active: true } },
+                { status: 'Pending', studentId: student.id },
+              ],
+            },
+            select: { id: true, studentId: true, status: true, createdAt: true },
+          },
+          leadAssignments: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              user: {
+                select: { active: true, fullNameEnc: true, id: true },
+              },
+            },
+          },
+        },
+      });
+      if (!club || !club.active) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+      }
+
+      const activeLeadAssignments = club.leadAssignments.filter((assignment) => assignment.user.active);
+      const structuredSchedule = scheduleFromRow(club);
+      const activeSignupCount = club.signups.filter((signup) => signup.status === 'Active').length;
+      const ownSignup = club.signups.find(
+        (signup) =>
+          signup.studentId === student.id &&
+          (signup.status === 'Active' || signup.status === 'Pending'),
+      );
+      const member = ownSignup?.status === 'Active';
+      const notices = member
+        ? await ctx.db.clubNotification.findMany({
+            where: { clubId: club.id },
+            select: { id: true, clubId: true, title: true, bodyEnc: true, sentAt: true },
+            orderBy: { sentAt: 'desc' },
+            take: 20,
+          })
+        : [];
+
+      if (activeLeadAssignments.length > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'User',
+            meta: {
+              source: 'club.studentClubDetail.leads',
+              clubId: club.id,
+              count: activeLeadAssignments.length,
+            },
+          },
+        });
+      }
+      if (notices.length > 0) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'DecryptPii',
+            entity: 'ClubNotification',
+            meta: {
+              source: 'club.studentClubDetail.notices',
+              clubId: club.id,
+              count: notices.length,
+            },
+          },
+        });
+      }
+
+      return {
+        club: {
+          id: club.id,
+          name: club.name,
+          description: club.description,
+          schedule: structuredSchedule
+            ? {
+                startDate: dateKey(structuredSchedule.startDate),
+                startMinute: structuredSchedule.startMinute,
+                endMinute: structuredSchedule.endMinute,
+                frequency: structuredSchedule.frequency,
+              }
+            : null,
+          scheduleLabel: formatClubSchedule(structuredSchedule) ?? club.schedule,
+          capacity: club.capacity,
+          activeSignupCount,
+          iconKey: club.iconKey,
+          accentColor: club.accentColor,
+          status: member
+            ? 'Member'
+            : ownSignup?.status === 'Pending'
+              ? 'Interested'
+              : club.capacity !== null && activeSignupCount >= club.capacity
+                ? 'Full'
+                : 'Available',
+          interestedAt: ownSignup?.status === 'Pending' ? ownSignup.createdAt : null,
+          supervisorNames: activeLeadAssignments.map((assignment) =>
+            decryptRequired(ctx.db.$enc.decrypt, assignment.user.fullNameEnc, 'user PII'),
+          ),
+        },
+        notices: notices.map((notice) => ({
+          id: notice.id,
+          clubId: notice.clubId,
+          title: notice.title,
+          body: decryptRequired(ctx.db.$enc.decrypt, notice.bodyEnc, 'club notification'),
+          sentAt: notice.sentAt,
+        })),
       };
     }),
 
@@ -2153,6 +2378,101 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
       );
     }),
 
+    studentExpressInterest: roleProcedure('Student')
+      .input(clubInterestInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadOwnActiveStudent(ctx);
+        await assertStudentPortalAccess(ctx, {
+          entity: 'club.studentExpressInterest',
+          studentId: student.id,
+        });
+
+        return ctx.db.$transaction(
+          async (tx) => {
+            const club = await tx.club.findUnique({
+              where: { id: input.clubId },
+              include: {
+                signups: {
+                  where: {
+                    OR: [
+                      { status: 'Active', student: { active: true } },
+                      { studentId: student.id, status: 'Pending' },
+                    ],
+                  },
+                  select: { id: true, studentId: true, status: true },
+                },
+              },
+            });
+            if (!club) {
+              throw new TRPCError({ code: 'NOT_FOUND', message: 'club not found' });
+            }
+            if (!club.active) {
+              throw new TRPCError({ code: 'BAD_REQUEST', message: 'club is inactive' });
+            }
+            const activeSignupCount = club.signups.filter(
+              (signup) => signup.status === 'Active',
+            ).length;
+            const ownSignup = club.signups.find(
+              (signup) =>
+                signup.studentId === student.id &&
+                (signup.status === 'Active' || signup.status === 'Pending'),
+            );
+            if (ownSignup?.status === 'Active') {
+              throw new TRPCError({
+                code: 'BAD_REQUEST',
+                message: 'student is already signed up for this club',
+              });
+            }
+            if (ownSignup?.status === 'Pending') {
+              return {
+                id: ownSignup.id,
+                clubId: input.clubId,
+                studentId: student.id,
+                status: 'Pending' as const,
+                created: false,
+              };
+            }
+            if (club.capacity !== null && activeSignupCount >= club.capacity) {
+              throw new TRPCError({ code: 'BAD_REQUEST', message: 'club is at capacity' });
+            }
+
+            const signup = await tx.clubSignup.create({
+              data: {
+                clubId: input.clubId,
+                studentId: student.id,
+                signedUpByUserId: ctx.user.id,
+                status: 'Pending',
+              },
+              select: {
+                id: true,
+                clubId: true,
+                studentId: true,
+                status: true,
+                createdAt: true,
+              },
+            });
+
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Create',
+                entity: 'ClubSignup',
+                entityId: signup.id,
+                meta: {
+                  source: 'club.studentExpressInterest',
+                  clubId: input.clubId,
+                  studentId: student.id,
+                  status: 'Pending',
+                },
+              },
+            });
+
+            return { ...signup, created: true };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      }),
+
     signUp: authedProcedure.input(clubStudentInput).mutation(async ({ ctx, input }) => {
       const actor = requireSignupActor(ctx.user);
 
@@ -2193,33 +2513,76 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
               throw new TRPCError({ code: 'BAD_REQUEST', message: signupCheck });
             }
 
-            const signup = await tx.clubSignup.create({
-              data: {
+            const pendingSignup = await tx.clubSignup.findFirst({
+              where: {
                 clubId: input.clubId,
                 studentId: input.studentId,
-                signedUpByUserId: ctx.user.id,
-                status: 'Active',
+                status: 'Pending',
               },
-              select: {
-                id: true,
-                clubId: true,
-                studentId: true,
-                signedUpByUserId: true,
-                status: true,
-                createdAt: true,
-                withdrawnAt: true,
-              },
+              select: { id: true },
             });
 
-            await tx.auditLog.create({
-              data: {
-                userId: ctx.user.id,
-                action: 'Create',
-                entity: 'ClubSignup',
-                entityId: signup.id,
-                meta: { source: 'club.signUp', clubId: input.clubId, studentId: input.studentId },
-              },
-            });
+            const signup = pendingSignup
+              ? await tx.clubSignup.update({
+                  where: { id: pendingSignup.id },
+                  data: { status: 'Active', withdrawnAt: null },
+                  select: {
+                    id: true,
+                    clubId: true,
+                    studentId: true,
+                    signedUpByUserId: true,
+                    status: true,
+                    createdAt: true,
+                    withdrawnAt: true,
+                  },
+                })
+              : await tx.clubSignup.create({
+                  data: {
+                    clubId: input.clubId,
+                    studentId: input.studentId,
+                    signedUpByUserId: ctx.user.id,
+                    status: 'Active',
+                  },
+                  select: {
+                    id: true,
+                    clubId: true,
+                    studentId: true,
+                    signedUpByUserId: true,
+                    status: true,
+                    createdAt: true,
+                    withdrawnAt: true,
+                  },
+                });
+
+            if (pendingSignup) {
+              await tx.auditLog.create({
+                data: {
+                  userId: ctx.user.id,
+                  action: 'Update',
+                  entity: 'ClubSignup',
+                  entityId: signup.id,
+                  meta: {
+                    source: 'club.signUp.approvePending',
+                    clubId: input.clubId,
+                    studentId: input.studentId,
+                  },
+                },
+              });
+            } else {
+              await tx.auditLog.create({
+                data: {
+                  userId: ctx.user.id,
+                  action: 'Create',
+                  entity: 'ClubSignup',
+                  entityId: signup.id,
+                  meta: {
+                    source: 'club.signUp',
+                    clubId: input.clubId,
+                    studentId: input.studentId,
+                  },
+                },
+              });
+            }
 
             return signup;
           },
