@@ -92,6 +92,15 @@ async function requireStudentInChildNoteScope(
   });
 }
 
+function assertCanHandleSensitiveChildNote(ctx: AuthedContext, sensitive: boolean): void {
+  if (!sensitive || canViewSensitiveChildNotes(ctx.user)) return;
+
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: 'sensitive child notes require sensitive-note access',
+  });
+}
+
 export const childNotesRouter = router({
   create: authedProcedure
     .input(
@@ -226,12 +235,7 @@ export const childNotesRouter = router({
       if (!existing || existing.deletedAt !== null) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'child note not found' });
       }
-      if ((existing.sensitive || input.sensitive) && !canViewSensitiveChildNotes(ctx.user)) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'sensitive child notes require sensitive-note access',
-        });
-      }
+      assertCanHandleSensitiveChildNote(ctx, existing.sensitive || input.sensitive);
 
       const note = await ctx.db.childNote.update({
         where: { id: input.id },
@@ -282,12 +286,7 @@ export const childNotesRouter = router({
       if (!existing || existing.deletedAt !== null) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'child note not found' });
       }
-      if (existing.sensitive && !canViewSensitiveChildNotes(ctx.user)) {
-        throw new TRPCError({
-          code: 'FORBIDDEN',
-          message: 'sensitive child notes require sensitive-note access',
-        });
-      }
+      assertCanHandleSensitiveChildNote(ctx, existing.sensitive);
 
       const note = await ctx.db.childNote.update({
         where: { id: input.id },

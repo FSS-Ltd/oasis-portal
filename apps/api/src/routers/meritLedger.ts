@@ -79,31 +79,31 @@ function isTransferAccount(account: WalletAccount): account is TransferAccount {
   return account === 'Spend' || account === 'Saving';
 }
 
+async function aggregateAccountBalance(
+  store: Pick<AppContext['db'], 'meritLedger'>,
+  studentId: string,
+  account: MeritAccount,
+): Promise<number> {
+  const balance = await store.meritLedger.aggregate({
+    where: { studentId, account },
+    _sum: { delta: true },
+  });
+  return balance._sum.delta ?? 0;
+}
+
 async function loadWalletBalances(store: Pick<AppContext['db'], 'meritLedger'>, studentId: string) {
   const [spend, saving, investment, shopReserved] = await Promise.all([
-    store.meritLedger.aggregate({
-      where: { studentId, account: 'Spend' },
-      _sum: { delta: true },
-    }),
-    store.meritLedger.aggregate({
-      where: { studentId, account: 'Saving' },
-      _sum: { delta: true },
-    }),
-    store.meritLedger.aggregate({
-      where: { studentId, account: 'Investment' },
-      _sum: { delta: true },
-    }),
-    store.meritLedger.aggregate({
-      where: { studentId, account: 'ShopReserved' },
-      _sum: { delta: true },
-    }),
+    aggregateAccountBalance(store, studentId, 'Spend'),
+    aggregateAccountBalance(store, studentId, 'Saving'),
+    aggregateAccountBalance(store, studentId, 'Investment'),
+    aggregateAccountBalance(store, studentId, 'ShopReserved'),
   ]);
 
   return {
-    Spend: spend._sum.delta ?? 0,
-    Saving: saving._sum.delta ?? 0,
-    Investment: investment._sum.delta ?? 0,
-    ShopReserved: shopReserved._sum.delta ?? 0,
+    Spend: spend,
+    Saving: saving,
+    Investment: investment,
+    ShopReserved: shopReserved,
   };
 }
 

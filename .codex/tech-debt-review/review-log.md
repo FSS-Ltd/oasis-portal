@@ -189,3 +189,96 @@
 ### Follow-Ups Deferred
 - Larger router/service splits remain warranted for report, message, notice, profile, and investment, but were deferred because they would require broader regression coverage.
 - Oversized test-suite files remain unreviewed; broad test splitting was deferred to keep this production source cleanup small.
+
+## 2026-06-04 - Pass 1
+
+### Selected Files
+1. `apps/api/src/routers/studentSettings.ts`
+2. `apps/api/src/routers/student.ts`
+3. `apps/api/src/invoices/school-fee-pdf.ts`
+4. `packages/db/src/pace-score-backfill.ts`
+5. `apps/api/src/lib/student-portal-access.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: @oasis/api and @oasis/db typechecks passed before edits; current worktree later switched to existing uncommitted student-account feature changes that block API typecheck.
+- Tests: not run before edits.
+
+### Changes Made
+- `apps/api/src/lib/utc-date.ts`: added a small API-local UTC date helper used by selected files.
+- `apps/api/src/routers/studentSettings.ts`: reused shared UTC hour/day/week helpers.
+- `apps/api/src/routers/student.ts`: reused shared UTC day helpers and centralized total merit balance calculation.
+- `apps/api/src/invoices/school-fee-pdf.ts`: reviewed and left unchanged because no low-risk extraction was justified.
+- `packages/db/src/pace-score-backfill.ts`: extracted repeated positive PACE number validation.
+- `apps/api/src/lib/student-portal-access.ts`: reused shared UTC window helpers.
+
+### Validation
+- selected-file lint command: pass (`pnpm exec eslint apps/api/src/routers/studentSettings.ts apps/api/src/routers/student.ts apps/api/src/invoices/school-fee-pdf.ts apps/api/src/lib/student-portal-access.ts apps/api/src/lib/utc-date.ts packages/db/src/pace-score-backfill.ts`)
+- API lint command: fail, blocked by unrelated existing errors in `apps/api/src/routers/registration.ts` and `apps/api/src/__tests__/registration.router.test.ts`.
+- DB lint command: pass (`pnpm --filter @oasis/db lint`)
+- API typecheck command: fail after `pnpm --filter @oasis/db generate`; remaining blockers are unrelated current worktree errors in student-account provisioning tests, nullable user email handling across existing routers, and registration symbol moves.
+- DB typecheck command: pass (`pnpm --filter @oasis/db typecheck`)
+- relevant tests: partial; DB tests passed, API focused tests failed due unrelated `student.create` email contract/test mismatch and registration missing symbol.
+- generated client: pass, `pnpm --filter @oasis/db generate` completed against the current schema.
+- diff whitespace: pass (`git diff --check`)
+- graphify update: pass with existing lower-node-count warning.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes from this automation.
+- No migrations from this automation.
+- No database schema changes from this automation.
+- Behaviour preserved for maintenance changes.
+
+### Follow-Ups Deferred
+- Current worktree contains unrelated uncommitted student-account provisioning schema/migration/router changes; resolving those typecheck/test failures requires the feature branch owner to update tests, generated Prisma types, and registration symbol moves.
+
+## 2026-06-05 - Pass 1
+
+### Selected Files
+1. `apps/api/src/routers/leaderboard.ts`
+2. `packages/domain/src/rbac.ts`
+3. `apps/api/src/lib/email.ts`
+4. `apps/api/src/routers/clerkWebhook.ts`
+5. `apps/api/src/incidents/incident-report-pdf.ts`
+6. `apps/api/src/routers/meritLedger.ts`
+7. `apps/api/src/routers/childNotes.ts`
+8. `packages/domain/src/shop.ts`
+9. `packages/domain/src/studentPortalSettings.ts`
+10. `packages/domain/src/tithe.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed for all 10 files after installing dependencies in the isolated worktree.
+- Typecheck: @oasis/api and @oasis/domain typechecks passed before edits after installing dependencies in the isolated worktree.
+- Tests: not run at baseline; focused API and domain tests were run after the cleanup.
+
+### Changes Made
+- `apps/api/src/routers/leaderboard.ts`: extracted repeated student metric candidate shaping into a private helper.
+- `packages/domain/src/rbac.ts`: reviewed RBAC helpers and left unchanged to avoid unnecessary permission-semantic churn.
+- `apps/api/src/lib/email.ts`: centralized repeated portal URL construction for message, invoice, and report notification emails.
+- `apps/api/src/routers/clerkWebhook.ts`: extracted repeated pending-invitation ID de-duplication into private helpers.
+- `apps/api/src/incidents/incident-report-pdf.ts`: reviewed PDF generation and left unchanged to avoid layout churn.
+- `apps/api/src/routers/meritLedger.ts`: extracted repeated account balance aggregation into a private helper.
+- `apps/api/src/routers/childNotes.ts`: extracted repeated sensitive child-note access checks into a private guard.
+- `packages/domain/src/shop.ts`: extracted repeated reservation settlement ledger rows into a private helper.
+- `packages/domain/src/studentPortalSettings.ts`: named the daily usage limit maximum.
+- `packages/domain/src/tithe.ts`: extracted gross merit calculation into a private helper.
+
+### Validation
+- lint command: pass, `pnpm exec eslint apps/api/src/routers/leaderboard.ts packages/domain/src/rbac.ts apps/api/src/lib/email.ts apps/api/src/routers/clerkWebhook.ts apps/api/src/incidents/incident-report-pdf.ts apps/api/src/routers/meritLedger.ts apps/api/src/routers/childNotes.ts packages/domain/src/shop.ts packages/domain/src/studentPortalSettings.ts packages/domain/src/tithe.ts`; pass, `pnpm --filter @oasis/api lint`; pass, `pnpm --filter @oasis/domain lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`; pass, `pnpm --filter @oasis/domain typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/leaderboard.router.test.ts src/__tests__/clerkWebhook.test.ts src/__tests__/email.router.test.ts src/__tests__/incident.router.test.ts src/__tests__/meritLedger.router.test.ts src/__tests__/childNotes.router.test.ts`; pass, `pnpm --filter @oasis/domain exec vitest run src/__tests__/rbac.test.ts src/__tests__/shop.test.ts src/__tests__/studentPortalSettings.test.ts src/__tests__/tithe.test.ts`
+- formatting: pass, `pnpm exec prettier --check apps/api/src/routers/leaderboard.ts packages/domain/src/rbac.ts apps/api/src/lib/email.ts apps/api/src/routers/clerkWebhook.ts apps/api/src/incidents/incident-report-pdf.ts apps/api/src/routers/meritLedger.ts apps/api/src/routers/childNotes.ts packages/domain/src/shop.ts packages/domain/src/studentPortalSettings.ts packages/domain/src/tithe.ts`
+- diff whitespace: pass, `git diff --check`
+- graph update: pass, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger API router and RBAC/domain module splits remain warranted, but were deferred because they would require broader permission and integration review.
+- The dirty main checkout on `feat/student-portal-card` still contains unrelated student portal/tithe/savings work, so this run used isolated worktree `/private/tmp/oasis-daily-tech-debt-2026-06-05`.

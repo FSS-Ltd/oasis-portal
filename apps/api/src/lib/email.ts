@@ -220,17 +220,20 @@ export interface MessageNotificationEmailInput {
   to: string;
 }
 
-function buildMessageUrl(messagePath: string | undefined, appUrl = process.env.APP_URL) {
+function buildPortalUrl(
+  path: string | undefined,
+  appUrl = process.env.APP_URL,
+): string | undefined {
   const normalisedAppUrl = normaliseAppUrl(appUrl);
-  if (!normalisedAppUrl || !messagePath) return undefined;
-  return new URL(messagePath, normalisedAppUrl).toString();
+  if (!normalisedAppUrl || !path) return undefined;
+  return new URL(path, normalisedAppUrl).toString();
 }
 
 export function buildMessageNotificationEmail(
   input: MessageNotificationEmailInput,
 ): SendEmailInput {
   const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
-  const messageUrl = buildMessageUrl(input.messagePath);
+  const messageUrl = buildPortalUrl(input.messagePath);
   const messageUrlProps = messageUrl ? { messageUrl } : {};
   const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
   const commonProps = {
@@ -329,17 +332,11 @@ export interface InvoicePaymentNotificationEmailInput {
   to: string;
 }
 
-function buildInvoiceUrl(invoicePath: string | undefined, appUrl = process.env.APP_URL) {
-  const normalisedAppUrl = normaliseAppUrl(appUrl);
-  if (!normalisedAppUrl || !invoicePath) return undefined;
-  return new URL(invoicePath, normalisedAppUrl).toString();
-}
-
 export function buildInvoicePaymentNotificationEmail(
   input: InvoicePaymentNotificationEmailInput,
 ): SendEmailInput {
   const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
-  const invoiceUrl = buildInvoiceUrl(input.invoicePath);
+  const invoiceUrl = buildPortalUrl(input.invoicePath);
   const invoiceUrlProps = invoiceUrl ? { invoiceUrl } : {};
   const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
   const commonProps = {
@@ -369,15 +366,9 @@ export interface ReportNotificationEmailInput {
   to: string;
 }
 
-function buildReportUrl(reportPath: string | undefined, appUrl = process.env.APP_URL) {
-  const normalisedAppUrl = normaliseAppUrl(appUrl);
-  if (!normalisedAppUrl || !reportPath) return undefined;
-  return new URL(reportPath, normalisedAppUrl).toString();
-}
-
 export function buildReportNotificationEmail(input: ReportNotificationEmailInput): SendEmailInput {
   const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
-  const reportUrl = buildReportUrl(input.reportPath);
+  const reportUrl = buildPortalUrl(input.reportPath);
   const reportUrlProps = reportUrl ? { reportUrl } : {};
   const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
   const commonProps = {

@@ -169,6 +169,21 @@ async function loadActiveStudentMap(
   return new Map(students.map((student) => [student.id, student]));
 }
 
+function metricCandidate(
+  student: StudentIdentity | undefined,
+  metric: number,
+): LeaderboardMetricCandidate | null {
+  if (!student || metric <= 0) return null;
+
+  return {
+    studentId: student.id,
+    fullNameEnc: student.fullNameEnc,
+    yearGroup: student.yearGroup,
+    metric,
+    enrolmentDate: student.enrolmentDate,
+  };
+}
+
 async function loadPositiveLedgerCandidates(
   ctx: AuthedContext,
   account: 'Saving' | 'TithePaid',
@@ -185,18 +200,8 @@ async function loadPositiveLedgerCandidates(
 
   return totals.flatMap((total) => {
     const metric = total._sum.delta ?? 0;
-    const student = students.get(total.studentId);
-    if (!student || metric <= 0) return [];
-
-    return [
-      {
-        studentId: student.id,
-        fullNameEnc: student.fullNameEnc,
-        yearGroup: student.yearGroup,
-        metric,
-        enrolmentDate: student.enrolmentDate,
-      },
-    ];
+    const candidate = metricCandidate(students.get(total.studentId), metric);
+    return candidate ? [candidate] : [];
   });
 }
 
@@ -252,18 +257,8 @@ async function loadDemeritCandidates(ctx: AuthedContext): Promise<LeaderboardMet
 
   return totals.flatMap((total) => {
     const metric = Math.abs(total._sum.meritDelta ?? 0);
-    const student = students.get(total.studentId);
-    if (!student || metric <= 0) return [];
-
-    return [
-      {
-        studentId: student.id,
-        fullNameEnc: student.fullNameEnc,
-        yearGroup: student.yearGroup,
-        metric,
-        enrolmentDate: student.enrolmentDate,
-      },
-    ];
+    const candidate = metricCandidate(students.get(total.studentId), metric);
+    return candidate ? [candidate] : [];
   });
 }
 
