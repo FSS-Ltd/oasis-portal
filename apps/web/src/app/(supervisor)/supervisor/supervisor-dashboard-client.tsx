@@ -267,7 +267,9 @@ export function SupervisorDashboardClient({
         visibility: behaviourForm.visibility,
         category: behaviourForm.category,
         note: behaviourForm.note.trim() ? behaviourForm.note : undefined,
-        ...(behaviourForm.type === 'Merit' ? { amount: Number(behaviourForm.amount) } : {}),
+        ...(behaviourForm.type === 'Merit' || behaviourForm.type === 'Demerit'
+          ? { amount: Number(behaviourForm.amount) }
+          : {}),
       });
     } catch {
       // Mutation onError shows the friendly notification.
@@ -286,7 +288,7 @@ export function SupervisorDashboardClient({
           category: entry.category,
           note: entry.note.trim() ? entry.note : undefined,
           count: Number(entry.count),
-          ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+          amount: Number(entry.amount),
         })),
       });
     } catch {
@@ -502,10 +504,14 @@ export function SupervisorDashboardClient({
                         value={behaviourForm.category}
                       />
                     </Field>
-                    {behaviourForm.type === 'Merit' ? (
-                      <Field label="Merit amount">
+                    {behaviourForm.type === 'Merit' || behaviourForm.type === 'Demerit' ? (
+                      <Field
+                        label={behaviourForm.type === 'Merit' ? 'Merit amount' : 'Demerit value'}
+                      >
                         <TextInput
-                          aria-label="Merit amount"
+                          aria-label={
+                            behaviourForm.type === 'Merit' ? 'Merit amount' : 'Demerit value'
+                          }
                           min={1}
                           onChange={(event) => {
                             setBehaviourForm((form) => ({ ...form, amount: event.target.value }));
@@ -584,20 +590,20 @@ export function SupervisorDashboardClient({
                             value={entry.category}
                           />
                         </Field>
-                        {batchType === 'Merit' ? (
-                          <Field label={`Entry ${String(index + 1)} amount`}>
-                            <TextInput
-                              aria-label={`Entry ${String(index + 1)} merit amount`}
-                              min={1}
-                              onChange={(event) => {
-                                setBatchEntry(entry.id, { amount: event.target.value });
-                              }}
-                              required
-                              type="number"
-                              value={entry.amount}
-                            />
-                          </Field>
-                        ) : null}
+                        <Field label={`Entry ${String(index + 1)} amount`}>
+                          <TextInput
+                            aria-label={`Entry ${String(index + 1)} ${
+                              batchType === 'Merit' ? 'merit amount' : 'demerit value'
+                            }`}
+                            min={1}
+                            onChange={(event) => {
+                              setBatchEntry(entry.id, { amount: event.target.value });
+                            }}
+                            required
+                            type="number"
+                            value={entry.amount}
+                          />
+                        </Field>
                         <Field label={`Entry ${String(index + 1)} quantity`}>
                           <TextInput
                             aria-label={`Entry ${String(index + 1)} quantity`}

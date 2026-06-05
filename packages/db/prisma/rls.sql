@@ -312,6 +312,28 @@ CREATE POLICY behaviour_full_admin_update ON "BehaviourEntry"
     current_setting('app.full_admin', true) = 'true'
   );
 
+ALTER TABLE "DemeritStageOverride" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "DemeritStageOverride" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS demerit_stage_override_full_admin_all ON "DemeritStageOverride";
+DROP POLICY IF EXISTS demerit_stage_override_staff_select ON "DemeritStageOverride";
+
+CREATE POLICY demerit_stage_override_full_admin_all ON "DemeritStageOverride"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY demerit_stage_override_staff_select ON "DemeritStageOverride"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) IN ('Supervisor', 'ClubsAdmin', 'ClubsLead')
+    AND EXISTS (
+      SELECT 1 FROM "Student" s
+      WHERE s."id" = "DemeritStageOverride"."studentId"
+        AND s."active" = true
+    )
+  );
+
 ALTER TABLE "SchoolFeeInvoice" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "SchoolFeeInvoice" FORCE ROW LEVEL SECURITY;
 ALTER TABLE "SchoolFeeInvoiceLineItem" ENABLE ROW LEVEL SECURITY;

@@ -111,6 +111,17 @@ interface StoredBehaviour {
   createdAt: Date;
 }
 
+interface StoredDemeritStageOverride {
+  id: string;
+  studentId: string;
+  day: string;
+  stage: number;
+  noteEnc: string | null;
+  setById: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface StoredLedgerRow {
   studentId: string;
   account:
@@ -166,6 +177,10 @@ interface FakeDb {
     findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+  };
+  demeritStageOverride: {
+    findMany: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
   };
   meritLedger: { createMany: ReturnType<typeof vi.fn> };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
@@ -274,6 +289,7 @@ function makeFakeDb(
   const clubSignups = [...(options.clubSignups ?? [])];
   const clubLeadAssignments = [...(options.clubLeadAssignments ?? [])];
   const behaviour: StoredBehaviour[] = [];
+  const demeritStageOverrides: StoredDemeritStageOverride[] = [];
   const ledger: StoredLedgerRow[] = [];
 
   const db: FakeDb = {
@@ -573,6 +589,57 @@ function makeFakeDb(
         },
       ),
     },
+    demeritStageOverride: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            day?: string;
+            studentId?: { in: string[] };
+          };
+        }) =>
+          Promise.resolve(
+            demeritStageOverrides.filter(
+              (override) =>
+                (where.day === undefined || override.day === where.day) &&
+                (where.studentId === undefined || where.studentId.in.includes(override.studentId)),
+            ),
+          ),
+      ),
+      upsert: vi.fn(
+        ({
+          where,
+          create,
+          update,
+        }: {
+          where: { studentId_day: { studentId: string; day: string } };
+          create: Omit<StoredDemeritStageOverride, 'id' | 'createdAt' | 'updatedAt'>;
+          update: Pick<StoredDemeritStageOverride, 'noteEnc' | 'setById' | 'stage'>;
+        }) => {
+          const existing = demeritStageOverrides.find(
+            (override) =>
+              override.studentId === where.studentId_day.studentId &&
+              override.day === where.studentId_day.day,
+          );
+          if (existing) {
+            Object.assign(existing, update, {
+              updatedAt: new Date('2026-04-29T11:00:00.000Z'),
+            });
+            return Promise.resolve(existing);
+          }
+          const rowNumber = String(demeritStageOverrides.length + 1).padStart(2, '0');
+          const row: StoredDemeritStageOverride = {
+            id: `ckdemeritstage000000${rowNumber}`,
+            createdAt: new Date('2026-04-29T10:00:00.000Z'),
+            updatedAt: new Date('2026-04-29T10:00:00.000Z'),
+            ...create,
+          };
+          demeritStageOverrides.push(row);
+          return Promise.resolve(row);
+        },
+      ),
+    },
     meritLedger: {
       createMany: vi.fn(({ data }: { data: StoredLedgerRow[] }) => {
         ledger.push(...data);
@@ -591,7 +658,17 @@ function makeFakeDb(
     },
   };
 
-  return { db, students, behaviour, ledger, guardians, users, clubSignups, clubLeadAssignments };
+  return {
+    db,
+    students,
+    behaviour,
+    demeritStageOverrides,
+    ledger,
+    guardians,
+    users,
+    clubSignups,
+    clubLeadAssignments,
+  };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -715,7 +792,7 @@ describe('behaviour.log', () => {
     });
   });
 
-  it('uses fixed demerit deductions by category', async () => {
+  it('uses selected demerit deductions', async () => {
     const { db, ledger } = makeFakeDb();
 
     const demerit = await makeCaller(headUser, db).behaviour.log({
@@ -723,53 +800,53 @@ describe('behaviour.log', () => {
       type: 'Demerit',
       category: 'Disruption',
       visibility: 'General',
+      amount: 3,
     });
 
     expect(demerit).toMatchObject({
       type: 'Demerit',
-      meritDelta: -1,
+      meritDelta: -3,
     });
     const honesty = await makeCaller(headUser, db).behaviour.log({
       studentId: activeStudentId,
       type: 'Demerit',
       category: 'Honesty',
       visibility: 'General',
+      amount: 1,
     });
     expect(honesty).toMatchObject({
       type: 'Demerit',
-      meritDelta: -2,
+      meritDelta: -1,
     });
     expect(ledger).toEqual([
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -1,
+        delta: -3,
         reason: 'Disruption',
         relatedEntryId: 'ckbehaviour000000000001',
       },
       {
         studentId: activeStudentId,
         account: 'Spend',
-        delta: -2,
+        delta: -1,
         reason: 'Honesty',
         relatedEntryId: 'ckbehaviour000000000002',
       },
     ]);
   });
 
-  it('rejects caller-provided demerit amounts', async () => {
+  it('defaults legacy demerit deductions when amount is omitted', async () => {
     const { db } = makeFakeDb();
 
     await expect(
       makeCaller(headUser, db).behaviour.log({
         studentId: activeStudentId,
         type: 'Demerit',
-        category: 'Conduct',
-        amount: 3,
+        category: 'Honesty',
       }),
-    ).rejects.toMatchObject({
-      code: 'BAD_REQUEST',
-      message: 'demerit amount is fixed by category',
+    ).resolves.toMatchObject({
+      meritDelta: -2,
     });
   });
 
@@ -1799,8 +1876,8 @@ describe('behaviour corrections', () => {
     ]);
   });
 
-  it('rejects amount edits for Demerits', async () => {
-    const { db } = makeFakeDb();
+  it('lets full-admin correct a Demerit amount', async () => {
+    const { db, ledger } = makeFakeDb();
     const caller = makeCaller(headUser, db);
     const created = await caller.behaviour.log({
       studentId: activeStudentId,
@@ -1814,10 +1891,16 @@ describe('behaviour corrections', () => {
         id: created.id,
         amount: 2,
       }),
-    ).rejects.toMatchObject({
-      code: 'BAD_REQUEST',
-      message: 'demerit amount is fixed by category',
-    });
+    ).resolves.toMatchObject({ id: created.id, meritDelta: -2 });
+
+    expect(ledger).toEqual([
+      expect.objectContaining({ delta: -1, relatedEntryId: created.id }),
+      expect.objectContaining({
+        delta: -1,
+        reason: 'correction:Conduct',
+        relatedEntryId: created.id,
+      }),
+    ]);
   });
 
   it('rejects amount edits for General marks', async () => {
@@ -1965,6 +2048,95 @@ describe('behaviour.dailyDemeritStatuses', () => {
       stage: 2,
       badgeTone: 'amber',
       requiresHeadReview: false,
+    });
+  });
+
+  it('flags counts above Stage 3 for Head review without auto-escalating', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      amount: 7,
+      note: 'Repeated disruption',
+    });
+
+    const result = await makeCaller(headUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+
+    expect(result.statuses.find((status) => status.studentId === activeStudentId)).toMatchObject({
+      demeritUnits: 7,
+      stage: 3,
+      stageLabel: 'Stage 3 - Privileges',
+      requiresHeadReview: true,
+    });
+  });
+
+  it('uses Head manual escalation above the count-derived stage', async () => {
+    const { db, demeritStageOverrides } = makeFakeDb();
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      amount: 1,
+    });
+
+    const escalation = await makeCaller(headUser, db).behaviour.escalateDemeritStage({
+      studentIds: [activeStudentId],
+      date: new Date('2026-04-29T00:00:00.000Z'),
+      stage: 4,
+      note: 'Parent contact needed',
+    });
+
+    expect(escalation.overrides).toEqual([
+      expect.objectContaining({
+        studentId: activeStudentId,
+        stage: 4,
+        stageLabel: 'Stage 4 - Parent Contact',
+      }),
+    ]);
+    expect(demeritStageOverrides).toEqual([
+      expect.objectContaining({
+        studentId: activeStudentId,
+        day: '2026-04-29',
+        stage: 4,
+        noteEnc: 'enc:Parent contact needed',
+        setById: headUser.id,
+      }),
+    ]);
+
+    const result = await makeCaller(headUser, db).behaviour.dailyDemeritStatuses({
+      date: new Date('2026-04-29T00:00:00.000Z'),
+    });
+
+    expect(result.statuses.find((status) => status.studentId === activeStudentId)).toMatchObject({
+      demeritUnits: 1,
+      manualStage: 4,
+      stage: 4,
+      requiresHeadReview: false,
+    });
+  });
+
+  it('rejects manual demerit stage escalation that does not increase the current stage', async () => {
+    const { db } = makeFakeDb();
+    await makeCaller(headUser, db).behaviour.log({
+      studentId: activeStudentId,
+      type: 'Demerit',
+      category: 'Conduct',
+      amount: 5,
+      note: 'Stage 3 note',
+    });
+
+    await expect(
+      makeCaller(headUser, db).behaviour.escalateDemeritStage({
+        studentIds: [activeStudentId],
+        date: new Date('2026-04-29T00:00:00.000Z'),
+        stage: 3,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'manual stage must be above Stage 3 - Privileges',
     });
   });
 

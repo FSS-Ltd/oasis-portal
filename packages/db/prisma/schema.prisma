@@ -86,6 +86,7 @@ model User {
   guardianOf                       Guardian[]
   studentProfile                   Student?                         @relation("StudentLogin")
   behaviourEntries                 BehaviourEntry[]                 @relation("RecordedBehaviour")
+  demeritStageOverrides            DemeritStageOverride[]           @relation("DemeritStageOverridesSet")
   childNotesCreated                ChildNote[]                      @relation("ChildNotesCreated")
   deletedBehaviourEntries          BehaviourEntry[]                 @relation("DeletedBehaviour")
   deletedChildNotes                ChildNote[]                      @relation("DeletedChildNotes")
@@ -237,6 +238,7 @@ model Student {
   attendance               Attendance[]
   specialAttendanceRecords SpecialAttendanceRecord[]
   behaviour                BehaviourEntry[]
+  demeritStageOverrides    DemeritStageOverride[]
   childNotes               ChildNote[]
   meritLedger              MeritLedger[]
   titheConfig              TitheConfig?
@@ -888,7 +890,7 @@ model BehaviourEntry {
   // note is free text PII — encrypted at rest (ADR-005)
   noteEnc        String?
   visibility     BehaviourVisibility @default(General)
-  // Merit: positive N. Demerit: negative chosen amount, defaulting to -5. General: 0.
+  // Merit: positive N. Demerit: negative selected value. General: 0.
   meritDelta     Int
   recordedById   String
   paceRecordId   String?
@@ -915,6 +917,25 @@ model BehaviourEntry {
   @@index([deletedById])
   @@index([seenAt])
   @@index([seenById])
+}
+
+model DemeritStageOverride {
+  id        String   @id @default(cuid())
+  studentId String
+  // Local calendar day key in Europe/London, formatted as YYYY-MM-DD.
+  day       String
+  stage     Int
+  noteEnc   String?
+  setById   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+  setBy   User    @relation("DemeritStageOverridesSet", fields: [setById], references: [id])
+
+  @@unique([studentId, day])
+  @@index([day, stage])
+  @@index([setById, createdAt])
 }
 
 model ChildNote {
@@ -1006,13 +1027,13 @@ model TitheRun {
 }
 
 model SavingsInterestRun {
-  id          String   @id @default(cuid())
-  studentId   String
-  periodStart DateTime
-  periodEnd   DateTime
-  savingBalance Int
+  id             String   @id @default(cuid())
+  studentId      String
+  periodStart    DateTime
+  periodEnd      DateTime
+  savingBalance  Int
   interestAmount Int
-  createdAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   student Student @relation(fields: [studentId], references: [id])
 

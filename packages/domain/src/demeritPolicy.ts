@@ -1,5 +1,3 @@
-import { DEMERIT_COST } from './meritLedger.js';
-
 export const HONESTY_CATEGORY = 'Honesty';
 export const SERIOUS_MISCONDUCT_CATEGORY = 'Serious Misconduct';
 
@@ -21,6 +19,7 @@ export interface DemeritPolicyDatedEntry extends DemeritPolicyEntry {
 export interface DemeritPolicyStatus {
   badgeTone: DemeritPolicyBadgeTone;
   demeritUnits: number;
+  manualStage: DemeritPolicyStage | null;
   requiresHeadReview: boolean;
   stage: DemeritPolicyStage;
   stageLabel: string;
@@ -56,24 +55,20 @@ export function demeritMeritDeltaForCategory(category: string): -2 | -1 {
 
 export function demeritPolicyUnitsFromDelta(meritDelta: number): number {
   if (!Number.isFinite(meritDelta) || meritDelta >= 0) return 0;
-  return Math.max(1, Math.ceil(Math.abs(meritDelta) / DEMERIT_COST));
+  return Math.floor(Math.abs(meritDelta));
 }
 
 export function demeritPolicyUnitsForEntry(entry: DemeritPolicyEntry): number {
   if (entry.type !== 'Demerit') return 0;
-  if (isHonestyCategory(entry.category)) return 2;
   return demeritPolicyUnitsFromDelta(entry.meritDelta);
 }
 
-export function demeritPolicyStageForUnits(
-  demeritUnits: number,
-  hasSeriousMisconduct = false,
-): DemeritPolicyStage {
+export function demeritPolicyStageForUnits(demeritUnits: number): DemeritPolicyStage {
   const units = Math.max(0, Math.floor(demeritUnits));
-  const countStage: DemeritPolicyStage =
-    units === 0 ? 0 : units <= 2 ? 1 : units <= 4 ? 2 : units <= 6 ? 3 : units <= 8 ? 4 : 5;
-  if (!hasSeriousMisconduct) return countStage;
-  return countStage >= 4 ? countStage : 4;
+  if (units === 0) return 0;
+  if (units <= 2) return 1;
+  if (units <= 4) return 2;
+  return 3;
 }
 
 export function demeritPolicyBadgeTone(stage: DemeritPolicyStage): DemeritPolicyBadgeTone {
@@ -85,6 +80,7 @@ export function demeritPolicyBadgeTone(stage: DemeritPolicyStage): DemeritPolicy
 
 export function demeritPolicyStatusForEntries(
   entries: readonly DemeritPolicyEntry[],
+  manualStage: DemeritPolicyStage | null = null,
 ): DemeritPolicyStatus {
   let demeritUnits = 0;
   let hasSeriousMisconduct = false;
@@ -97,11 +93,13 @@ export function demeritPolicyStatusForEntries(
     }
   }
 
-  const stage = demeritPolicyStageForUnits(demeritUnits, hasSeriousMisconduct);
+  const countStage = demeritPolicyStageForUnits(demeritUnits);
+  const stage = manualStage !== null && manualStage > countStage ? manualStage : countStage;
   return {
     badgeTone: demeritPolicyBadgeTone(stage),
     demeritUnits,
-    requiresHeadReview: stage >= 4,
+    manualStage,
+    requiresHeadReview: demeritUnits > 6 || hasSeriousMisconduct,
     stage,
     stageLabel: STAGE_LABELS[stage],
   };
@@ -122,7 +120,8 @@ export function demeritPolicyTransitionForEntries(
     escalated: nextStatus.stage > previousStatus.stage,
     nextStatus,
     noteRequired:
-      proposedEntries.some((entry) => entry.type === 'Demerit') && nextStatus.stage >= 3,
+      proposedEntries.some((entry) => entry.type === 'Demerit') &&
+      (nextStatus.stage >= 3 || nextStatus.requiresHeadReview),
     previousStatus,
   };
 }
@@ -147,25 +146,15 @@ export function demeritPolicyEscalationEntryIds(
     });
 
     let previousUnits = 0;
-    let previousHasSeriousMisconduct = false;
-
     for (const row of sortedRows) {
       const seriousMisconduct = isSeriousMisconductCategory(row.category);
-      const previousStage = demeritPolicyStageForUnits(previousUnits, previousHasSeriousMisconduct);
       const nextUnits = previousUnits + demeritPolicyUnitsForEntry(row);
-      const nextHasSeriousMisconduct: boolean = previousHasSeriousMisconduct || seriousMisconduct;
-      const nextStage = demeritPolicyStageForUnits(nextUnits, nextHasSeriousMisconduct);
 
-      if (
-        seriousMisconduct ||
-        (previousStage < 4 && nextStage >= 4) ||
-        (previousStage < 5 && nextStage >= 5)
-      ) {
+      if (seriousMisconduct || (previousUnits <= 6 && nextUnits > 6)) {
         selectedIds.add(row.id);
       }
 
       previousUnits = nextUnits;
-      previousHasSeriousMisconduct = nextHasSeriousMisconduct;
     }
   }
 

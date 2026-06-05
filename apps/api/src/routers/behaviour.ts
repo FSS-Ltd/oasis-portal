@@ -10,11 +10,14 @@ import {
   canViewSensitiveBehaviour,
   canViewBehaviourReports,
   demeritMeritDeltaForCategory,
+  demeritPolicyBadgeTone,
+  demeritPolicyStageLabel,
   demeritPolicyStatusForEntries,
   demeritPolicyTransitionForEntries,
   isStaff,
   rowsForDemerit,
   rowsForMerit,
+  type DemeritPolicyStage,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -88,6 +91,13 @@ const behaviourCategorySchema = z.string().trim().min(1).max(120);
 const behaviourNoteSchema = z.string().trim().min(1).max(2000);
 const behaviourUpdateNoteSchema = z.string().trim().max(2000).nullable().optional();
 const behaviourAmountSchema = z.number().int().positive();
+const demeritStageOverrideSchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+]);
 
 const logEntrySchema = z.object({
   category: behaviourCategorySchema,
@@ -440,12 +450,6 @@ function validateSingleBehaviourInput(input: {
       message: 'general marks have no merit value',
     });
   }
-  if (input.type === 'Demerit' && input.amount !== undefined) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: 'demerit amount is fixed by category',
-    });
-  }
 }
 
 function validateBatchBehaviourInput(input: {
@@ -459,12 +463,6 @@ function validateBatchBehaviourInput(input: {
         message: `merit amount is required for entry ${String(index + 1)}`,
       });
     }
-    if (input.type === 'Demerit' && entry.amount !== undefined) {
-      throw new TRPCError({
-        code: 'BAD_REQUEST',
-        message: `demerit amount is fixed by category for entry ${String(index + 1)}`,
-      });
-    }
   }
   return input.entries.reduce((sum, entry) => sum + entry.count, 0);
 }
@@ -475,8 +473,28 @@ function meritDeltaForBehaviour(input: {
   type: BehaviourType;
 }): number {
   if (input.type === 'Merit') return input.amount ?? 0;
-  if (input.type === 'Demerit') return demeritMeritDeltaForCategory(input.category);
+  if (input.type === 'Demerit')
+    return -(input.amount ?? Math.abs(demeritMeritDeltaForCategory(input.category)));
   return 0;
+}
+
+function mergeDemeritManualStage(
+  status: ReturnType<typeof demeritPolicyStatusForEntries>,
+  manualStage: DemeritPolicyStage | null,
+): ReturnType<typeof demeritPolicyStatusForEntries> {
+  if (manualStage === null || manualStage <= status.stage) return status;
+  return {
+    ...status,
+    badgeTone: demeritPolicyBadgeTone(manualStage),
+    manualStage,
+    stage: manualStage,
+    stageLabel: demeritPolicyStageLabel(manualStage),
+  };
+}
+
+function parseDemeritPolicyStage(value: number): DemeritPolicyStage | null {
+  if (value === 1 || value === 2 || value === 3 || value === 4 || value === 5) return value;
+  return null;
 }
 
 function assertBatchEntryLimit(totalEntries: number): void {
@@ -536,9 +554,13 @@ async function assertDemeritStageNotes(
     for (const entry of input.proposedEntries) {
       const transition = demeritPolicyTransitionForEntries(currentEntries, [entry]);
       if (transition.noteRequired && isBlankNote(entry.note)) {
+        const noteReason =
+          transition.nextStatus.requiresHeadReview && transition.nextStatus.stage < 3
+            ? 'Head review'
+            : transition.nextStatus.stageLabel;
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `demerit note is required for ${transition.nextStatus.stageLabel}`,
+          message: `demerit note is required for ${noteReason}`,
         });
       }
       currentEntries.push({
@@ -550,11 +572,7 @@ async function assertDemeritStageNotes(
   }
 }
 
-function scopedStudentRelationWhere(
-  scope: DailyYearBandScope,
-  user: SessionUser,
-  clubId?: string,
-) {
+function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser, clubId?: string) {
   if (usesClubLeadScope(user, clubId)) return {};
   if (canUseAllStudentSupervisorWorkflow(user) || scope.scopedYears === null) return {};
   return { student: studentWhereForDailyScope(scope) };
@@ -949,6 +967,147 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
         };
       }),
 
+    escalateDemeritStage: adminOperationsProcedure
+      .input(
+        z.object({
+          studentIds: studentIdsSchema,
+          date: z.coerce.date(),
+          stage: demeritStageOverrideSchema,
+          note: behaviourUpdateNoteSchema,
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        requireUniqueStudentIds(input.studentIds);
+        await loadActiveScopedStudents(ctx, {
+          studentIds: input.studentIds,
+          entity: 'behaviour.escalateDemeritStage',
+          date: input.date,
+        });
+
+        const day = localDayBounds(input.date);
+        const rows = await ctx.withRls((tx) =>
+          tx.behaviourEntry.findMany({
+            where: {
+              type: 'Demerit',
+              studentId: { in: [...input.studentIds] },
+              createdAt: { gte: day.from, lt: day.to },
+              ...visibleBehaviourWhere(ctx.user),
+            },
+            select: {
+              category: true,
+              meritDelta: true,
+              studentId: true,
+              type: true,
+            },
+          }),
+        );
+        const existingOverrides = await ctx.withRls((tx) =>
+          tx.demeritStageOverride.findMany({
+            where: {
+              day: day.key,
+              studentId: { in: [...input.studentIds] },
+            },
+            select: {
+              stage: true,
+              studentId: true,
+            },
+          }),
+        );
+
+        const entriesByStudent = new Map<
+          string,
+          Array<{ category: string; meritDelta: number; type: 'Demerit' }>
+        >();
+        for (const row of rows) {
+          entriesByStudent.set(row.studentId, [
+            ...(entriesByStudent.get(row.studentId) ?? []),
+            {
+              category: row.category,
+              meritDelta: row.meritDelta,
+              type: 'Demerit',
+            },
+          ]);
+        }
+        const manualStageByStudent = new Map(
+          existingOverrides.map((row) => [row.studentId, parseDemeritPolicyStage(row.stage)]),
+        );
+
+        for (const studentId of input.studentIds) {
+          const currentStatus = mergeDemeritManualStage(
+            demeritPolicyStatusForEntries(entriesByStudent.get(studentId) ?? []),
+            manualStageByStudent.get(studentId) ?? null,
+          );
+          if (input.stage <= currentStatus.stage) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `manual stage must be above ${currentStatus.stageLabel}`,
+            });
+          }
+        }
+
+        const noteEnc =
+          input.note === undefined || input.note === null || input.note.trim() === ''
+            ? null
+            : ctx.db.$enc.encrypt(input.note.trim());
+        const overrides = await ctx.withRls(async (tx) => {
+          const updated: Array<{ id: string; studentId: string; stage: number; updatedAt: Date }> =
+            [];
+          for (const studentId of input.studentIds) {
+            updated.push(
+              await tx.demeritStageOverride.upsert({
+                where: { studentId_day: { studentId, day: day.key } },
+                create: {
+                  studentId,
+                  day: day.key,
+                  stage: input.stage,
+                  noteEnc,
+                  setById: ctx.user.id,
+                },
+                update: {
+                  stage: input.stage,
+                  noteEnc,
+                  setById: ctx.user.id,
+                },
+                select: {
+                  id: true,
+                  studentId: true,
+                  stage: true,
+                  updatedAt: true,
+                },
+              }),
+            );
+          }
+          return updated;
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'DemeritStageOverride',
+            meta: {
+              source: 'behaviour.escalateDemeritStage',
+              studentIds: input.studentIds,
+              day: day.key,
+              stage: input.stage,
+              notePresent: noteEnc !== null,
+              overrideIds: overrides.map((override) => override.id),
+            },
+          },
+        });
+
+        return {
+          date: day.key,
+          overrides: overrides.map((override) => ({
+            id: override.id,
+            studentId: override.studentId,
+            stage: parseDemeritPolicyStage(override.stage),
+            stageLabel: demeritPolicyStageLabel(input.stage),
+            updatedAt: override.updatedAt,
+          })),
+        };
+      }),
+
     dailyDemeritStatuses: authedProcedure
       .input(z.object({ date: z.coerce.date(), clubId: z.string().min(1).optional() }))
       .query(async ({ ctx, input }) => {
@@ -989,6 +1148,23 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
                   },
                 }),
               );
+        const overrides =
+          studentIds.length === 0
+            ? []
+            : await ctx.withRls((tx) =>
+                tx.demeritStageOverride.findMany({
+                  where: {
+                    day: day.key,
+                    studentId: { in: studentIds },
+                  },
+                  select: {
+                    stage: true,
+                    studentId: true,
+                    updatedAt: true,
+                    setById: true,
+                  },
+                }),
+              );
 
         const sensitiveCount = rows.filter((row) => row.visibility === 'Sensitive').length;
         if (sensitiveCount > 0) {
@@ -1009,13 +1185,32 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             row,
           ]);
         }
+        const overridesByStudent = new Map(
+          overrides.map((row) => [
+            row.studentId,
+            {
+              manualStage: parseDemeritPolicyStage(row.stage),
+              manualStageSetAt: row.updatedAt,
+              manualStageSetById: row.setById,
+            },
+          ]),
+        );
 
         return {
           date: day.key,
-          statuses: students.map((student) => ({
-            studentId: student.id,
-            ...demeritPolicyStatusForEntries(entriesByStudent.get(student.id) ?? []),
-          })),
+          statuses: students.map((student) => {
+            const manual = overridesByStudent.get(student.id);
+            const status = mergeDemeritManualStage(
+              demeritPolicyStatusForEntries(entriesByStudent.get(student.id) ?? []),
+              manual?.manualStage ?? null,
+            );
+            return {
+              studentId: student.id,
+              ...status,
+              manualStageSetAt: manual?.manualStageSetAt ?? null,
+              manualStageSetById: manual?.manualStageSetById ?? null,
+            };
+          }),
         };
       }),
 
@@ -1230,7 +1425,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           category: behaviourCategorySchema.optional(),
           note: behaviourNoteSchema.optional(),
           visibility: behaviourVisibilitySchema.optional(),
-          // Merit: positive integer. Demerit value is fixed by category.
+          // Merit: positive integer. Demerit: positive selected value stored as a negative delta.
           amount: behaviourAmountSchema.optional(),
         }),
       )
@@ -1569,13 +1764,6 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
               message: 'general marks have no merit value',
             });
           }
-          if (existing.type === 'Demerit' && input.amount !== undefined) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: 'demerit amount is fixed by category',
-            });
-          }
-
           const nextCategory = input.category ?? existing.category;
           const nextVisibility = input.visibility ?? existing.visibility;
           if (
@@ -1600,9 +1788,9 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             existing.type === 'Merit'
               ? (input.amount ?? existing.meritDelta)
               : existing.type === 'Demerit'
-                ? input.category === undefined
+                ? input.amount === undefined && input.category === undefined
                   ? existing.meritDelta
-                  : demeritMeritDeltaForCategory(nextCategory)
+                  : -(input.amount ?? Math.abs(demeritMeritDeltaForCategory(nextCategory)))
                 : existing.meritDelta;
           const ledgerDelta = nextMeritDelta - existing.meritDelta;
 
@@ -1766,7 +1954,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             meritDelta:
               input.type === 'Merit'
                 ? (entry.amount ?? 0)
-                : demeritMeritDeltaForCategory(entry.category),
+                : -(entry.amount ?? Math.abs(demeritMeritDeltaForCategory(entry.category))),
           })),
         );
         await assertDemeritStageNotes(ctx, {
@@ -1926,7 +2114,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
             meritDelta:
               input.type === 'Merit'
                 ? (entry.amount ?? 0)
-                : demeritMeritDeltaForCategory(entry.category),
+                : -(entry.amount ?? Math.abs(demeritMeritDeltaForCategory(entry.category))),
           })),
         );
         await assertDemeritStageNotes(ctx, {

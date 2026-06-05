@@ -1,9 +1,7 @@
 import {
-  demeritMeritDeltaForCategory,
   demeritPolicyStageForUnits,
   demeritPolicyStageLabel,
   demeritPolicyUnitsForEntry,
-  isSeriousMisconductCategory,
   type DemeritPolicyStage,
 } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
@@ -19,6 +17,7 @@ export interface DemeritStagePreview {
 }
 
 export interface DemeritBatchPreviewEntry {
+  amount: string;
   category: string;
   count: string;
 }
@@ -27,6 +26,9 @@ function defaultDemeritStatus(studentId: string): DailyDemeritStatus {
   return {
     badgeTone: 'green',
     demeritUnits: 0,
+    manualStage: null,
+    manualStageSetAt: null,
+    manualStageSetById: null,
     requiresHeadReview: false,
     stage: 0,
     stageLabel: demeritPolicyStageLabel(0),
@@ -34,17 +36,22 @@ function defaultDemeritStatus(studentId: string): DailyDemeritStatus {
   };
 }
 
-function proposedDemeritUnits(category: string): number {
+function proposedDemeritUnits(category: string, amount: string): number {
+  const selectedAmount = Number(amount);
   return demeritPolicyUnitsForEntry({
     category,
-    meritDelta: demeritMeritDeltaForCategory(category),
+    meritDelta: Number.isFinite(selectedAmount) && selectedAmount > 0 ? -selectedAmount : -1,
     type: 'Demerit',
   });
 }
 
-function nextStageForStatus(status: DailyDemeritStatus, category: string): DemeritPolicyStage {
-  const nextUnits = status.demeritUnits + proposedDemeritUnits(category);
-  const countStage = demeritPolicyStageForUnits(nextUnits, isSeriousMisconductCategory(category));
+function nextStageForStatus(
+  status: DailyDemeritStatus,
+  category: string,
+  amount: string,
+): DemeritPolicyStage {
+  const nextUnits = status.demeritUnits + proposedDemeritUnits(category, amount);
+  const countStage = demeritPolicyStageForUnits(nextUnits);
   return Math.max(status.stage, countStage) as DemeritPolicyStage;
 }
 
@@ -52,13 +59,14 @@ export function previewSingleDemeritStage(
   studentIds: readonly string[],
   statusByStudentId: ReadonlyMap<string, DailyDemeritStatus>,
   category: string,
+  amount: string,
 ): DemeritStagePreview | null {
   if (studentIds.length === 0) return null;
 
   return studentIds.reduce<DemeritStagePreview>(
     (preview, studentId) => {
       const status = statusByStudentId.get(studentId) ?? defaultDemeritStatus(studentId);
-      const nextStage = nextStageForStatus(status, category);
+      const nextStage = nextStageForStatus(status, category, amount);
 
       return {
         affectedCount: preview.affectedCount + 1,
@@ -94,10 +102,10 @@ export function previewBatchDemeritStage(
       for (const entry of entries) {
         const count = Number(entry.count) || 0;
         for (let index = 0; index < count; index += 1) {
-          currentUnits += proposedDemeritUnits(entry.category);
+          currentUnits += proposedDemeritUnits(entry.category, entry.amount);
           currentStage = Math.max(
             currentStage,
-            demeritPolicyStageForUnits(currentUnits, isSeriousMisconductCategory(entry.category)),
+            demeritPolicyStageForUnits(currentUnits),
           ) as DemeritPolicyStage;
         }
       }
