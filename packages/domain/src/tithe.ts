@@ -230,13 +230,11 @@ export function computeManualTitheDue(input: ManualTitheDueInput): ManualTitheDu
       throw new Error('tithe percentage cannot be less than 10%');
     }
     selectedAmount = Math.floor((grossMerits * percentage) / 100);
-  } else if (input.mode === 'FixedAmount') {
+  } else {
     selectedAmount = positiveInteger(input.fixedAmount ?? 0, 'fixed tithe amount');
     if (selectedAmount < minimumAmount) {
       throw new Error('fixed tithe amount cannot be less than 10% of period earnings');
     }
-  } else {
-    throw new Error(`invalid tithe payment mode: ${String(input.mode)}`);
   }
 
   return {
@@ -353,22 +351,18 @@ export function latestCompletedTithePeriod(
     return { start, end };
   }
 
-  if (input.cadence === 'Monthly') {
-    const date = requireMonthDate(input.monthlyDate);
-    let endMonth = { year: parts.year, month: parts.month };
-    let end = monthlyBoundary(endMonth.year, endMonth.month, date);
-    if (now < end) {
-      endMonth = addMonths(endMonth.year, endMonth.month, -1);
-      end = monthlyBoundary(endMonth.year, endMonth.month, date);
-    }
-    const startMonth = addMonths(endMonth.year, endMonth.month, -1);
-    return {
-      start: monthlyBoundary(startMonth.year, startMonth.month, date),
-      end,
-    };
+  const date = requireMonthDate(input.monthlyDate);
+  let endMonth = { year: parts.year, month: parts.month };
+  let end = monthlyBoundary(endMonth.year, endMonth.month, date);
+  if (now < end) {
+    endMonth = addMonths(endMonth.year, endMonth.month, -1);
+    end = monthlyBoundary(endMonth.year, endMonth.month, date);
   }
-
-  throw new Error(`invalid tithe cadence: ${String(input.cadence)}`);
+  const startMonth = addMonths(endMonth.year, endMonth.month, -1);
+  return {
+    start: monthlyBoundary(startMonth.year, startMonth.month, date),
+    end,
+  };
 }
 
 /** Return the Friday 13:00 Europe/London start for the tithe week containing the instant. */
