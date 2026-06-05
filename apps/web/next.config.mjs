@@ -10,6 +10,9 @@ const nextConfig = {
   typedRoutes: true,
   outputFileTracingRoot: repoRoot,
   transpilePackages: ['@oasis/api', '@oasis/db', '@oasis/domain'],
+  env: {
+    NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? '',
+  },
   webpack(config, { isServer }) {
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,

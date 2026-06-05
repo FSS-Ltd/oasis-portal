@@ -10,15 +10,18 @@ import {
   Home,
   Medal,
   ShoppingBag,
+  TrendingUp,
   UsersRound,
   Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/trpc';
+import { canUseStudentInvestPrototype } from '@/lib/student-invest-feature';
 
 const studentNavItems = [
   { href: '/student', label: 'Home', icon: Home },
   { href: '/student/notifications', label: 'Updates', icon: Bell, badge: true },
   { href: '/student/wallet', label: 'Wallet', icon: Wallet },
+  { href: '/student/invest', label: 'Invest', icon: TrendingUp },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/student/clubs', label: 'Clubs', icon: UsersRound },
@@ -28,6 +31,11 @@ const studentNavItems = [
 ] as const;
 
 const navIconSize = 16;
+const visibleStudentNavItems = studentNavItems.filter(
+  (item) =>
+    item.href !== '/student/invest' ||
+    canUseStudentInvestPrototype({ NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV }),
+);
 
 function isActiveRoute(pathname: string, href: string) {
   return href === '/student'
@@ -55,7 +63,7 @@ export function StudentTopNav() {
 
   return (
     <nav aria-label="Student portal sections" className="student-top-nav">
-      {studentNavItems.map((item) => {
+      {visibleStudentNavItems.map((item) => {
         const active = isActiveRoute(pathname, item.href);
         const Icon = item.icon;
         const badge = badgeForItem(item, unreadBadge);
@@ -83,7 +91,7 @@ export function StudentSidebarNav() {
 
   return (
     <nav className="admin-shell__nav">
-      {studentNavItems.map((item) => {
+      {visibleStudentNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
         const badge = badgeForItem(item, unreadBadge);
@@ -114,7 +122,7 @@ export function StudentBottomNav() {
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
-      {studentNavItems.map((item) => {
+      {visibleStudentNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
         const badge = badgeForItem(item, unreadBadge);
