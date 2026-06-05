@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-04
+**Last updated:** 2026-06-05
 **Agent:** Technical Agent (Codex)
-**Phase:** Attendance register reset and special attendance.
+**Phase:** Phase 8 Twelve Data stock and ETF planning.
 
 ---
 
@@ -28,6 +28,47 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-05 Twelve Data stock and ETF planning
+
+Working branch: `docs/twelve-data-source-of-truth`.
+
+**PR scope:** Documentation-only Phase 8 planning for Twelve Data as the stock
+and ETF market-data source of truth, including London trading-session rules and
+free-tier server refresh budgeting.
+
+Completed:
+
+- Added `docs/phase-8-live-investment-data-plan.md`.
+- Finalised Twelve Data as the source of truth for stock/ETF prices, quote
+  timestamps, day changes, and market-open state.
+- Documented that Oasis will not offer FX trading, crypto, commodities, options,
+  leveraged products, or brokerage-style trading.
+- Added the standard London Stock Exchange open/closed policy:
+  `08:00-16:30` Monday to Friday in `Europe/London`, with weekends, exchange
+  holidays, and configured half-days treated as closed.
+- Calculated the free-tier automated server pull budget from the current Twelve
+  Data Basic limit of 8 API credits per minute and 800 API credits per UTC day.
+- Recommended a v1 cap of 8 enabled stock/ETF instruments, giving 100 full-list
+  refreshes per London trading day at an average 5.1 minute interval.
+
+Verification:
+
+- Manual Markdown review of
+  `docs/phase-8-live-investment-data-plan.md`.
+- Provider free-tier and London trading-hours facts checked against public
+  Twelve Data and London Stock Exchange pages on 2026-06-05.
+- `git diff --check`.
+
+Notes:
+
+- No application code, schema, generated graph, route, cron, or UI file was
+  changed for this docs-only request.
+- Work was implemented in an isolated `/private/tmp/oasis-docs-twelve-data`
+  worktree because the main checkout had unrelated dirty student portal work.
+- `graphify query` was run from the main checkout before editing. The clean
+  worktree did not contain `graphify-out/graph.json`, so the query could not be
+  repeated there without introducing generated files into a docs-only branch.
 
 ## Current session - 2026-06-05 Attendance reset and special attendance
 
