@@ -1,4 +1,4 @@
-# Phase 8 - Twelve Data stock and ETF market data plan
+# Phase 8 - Live investment data and merit conversion PR plan
 
 **Status:** Planned
 **Last updated:** 2026-06-05
@@ -10,66 +10,18 @@
 
 ## Purpose
 
-Phase 8 replaces student investment demo prices with server-side stock and ETF
-market data from Twelve Data.
+Phase 8 replaces the student investment demo data with server-side market data
+that is safe for an educational merit economy.
 
-Students should see realistic market movement translated into merits without
-the interface pretending that Oasis is providing financial advice, brokerage, or
+Students should see real market movement translated into merits without the
+interface pretending that Oasis is providing financial advice, brokerage, or
 cash-equivalent investment returns. One merit remains equal to GBP 10 for all
-server-side valuation. A learning multiplier can scale visible percentage
+server-side conversion. A learning multiplier can scale visible percentage
 movement so children can see growth and loss patterns in days or weeks instead
 of waiting years.
 
-This is a docs-only plan. No schema, API, route, cron, generated graph, or UI
-code is implemented by this PR.
-
----
-
-## Source Of Truth Decision
-
-Twelve Data is the source of truth for stock and ETF prices, quote timestamps,
-day changes, and market-open status in Phase 8.
-
-Decision:
-
-- Use Twelve Data for all stock and ETF quote and history data.
-- Do not offer FX, crypto, commodities, options, leveraged products, CFDs, or
-  brokerage-style trading.
-- Do not use unofficial market-data wrappers in production.
-- Do not call provider APIs from browsers or mobile clients.
-- Store normalized provider snapshots before student pages read prices.
-- Treat cached Twelve Data snapshots as the fallback during provider outages.
-  Do not blend prices from another provider unless a later ADR explicitly
-  replaces this source-of-truth decision.
-
-If non-GBP stocks or ETFs are included, currency conversion is only an internal
-valuation step into GBP merits. It must not create an FX trading product or an
-FX instrument list for students.
-
-Current provider facts checked on 2026-06-05:
-
-- Twelve Data Basic is free and lists `8 API (800 a day) + 8 trial WS` credits
-  on the official pricing page.
-- Twelve Data support documents that endpoint credit usage is calculated as
-  `Data Weight x Number of Symbols`.
-- Twelve Data batch requests reduce HTTP overhead but still consume credits per
-  symbol.
-- Twelve Data lists the London Stock Exchange `XLON` main market as
-  `08:00 - 16:30` Monday to Friday in the `Europe/London` timezone.
-- London Stock Exchange's own FAQ states that London Stock Exchange trading
-  hours are `8:00 to 16:30`.
-
-Sources:
-
-- https://twelvedata.com/pricing
-- https://support.twelvedata.com/en/articles/5615854-credits
-- https://support.twelvedata.com/en/articles/5203360-batch-api-requests
-- https://twelvedata.com/exchanges/XLON?group=core
-- https://www.londonstockexchange.com/personal-investing/faqs
-
-Free tiers and market-data entitlements change. Re-check the Twelve Data plan,
-selected symbol coverage, and display terms at PR-8.1 start before writing the
-provider adapter.
+This is a docs-only plan. No schema, API, route, cron, or UI code is implemented
+by this PR.
 
 ---
 
@@ -77,10 +29,10 @@ provider adapter.
 
 - Phase 4 implemented the append-only merit ledger, investment NAV, buy/sell
   workflows, and withdrawal fee model.
-- The student investment surface currently has local demo instruments and
+- The student investment surface currently has mock instruments and local
   conversion helpers in
   `apps/web/src/components/student/invest/student-invest-data.ts`.
-- That demo data already carries `meritGbp = 10`, seeded price series,
+- That mock data already carries `meritGbp = 10`, seeded price series,
   intraday movement, holdings, and stock/ETF examples.
 - Product ownership stays with the existing finance module:
   `apps/api/src/routers/investment.ts`,
@@ -95,16 +47,14 @@ provider adapter.
 
 Phase 8 is complete when:
 
-1. Stock and ETF quotes are fetched only by the server.
-2. Twelve Data API keys and provider details are never exposed to browsers or
-   mobile apps.
+1. Live or delayed stock/ETF quotes are fetched only by the server.
+2. API keys and provider details are never exposed to browsers or mobile apps.
 3. All price-to-merit conversion is calculated server-side using
    `1 merit = GBP 10`.
-4. Any required currency conversion is internal valuation only, not an FX
-   trading feature.
-5. The Twelve Data adapter is typed, testable, rate-limited, cached, and
-   replaceable only through an explicit provider-decision change.
-6. The platform stores provider snapshots needed for audit, stale fallback, and
+4. Non-GBP instruments are converted to GBP server-side before merit conversion.
+5. The provider adapter is typed, testable, rate-limited, cached, and replaceable
+   without changing student UI contracts.
+6. The platform stores provider snapshots needed for audit, fallback, and
    repeatable portfolio valuation.
 7. The visible learning multiplier is applied to returns consistently for both
    gains and losses.
@@ -116,131 +66,48 @@ Phase 8 is complete when:
     and support copy.
 11. Existing merit ledger invariants still pass for buy, sell, transfer,
     withdrawal fee, and investment return entries.
-12. Provider outages degrade to cached or last-known Twelve Data snapshots with
-    a clear stale-data state.
+12. Provider outages degrade to cached or last-known snapshots with a clear
+    stale-data state.
 
 ---
 
-## Trading Session Policy
+## Provider Research Snapshot
 
-Use the standard London Stock Exchange main-market session for server refreshes
-and open/closed display:
+Free financial data tiers change often. These were checked on 2026-06-05 and
+must be re-checked before implementation.
 
-- Timezone: `Europe/London`.
-- Regular open: Monday to Friday, `08:00`.
-- Regular close: Monday to Friday, `16:30`.
-- Closed: weekends, configured London Stock Exchange holidays, and configured
-  half-day close periods.
-- Pre-market and post-market data must not drive student valuation in v1.
-- If Twelve Data reports a market status that conflicts with the local calendar,
-  preserve both facts in logs and prefer the conservative closed/stale state for
-  student-facing displays.
+| Provider | Current free tier signal | Fit for Oasis | Notes |
+| --- | --- | --- | --- |
+| Twelve Data | Official pricing lists Free as 8 API credits per minute and 800 per day. | Best free primary candidate for a small curated instrument list. | Supports market data and reference data. Needs API key. Source: https://twelvedata.com/pricing |
+| Financial Modeling Prep | Official FAQ says free plan allows up to 250 market data API requests per day. | Good secondary candidate or fallback for daily quotes/history. | Needs API key. Check endpoint entitlement before choosing. Source: https://site.financialmodelingprep.com/faqs?code=marketHours |
+| Alpha Vantage | Official premium page says free endpoints exist, but standard free usage is 25 requests per day. | Useful for prototypes, weak for production unless the watchlist is very small. | Needs API key. Batch and caching would be mandatory. Source: https://www.alphavantage.co/premium/ |
+| Marketstack | Official pricing says Free supports 100 requests per month, end-of-day data, and one year of history. | Too tight for live-feeling student charts, but possible as a fallback for end-of-day snapshots. | Needs API key. Free tier is not suitable for frequent refresh. Source: https://marketstack.com/pricing |
+| Finnhub | Official quote docs provide real-time US stock quotes and warn against constant polling. Search/pricing pages show a free tier, but current free quota should be confirmed in-account before implementation. | Strong candidate for US stocks if the confirmed free quota and licensing fit. | Needs API key. Prefer websocket only if a paid/licensed plan is chosen. Source: https://api.finnhub.io/docs/api/quote |
+| Stooq | Public historical datasets include UK and US stocks/ETFs. | Useful as no-key historical fallback, not as the primary live source. | Terms and acceptable automated use need review before production. Source: https://stooq.com/db/h/ |
+| Frankfurter | Public FX API requires no key and tracks daily exchange rates from central banks. | Best free FX source for USD/EUR to GBP conversion when provider quotes are not GBP. | Daily reference rates are enough for educational valuation. Source: https://frankfurter.dev/ |
 
-Implementation notes:
+Recommendation:
 
-- The server should own the trading calendar decision.
-- Store both provider timestamp and server fetch timestamp.
-- Student pages should show `Open`, `Closed`, or `Stale` from server state.
-- Cached values can remain visible while closed, labelled with the latest
-  snapshot time.
-- The first implementation can use a maintained holiday configuration. A later
-  PR can add Twelve Data exchange schedule reads if the endpoint is available on
-  the selected plan.
-
----
-
-## Free-Tier Pull Budget
-
-Twelve Data Basic currently allows:
-
-- `8` API credits per minute.
-- `800` API credits per UTC day.
-- Quote batching by symbol, where each symbol still consumes credit.
-
-Assumption for planning:
-
-- A quote for one stock or ETF symbol costs `1` API credit.
-- The curated student universe is capped at `8` enabled instruments in v1.
-- One full-universe quote batch therefore costs `8` API credits and fits the
-  per-minute limit.
-
-The standard LSE session is `08:00-16:30`, which is `510` minutes.
-
-For `N` enabled stock/ETF instruments:
-
-```text
-creditsPerFullRefresh = N
-maxFullRefreshesPerDay = floor(800 / N)
-averageOpenSessionIntervalMinutes = 510 / maxFullRefreshesPerDay
-```
-
-Recommended v1 operating point:
-
-```text
-enabledInstruments = 8
-creditsPerFullRefresh = 8
-maxFullRefreshesPerDay = floor(800 / 8) = 100
-averageOpenSessionInterval = 510 / 100 = 5.1 minutes
-```
-
-This is the closest live-feeling full-list refresh cadence available inside the
-current free daily quota. A fixed every-5-minutes schedule across the whole
-session would attempt about 103 full-list refreshes and use about 824 credits,
-so the implementation should not use an uncapped five-minute cron.
-
-Recommended scheduler:
-
-- Refresh only during the London regular session.
-- Spread up to `100` full-list refreshes between `08:00` and `16:30`
-  `Europe/London`.
-- Use a dynamic due-time scheduler with a persisted daily counter rather than a
-  naive every-five-minutes cron.
-- Enforce both `credits_used_today < 800` and `credits_used_this_minute <= 8`
-  before calling Twelve Data.
-- Stop automated refreshes when the market is closed.
-- Keep a manual admin refresh path behind RBAC, but make it consume the same
-  quota budget and audit the action.
-- Persist `api-credits-used` and `api-credits-left` response headers when
-  available so drift from the planning assumption is visible.
-
-Reference intervals by curated instrument count:
-
-| Enabled instruments | Credits per full refresh | Max full refreshes per day | Average interval during LSE open |
-| ---: | ---: | ---: | ---: |
-| 4 | 4 | 200 | 2.55 minutes |
-| 6 | 6 | 133 | 3.83 minutes |
-| 8 | 8 | 100 | 5.10 minutes |
-
-If the curated list needs more than 8 instruments, split the list into rotating
-cohorts. That should be treated as a product tradeoff because each instrument
-will be less fresh than the full-list v1 cadence.
+- Start with Twelve Data as the primary quote/history provider because the free
+  quota is large enough for a small curated list.
+- Add Financial Modeling Prep as a secondary adapter only if its free endpoints
+  cover the selected instruments.
+- Use Frankfurter for FX conversion into GBP.
+- Keep Alpha Vantage and Marketstack as low-volume fallback options, not the
+  default path.
+- Avoid unofficial Yahoo Finance wrappers for production. They are useful for
+  exploration but do not give a stable contract or clear platform terms.
 
 ---
 
 ## Product Rules
-
-### Instrument Policy
-
-Start with a small curated stock/ETF list:
-
-- Broad ETFs first: global equity, S&P 500, FTSE 100, gold or bond proxy.
-- A small number of recognisable stocks for engagement: Apple, Microsoft,
-  Nvidia, Disney, Nike, Coca-Cola.
-- No FX pairs.
-- No crypto.
-- No penny stocks.
-- No leveraged or inverse ETFs.
-- No options, CFDs, spread betting, or synthetic trading products.
-- No meme-only assets or assets selected primarily for volatility.
-
-Implementation should support disabling an instrument without deleting history.
 
 ### Merit Conversion
 
 Server-side constants:
 
 - `MERIT_GBP_VALUE = 10`
-- `gbpValue = quotePrice * units * gbpConversionRate`
+- `gbpValue = quotePrice * units * gbpFxRate`
 - `meritValue = gbpValue / MERIT_GBP_VALUE`
 - `costMerits = costGbp / MERIT_GBP_VALUE`
 - `rawProfitMerits = meritValue - costMerits`
@@ -249,10 +116,9 @@ Rules:
 
 - Store and compute monetary source values in minor units or decimal-safe
   values. Do not use floating point for ledger amounts.
-- Never ask the client to convert prices, currency values, or GBP values into
-  merits.
-- Store provider timestamp, source currency, source price, conversion rate, and
-  converted GBP value with every valuation snapshot used for portfolio display.
+- Never ask the client to convert prices, FX rates, or GBP values into merits.
+- Store provider timestamp, source currency, source price, FX rate, and converted
+  GBP value with every valuation snapshot used for portfolio display.
 - Ledger movements remain merit-denominated. Provider data informs valuation,
   not direct cash movement.
 
@@ -283,7 +149,7 @@ Design intent:
 - A 10 merit holding can visibly move by around 0.8 merits instead of 0.08
   merits.
 - A real loss is also amplified, so risk still feels real.
-- Caps prevent volatile stocks from looking like random jackpots.
+- Caps prevent volatile stocks from looking like a game of random jackpots.
 - The raw market percentage remains available for an "actual market move"
   label, while the multiplied value is labelled as the "learning growth" view.
 
@@ -304,22 +170,24 @@ Guardrail:
   - `getQuotes(symbols)`
   - `getHistory(symbol, range)`
   - `getInstrumentProfile(symbol)`
-- Provider adapter:
+- Provider adapters:
   - `TwelveDataMarketDataProvider`
+  - optional `FinancialModelingPrepMarketDataProvider`
+  - optional `CachedMarketDataProvider`
+- FX adapter:
+  - `FrankfurterFxProvider`
 - Domain helpers:
   - `convertQuoteToMerits`
   - `applyLearningReturnMultiplier`
   - `portfolioValuationFromSnapshots`
   - `staleMarketDataStatus`
-  - `isLondonStockMarketOpen`
 - API surface:
   - Extend existing `investment` router.
   - Do not create a broad new student market router unless the responsibility
     becomes separate from investment account valuation.
 - Scheduled refresh:
-  - Pull curated instrument quotes on the server.
+  - Pull curated instrument quotes on a cron cadence.
   - Cache quotes in DB so student page loads do not call provider APIs directly.
-  - Keep provider refresh independent from user traffic.
 
 ### Data Shape
 
@@ -339,16 +207,13 @@ Likely additive tables or models:
   - `instrumentId`
   - `provider`
   - `providerTimestamp`
-  - `serverFetchedAt`
   - `sourceCurrency`
   - `sourcePrice`
-  - `gbpConversionRate`
+  - `gbpFxRate`
   - `gbpPrice`
   - `previousCloseGbp`
   - `dayChangePct`
   - `rawPayloadHash`
-  - `providerCreditsUsed`
-  - `providerCreditsLeft`
   - `createdAt`
 - `InvestmentValuationSnapshot`
   - `studentId`
@@ -371,9 +236,23 @@ Schema decision to confirm during implementation:
 
 ---
 
+## Instrument Policy
+
+Start with a small curated list to stay within free API limits:
+
+- Broad ETFs first: global, S&P 500, FTSE 100, gold or bond proxy.
+- A small number of recognisable stocks for engagement: Apple, Microsoft,
+  Nvidia, Disney, Nike, Coca-Cola.
+- Avoid penny stocks, leveraged products, options, crypto, meme-only assets, and
+  anything that creates a gambling feel.
+
+Implementation should support disabling an instrument without deleting history.
+
+---
+
 ## Sprint Plan
 
-### PR-8.0 - `docs: finalise Twelve Data market data plan`
+### PR-8.0 - `docs: plan live investment data phase`
 
 Goal:
 
@@ -382,32 +261,31 @@ Goal:
 Scope:
 
 - Documentation only.
-- Record Twelve Data as the source of truth, stock/ETF-only instrument policy,
-  London trading session rules, free-tier pull budget, merit conversion rules,
-  multiplier policy, PR sequence, risks, and verification expectations.
+- Record provider options, merit conversion rules, multiplier policy, PR
+  sequence, risks, and verification expectations.
 
 Done criteria:
 
 - Phase 8 has a reviewable implementation sequence.
-- No code, schema, generated graph, route, cron, or UI files are changed.
+- No code, schema, generated graph, or UI files are changed.
 
-### PR-8.1 - `feat: add Twelve Data provider contracts`
+### PR-8.1 - `feat: add market data provider contracts`
 
 Goal:
 
-- Define typed server-side contracts for stock/ETF quote, history, and
-  instrument profile data.
+- Define typed server-side contracts for quote, history, instrument profile, and
+  FX data.
 
 Scope:
 
 - Add provider interfaces and normalized DTOs.
 - Add fixture-backed provider tests.
-- Add environment variable names for the Twelve Data API key.
+- Add environment variable names for provider keys.
 - Add no real provider calls in unit tests.
 
 Done criteria:
 
-- Twelve Data responses normalize to GBP-ready server DTOs.
+- Provider responses normalize to GBP-ready server DTOs.
 - Invalid, missing, stale, and rate-limited responses are represented without
   using `any`.
 - Tests cover provider normalization and error mapping.
@@ -416,14 +294,13 @@ Done criteria:
 
 Goal:
 
-- Add the storage layer needed to audit and cache Twelve Data snapshots.
+- Add the storage layer needed to audit and cache provider data.
 
 Scope:
 
 - Add or extend instrument and snapshot models.
-- Seed the initial curated stock/ETF list.
-- Store quote timestamp, source currency, source price, conversion rate, and GBP
-  price.
+- Seed the initial curated instrument list.
+- Store quote timestamp, source currency, source price, FX rate, and GBP price.
 - Add indexes for latest snapshot per instrument and historical chart reads.
 - Add RLS policies if snapshots become tenant/user-scoped.
 
@@ -434,20 +311,18 @@ Done criteria:
 - Migration applies cleanly.
 - Prisma and RLS checks pass.
 
-### PR-8.3 - `feat: fetch Twelve Data quotes server-side`
+### PR-8.3 - `feat: fetch live investment quotes server-side`
 
 Goal:
 
-- Pull Twelve Data quotes on the server and cache them before student pages read
-  them.
+- Pull provider data on the server and cache it before student pages read it.
 
 Scope:
 
-- Implement the Twelve Data market data adapter.
-- Implement any required internal conversion to GBP.
+- Implement the primary market data adapter.
+- Implement FX conversion to GBP.
 - Add rate limiting, timeout, retry-with-backoff, and stale-cache fallback.
-- Add automated server refresh using the free-tier budget policy in this plan.
-- Add admin-triggered refresh behind RBAC and quota checks.
+- Add cron or admin-triggered refresh path.
 - Audit provider refresh failures without storing secrets.
 
 Done criteria:
@@ -457,7 +332,7 @@ Done criteria:
 - Stale data state is returned when provider fetch fails.
 - API keys stay server-only.
 
-### PR-8.4 - `feat: convert Twelve Data values to merits`
+### PR-8.4 - `feat: convert live investment values to merits`
 
 Goal:
 
@@ -469,14 +344,14 @@ Scope:
 - Convert holdings, cost basis, current value, daily movement, and chart series
   into merit-denominated API responses.
 - Use decimal-safe math for ledger and valuation outputs.
-- Add tests for GBP, non-GBP-to-GBP valuation, rounding, zero units, stale
-  snapshots, and missing conversion rates.
+- Add tests for GBP, USD-to-GBP, rounding, zero units, stale snapshots, and
+  missing FX rates.
 
 Done criteria:
 
 - Client receives merit values, not raw provider-only prices.
 - Rounding is deterministic and documented.
-- Non-GBP instruments produce correct merit values after internal conversion.
+- Non-GBP instruments produce correct merit values after FX conversion.
 
 ### PR-8.5 - `feat: add investment learning multiplier`
 
@@ -504,13 +379,13 @@ Done criteria:
 
 Goal:
 
-- Replace demo investment values with server-sourced valuations.
+- Replace mock investment values with server-sourced valuations.
 
 Scope:
 
 - Use existing student investment components where possible.
-- Show loading, stale, provider-error, empty-holdings, disabled-instrument,
-  market-open, and market-closed states.
+- Show loading, stale, provider-error, empty-holdings, and disabled-instrument
+  states.
 - Label learning-adjusted growth clearly.
 - Keep student-safe copy: educational, not advice.
 - Reference `design/Oasis Learning Center.zip` before UI changes.
@@ -518,7 +393,7 @@ Scope:
 Done criteria:
 
 - No client-side provider keys or quote conversion logic.
-- UI handles stale and closed-market data without crashing.
+- UI handles stale data without crashing.
 - Raw market movement and learning growth are not visually confused.
 - Mobile and desktop layouts remain consistent with the Oasis reference design.
 
@@ -531,11 +406,11 @@ Goal:
 
 Scope:
 
-- Add integration tests for buy, sell, valuation, stale data, multiplier, quota
-  guard, and provider fallback flows.
+- Add integration tests for buy, sell, valuation, stale data, multiplier, and
+  provider fallback flows.
 - Add end-of-phase verification commands.
-- Update the investment section of the runbook for provider outage, exhausted
-  credits, closed market, and stale quote incidents.
+- Update the investment section of the runbook for provider outage and stale
+  quote incidents.
 
 Done criteria:
 
@@ -546,9 +421,9 @@ Done criteria:
 
 ---
 
-## Security, Privacy, And Compliance Guardrails
+## Security, Privacy, and Compliance Guardrails
 
-- Treat stock and ETF data as educational content, not regulated advice.
+- Treat stock data as educational content, not regulated advice.
 - Add internal and student-facing language that values are virtual merits, not
   cash investments.
 - Do not show external account linking, real brokerage calls, deposits, or
@@ -557,7 +432,7 @@ Done criteria:
 - Do not store raw provider payloads unless there is a clear retention reason.
   Prefer a hash plus normalized fields.
 - Avoid symbols or products that could be inappropriate for children.
-- Respect Twelve Data licensing and display terms before production launch.
+- Respect provider licensing and display terms before production launch.
 
 ---
 
@@ -570,7 +445,7 @@ expected end-of-phase checks are:
 - `pnpm --filter @oasis/domain test -- investmentSim.test.ts`
 - new market-data domain tests
 - `pnpm --filter @oasis/api test -- investment.router.test.ts`
-- new Twelve Data adapter tests with fixtures
+- new provider adapter tests with fixtures
 - `pnpm --filter @oasis/domain typecheck`
 - `pnpm --filter @oasis/api typecheck`
 - `pnpm --filter @oasis/web typecheck`
@@ -594,8 +469,8 @@ Markdown inspection and diff review.
    it remain a platform constant?
 3. Should learning-adjusted gains ever become spendable merits, or should they
    stay visual until a sell/transfer is explicitly made?
-4. Which exact stock/ETF symbols are covered by the selected Twelve Data plan
-   and licensing terms?
+4. Which provider's terms allow the exact planned student display and retention
+   model?
 5. Should Phase 8 keep the existing single global NAV concept for simple
    investing, or move fully to instrument-level holdings?
 
@@ -603,6 +478,5 @@ Recommended decisions before implementation:
 
 - Keep the multiplier global for v1.
 - Keep learning-adjusted gains visual until a normal investment sell occurs.
-- Keep the curated instrument list capped at 8 enabled stock/ETF instruments for
-  v1.
-- Re-check Twelve Data terms, limits, and symbol entitlements at PR-8.1 start.
+- Keep the curated instrument list small enough to fit the free provider quota.
+- Re-check provider terms and limits at PR-8.1 start.
