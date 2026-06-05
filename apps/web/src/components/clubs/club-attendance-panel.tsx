@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
-import { CheckCircle2, Clock3, Save, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, RotateCcw, Save, XCircle } from 'lucide-react';
 import {
   DailyDemeritBadge,
   useDailyDemeritStatusMap,
@@ -51,6 +51,7 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
   );
   const demeritStatusQuery = useDailyDemeritStatusMap(date, true, club.id);
   const markAttendance = api.club.markAttendance.useMutation();
+  const resetAttendance = api.club.resetAttendanceForSession.useMutation();
   const rows = attendanceQuery.data?.students ?? [];
   const counts = rows.reduce(
     (totals, row) => {
@@ -114,6 +115,24 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
     }
   }
 
+  async function resetRegister() {
+    if (!window.confirm('Reset this club register for the selected date?')) return;
+    setPendingAll(true);
+    setRowErrors({});
+    try {
+      const result = await resetAttendance.mutateAsync({ clubId: club.id, date });
+      showSuccessToast(`Club register reset. ${String(result.deletedCount)} records cleared.`);
+      await utils.club.attendanceForSession.invalidate({ clubId: club.id, date });
+    } catch (error) {
+      setRowErrors({
+        all: friendlyErrorMessage(error, 'Club attendance could not be reset.'),
+      });
+      showErrorToast(error, 'Club attendance could not be reset.');
+    } finally {
+      setPendingAll(false);
+    }
+  }
+
   return (
     <section className="club-modal-section" aria-labelledby="club-attendance-title">
       <div className="section-title">
@@ -143,6 +162,19 @@ export function ClubAttendancePanel({ club }: { club: ManagedClub }) {
           >
             <Save aria-hidden="true" size={14} />
             Mark all present
+          </Button>
+          <Button
+            disabled={rows.every((row) => row.status === null) || pendingAll}
+            onClick={() => {
+              void resetRegister();
+            }}
+            pending={resetAttendance.isPending}
+            size="sm"
+            type="button"
+            variant="danger"
+          >
+            <RotateCcw aria-hidden="true" size={14} />
+            Reset
           </Button>
         </div>
       </div>

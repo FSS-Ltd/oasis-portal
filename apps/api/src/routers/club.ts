@@ -1889,6 +1889,38 @@ export function createClubRouter(deps: ClubRouterDeps = {}) {
         };
       }),
 
+    resetAttendanceForSession: authedProcedure
+      .input(clubSessionInput)
+      .mutation(async ({ ctx, input }) => {
+        await requireClubManagerOrAssignedLead(ctx, input.clubId);
+        await assertActiveClub(ctx, input.clubId);
+        const sessionDate = normalizeDate(input.date);
+        const result = await ctx.db.clubAttendance.deleteMany({
+          where: { clubId: input.clubId, sessionDate },
+        });
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'ClubAttendance',
+            entityId: input.clubId,
+            meta: {
+              source: 'club.resetAttendanceForSession',
+              clubId: input.clubId,
+              sessionDate: dateKey(sessionDate),
+              deletedCount: result.count,
+            },
+          },
+        });
+
+        return {
+          clubId: input.clubId,
+          date: dateKey(sessionDate),
+          deletedCount: result.count,
+        };
+      }),
+
     rotaCandidates: authedProcedure.input(clubIdInput).query(async ({ ctx, input }) => {
       requireClubManager(ctx.user);
       const club = await ctx.db.club.findUnique({

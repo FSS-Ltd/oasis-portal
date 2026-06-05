@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, RefreshCw } from 'lucide-react';
+import { Plus, RefreshCw, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
@@ -71,6 +71,7 @@ export function StaffAttendanceRoster() {
 
   const staffQuery = api.attendance.staffForDate.useQuery({ date }, { retry: false });
   const markMutation = api.attendance.markStaff.useMutation();
+  const resetMutation = api.attendance.resetStaffForDate.useMutation();
 
   async function markStaff(
     row: StaffAttendanceRow,
@@ -92,10 +93,7 @@ export function StaffAttendanceRoster() {
       showErrorToast(err, 'Supervisor attendance could not be saved.');
       setRowErrors((current) => ({
         ...current,
-        [row.staffUserId]: friendlyErrorMessage(
-          err,
-          'Supervisor attendance could not be saved.',
-        ),
+        [row.staffUserId]: friendlyErrorMessage(err, 'Supervisor attendance could not be saved.'),
       }));
     } finally {
       setPendingRows((current) => withoutRecordKey(current, row.staffUserId));
@@ -122,6 +120,22 @@ export function StaffAttendanceRoster() {
       showErrorToast(err, 'Supervisor could not be added.');
     } finally {
       setPendingRows((current) => withoutRecordKey(current, selectedStaffUserId));
+    }
+  }
+
+  async function resetRegister() {
+    if (!window.confirm('Reset this supervisor register for the selected date?')) return;
+    try {
+      const result = await resetMutation.mutateAsync({ date });
+      setSelectedStatuses({});
+      setSelectedReasons({});
+      setRowErrors({});
+      showSuccessToast(
+        `Supervisor register reset. ${String(result.deletedCount)} records cleared.`,
+      );
+      await utils.attendance.staffForDate.invalidate({ date });
+    } catch (err) {
+      showErrorToast(err, 'Supervisor register could not be reset.');
     }
   }
 
@@ -269,6 +283,18 @@ export function StaffAttendanceRoster() {
           >
             <RefreshCw aria-hidden="true" size={16} />
             Refresh
+          </Button>
+          <Button
+            disabled={rows.every((row) => row.status === null)}
+            onClick={() => {
+              void resetRegister();
+            }}
+            pending={resetMutation.isPending}
+            type="button"
+            variant="danger"
+          >
+            <RotateCcw aria-hidden="true" size={16} />
+            Reset
           </Button>
         </div>
       </div>

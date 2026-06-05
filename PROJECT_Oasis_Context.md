@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-04
 **Agent:** Technical Agent (Codex)
-**Phase:** Student account provisioning fix.
+**Phase:** Attendance register reset and special attendance.
 
 ---
 
@@ -28,6 +28,55 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-05 Attendance reset and special attendance
+
+Working branch: `feat/attendance-register-reset-special`.
+
+**PR scope:** Add selected-date reset controls to attendance registers, add
+special attendance registers for field trips, minibus journeys, and The Cedars,
+and consolidate admin attendance surfaces into tabs.
+
+Completed:
+
+- Added student, staff, and club attendance reset API mutations with existing
+  attendance/club permissions and audit rows.
+- Added special attendance session and record models for Field Trip, Minibus
+  Inbound, Minibus Outbound, and The Cedars registers.
+- Stored minibus destination once per date and journey direction, encrypted at
+  the session level.
+- Added special attendance read, session-save, mark, and reset procedures using
+  the existing daily student roster scope.
+- Added reset buttons to student, staff, and club registers.
+- Replaced admin attendance subpage navigation with tabs for Student register,
+  Staff register, Special attendance, and Attendance center.
+- Preserved `/admin/attendance/staff` and `/admin/attendance/center` as
+  permission-checked redirects to the matching admin attendance tabs.
+- Added special attendance capture to the supervisor attendance view for users
+  who can record student attendance.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/attendance.router.test.ts src/__tests__/club.router.test.ts`
+- `pnpm db:generate`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm exec prettier --check` on changed TypeScript, TSX, and CSS files.
+- `git diff --check`
+- `pnpm db:migrate`
+- `pnpm with-env pnpm --filter @oasis/db exec prisma migrate status`
+- `graphify update .`
+
+Notes:
+
+- Work was implemented in an isolated `/private/tmp/oasis-attendance-register-reset-special`
+  worktree because the main checkout had unrelated dirty student portal work.
+- `pnpm db:migrate` required sourcing the main checkout's local env and elevated
+  execution so Prisma could reach the local `oasis_dev` database at
+  `localhost:5432`.
 
 ## Current session - 2026-06-04 Linked-child guardian parent access
 

@@ -10909,6 +10909,22 @@ button.club-assignment-row {
   margin: 0;
 }
 
+.attendance-admin-tabs {
+  align-self: flex-start;
+}
+
+.attendance-special-capture {
+  display: grid;
+  gap: 18px;
+}
+
+.attendance-special-destination {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
 .attendance-insights-tabs {
   display: inline-flex;
   width: fit-content;
@@ -12326,6 +12342,10 @@ button.club-assignment-row {
 
   .attendance-insights-tabs button {
     flex: 1;
+  }
+
+  .attendance-special-destination {
+    grid-template-columns: 1fr;
   }
 
   .attendance-breakdown-chart__row {
