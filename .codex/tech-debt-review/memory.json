@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-02",
+  "lastRunDate": "2026-06-05",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -372,6 +372,255 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized investment router; no obvious safe refactor was made without increasing churn."
+    },
+    "apps/web/src/components/clubs/clubs-lead-portal-client.tsx": {
+      "lastReviewedAt": "2026-06-03",
+      "pass": 1,
+      "status": "reviewed",
+      "validationStatus": "pass",
+      "lineCountBefore": 963,
+      "lineCountAfter": 963,
+      "issuesFixed": [
+        "Prior automation pass extracted clubs lead tab and formatting helpers."
+      ],
+      "notes": "Carried forward from 2026-06-03 automation memory because repo memory was one run behind."
+    },
+    "apps/mobile/src/components/smoke/supervisor-smoke-screen.tsx": {
+      "lastReviewedAt": "2026-06-03",
+      "pass": 1,
+      "status": "reviewed",
+      "validationStatus": "pass",
+      "lineCountBefore": 1072,
+      "lineCountAfter": 1072,
+      "issuesFixed": [
+        "Prior automation pass reviewed supervisor smoke screen helper structure."
+      ],
+      "notes": "Carried forward from 2026-06-03 automation memory because repo memory was one run behind."
+    },
+    "apps/mobile/src/components/smoke/portal-mobile-shell.tsx": {
+      "lastReviewedAt": "2026-06-03",
+      "pass": 1,
+      "status": "reviewed",
+      "validationStatus": "pass",
+      "lineCountBefore": 1076,
+      "lineCountAfter": 1076,
+      "issuesFixed": [
+        "Prior automation pass extracted portal mobile nav icons and styles."
+      ],
+      "notes": "Carried forward from 2026-06-03 automation memory; corrected path includes components/smoke."
+    },
+    "apps/mobile/src/components/smoke/student-smoke-shop.tsx": {
+      "lastReviewedAt": "2026-06-03",
+      "pass": 1,
+      "status": "reviewed",
+      "validationStatus": "pass",
+      "lineCountBefore": 744,
+      "lineCountAfter": 744,
+      "issuesFixed": [
+        "Prior automation pass extracted mobile shop stock and merit helpers."
+      ],
+      "notes": "Carried forward from 2026-06-03 automation memory because repo memory was one run behind."
+    },
+    "apps/web/src/app/(admin)/admin/students/[id]/student-admin-editor.tsx": {
+      "lastReviewedAt": "2026-06-03",
+      "pass": 1,
+      "status": "reviewed",
+      "validationStatus": "pass",
+      "lineCountBefore": 643,
+      "lineCountAfter": 643,
+      "issuesFixed": [
+        "Prior automation pass extracted student editor schema, year, and initials helpers."
+      ],
+      "notes": "Carried forward from 2026-06-03 automation memory; corrected path is under the admin route."
+    },
+    "apps/api/src/routers/studentSettings.ts": {
+      "lastReviewedAt": "2026-06-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1061,
+      "lineCountAfter": 1164,
+      "issuesFixed": [
+        "Reused shared API UTC date-window helpers instead of keeping router-local duplicates."
+      ],
+      "validationStatus": "partial: selected-file lint passed; API typecheck/tests blocked by unrelated in-progress student-account feature changes after Prisma generate.",
+      "notes": "Selected as oversized API router. Line count changed during the run because existing uncommitted feature work appeared on feat/student-account-provisioning; maintenance edit only removed duplicated UTC helpers."
+    },
+    "apps/api/src/routers/student.ts": {
+      "lastReviewedAt": "2026-06-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 737,
+      "lineCountAfter": 894,
+      "issuesFixed": [
+        "Reused shared API UTC date helpers instead of router-local duplicates.",
+        "Centralized duplicated total merit balance calculation in a local helper."
+      ],
+      "validationStatus": "partial: selected-file lint passed; API typecheck/tests blocked by unrelated in-progress student-account feature changes after Prisma generate.",
+      "notes": "Selected as oversized API router. Line count changed during the run because existing uncommitted feature work appeared on feat/student-account-provisioning."
+    },
+    "apps/api/src/invoices/school-fee-pdf.ts": {
+      "lastReviewedAt": "2026-06-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 545,
+      "lineCountAfter": 545,
+      "issuesFixed": [
+        "Reviewed for lint/type issues and safe extraction opportunities; no low-risk local edit justified."
+      ],
+      "validationStatus": "partial: selected-file lint passed; API typecheck/tests blocked by unrelated in-progress student-account feature changes after Prisma generate.",
+      "notes": "Selected as oversized production source file; left unchanged to preserve PDF layout behaviour."
+    },
+    "packages/db/src/pace-score-backfill.ts": {
+      "lastReviewedAt": "2026-06-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 483,
+      "lineCountAfter": 485,
+      "issuesFixed": [
+        "Extracted duplicated positive PACE number validation into a named parser helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized DB parser utility; targeted DB tests passed."
+    },
+    "apps/api/src/lib/student-portal-access.ts": {
+      "lastReviewedAt": "2026-06-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 441,
+      "lineCountAfter": 412,
+      "issuesFixed": [
+        "Reused shared API UTC date-window helpers instead of maintaining duplicated local helpers."
+      ],
+      "validationStatus": "partial: selected-file lint passed; API typecheck/tests blocked by unrelated in-progress student-account feature changes after Prisma generate.",
+      "notes": "Selected as oversized API policy helper."
+    },
+    "apps/api/src/routers/leaderboard.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 471,
+      "lineCountAfter": 466,
+      "issuesFixed": [
+        "Extracted repeated leaderboard student metric candidate mapping into a private helper.",
+        "Preserved ranking, decrypt, audit, pagination, and permission behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router with repeated candidate-shaping logic."
+    },
+    "packages/domain/src/rbac.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 439,
+      "lineCountAfter": 439,
+      "issuesFixed": [
+        "Reviewed RBAC permission helpers for lint, type safety, and obvious local cleanup; no code change was made to avoid unnecessary auth-semantic risk."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized domain permissions module; role and tag semantics were not changed."
+    },
+    "apps/api/src/lib/email.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 399,
+      "lineCountAfter": 390,
+      "issuesFixed": [
+        "Replaced repeated portal URL builders for message, invoice, and report emails with one private helper.",
+        "Preserved sender, logo, subject, React payload, and text fallback behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API email helper with repeated URL-construction logic."
+    },
+    "apps/api/src/routers/clerkWebhook.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 373,
+      "lineCountAfter": 370,
+      "issuesFixed": [
+        "Extracted repeated unique invitation ID collection into private helpers.",
+        "Preserved user upsert, pending invitation acceptance, student linking, and parent-link confirmation behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized webhook router with repeated invitation ID collection."
+    },
+    "apps/api/src/incidents/incident-report-pdf.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 349,
+      "lineCountAfter": 349,
+      "issuesFixed": [
+        "Reviewed incident parent PDF generation for lint, type safety, and obvious local cleanup; no code change was made to avoid PDF layout churn."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized incident PDF generator; parent-copy layout and content were not changed."
+    },
+    "apps/api/src/routers/meritLedger.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 413,
+      "lineCountAfter": 413,
+      "issuesFixed": [
+        "Extracted repeated merit account balance aggregation into a private helper.",
+        "Preserved wallet balance shape, transfer validation, audit, and student access behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed API router with repeated balance aggregation logic."
+    },
+    "apps/api/src/routers/childNotes.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 310,
+      "lineCountAfter": 309,
+      "issuesFixed": [
+        "Extracted repeated sensitive child-note access checks into a private guard.",
+        "Preserved TRPC error code, message, and sensitive-note permission semantics."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed API router with repeated sensitive-note guard logic."
+    },
+    "packages/domain/src/shop.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 303,
+      "lineCountAfter": 301,
+      "issuesFixed": [
+        "Extracted repeated reservation settlement ledger row construction into a private helper.",
+        "Preserved reservation collection and cancellation accounts, deltas, reason strings, and validation."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed domain shop helper with repeated reservation settlement logic."
+    },
+    "packages/domain/src/studentPortalSettings.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 219,
+      "lineCountAfter": 220,
+      "issuesFixed": [
+        "Named the daily usage limit maximum as a local constant.",
+        "Preserved student portal usage-limit validation behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed domain student portal settings helper."
+    },
+    "packages/domain/src/tithe.ts": {
+      "lastReviewedAt": "2026-06-05",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 407,
+      "lineCountAfter": 409,
+      "issuesFixed": [
+        "Extracted gross merit calculation into a private helper.",
+        "Preserved tithe percentage, period, ledger row, and London week-boundary behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed domain tithe helper."
     }
   },
   "deferredFiles": {},

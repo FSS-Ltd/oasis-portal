@@ -259,23 +259,7 @@ export function rowsForReservationCollection(input: {
   reservationId: string;
   totalPriceMerits: number;
 }): LedgerRow[] {
-  if (!Number.isInteger(input.totalPriceMerits) || input.totalPriceMerits <= 0) {
-    throw new Error('totalPriceMerits must be a positive integer');
-  }
-  return [
-    {
-      studentId: input.studentId,
-      account: 'ShopReserved',
-      delta: -input.totalPriceMerits,
-      reason: `shop-reservation:${input.reservationId}:collected`,
-    },
-    {
-      studentId: input.studentId,
-      account: 'Given',
-      delta: input.totalPriceMerits,
-      reason: `shop-reservation:${input.reservationId}:collected`,
-    },
-  ];
+  return rowsForReservationSettlement(input, 'Given', 'collected');
 }
 
 export function rowsForReservationCancellation(input: {
@@ -283,21 +267,35 @@ export function rowsForReservationCancellation(input: {
   reservationId: string;
   totalPriceMerits: number;
 }): LedgerRow[] {
+  return rowsForReservationSettlement(input, 'Spend', 'cancelled');
+}
+
+function rowsForReservationSettlement(
+  input: {
+    studentId: string;
+    reservationId: string;
+    totalPriceMerits: number;
+  },
+  creditAccount: 'Given' | 'Spend',
+  outcome: 'collected' | 'cancelled',
+): LedgerRow[] {
   if (!Number.isInteger(input.totalPriceMerits) || input.totalPriceMerits <= 0) {
     throw new Error('totalPriceMerits must be a positive integer');
   }
+  const reason = `shop-reservation:${input.reservationId}:${outcome}`;
+
   return [
     {
       studentId: input.studentId,
       account: 'ShopReserved',
       delta: -input.totalPriceMerits,
-      reason: `shop-reservation:${input.reservationId}:cancelled`,
+      reason,
     },
     {
       studentId: input.studentId,
-      account: 'Spend',
+      account: creditAccount,
       delta: input.totalPriceMerits,
-      reason: `shop-reservation:${input.reservationId}:cancelled`,
+      reason,
     },
   ];
 }

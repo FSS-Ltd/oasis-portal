@@ -160,11 +160,7 @@ export function computeWeeklyTithe(input: TitheInput): TitheResult {
     throw new Error('periodEnd must be after periodStart');
   }
 
-  let gross = 0;
-  for (const e of input.entries) {
-    if (e.type === 'Merit') gross += e.meritDelta;
-  }
-
+  const gross = grossMerits(input.entries);
   const amount = Math.floor((gross * input.percentage) / 100);
   const reason = `tithe:${input.periodStart.toISOString().slice(0, 10)}:${String(input.percentage)}pct`;
 
@@ -184,6 +180,14 @@ export function computeWeeklyTithe(input: TitheInput): TitheResult {
     titheAmount: amount,
     rows,
   };
+}
+
+function grossMerits(entries: TitheInput['entries']): number {
+  let gross = 0;
+  for (const entry of entries) {
+    if (entry.type === 'Merit') gross += entry.meritDelta;
+  }
+  return gross;
 }
 
 export interface ManualTitheEarningEntry {
@@ -308,7 +312,7 @@ function addMonths(year: number, month: number, delta: number): { year: number; 
   const zeroBased = month - 1 + delta;
   return {
     year: year + Math.floor(zeroBased / 12),
-    month: ((zeroBased % 12) + 12) % 12 + 1,
+    month: (((zeroBased % 12) + 12) % 12) + 1,
   };
 }
 
@@ -320,9 +324,7 @@ function monthlyBoundary(year: number, month: number, date: number): Date {
   });
 }
 
-export function latestCompletedTithePeriod(
-  input: CompletedTithePeriodInput,
-): CompletedTithePeriod {
+export function latestCompletedTithePeriod(input: CompletedTithePeriodInput): CompletedTithePeriod {
   const now = input.now ?? new Date();
   const parts = localDateTimeParts(now);
 

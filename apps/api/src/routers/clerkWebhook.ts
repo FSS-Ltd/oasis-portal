@@ -132,6 +132,18 @@ function displayName(user: ClerkUserPayload, fallback: string): string {
   return name || user.username || fallback;
 }
 
+function isPresentId(id: string | null): id is string {
+  return Boolean(id);
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)];
+}
+
+function uniquePresentIds(values: readonly (string | null)[]): string[] {
+  return uniqueStrings(values.filter(isPresentId));
+}
+
 export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUserUpsertInput {
   const user = asClerkUserPayload(data);
   const email = primaryEmail(user);
@@ -176,32 +188,19 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
     pendingInvitations?: readonly PendingInvitation[],
   ): Promise<void> {
     const invitations = pendingInvitations ?? (await loadPendingInvitations(emailBidx));
-    const guardianLinkStudentIds = [
-      ...new Set(invitations.flatMap((invitation) => invitation.guardianLinkStudentIds)),
-    ];
-    const studentSelfRegistrationIds = [
-      ...new Set(
-        invitations
-          .filter((invitation) => invitation.role === 'Student')
-          .map((invitation) => invitation.studentSelfRegistrationId)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-    const directStudentInvitationIds = [
-      ...new Set(
-        invitations
-          .filter((invitation) => invitation.role === 'Student')
-          .map((invitation) => invitation.studentId)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-    const studentParentLinkRequestIds = [
-      ...new Set(
-        invitations
-          .map((invitation) => invitation.studentParentLinkRequestId)
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
+    const studentInvitations = invitations.filter((invitation) => invitation.role === 'Student');
+    const guardianLinkStudentIds = uniqueStrings(
+      invitations.flatMap((invitation) => invitation.guardianLinkStudentIds),
+    );
+    const studentSelfRegistrationIds = uniquePresentIds(
+      studentInvitations.map((invitation) => invitation.studentSelfRegistrationId),
+    );
+    const directStudentInvitationIds = uniquePresentIds(
+      studentInvitations.map((invitation) => invitation.studentId),
+    );
+    const studentParentLinkRequestIds = uniquePresentIds(
+      invitations.map((invitation) => invitation.studentParentLinkRequestId),
+    );
 
     const accepted = await db.userInvitation.updateMany({
       where: { emailBidx, status: 'Pending' },
@@ -277,9 +276,7 @@ export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma):
         return;
       }
 
-      const existingByEmail = emailBidx
-        ? await db.user.findUnique({ where: { emailBidx } })
-        : null;
+      const existingByEmail = emailBidx ? await db.user.findUnique({ where: { emailBidx } }) : null;
       if (existingByEmail) {
         const updated = await db.user.update({
           where: { id: existingByEmail.id },

@@ -64,6 +64,7 @@ export type StudentMeritShopAccess =
   | { allowed: false; reason: StudentMeritShopBlockReason };
 
 const ADULT_AGE_YEARS = 18;
+const MAX_DAILY_USAGE_LIMIT_MINUTES = 1_440;
 
 export function isStudentAdult(input: StudentPortalEligibilityInput): boolean {
   const dateOfBirth = dateOnlyParts(input.dateOfBirth, 'dateOfBirth');
@@ -110,7 +111,7 @@ export function validateStudentPortalUsageLimits(
     dailyUsageLimitMinutes: validateLimit(
       'dailyUsageLimitMinutes',
       input.dailyUsageLimitMinutes,
-      1_440,
+      MAX_DAILY_USAGE_LIMIT_MINUTES,
     ),
     offLimitWeekdays: validateWeekdays(input.offLimitWeekdays),
   };
