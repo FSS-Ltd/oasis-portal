@@ -238,6 +238,7 @@ model Student {
   meritLedger              MeritLedger[]
   titheConfig              TitheConfig?
   titheRuns                TitheRun[]
+  savingsInterestRuns      SavingsInterestRun[]
   investment               InvestmentAccount?
   investmentTx             InvestmentTransaction[]
   shopPurchases            ShopPurchase[]
@@ -931,21 +932,41 @@ model MeritLedger {
 }
 
 model TitheConfig {
-  studentId  String    @id
-  percentage Int       @default(10) // 10 | 15 | 20
-  cadence    String    @default("Weekly")
-  lastRunAt  DateTime?
+  studentId   String    @id
+  percentage  Int       @default(10)
+  cadence     String    @default("Weekly") // Weekly | Monthly
+  mode        String    @default("Percentage") // Percentage | FixedAmount
+  fixedAmount Int?
+  weeklyDay   Int       @default(5) // 0 Sunday through 6 Saturday
+  monthlyDate Int       @default(1)
+  lastRunAt   DateTime?
 
   student Student @relation(fields: [studentId], references: [id])
 }
 
 model TitheRun {
+  id            String   @id @default(cuid())
+  studentId     String
+  cadence       String   @default("Weekly")
+  periodStart   DateTime
+  periodEnd     DateTime
+  grossMerits   Int
+  minimumAmount Int      @default(0)
+  titheAmount   Int
+  createdAt     DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, cadence, periodStart])
+}
+
+model SavingsInterestRun {
   id          String   @id @default(cuid())
   studentId   String
   periodStart DateTime
   periodEnd   DateTime
-  grossMerits Int
-  titheAmount Int
+  savingBalance Int
+  interestAmount Int
   createdAt   DateTime @default(now())
 
   student Student @relation(fields: [studentId], references: [id])

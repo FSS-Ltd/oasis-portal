@@ -14,10 +14,8 @@ import {
   isFullAdmin,
   isOasisOperatingDay,
   isStaff,
-  isValidTithePercentage,
   type Role,
   type SessionUser,
-  type TithePercentage,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 import {
@@ -33,10 +31,15 @@ import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 
-const DRILLTHROUGH_MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
+const DRILLTHROUGH_MERIT_ACCOUNTS = [
+  'Spend',
+  'Saving',
+  'Investment',
+  'ShopReserved',
+  'TithePaid',
+  'Given',
+] as const;
 const PARENT_DASHBOARD_RECENT_LIMIT = 3;
-const DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE = 10 satisfies TithePercentage;
-
 type ParentDashboardAttendanceStatus = 'Present' | 'Absent' | 'Late';
 type ParentDashboardTodayStatus =
   | { date: string; kind: 'halfTerm'; label: 'Half Term' }
@@ -114,11 +117,6 @@ function parentDashboardTodayStatus(
 function percentage(numerator: number, denominator: number): number | null {
   if (denominator === 0) return null;
   return Math.round((numerator / denominator) * 100);
-}
-
-function tithePercentage(value: number | null | undefined): TithePercentage {
-  if (value === undefined || value === null) return DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE;
-  return isValidTithePercentage(value) ? value : DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE;
 }
 
 function paceProgressKey(record: {
@@ -814,7 +812,6 @@ export const childLogRouter = router({
       behaviour,
       notes,
       meritBalances,
-      titheConfigs,
       policy,
       halfTermEvents,
     ] = await Promise.all([
@@ -870,10 +867,6 @@ export const childLogRouter = router({
         },
         _sum: { delta: true },
       }),
-      ctx.db.titheConfig.findMany({
-        where: { studentId: { in: studentIds } },
-        select: { studentId: true, percentage: true },
-      }),
       ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
       ctx.db.calendarEvent.findMany({
         where: {
@@ -891,20 +884,25 @@ export const childLogRouter = router({
     const hasHalfTermToday = halfTermEvents.length > 0;
     const passThreshold = policy?.passThreshold ?? 80;
     const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
-    const tithePercentageByStudent = new Map(
-      titheConfigs.map((config) => [config.studentId, tithePercentage(config.percentage)]),
-    );
-
     return {
       children: students.map((student) => {
-        const balances = { Spend: 0, Saving: 0, Investment: 0, ShopReserved: 0 };
+        const balances = {
+          Spend: 0,
+          Saving: 0,
+          Investment: 0,
+          ShopReserved: 0,
+          TithePaid: 0,
+          Given: 0,
+        };
         for (const row of meritBalances) {
           if (row.studentId !== student.id) continue;
           if (
             row.account === 'Spend' ||
             row.account === 'Saving' ||
             row.account === 'Investment' ||
-            row.account === 'ShopReserved'
+            row.account === 'ShopReserved' ||
+            row.account === 'TithePaid' ||
+            row.account === 'Given'
           ) {
             balances[row.account] = row._sum.delta ?? 0;
           }
@@ -925,8 +923,6 @@ export const childLogRouter = router({
             meritBalances: balances,
             totalMerits:
               balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved,
-            tithePercentage:
-              tithePercentageByStudent.get(student.id) ?? DEFAULT_PARENT_DASHBOARD_TITHE_PERCENTAGE,
             pacesCompletedThisAcademicYear,
             attendanceRate: percentage(presentDays, studentAttendance.length),
             presentDays,
@@ -1065,13 +1061,17 @@ export const childLogRouter = router({
         Saving: 0,
         Investment: 0,
         ShopReserved: 0,
+        TithePaid: 0,
+        Given: 0,
       };
       for (const row of meritBalances) {
         if (
           row.account === 'Spend' ||
           row.account === 'Saving' ||
           row.account === 'Investment' ||
-          row.account === 'ShopReserved'
+          row.account === 'ShopReserved' ||
+          row.account === 'TithePaid' ||
+          row.account === 'Given'
         ) {
           balances[row.account] = row._sum.delta ?? 0;
         }

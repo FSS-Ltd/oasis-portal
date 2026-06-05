@@ -4,7 +4,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import { ArrowLeft, Edit3, ShieldAlert, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { TITHE_PERCENTAGES, displaySchoolYearLabel } from '@oasis/domain';
+import { displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
@@ -72,7 +72,6 @@ interface StudentDrillThroughContentProps {
   backLabel: string;
   onEdit?: (() => void) | undefined;
   canManageCorrections?: boolean;
-  canManageTithe?: boolean;
   canViewFinance?: boolean;
   studentId: string;
 }
@@ -583,64 +582,6 @@ function PaceTab({
   );
 }
 
-function TithePercentageSelector({ studentId }: { studentId: string }) {
-  const utils = api.useUtils();
-  const configQuery = api.tithe.getConfig.useQuery({ studentId }, { retry: false });
-  const setPercentage = api.tithe.setPercentage.useMutation({
-    async onSuccess(config) {
-      await Promise.all([
-        utils.tithe.getConfig.invalidate({ studentId }),
-        utils.childLog.parentDashboard.invalidate(),
-      ]);
-      showSuccessToast(`Weekly tithe set to ${String(config.percentage)}%.`);
-    },
-    onError(error) {
-      showErrorToast(error, 'Tithe percentage could not be updated.');
-    },
-  });
-
-  const selectedPercentage = setPercentage.data?.percentage ?? configQuery.data?.percentage ?? 10;
-
-  return (
-    <section className="panel panel__body parent-tithe-selector">
-      <div>
-        <h3>Weekly Tithe Rate</h3>
-        <p>Applied to merits earned from Friday 1pm to Friday 1pm.</p>
-      </div>
-      <div className="parent-tithe-selector__options" role="group" aria-label="Weekly tithe rate">
-        {TITHE_PERCENTAGES.map((percentage) => {
-          const selected = selectedPercentage === percentage;
-          const pending =
-            setPercentage.isPending && setPercentage.variables.percentage === percentage;
-
-          return (
-            <button
-              aria-pressed={selected}
-              className={selected ? 'is-selected' : undefined}
-              disabled={configQuery.isLoading || setPercentage.isPending}
-              key={percentage}
-              onClick={() => {
-                if (!selected) {
-                  setPercentage.mutate({ studentId, percentage });
-                }
-              }}
-              type="button"
-            >
-              {pending ? 'Saving' : `${String(percentage)}%`}
-            </button>
-          );
-        })}
-      </div>
-      <p className="parent-tithe-selector__note">
-        The weekly deduction runs before Friday merit shop spending.
-      </p>
-      {configQuery.error ? (
-        <p className="status--error">{friendlyErrorMessage(configQuery.error)}</p>
-      ) : null}
-    </section>
-  );
-}
-
 function RecentMeritLedger({ entries }: { entries: DrillThrough['behaviour'] }) {
   const visibleEntries = entries.filter((entry) => entry.type !== 'General').slice(0, 6);
 
@@ -670,11 +611,13 @@ function RecentMeritLedger({ entries }: { entries: DrillThrough['behaviour'] }) 
   );
 }
 
-function MeritsTab({ canManageTithe, data }: { canManageTithe: boolean; data: DrillThrough }) {
+function MeritsTab({ data }: { data: DrillThrough }) {
   const accounts = [
     ['Spend Account', data.metrics.meritBalances.Spend, 'red', 'Available to spend in Merit Shop'],
-    ['Saving Account', data.metrics.meritBalances.Saving, 'blue', 'Transferred from Spend'],
-    ['Investment Account', data.metrics.meritBalances.Investment, 'green', 'Investment balance'],
+    ['Saving Account', data.metrics.meritBalances.Saving, 'blue', 'Saved merits'],
+    ['Investment Account', data.metrics.meritBalances.Investment, 'green', 'Invested balance'],
+    ['Tithed', data.metrics.meritBalances.TithePaid, 'green', 'Paid through manual tithe'],
+    ['Charity Given', data.metrics.meritBalances.Given, 'blue', 'Given to the charity pot'],
   ] as const;
 
   return (
@@ -691,7 +634,6 @@ function MeritsTab({ canManageTithe, data }: { canManageTithe: boolean; data: Dr
         ))}
       </div>
       <div className="parent-merit-wallet__detail-grid">
-        {canManageTithe ? <TithePercentageSelector studentId={data.student.id} /> : null}
         <RecentMeritLedger entries={data.behaviour} />
       </div>
     </div>
@@ -908,7 +850,6 @@ export function StudentDrillThroughContent({
   backHref,
   backLabel,
   canManageCorrections = false,
-  canManageTithe = false,
   canViewFinance = false,
   onEdit,
   studentId,
@@ -1106,7 +1047,7 @@ export function StudentDrillThroughContent({
           onEdit={setPaceDraft}
         />
       ) : null}
-      {activeTab === 'merits' ? <MeritsTab canManageTithe={canManageTithe} data={data} /> : null}
+      {activeTab === 'merits' ? <MeritsTab data={data} /> : null}
       {activeTab === 'notes' ? (
         <NotesTab
           canManageCorrections={canManageCorrections}

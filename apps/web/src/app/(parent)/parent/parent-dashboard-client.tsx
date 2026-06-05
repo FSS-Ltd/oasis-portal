@@ -86,8 +86,8 @@ function ChildHero({ child }: { child: DashboardChild }) {
           <span>PACEs</span>
         </div>
         <div>
-          <strong>{String(child.metrics.tithePercentage)}%</strong>
-          <span>Tithe rate</span>
+          <strong>{String(child.metrics.meritBalances.TithePaid)}</strong>
+          <span>Tithed</span>
         </div>
       </div>
       <Link
@@ -212,6 +212,8 @@ function MeritWalletPreview({ child }: { child: DashboardChild }) {
     { label: 'Spend', value: balances.Spend, colour: '#7d1c2c' },
     { label: 'Saving', value: balances.Saving, colour: '#1b2b5e' },
     { label: 'Investment', value: balances.Investment, colour: '#5b90c5' },
+    { label: 'Tithed', value: balances.TithePaid, colour: '#2f7d4f' },
+    { label: 'Charity', value: balances.Given, colour: '#5b90c5' },
   ] as const;
 
   return (
@@ -236,10 +238,6 @@ function MeritWalletPreview({ child }: { child: DashboardChild }) {
       <div className="parent-wallet-total">
         <span>Total</span>
         <strong>{String(child.metrics.totalMerits)}</strong>
-      </div>
-      <div className="parent-wallet-tithe">
-        <span>Weekly tithe rate</span>
-        <strong>{String(child.metrics.tithePercentage)}%</strong>
       </div>
       <Link
         className="button button--secondary button--sm parent-card-link"

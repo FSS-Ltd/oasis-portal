@@ -13,10 +13,14 @@
 import type { LedgerRow } from './meritLedger.js';
 
 export const TITHE_PERCENTAGES = [10, 15, 20] as const;
+export const TITHE_CADENCES = ['Weekly', 'Monthly'] as const;
+export const TITHE_PAYMENT_MODES = ['Percentage', 'FixedAmount'] as const;
 export const TITHE_TIME_ZONE = 'Europe/London';
 export const TITHE_WEEK_START_DAY = 5; // Friday, matching Date#getUTCDay.
 export const TITHE_WEEK_START_HOUR = 13;
 export type TithePercentage = (typeof TITHE_PERCENTAGES)[number];
+export type TitheCadence = (typeof TITHE_CADENCES)[number];
+export type TithePaymentMode = (typeof TITHE_PAYMENT_MODES)[number];
 
 interface LocalDateTimeParts {
   day: number;
@@ -42,6 +46,14 @@ const dateTimePartFormatters = new Map<string, Intl.DateTimeFormat>();
 
 export function isValidTithePercentage(n: number): n is TithePercentage {
   return (TITHE_PERCENTAGES as readonly number[]).includes(n);
+}
+
+export function isValidTitheCadence(value: string): value is TitheCadence {
+  return (TITHE_CADENCES as readonly string[]).includes(value);
+}
+
+export function isValidTithePaymentMode(value: string): value is TithePaymentMode {
+  return (TITHE_PAYMENT_MODES as readonly string[]).includes(value);
 }
 
 function dateTimeFormatter(timeZone: string): Intl.DateTimeFormat {
@@ -172,6 +184,191 @@ export function computeWeeklyTithe(input: TitheInput): TitheResult {
     titheAmount: amount,
     rows,
   };
+}
+
+export interface ManualTitheEarningEntry {
+  source: 'BehaviourMerit' | 'BehaviourDemerit' | 'InvestmentReturn';
+  amount: number;
+}
+
+export interface ManualTitheDueInput {
+  mode: TithePaymentMode;
+  entries: readonly ManualTitheEarningEntry[];
+  percentage?: number | null;
+  fixedAmount?: number | null;
+}
+
+export interface ManualTitheDue {
+  grossMerits: number;
+  minimumAmount: number;
+  selectedAmount: number;
+}
+
+function positiveInteger(value: number | null | undefined, label: string): number {
+  if (value === null || value === undefined || !Number.isInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative integer`);
+  }
+  return value;
+}
+
+export function computeManualTitheDue(input: ManualTitheDueInput): ManualTitheDue {
+  let grossMerits = 0;
+  for (const entry of input.entries) {
+    if (entry.source === 'BehaviourMerit' && entry.amount > 0) {
+      grossMerits += entry.amount;
+    }
+    if (entry.source === 'InvestmentReturn' && entry.amount > 0) {
+      grossMerits += entry.amount;
+    }
+  }
+
+  const minimumAmount = Math.floor(grossMerits / 10);
+  let selectedAmount: number;
+  if (input.mode === 'Percentage') {
+    const percentage = positiveInteger(input.percentage ?? 10, 'tithe percentage');
+    if (percentage < 10) {
+      throw new Error('tithe percentage cannot be less than 10%');
+    }
+    selectedAmount = Math.floor((grossMerits * percentage) / 100);
+  } else if (input.mode === 'FixedAmount') {
+    selectedAmount = positiveInteger(input.fixedAmount ?? 0, 'fixed tithe amount');
+    if (selectedAmount < minimumAmount) {
+      throw new Error('fixed tithe amount cannot be less than 10% of period earnings');
+    }
+  } else {
+    throw new Error(`invalid tithe payment mode: ${String(input.mode)}`);
+  }
+
+  return {
+    grossMerits,
+    minimumAmount,
+    selectedAmount,
+  };
+}
+
+export function planManualTithePayment(input: {
+  studentId: string;
+  amount: number;
+  periodStart: Date;
+  cadence: TitheCadence;
+}): LedgerRow[] {
+  if (!Number.isInteger(input.amount) || input.amount <= 0) {
+    throw new Error('tithe amount must be a positive integer');
+  }
+  const cadenceKey = input.cadence.toLowerCase();
+  const reason = `tithe:${cadenceKey}:${input.periodStart.toISOString().slice(0, 10)}`;
+  return [
+    { studentId: input.studentId, account: 'Spend', delta: -input.amount, reason },
+    { studentId: input.studentId, account: 'TithePaid', delta: input.amount, reason },
+  ];
+}
+
+export interface CompletedTithePeriodInput {
+  cadence: TitheCadence;
+  now?: Date;
+  weeklyDay?: number | null;
+  monthlyDate?: number | null;
+}
+
+export interface CompletedTithePeriod {
+  start: Date;
+  end: Date;
+}
+
+function requireWeekday(value: number | null | undefined): number {
+  const weekday = value ?? TITHE_WEEK_START_DAY;
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error('weekly tithe day must be between 0 and 6');
+  }
+  return weekday;
+}
+
+function requireMonthDate(value: number | null | undefined): number {
+  const date = value ?? 1;
+  if (!Number.isInteger(date) || date < 1 || date > 31) {
+    throw new Error('monthly tithe date must be between 1 and 31');
+  }
+  return date;
+}
+
+function localStartOfDay(input: Pick<LocalDateTimeParts, 'day' | 'month' | 'year'>): Date {
+  return localDateTimeAsUtc({
+    day: input.day,
+    hour: 0,
+    minute: 0,
+    month: input.month,
+    second: 0,
+    year: input.year,
+  });
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function addMonths(year: number, month: number, delta: number): { year: number; month: number } {
+  const zeroBased = month - 1 + delta;
+  return {
+    year: year + Math.floor(zeroBased / 12),
+    month: ((zeroBased % 12) + 12) % 12 + 1,
+  };
+}
+
+function monthlyBoundary(year: number, month: number, date: number): Date {
+  return localStartOfDay({
+    year,
+    month,
+    day: Math.min(date, daysInMonth(year, month)),
+  });
+}
+
+export function latestCompletedTithePeriod(
+  input: CompletedTithePeriodInput,
+): CompletedTithePeriod {
+  const now = input.now ?? new Date();
+  const parts = localDateTimeParts(now);
+
+  if (input.cadence === 'Weekly') {
+    const weekday = requireWeekday(input.weeklyDay);
+    const daysSinceBoundary = (parts.weekday - weekday + 7) % 7;
+    let end = localStartOfDay({
+      year: parts.year,
+      month: parts.month,
+      day: parts.day - daysSinceBoundary,
+    });
+    if (now < end) {
+      const endParts = localDateTimeParts(end);
+      end = localStartOfDay({
+        year: endParts.year,
+        month: endParts.month,
+        day: endParts.day - 7,
+      });
+    }
+    const endParts = localDateTimeParts(end);
+    const start = localStartOfDay({
+      year: endParts.year,
+      month: endParts.month,
+      day: endParts.day - 7,
+    });
+    return { start, end };
+  }
+
+  if (input.cadence === 'Monthly') {
+    const date = requireMonthDate(input.monthlyDate);
+    let endMonth = { year: parts.year, month: parts.month };
+    let end = monthlyBoundary(endMonth.year, endMonth.month, date);
+    if (now < end) {
+      endMonth = addMonths(endMonth.year, endMonth.month, -1);
+      end = monthlyBoundary(endMonth.year, endMonth.month, date);
+    }
+    const startMonth = addMonths(endMonth.year, endMonth.month, -1);
+    return {
+      start: monthlyBoundary(startMonth.year, startMonth.month, date),
+      end,
+    };
+  }
+
+  throw new Error(`invalid tithe cadence: ${String(input.cadence)}`);
 }
 
 /** Return the Friday 13:00 Europe/London start for the tithe week containing the instant. */

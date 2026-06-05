@@ -654,3 +654,66 @@ describe('meritLedger.transfer', () => {
     );
   });
 });
+
+describe('meritLedger.giveToCharity', () => {
+  it('allows a student to give Spend merits to the charity pot', async () => {
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        ledger: [
+          makeLedgerRow({
+            studentId: linkedStudentId,
+            account: 'Spend',
+            delta: 25,
+            reason: 'merit',
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      caller.meritLedger.giveToCharity({ studentId: linkedStudentId, amount: 10 }),
+    ).resolves.toEqual({
+      studentId: linkedStudentId,
+      balances: { Spend: 15, Saving: 0, Investment: 0, ShopReserved: 0 },
+    });
+
+    expect(db.meritLedger.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          studentId: linkedStudentId,
+          account: 'Spend',
+          delta: -10,
+          reason: 'charity:give',
+        },
+        {
+          studentId: linkedStudentId,
+          account: 'Given',
+          delta: 10,
+          reason: 'charity:give',
+        },
+      ],
+    });
+  });
+
+  it('rejects charity gifts that exceed Spend balance', async () => {
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        ledger: [
+          makeLedgerRow({
+            studentId: linkedStudentId,
+            account: 'Spend',
+            delta: 5,
+            reason: 'merit',
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      caller.meritLedger.giveToCharity({ studentId: linkedStudentId, amount: 10 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.meritLedger.createMany).not.toHaveBeenCalled();
+  });
+});

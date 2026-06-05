@@ -538,7 +538,7 @@ function makeFakeDb(
           where,
         }: {
           where: { studentId: string };
-          select: { id: true; createdAt: true; delta: true };
+          select: { id: true; account: true; createdAt: true; delta: true; reason: true };
           orderBy: { createdAt: 'desc' };
           take: number;
         }) =>
@@ -547,8 +547,10 @@ function makeFakeDb(
               .filter((row) => row.studentId === where.studentId)
               .map((row, index) => ({
                 id: row.id ?? `ledger_${String(index)}`,
+                account: row.account,
                 createdAt: row.createdAt ?? new Date('2026-04-27T10:00:00.000Z'),
                 delta: row.delta,
+                reason: row.reason,
               }))
               .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
               .slice(0, take),
@@ -1187,6 +1189,8 @@ describe('student.dashboard', () => {
             Saving: 15,
             Investment: 10,
             ShopReserved: -5,
+            TithePaid: 0,
+            Given: 0,
           },
           totalMerits: 45,
           hasActivity: true,
@@ -1308,7 +1312,7 @@ describe('student.wallet', () => {
     storedStudent.userId = studentUser.id;
   }
 
-  it('returns student-safe wallet balances and date/amount history only', async () => {
+  it('returns student-safe wallet balances and ledger history', async () => {
     const { db, students } = makeFakeDb({
       meritLedger: [
         {
@@ -1350,33 +1354,35 @@ describe('student.wallet', () => {
         Saving: 10,
         Investment: 0,
         ShopReserved: 0,
+        TithePaid: 0,
+        Given: 0,
       },
       totalMerits: 30,
       history: [
         {
           id: 'ledger_saving',
+          account: 'Saving',
           createdAt: new Date('2026-06-03T10:00:00.000Z'),
           amount: 10,
+          reason: 'transfer:Spend:to:Saving',
         },
         {
           id: 'ledger_demerit',
+          account: 'Spend',
           createdAt: new Date('2026-06-02T10:00:00.000Z'),
           amount: -5,
+          reason: 'Demerit: conduct',
         },
         {
           id: 'ledger_merit',
+          account: 'Spend',
           createdAt: new Date('2026-06-01T10:00:00.000Z'),
           amount: 25,
+          reason: 'Scripture Memory with supervisor private note',
         },
       ],
     });
-    const historyJson = JSON.stringify(wallet.history);
-    expect(historyJson).not.toContain('Scripture Memory');
-    expect(historyJson).not.toContain('Demerit');
-    expect(historyJson).not.toContain('transfer:Spend');
-    expect(historyJson).not.toContain('behaviour_sensitive');
-    expect(historyJson).not.toContain('Spend');
-    expect(historyJson).not.toContain('Saving');
+    expect(JSON.stringify(wallet.history)).not.toContain('behaviour_sensitive');
   });
 
   it('returns empty wallet history when no ledger activity exists', async () => {
@@ -1389,6 +1395,8 @@ describe('student.wallet', () => {
         Saving: 0,
         Investment: 0,
         ShopReserved: 0,
+        TithePaid: 0,
+        Given: 0,
       },
       totalMerits: 0,
       history: [],

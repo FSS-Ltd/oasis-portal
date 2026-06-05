@@ -1,191 +1,310 @@
+import { TRPCError } from '@trpc/server';
 import { Prisma } from '@oasis/db';
 import {
-  computeWeeklyTithe,
-  endOfTitheWeek,
-  isValidTithePercentage,
-  startOfTitheWeek,
-  type TithePercentage,
+  computeManualTitheDue,
+  isValidTitheCadence,
+  isValidTithePaymentMode,
+  latestCompletedTithePeriod,
+  planManualTithePayment,
+  type ManualTitheDue,
+  type ManualTitheEarningEntry,
+  type TitheCadence,
+  type TithePaymentMode,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
 
-export const TITHE_CADENCE = 'Weekly';
-export const DEFAULT_TITHE_PERCENTAGE = 10 satisfies TithePercentage;
+export const DEFAULT_TITHE_PERCENTAGE = 10;
+export const DEFAULT_TITHE_CADENCE: TitheCadence = 'Weekly';
+export const DEFAULT_TITHE_MODE: TithePaymentMode = 'Percentage';
+export const DEFAULT_TITHE_WEEKLY_DAY = 5;
+export const DEFAULT_TITHE_MONTHLY_DATE = 1;
 
-export interface TitheRunResultDto {
+type TitheStore = Pick<
+  AppContext['db'],
+  'auditLog' | 'behaviourEntry' | 'meritLedger' | 'titheConfig' | 'titheRun'
+>;
+
+type TitheTxStore = TitheStore & Pick<AppContext['db'], '$transaction'>;
+
+interface TitheConfigRow {
   studentId: string;
-  status: 'Created' | 'AlreadyRun';
-  grossMerits: number;
-  titheAmount: number;
-  ledgerRowsCreated: number;
+  percentage?: number | null;
+  cadence?: string | null;
+  mode?: string | null;
+  fixedAmount?: number | null;
+  weeklyDay?: number | null;
+  monthlyDate?: number | null;
+  lastRunAt?: Date | null;
 }
 
-export interface WeeklyTitheRunSummary {
+export interface ManualTitheConfigDto {
+  studentId: string;
+  percentage: number;
+  cadence: TitheCadence;
+  mode: TithePaymentMode;
+  fixedAmount: number | null;
+  weeklyDay: number;
+  monthlyDate: number;
+  lastRunAt: Date | null;
+}
+
+export interface ManualTitheStatusDto extends ManualTitheDue {
+  studentId: string;
+  config: ManualTitheConfigDto;
   period: { start: Date; end: Date };
-  created: number;
-  skipped: number;
-  ledgerRowsCreated: number;
-  grossMerits: number;
+  paid: boolean;
+  paidAt: Date | null;
+  paymentValid: boolean;
+  canPay: boolean;
+  shopBlocked: boolean;
+  shopBlockReason: string | null;
+}
+
+export interface ManualTithePaymentDto extends ManualTitheStatusDto {
   titheAmount: number;
-  runs: TitheRunResultDto[];
 }
 
-interface RunWeeklyTitheInput {
-  auditSource?: string;
-  auditUserId: string | null;
-  db: AppContext['db'];
-  weekStart: Date;
+function mapConfig(input: TitheConfigRow): ManualTitheConfigDto {
+  const cadence = input.cadence && isValidTitheCadence(input.cadence)
+    ? input.cadence
+    : DEFAULT_TITHE_CADENCE;
+  const mode = input.mode && isValidTithePaymentMode(input.mode)
+    ? input.mode
+    : DEFAULT_TITHE_MODE;
+
+  return {
+    studentId: input.studentId,
+    percentage: Math.max(DEFAULT_TITHE_PERCENTAGE, input.percentage ?? DEFAULT_TITHE_PERCENTAGE),
+    cadence,
+    mode,
+    fixedAmount: input.fixedAmount ?? null,
+    weeklyDay: input.weeklyDay ?? DEFAULT_TITHE_WEEKLY_DAY,
+    monthlyDate: input.monthlyDate ?? DEFAULT_TITHE_MONTHLY_DATE,
+    lastRunAt: input.lastRunAt ?? null,
+  };
 }
 
-export function toTithePercentage(value: number | null | undefined): TithePercentage {
-  if (value === undefined || value === null) return DEFAULT_TITHE_PERCENTAGE;
-  if (isValidTithePercentage(value)) return value;
-  return DEFAULT_TITHE_PERCENTAGE;
+export function defaultTitheConfig(studentId: string): ManualTitheConfigDto {
+  return mapConfig({ studentId });
 }
 
-export async function runWeeklyTithe({
-  auditSource = 'tithe.runWeek',
-  auditUserId,
-  db,
-  weekStart,
-}: RunWeeklyTitheInput): Promise<WeeklyTitheRunSummary> {
-  const periodStart = startOfTitheWeek(weekStart);
-  const periodEnd = endOfTitheWeek(periodStart);
-  const runTimestamp = new Date();
+function dueForConfig(
+  config: ManualTitheConfigDto,
+  entries: readonly ManualTitheEarningEntry[],
+): ManualTitheDue & { paymentValid: boolean } {
+  if (config.mode === 'Percentage') {
+    return {
+      ...computeManualTitheDue({
+        mode: config.mode,
+        percentage: config.percentage,
+        entries,
+      }),
+      paymentValid: true,
+    };
+  }
 
-  const result = await db.$transaction(
+  const minimum = computeManualTitheDue({
+    mode: 'Percentage',
+    percentage: DEFAULT_TITHE_PERCENTAGE,
+    entries,
+  });
+  const selectedAmount = config.fixedAmount ?? 0;
+  return {
+    grossMerits: minimum.grossMerits,
+    minimumAmount: minimum.minimumAmount,
+    selectedAmount,
+    paymentValid: selectedAmount >= minimum.minimumAmount,
+  };
+}
+
+async function loadTitheEntries(
+  store: TitheStore,
+  input: { studentId: string; period: { start: Date; end: Date } },
+): Promise<ManualTitheEarningEntry[]> {
+  const [behaviour, investmentReturns] = await Promise.all([
+    store.behaviourEntry.findMany({
+      where: {
+        studentId: input.studentId,
+        createdAt: { gte: input.period.start, lt: input.period.end },
+        deletedAt: null,
+      },
+      select: { type: true, meritDelta: true },
+    }),
+    store.meritLedger.findMany({
+      where: {
+        studentId: input.studentId,
+        account: 'InvestmentReturn',
+        delta: { lt: 0 },
+        reason: 'investment:sell',
+        createdAt: { gte: input.period.start, lt: input.period.end },
+      },
+      select: { delta: true },
+    }),
+  ]);
+
+  return [
+    ...behaviour.map((entry) => ({
+      source:
+        entry.type === 'Merit'
+          ? ('BehaviourMerit' as const)
+          : entry.type === 'Demerit'
+            ? ('BehaviourDemerit' as const)
+            : ('BehaviourDemerit' as const),
+      amount: entry.meritDelta,
+    })),
+    ...investmentReturns.map((entry) => ({
+      source: 'InvestmentReturn' as const,
+      amount: Math.abs(entry.delta),
+    })),
+  ];
+}
+
+export async function loadManualTitheStatus(
+  store: TitheStore,
+  input: { now?: Date; studentId: string },
+): Promise<ManualTitheStatusDto> {
+  const configRow = await store.titheConfig.findUnique({
+    where: { studentId: input.studentId },
+  });
+  const config = mapConfig(configRow ?? { studentId: input.studentId });
+  const period = latestCompletedTithePeriod({
+    cadence: config.cadence,
+    monthlyDate: config.monthlyDate,
+    now: input.now ?? new Date(),
+    weeklyDay: config.weeklyDay,
+  });
+  const [run, entries] = await Promise.all([
+    store.titheRun.findUnique({
+      where: {
+        studentId_cadence_periodStart: {
+          studentId: input.studentId,
+          cadence: config.cadence,
+          periodStart: period.start,
+        },
+      },
+      select: { createdAt: true },
+    }),
+    loadTitheEntries(store, { studentId: input.studentId, period }),
+  ]);
+  const due = dueForConfig(config, entries);
+  const paid = run !== null;
+  const shopBlocked = !paid && due.minimumAmount > 0;
+
+  return {
+    studentId: input.studentId,
+    config,
+    period,
+    grossMerits: due.grossMerits,
+    minimumAmount: due.minimumAmount,
+    selectedAmount: due.selectedAmount,
+    paid,
+    paidAt: run?.createdAt ?? null,
+    paymentValid: due.paymentValid,
+    canPay: !paid && due.selectedAmount > 0 && due.paymentValid,
+    shopBlocked,
+    shopBlockReason: shopBlocked ? 'Tithe due before Merit Shop opens.' : null,
+  };
+}
+
+async function loadSpendBalance(
+  store: Pick<AppContext['db'], 'meritLedger'>,
+  studentId: string,
+): Promise<number> {
+  const result = await store.meritLedger.aggregate({
+    where: { studentId, account: 'Spend' },
+    _sum: { delta: true },
+  });
+  return result._sum.delta ?? 0;
+}
+
+export async function payManualTithe(input: {
+  auditUserId: string;
+  db: TitheTxStore;
+  now?: Date;
+  studentId: string;
+}): Promise<ManualTithePaymentDto> {
+  const result = await input.db.$transaction(
     async (tx: Prisma.TransactionClient) => {
-      const students = await tx.student.findMany({
-        where: { active: true },
-        select: { id: true },
+      const status = await loadManualTitheStatus(tx, {
+        studentId: input.studentId,
+        ...(input.now ? { now: input.now } : {}),
       });
-      const studentIds = students.map((student) => student.id);
-
-      const [configs, entries] = await Promise.all([
-        tx.titheConfig.findMany({
-          where: { studentId: { in: studentIds } },
-          select: { studentId: true, percentage: true },
-        }),
-        tx.behaviourEntry.findMany({
-          where: {
-            studentId: { in: studentIds },
-            createdAt: { gte: periodStart, lt: periodEnd },
-            deletedAt: null,
-          },
-          select: { studentId: true, type: true, meritDelta: true },
-        }),
-      ]);
-
-      const percentageByStudent = new Map(
-        configs.map((config) => [config.studentId, toTithePercentage(config.percentage)]),
-      );
-      const entriesByStudent = new Map<
-        string,
-        { type: 'Merit' | 'Demerit' | 'General'; meritDelta: number }[]
-      >();
-
-      for (const entry of entries) {
-        const studentEntries = entriesByStudent.get(entry.studentId) ?? [];
-        studentEntries.push({ type: entry.type, meritDelta: entry.meritDelta });
-        entriesByStudent.set(entry.studentId, studentEntries);
+      if (status.paid || status.minimumAmount === 0) {
+        return { status, paidNow: false as const };
       }
-
-      const runs: TitheRunResultDto[] = [];
-      let created = 0;
-      let skipped = 0;
-      let ledgerRowsCreated = 0;
-      let grossMerits = 0;
-      let titheAmount = 0;
-
-      for (const student of students) {
-        const existingRun = await tx.titheRun.findUnique({
-          where: { studentId_periodStart: { studentId: student.id, periodStart } },
-          select: { grossMerits: true, titheAmount: true },
-        });
-
-        if (existingRun) {
-          skipped += 1;
-          runs.push({
-            studentId: student.id,
-            status: 'AlreadyRun',
-            grossMerits: existingRun.grossMerits,
-            titheAmount: existingRun.titheAmount,
-            ledgerRowsCreated: 0,
-          });
-          continue;
-        }
-
-        const computed = computeWeeklyTithe({
-          studentId: student.id,
-          percentage: percentageByStudent.get(student.id) ?? DEFAULT_TITHE_PERCENTAGE,
-          periodStart,
-          periodEnd,
-          entries: entriesByStudent.get(student.id) ?? [],
-        });
-
-        await tx.titheRun.create({
-          data: {
-            studentId: student.id,
-            periodStart,
-            periodEnd,
-            grossMerits: computed.grossMerits,
-            titheAmount: computed.titheAmount,
-          },
-        });
-
-        if (computed.rows.length > 0) {
-          await tx.meritLedger.createMany({ data: computed.rows });
-        }
-
-        await tx.titheConfig.upsert({
-          where: { studentId: student.id },
-          create: {
-            studentId: student.id,
-            percentage: percentageByStudent.get(student.id) ?? DEFAULT_TITHE_PERCENTAGE,
-            cadence: TITHE_CADENCE,
-            lastRunAt: runTimestamp,
-          },
-          update: { lastRunAt: runTimestamp },
-        });
-
-        created += 1;
-        ledgerRowsCreated += computed.rows.length;
-        grossMerits += computed.grossMerits;
-        titheAmount += computed.titheAmount;
-        runs.push({
-          studentId: student.id,
-          status: 'Created',
-          grossMerits: computed.grossMerits,
-          titheAmount: computed.titheAmount,
-          ledgerRowsCreated: computed.rows.length,
+      if (!status.paymentValid || status.selectedAmount < status.minimumAmount) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'selected tithe amount is below the 10% minimum',
         });
       }
 
+      const spendBalance = await loadSpendBalance(tx, input.studentId);
+      if (spendBalance < status.selectedAmount) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'insufficient Spend balance' });
+      }
+
+      const rows = planManualTithePayment({
+        studentId: input.studentId,
+        amount: status.selectedAmount,
+        periodStart: status.period.start,
+        cadence: status.config.cadence,
+      });
+      await tx.titheRun.create({
+        data: {
+          studentId: input.studentId,
+          cadence: status.config.cadence,
+          periodStart: status.period.start,
+          periodEnd: status.period.end,
+          grossMerits: status.grossMerits,
+          minimumAmount: status.minimumAmount,
+          titheAmount: status.selectedAmount,
+        },
+      });
+      await tx.meritLedger.createMany({ data: rows });
+      await tx.titheConfig.upsert({
+        where: { studentId: input.studentId },
+        create: {
+          studentId: input.studentId,
+          percentage: status.config.percentage,
+          cadence: status.config.cadence,
+          mode: status.config.mode,
+          fixedAmount: status.config.fixedAmount,
+          weeklyDay: status.config.weeklyDay,
+          monthlyDate: status.config.monthlyDate,
+          lastRunAt: new Date(),
+        },
+        update: { lastRunAt: new Date() },
+      });
       await tx.auditLog.create({
         data: {
-          userId: auditUserId,
+          userId: input.auditUserId,
           action: 'Create',
           entity: 'TitheRun',
+          entityId: input.studentId,
           meta: {
-            source: auditSource,
-            periodStart: periodStart.toISOString(),
-            periodEnd: periodEnd.toISOString(),
-            students: studentIds.length,
-            created,
-            skipped,
-            ledgerRowsCreated,
-            grossMerits,
-            titheAmount,
+            source: 'tithe.payDue',
+            cadence: status.config.cadence,
+            periodStart: status.period.start.toISOString(),
+            periodEnd: status.period.end.toISOString(),
+            grossMerits: status.grossMerits,
+            minimumAmount: status.minimumAmount,
+            titheAmount: status.selectedAmount,
           },
         },
       });
 
-      return { created, skipped, ledgerRowsCreated, grossMerits, titheAmount, runs };
+      return { status, paidNow: true as const };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 
   return {
-    period: { start: periodStart, end: periodEnd },
-    ...result,
+    ...result.status,
+    paid: true,
+    canPay: false,
+    shopBlocked: false,
+    shopBlockReason: null,
+    titheAmount: result.status.selectedAmount,
   };
 }

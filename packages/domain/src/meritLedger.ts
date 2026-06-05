@@ -143,6 +143,21 @@ export function rowsForTransfer(params: {
   ];
 }
 
+export function rowsForCharityGift(params: {
+  studentId: string;
+  amount: number;
+  reason?: string;
+}): LedgerRow[] {
+  if (!Number.isInteger(params.amount) || params.amount <= 0) {
+    throw new Error('charity gift amount must be a positive integer');
+  }
+  const reason = params.reason ?? 'charity:give';
+  return [
+    { studentId: params.studentId, account: 'Spend', delta: -params.amount, reason },
+    { studentId: params.studentId, account: 'Given', delta: params.amount, reason },
+  ];
+}
+
 export interface MeritActivity {
   meritsEarned: number;
   demeritsCount: number;

@@ -4,9 +4,9 @@ import type { AppContext, RlsTx } from '../context.js';
 import { titheRouter } from '../routers/tithe.js';
 import { router } from '../trpc.js';
 
-const headUser: SessionUser = {
-  id: 'cktithehead0000000000001',
-  role: 'Head',
+const studentUser: SessionUser = {
+  id: 'cktithestudentuser00001',
+  role: 'Student',
   tags: [],
   requires2fa: false,
 };
@@ -16,56 +16,36 @@ const parentUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
-const studentUser: SessionUser = {
-  id: 'cktithestudentuser00001',
-  role: 'Student',
-  tags: [],
-  requires2fa: false,
-};
-const supervisorUser: SessionUser = {
-  id: 'cktithesupervisor00001',
-  role: 'Supervisor',
-  tags: [],
-  requires2fa: false,
-};
 
 const linkedStudentId = 'cktithestudent000000001';
-const otherStudentId = 'cktithestudent000000002';
 
+type AuditAction = 'Create' | 'Update' | 'PermissionDenied';
 type BehaviourType = 'Merit' | 'Demerit' | 'General';
-type AuditAction =
-  | 'Create'
-  | 'Update'
-  | 'Delete'
-  | 'DecryptSensitive'
-  | 'DecryptPii'
-  | 'ReadSensitive'
-  | 'Login'
-  | 'Login2FA'
-  | 'PermissionDenied';
 
 interface StoredStudent {
   id: string;
   active: boolean;
-}
-
-interface StoredGuardian {
-  userId: string;
-  studentId: string;
+  userId: string | null;
 }
 
 interface StoredTitheConfig {
   studentId: string;
   percentage: number;
   cadence: string;
+  mode: string;
+  fixedAmount: number | null;
+  weeklyDay: number;
+  monthlyDate: number;
   lastRunAt: Date | null;
 }
 
 interface StoredTitheRun {
   studentId: string;
+  cadence: string;
   periodStart: Date;
   periodEnd: Date;
   grossMerits: number;
+  minimumAmount: number;
   titheAmount: number;
 }
 
@@ -74,6 +54,7 @@ interface StoredLedgerRow {
   account: MeritAccount;
   delta: number;
   reason: string;
+  createdAt?: Date;
 }
 
 interface StoredBehaviourEntry {
@@ -82,68 +63,6 @@ interface StoredBehaviourEntry {
   meritDelta: number;
   createdAt: Date;
   deletedAt: Date | null;
-}
-
-interface FakeStudentFindUniqueArgs {
-  where: { id: string };
-  select?: { id?: true; active?: true };
-}
-
-interface FakeStudentFindManyArgs {
-  where: { active: true };
-  select: { id: true };
-}
-
-interface FakeGuardianFindUniqueArgs {
-  where: { userId_studentId: { userId: string; studentId: string } };
-  select?: { studentId?: true };
-}
-
-interface FakeTitheConfigFindUniqueArgs {
-  where: { studentId: string };
-  select?: { studentId?: true; percentage?: true; cadence?: true; lastRunAt?: true };
-}
-
-interface FakeTitheConfigFindManyArgs {
-  where: { studentId: { in: string[] } };
-  select: { studentId: true; percentage: true };
-}
-
-interface FakeTitheConfigUpsertArgs {
-  where: { studentId: string };
-  create: {
-    studentId: string;
-    percentage: number;
-    cadence: string;
-    lastRunAt?: Date;
-  };
-  update: {
-    percentage?: number;
-    lastRunAt?: Date;
-  };
-  select?: { studentId?: true; percentage?: true; cadence?: true; lastRunAt?: true };
-}
-
-interface FakeBehaviourFindManyArgs {
-  where: {
-    studentId: { in: string[] };
-    createdAt: { gte: Date; lt: Date };
-    deletedAt: null;
-  };
-  select: { studentId: true; type: true; meritDelta: true };
-}
-
-interface FakeTitheRunFindUniqueArgs {
-  where: { studentId_periodStart: { studentId: string; periodStart: Date } };
-  select: { grossMerits: true; titheAmount: true };
-}
-
-interface FakeTitheRunCreateArgs {
-  data: StoredTitheRun;
-}
-
-interface FakeLedgerCreateManyArgs {
-  data: StoredLedgerRow[];
 }
 
 interface FakeAuditCreateArgs {
@@ -156,40 +75,30 @@ interface FakeAuditCreateArgs {
   };
 }
 
-function day(value: string): Date {
-  return new Date(`${value}T00:00:00.000Z`);
-}
-
 function instant(value: string): Date {
   return new Date(value);
+}
+
+function defaultConfig(studentId = linkedStudentId): StoredTitheConfig {
+  return {
+    studentId,
+    percentage: 10,
+    cadence: 'Weekly',
+    mode: 'Percentage',
+    fixedAmount: null,
+    weeklyDay: 5,
+    monthlyDate: 1,
+    lastRunAt: null,
+  };
 }
 
 function sameDate(a: Date, b: Date): boolean {
   return a.getTime() === b.getTime();
 }
 
-function makeStudent(input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>): StoredStudent {
-  return { active: true, ...input };
-}
-
-function makeBehaviourEntry(input: StoredBehaviourEntry): StoredBehaviourEntry {
-  return input;
-}
-
-function pickConfig(config: StoredTitheConfig, select?: FakeTitheConfigFindUniqueArgs['select']) {
-  if (!select) return { ...config };
-  return {
-    ...(select.studentId ? { studentId: config.studentId } : {}),
-    ...(select.percentage ? { percentage: config.percentage } : {}),
-    ...(select.cadence ? { cadence: config.cadence } : {}),
-    ...(select.lastRunAt ? { lastRunAt: config.lastRunAt } : {}),
-  };
-}
-
 function makeFakeDb(
   input: {
     students?: StoredStudent[];
-    guardians?: StoredGuardian[];
     configs?: StoredTitheConfig[];
     runs?: StoredTitheRun[];
     ledger?: StoredLedgerRow[];
@@ -197,10 +106,8 @@ function makeFakeDb(
   } = {},
 ) {
   const students = input.students ?? [
-    makeStudent({ id: linkedStudentId }),
-    makeStudent({ id: otherStudentId }),
+    { id: linkedStudentId, active: true, userId: studentUser.id },
   ];
-  const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
   const configs = input.configs ?? [];
   const runs = input.runs ?? [];
   const ledger = input.ledger ?? [];
@@ -212,105 +119,124 @@ function makeFakeDb(
       create: vi.fn((args: FakeAuditCreateArgs) => Promise.resolve(args)),
     },
     student: {
-      findUnique: vi.fn((args: FakeStudentFindUniqueArgs) =>
-        Promise.resolve(students.find((student) => student.id === args.where.id) ?? null),
-      ),
-      findMany: vi.fn((args: FakeStudentFindManyArgs) =>
-        Promise.resolve(
-          students
-            .filter((student) => student.active === args.where.active)
-            .map((student) => ({ id: student.id })),
-        ),
-      ),
-    },
-    guardian: {
-      findUnique: vi.fn((args: FakeGuardianFindUniqueArgs) =>
-        Promise.resolve(
-          guardians.find(
-            (guardian) =>
-              guardian.userId === args.where.userId_studentId.userId &&
-              guardian.studentId === args.where.userId_studentId.studentId,
-          ) ?? null,
-        ),
+      findUnique: vi.fn(
+        (args: { where: { id?: string; userId?: string }; select?: Record<string, true> }) =>
+          Promise.resolve(
+            students.find((student) =>
+              args.where.id ? student.id === args.where.id : student.userId === args.where.userId,
+            ) ?? null,
+          ),
       ),
     },
     titheConfig: {
-      findUnique: vi.fn((args: FakeTitheConfigFindUniqueArgs) => {
-        const config = configs.find((row) => row.studentId === args.where.studentId);
-        return Promise.resolve(config ? pickConfig(config, args.select) : null);
-      }),
-      findMany: vi.fn((args: FakeTitheConfigFindManyArgs) =>
-        Promise.resolve(
-          configs
-            .filter((row) => args.where.studentId.in.includes(row.studentId))
-            .map((row) => ({ studentId: row.studentId, percentage: row.percentage })),
-        ),
+      findUnique: vi.fn((args: { where: { studentId: string } }) =>
+        Promise.resolve(configs.find((row) => row.studentId === args.where.studentId) ?? null),
       ),
-      upsert: vi.fn((args: FakeTitheConfigUpsertArgs) => {
-        const existing = configs.find((row) => row.studentId === args.where.studentId);
-        const config = existing ?? {
-          studentId: args.create.studentId,
-          percentage: args.create.percentage,
-          cadence: args.create.cadence,
-          lastRunAt: args.create.lastRunAt ?? null,
-        };
-
-        if (existing) {
-          existing.percentage = args.update.percentage ?? existing.percentage;
-          existing.lastRunAt = args.update.lastRunAt ?? existing.lastRunAt;
-        } else {
-          configs.push(config);
-        }
-
-        return Promise.resolve(pickConfig(config, args.select));
-      }),
-    },
-    behaviourEntry: {
-      findMany: vi.fn((args: FakeBehaviourFindManyArgs) =>
-        Promise.resolve(
-          behaviour
-            .filter((entry) => args.where.studentId.in.includes(entry.studentId))
-            .filter((entry) => entry.deletedAt === args.where.deletedAt)
-            .filter(
-              (entry) =>
-                entry.createdAt >= args.where.createdAt.gte &&
-                entry.createdAt < args.where.createdAt.lt,
-            )
-            .map((entry) => ({
-              studentId: entry.studentId,
-              type: entry.type,
-              meritDelta: entry.meritDelta,
-            })),
-        ),
+      upsert: vi.fn(
+        (args: {
+          where: { studentId: string };
+          create: StoredTitheConfig;
+          update: Partial<StoredTitheConfig>;
+        }) => {
+          const existing = configs.find((row) => row.studentId === args.where.studentId);
+          if (existing) {
+            Object.assign(existing, args.update);
+            return Promise.resolve(existing);
+          }
+          configs.push(args.create);
+          return Promise.resolve(args.create);
+        },
       ),
     },
     titheRun: {
-      findUnique: vi.fn((args: FakeTitheRunFindUniqueArgs) =>
-        Promise.resolve(
-          runs.find(
-            (run) =>
-              run.studentId === args.where.studentId_periodStart.studentId &&
-              sameDate(run.periodStart, args.where.studentId_periodStart.periodStart),
-          ) ?? null,
-        ),
+      findUnique: vi.fn(
+        (args: { where: { studentId_cadence_periodStart: { studentId: string; cadence: string; periodStart: Date } } }) =>
+          Promise.resolve(
+            runs.find(
+              (run) =>
+                run.studentId === args.where.studentId_cadence_periodStart.studentId &&
+                run.cadence === args.where.studentId_cadence_periodStart.cadence &&
+                sameDate(run.periodStart, args.where.studentId_cadence_periodStart.periodStart),
+            ) ?? null,
+          ),
       ),
-      create: vi.fn((args: FakeTitheRunCreateArgs) => {
+      create: vi.fn((args: { data: StoredTitheRun }) => {
         runs.push(args.data);
         return Promise.resolve(args.data);
       }),
     },
+    behaviourEntry: {
+      findMany: vi.fn(
+        (args: {
+          where: { studentId: string; createdAt: { gte: Date; lt: Date }; deletedAt: null };
+          select: { type: true; meritDelta: true };
+        }) =>
+          Promise.resolve(
+            behaviour
+              .filter((entry) => entry.studentId === args.where.studentId)
+              .filter((entry) => entry.deletedAt === null)
+              .filter(
+                (entry) =>
+                  entry.createdAt >= args.where.createdAt.gte &&
+                  entry.createdAt < args.where.createdAt.lt,
+              )
+              .map((entry) => ({ type: entry.type, meritDelta: entry.meritDelta })),
+          ),
+      ),
+    },
     meritLedger: {
-      createMany: vi.fn((args: FakeLedgerCreateManyArgs) => {
+      findMany: vi.fn(
+        (args: {
+          where: {
+            studentId: string;
+            account?: MeritAccount | { in: MeritAccount[] };
+            delta?: { lt: number };
+            reason?: string;
+            createdAt?: { gte: Date; lt: Date };
+          };
+          select?: Record<string, true>;
+        }) =>
+          Promise.resolve(
+            ledger.filter((row) => {
+              const createdAt = row.createdAt ?? instant('2026-05-20T12:00:00.000Z');
+              const account = args.where.account;
+              const accountMatch =
+                account === undefined
+                  ? true
+                  : typeof account === 'string'
+                    ? row.account === account
+                    : account.in.includes(row.account);
+              return (
+                row.studentId === args.where.studentId &&
+                accountMatch &&
+                (args.where.delta ? row.delta < args.where.delta.lt : true) &&
+                (args.where.reason ? row.reason === args.where.reason : true) &&
+                (args.where.createdAt
+                  ? createdAt >= args.where.createdAt.gte && createdAt < args.where.createdAt.lt
+                  : true)
+              );
+            }),
+          ),
+      ),
+      aggregate: vi.fn((args: { where: { studentId: string; account: MeritAccount } }) =>
+        Promise.resolve({
+          _sum: {
+            delta: ledger
+              .filter(
+                (row) => row.studentId === args.where.studentId && row.account === args.where.account,
+              )
+              .reduce((sum, row) => sum + row.delta, 0),
+          },
+        }),
+      ),
+      createMany: vi.fn((args: { data: StoredLedgerRow[] }) => {
         ledger.push(...args.data);
         return Promise.resolve({ count: args.data.length });
       }),
     },
-    students,
-    guardians,
     configs,
     runs,
     ledger,
-    behaviour,
   };
 
   db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
@@ -335,350 +261,167 @@ function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
   return { caller: appRouter.createCaller(makeCtx(user, db)), db };
 }
 
-function auditCreates(db: ReturnType<typeof makeFakeDb>): FakeAuditCreateArgs[] {
-  return db.auditLog.create.mock.calls.map(([args]) => args);
-}
-
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+  vi.setSystemTime(new Date('2026-05-22T12:30:00.000Z'));
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('tithe.getConfig', () => {
-  it('defaults to a 10 percent weekly config when no row exists', async () => {
-    const { caller } = makeCaller(headUser);
-
-    await expect(caller.tithe.getConfig({ studentId: linkedStudentId })).resolves.toEqual({
-      studentId: linkedStudentId,
-      percentage: 10,
-      cadence: 'Weekly',
-      lastRunAt: null,
-    });
-  });
-
-  it('allows linked parents to read and blocks unlinked parents', async () => {
-    await expect(
-      makeCaller(parentUser).caller.tithe.getConfig({ studentId: linkedStudentId }),
-    ).resolves.toMatchObject({ studentId: linkedStudentId });
-
-    const { caller, db } = makeCaller(parentUser);
-    await expect(caller.tithe.getConfig({ studentId: otherStudentId })).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    });
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
-      expect.objectContaining({
-        action: 'PermissionDenied',
-        entity: 'tithe.getConfig',
-        entityId: otherStudentId,
-      }),
-    );
-  });
-
-  it('allows linked supervisors to read linked child tithe config only', async () => {
-    await expect(
-      makeCaller(
-        supervisorUser,
-        makeFakeDb({ guardians: [{ userId: supervisorUser.id, studentId: linkedStudentId }] }),
-      ).caller.tithe.getConfig({ studentId: linkedStudentId }),
-    ).resolves.toMatchObject({ studentId: linkedStudentId });
-
-    await expect(
-      makeCaller(supervisorUser).caller.tithe.getConfig({ studentId: linkedStudentId }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-  });
-
-  it('blocks students from reading tithe config', async () => {
-    await expect(
-      makeCaller(studentUser).caller.tithe.getConfig({ studentId: linkedStudentId }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-  });
-
-  it('rejects inactive or missing students as not found', async () => {
-    await expect(
-      makeCaller(
-        headUser,
-        makeFakeDb({ students: [makeStudent({ id: linkedStudentId, active: false })] }),
-      ).caller.tithe.getConfig({ studentId: linkedStudentId }),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-
-    await expect(
-      makeCaller(headUser).caller.tithe.getConfig({ studentId: 'cktithemissing0000001' }),
-    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-  });
-});
-
-describe('tithe.setPercentage', () => {
-  it('allows full-admin and linked parents to set 10, 15, or 20 percent configs', async () => {
-    const { caller, db } = makeCaller(
-      headUser,
+describe('tithe.getStatus', () => {
+  it('calculates period earnings from merits and realized investment gains', async () => {
+    const { caller } = makeCaller(
+      studentUser,
       makeFakeDb({
-        configs: [
+        configs: [{ ...defaultConfig(), percentage: 12 }],
+        behaviour: [
           {
             studentId: linkedStudentId,
-            percentage: 10,
-            cadence: 'Weekly',
-            lastRunAt: null,
+            type: 'Merit',
+            meritDelta: 80,
+            createdAt: instant('2026-05-20T09:00:00.000Z'),
+            deletedAt: null,
+          },
+          {
+            studentId: linkedStudentId,
+            type: 'Demerit',
+            meritDelta: -10,
+            createdAt: instant('2026-05-20T10:00:00.000Z'),
+            deletedAt: null,
+          },
+        ],
+        ledger: [
+          {
+            studentId: linkedStudentId,
+            account: 'InvestmentReturn',
+            delta: -20,
+            reason: 'investment:sell',
+            createdAt: instant('2026-05-20T12:00:00.000Z'),
+          },
+          {
+            studentId: linkedStudentId,
+            account: 'Spend',
+            delta: 200,
+            reason: 'seed',
           },
         ],
       }),
     );
 
-    await expect(
-      caller.tithe.setPercentage({ studentId: linkedStudentId, percentage: 15 }),
-    ).resolves.toMatchObject({
+    await expect(caller.tithe.getStatus()).resolves.toMatchObject({
       studentId: linkedStudentId,
-      percentage: 15,
-      cadence: 'Weekly',
+      config: { cadence: 'Weekly', mode: 'Percentage', percentage: 12 },
+      grossMerits: 100,
+      minimumAmount: 10,
+      selectedAmount: 12,
+      paid: false,
+      shopBlocked: true,
     });
-    expect(db.configs[0]?.percentage).toBe(15);
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual({
-      userId: headUser.id,
-      action: 'Update',
-      entity: 'TitheConfig',
-      entityId: linkedStudentId,
-      meta: {
-        source: 'tithe.setPercentage',
-        previousPercentage: 10,
-        percentage: 15,
-      },
-    });
-
-    await expect(
-      makeCaller(parentUser).caller.tithe.setPercentage({
-        studentId: linkedStudentId,
-        percentage: 20,
-      }),
-    ).resolves.toMatchObject({ percentage: 20 });
   });
+});
 
-  it('rejects invalid percentages at the API boundary', async () => {
-    await expect(
-      makeCaller(headUser).caller.tithe.setPercentage({
-        studentId: linkedStudentId,
-        percentage: 12 as 10,
-      }),
-    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
-  });
-
-  it('blocks students from changing tithe config', async () => {
+describe('tithe.updatePreference', () => {
+  it('allows students to save weekly or monthly manual tithe preferences', async () => {
     const { caller, db } = makeCaller(studentUser);
 
     await expect(
-      caller.tithe.setPercentage({ studentId: linkedStudentId, percentage: 10 }),
+      caller.tithe.updatePreference({
+        cadence: 'Monthly',
+        mode: 'FixedAmount',
+        fixedAmount: 10,
+        monthlyDate: 31,
+      }),
+    ).resolves.toMatchObject({
+      config: {
+        cadence: 'Monthly',
+        mode: 'FixedAmount',
+        fixedAmount: 10,
+        monthlyDate: 31,
+      },
+    });
+    expect(db.configs[0]).toMatchObject({
+      studentId: linkedStudentId,
+      cadence: 'Monthly',
+      mode: 'FixedAmount',
+      fixedAmount: 10,
+      monthlyDate: 31,
+    });
+  });
+
+  it('blocks parents from changing a student tithe preference', async () => {
+    const { caller, db } = makeCaller(parentUser);
+
+    await expect(
+      caller.tithe.updatePreference({
+        cadence: 'Weekly',
+        mode: 'Percentage',
+        percentage: 10,
+        weeklyDay: 5,
+      }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(db.titheConfig.upsert).not.toHaveBeenCalled();
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
-      expect.objectContaining({
-        action: 'PermissionDenied',
-        entity: 'tithe.setPercentage',
-        entityId: linkedStudentId,
-      }),
-    );
   });
 });
 
-describe('tithe.runWeek', () => {
-  it('runs a Friday 1pm London tithe week, ignores demerits, and creates balanced ledger rows', async () => {
+describe('tithe.payDue', () => {
+  it('creates a tithe run and balanced ledger rows for the current due period', async () => {
     const { caller, db } = makeCaller(
-      headUser,
+      studentUser,
       makeFakeDb({
-        configs: [
+        configs: [{ ...defaultConfig(), percentage: 12 }],
+        behaviour: [
           {
-            studentId: linkedStudentId,
-            percentage: 10,
-            cadence: 'Weekly',
-            lastRunAt: null,
-          },
-        ],
-        behaviour: [
-          makeBehaviourEntry({
-            studentId: linkedStudentId,
-            type: 'Merit',
-            meritDelta: 30,
-            createdAt: day('2026-05-11'),
-            deletedAt: null,
-          }),
-          makeBehaviourEntry({
-            studentId: linkedStudentId,
-            type: 'Merit',
-            meritDelta: 20,
-            createdAt: day('2026-05-12'),
-            deletedAt: null,
-          }),
-          makeBehaviourEntry({
-            studentId: linkedStudentId,
-            type: 'Demerit',
-            meritDelta: -5,
-            createdAt: day('2026-05-13'),
-            deletedAt: null,
-          }),
-          makeBehaviourEntry({
-            studentId: linkedStudentId,
-            type: 'Merit',
-            meritDelta: 99,
-            createdAt: day('2026-05-10'),
-            deletedAt: null,
-          }),
-          makeBehaviourEntry({
-            studentId: otherStudentId,
-            type: 'Merit',
-            meritDelta: 9,
-            createdAt: day('2026-05-11'),
-            deletedAt: null,
-          }),
-        ],
-      }),
-    );
-
-    await expect(caller.tithe.runWeek({ weekStart: day('2026-05-15') })).resolves.toMatchObject({
-      period: {
-        start: instant('2026-05-08T12:00:00.000Z'),
-        end: instant('2026-05-15T12:00:00.000Z'),
-      },
-      created: 2,
-      skipped: 0,
-      ledgerRowsCreated: 2,
-      grossMerits: 158,
-      titheAmount: 14,
-      runs: [
-        {
-          studentId: linkedStudentId,
-          status: 'Created',
-          grossMerits: 149,
-          titheAmount: 14,
-          ledgerRowsCreated: 2,
-        },
-        {
-          studentId: otherStudentId,
-          status: 'Created',
-          grossMerits: 9,
-          titheAmount: 0,
-          ledgerRowsCreated: 0,
-        },
-      ],
-    });
-
-    expect(db.ledger).toEqual([
-      {
-        studentId: linkedStudentId,
-        account: 'Spend',
-        delta: -14,
-        reason: 'tithe:2026-05-08:10pct',
-      },
-      {
-        studentId: linkedStudentId,
-        account: 'TithePaid',
-        delta: 14,
-        reason: 'tithe:2026-05-08:10pct',
-      },
-    ]);
-    expect(db.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
-    expect(db.runs).toHaveLength(2);
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
-      expect.objectContaining({
-        action: 'Create',
-        entity: 'TitheRun',
-        meta: expect.objectContaining({
-          source: 'tithe.runWeek',
-          periodStart: '2026-05-08T12:00:00.000Z',
-          periodEnd: '2026-05-15T12:00:00.000Z',
-          created: 2,
-          skipped: 0,
-          grossMerits: 158,
-          titheAmount: 14,
-        }) as unknown,
-      }),
-    );
-  });
-
-  it('is idempotent for the same student and week', async () => {
-    const { caller, db } = makeCaller(
-      headUser,
-      makeFakeDb({
-        behaviour: [
-          makeBehaviourEntry({
             studentId: linkedStudentId,
             type: 'Merit',
             meritDelta: 100,
-            createdAt: day('2026-05-11'),
+            createdAt: instant('2026-05-20T09:00:00.000Z'),
             deletedAt: null,
-          }),
+          },
         ],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'seed' }],
       }),
     );
 
-    await expect(caller.tithe.runWeek({ weekStart: day('2026-05-11') })).resolves.toMatchObject({
-      created: 2,
-      skipped: 0,
-      titheAmount: 10,
+    await expect(caller.tithe.payDue()).resolves.toMatchObject({
+      paid: true,
+      titheAmount: 12,
     });
-    await expect(caller.tithe.runWeek({ weekStart: day('2026-05-12') })).resolves.toMatchObject({
-      created: 0,
-      skipped: 2,
-      titheAmount: 0,
-      runs: [
-        {
-          studentId: linkedStudentId,
-          status: 'AlreadyRun',
-          grossMerits: 100,
-          titheAmount: 10,
-          ledgerRowsCreated: 0,
-        },
-        {
-          studentId: otherStudentId,
-          status: 'AlreadyRun',
-          grossMerits: 0,
-          titheAmount: 0,
-          ledgerRowsCreated: 0,
-        },
-      ],
+    expect(db.runs).toHaveLength(1);
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'Spend',
+      delta: -12,
+      reason: 'tithe:weekly:2026-05-14',
     });
-
-    expect(db.runs).toHaveLength(2);
-    expect(db.ledger).toHaveLength(2);
+    expect(db.ledger).toContainEqual({
+      studentId: linkedStudentId,
+      account: 'TithePaid',
+      delta: 12,
+      reason: 'tithe:weekly:2026-05-14',
+    });
   });
 
-  it('requires full-admin access and audits denials', async () => {
-    const { caller, db } = makeCaller(parentUser);
+  it('rejects payment when Spend balance cannot cover the selected amount', async () => {
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        configs: [{ ...defaultConfig(), percentage: 20 }],
+        behaviour: [
+          {
+            studentId: linkedStudentId,
+            type: 'Merit',
+            meritDelta: 100,
+            createdAt: instant('2026-05-20T09:00:00.000Z'),
+            deletedAt: null,
+          },
+        ],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 10, reason: 'seed' }],
+      }),
+    );
 
-    await expect(caller.tithe.runWeek({ weekStart: day('2026-05-11') })).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    });
+    await expect(caller.tithe.payDue()).rejects.toMatchObject({ code: 'BAD_REQUEST' });
     expect(db.titheRun.create).not.toHaveBeenCalled();
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
-      expect.objectContaining({
-        action: 'PermissionDenied',
-        entity: 'tithe.runWeek',
-      }),
-    );
-  });
-
-  it('audits an empty active-student run', async () => {
-    const { caller, db } = makeCaller(headUser, makeFakeDb({ students: [] }));
-
-    await expect(caller.tithe.runWeek({ weekStart: day('2026-05-11') })).resolves.toMatchObject({
-      created: 0,
-      skipped: 0,
-      ledgerRowsCreated: 0,
-      grossMerits: 0,
-      titheAmount: 0,
-      runs: [],
-    });
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
-      expect.objectContaining({
-        action: 'Create',
-        entity: 'TitheRun',
-        meta: expect.objectContaining({
-          source: 'tithe.runWeek',
-          students: 0,
-          created: 0,
-          skipped: 0,
-        }) as unknown,
-      }),
-    );
   });
 });

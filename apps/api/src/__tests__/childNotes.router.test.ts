@@ -1314,7 +1314,6 @@ describe('childLog.snapshot', () => {
       metrics: {
         attendanceRate: 0,
         pacesCompletedThisAcademicYear: 2,
-        tithePercentage: 15,
         totalMerits: 17,
       },
       attendance: [{ status: 'Late', date: '2026-04-29' }],
@@ -1513,6 +1512,8 @@ describe('childLog.snapshot', () => {
       Saving: 5,
       Investment: 2,
       ShopReserved: 0,
+      TithePaid: 0,
+      Given: 0,
     });
     expect(headView.metrics.pacesCompletedThisAcademicYear).toBe(2);
     expect(headView.behaviour).toEqual(

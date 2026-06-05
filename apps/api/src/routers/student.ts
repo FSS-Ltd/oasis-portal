@@ -44,13 +44,22 @@ const STUDENT_WALLET_HISTORY_LIMIT = 30;
 const POST_SIGN_IN_PATH = '/post-sign-in';
 const STUDENT_INVITATION_TAGS: PermissionTag[] = [];
 
-const MERIT_ACCOUNTS = ['Spend', 'Saving', 'Investment', 'ShopReserved'] as const;
+const MERIT_ACCOUNTS = [
+  'Spend',
+  'Saving',
+  'Investment',
+  'ShopReserved',
+  'TithePaid',
+  'Given',
+] as const;
 
 export interface MeritBalances {
   Spend: number;
   Saving: number;
   Investment: number;
   ShopReserved: number;
+  TithePaid: number;
+  Given: number;
 }
 
 export interface AttendanceSummary {
@@ -193,6 +202,8 @@ function emptyMeritBalances(): MeritBalances {
     Saving: 0,
     Investment: 0,
     ShopReserved: 0,
+    TithePaid: 0,
+    Given: 0,
   };
 }
 
@@ -514,7 +525,9 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         select: {
           id: true,
           createdAt: true,
+          account: true,
           delta: true,
+          reason: true,
         },
         orderBy: { createdAt: 'desc' },
         take: STUDENT_WALLET_HISTORY_LIMIT,
@@ -529,7 +542,9 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       history: history.map((entry) => ({
         id: entry.id,
         createdAt: entry.createdAt,
+        account: entry.account,
         amount: entry.delta,
+        reason: entry.reason,
       })),
     };
   }),
