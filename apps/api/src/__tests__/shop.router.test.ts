@@ -99,6 +99,33 @@ interface StoredLedgerRow {
   account: MeritAccount;
   delta: number;
   reason: string;
+  createdAt?: Date;
+}
+
+interface StoredTitheConfig {
+  studentId: string;
+  percentage: number;
+  cadence: string;
+  mode: string;
+  fixedAmount: number | null;
+  weeklyDay: number;
+  monthlyDate: number;
+  lastRunAt: Date | null;
+}
+
+interface StoredTitheRun {
+  studentId: string;
+  cadence: string;
+  periodStart: Date;
+  createdAt: Date;
+}
+
+interface StoredBehaviourEntry {
+  studentId: string;
+  type: 'Merit' | 'Demerit' | 'General';
+  meritDelta: number;
+  createdAt: Date;
+  deletedAt: Date | null;
 }
 
 interface StoredShopPurchase {
@@ -216,6 +243,38 @@ interface FakeLedgerGroupByArgs {
 
 interface FakeLedgerCreateManyArgs {
   data: StoredLedgerRow[];
+}
+
+interface FakeLedgerFindManyArgs {
+  where: {
+    studentId: string;
+    account?: MeritAccount | { in: MeritAccount[] };
+    delta?: { lt: number };
+    reason?: string;
+    createdAt?: { gte: Date; lt: Date };
+  };
+}
+
+interface FakeTitheConfigFindUniqueArgs {
+  where: { studentId: string };
+}
+
+interface FakeTitheRunFindUniqueArgs {
+  where: {
+    studentId_cadence_periodStart: {
+      studentId: string;
+      cadence: string;
+      periodStart: Date;
+    };
+  };
+}
+
+interface FakeBehaviourFindManyArgs {
+  where: {
+    studentId: string;
+    createdAt: { gte: Date; lt: Date };
+    deletedAt: null;
+  };
 }
 
 interface FakeShopPurchaseCreateArgs {
@@ -429,6 +488,9 @@ function makeFakeDb(
     portalSettings?: Array<
       Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
     >;
+    titheConfigs?: StoredTitheConfig[];
+    titheRuns?: StoredTitheRun[];
+    behaviour?: StoredBehaviourEntry[];
     forceStockConflict?: boolean;
   } = {},
 ) {
@@ -440,6 +502,9 @@ function makeFakeDb(
   const reservationLines = input.reservationLines ?? [];
   const guardians = input.guardians ?? [{ userId: parentUser.id, studentId: linkedStudentId }];
   const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
+  const titheConfigs = input.titheConfigs ?? [];
+  const titheRuns = input.titheRuns ?? [];
+  const behaviour = input.behaviour ?? [];
   const forceStockConflict = input.forceStockConflict ?? false;
   let nextItem = items.length + 1;
   let nextPurchase = purchases.length + 1;
@@ -520,7 +585,65 @@ function makeFakeDb(
         ),
       ),
     },
+    titheConfig: {
+      findUnique: vi.fn((args: FakeTitheConfigFindUniqueArgs) =>
+        Promise.resolve(
+          titheConfigs.find((config) => config.studentId === args.where.studentId) ?? null,
+        ),
+      ),
+    },
+    titheRun: {
+      findUnique: vi.fn((args: FakeTitheRunFindUniqueArgs) =>
+        Promise.resolve(
+          titheRuns.find(
+            (run) =>
+              run.studentId === args.where.studentId_cadence_periodStart.studentId &&
+              run.cadence === args.where.studentId_cadence_periodStart.cadence &&
+              run.periodStart.getTime() ===
+                args.where.studentId_cadence_periodStart.periodStart.getTime(),
+          ) ?? null,
+        ),
+      ),
+    },
+    behaviourEntry: {
+      findMany: vi.fn((args: FakeBehaviourFindManyArgs) =>
+        Promise.resolve(
+          behaviour
+            .filter((entry) => entry.studentId === args.where.studentId)
+            .filter((entry) => entry.deletedAt === null)
+            .filter(
+              (entry) =>
+                entry.createdAt >= args.where.createdAt.gte &&
+                entry.createdAt < args.where.createdAt.lt,
+            )
+            .map((entry) => ({ type: entry.type, meritDelta: entry.meritDelta })),
+        ),
+      ),
+    },
     meritLedger: {
+      findMany: vi.fn((args: FakeLedgerFindManyArgs) =>
+        Promise.resolve(
+          ledger.filter((row) => {
+            const createdAt = row.createdAt ?? new Date('2026-05-20T12:00:00.000Z');
+            const account = args.where.account;
+            const accountMatch =
+              account === undefined
+                ? true
+                : typeof account === 'string'
+                  ? row.account === account
+                  : account.in.includes(row.account);
+            return (
+              row.studentId === args.where.studentId &&
+              accountMatch &&
+              (args.where.delta ? row.delta < args.where.delta.lt : true) &&
+              (args.where.reason ? row.reason === args.where.reason : true) &&
+              (args.where.createdAt
+                ? createdAt >= args.where.createdAt.gte && createdAt < args.where.createdAt.lt
+                : true)
+            );
+          }),
+        ),
+      ),
       aggregate: vi.fn((args: FakeLedgerAggregateArgs) => {
         const delta = ledger
           .filter((row) => row.studentId === args.where.studentId)
@@ -975,6 +1098,36 @@ describe('shop.listItems', () => {
         entity: 'shop.listItems',
         entityId: linkedStudentId,
         meta: expect.objectContaining({ reason: 'ParentShopBlock' }) as unknown,
+      }),
+    );
+  });
+
+  it('blocks Student users from reading shop items when manual tithe is due', async () => {
+    const db = makeFakeDb({
+      items: [makeItem({ id: shopItemId, active: true })],
+      students: [{ id: linkedStudentId, userId: studentUser.id }],
+      behaviour: [
+        {
+          studentId: linkedStudentId,
+          type: 'Merit',
+          meritDelta: 100,
+          createdAt: new Date('2026-05-14T22:30:00.000Z'),
+          deletedAt: null,
+        },
+      ],
+    });
+
+    await expect(makeCaller(studentUser, db).caller.shop.listItems()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'Tithe due before Merit Shop opens.',
+    });
+    expect(db.shopItem.findMany).not.toHaveBeenCalled();
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'shop.listItems',
+        entityId: linkedStudentId,
+        meta: expect.objectContaining({ reason: 'TitheDue' }) as unknown,
       }),
     );
   });

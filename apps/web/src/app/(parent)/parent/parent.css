@@ -332,8 +332,7 @@
 }
 
 .parent-wallet-row,
-.parent-wallet-total,
-.parent-wallet-tithe {
+.parent-wallet-total {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -370,8 +369,7 @@
   padding-top: 10px;
 }
 
-.parent-wallet-total span,
-.parent-wallet-tithe span {
+.parent-wallet-total span {
   color: var(--oasis-text-secondary);
   font-size: 0.72rem;
   font-weight: 850;
@@ -384,19 +382,6 @@
   font-size: 1.18rem;
 }
 
-.parent-wallet-tithe {
-  min-height: 38px;
-  margin-top: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--oasis-bg);
-}
-
-.parent-wallet-tithe strong {
-  color: var(--oasis-crimson);
-  font-size: 0.92rem;
-}
-
 .parent-merit-wallet {
   display: grid;
   gap: 18px;
@@ -404,64 +389,15 @@
 
 .parent-merit-wallet__detail-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
-.parent-tithe-selector {
-  display: grid;
-  gap: 14px;
-  align-content: start;
-}
-
-.parent-tithe-selector h3,
 .parent-merit-ledger h3 {
   color: var(--oasis-navy);
   font-size: 0.96rem;
   font-weight: 800;
   margin: 0;
-}
-
-.parent-tithe-selector p {
-  color: var(--oasis-text-secondary);
-  font-size: 0.82rem;
-  margin: 4px 0 0;
-}
-
-.parent-tithe-selector__options {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.parent-tithe-selector__options button {
-  min-height: 42px;
-  border: 2px solid var(--oasis-border);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--oasis-text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.92rem;
-  font-weight: 800;
-}
-
-.parent-tithe-selector__options button:disabled {
-  cursor: not-allowed;
-  opacity: 0.72;
-}
-
-.parent-tithe-selector__options button.is-selected {
-  border-color: var(--oasis-crimson);
-  background: var(--oasis-crimson-light);
-  color: var(--oasis-crimson);
-}
-
-.parent-tithe-selector__note {
-  min-height: 38px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--oasis-bg);
 }
 
 .parent-merit-ledger {

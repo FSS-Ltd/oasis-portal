@@ -368,9 +368,9 @@ async function buildFullLeaderboardResult(
 
 function charityPotDto(
   row: { goalMerits: number; updatedAt: Date; updatedById: string | null } | null,
+  currentMerits: number,
 ): CharityPotDto {
   const goalMerits = row?.goalMerits ?? 0;
-  const currentMerits = 0;
   return {
     goalMerits,
     currentMerits,
@@ -382,11 +382,17 @@ function charityPotDto(
 }
 
 async function loadCharityPot(ctx: AuthedContext): Promise<CharityPotDto> {
-  const row = await ctx.db.charityPot.findFirst({
-    orderBy: { updatedAt: 'desc' },
-    select: { id: true, goalMerits: true, updatedAt: true, updatedById: true },
-  });
-  return charityPotDto(row);
+  const [row, gifts] = await Promise.all([
+    ctx.db.charityPot.findFirst({
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, goalMerits: true, updatedAt: true, updatedById: true },
+    }),
+    ctx.db.meritLedger.aggregate({
+      where: { account: 'Given', delta: { gt: 0 } },
+      _sum: { delta: true },
+    }),
+  ]);
+  return charityPotDto(row, gifts._sum.delta ?? 0);
 }
 
 async function requireCanManageCharityPot(ctx: AuthedContext): Promise<void> {
@@ -455,7 +461,11 @@ export const leaderboardRouter = router({
           meta: { goalMerits: row.goalMerits },
         },
       });
-      return charityPotDto(row);
+      const gifts = await ctx.db.meritLedger.aggregate({
+        where: { account: 'Given', delta: { gt: 0 } },
+        _sum: { delta: true },
+      });
+      return charityPotDto(row, gifts._sum.delta ?? 0);
     }),
   }),
 });

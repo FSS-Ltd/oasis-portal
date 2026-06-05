@@ -613,7 +613,7 @@
 
 .student-wallet-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -681,15 +681,124 @@
 }
 
 .student-wallet-row time {
+  display: block;
   color: var(--oasis-navy);
   font-size: 0.86rem;
   font-weight: 800;
+}
+
+.student-wallet-row small {
+  display: block;
+  margin-top: 2px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: capitalize;
 }
 
 .student-wallet-row strong {
   color: var(--oasis-navy);
   font-size: 0.9rem;
   font-weight: 900;
+}
+
+.student-wallet-management-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-wallet-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.student-wallet-field span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-wallet-field input,
+.student-wallet-field select {
+  min-height: 38px;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-navy);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  padding: 0 10px;
+}
+
+.student-wallet-action-row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.student-wallet-action-row .student-wallet-field {
+  flex: 1 1 130px;
+}
+
+.student-wallet-action-row button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--oasis-navy);
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 850;
+  padding: 0 13px;
+}
+
+.student-wallet-action-row button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.student-wallet-preference-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.student-tithe-status {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+
+.student-tithe-status.is-due {
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+}
+
+.student-tithe-status strong,
+.student-tithe-status span {
+  margin: 0;
+}
+
+.student-tithe-status strong {
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.student-tithe-status span {
+  font-size: 0.78rem;
+  font-weight: 750;
 }
 
 .student-shop-page {
@@ -1674,6 +1783,7 @@
   .student-shell-grid,
   .student-dashboard-grid,
   .student-wallet-grid,
+  .student-wallet-management-grid,
   .student-pace-grid,
   .student-attendance-summary-grid,
   .student-shop-layout {
@@ -1745,6 +1855,7 @@
   .student-shell-grid,
   .student-dashboard-grid,
   .student-wallet-grid,
+  .student-wallet-management-grid,
   .student-pace-grid,
   .student-attendance-summary-grid,
   .student-shop-layout {

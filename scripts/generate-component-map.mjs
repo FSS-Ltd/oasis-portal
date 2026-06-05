@@ -180,8 +180,8 @@ const PRODUCT_MODULES = [
     ],
   },
   {
-    name: 'Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email',
-    owns: 'Commercial, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
+    name: 'Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email',
+    owns: 'Commercial, wallet, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
     apiRouters: [
       'shop',
       'invoice',
@@ -202,6 +202,7 @@ const PRODUCT_MODULES = [
       'packages/domain/src/invoice.ts',
       'packages/domain/src/permissionSlips.ts',
       'packages/domain/src/report.ts',
+      'packages/domain/src/savings.ts',
       'packages/domain/src/shop.ts',
       'packages/domain/src/tithe.ts',
     ],
@@ -224,7 +225,7 @@ const PRODUCT_MODULES = [
       'apps/mobile/src/components/smoke/parent-smoke-messages.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
     ],
-    sharedSurfaces: ['apps/api/src/emails/'],
+    sharedSurfaces: ['apps/api/src/emails/', 'apps/api/src/services/savings-interest.ts'],
   },
   {
     name: 'Shared UI primitives and cross-app tRPC clients',

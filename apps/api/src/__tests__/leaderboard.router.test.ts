@@ -130,6 +130,11 @@ interface FakeLedgerGroupByArgs {
   _sum: { delta: true };
 }
 
+interface FakeLedgerAggregateArgs {
+  where: { account: MeritAccount; delta?: { gt: number } };
+  _sum: { delta: true };
+}
+
 interface FakeInvestmentAccountFindManyArgs {
   where: { student: { active: true } };
   select: {
@@ -259,6 +264,13 @@ function makeFakeDb(
       ),
     },
     meritLedger: {
+      aggregate: vi.fn((args: FakeLedgerAggregateArgs) => {
+        const delta = ledger
+          .filter((row) => row.account === args.where.account)
+          .filter((row) => (args.where.delta ? row.delta > args.where.delta.gt : true))
+          .reduce((total, row) => total + row.delta, 0);
+        return Promise.resolve({ _sum: { delta: delta === 0 ? null : delta } });
+      }),
       groupBy: vi.fn((args: FakeLedgerGroupByArgs) => {
         const allowedStudentIds = args.where.studentId ? new Set(args.where.studentId.in) : null;
         const totals = new Map<string, number>();
@@ -854,6 +866,32 @@ describe('leaderboard.charityPot', () => {
       goalReached: false,
       updatedAt: null,
       updatedById: null,
+    });
+  });
+
+  it('uses Given ledger rows for charity pot progress', async () => {
+    const db = makeFakeDb({
+      charityPot: {
+        id: 'default',
+        goalMerits: 100,
+        updatedById: headUser.id,
+        createdAt: new Date('2026-06-04T00:00:00.000Z'),
+        updatedAt: new Date('2026-06-04T12:00:00.000Z'),
+      },
+      ledger: [
+        { studentId: 's1', account: 'Given', delta: 30 },
+        { studentId: 's2', account: 'Given', delta: 20 },
+        { studentId: 's2', account: 'Spend', delta: -20 },
+      ],
+    });
+
+    await expect(makeCaller(parentUser, db).caller.leaderboard.charityPot.get()).resolves.toEqual({
+      goalMerits: 100,
+      currentMerits: 50,
+      progressPct: 50,
+      goalReached: false,
+      updatedAt: new Date('2026-06-04T12:00:00.000Z'),
+      updatedById: headUser.id,
     });
   });
 

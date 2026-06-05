@@ -7,6 +7,7 @@ import {
   getMeritActivity,
   isFullAdmin,
   requireSelfStudent,
+  rowsForCharityGift,
   rowsForTransfer,
   type MeritAccount,
   type SessionUser,
@@ -42,6 +43,11 @@ const transferInput = z.object({
   studentId: z.string().cuid(),
   from: z.enum(WALLET_ACCOUNTS),
   to: z.enum(WALLET_ACCOUNTS),
+  amount: z.number().int().positive(),
+});
+
+const charityGiftInput = z.object({
+  studentId: z.string().cuid(),
   amount: z.number().int().positive(),
 });
 
@@ -145,6 +151,27 @@ async function auditRejectedTransfer(
         reason,
         from: input.from,
         to: input.to,
+        amount: input.amount,
+      },
+    },
+  });
+}
+
+async function auditRejectedCharityGift(
+  ctx: AuthedContext,
+  input: { studentId: string; amount: number },
+  reason: string,
+): Promise<void> {
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'Update',
+      entity: 'MeritLedger',
+      entityId: input.studentId,
+      meta: {
+        source: 'meritLedger.giveToCharity',
+        outcome: 'Rejected',
+        reason,
         amount: input.amount,
       },
     },
@@ -332,6 +359,55 @@ export const meritLedgerRouter = router({
     return {
       studentId: student.id,
       balances: transferResult.balances,
+    };
+  }),
+
+  giveToCharity: authedProcedure.input(charityGiftInput).mutation(async ({ ctx, input }) => {
+    const student = await loadActiveStudent(ctx, input.studentId);
+    await assertCanTransfer(ctx, student);
+
+    const ledgerRows = rowsForCharityGift({
+      studentId: student.id,
+      amount: input.amount,
+    });
+
+    const giftResult = await ctx.db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const balances = await loadWalletBalances(tx, student.id);
+
+        if (balances.Spend < input.amount) {
+          return { ok: false as const };
+        }
+
+        await tx.meritLedger.createMany({ data: ledgerRows });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'MeritLedger',
+            entityId: student.id,
+            meta: {
+              source: 'meritLedger.giveToCharity',
+              amount: input.amount,
+            },
+          },
+        });
+
+        const updatedBalances = await loadWalletBalances(tx, student.id);
+
+        return { ok: true as const, balances: updatedBalances };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (!giftResult.ok) {
+      await auditRejectedCharityGift(ctx, input, 'InsufficientBalance');
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'insufficient Spend balance' });
+    }
+
+    return {
+      studentId: student.id,
+      balances: giftResult.balances,
     };
   }),
 });

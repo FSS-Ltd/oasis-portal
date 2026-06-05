@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeManualTitheDue,
   computeWeeklyTithe,
   endOfTitheWeek,
   isValidTithePercentage,
+  latestCompletedTithePeriod,
+  planManualTithePayment,
   startOfTitheWeek,
   TITHE_PERCENTAGES,
 } from '../tithe.js';
@@ -134,5 +137,83 @@ describe('startOfTitheWeek / endOfTitheWeek', () => {
     const start = startOfTitheWeek(fridayOnePmLondon);
     const end = endOfTitheWeek(start);
     expect(end.getTime() - start.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+});
+
+describe('latestCompletedTithePeriod', () => {
+  it('uses the selected weekly tithe day as the completed period boundary', () => {
+    const period = latestCompletedTithePeriod({
+      cadence: 'Weekly',
+      now: new Date('2026-06-04T09:00:00.000Z'), // Thursday
+      weeklyDay: 3, // Wednesday
+    });
+
+    expect(period.start.toISOString()).toBe('2026-05-26T23:00:00.000Z');
+    expect(period.end.toISOString()).toBe('2026-06-02T23:00:00.000Z');
+  });
+
+  it('clamps monthly tithe dates to the last day of shorter months', () => {
+    const period = latestCompletedTithePeriod({
+      cadence: 'Monthly',
+      monthlyDate: 31,
+      now: new Date('2026-05-30T09:00:00.000Z'),
+    });
+
+    expect(period.start.toISOString()).toBe('2026-03-30T23:00:00.000Z');
+    expect(period.end.toISOString()).toBe('2026-04-29T23:00:00.000Z');
+  });
+});
+
+describe('computeManualTitheDue', () => {
+  it('uses gross merits plus realized investment gains and ignores demerits', () => {
+    const due = computeManualTitheDue({
+      mode: 'Percentage',
+      percentage: 12,
+      entries: [
+        { source: 'BehaviourMerit', amount: 80 },
+        { source: 'BehaviourDemerit', amount: -10 },
+        { source: 'InvestmentReturn', amount: 20 },
+      ],
+    });
+
+    expect(due.grossMerits).toBe(100);
+    expect(due.minimumAmount).toBe(10);
+    expect(due.selectedAmount).toBe(12);
+  });
+
+  it('rejects fixed amounts below the 10 percent minimum', () => {
+    expect(() =>
+      computeManualTitheDue({
+        mode: 'FixedAmount',
+        fixedAmount: 9,
+        entries: [{ source: 'BehaviourMerit', amount: 100 }],
+      }),
+    ).toThrow('fixed tithe amount cannot be less than 10% of period earnings');
+  });
+});
+
+describe('planManualTithePayment', () => {
+  it('debits Spend and credits TithePaid for the chosen due amount', () => {
+    const plan = planManualTithePayment({
+      studentId: 's1',
+      amount: 12,
+      periodStart: fridayOnePmLondon,
+      cadence: 'Weekly',
+    });
+
+    expect(plan).toEqual([
+      {
+        studentId: 's1',
+        account: 'Spend',
+        delta: -12,
+        reason: 'tithe:weekly:2026-05-15',
+      },
+      {
+        studentId: 's1',
+        account: 'TithePaid',
+        delta: 12,
+        reason: 'tithe:weekly:2026-05-15',
+      },
+    ]);
   });
 });

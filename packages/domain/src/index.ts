@@ -3,6 +3,7 @@ export * from './subjects.js';
 export * from './users.js';
 export * from './meritLedger.js';
 export * from './tithe.js';
+export * from './savings.js';
 export * from './investmentSim.js';
 export * from './investmentTransactions.js';
 export * from './shop.js';

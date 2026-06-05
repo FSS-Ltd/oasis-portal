@@ -66,13 +66,23 @@ export {
   type OperationalLogMetaValue,
 } from './lib/observability.js';
 export {
+  DEFAULT_TITHE_CADENCE,
+  DEFAULT_TITHE_MODE,
+  DEFAULT_TITHE_MONTHLY_DATE,
   DEFAULT_TITHE_PERCENTAGE,
-  TITHE_CADENCE,
-  runWeeklyTithe,
-  toTithePercentage,
-  type TitheRunResultDto,
-  type WeeklyTitheRunSummary,
+  DEFAULT_TITHE_WEEKLY_DAY,
+  loadManualTitheStatus,
+  payManualTithe,
+  type ManualTitheConfigDto,
+  type ManualTithePaymentDto,
+  type ManualTitheStatusDto,
 } from './services/tithe-run.js';
+export {
+  previousSavingsInterestMonth,
+  runMonthlySavingsInterest,
+  type MonthlySavingsInterestSummary,
+  type SavingsInterestRunResultDto,
+} from './services/savings-interest.js';
 export {
   behaviourRouter,
   createBehaviourRouter,

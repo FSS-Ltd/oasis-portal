@@ -45,7 +45,7 @@ Before PR completion:
 
 ## Generated Module Relationship Map
 
-Generated from `graphify-out/graph.json` with 2903 graph nodes and 4959 graph links.
+Generated from `graphify-out/graph.json` with 2948 graph nodes and 5069 graph links.
 
 Graph confidence labels are preserved so agents can distinguish extracted code relationships from inferred relationships.
 
@@ -73,15 +73,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/api/src/context.ts`
   - `apps/api/src/lib/`
   - `apps/web/src/components/providers/`
-- Graphify evidence: 187 nodes, 802 links, communities 1, 2, 4, 5, 6, 7, 8, 9.
-- Relationship types: calls: 506, contains: 154, imports_from: 141, method: 1.
-- Confidence mix: EXTRACTED: 451, INFERRED: 351.
+- Graphify evidence: 190 nodes, 824 links, communities 1, 2, 3, 5, 6, 7, 8, 9.
+- Relationship types: calls: 521, contains: 156, imports_from: 146, method: 1.
+- Confidence mix: EXTRACTED: 454, INFERRED: 370.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (431)
-  - RBAC, permission tags, and access boundaries (409)
-  - Behaviour, merits, demerits, leaderboard, and child notes (362)
-  - Admin access, users, invitations, audit, and profiles (352)
-  - Attendance and rota workflows (340)
+  - Registration, parent, student, supervisor, and admin shells (445)
+  - RBAC, permission tags, and access boundaries (426)
+  - Behaviour, merits, demerits, leaderboard, and child notes (378)
+  - Admin access, users, invitations, audit, and profiles (373)
+  - Attendance and rota workflows (356)
 
 ### RBAC, permission tags, and access boundaries
 
@@ -99,15 +99,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/context.ts`
   - `docs/adr/0003-sensitive-visibility-rbac-plus-rls.md`
-- Graphify evidence: 113 nodes, 607 links, communities 1, 2, 4, 5, 7, 8, 9, 15.
-- Relationship types: calls: 414, contains: 103, imports_from: 85, conceptually_related_to: 1, implements: 1, method: 1, rationale_for: 1, references: 1.
-- Confidence mix: INFERRED: 317, EXTRACTED: 290.
+- Graphify evidence: 114 nodes, 630 links, communities 1, 2, 3, 5, 6, 7, 10, 11.
+- Relationship types: calls: 435, contains: 104, imports_from: 86, conceptually_related_to: 1, implements: 1, method: 1, rationale_for: 1, references: 1.
+- Confidence mix: INFERRED: 337, EXTRACTED: 293.
 - Connected modules:
-  - Admin access, users, invitations, audit, and profiles (527)
-  - Identity, Clerk sync, sessions, and post-sign-in routing (409)
-  - Registration, parent, student, supervisor, and admin shells (405)
-  - Behaviour, merits, demerits, leaderboard, and child notes (343)
-  - Attendance and rota workflows (331)
+  - Admin access, users, invitations, audit, and profiles (547)
+  - Identity, Clerk sync, sessions, and post-sign-in routing (426)
+  - Registration, parent, student, supervisor, and admin shells (425)
+  - Behaviour, merits, demerits, leaderboard, and child notes (361)
+  - Attendance and rota workflows (347)
 
 ### Admin access, users, invitations, audit, and profiles
 
@@ -128,15 +128,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - _None configured_
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 388 nodes, 819 links, communities 0, 1, 2, 3, 4, 5, 7, 8.
-- Relationship types: calls: 480, contains: 295, imports_from: 43, method: 1.
-- Confidence mix: EXTRACTED: 469, INFERRED: 350.
+- Graphify evidence: 380 nodes, 836 links, communities 0, 1, 2, 3, 4, 5, 6, 7.
+- Relationship types: calls: 501, contains: 288, imports_from: 46, method: 1.
+- Confidence mix: EXTRACTED: 464, INFERRED: 372.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (677)
-  - RBAC, permission tags, and access boundaries (527)
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (363)
-  - Identity, Clerk sync, sessions, and post-sign-in routing (352)
-  - Attendance and rota workflows (345)
+  - Registration, parent, student, supervisor, and admin shells (694)
+  - RBAC, permission tags, and access boundaries (547)
+  - Identity, Clerk sync, sessions, and post-sign-in routing (373)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (364)
+  - Attendance and rota workflows (361)
 
 ### Attendance and rota workflows
 
@@ -154,15 +154,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 251 nodes, 582 links, communities 0, 2, 3, 4, 5, 7, 8, 9.
-- Relationship types: calls: 346, contains: 209, imports_from: 26, method: 1.
-- Confidence mix: EXTRACTED: 318, INFERRED: 264.
+- Graphify evidence: 254 nodes, 602 links, communities 0, 2, 3, 4, 5, 7, 10, 22.
+- Relationship types: calls: 363, contains: 212, imports_from: 26, method: 1.
+- Confidence mix: EXTRACTED: 324, INFERRED: 278.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (467)
-  - Behaviour, merits, demerits, leaderboard, and child notes (466)
-  - Admin access, users, invitations, audit, and profiles (345)
-  - Identity, Clerk sync, sessions, and post-sign-in routing (340)
-  - RBAC, permission tags, and access boundaries (331)
+  - Registration, parent, student, supervisor, and admin shells (487)
+  - Behaviour, merits, demerits, leaderboard, and child notes (486)
+  - Admin access, users, invitations, audit, and profiles (361)
+  - Identity, Clerk sync, sessions, and post-sign-in routing (356)
+  - RBAC, permission tags, and access boundaries (347)
 
 ### Behaviour, merits, demerits, leaderboard, and child notes
 
@@ -186,15 +186,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 352 nodes, 785 links, communities 0, 1, 2, 4, 5, 6, 7, 8.
-- Relationship types: calls: 433, contains: 298, imports_from: 53, method: 1.
-- Confidence mix: EXTRACTED: 474, INFERRED: 311.
+- Graphify evidence: 375 nodes, 835 links, communities 0, 1, 2, 3, 4, 5, 7, 9.
+- Relationship types: calls: 460, contains: 320, imports_from: 54, method: 1.
+- Confidence mix: EXTRACTED: 506, INFERRED: 329.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (471)
-  - Attendance and rota workflows (466)
-  - Identity, Clerk sync, sessions, and post-sign-in routing (362)
-  - Admin access, users, invitations, audit, and profiles (345)
-  - RBAC, permission tags, and access boundaries (343)
+  - Registration, parent, student, supervisor, and admin shells (491)
+  - Attendance and rota workflows (486)
+  - Identity, Clerk sync, sessions, and post-sign-in routing (378)
+  - Admin access, users, invitations, audit, and profiles (361)
+  - RBAC, permission tags, and access boundaries (361)
 
 ### Incident reports, staff review, and parent-safe release
 
@@ -214,15 +214,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/incidents/`
   - `packages/db/prisma/migrations/20260528160000_incident_reports/`
-- Graphify evidence: 92 nodes, 288 links, communities 0, 2, 10, 13, 40, 59, 105, 133.
-- Relationship types: calls: 194, contains: 86, imports_from: 8.
-- Confidence mix: EXTRACTED: 146, INFERRED: 142.
+- Graphify evidence: 92 nodes, 296 links, communities 0, 2, 3, 6, 15, 44, 63, 110.
+- Relationship types: calls: 202, contains: 86, imports_from: 8.
+- Confidence mix: INFERRED: 150, EXTRACTED: 146.
 - Connected modules:
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (38)
-  - Registration, parent, student, supervisor, and admin shells (36)
-  - Behaviour, merits, demerits, leaderboard, and child notes (25)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (42)
+  - Registration, parent, student, supervisor, and admin shells (39)
+  - Behaviour, merits, demerits, leaderboard, and child notes (28)
   - PACE, subjects, school years, and academic progress (20)
-  - Attendance and rota workflows (18)
+  - Attendance and rota workflows (19)
 
 ### PACE, subjects, school years, and academic progress
 
@@ -238,15 +238,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 201 nodes, 311 links, communities 0, 2, 9, 17, 19, 33, 34, 47.
-- Relationship types: contains: 160, calls: 141, imports_from: 10.
-- Confidence mix: EXTRACTED: 211, INFERRED: 100.
+- Graphify evidence: 203 nodes, 315 links, communities 0, 4, 7, 17, 32, 33, 35, 52.
+- Relationship types: contains: 162, calls: 143, imports_from: 10.
+- Confidence mix: EXTRACTED: 215, INFERRED: 100.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (158)
-  - Behaviour, merits, demerits, leaderboard, and child notes (150)
-  - Attendance and rota workflows (147)
-  - Shared UI primitives and cross-app tRPC clients (140)
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (60)
+  - Registration, parent, student, supervisor, and admin shells (162)
+  - Behaviour, merits, demerits, leaderboard, and child notes (154)
+  - Attendance and rota workflows (151)
+  - Shared UI primitives and cross-app tRPC clients (144)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (60)
 
 ### Registration, parent, student, supervisor, and admin shells
 
@@ -278,15 +278,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/api/src/lib/student-portal-access.ts`
   - `apps/web/src/components/ui/`
   - `packages/db/prisma/migrations/20260603211500_student_portal_usage_minutes/`
-- Graphify evidence: 791 nodes, 1332 links, communities 0, 1, 2, 3, 4, 5, 7, 8.
-- Relationship types: calls: 670, contains: 604, imports_from: 57, method: 1.
-- Confidence mix: EXTRACTED: 919, INFERRED: 413.
+- Graphify evidence: 789 nodes, 1361 links, communities 0, 1, 2, 3, 4, 5, 6, 7.
+- Relationship types: calls: 698, contains: 601, imports_from: 61, method: 1.
+- Confidence mix: EXTRACTED: 923, INFERRED: 438.
 - Connected modules:
-  - Admin access, users, invitations, audit, and profiles (677)
-  - Behaviour, merits, demerits, leaderboard, and child notes (471)
-  - Attendance and rota workflows (467)
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (440)
-  - Identity, Clerk sync, sessions, and post-sign-in routing (431)
+  - Admin access, users, invitations, audit, and profiles (694)
+  - Behaviour, merits, demerits, leaderboard, and child notes (491)
+  - Attendance and rota workflows (487)
+  - Identity, Clerk sync, sessions, and post-sign-in routing (445)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (440)
 
 ### Faith Corner managed student content
 
@@ -305,12 +305,12 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/services/faith-corner.ts`
   - `packages/db/prisma/migrations/20260604034500_faith_corner_content/`
-- Graphify evidence: 67 nodes, 67 links, communities 1, 5, 51, 56, 57, 66, 67, 82.
-- Relationship types: contains: 47, calls: 12, imports_from: 8.
-- Confidence mix: EXTRACTED: 63, INFERRED: 4.
+- Graphify evidence: 73 nodes, 77 links, communities 0, 1, 3, 40, 49, 61, 71, 86.
+- Relationship types: contains: 53, calls: 16, imports_from: 8.
+- Confidence mix: EXTRACTED: 72, INFERRED: 5.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (51)
-  - Student notification centre and announcements (46)
+  - Registration, parent, student, supervisor, and admin shells (61)
+  - Student notification centre and announcements (56)
   - Admin access, users, invitations, audit, and profiles (3)
   - Identity, Clerk sync, sessions, and post-sign-in routing (3)
   - RBAC, permission tags, and access boundaries (3)
@@ -332,19 +332,19 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/services/student-notifications.ts`
   - `packages/db/prisma/migrations/20260604052000_student_notifications/`
-- Graphify evidence: 71 nodes, 76 links, communities 1, 5, 51, 56, 57, 66, 67, 85.
-- Relationship types: contains: 51, calls: 14, imports_from: 11.
-- Confidence mix: EXTRACTED: 70, INFERRED: 6.
+- Graphify evidence: 77 nodes, 86 links, communities 0, 1, 3, 12, 40, 49, 61, 71.
+- Relationship types: contains: 57, calls: 18, imports_from: 11.
+- Confidence mix: EXTRACTED: 79, INFERRED: 7.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (51)
-  - Faith Corner managed student content (46)
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (4)
+  - Registration, parent, student, supervisor, and admin shells (61)
+  - Faith Corner managed student content (56)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (4)
   - Admin access, users, invitations, audit, and profiles (3)
   - Identity, Clerk sync, sessions, and post-sign-in routing (3)
 
-### Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email
+### Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email
 
-- Owns: Commercial, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.
+- Owns: Commercial, wallet, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.
 - API routers:
   - `apps/api/src/routers/calendar.ts`
   - `apps/api/src/routers/club.ts`
@@ -364,6 +364,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `packages/domain/src/invoice.ts`
   - `packages/domain/src/permissionSlips.ts`
   - `packages/domain/src/report.ts`
+  - `packages/domain/src/savings.ts`
   - `packages/domain/src/shop.ts`
   - `packages/domain/src/tithe.ts`
 - Web surfaces:
@@ -385,15 +386,16 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/parent-smoke-notices.tsx`
 - Shared or infrastructure surfaces:
   - `apps/api/src/emails/`
-- Graphify evidence: 1049 nodes, 1885 links, communities 0, 1, 2, 3, 4, 5, 6, 8.
-- Relationship types: calls: 918, contains: 875, imports_from: 92.
-- Confidence mix: EXTRACTED: 1342, INFERRED: 543.
+  - `apps/api/src/services/savings-interest.ts`
+- Graphify evidence: 1059 nodes, 1922 links, communities 0, 1, 2, 3, 4, 5, 6, 7.
+- Relationship types: calls: 944, contains: 883, imports_from: 95.
+- Confidence mix: EXTRACTED: 1366, INFERRED: 556.
 - Connected modules:
   - Registration, parent, student, supervisor, and admin shells (440)
-  - Admin access, users, invitations, audit, and profiles (363)
-  - Identity, Clerk sync, sessions, and post-sign-in routing (195)
-  - RBAC, permission tags, and access boundaries (175)
-  - Behaviour, merits, demerits, leaderboard, and child notes (162)
+  - Admin access, users, invitations, audit, and profiles (364)
+  - Identity, Clerk sync, sessions, and post-sign-in routing (202)
+  - RBAC, permission tags, and access boundaries (187)
+  - Behaviour, merits, demerits, leaderboard, and child notes (170)
 
 ### Shared UI primitives and cross-app tRPC clients
 
@@ -413,15 +415,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/router.ts`
   - `apps/api/src/trpc.ts`
-- Graphify evidence: 210 nodes, 380 links, communities 0, 1, 3, 7, 10, 12, 19, 33.
-- Relationship types: contains: 152, calls: 140, imports_from: 88.
-- Confidence mix: EXTRACTED: 275, INFERRED: 105.
+- Graphify evidence: 212 nodes, 389 links, communities 0, 1, 3, 4, 6, 11, 32, 33.
+- Relationship types: contains: 154, calls: 147, imports_from: 88.
+- Confidence mix: EXTRACTED: 279, INFERRED: 110.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (159)
-  - Behaviour, merits, demerits, leaderboard, and child notes (151)
-  - Attendance and rota workflows (146)
-  - PACE, subjects, school years, and academic progress (140)
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (113)
+  - Registration, parent, student, supervisor, and admin shells (164)
+  - Behaviour, merits, demerits, leaderboard, and child notes (156)
+  - Attendance and rota workflows (150)
+  - PACE, subjects, school years, and academic progress (144)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (112)
 
 ### Database, RLS, encryption, and Supabase/Postgres support
 
@@ -439,12 +441,12 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `packages/db/prisma/`
   - `packages/db/scripts/`
   - `packages/db/src/`
-- Graphify evidence: 121 nodes, 294 links, communities 0, 7, 10, 15, 27, 220.
-- Relationship types: calls: 179, contains: 96, imports_from: 13, rationale_for: 2, references: 2, conceptually_related_to: 1, implements: 1.
-- Confidence mix: EXTRACTED: 217, INFERRED: 77.
+- Graphify evidence: 122 nodes, 297 links, communities 0, 6, 11, 26, 220.
+- Relationship types: calls: 181, contains: 97, imports_from: 13, rationale_for: 2, references: 2, conceptually_related_to: 1, implements: 1.
+- Confidence mix: EXTRACTED: 219, INFERRED: 78.
 - Connected modules:
-  - Incident reports, staff review, and parent-safe release (16)
-  - Shop, invoices, clubs, calendar, tithe, investment, reports, notices, messages, and email (14)
+  - Incident reports, staff review, and parent-safe release (17)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (14)
   - Shared UI primitives and cross-app tRPC clients (12)
   - PACE, subjects, school years, and academic progress (5)
   - Identity, Clerk sync, sessions, and post-sign-in routing (2)

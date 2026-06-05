@@ -10,6 +10,7 @@ import {
   type StudentPortalLockSource,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext } from '../context.js';
+import { loadManualTitheStatus } from '../services/tithe-run.js';
 import { addUtcDays, startOfUtcDay, startOfUtcMinute } from './utc-date.js';
 
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
@@ -181,7 +182,7 @@ async function auditStudentPortalPolicyDenied(
   ctx: AuthedContext,
   input: {
     entity: string;
-    reason: 'AccountLocked' | 'OffLimitDay' | 'ParentShopBlock' | 'UsageLimit';
+    reason: 'AccountLocked' | 'OffLimitDay' | 'ParentShopBlock' | 'TitheDue' | 'UsageLimit';
     studentId: string;
     lockSource?: StudentPortalLockSource | undefined;
     usageWindow?: StudentPortalUsageWindow | undefined;
@@ -318,9 +319,7 @@ export async function assertStudentMeritShopAccess(
   const state = defaultPolicyState(settings);
   const access = studentMeritShopAccess(state);
 
-  if (access.allowed) return;
-
-  if (access.reason === 'AccountLocked') {
+  if (!access.allowed && access.reason === 'AccountLocked') {
     const lock = lockDetails(settings);
     await auditStudentPortalPolicyDenied(ctx, {
       entity: input.entity,
@@ -334,14 +333,29 @@ export async function assertStudentMeritShopAccess(
     });
   }
 
+  if (!access.allowed) {
+    await auditStudentPortalPolicyDenied(ctx, {
+      entity: input.entity,
+      reason: 'ParentShopBlock',
+      studentId: input.studentId,
+    });
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Merit Shop access is blocked by a parent or carer.',
+    });
+  }
+
+  const titheStatus = await loadManualTitheStatus(ctx.db, { studentId: input.studentId });
+  if (!titheStatus.shopBlocked) return;
+
   await auditStudentPortalPolicyDenied(ctx, {
     entity: input.entity,
-    reason: 'ParentShopBlock',
+    reason: 'TitheDue',
     studentId: input.studentId,
   });
   throw new TRPCError({
     code: 'FORBIDDEN',
-    message: 'Merit Shop access is blocked by a parent or carer.',
+    message: titheStatus.shopBlockReason ?? 'Tithe due before Merit Shop opens.',
   });
 }
 
