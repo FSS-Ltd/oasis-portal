@@ -94,6 +94,8 @@ model User {
   paceRecords                      PaceRecord[]                     @relation("RecordedPace")
   approvedPaceAdvancements         PaceAdvancementApproval[]        @relation("ApprovedPaceAdvancements")
   attendanceRecords                Attendance[]                     @relation("RecordedAttendance")
+  specialAttendanceSessionsCreated SpecialAttendanceSession[]       @relation("SpecialAttendanceSessionsCreated")
+  specialAttendanceRecords         SpecialAttendanceRecord[]        @relation("RecordedSpecialAttendance")
   availabilityWindows              StaffAvailabilityWindow[]        @relation("StaffAvailability")
   monthlyAvailabilityWindows       StaffMonthlyAvailabilityWindow[] @relation("StaffMonthlyAvailability")
   staffShifts                      StaffShift[]                     @relation("StaffShifts")
@@ -233,6 +235,7 @@ model Student {
   paceProgress             PaceProgress[]
   paceAdvancementApprovals PaceAdvancementApproval[]
   attendance               Attendance[]
+  specialAttendanceRecords SpecialAttendanceRecord[]
   behaviour                BehaviourEntry[]
   childNotes               ChildNote[]
   meritLedger              MeritLedger[]
@@ -255,7 +258,7 @@ model Student {
   portalSettings           StudentPortalSettings?
   portalUsageMinutes       StudentPortalUsageMinute[]
   notifications            StudentNotification[]
-  loginInvitation           UserInvitation?             @relation("StudentLoginInvitation")
+  loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
 
@@ -699,6 +702,13 @@ enum AbsenceReason {
   Unexcused
 }
 
+enum SpecialAttendanceRegister {
+  FieldTrip
+  MinibusInbound
+  MinibusOutbound
+  TheCedars
+}
+
 model Attendance {
   id            String           @id @default(cuid())
   studentId     String
@@ -729,6 +739,41 @@ model StaffAttendance {
 
   @@unique([staffUserId, date])
   @@index([date])
+}
+
+model SpecialAttendanceSession {
+  id             String                    @id @default(cuid())
+  date           DateTime                  @db.Date
+  register       SpecialAttendanceRegister
+  destinationEnc String?
+  createdById    String
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  createdBy User                      @relation("SpecialAttendanceSessionsCreated", fields: [createdById], references: [id])
+  records   SpecialAttendanceRecord[]
+
+  @@unique([date, register])
+  @@index([register, date])
+  @@index([createdById])
+}
+
+model SpecialAttendanceRecord {
+  id           String           @id @default(cuid())
+  sessionId    String
+  studentId    String
+  status       AttendanceStatus
+  recordedById String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  session    SpecialAttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student    Student                  @relation(fields: [studentId], references: [id])
+  recordedBy User                     @relation("RecordedSpecialAttendance", fields: [recordedById], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@index([recordedById])
 }
 
 model StaffAvailabilityWindow {

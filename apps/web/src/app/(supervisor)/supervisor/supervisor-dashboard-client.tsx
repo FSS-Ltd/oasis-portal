@@ -5,6 +5,7 @@ import { Plus, Save, Send, Trash2 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
+import { SpecialAttendanceCapture } from '@/components/attendance/special-attendance-capture';
 import { BehaviourStudentSelector } from '@/components/behaviour/behaviour-student-selector';
 import {
   DailyDemeritBadge,
@@ -363,6 +364,15 @@ export function SupervisorDashboardClient({
               onSelectedDateChange={setSelectedDate}
               selectedDate={selectedDate}
               showBandFilter
+            />
+          </section>
+        ) : null}
+        {view === 'attendance' && canRecordAttendance ? (
+          <section id="special-attendance-capture">
+            <SpecialAttendanceCapture
+              canRecord={canRecordAttendance}
+              onSelectedDateChange={setSelectedDate}
+              selectedDate={selectedDate}
             />
           </section>
         ) : null}

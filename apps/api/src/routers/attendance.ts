@@ -32,6 +32,12 @@ const ATTENDANCE_ROLES = [
 const attendanceStatusSchema = z.enum(['Present', 'Absent', 'Late']);
 const absenceReasonSchema = z.enum(['Sick', 'Holiday', 'NotScheduled', 'Excused', 'Unexcused']);
 const insightKindSchema = z.enum(['students', 'staff']);
+const specialAttendanceRegisterSchema = z.enum([
+  'FieldTrip',
+  'MinibusInbound',
+  'MinibusOutbound',
+  'TheCedars',
+]);
 
 const attendanceMarkInput = z
   .object({
@@ -41,6 +47,26 @@ const attendanceMarkInput = z
     absenceReason: absenceReasonSchema.nullish(),
   })
   .superRefine(requireAbsenceReason);
+
+const dateInput = z.object({ date: z.coerce.date() });
+
+const specialAttendanceSessionInput = z
+  .object({
+    date: z.coerce.date(),
+    register: specialAttendanceRegisterSchema,
+    destination: z.string().trim().max(240, 'destination is too long').optional(),
+  })
+  .superRefine(requireMinibusDestination);
+
+const specialAttendanceForDateInput = z.object({
+  date: z.coerce.date(),
+  register: specialAttendanceRegisterSchema,
+});
+
+const specialAttendanceMarkInput = specialAttendanceForDateInput.extend({
+  studentId: z.string().min(1),
+  status: attendanceStatusSchema,
+});
 
 const staffAttendanceMarkInput = z
   .object({
@@ -117,6 +143,7 @@ const studentSummaryInput = z
 type AttendanceStatus = z.infer<typeof attendanceStatusSchema>;
 type AbsenceReason = z.infer<typeof absenceReasonSchema>;
 type InsightKind = z.infer<typeof insightKindSchema>;
+type SpecialAttendanceRegister = z.infer<typeof specialAttendanceRegisterSchema>;
 type AbsenceReasonBucket = AbsenceReason | 'Unknown';
 type AttendanceSummary = Record<AttendanceStatus, number> & { total: number };
 
@@ -140,6 +167,28 @@ function requireAbsenceReason(
       code: z.ZodIssueCode.custom,
       message: 'absenceReason is required when status is Absent',
       path: ['absenceReason'],
+    });
+  }
+}
+
+function isMinibusRegister(register: SpecialAttendanceRegister): boolean {
+  return register === 'MinibusInbound' || register === 'MinibusOutbound';
+}
+
+function normalizeDestination(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function requireMinibusDestination(
+  input: { register: SpecialAttendanceRegister; destination?: string | null | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (isMinibusRegister(input.register) && !normalizeDestination(input.destination)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'destination is required for minibus attendance',
+      path: ['destination'],
     });
   }
 }
@@ -186,6 +235,28 @@ function absenceBucket(
 function reasonLabel(reason: AbsenceReason | null): string | null {
   if (!reason) return null;
   return ABSENCE_REASON_LABELS[reason];
+}
+
+function decryptOptional(
+  decrypt: (value: string | null | undefined) => string | null,
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  return decrypt(value);
+}
+
+async function loadScopedActiveStudents(ctx: AuthedContext, date: Date) {
+  const scope = await loadDailyYearBandScope(ctx, date);
+  const students = await ctx.db.student.findMany({
+    where: { active: true, ...studentWhereForDailyScope(scope) },
+    select: {
+      id: true,
+      fullNameEnc: true,
+      yearGroup: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  return { scope, students };
 }
 
 function buildInsightsResult(
@@ -503,6 +574,272 @@ export const attendanceRouter = router({
       };
     }),
 
+  resetForDate: roleProcedure(...ATTENDANCE_ROLES)
+    .input(dateInput)
+    .mutation(async ({ ctx, input }) => {
+      await requireCanRecordAttendance(ctx);
+      const date = normalizeDate(input.date);
+      const { students } = await loadScopedActiveStudents(ctx, date);
+      const studentIds = students.map((student) => student.id);
+      const result =
+        studentIds.length === 0
+          ? { count: 0 }
+          : await ctx.db.attendance.deleteMany({
+              where: { date, studentId: { in: studentIds } },
+            });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Delete',
+          entity: 'Attendance',
+          meta: {
+            source: 'attendance.resetForDate',
+            date: dateKey(date),
+            deletedCount: result.count,
+            studentCount: studentIds.length,
+          },
+        },
+      });
+
+      return { date: dateKey(date), deletedCount: result.count };
+    }),
+
+  specialForDate: roleProcedure(...ATTENDANCE_ROLES)
+    .input(specialAttendanceForDateInput)
+    .query(async ({ ctx, input }) => {
+      const date = normalizeDate(input.date);
+      const { students } = await loadScopedActiveStudents(ctx, date);
+      const session = await ctx.db.specialAttendanceSession.findUnique({
+        where: { date_register: { date, register: input.register } },
+        select: {
+          id: true,
+          date: true,
+          register: true,
+          destinationEnc: true,
+        },
+      });
+      const records = session
+        ? await ctx.db.specialAttendanceRecord.findMany({
+            where: { sessionId: session.id },
+            select: {
+              id: true,
+              studentId: true,
+              status: true,
+              recordedById: true,
+              updatedAt: true,
+            },
+          })
+        : [];
+      const recordsByStudentId = new Map(records.map((record) => [record.studentId, record]));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'SpecialAttendance',
+          meta: {
+            count: students.length,
+            register: input.register,
+            source: 'attendance.specialForDate',
+          },
+        },
+      });
+
+      return {
+        session: session
+          ? {
+              id: session.id,
+              date: dateKey(session.date),
+              register: session.register,
+              destination: decryptOptional(ctx.db.$enc.decrypt, session.destinationEnc),
+            }
+          : {
+              id: null,
+              date: dateKey(date),
+              register: input.register,
+              destination: null,
+            },
+        rows: students.map((student) => {
+          const record = recordsByStudentId.get(student.id) ?? null;
+          return {
+            studentId: student.id,
+            studentName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student'),
+            yearGroup: student.yearGroup,
+            date: dateKey(date),
+            register: input.register,
+            specialAttendanceId: record?.id ?? null,
+            status: record?.status ?? null,
+            recordedById: record?.recordedById ?? null,
+            recordedAt: record?.updatedAt ?? null,
+          };
+        }),
+      };
+    }),
+
+  saveSpecialSession: roleProcedure(...ATTENDANCE_ROLES)
+    .input(specialAttendanceSessionInput)
+    .mutation(async ({ ctx, input }) => {
+      await requireCanRecordAttendance(ctx);
+      const date = normalizeDate(input.date);
+      const destination = isMinibusRegister(input.register)
+        ? normalizeDestination(input.destination)
+        : null;
+      const destinationEnc = destination ? ctx.db.$enc.encrypt(destination) : null;
+      const session = await ctx.db.specialAttendanceSession.upsert({
+        where: { date_register: { date, register: input.register } },
+        update: { destinationEnc },
+        create: {
+          date,
+          register: input.register,
+          destinationEnc,
+          createdById: ctx.user.id,
+        },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'SpecialAttendanceSession',
+          entityId: session.id,
+          meta: {
+            source: 'attendance.saveSpecialSession',
+            date: dateKey(date),
+            register: input.register,
+            hasDestination: destination !== null,
+          },
+        },
+      });
+
+      return {
+        id: session.id,
+        date: dateKey(session.date),
+        register: session.register,
+        destination: decryptOptional(ctx.db.$enc.decrypt, session.destinationEnc),
+      };
+    }),
+
+  markSpecial: roleProcedure(...ATTENDANCE_ROLES)
+    .input(specialAttendanceMarkInput)
+    .mutation(async ({ ctx, input }) => {
+      await requireCanRecordAttendance(ctx);
+      const date = normalizeDate(input.date);
+      const scope = await loadDailyYearBandScope(ctx, date);
+      const student = await ctx.db.student.findUnique({
+        where: { id: input.studentId },
+        select: { id: true, active: true, yearGroup: true },
+      });
+      if (!student) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'student not found' });
+      }
+      if (!student.active) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
+      }
+      if (!studentMatchesDailyScope(scope, student)) {
+        await denyOutOfDailyScope(ctx, 'attendance.markSpecial', {
+          studentId: input.studentId,
+          studentYearGroup: student.yearGroup,
+          date: dateKey(date),
+          assignedBands: scope.assignedBands.map((band) => band.id),
+        });
+      }
+
+      let session = await ctx.db.specialAttendanceSession.findUnique({
+        where: { date_register: { date, register: input.register } },
+        select: { id: true, date: true, register: true, destinationEnc: true },
+      });
+      if (!session) {
+        if (isMinibusRegister(input.register)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'save the minibus destination before marking journey attendance',
+          });
+        }
+        session = await ctx.db.specialAttendanceSession.create({
+          data: {
+            date,
+            register: input.register,
+            destinationEnc: null,
+            createdById: ctx.user.id,
+          },
+        });
+      }
+
+      const record = await ctx.db.specialAttendanceRecord.upsert({
+        where: { sessionId_studentId: { sessionId: session.id, studentId: input.studentId } },
+        update: { status: input.status, recordedById: ctx.user.id },
+        create: {
+          sessionId: session.id,
+          studentId: input.studentId,
+          status: input.status,
+          recordedById: ctx.user.id,
+        },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'SpecialAttendanceRecord',
+          entityId: record.id,
+          meta: {
+            source: 'attendance.markSpecial',
+            date: dateKey(date),
+            register: input.register,
+            studentId: input.studentId,
+            status: input.status,
+          },
+        },
+      });
+
+      return {
+        id: record.id,
+        date: dateKey(date),
+        register: input.register,
+        studentId: record.studentId,
+        status: record.status,
+        recordedById: record.recordedById,
+        recordedAt: record.updatedAt,
+      };
+    }),
+
+  resetSpecialForDate: roleProcedure(...ATTENDANCE_ROLES)
+    .input(specialAttendanceForDateInput)
+    .mutation(async ({ ctx, input }) => {
+      await requireCanRecordAttendance(ctx);
+      const date = normalizeDate(input.date);
+      const { students } = await loadScopedActiveStudents(ctx, date);
+      const session = await ctx.db.specialAttendanceSession.findUnique({
+        where: { date_register: { date, register: input.register } },
+        select: { id: true },
+      });
+      const studentIds = students.map((student) => student.id);
+      const result =
+        session && studentIds.length > 0
+          ? await ctx.db.specialAttendanceRecord.deleteMany({
+              where: { sessionId: session.id, studentId: { in: studentIds } },
+            })
+          : { count: 0 };
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Delete',
+          entity: 'SpecialAttendanceRecord',
+          meta: {
+            source: 'attendance.resetSpecialForDate',
+            date: dateKey(date),
+            register: input.register,
+            deletedCount: result.count,
+            studentCount: studentIds.length,
+          },
+        },
+      });
+
+      return { date: dateKey(date), register: input.register, deletedCount: result.count };
+    }),
+
   listExportOptions: authedProcedure.query(async ({ ctx }) => {
     await requireCanExportAttendance(ctx, { kind: 'options' });
 
@@ -704,61 +1041,63 @@ export const attendanceRouter = router({
     }));
   }),
 
-  studentSummary: roleProcedure('Student').input(studentSummaryInput).query(async ({ ctx, input }) => {
-    const student = await loadOwnActiveStudent(ctx);
-    await assertStudentPortalAccess(ctx, {
-      entity: 'attendance.studentSummary',
-      studentId: student.id,
-    });
-
-    const to = normalizeDate(input?.to ?? new Date());
-    const from = normalizeDate(input?.from ?? addUtcDays(to, -89));
-    if (!validateDateRange({ from, to })) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: 'from must be on or before to' });
-    }
-
-    const rows = await ctx.db.attendance.findMany({
-      where: {
+  studentSummary: roleProcedure('Student')
+    .input(studentSummaryInput)
+    .query(async ({ ctx, input }) => {
+      const student = await loadOwnActiveStudent(ctx);
+      await assertStudentPortalAccess(ctx, {
+        entity: 'attendance.studentSummary',
         studentId: student.id,
-        date: {
-          gte: from,
-          lte: to,
-        },
-      },
-      select: {
-        id: true,
-        date: true,
-        status: true,
-        absenceReason: true,
-        createdAt: true,
-      },
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    });
-    const summary = rows.reduce<AttendanceSummary>((current, row) => {
-      incrementSummary(current, row.status);
-      return current;
-    }, emptySummary());
+      });
 
-    return {
-      studentId: student.id,
-      from: dateKey(from),
-      to: dateKey(to),
-      summary: {
-        total: summary.total,
-        present: summary.Present,
-        absent: summary.Absent,
-        late: summary.Late,
-        attendanceRate: attendanceRate(summary),
-      },
-      records: rows.map((row) => ({
-        id: row.id,
-        date: dateKey(row.date),
-        status: row.status,
-        absenceReason: row.status === 'Absent' ? row.absenceReason : null,
-        absenceReasonLabel: row.status === 'Absent' ? reasonLabel(row.absenceReason) : null,
-      })),
-    };
-  }),
+      const to = normalizeDate(input?.to ?? new Date());
+      const from = normalizeDate(input?.from ?? addUtcDays(to, -89));
+      if (!validateDateRange({ from, to })) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'from must be on or before to' });
+      }
+
+      const rows = await ctx.db.attendance.findMany({
+        where: {
+          studentId: student.id,
+          date: {
+            gte: from,
+            lte: to,
+          },
+        },
+        select: {
+          id: true,
+          date: true,
+          status: true,
+          absenceReason: true,
+          createdAt: true,
+        },
+        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      });
+      const summary = rows.reduce<AttendanceSummary>((current, row) => {
+        incrementSummary(current, row.status);
+        return current;
+      }, emptySummary());
+
+      return {
+        studentId: student.id,
+        from: dateKey(from),
+        to: dateKey(to),
+        summary: {
+          total: summary.total,
+          present: summary.Present,
+          absent: summary.Absent,
+          late: summary.Late,
+          attendanceRate: attendanceRate(summary),
+        },
+        records: rows.map((row) => ({
+          id: row.id,
+          date: dateKey(row.date),
+          status: row.status,
+          absenceReason: row.status === 'Absent' ? row.absenceReason : null,
+          absenceReasonLabel: row.status === 'Absent' ? reasonLabel(row.absenceReason) : null,
+        })),
+      };
+    }),
 
   staffForDate: adminOperationsProcedure
     .input(z.object({ date: z.coerce.date() }))
@@ -907,56 +1246,78 @@ export const attendanceRouter = router({
       };
     }),
 
-  markStaff: adminOperationsProcedure.input(staffAttendanceMarkInput).mutation(async ({ ctx, input }) => {
-    const date = normalizeDate(input.date);
-    const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
-    await assertActiveStaffUser(ctx, input.staffUserId);
+  markStaff: adminOperationsProcedure
+    .input(staffAttendanceMarkInput)
+    .mutation(async ({ ctx, input }) => {
+      const date = normalizeDate(input.date);
+      const absenceReason = absenceReasonForStatus(input.status, input.absenceReason);
+      await assertActiveStaffUser(ctx, input.staffUserId);
 
-    const existing = await ctx.db.staffAttendance.findUnique({
-      where: { staffUserId_date: { staffUserId: input.staffUserId, date } },
-      select: { id: true },
-    });
+      const existing = await ctx.db.staffAttendance.findUnique({
+        where: { staffUserId_date: { staffUserId: input.staffUserId, date } },
+        select: { id: true },
+      });
 
-    const attendance = existing
-      ? await ctx.db.staffAttendance.update({
-          where: { id: existing.id },
-          data: { status: input.status, absenceReason, recordedById: ctx.user.id },
-        })
-      : await ctx.db.staffAttendance.create({
-          data: {
+      const attendance = existing
+        ? await ctx.db.staffAttendance.update({
+            where: { id: existing.id },
+            data: { status: input.status, absenceReason, recordedById: ctx.user.id },
+          })
+        : await ctx.db.staffAttendance.create({
+            data: {
+              staffUserId: input.staffUserId,
+              date,
+              status: input.status,
+              absenceReason,
+              recordedById: ctx.user.id,
+            },
+          });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: existing ? 'Update' : 'Create',
+          entity: 'StaffAttendance',
+          entityId: attendance.id,
+          meta: {
             staffUserId: input.staffUserId,
-            date,
+            date: dateKey(date),
             status: input.status,
-            absenceReason,
-            recordedById: ctx.user.id,
+            ...(absenceReason ? { absenceReason } : {}),
           },
-        });
+        },
+      });
+
+      return {
+        id: attendance.id,
+        staffUserId: attendance.staffUserId,
+        date: dateKey(attendance.date),
+        status: attendance.status,
+        absenceReason: attendance.absenceReason,
+        absenceReasonLabel: reasonLabel(attendance.absenceReason),
+        recordedById: attendance.recordedById,
+        recordedAt: attendance.createdAt,
+      };
+    }),
+
+  resetStaffForDate: adminOperationsProcedure.input(dateInput).mutation(async ({ ctx, input }) => {
+    const date = normalizeDate(input.date);
+    const result = await ctx.db.staffAttendance.deleteMany({ where: { date } });
 
     await ctx.db.auditLog.create({
       data: {
         userId: ctx.user.id,
-        action: existing ? 'Update' : 'Create',
+        action: 'Delete',
         entity: 'StaffAttendance',
-        entityId: attendance.id,
         meta: {
-          staffUserId: input.staffUserId,
+          source: 'attendance.resetStaffForDate',
           date: dateKey(date),
-          status: input.status,
-          ...(absenceReason ? { absenceReason } : {}),
+          deletedCount: result.count,
         },
       },
     });
 
-    return {
-      id: attendance.id,
-      staffUserId: attendance.staffUserId,
-      date: dateKey(attendance.date),
-      status: attendance.status,
-      absenceReason: attendance.absenceReason,
-      absenceReasonLabel: reasonLabel(attendance.absenceReason),
-      recordedById: attendance.recordedById,
-      recordedAt: attendance.createdAt,
-    };
+    return { date: dateKey(date), deletedCount: result.count };
   }),
 
   exportStaffCsv: authedProcedure.input(staffExportInput).query(async ({ ctx, input }) => {

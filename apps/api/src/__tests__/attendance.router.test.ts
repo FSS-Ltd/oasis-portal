@@ -54,6 +54,7 @@ const inactiveStaffUserId = 'ckuserinactive000000001';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type AbsenceReason = 'Sick' | 'Holiday' | 'NotScheduled' | 'Excused' | 'Unexcused';
+type SpecialAttendanceRegister = 'FieldTrip' | 'MinibusInbound' | 'MinibusOutbound' | 'TheCedars';
 
 interface StoredStudent {
   id: string;
@@ -92,6 +93,26 @@ interface StoredStaffAttendance {
   createdAt: Date;
 }
 
+interface StoredSpecialAttendanceSession {
+  id: string;
+  date: Date;
+  register: SpecialAttendanceRegister;
+  destinationEnc: string | null;
+  createdById: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface StoredSpecialAttendanceRecord {
+  id: string;
+  sessionId: string;
+  studentId: string;
+  status: AttendanceStatus;
+  recordedById: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface StoredYearGroupBand {
   id: string;
   name: string;
@@ -113,6 +134,7 @@ interface StoredStaffShift {
 
 interface FakeDb {
   $enc: {
+    encrypt: ReturnType<typeof vi.fn>;
     decrypt: ReturnType<typeof vi.fn>;
   };
   auditLog: { create: ReturnType<typeof vi.fn> };
@@ -129,12 +151,24 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
   };
   staffAttendance: {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+  };
+  specialAttendanceSession: {
+    create: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+  };
+  specialAttendanceRecord: {
+    deleteMany: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: {
     findMany: ReturnType<typeof vi.fn>;
@@ -161,6 +195,10 @@ function dateKey(date: Date): string {
 function decrypt(value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   return value.replace(/^enc:/u, '');
+}
+
+function encrypt(value: string): string {
+  return `enc:${value}`;
 }
 
 function makeFakeDb() {
@@ -236,6 +274,8 @@ function makeFakeDb() {
   ];
   const attendance: StoredAttendance[] = [];
   const staffAttendance: StoredStaffAttendance[] = [];
+  const specialAttendanceSessions: StoredSpecialAttendanceSession[] = [];
+  const specialAttendanceRecords: StoredSpecialAttendanceRecord[] = [];
   const yearGroupBands: StoredYearGroupBand[] = [
     {
       id: 'band_upper',
@@ -284,7 +324,7 @@ function makeFakeDb() {
   ];
 
   const db: FakeDb = {
-    $enc: { decrypt: vi.fn(decrypt) },
+    $enc: { decrypt: vi.fn(decrypt), encrypt: vi.fn(encrypt) },
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     student: {
       findMany: vi.fn(
@@ -461,6 +501,21 @@ function makeFakeDb() {
           );
         },
       ),
+      deleteMany: vi.fn(({ where }: { where: { date: Date; studentId?: { in: string[] } } }) => {
+        let count = 0;
+        for (let index = attendance.length - 1; index >= 0; index -= 1) {
+          const row = attendance[index];
+          if (
+            row &&
+            dateKey(row.date) === dateKey(where.date) &&
+            (where.studentId === undefined || where.studentId.in.includes(row.studentId))
+          ) {
+            attendance.splice(index, 1);
+            count += 1;
+          }
+        }
+        return Promise.resolve({ count });
+      }),
     },
     staffAttendance: {
       create: vi.fn(({ data }: { data: Omit<StoredStaffAttendance, 'id' | 'createdAt'> }) => {
@@ -555,6 +610,135 @@ function makeFakeDb() {
           );
         },
       ),
+      deleteMany: vi.fn(({ where }: { where: { date: Date } }) => {
+        let count = 0;
+        for (let index = staffAttendance.length - 1; index >= 0; index -= 1) {
+          const row = staffAttendance[index];
+          if (row && dateKey(row.date) === dateKey(where.date)) {
+            staffAttendance.splice(index, 1);
+            count += 1;
+          }
+        }
+        return Promise.resolve({ count });
+      }),
+    },
+    specialAttendanceSession: {
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: Omit<StoredSpecialAttendanceSession, 'id' | 'createdAt' | 'updatedAt'>;
+        }) => {
+          const row: StoredSpecialAttendanceSession = {
+            id: `ckspecialsession000000${String(specialAttendanceSessions.length + 1).padStart(2, '0')}`,
+            createdAt: new Date('2026-04-29T12:00:00.000Z'),
+            updatedAt: new Date('2026-04-29T12:00:00.000Z'),
+            ...data,
+          };
+          specialAttendanceSessions.push(row);
+          return Promise.resolve(row);
+        },
+      ),
+      findUnique: vi.fn(
+        ({
+          where,
+        }: {
+          where: { date_register: { date: Date; register: SpecialAttendanceRegister } };
+        }) =>
+          Promise.resolve(
+            specialAttendanceSessions.find(
+              (row) =>
+                dateKey(row.date) === dateKey(where.date_register.date) &&
+                row.register === where.date_register.register,
+            ) ?? null,
+          ),
+      ),
+      upsert: vi.fn(
+        ({
+          create,
+          update,
+          where,
+        }: {
+          create: Omit<StoredSpecialAttendanceSession, 'id' | 'createdAt' | 'updatedAt'>;
+          update: Partial<StoredSpecialAttendanceSession>;
+          where: { date_register: { date: Date; register: SpecialAttendanceRegister } };
+        }) => {
+          const existing = specialAttendanceSessions.find(
+            (row) =>
+              dateKey(row.date) === dateKey(where.date_register.date) &&
+              row.register === where.date_register.register,
+          );
+          if (existing) {
+            Object.assign(existing, update, {
+              updatedAt: new Date('2026-04-29T12:15:00.000Z'),
+            });
+            return Promise.resolve(existing);
+          }
+          const row: StoredSpecialAttendanceSession = {
+            id: `ckspecialsession000000${String(specialAttendanceSessions.length + 1).padStart(2, '0')}`,
+            createdAt: new Date('2026-04-29T12:00:00.000Z'),
+            updatedAt: new Date('2026-04-29T12:00:00.000Z'),
+            ...create,
+          };
+          specialAttendanceSessions.push(row);
+          return Promise.resolve(row);
+        },
+      ),
+    },
+    specialAttendanceRecord: {
+      deleteMany: vi.fn(
+        ({ where }: { where: { sessionId: string; studentId?: { in: string[] } } }) => {
+          let count = 0;
+          for (let index = specialAttendanceRecords.length - 1; index >= 0; index -= 1) {
+            const row = specialAttendanceRecords[index];
+            if (
+              row &&
+              row.sessionId === where.sessionId &&
+              (where.studentId === undefined || where.studentId.in.includes(row.studentId))
+            ) {
+              specialAttendanceRecords.splice(index, 1);
+              count += 1;
+            }
+          }
+          return Promise.resolve({ count });
+        },
+      ),
+      findMany: vi.fn(({ where }: { where: { sessionId: string } }) =>
+        Promise.resolve(
+          specialAttendanceRecords.filter((row) => row.sessionId === where.sessionId),
+        ),
+      ),
+      upsert: vi.fn(
+        ({
+          create,
+          update,
+          where,
+        }: {
+          create: Omit<StoredSpecialAttendanceRecord, 'id' | 'createdAt' | 'updatedAt'>;
+          update: Partial<StoredSpecialAttendanceRecord>;
+          where: { sessionId_studentId: { sessionId: string; studentId: string } };
+        }) => {
+          const existing = specialAttendanceRecords.find(
+            (row) =>
+              row.sessionId === where.sessionId_studentId.sessionId &&
+              row.studentId === where.sessionId_studentId.studentId,
+          );
+          if (existing) {
+            Object.assign(existing, update, {
+              updatedAt: new Date('2026-04-29T12:30:00.000Z'),
+            });
+            return Promise.resolve(existing);
+          }
+          const row: StoredSpecialAttendanceRecord = {
+            id: `ckspecialrecord000000${String(specialAttendanceRecords.length + 1).padStart(2, '0')}`,
+            createdAt: new Date('2026-04-29T12:30:00.000Z'),
+            updatedAt: new Date('2026-04-29T12:30:00.000Z'),
+            ...create,
+          };
+          specialAttendanceRecords.push(row);
+          return Promise.resolve(row);
+        },
+      ),
     },
     yearGroupBand: {
       findMany: vi.fn(({ where }: { where?: { active?: boolean } } = {}) =>
@@ -633,7 +817,15 @@ function makeFakeDb() {
     },
   };
 
-  return { db, students, attendance, staffAttendance, yearGroupBands };
+  return {
+    db,
+    students,
+    attendance,
+    staffAttendance,
+    specialAttendanceSessions,
+    specialAttendanceRecords,
+    yearGroupBands,
+  };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -904,6 +1096,163 @@ describe('attendance.mark', () => {
         absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST', message: 'student is inactive' });
+  });
+});
+
+describe('attendance.resetForDate', () => {
+  it('clears the selected student register date for attendance recorders only', async () => {
+    const { attendance, db } = makeFakeDb();
+    const caller = makeCaller(attendanceRecorderUser, db);
+
+    await caller.attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+    await caller.attendance.mark({
+      studentId: secondStudentId,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+    await makeCaller(headUser, db).attendance.mark({
+      studentId: activeStudentId,
+      date: day('2026-04-30'),
+      status: 'Present',
+    });
+
+    await expect(caller.attendance.resetForDate({ date: day('2026-04-29') })).resolves.toEqual({
+      date: '2026-04-29',
+      deletedCount: 2,
+    });
+
+    expect(attendance).toHaveLength(1);
+    expect(attendance[0]).toMatchObject({ date: day('2026-04-30') });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: attendanceRecorderUser.id,
+        action: 'Delete',
+        entity: 'Attendance',
+        meta: {
+          date: '2026-04-29',
+          deletedCount: 2,
+          source: 'attendance.resetForDate',
+          studentCount: 2,
+        },
+      },
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).attendance.resetForDate({ date: day('2026-04-29') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('attendance.specialAttendance', () => {
+  it('records separate minibus journey registers with one shared destination', async () => {
+    const { db, specialAttendanceRecords, specialAttendanceSessions } = makeFakeDb();
+    const caller = makeCaller(attendanceRecorderUser, db);
+
+    await expect(
+      caller.attendance.saveSpecialSession({
+        date: day('2026-04-29'),
+        register: 'MinibusOutbound',
+        destination: '',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+
+    await expect(
+      caller.attendance.saveSpecialSession({
+        date: day('2026-04-29'),
+        register: 'MinibusOutbound',
+        destination: 'The Cedars',
+      }),
+    ).resolves.toMatchObject({
+      date: '2026-04-29',
+      destination: 'The Cedars',
+      register: 'MinibusOutbound',
+    });
+    await caller.attendance.saveSpecialSession({
+      date: day('2026-04-29'),
+      register: 'MinibusInbound',
+      destination: 'Oasis Learning Centre',
+    });
+
+    await expect(
+      caller.attendance.markSpecial({
+        date: day('2026-04-29'),
+        register: 'MinibusOutbound',
+        studentId: activeStudentId,
+        status: 'Present',
+      }),
+    ).resolves.toMatchObject({
+      register: 'MinibusOutbound',
+      studentId: activeStudentId,
+      status: 'Present',
+    });
+    await caller.attendance.markSpecial({
+      date: day('2026-04-29'),
+      register: 'MinibusInbound',
+      studentId: activeStudentId,
+      status: 'Present',
+    });
+
+    const outbound = await caller.attendance.specialForDate({
+      date: day('2026-04-29'),
+      register: 'MinibusOutbound',
+    });
+
+    expect(outbound.session).toMatchObject({
+      date: '2026-04-29',
+      destination: 'The Cedars',
+      register: 'MinibusOutbound',
+    });
+    expect(outbound.rows).toHaveLength(2);
+    expect(outbound.rows.find((row) => row.studentId === activeStudentId)).toMatchObject({
+      status: 'Present',
+    });
+    expect(outbound.rows.find((row) => row.studentId === secondStudentId)).toMatchObject({
+      status: null,
+    });
+    expect(specialAttendanceSessions).toHaveLength(2);
+    expect(specialAttendanceRecords).toHaveLength(2);
+  });
+
+  it('clears special attendance rows while preserving session metadata', async () => {
+    const { db, specialAttendanceRecords, specialAttendanceSessions } = makeFakeDb();
+    const caller = makeCaller(attendanceRecorderUser, db);
+
+    await caller.attendance.saveSpecialSession({
+      date: day('2026-04-29'),
+      register: 'TheCedars',
+    });
+    await caller.attendance.markSpecial({
+      date: day('2026-04-29'),
+      register: 'TheCedars',
+      studentId: activeStudentId,
+      status: 'Present',
+    });
+
+    await expect(
+      caller.attendance.resetSpecialForDate({
+        date: day('2026-04-29'),
+        register: 'TheCedars',
+      }),
+    ).resolves.toEqual({
+      date: '2026-04-29',
+      deletedCount: 1,
+      register: 'TheCedars',
+    });
+
+    expect(specialAttendanceSessions).toHaveLength(1);
+    expect(specialAttendanceRecords).toHaveLength(0);
+    await expect(
+      makeCaller(supervisorUser, db).attendance.markSpecial({
+        date: day('2026-04-29'),
+        register: 'TheCedars',
+        studentId: activeStudentId,
+        status: 'Present',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 
@@ -1532,9 +1881,11 @@ describe('attendance.studentSummary', () => {
       to: day('2026-04-29'),
     };
 
-    await expect(makeCaller(parentUser, db).attendance.studentSummary(input)).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    });
+    await expect(makeCaller(parentUser, db).attendance.studentSummary(input)).rejects.toMatchObject(
+      {
+        code: 'FORBIDDEN',
+      },
+    );
     await expect(makeCaller(headUser, db).attendance.studentSummary(input)).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -1667,6 +2018,55 @@ describe('attendance.markStaff', () => {
       absenceReasonLabel: null,
     });
     expect(staffAttendance[0]).toMatchObject({ status: 'Present', absenceReason: null });
+  });
+});
+
+describe('attendance.resetStaffForDate', () => {
+  it('clears the selected staff register date for admin operations users only', async () => {
+    const { db, staffAttendance } = makeFakeDb();
+    const caller = makeCaller(headUser, db);
+
+    await caller.attendance.markStaff({
+      staffUserId: supervisorUser.id,
+      date: day('2026-04-29'),
+      status: 'Present',
+    });
+    await caller.attendance.markStaff({
+      staffUserId: attendanceRecorderUser.id,
+      date: day('2026-04-29'),
+      status: 'Late',
+    });
+    await caller.attendance.markStaff({
+      staffUserId: supervisorUser.id,
+      date: day('2026-04-30'),
+      status: 'Present',
+    });
+
+    await expect(caller.attendance.resetStaffForDate({ date: day('2026-04-29') })).resolves.toEqual(
+      {
+        date: '2026-04-29',
+        deletedCount: 2,
+      },
+    );
+
+    expect(staffAttendance).toHaveLength(1);
+    expect(staffAttendance[0]).toMatchObject({ date: day('2026-04-30') });
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Delete',
+        entity: 'StaffAttendance',
+        meta: {
+          date: '2026-04-29',
+          deletedCount: 2,
+          source: 'attendance.resetStaffForDate',
+        },
+      },
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).attendance.resetStaffForDate({ date: day('2026-04-29') }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

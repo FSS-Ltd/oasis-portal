@@ -385,6 +385,7 @@ interface FakeDb {
     findUnique: ReturnType<typeof vi.fn>;
   };
   clubAttendance: {
+    deleteMany: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     upsert: ReturnType<typeof vi.fn>;
   };
@@ -747,6 +748,21 @@ function makeFakeDb(
       }),
     },
     clubAttendance: {
+      deleteMany: vi.fn((args: { where: { clubId: string; sessionDate: Date } }) => {
+        let count = 0;
+        for (let index = attendance.length - 1; index >= 0; index -= 1) {
+          const row = attendance[index];
+          if (
+            row &&
+            row.clubId === args.where.clubId &&
+            row.sessionDate.getTime() === args.where.sessionDate.getTime()
+          ) {
+            attendance.splice(index, 1);
+            count += 1;
+          }
+        }
+        return Promise.resolve({ count });
+      }),
       findMany: vi.fn((args: FakeClubAttendanceFindManyArgs) =>
         Promise.resolve(
           attendance
@@ -2315,6 +2331,66 @@ describe('club attendance for leads', () => {
         status: 'Present',
       }),
     ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('allows assigned leads to reset their club session attendance only', async () => {
+    const sessionDate = new Date('2026-05-12T00:00:00.000Z');
+    const db = makeFakeDb({
+      signups: [
+        makeSignup({
+          id: 'csignup000000000000001',
+          clubId: defaultClubId,
+          studentId: linkedStudentId,
+        }),
+      ],
+      leadAssignments: [
+        {
+          id: 'cleadassign000000000001',
+          assignedById: headUser.id,
+          clubId: defaultClubId,
+          createdAt: new Date('2026-05-11T12:30:00.000Z'),
+          userId: clubsLeadUser.id,
+        },
+      ],
+    });
+    const caller = makeCaller(clubsLeadUser, db).caller;
+
+    await caller.club.markAttendance({
+      clubId: defaultClubId,
+      date: sessionDate,
+      studentId: linkedStudentId,
+      status: 'Present',
+    });
+
+    await expect(
+      caller.club.resetAttendanceForSession({ clubId: defaultClubId, date: sessionDate }),
+    ).resolves.toEqual({
+      clubId: defaultClubId,
+      date: '2026-05-12',
+      deletedCount: 1,
+    });
+    expect(db.attendance).toHaveLength(0);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: clubsLeadUser.id,
+        action: 'Delete',
+        entity: 'ClubAttendance',
+        entityId: defaultClubId,
+        meta: {
+          clubId: defaultClubId,
+          deletedCount: 1,
+          sessionDate: '2026-05-12',
+          source: 'club.resetAttendanceForSession',
+        },
+      },
+    });
+
+    await expect(
+      makeCaller(supervisorUser, db).caller.club.resetAttendanceForSession({
+        clubId: defaultClubId,
+        date: sessionDate,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

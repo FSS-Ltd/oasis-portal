@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, RotateCcw } from 'lucide-react';
 import { canonicalSchoolYear, displaySchoolYearLabel } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
@@ -111,6 +111,7 @@ export function AttendanceCapture({
     { enabled: false, retry: false },
   );
   const markMutation = api.attendance.mark.useMutation();
+  const resetMutation = api.attendance.resetForDate.useMutation();
 
   const bands = showBandFilter ? (bandsQuery.data ?? []) : [];
   const rows = attendanceQuery.data ?? [];
@@ -145,6 +146,20 @@ export function AttendanceCapture({
       }));
     } finally {
       setPendingRows((current) => withoutRecordKey(current, row.studentId));
+    }
+  }
+
+  async function resetRegister() {
+    if (!window.confirm('Reset this student register for the selected date?')) return;
+    try {
+      const result = await resetMutation.mutateAsync({ date });
+      setSelectedStatuses({});
+      setSelectedReasons({});
+      setRowErrors({});
+      showSuccessToast(`Student register reset. ${String(result.deletedCount)} records cleared.`);
+      await utils.attendance.forDate.invalidate({ date });
+    } catch (err) {
+      showErrorToast(err, 'Student register could not be reset.');
     }
   }
 
@@ -348,6 +363,20 @@ export function AttendanceCapture({
           >
             <Download aria-hidden="true" size={16} />
             Export CSV
+          </Button>
+        ) : null}
+        {canRecord ? (
+          <Button
+            disabled={rows.every((row) => row.status === null)}
+            onClick={() => {
+              void resetRegister();
+            }}
+            pending={resetMutation.isPending}
+            type="button"
+            variant="danger"
+          >
+            <RotateCcw aria-hidden="true" size={16} />
+            Reset
           </Button>
         ) : null}
       </div>
