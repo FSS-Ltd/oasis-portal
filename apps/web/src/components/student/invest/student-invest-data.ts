@@ -78,7 +78,8 @@ export const spendWalletBalance = 238;
 export const withdrawFeePct = 5;
 export const capitalGainsTaxPct = 15;
 
-const msDay = 86_400_000;
+export const msDay = 86_400_000;
+const liveHoldingUnitThreshold = 0.000001;
 
 export const rangeOptions: readonly RangeOption[] = [
   { id: '1D', label: '1D', days: 1 },
@@ -493,6 +494,18 @@ export function holdingDayProfitLoss(holding: Holding): number {
   return toMerits(holding.units * (instrument.price - instrument.prevClose));
 }
 
+export function isLiveHolding(holding: Holding): boolean {
+  return holding.units > liveHoldingUnitThreshold;
+}
+
+export function isPositiveHolding(holding: Holding): boolean {
+  return holding.units > 0;
+}
+
+export function percentChange(first: number, last: number): number {
+  return ((last - first) / (first || 1)) * 100;
+}
+
 export function sliceInstrumentSeries(
   instrument: Instrument,
   rangeId: RangeId,
@@ -529,7 +542,7 @@ export function portfolioSeries(
   rangeId: RangeId,
   customRange: CustomRange | null,
 ): ChartSeries {
-  const liveHoldings = holdings.filter((holding) => holding.units > 0.000001);
+  const liveHoldings = holdings.filter(isLiveHolding);
   if (rangeId === '1D' && !customRange) {
     const points = Array.from({ length: 32 }, (_, index) => {
       const gbp = liveHoldings.reduce(

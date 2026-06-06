@@ -707,13 +707,7 @@ function ChildIconPanel({
   );
 }
 
-function AccessPanel({
-  child,
-  disabled,
-}: {
-  child: LinkedChildSettings;
-  disabled: boolean;
-}) {
+function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled: boolean }) {
   const utils = api.useUtils();
   const [lockReason, setLockReason] = useState(child.parentLockReason ?? '');
   const [success, setSuccess] = useState<string | null>(null);
@@ -750,8 +744,7 @@ function AccessPanel({
       parentAccountLocked,
       parentLockReason:
         patch.parentLockReason === undefined ? current.parentLockReason : patch.parentLockReason,
-      parentMeritShopBlocked:
-        patch.parentMeritShopBlocked ?? current.parentMeritShopBlocked,
+      parentMeritShopBlocked: patch.parentMeritShopBlocked ?? current.parentMeritShopBlocked,
       effectiveLock: effectiveStudentPortalLock({
         parentAccountLocked,
         headAcademicLocked: current.headAcademicLocked,
@@ -801,7 +794,7 @@ function AccessPanel({
       patchCachedChild(input.studentId, (current) =>
         optimisticAccessState(current, {
           parentAccountLocked: input.locked,
-          parentLockReason: input.locked ? input.reason ?? null : null,
+          parentLockReason: input.locked ? (input.reason ?? null) : null,
         }),
       );
       return { previousChild };
@@ -1041,10 +1034,7 @@ export function ParentStudentSettingsClient() {
               </p>
             </div>
           </Panel>
-          <AccessPanel
-            child={selectedChild}
-            disabled={controlsDisabled}
-          />
+          <AccessPanel child={selectedChild} disabled={controlsDisabled} />
           {controlsDisabled ? (
             <Panel body className="parent-settings-panel parent-settings-denied">
               <UserCog aria-hidden="true" size={18} />

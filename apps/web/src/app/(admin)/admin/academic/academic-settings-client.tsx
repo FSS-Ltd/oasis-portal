@@ -73,6 +73,14 @@ function parseBandForm(form: BandForm) {
   };
 }
 
+function subjectIsActive(subject: Subject): boolean {
+  return subject.active;
+}
+
+function checkboxCardClass(checked: boolean): string {
+  return ['checkbox-card', checked ? 'is-checked' : undefined].filter(Boolean).join(' ');
+}
+
 export function AcademicSettingsClient() {
   const utils = api.useUtils();
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
@@ -91,12 +99,9 @@ export function AcademicSettingsClient() {
   const bands = useMemo<YearGroupBand[]>(() => bandsQuery.data ?? [], [bandsQuery.data]);
   const subjects = useMemo<Subject[]>(() => subjectsQuery.data ?? [], [subjectsQuery.data]);
 
-  const activeSubjects = useMemo<Subject[]>(
-    () => subjects.filter((subject: Subject) => subject.active),
-    [subjects],
-  );
+  const activeSubjects = useMemo<Subject[]>(() => subjects.filter(subjectIsActive), [subjects]);
   const inactiveSubjects = useMemo<Subject[]>(
-    () => subjects.filter((subject: Subject) => !subject.active),
+    () => subjects.filter((subject) => !subjectIsActive(subject)),
     [subjects],
   );
 
@@ -245,12 +250,7 @@ export function AcademicSettingsClient() {
             <div className="checkbox-grid" aria-label="Band school years">
               {standardSchoolYearOptions.map(({ label, year }) => (
                 <label
-                  className={[
-                    'checkbox-card',
-                    bandForm.standardYears.includes(year) ? 'is-checked' : undefined,
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
+                  className={checkboxCardClass(bandForm.standardYears.includes(year))}
                   key={year}
                 >
                   <input
@@ -346,12 +346,9 @@ export function AcademicSettingsClient() {
                     <div className="checkbox-grid" aria-label={`${band.name} school years`}>
                       {standardSchoolYearOptions.map(({ label, year }) => (
                         <label
-                          className={[
-                            'checkbox-card',
-                            editingBandForm.standardYears.includes(year) ? 'is-checked' : undefined,
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
+                          className={checkboxCardClass(
+                            editingBandForm.standardYears.includes(year),
+                          )}
                           key={year}
                         >
                           <input

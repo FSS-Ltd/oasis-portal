@@ -47,6 +47,10 @@ function isAdultUserAccountRole(value: string): value is AdultUserAccountRole {
   return ADULT_USER_ACCOUNT_ROLES.some((role) => role === value);
 }
 
+function canChangeUserRole(currentUserRole: Role, isSelf: boolean): boolean {
+  return currentUserRole === 'Head' && !isSelf;
+}
+
 export function UserProfilePanel({
   currentUserId,
   currentUserRole,
@@ -100,7 +104,7 @@ export function UserProfilePanel({
     },
   });
   const isSelf = user.id === currentUserId;
-  const canChangeRole = currentUserRole === 'Head' && !isSelf;
+  const canChangeRole = canChangeUserRole(currentUserRole, isSelf);
   const visibleTabs = userTabs[kind].filter(
     (tab) => tab.id !== 'children' || canShowChildrenTab(kind, user.children.length),
   );

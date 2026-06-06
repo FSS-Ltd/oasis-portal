@@ -36,6 +36,20 @@ function emptyPhysicalForm(slipId: string, studentId: string): PhysicalFormState
   return { emergencyContact: '', medicalInfo: '', parentName: '', slipId, studentId };
 }
 
+function matchesAdminSlipView(
+  slip: AdminPermissionSlip,
+  tab: TabId,
+  normalizedSearch: string,
+): boolean {
+  if (tab === 'active' && slip.inactive) return false;
+  if (tab === 'inactive' && !slip.inactive) return false;
+  if (!normalizedSearch) return true;
+  return (
+    slip.title.toLowerCase().includes(normalizedSearch) ||
+    slip.recipientLabel.toLowerCase().includes(normalizedSearch)
+  );
+}
+
 function AdminSlipCard({ onOpen, slip }: { onOpen: () => void; slip: AdminPermissionSlip }) {
   return (
     <article className="permission-slip-card">
@@ -411,15 +425,7 @@ export function AdminPermissionSlipsClient() {
   const selectedSlip = slips.find((slip) => slip.id === selectedSlipId) ?? null;
   const filteredSlips = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-    return slips.filter((slip) => {
-      if (tab === 'active' && slip.inactive) return false;
-      if (tab === 'inactive' && !slip.inactive) return false;
-      if (!normalizedSearch) return true;
-      return (
-        slip.title.toLowerCase().includes(normalizedSearch) ||
-        slip.recipientLabel.toLowerCase().includes(normalizedSearch)
-      );
-    });
+    return slips.filter((slip) => matchesAdminSlipView(slip, tab, normalizedSearch));
   }, [search, slips, tab]);
 
   if (selectedSlip) {
