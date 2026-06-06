@@ -33,6 +33,8 @@ const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
   { id: 'shop', label: 'Shop', icon: 'shop' },
 ];
 
+const todayFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' });
+
 function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
 }
@@ -95,6 +97,14 @@ function completedPaces(pace: PaceDetail | undefined): number {
   return (pace?.subjects ?? []).reduce((sum, subject) => sum + subject.completedPaceCount, 0);
 }
 
+function firstUsageLimitMessage(messages: Array<string | undefined>): string | null {
+  return (
+    messages.find((message): message is string =>
+      Boolean(message && (isUsageLimitMessage(message) || isOffLimitDayMessage(message))),
+    ) ?? null
+  );
+}
+
 function StudentHomePanel({
   balances,
   loading,
@@ -148,9 +158,7 @@ function StudentHomePanel({
             {pace ? `${String(pace.today.testCount)} PACE tests` : 'Loading'}
           </Badge>
         </View>
-        <MutedText>
-          {new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(new Date())}
-        </MutedText>
+        <MutedText>{todayFormatter.format(new Date())}</MutedText>
       </Card>
     </View>
   );
@@ -251,7 +259,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     studentFriendlyErrorMessage(leaderboard.error?.message) ?? undefined,
     studentFriendlyErrorMessage(shopItems.error?.message) ?? undefined,
   );
-  const rawUsageLimitMessage = [
+  const rawUsageLimitMessage = firstUsageLimitMessage([
     student.error?.message,
     heartbeat.error?.message,
     balances.error?.message,
@@ -261,9 +269,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     pace.error?.message,
     leaderboard.error?.message,
     shopItems.error?.message,
-  ].find((message): message is string =>
-    Boolean(message && (isUsageLimitMessage(message) || isOffLimitDayMessage(message))),
-  );
+  ]);
   const usageLimitMessage = usageLimitNotice ?? studentFriendlyErrorMessage(rawUsageLimitMessage);
 
   useEffect(() => {

@@ -14,6 +14,9 @@ import {
   historyDays,
   instrumentForTicker,
   instruments,
+  isPositiveHolding,
+  msDay,
+  percentChange,
   riskBand,
   sliceInstrumentSeries,
   today,
@@ -60,9 +63,7 @@ export function InvestmentMarket({ holdings, onOpenStock }: MarketProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MarketFilter>('All');
   const [sort, setSort] = useState<MarketSort>('largest');
-  const heldTickers = new Set(
-    holdings.filter((holding) => holding.units > 0).map((holding) => holding.ticker),
-  );
+  const heldTickers = new Set(holdings.filter(isPositiveHolding).map((holding) => holding.ticker));
   const filteredInstruments = useMemo(() => {
     return instruments
       .filter((instrument) => {
@@ -244,12 +245,12 @@ export function InvestmentStockDetail({
   const [showCustom, setShowCustom] = useState(false);
   const [mobileTradeOpen, setMobileTradeOpen] = useState(false);
   const series = sliceInstrumentSeries(instrument, range, customRange);
-  const rangePct = ((series.last - series.first) / (series.first || 1)) * 100;
+  const rangePct = percentChange(series.first, series.last);
   const recent = instrument.daily.slice(-30);
   const low = Math.min(...recent);
   const high = Math.max(...recent);
   const risk = riskBand(instrument.volatility);
-  const minDate = formatDateInput(new Date(today.getTime() - (historyDays - 1) * 86_400_000));
+  const minDate = formatDateInput(new Date(today.getTime() - (historyDays - 1) * msDay));
   const maxDate = formatDateInput(today);
   const tradePanel = (
     <TradePanel

@@ -55,22 +55,25 @@ const threadKindByMode: Record<MessageMode, ThreadKind | null> = {
   supervisor: 'StaffDirect',
 };
 
+const messageDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'short',
+});
+
 function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
+  return messageDateTimeFormatter.format(new Date(value));
+}
+
+function otherStaffParticipant(thread: ThreadSummary | ThreadDetail) {
+  return thread.participants.find((participant) => participant.id !== thread.currentUserId);
 }
 
 function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
   if (thread.kind === 'Staffroom') return 'Staffroom';
   if (thread.kind === 'StaffDirect') {
-    return (
-      thread.participants.find((participant) => participant.id !== thread.currentUserId)
-        ?.fullName ?? 'Staff member'
-    );
+    return otherStaffParticipant(thread)?.fullName ?? 'Staff member';
   }
   if (mode === 'parent' || mode === 'supervisor') return thread.admin?.fullName ?? 'Staff member';
   return thread.kind === 'SupervisorHead'
@@ -81,10 +84,7 @@ function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetai
 function counterpartRole(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
   if (thread.kind === 'Staffroom') return 'Group chat';
   if (thread.kind === 'StaffDirect') {
-    return (
-      thread.participants.find((participant) => participant.id !== thread.currentUserId)?.role ??
-      'Staff'
-    );
+    return otherStaffParticipant(thread)?.role ?? 'Staff';
   }
   if (mode === 'parent' || mode === 'supervisor') return thread.admin?.role ?? 'Staff';
   return thread.kind === 'SupervisorHead' ? 'Supervisor' : 'Parent';
@@ -415,7 +415,14 @@ export function MessageCentre({ mode }: MessageCentreProps) {
         void utils.message.listThreads.invalidate();
       },
     });
-  }, [mode, openStaffroom, staffroomRequested, threads, threadsQuery.isLoading, utils.message.listThreads]);
+  }, [
+    mode,
+    openStaffroom,
+    staffroomRequested,
+    threads,
+    threadsQuery.isLoading,
+    utils.message.listThreads,
+  ]);
 
   useEffect(() => {
     if (!selectedThread) return;

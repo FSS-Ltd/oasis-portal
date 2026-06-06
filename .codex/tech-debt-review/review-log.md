@@ -282,3 +282,52 @@
 ### Follow-Ups Deferred
 - Larger API router and RBAC/domain module splits remain warranted, but were deferred because they would require broader permission and integration review.
 - The dirty main checkout on `feat/student-portal-card` still contains unrelated student portal/tithe/savings work, so this run used isolated worktree `/private/tmp/oasis-daily-tech-debt-2026-06-05`.
+
+## 2026-06-06 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/parent/parent-student-settings-client.tsx`
+2. `apps/web/src/app/landing-page.tsx`
+3. `apps/web/src/components/student/invest/student-invest-data.ts`
+4. `apps/web/src/components/student/invest/student-invest-overview.tsx`
+5. `apps/web/src/app/(admin)/admin/academic/academic-settings-client.tsx`
+6. `apps/web/src/components/messages/message-centre.tsx`
+7. `apps/web/src/components/permission-slips/admin-permission-slips-client.tsx`
+8. `apps/web/src/components/student/invest/student-invest-market.tsx`
+9. `apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx`
+10. `apps/web/src/app/(admin)/admin/staff/_components/user-profile-panel.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck` and `pnpm --filter @oasis/mobile typecheck` passed before edits.
+- Tests: not run at baseline; selected files are UI/helper maintenance without focused unit tests.
+
+### Changes Made
+- `apps/web/src/components/parent/parent-student-settings-client.tsx`: Formatted selected file to satisfy Prettier without changing behaviour.
+- `apps/web/src/app/landing-page.tsx`: Cached landing page event day/month formatters instead of constructing Intl formatters per call.
+- `apps/web/src/components/student/invest/student-invest-data.ts`: Named investment day-millisecond, live-holding, positive-holding, and percent-change helpers. Reused the live-holding helper inside portfolio series generation.
+- `apps/web/src/components/student/invest/student-invest-overview.tsx`: Reused shared live-holding and percent-change helpers in overview and portfolio calculations.
+- `apps/web/src/app/(admin)/admin/academic/academic-settings-client.tsx`: Extracted subject activity and checkbox-card class helpers.
+- `apps/web/src/components/messages/message-centre.tsx`: Cached message date-time formatter. Extracted staff counterpart lookup used by label and role helpers.
+- `apps/web/src/components/permission-slips/admin-permission-slips-client.tsx`: Extracted admin permission-slip filtering into a named local predicate.
+- `apps/web/src/components/student/invest/student-invest-market.tsx`: Reused shared positive-holding, percent-change, and day-millisecond helpers.
+- `apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx`: Cached Today date formatter. Extracted usage-limit message selection into a named helper.
+- `apps/web/src/app/(admin)/admin/staff/_components/user-profile-panel.tsx`: Extracted Head/self role-change guard into a named helper.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/mobile lint`
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/mobile typecheck`
+- relevant tests: not run; no focused unit tests exist for these UI/helper-only refactors.
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff whitespace: pass, `git diff --check`
+- graph update: pass, `graphify update .` regenerated graph output but left no graph artifacts changed in git status.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger UI splits remain warranted for the selected oversized screens, but were deferred to avoid broader workflow and visual-regression risk.

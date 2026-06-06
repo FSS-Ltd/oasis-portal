@@ -16,7 +16,9 @@ import {
   holdingsCostMerits,
   holdingsValueMerits,
   instrumentForTicker,
+  isLiveHolding,
   netWorthMerits,
+  percentChange,
   portfolioSeries,
   today,
   toGbp,
@@ -70,7 +72,7 @@ export function InvestmentOverview({
   onOpenStock,
 }: OverviewProps) {
   const [range, setRange] = useState<RangeId>(defaultRange);
-  const liveHoldings = holdings.filter((holding) => holding.units > 0.000001);
+  const liveHoldings = holdings.filter(isLiveHolding);
   const netWorth = netWorthMerits(liveHoldings, cashMerits);
   const invested = holdingsValueMerits(liveHoldings);
   const cost = holdingsCostMerits(liveHoldings);
@@ -83,9 +85,9 @@ export function InvestmentOverview({
   const dayPct = (dayProfitLoss / (netWorth - dayProfitLoss || 1)) * 100;
   const weekSeries = portfolioSeries(liveHoldings, cashMerits, '1W', null);
   const weekDelta = weekSeries.last - weekSeries.first;
-  const weekPct = (weekDelta / (weekSeries.first || 1)) * 100;
+  const weekPct = percentChange(weekSeries.first, weekSeries.last);
   const series = portfolioSeries(liveHoldings, cashMerits, range, null);
-  const rangePct = ((series.last - series.first) / (series.first || 1)) * 100;
+  const rangePct = percentChange(series.first, series.last);
   const movers = liveHoldings
     .map((holding) => instrumentForTicker(holding.ticker))
     .sort((left, right) => right.dayChangePct - left.dayChangePct);
@@ -262,11 +264,11 @@ export function InvestmentPortfolio({
   const [range, setRange] = useState<RangeId>(defaultRange === '1D' ? '1M' : defaultRange);
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [showCustom, setShowCustom] = useState(false);
-  const liveHoldings = holdings.filter((holding) => holding.units > 0.000001);
+  const liveHoldings = holdings.filter(isLiveHolding);
   const netWorth = netWorthMerits(liveHoldings, cashMerits);
   const series = portfolioSeries(liveHoldings, cashMerits, range, customRange);
   const rangeDelta = series.last - series.first;
-  const rangePct = (rangeDelta / (series.first || 1)) * 100;
+  const rangePct = percentChange(series.first, series.last);
   const rows = useAllocationRows(liveHoldings);
   const minDate = formatDateInput(dayDate(0));
   const maxDate = formatDateInput(today);

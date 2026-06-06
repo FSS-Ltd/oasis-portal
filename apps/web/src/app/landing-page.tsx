@@ -220,16 +220,25 @@ const trustItems: TrustContent[] = [
   },
 ];
 
+const eventDayFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  timeZone: 'UTC',
+});
+const eventMonthFormatter = new Intl.DateTimeFormat('en-GB', {
+  month: 'short',
+  timeZone: 'UTC',
+});
+
 function formatYearFromTermId(id: string): string {
   return id.slice(0, 4);
 }
 
 function formatEventDay(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', timeZone: 'UTC' }).format(date);
+  return eventDayFormatter.format(date);
 }
 
 function formatEventMonth(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(date);
+  return eventMonthFormatter.format(date);
 }
 
 function formatAttendanceValue(rate: number | null): string {

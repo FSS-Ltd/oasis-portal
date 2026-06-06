@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-05",
+  "lastRunDate": "2026-06-06",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -621,6 +621,129 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as unreviewed domain tithe helper."
+    },
+    "apps/web/src/components/parent/parent-student-settings-client.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1064,
+      "lineCountAfter": 1053,
+      "issuesFixed": [
+        "Formatted selected file to satisfy Prettier without changing behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent settings UI; no logic changes made."
+    },
+    "apps/web/src/app/landing-page.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 671,
+      "lineCountAfter": 679,
+      "issuesFixed": [
+        "Cached landing page event day/month formatters instead of constructing Intl formatters per call."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized landing surface; visual output preserved."
+    },
+    "apps/web/src/components/student/invest/student-invest-data.ts": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 661,
+      "lineCountAfter": 673,
+      "issuesFixed": [
+        "Named investment day-millisecond, live-holding, positive-holding, and percent-change helpers.",
+        "Reused the live-holding helper inside portfolio series generation."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized student investment data/helper module."
+    },
+    "apps/web/src/components/student/invest/student-invest-overview.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 598,
+      "lineCountAfter": 599,
+      "issuesFixed": [
+        "Reused shared live-holding and percent-change helpers in overview and portfolio calculations."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized student investment overview UI; displayed values preserved."
+    },
+    "apps/web/src/app/(admin)/admin/academic/academic-settings-client.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 586,
+      "lineCountAfter": 582,
+      "issuesFixed": [
+        "Extracted subject activity and checkbox-card class helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized academic settings client; form behavior preserved."
+    },
+    "apps/web/src/components/messages/message-centre.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 554,
+      "lineCountAfter": 560,
+      "issuesFixed": [
+        "Cached message date-time formatter.",
+        "Extracted staff counterpart lookup used by label and role helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized message centre UI; message semantics preserved."
+    },
+    "apps/web/src/components/permission-slips/admin-permission-slips-client.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 540,
+      "lineCountAfter": 545,
+      "issuesFixed": [
+        "Extracted admin permission-slip filtering into a named local predicate."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized permission slips client; list filtering behavior preserved."
+    },
+    "apps/web/src/components/student/invest/student-invest-market.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 511,
+      "lineCountAfter": 511,
+      "issuesFixed": [
+        "Reused shared positive-holding, percent-change, and day-millisecond helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized student investment market UI; sorting and display preserved."
+    },
+    "apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 508,
+      "lineCountAfter": 513,
+      "issuesFixed": [
+        "Cached Today date formatter.",
+        "Extracted usage-limit message selection into a named helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile student portal smoke screen; query/error behavior preserved."
+    },
+    "apps/web/src/app/(admin)/admin/staff/_components/user-profile-panel.tsx": {
+      "lastReviewedAt": "2026-06-06",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 499,
+      "lineCountAfter": 502,
+      "issuesFixed": [
+        "Extracted Head/self role-change guard into a named helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized staff profile panel; role semantics preserved."
     }
   },
   "deferredFiles": {},
