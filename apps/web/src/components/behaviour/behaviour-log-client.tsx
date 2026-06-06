@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { BarChart3, Edit3, Lock, Plus, Trash2 } from 'lucide-react';
-import { displaySchoolYearLabel } from '@oasis/domain';
+import {
+  demeritPolicyStageLabel,
+  displaySchoolYearLabel,
+  type DemeritPolicyStage,
+} from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -26,7 +30,9 @@ type BehaviourVisibility = 'General' | 'Sensitive';
 export type BehaviourSensitiveMode = 'none' | 'demerit-only' | 'all';
 type TrendBucket = 'daily' | 'weekly' | 'monthly';
 type EntryMode = 'single' | 'batch';
+type ManualStage = 1 | 2 | 3 | 4 | 5;
 type RecentBehaviourEntry = RouterOutputs['behaviour']['recentEntries']['entries'][number];
+const manualStageOptions: ManualStage[] = [1, 2, 3, 4, 5];
 
 interface BatchEntryForm {
   id: string;
@@ -98,6 +104,15 @@ function studentCountLabel(count: number): string {
   return `${String(count)} ${count === 1 ? 'student' : 'students'}`;
 }
 
+function manualStageFromValue(value: string): ManualStage | null {
+  if (value === '1') return 1;
+  if (value === '2') return 2;
+  if (value === '3') return 3;
+  if (value === '4') return 4;
+  if (value === '5') return 5;
+  return null;
+}
+
 function singleEntrySuccessMessage(type: BehaviourType, studentCount: number): string {
   if (type === 'Merit') return `Merit recorded for ${studentCountLabel(studentCount)}.`;
   if (type === 'Demerit') return `Demerit recorded for ${studentCountLabel(studentCount)}.`;
@@ -135,7 +150,9 @@ export function BehaviourLogClient({
   const [category, setCategory] = useState<string>(meritCategories[0]);
   const [note, setNote] = useState('');
   const [visibility, setVisibility] = useState<BehaviourVisibility>('General');
-  const [amount, setAmount] = useState('5');
+  const [amount, setAmount] = useState('1');
+  const [manualStage, setManualStage] = useState('4');
+  const [manualStageNote, setManualStageNote] = useState('');
   const [date, setDate] = useState(dateKey(new Date()));
   const [editingEntry, setEditingEntry] = useState<EditingEntryForm | null>(null);
   const [deleteEntry, setDeleteEntry] = useState<RecentBehaviourEntry | null>(null);
@@ -214,6 +231,21 @@ export function BehaviourLogClient({
       showErrorToast(error, 'Behaviour entry could not be deleted.');
     },
   });
+  const escalateDemeritStage = api.behaviour.escalateDemeritStage.useMutation({
+    onSuccess: async (_result, input) => {
+      showSuccessToast(
+        `Demerit stage escalated for ${studentCountLabel(input.studentIds.length)}.`,
+      );
+      setManualStageNote('');
+      await Promise.all([
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date: selectedDateValue }),
+        utils.childLog.supervisorNotesHistory.invalidate(),
+      ]);
+    },
+    onError: (error) => {
+      showErrorToast(error, 'Demerit stage could not be escalated.');
+    },
+  });
 
   const categories = categoriesFor(type);
   const batchCategories = categoriesFor(batchType);
@@ -238,9 +270,14 @@ export function BehaviourLogClient({
   const singleDemeritPreview = useMemo(
     () =>
       type === 'Demerit'
-        ? previewSingleDemeritStage(studentIds, demeritStatusQuery.statusByStudentId, category)
+        ? previewSingleDemeritStage(
+            studentIds,
+            demeritStatusQuery.statusByStudentId,
+            category,
+            amount,
+          )
         : null,
-    [category, demeritStatusQuery.statusByStudentId, studentIds, type],
+    [amount, category, demeritStatusQuery.statusByStudentId, studentIds, type],
   );
   const batchDemeritPreview = useMemo(
     () =>
@@ -269,6 +306,13 @@ export function BehaviourLogClient({
     }
   }, [sensitiveMode, type, visibility]);
 
+  const selectedHighestStage = studentIds.reduce<DemeritPolicyStage>((stage, studentId) => {
+    const status = demeritStatusQuery.statusByStudentId.get(studentId);
+    const nextStage = status?.stage ?? 0;
+    return nextStage > stage ? nextStage : stage;
+  }, 0);
+  const selectedManualStage = manualStageFromValue(manualStage);
+
   function chooseVisibility(next: BehaviourVisibility): void {
     if (next === 'Sensitive' && !canUseSensitiveMode(sensitiveMode, type)) return;
     setVisibility(next);
@@ -288,7 +332,7 @@ export function BehaviourLogClient({
         category,
         note: note.trim() ? note : undefined,
         visibility,
-        ...(type === 'Merit' ? { amount: Number(amount) } : {}),
+        ...(type === 'Merit' || type === 'Demerit' ? { amount: Number(amount) } : {}),
       });
     } catch {
       // Mutation onError shows the friendly notification.
@@ -306,7 +350,7 @@ export function BehaviourLogClient({
           category: entry.category,
           note: entry.note.trim() ? entry.note : undefined,
           count: Number(entry.count),
-          ...(batchType === 'Merit' ? { amount: Number(entry.amount) } : {}),
+          amount: Number(entry.amount),
         })),
       });
     } catch {
@@ -342,7 +386,25 @@ export function BehaviourLogClient({
         category: editingEntry.category,
         note: editingEntry.note.trim() ? editingEntry.note : null,
         visibility: editingEntry.visibility,
-        ...(editingEntry.type === 'Merit' ? { amount: Number(editingEntry.amount) } : {}),
+        ...(editingEntry.type === 'Merit' || editingEntry.type === 'Demerit'
+          ? { amount: Number(editingEntry.amount) }
+          : {}),
+      });
+    } catch {
+      // Mutation onError shows the friendly notification.
+    }
+  }
+
+  async function submitManualStage(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (!canManageEntries || studentIds.length === 0) return;
+    if (selectedManualStage === null) return;
+    try {
+      await escalateDemeritStage.mutateAsync({
+        studentIds,
+        date: selectedDateValue,
+        stage: selectedManualStage,
+        note: manualStageNote.trim() ? manualStageNote : null,
       });
     } catch {
       // Mutation onError shows the friendly notification.
@@ -377,6 +439,62 @@ export function BehaviourLogClient({
               </button>
             ))}
           </div>
+          {canManageEntries ? (
+            <form
+              className="behaviour-stage-escalation"
+              onSubmit={(event) => {
+                void submitManualStage(event);
+              }}
+            >
+              <Field
+                hint={`Current selected stage ceiling: ${demeritPolicyStageLabel(
+                  selectedHighestStage,
+                )}`}
+                label="Manual stage escalation"
+              >
+                <SelectInput
+                  aria-label="Manual stage escalation"
+                  onChange={(event) => {
+                    setManualStage(event.target.value);
+                  }}
+                  value={manualStage}
+                >
+                  {manualStageOptions.map((stage) => (
+                    <option key={stage} value={String(stage)}>
+                      {demeritPolicyStageLabel(stage)}
+                    </option>
+                  ))}
+                </SelectInput>
+              </Field>
+              <Field label="Escalation note">
+                <textarea
+                  aria-label="Escalation note"
+                  className="input textarea"
+                  maxLength={2000}
+                  onChange={(event) => {
+                    setManualStageNote(event.target.value);
+                  }}
+                  rows={2}
+                  value={manualStageNote}
+                />
+              </Field>
+              <Button
+                disabled={
+                  selectedStudentCount === 0 ||
+                  selectedManualStage === null ||
+                  selectedManualStage <= selectedHighestStage
+                }
+                pending={escalateDemeritStage.isPending}
+                type="submit"
+                variant="secondary"
+              >
+                Escalate stage
+              </Button>
+              {escalateDemeritStage.error ? (
+                <p className="status--error">{friendlyErrorMessage(escalateDemeritStage.error)}</p>
+              ) : null}
+            </form>
+          ) : null}
           {entryMode === 'single' ? (
             <form
               className="behaviour-log-form"
@@ -399,7 +517,7 @@ export function BehaviourLogClient({
                         );
                       }
                       if (item === 'Demerit') {
-                        setAmount('5');
+                        setAmount('1');
                         setVisibility(
                           canUseSensitiveMode(sensitiveMode, item) ? 'Sensitive' : 'General',
                         );
@@ -496,10 +614,10 @@ export function BehaviourLogClient({
                 </p>
               ) : null}
 
-              {type === 'Merit' ? (
-                <Field label="Merit amount">
+              {type === 'Merit' || type === 'Demerit' ? (
+                <Field label={type === 'Merit' ? 'Merit amount' : 'Demerit value'}>
                   <TextInput
-                    aria-label="Merit amount"
+                    aria-label={type === 'Merit' ? 'Merit amount' : 'Demerit value'}
                     disabled={!canLogBehaviour}
                     min={1}
                     onChange={(event) => {
@@ -525,7 +643,7 @@ export function BehaviourLogClient({
                 {type === 'Merit'
                   ? `Record +${amount || '0'} Merit`
                   : type === 'Demerit'
-                    ? 'Record Demerit'
+                    ? `Record -${amount || '0'} Demerit`
                     : 'Record General mark'}
               </Button>
               {studentsQuery.error ? (
@@ -589,21 +707,21 @@ export function BehaviourLogClient({
                       ))}
                     </SelectInput>
                   </Field>
-                  {batchType === 'Merit' ? (
-                    <Field label={`Entry ${String(index + 1)} amount`}>
-                      <TextInput
-                        aria-label={`Entry ${String(index + 1)} merit amount`}
-                        disabled={!canLogBehaviour}
-                        min={1}
-                        onChange={(event) => {
-                          setBatchEntry(entry.id, { amount: event.target.value });
-                        }}
-                        required
-                        type="number"
-                        value={entry.amount}
-                      />
-                    </Field>
-                  ) : null}
+                  <Field label={`Entry ${String(index + 1)} amount`}>
+                    <TextInput
+                      aria-label={`Entry ${String(index + 1)} ${
+                        batchType === 'Merit' ? 'merit amount' : 'demerit value'
+                      }`}
+                      disabled={!canLogBehaviour}
+                      min={1}
+                      onChange={(event) => {
+                        setBatchEntry(entry.id, { amount: event.target.value });
+                      }}
+                      required
+                      type="number"
+                      value={entry.amount}
+                    />
+                  </Field>
                   <Field label={`Entry ${String(index + 1)} quantity`}>
                     <TextInput
                       aria-label={`Entry ${String(index + 1)} quantity`}

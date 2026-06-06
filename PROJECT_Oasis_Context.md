@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-05
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 8 Twelve Data stock and ETF planning.
+**Phase:** Behaviour demerit stage escalation.
 
 ---
 
@@ -28,6 +28,59 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-05 Demerit stage escalation
+
+Working branch: `fix/demerit-stage-escalation`.
+
+**PR scope:** Rework daily demerit stage calculation so selected demerit values
+drive stages 1-3, counts above 6 flag Head review, and Heads can manually
+escalate a student's daily stage independent of the count.
+
+Completed:
+
+- Changed demerit policy units to use the stored selected demerit value.
+- Updated automatic stage thresholds to 1-2 = Stage 1, 3-4 = Stage 2, 5-6 =
+  Stage 3, and more than 6 = Head review without automatic Stage 4/5.
+- Added daily `DemeritStageOverride` persistence with RLS so manual Head
+  escalations do not falsify the actual demerit count.
+- Added Head-only `behaviour.escalateDemeritStage` API support.
+- Merged manual stages into daily demerit badges and student drill-through
+  discipline status.
+- Added selected demerit value controls to admin and supervisor behaviour forms,
+  including batch entry.
+- Updated focused domain and behaviour router regression tests.
+- Regenerated the graph and component relationship map.
+
+Verification:
+
+- `pnpm db:generate`
+- `pnpm --filter @oasis/domain exec vitest run src/__tests__/demeritPolicy.test.ts`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/behaviour.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm exec prettier --check` on changed TypeScript, TSX, and CSS files.
+- `git diff --check`
+- `pnpm db:migrate`
+- `pnpm with-env pnpm --filter @oasis/db exec prisma migrate status`
+- `pnpm --filter @oasis/web build`
+- `graphify update .`
+- `pnpm docs:component-map`
+
+Notes:
+
+- `pnpm db:migrate` and `prisma migrate status` needed elevated execution for
+  Prisma schema-engine access to the configured local `oasis_dev` database.
+- Prisma and SQL files were checked through Prisma generation, formatting,
+  migration application, RLS application, and migration status rather than
+  Prettier, because this repo's Prettier configuration does not infer parsers
+  for those file types.
 
 ## Current session - 2026-06-05 Twelve Data stock and ETF planning
 

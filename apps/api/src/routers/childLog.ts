@@ -14,6 +14,7 @@ import {
   isFullAdmin,
   isOasisOperatingDay,
   isStaff,
+  type DemeritPolicyStage,
   type Role,
   type SessionUser,
 } from '@oasis/domain';
@@ -30,6 +31,11 @@ import { localDayBounds } from '../lib/local-day.js';
 import { authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
+
+function parseDemeritPolicyStage(value: number): DemeritPolicyStage | null {
+  if (value === 1 || value === 2 || value === 3 || value === 4 || value === 5) return value;
+  return null;
+}
 
 const DRILLTHROUGH_MERIT_ACCOUNTS = [
   'Spend',
@@ -806,80 +812,73 @@ export const childLogRouter = router({
       return { children: [], range: { from: dateKey(from), to: todayKey } };
     }
 
-    const [
-      attendance,
-      paceTests,
-      behaviour,
-      notes,
-      meritBalances,
-      policy,
-      halfTermEvents,
-    ] = await Promise.all([
-      ctx.db.attendance.findMany({
-        where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
-        select: { id: true, studentId: true, date: true, status: true, createdAt: true },
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.db.paceRecord.findMany({
-        where: {
-          studentId: { in: studentIds },
-          completedAt: { gte: from, lt: to },
-          OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
-        },
-        include: { subject: { select: { id: true, code: true, name: true } } },
-        orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
-      }),
-      ctx.withRls((tx) =>
-        tx.behaviourEntry.findMany({
+    const [attendance, paceTests, behaviour, notes, meritBalances, policy, halfTermEvents] =
+      await Promise.all([
+        ctx.db.attendance.findMany({
+          where: { studentId: { in: studentIds }, date: { gte: from, lt: to } },
+          select: { id: true, studentId: true, date: true, status: true, createdAt: true },
+          orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.db.paceRecord.findMany({
+          where: {
+            studentId: { in: studentIds },
+            completedAt: { gte: from, lt: to },
+            OR: [{ paceTestScore: { not: null } }, { selfTestScore: { not: null } }],
+          },
+          include: { subject: { select: { id: true, code: true, name: true } } },
+          orderBy: [{ completedAt: 'desc' }, { createdAt: 'desc' }],
+        }),
+        ctx.withRls((tx) =>
+          tx.behaviourEntry.findMany({
+            where: {
+              studentId: { in: studentIds },
+              createdAt: { gte: from, lt: to },
+              deletedAt: null,
+              visibility: 'General',
+            },
+            select: {
+              id: true,
+              studentId: true,
+              type: true,
+              category: true,
+              noteEnc: true,
+              meritDelta: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+        ),
+        ctx.db.childNote.findMany({
           where: {
             studentId: { in: studentIds },
             createdAt: { gte: from, lt: to },
             deletedAt: null,
-            visibility: 'General',
+            sensitive: false,
           },
-          select: {
-            id: true,
-            studentId: true,
-            type: true,
-            category: true,
-            noteEnc: true,
-            meritDelta: true,
-            createdAt: true,
-          },
+          select: { id: true, studentId: true, noteEnc: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
         }),
-      ),
-      ctx.db.childNote.findMany({
-        where: {
-          studentId: { in: studentIds },
-          createdAt: { gte: from, lt: to },
-          deletedAt: null,
-          sensitive: false,
-        },
-        select: { id: true, studentId: true, noteEnc: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      }),
-      ctx.db.meritLedger.groupBy({
-        by: ['studentId', 'account'],
-        where: {
-          studentId: { in: studentIds },
-          account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
-        },
-        _sum: { delta: true },
-      }),
-      ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
-      ctx.db.calendarEvent.findMany({
-        where: {
-          active: true,
-          audience: { in: ['All', 'Parents'] },
-          category: 'HalfTerm',
-          startDate: { lte: today },
-          endDate: { gte: today },
-        },
-        select: { id: true },
-        take: 1,
-      }),
-    ]);
+        ctx.db.meritLedger.groupBy({
+          by: ['studentId', 'account'],
+          where: {
+            studentId: { in: studentIds },
+            account: { in: [...DRILLTHROUGH_MERIT_ACCOUNTS] },
+          },
+          _sum: { delta: true },
+        }),
+        ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+        ctx.db.calendarEvent.findMany({
+          where: {
+            active: true,
+            audience: { in: ['All', 'Parents'] },
+            category: 'HalfTerm',
+            startDate: { lte: today },
+            endDate: { gte: today },
+          },
+          select: { id: true },
+          take: 1,
+        }),
+      ]);
 
     const hasHalfTermToday = halfTermEvents.length > 0;
     const passThreshold = policy?.passThreshold ?? 80;
@@ -1089,6 +1088,17 @@ export const childLogRouter = router({
           entry.createdAt >= disciplineDay.from &&
           entry.createdAt < disciplineDay.to,
       );
+      const disciplineStageOverride = await ctx.withRls((tx) =>
+        tx.demeritStageOverride.findUnique({
+          where: {
+            studentId_day: {
+              studentId: input.studentId,
+              day: disciplineDay.key,
+            },
+          },
+          select: { stage: true },
+        }),
+      );
       const sensitiveBehaviourCount = behaviour.filter(
         (entry) => entry.visibility === 'Sensitive',
       ).length;
@@ -1163,7 +1173,10 @@ export const childLogRouter = router({
         },
         discipline: {
           date: disciplineDay.key,
-          status: demeritPolicyStatusForEntries(disciplineDemerits),
+          status: demeritPolicyStatusForEntries(
+            disciplineDemerits,
+            disciplineStageOverride ? parseDemeritPolicyStage(disciplineStageOverride.stage) : null,
+          ),
           demerits: disciplineDemerits.map((entry) => ({
             id: entry.id,
             category: entry.category,

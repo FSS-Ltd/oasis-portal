@@ -9345,6 +9345,14 @@ button.club-assignment-row {
   font-weight: 700;
 }
 
+.behaviour-stage-escalation {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--oasis-border);
+  border-bottom: 1px solid var(--oasis-border);
+}
+
 .behaviour-stage-preview {
   display: grid;
   gap: 4px;

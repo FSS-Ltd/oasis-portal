@@ -15,21 +15,16 @@ describe('demeritPolicyStageForUnits', () => {
     expect(demeritPolicyStageForUnits(1)).toBe(1);
     expect(demeritPolicyStageForUnits(3)).toBe(2);
     expect(demeritPolicyStageForUnits(5)).toBe(3);
-    expect(demeritPolicyStageForUnits(7)).toBe(4);
-    expect(demeritPolicyStageForUnits(9)).toBe(5);
-  });
-
-  it('forces serious misconduct to Stage 4 unless count is already higher', () => {
-    expect(demeritPolicyStageForUnits(1, true)).toBe(4);
-    expect(demeritPolicyStageForUnits(9, true)).toBe(5);
+    expect(demeritPolicyStageForUnits(7)).toBe(3);
+    expect(demeritPolicyStageForUnits(9)).toBe(3);
   });
 });
 
 describe('demeritPolicyUnitsFromDelta', () => {
-  it('derives at least one policy unit for legacy demerit rows', () => {
-    expect(demeritPolicyUnitsFromDelta(-3)).toBe(1);
-    expect(demeritPolicyUnitsFromDelta(-5)).toBe(1);
-    expect(demeritPolicyUnitsFromDelta(-10)).toBe(2);
+  it('uses the stored negative delta as the selected demerit value', () => {
+    expect(demeritPolicyUnitsFromDelta(-3)).toBe(3);
+    expect(demeritPolicyUnitsFromDelta(-5)).toBe(5);
+    expect(demeritPolicyUnitsFromDelta(-10)).toBe(10);
   });
 });
 
@@ -41,10 +36,13 @@ describe('demeritMeritDeltaForCategory', () => {
 });
 
 describe('demeritPolicyUnitsForEntry', () => {
-  it('counts Honesty as two daily demerit units', () => {
+  it('counts stored demerit values from the saved merit delta', () => {
     expect(
       demeritPolicyUnitsForEntry({ category: 'Honesty', meritDelta: -2, type: 'Demerit' }),
     ).toBe(2);
+    expect(
+      demeritPolicyUnitsForEntry({ category: 'Honesty', meritDelta: -1, type: 'Demerit' }),
+    ).toBe(1);
   });
 });
 
@@ -59,20 +57,20 @@ describe('demeritPolicyStatusForEntries', () => {
     });
   });
 
-  it('flags serious misconduct for Head review', () => {
+  it('flags serious misconduct for Head review without automatically escalating the stage', () => {
     expect(
       demeritPolicyStatusForEntries([
-        { category: 'Serious Misconduct', meritDelta: -5, type: 'Demerit' },
+        { category: 'Serious Misconduct', meritDelta: -1, type: 'Demerit' },
       ]),
     ).toMatchObject({
-      badgeTone: 'red',
+      badgeTone: 'blue',
       demeritUnits: 1,
       requiresHeadReview: true,
-      stage: 4,
+      stage: 1,
     });
   });
 
-  it('adds two units for Honesty demerits', () => {
+  it('adds stored units for demerits', () => {
     expect(
       demeritPolicyStatusForEntries([
         { category: 'Conduct', meritDelta: -1, type: 'Demerit' },
@@ -81,6 +79,28 @@ describe('demeritPolicyStatusForEntries', () => {
     ).toMatchObject({
       demeritUnits: 3,
       stage: 2,
+    });
+  });
+
+  it('uses a manual Head stage when it is higher than the count-derived stage', () => {
+    expect(
+      demeritPolicyStatusForEntries([{ category: 'Conduct', meritDelta: -1, type: 'Demerit' }], 4),
+    ).toMatchObject({
+      demeritUnits: 1,
+      manualStage: 4,
+      requiresHeadReview: false,
+      stage: 4,
+      stageLabel: 'Stage 4 - Parent Contact',
+    });
+  });
+
+  it('flags counts over Stage 3 for Head review while holding the derived stage at Stage 3', () => {
+    expect(
+      demeritPolicyStatusForEntries([{ category: 'Conduct', meritDelta: -7, type: 'Demerit' }]),
+    ).toMatchObject({
+      demeritUnits: 7,
+      requiresHeadReview: true,
+      stage: 3,
     });
   });
 });
@@ -122,7 +142,7 @@ describe('demeritPolicyTransitionForEntries', () => {
     });
   });
 
-  it('requires a note when serious misconduct forces Stage 4', () => {
+  it('requires a note when serious misconduct needs Head review', () => {
     expect(
       demeritPolicyTransitionForEntries(
         [],
@@ -132,25 +152,25 @@ describe('demeritPolicyTransitionForEntries', () => {
       escalated: true,
       noteRequired: true,
       previousStatus: { stage: 0 },
-      nextStatus: { stage: 4 },
+      nextStatus: { requiresHeadReview: true, stage: 1 },
     });
   });
 });
 
 describe('demeritPolicyEscalationEntryIds', () => {
-  it('selects entries that cross Stage 4 or Stage 5', () => {
+  it('selects entries that move beyond Stage 3 for Head review', () => {
     const ids = demeritPolicyEscalationEntryIds(
       Array.from({ length: 9 }, (_, index) => ({
         category: 'Conduct',
         createdAt: new Date(`2026-04-29T10:${String(index).padStart(2, '0')}:00.000Z`),
         id: `b${String(index + 1)}`,
-        meritDelta: -5,
+        meritDelta: -1,
         studentId: 's1',
         type: 'Demerit' as const,
       })),
     );
 
-    expect([...ids]).toEqual(['b7', 'b9']);
+    expect([...ids]).toEqual(['b7']);
   });
 
   it('selects serious misconduct immediately', () => {

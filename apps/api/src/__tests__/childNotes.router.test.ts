@@ -824,6 +824,9 @@ function makeFakeDb(options: FakeDbOptions = {}) {
         },
       ),
     },
+    demeritStageOverride: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
   };
 
   return { behaviourEntries, db, guardians, notes, staffShifts, students };
@@ -1740,7 +1743,7 @@ describe('childLog.snapshot', () => {
     expect(mark).toMatchObject({ seenById: headUser.id, headCommentEnc: null });
   });
 
-  it('includes Stage 4, Stage 5, and Serious Misconduct demerits in Head/HOD review', async () => {
+  it('includes over-threshold and Serious Misconduct demerits in Head/HOD review', async () => {
     const { behaviourEntries, db, students } = makeFakeDb();
     const makePolicyDemerit = (
       index: number,
@@ -1751,7 +1754,7 @@ describe('childLog.snapshot', () => {
       type: 'Demerit',
       category: 'Conduct',
       visibility: 'General',
-      meritDelta: -5,
+      meritDelta: -1,
       recordedById: headUser.id,
       createdAt: new Date(`2026-04-30T10:${String(index).padStart(2, '0')}:00.000Z`),
       deletedAt: null,
@@ -1782,11 +1785,6 @@ describe('childLog.snapshot', () => {
           reviewReason: 'Policy escalation',
         }),
         expect.objectContaining({
-          id: 'behaviour_policy_9',
-          kind: 'mark',
-          reviewReason: 'Policy escalation',
-        }),
-        expect.objectContaining({
           id: 'behaviour_policy_serious',
           kind: 'mark',
           category: 'Serious Misconduct',
@@ -1796,6 +1794,9 @@ describe('childLog.snapshot', () => {
     );
     expect(queue).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ id: 'behaviour_policy_6' })]),
+    );
+    expect(queue).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'behaviour_policy_9' })]),
     );
 
     await expect(

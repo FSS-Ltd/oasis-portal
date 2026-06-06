@@ -25,7 +25,9 @@ export function DailyDemeritBadge({ status }: { status: DailyDemeritStatus | nul
 
   const label = `${String(status.demeritUnits)} daily demerit${
     status.demeritUnits === 1 ? '' : 's'
-  } - ${status.stageLabel}`;
+  } - ${status.stageLabel}${
+    status.manualStage ? ' - manually escalated' : status.requiresHeadReview ? ' - Head review' : ''
+  }`;
 
   return (
     <span aria-label={label} className={`daily-demerit-badge is-${status.badgeTone}`} title={label}>
