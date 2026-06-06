@@ -1119,7 +1119,7 @@ describe('shop.listItems', () => {
 
     await expect(makeCaller(studentUser, db).caller.shop.listItems()).rejects.toMatchObject({
       code: 'FORBIDDEN',
-      message: 'Tithe due before Merit Shop opens.',
+      message: 'You cannot access Merit Shop until you have given your most recent tithe.',
     });
     expect(db.shopItem.findMany).not.toHaveBeenCalled();
     expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
