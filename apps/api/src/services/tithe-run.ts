@@ -18,6 +18,8 @@ export const DEFAULT_TITHE_CADENCE: TitheCadence = 'Weekly';
 export const DEFAULT_TITHE_MODE: TithePaymentMode = 'Percentage';
 export const DEFAULT_TITHE_WEEKLY_DAY = 5;
 export const DEFAULT_TITHE_MONTHLY_DATE = 1;
+const SHOP_TITHE_BLOCK_REASON =
+  'You cannot access Merit Shop until you have given your most recent tithe.';
 
 type TitheStore = Pick<
   AppContext['db'],
@@ -202,7 +204,7 @@ export async function loadManualTitheStatus(
     paymentValid: due.paymentValid,
     canPay: !paid && due.selectedAmount > 0 && due.paymentValid,
     shopBlocked,
-    shopBlockReason: shopBlocked ? 'Tithe due before Merit Shop opens.' : null,
+    shopBlockReason: shopBlocked ? SHOP_TITHE_BLOCK_REASON : null,
   };
 }
 
