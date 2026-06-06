@@ -87,6 +87,36 @@ describe('normaliseTwelveDataQuoteResponse', () => {
     });
   });
 
+  it('normalises London GBp quotes into GBP values', () => {
+    const result = normaliseTwelveDataQuoteResponse(
+      {
+        ...gbpQuote,
+        close: '7532.00',
+        currency: 'GBp',
+        previous_close: '7500.00',
+        symbol: 'CSP1',
+      },
+      {
+        exchangeMic: 'XLON',
+        instrumentKind: 'etf',
+        serverFetchedAt,
+        symbol: 'CSP1',
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        gbpConversionRate: 0.01,
+        gbpPrice: 75.32,
+        previousCloseGbp: 75,
+        sourceCurrency: 'GBX',
+        sourcePrice: 7532,
+        symbol: 'CSP1',
+      },
+    });
+  });
+
   it('rejects non-GBP quotes without a conversion rate', () => {
     const result = normaliseTwelveDataQuoteResponse(
       { ...gbpQuote, currency: 'USD', symbol: 'SPY' },

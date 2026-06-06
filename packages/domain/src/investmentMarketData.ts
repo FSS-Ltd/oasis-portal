@@ -175,7 +175,10 @@ function parseProviderStatus(code: number | string | undefined): number | undefi
 }
 
 function normaliseCurrency(value: string): string {
-  return value.trim().toUpperCase();
+  const normalised = value.trim().toUpperCase();
+  if (normalised === 'GBX' || value.trim() === 'GBp') return 'GBX';
+  if (normalised === 'GBP') return 'GBP';
+  return normalised;
 }
 
 function gbpRateFor(
@@ -183,6 +186,7 @@ function gbpRateFor(
   rates: Partial<Record<string, number>> = {},
 ): number | null {
   if (sourceCurrency === 'GBP') return 1;
+  if (sourceCurrency === 'GBX') return 0.01;
   const rate = rates[sourceCurrency];
   return Number.isFinite(rate) && rate && rate > 0 ? rate : null;
 }

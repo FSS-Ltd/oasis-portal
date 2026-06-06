@@ -86,6 +86,16 @@ interface MarketDataSnapshotFindManyArgs {
   orderBy: [{ instrumentId: 'asc' }, { serverFetchedAt: 'desc' }];
 }
 
+interface MarketDataSnapshotCountArgs {
+  where: {
+    provider: string;
+    serverFetchedAt: {
+      gte: Date;
+      lt: Date;
+    };
+  };
+}
+
 interface MarketDataSnapshotCreateArgs {
   data: {
     instrumentId: string;
@@ -113,6 +123,7 @@ export interface InvestmentMarketDataStorageDb {
   marketDataSnapshot: {
     findMany(args: MarketDataSnapshotFindManyArgs): Promise<MarketDataSnapshotRow[]>;
     create(args: MarketDataSnapshotCreateArgs): Promise<MarketDataSnapshotRow>;
+    count(args: MarketDataSnapshotCountArgs): Promise<number>;
   };
 }
 
@@ -193,6 +204,23 @@ export async function loadLatestMarketDataSnapshots(
     .map((instrument) => latestByInstrument.get(instrument.id))
     .filter((row): row is MarketDataSnapshotRow => Boolean(row))
     .map(mapSnapshot);
+}
+
+export async function countMarketDataSnapshots(input: {
+  db: InvestmentMarketDataStorageDb;
+  provider: string;
+  from: Date;
+  to: Date;
+}): Promise<number> {
+  return input.db.marketDataSnapshot.count({
+    where: {
+      provider: input.provider,
+      serverFetchedAt: {
+        gte: input.from,
+        lt: input.to,
+      },
+    },
+  });
 }
 
 export async function persistProviderQuoteSnapshot(input: {
