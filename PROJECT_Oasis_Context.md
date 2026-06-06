@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-06
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 8 Twelve Data provider contracts.
+**Phase:** Phase 8 investment market snapshots.
 
 ---
 
@@ -28,6 +28,50 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-06 Investment market snapshots
+
+Working branch: `feat/investment-market-snapshots`.
+
+**PR scope:** Add database-backed curated instruments and provider market-data
+snapshot storage for Phase 8 without live provider calls, student UI changes,
+cron wiring, new tRPC endpoints, or ledger changes.
+
+Completed:
+
+- Added `InvestmentInstrument` and `MarketDataSnapshot` Prisma models.
+- Added migrations that seed 8 US Basic-compatible educational instruments:
+  `VOO`, `VT`, `BND`, `GLD`, `AAPL`, `MSFT`, `NVDA`, and `DIS`, plus requested
+  LSE-listed ETFs `VUSA`, `CSP1`, `EQQQ`, `JEPQ`, and `JEPI`.
+- Added indexed snapshot storage for provider timestamp, server fetch timestamp,
+  source price, GBP conversion rate, GBP price, previous close, day change, raw
+  payload hash, and provider credit metadata.
+- Added a focused server-side market-data storage service for enabled instrument
+  reads, latest snapshot reads, and normalized quote snapshot persistence.
+- Updated the Phase 8 plan to record the US seed decision and defer London-first
+  instruments until coverage/licensing is confirmed, then added the requested
+  LSE-listed ETF follow-up after checking Twelve Data market pages.
+- Added the market-data service and migration directory to the finance module
+  ownership map source.
+
+Verification:
+
+- Baseline: `pnpm --filter @oasis/domain test -- investmentMarketData.test.ts`
+- Baseline: `pnpm --filter @oasis/api exec vitest run src/__tests__/twelve-data-config.test.ts`
+- TDD red check: missing market-data storage service.
+- `pnpm --filter @oasis/api test -- investment-market-data-storage.test.ts`
+
+Notes:
+
+- No `InvestmentAccount`, `InvestmentNav`, `InvestmentTransaction`, merit ledger,
+  router, cron, live HTTP adapter, or UI file was changed.
+- More than 8 enabled instruments are allowed. PR-8.3 should refresh them in
+  cohorts of 8 to respect the Twelve Data free-tier per-minute credit cap.
+- RLS was not added because the new instrument and snapshot data is global
+  provider reference/cache data, not tenant-, user-, or student-scoped data.
+- The isolated worktree did not include `graphify-out/graph.json`; the required
+  PR-start graphify query was run from the main checkout's current graph before
+  editing in this worktree.
 
 ## Current session - 2026-06-06 Twelve Data provider contracts
 

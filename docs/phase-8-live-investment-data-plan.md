@@ -206,10 +206,10 @@ Recommended scheduler:
 Reference intervals by curated instrument count:
 
 | Enabled instruments | Credits per full refresh | Max full refreshes per day | Average interval during LSE open |
-| ---: | ---: | ---: | ---: |
-| 4 | 4 | 200 | 2.55 minutes |
-| 6 | 6 | 133 | 3.83 minutes |
-| 8 | 8 | 100 | 5.10 minutes |
+| ------------------: | -----------------------: | -------------------------: | -------------------------------: |
+|                   4 |                        4 |                        200 |                     2.55 minutes |
+|                   6 |                        6 |                        133 |                     3.83 minutes |
+|                   8 |                        8 |                        100 |                     5.10 minutes |
 
 If the curated list needs more than 8 instruments, split the list into rotating
 cohorts. That should be treated as a product tradeoff because each instrument
@@ -234,6 +234,21 @@ Start with a small curated stock/ETF list:
 - No meme-only assets or assets selected primarily for volatility.
 
 Implementation should support disabling an instrument without deleting history.
+
+PR-8.2 seed decision:
+
+- Seed the first storage migration with 8 US Basic-compatible educational
+  instruments because Twelve Data Basic currently states real-time US equities
+  and ETFs most clearly.
+- Initial ETFs: `VOO`, `VT`, `BND`, `GLD`.
+- Initial stocks: `AAPL`, `MSFT`, `NVDA`, `DIS`.
+- Add requested LSE-listed UCITS/income ETFs in a follow-up seed migration after
+  verifying Twelve Data market pages: `VUSA`, `CSP1`, `EQQQ`, `JEPQ`, and
+  `JEPI`.
+- Refresh more than 8 enabled instruments in cohorts of 8 so the free-tier
+  per-minute credit cap is respected.
+- Keep the storage schema provider-agnostic enough to disable or replace seeded
+  instruments without deleting historical snapshots.
 
 ### Merit Conversion
 
@@ -426,6 +441,10 @@ Scope:
   price.
 - Add indexes for latest snapshot per instrument and historical chart reads.
 - Add RLS policies if snapshots become tenant/user-scoped.
+- Add a small server-side storage service for enabled instrument reads, latest
+  snapshot reads, and normalized quote snapshot persistence.
+- Do not add live provider calls, cron wiring, student UI reads, or new tRPC
+  endpoints in this PR.
 
 Done criteria:
 
@@ -433,6 +452,9 @@ Done criteria:
 - Instrument enable/disable does not delete history.
 - Migration applies cleanly.
 - Prisma and RLS checks pass.
+- The seeded list includes `VOO`, `VT`, `BND`, `GLD`, `AAPL`, `MSFT`, `NVDA`,
+  `DIS`, `VUSA`, `CSP1`, `EQQQ`, `JEPQ`, and `JEPI`, with server refreshes
+  expected to cascade through cohorts of 8.
 
 ### PR-8.3 - `feat: fetch Twelve Data quotes server-side`
 
@@ -447,6 +469,11 @@ Scope:
 - Implement any required internal conversion to GBP.
 - Add rate limiting, timeout, retry-with-backoff, and stale-cache fallback.
 - Add automated server refresh using the free-tier budget policy in this plan.
+- Refresh enabled instruments in stable `sortOrder` cohorts of up to 8 symbols,
+  because Twelve Data Basic is limited to 8 credits per minute and each quote
+  symbol consumes credit.
+- Persist quota counters and provider credit headers per refresh batch, not per
+  page request.
 - Add admin-triggered refresh behind RBAC and quota checks.
 - Audit provider refresh failures without storing secrets.
 
@@ -454,6 +481,8 @@ Done criteria:
 
 - Student page reads never trigger direct provider calls.
 - Provider quota cannot be exhausted by page refreshes.
+- More than 8 enabled instruments refresh by cascading batches without exceeding
+  the per-minute credit cap.
 - Stale data state is returned when provider fetch fails.
 - API keys stay server-only.
 

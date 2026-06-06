@@ -226,7 +226,13 @@ const PRODUCT_MODULES = [
       'apps/mobile/src/components/smoke/parent-smoke-messages.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
     ],
-    sharedSurfaces: ['apps/api/src/emails/', 'apps/api/src/services/savings-interest.ts'],
+    sharedSurfaces: [
+      'apps/api/src/emails/',
+      'apps/api/src/services/market-data/',
+      'apps/api/src/services/savings-interest.ts',
+      'packages/db/prisma/migrations/20260606160000_investment_market_snapshots/',
+      'packages/db/prisma/migrations/20260606163000_add_requested_lse_etfs/',
+    ],
   },
   {
     name: 'Shared UI primitives and cross-app tRPC clients',
