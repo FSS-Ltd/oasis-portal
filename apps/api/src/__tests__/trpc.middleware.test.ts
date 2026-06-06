@@ -6,6 +6,7 @@ import {
   adminOperationsProcedure,
   auditedProcedure,
   authedProcedure,
+  clientSafeErrorMessage,
   fullAdminProcedure,
   router,
   userAccountAdminProcedure,
@@ -135,6 +136,30 @@ describe('userAccountAdminProcedure', () => {
     const { ctx } = makeCtx(supervisorUser);
     const caller = appRouter.createCaller(ctx);
     await expect(caller.accountAdminOnly()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+});
+
+describe('clientSafeErrorMessage', () => {
+  it('masks internal server errors before they reach clients', () => {
+    const error = new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Transaction API error: Unable to start a transaction in the given time.',
+    });
+
+    expect(clientSafeErrorMessage(error, error.message)).toBe(
+      'Something went wrong. Try again, or contact an administrator if it continues.',
+    );
+  });
+
+  it('preserves policy messages for non-internal errors', () => {
+    const error = new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'Daily student portal usage limit reached.',
+    });
+
+    expect(clientSafeErrorMessage(error, error.message)).toBe(
+      'Daily student portal usage limit reached.',
+    );
   });
 });
 

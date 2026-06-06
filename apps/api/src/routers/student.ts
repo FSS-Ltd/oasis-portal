@@ -18,7 +18,7 @@ import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import {
   assertStudentPortalAccess,
-  loadStudentPortalUsageStatus,
+  loadAllowedStudentPortalUsageStatus,
   recordStudentPortalUsageHeartbeat,
 } from '../lib/student-portal-access.js';
 import { addUtcDays, startOfUtcDay } from '../lib/utc-date.js';
@@ -445,13 +445,12 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
 
   portalUsage: roleProcedure('Student').query(async ({ ctx }) => {
     const student = await loadOwnActiveStudent(ctx);
-    await assertStudentPortalAccess(ctx, {
-      entity: 'student.portalUsage',
-      studentId: student.id,
-    });
     return {
       studentId: student.id,
-      usage: await loadStudentPortalUsageStatus(ctx, { studentId: student.id }),
+      usage: await loadAllowedStudentPortalUsageStatus(ctx, {
+        entity: 'student.portalUsage',
+        studentId: student.id,
+      }),
     };
   }),
 

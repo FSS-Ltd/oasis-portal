@@ -206,6 +206,10 @@ interface FakeDb {
   staffShift: { findMany: ReturnType<typeof vi.fn> };
 }
 
+interface CallerOptions {
+  onWithRls?: () => void;
+}
+
 function encrypt(value: string | null | undefined): string | null {
   return value === null || value === undefined ? null : `enc:${value}`;
 }
@@ -784,16 +788,19 @@ function makeFakeDb(
   };
 }
 
-function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
+function makeCtx(user: SessionUser | null, db: FakeDb, options: CallerOptions = {}): AppContext {
   return {
     db: db as unknown as AppContext['db'],
     user,
     requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
+    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => {
+      options.onWithRls?.();
+      return fn(db as unknown as RlsTx);
+    },
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db: FakeDb) {
+function makeCaller(user: SessionUser | null, db: FakeDb, options: CallerOptions = {}) {
   const appRouter = router({
     student: createStudentRouter({
       appUrl: 'https://portal.example.test',
@@ -814,7 +821,7 @@ function makeCaller(user: SessionUser | null, db: FakeDb) {
       },
     }),
   });
-  return appRouter.createCaller(makeCtx(user, db));
+  return appRouter.createCaller(makeCtx(user, db, options));
 }
 
 function makeStudentCreateCaller(user: SessionUser | null, db: FakeDb) {
@@ -1417,10 +1424,13 @@ describe('student portal usage limits', () => {
     vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
     try {
       const { db, students, usageMinutes } = makeFakeDb();
+      const withRls = vi.fn();
       await linkCreatedStudent(db, students);
 
       await expect(
-        makeCaller(studentUser, db).student.heartbeat({ sessionKey: 'mobile-session-1' }),
+        makeCaller(studentUser, db, { onWithRls: withRls }).student.heartbeat({
+          sessionKey: 'mobile-session-1',
+        }),
       ).resolves.toMatchObject({
         studentId,
         usage: {
@@ -1437,6 +1447,8 @@ describe('student portal usage limits', () => {
         minuteStartedAt: new Date('2026-06-03T10:15:00.000Z'),
         sessionKey: 'mobile-session-1',
       });
+      expect(withRls).toHaveBeenCalledTimes(1);
+      expect(db.studentPortalUsageMinute.count).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
@@ -1473,6 +1485,34 @@ describe('student portal usage limits', () => {
           offLimitWeekdays: [],
         },
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('loads portal usage status with one RLS read', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T10:15:30.000Z'));
+    try {
+      const { db, students } = makeFakeDb({
+        portalSettings: [{ studentId, dailyUsageLimitMinutes: 10, offLimitWeekdays: [] }],
+        usageMinutes: [{ minuteStartedAt: new Date('2026-06-03T10:10:00.000Z') }],
+      });
+      const withRls = vi.fn();
+      await linkCreatedStudent(db, students);
+
+      await expect(
+        makeCaller(studentUser, db, { onWithRls: withRls }).student.portalUsage(),
+      ).resolves.toMatchObject({
+        studentId,
+        usage: {
+          allowed: true,
+          daily: { limitMinutes: 10, usedMinutes: 1, remainingMinutes: 9 },
+          offLimitWeekdays: [],
+        },
+      });
+      expect(withRls).toHaveBeenCalledTimes(1);
+      expect(db.studentPortalUsageMinute.count).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
