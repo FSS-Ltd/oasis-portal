@@ -5,6 +5,7 @@ export * from './meritLedger.js';
 export * from './tithe.js';
 export * from './savings.js';
 export * from './investmentSim.js';
+export * from './investmentMarketData.js';
 export * from './investmentTransactions.js';
 export * from './shop.js';
 export * from './leaderboard.js';

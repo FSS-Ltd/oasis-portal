@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-06-06
 **Agent:** Technical Agent (Codex)
-**Phase:** Behaviour demerit stage escalation.
+**Phase:** Phase 8 Twelve Data provider contracts.
 
 ---
 
@@ -28,6 +28,42 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-06 Twelve Data provider contracts
+
+Working branch: `feat/twelve-data-provider-contracts`.
+
+**PR scope:** Add typed, fixture-backed Twelve Data market-data provider
+contracts for Phase 8 without live provider calls, schema changes, cron wiring,
+or student UI changes.
+
+Completed:
+
+- Added pure domain DTOs and normalizers for Twelve Data quote, history, and
+  stock/ETF profile payloads.
+- Added typed normalisation errors for invalid provider responses, missing
+  prices, missing timestamps, missing currencies, missing GBP conversion rates,
+  unsupported instruments, provider errors, rate limits, and stale quotes.
+- Added server-only Twelve Data config parsing for `TWELVE_DATA_API_KEY` and
+  optional `TWELVE_DATA_BASE_URL`.
+- Added `.env.example` placeholders without committing secrets.
+- Added the new investment market-data helper to the finance module ownership
+  map and regenerated `docs/architecture/component-relationships.md`.
+
+Verification:
+
+- Baseline: `pnpm --filter @oasis/domain test -- investmentSim.test.ts investmentTransactions.test.ts`
+- TDD red checks for missing provider/config modules.
+- `pnpm --filter @oasis/domain test -- investmentMarketData.test.ts`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/twelve-data-config.test.ts`
+
+Notes:
+
+- No Prisma schema, RLS, migration, cron route, live HTTP adapter, or UI file was
+  changed in this PR.
+- Provider facts were rechecked on 2026-06-06 before implementation. Symbol
+  coverage and licensing for the final curated list still need confirmation when
+  Phase 8 selects production instruments.
 
 ## Current session - 2026-06-05 Demerit stage escalation
 

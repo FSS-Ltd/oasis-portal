@@ -197,6 +197,7 @@ const PRODUCT_MODULES = [
     ],
     domainFiles: [
       'packages/domain/src/clubs.ts',
+      'packages/domain/src/investmentMarketData.ts',
       'packages/domain/src/investmentSim.ts',
       'packages/domain/src/investmentTransactions.ts',
       'packages/domain/src/invoice.ts',

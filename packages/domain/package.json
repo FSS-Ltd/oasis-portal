@@ -12,6 +12,7 @@
     "./meritLedger": "./src/meritLedger.ts",
     "./tithe": "./src/tithe.ts",
     "./investmentSim": "./src/investmentSim.ts",
+    "./investmentMarketData": "./src/investmentMarketData.ts",
     "./shop": "./src/shop.ts",
     "./leaderboard": "./src/leaderboard.ts",
     "./clubs": "./src/clubs.ts",
