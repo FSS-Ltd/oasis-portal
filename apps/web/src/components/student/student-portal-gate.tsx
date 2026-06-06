@@ -7,6 +7,9 @@ import { api } from '@/lib/trpc';
 
 type StudentAccessState = 'access-denied' | 'locked' | 'loading' | 'not-ready' | 'usage-limit';
 
+const HEARTBEAT_INTERVAL_MS = 55_000;
+const HEARTBEAT_RETRY_MS = 10_000;
+
 interface StudentPortalGateProps {
   children: ReactNode;
 }
@@ -30,6 +33,23 @@ function accessStateFromError(message: string | undefined): StudentAccessState {
   if (isUsageLimitMessage(message)) return 'usage-limit';
   if (message?.toLowerCase().includes('student profile not found')) return 'not-ready';
   return 'access-denied';
+}
+
+function accessStateFromHeartbeatError(message: string | undefined): StudentAccessState | null {
+  if (isOffLimitDayMessage(message)) return 'locked';
+  if (isLockedMessage(message)) return 'locked';
+  if (isUsageLimitMessage(message)) return 'usage-limit';
+  if (message?.toLowerCase().includes('student profile not found')) return 'not-ready';
+  return null;
+}
+
+function messageFromUnknown(error: unknown): string | undefined {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (typeof error !== 'object' || error === null) return undefined;
+
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' ? message : undefined;
 }
 
 function studentPortalDetail(state: StudentAccessState, message: string | undefined): string {
@@ -107,22 +127,44 @@ export function StudentPortalGate({ children }: StudentPortalGateProps) {
     [],
   );
   const student = api.student.me.useQuery(undefined, { retry: false });
-  const heartbeat = api.student.heartbeat.useMutation();
-  const errorMessage = heartbeat.error?.message ?? student.error?.message;
-  const blockedState = errorMessage ? accessStateFromError(errorMessage) : null;
+  const { error: heartbeatError, mutateAsync: sendHeartbeat } = api.student.heartbeat.useMutation();
+  const heartbeatBlockedState = accessStateFromHeartbeatError(heartbeatError?.message);
+  const blockedState = student.error
+    ? accessStateFromError(student.error.message)
+    : heartbeatBlockedState;
+  const blockedMessage =
+    student.error?.message ?? (heartbeatBlockedState ? heartbeatError?.message : undefined);
 
   useEffect(() => {
     if (!student.data?.id || blockedState) return undefined;
 
-    heartbeat.mutate({ sessionKey });
-    const intervalId = window.setInterval(() => {
-      heartbeat.mutate({ sessionKey });
-    }, 55_000);
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    const scheduleHeartbeat = (delayMs: number): void => {
+      timeoutId = window.setTimeout(() => {
+        void runHeartbeat();
+      }, delayMs);
+    };
+
+    async function runHeartbeat(): Promise<void> {
+      try {
+        await sendHeartbeat({ sessionKey });
+        if (!cancelled) scheduleHeartbeat(HEARTBEAT_INTERVAL_MS);
+      } catch (error) {
+        if (cancelled) return;
+        if (accessStateFromHeartbeatError(messageFromUnknown(error))) return;
+        scheduleHeartbeat(HEARTBEAT_RETRY_MS);
+      }
+    }
+
+    scheduleHeartbeat(0);
 
     return () => {
-      window.clearInterval(intervalId);
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [blockedState, sessionKey, student.data?.id]);
+  }, [blockedState, sendHeartbeat, sessionKey, student.data?.id]);
 
   if (student.isLoading) {
     return <StudentPortalStatePanel state="loading" />;
@@ -131,7 +173,7 @@ export function StudentPortalGate({ children }: StudentPortalGateProps) {
   if (blockedState) {
     return (
       <StudentPortalStatePanel
-        detail={studentPortalDetail(blockedState, errorMessage)}
+        detail={studentPortalDetail(blockedState, blockedMessage)}
         state={blockedState}
       />
     );

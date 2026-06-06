@@ -9,7 +9,7 @@ import {
   type StudentPortalUsageWindow,
   type StudentPortalLockSource,
 } from '@oasis/domain/studentPortalSettings';
-import type { AppContext } from '../context.js';
+import type { AppContext, RlsTx } from '../context.js';
 import { loadManualTitheStatus } from '../services/tithe-run.js';
 import { addUtcDays, startOfUtcDay, startOfUtcMinute } from './utc-date.js';
 
@@ -218,16 +218,54 @@ async function loadStudentPortalUsageCounts(
   ctx: AuthedContext,
   input: { studentId: string; windows: StudentPortalUsageWindows },
 ): Promise<StudentPortalUsageCounts> {
-  const dailyUsageMinutes = await ctx.withRls((tx) =>
-    tx.studentPortalUsageMinute.count({
-      where: {
-        studentId: input.studentId,
-        minuteStartedAt: { gte: input.windows.daily.start, lt: input.windows.daily.end },
-      },
-    }),
-  );
+  return ctx.withRls((tx) => loadStudentPortalUsageCountsFromTx(tx, input));
+}
 
+async function loadStudentPortalUsageCountsFromTx(
+  tx: Pick<RlsTx, 'studentPortalUsageMinute'>,
+  input: { studentId: string; windows: StudentPortalUsageWindows },
+): Promise<StudentPortalUsageCounts> {
+  const dailyUsageMinutes = await tx.studentPortalUsageMinute.count({
+    where: {
+      studentId: input.studentId,
+      minuteStartedAt: { gte: input.windows.daily.start, lt: input.windows.daily.end },
+    },
+  });
   return { dailyUsageMinutes };
+}
+
+async function loadUsageStatusFromTx(
+  tx: Pick<RlsTx, 'studentPortalUsageMinute'>,
+  input: {
+    settings: StudentPortalPolicyRow | null;
+    studentId: string;
+    weekday: number;
+    windows: StudentPortalUsageWindows;
+  },
+): Promise<StudentPortalUsageStatusDto> {
+  const counts = await loadStudentPortalUsageCountsFromTx(tx, {
+    studentId: input.studentId,
+    windows: input.windows,
+  });
+  return buildUsageStatus(input.settings, counts, input.windows, input.weekday);
+}
+
+async function loadPolicyStatusFromTx(
+  tx: Pick<RlsTx, 'studentPortalUsageMinute'>,
+  input: {
+    settings: StudentPortalPolicyRow | null;
+    studentId: string;
+    weekday: number;
+    windows: StudentPortalUsageWindows;
+  },
+): Promise<StudentPortalUsageStatusDto> {
+  const counts = hasUsageLimits(input.settings)
+    ? await loadStudentPortalUsageCountsFromTx(tx, {
+        studentId: input.studentId,
+        windows: input.windows,
+      })
+    : { dailyUsageMinutes: 0 };
+  return buildUsageStatus(input.settings, counts, input.windows, input.weekday);
 }
 
 function throwStudentPortalUsageLimit(status: StudentPortalUsageStatusDto): never {
@@ -235,6 +273,31 @@ function throwStudentPortalUsageLimit(status: StudentPortalUsageStatusDto): neve
     code: 'FORBIDDEN',
     message: status.message ?? 'Student portal usage limit reached.',
   });
+}
+
+async function auditUsageStatusDenied(
+  ctx: AuthedContext,
+  input: { entity: string; studentId: string },
+  status: StudentPortalUsageStatusDto,
+  weekday: number,
+): Promise<void> {
+  await auditStudentPortalPolicyDenied(ctx, {
+    entity: input.entity,
+    reason: status.blockedReason === 'OffLimitDay' ? 'OffLimitDay' : 'UsageLimit',
+    studentId: input.studentId,
+    usageWindow: status.blockedWindow ?? undefined,
+    weekday: status.blockedReason === 'OffLimitDay' ? weekday : undefined,
+  });
+}
+
+async function throwDeniedUsageStatus(
+  ctx: AuthedContext,
+  input: { entity: string; studentId: string },
+  status: StudentPortalUsageStatusDto,
+  weekday: number,
+): Promise<never> {
+  await auditUsageStatusDenied(ctx, input, status, weekday);
+  throwStudentPortalUsageLimit(status);
 }
 
 async function assertUnlockedPolicy(
@@ -283,14 +346,7 @@ async function assertUsageLimitPolicy(
 
   if (status.allowed) return status;
 
-  await auditStudentPortalPolicyDenied(ctx, {
-    entity: input.entity,
-    reason: status.blockedReason === 'OffLimitDay' ? 'OffLimitDay' : 'UsageLimit',
-    studentId: input.studentId,
-    usageWindow: status.blockedWindow ?? undefined,
-    weekday: status.blockedReason === 'OffLimitDay' ? weekday : undefined,
-  });
-  throwStudentPortalUsageLimit(status);
+  return throwDeniedUsageStatus(ctx, input, status, weekday);
 }
 
 export async function assertStudentPortalUnlocked(
@@ -359,18 +415,71 @@ export async function assertStudentMeritShopAccess(
   });
 }
 
-export async function loadStudentPortalUsageStatus(
+export async function loadAllowedStudentPortalUsageStatus(
   ctx: AuthedContext,
-  input: { now?: Date | undefined; studentId: string },
+  input: { entity: string; now?: Date | undefined; studentId: string },
 ): Promise<StudentPortalUsageStatusDto> {
   const settings = await loadStudentPortalPolicy(ctx, input.studentId);
+  await assertUnlockedPolicy(ctx, { entity: input.entity, settings, studentId: input.studentId });
   const now = input.now ?? new Date();
   const windows = usageWindows(now);
-  const counts = await loadStudentPortalUsageCounts(ctx, {
-    studentId: input.studentId,
-    windows,
+  const weekday = now.getUTCDay();
+  const status = await ctx.withRls((tx) =>
+    loadUsageStatusFromTx(tx, {
+      settings,
+      studentId: input.studentId,
+      weekday,
+      windows,
+    }),
+  );
+
+  if (status.allowed) return status;
+
+  return throwDeniedUsageStatus(ctx, input, status, weekday);
+}
+
+type HeartbeatUsageResult =
+  | { blocked: false; status: StudentPortalUsageStatusDto }
+  | { blocked: true; status: StudentPortalUsageStatusDto };
+
+async function recordHeartbeatInTx(
+  tx: Pick<RlsTx, 'studentPortalUsageMinute'>,
+  input: {
+    now: Date;
+    settings: StudentPortalPolicyRow | null;
+    sessionKey?: string | null | undefined;
+    studentId: string;
+    weekday: number;
+    windows: StudentPortalUsageWindows;
+  },
+): Promise<HeartbeatUsageResult> {
+  const policyStatus =
+    hasUsageLimits(input.settings) || hasOffLimitWeekdays(input.settings)
+      ? await loadPolicyStatusFromTx(tx, input)
+      : buildUsageStatus(input.settings, { dailyUsageMinutes: 0 }, input.windows, input.weekday);
+
+  if (!policyStatus.allowed) return { blocked: true, status: policyStatus };
+
+  const minuteStartedAt = startOfUtcMinute(input.now);
+  await tx.studentPortalUsageMinute.upsert({
+    where: { studentId_minuteStartedAt: { studentId: input.studentId, minuteStartedAt } },
+    create: {
+      studentId: input.studentId,
+      minuteStartedAt,
+      sessionKey: input.sessionKey ?? null,
+      firstSeenAt: input.now,
+      lastSeenAt: input.now,
+    },
+    update: {
+      lastSeenAt: input.now,
+      sessionKey: input.sessionKey ?? null,
+    },
   });
-  return buildUsageStatus(settings, counts, windows, now.getUTCDay());
+
+  return {
+    blocked: false,
+    status: await loadUsageStatusFromTx(tx, input),
+  };
 }
 
 export async function recordStudentPortalUsageHeartbeat(
@@ -380,25 +489,23 @@ export async function recordStudentPortalUsageHeartbeat(
   const now = input.now ?? new Date();
   const settings = await loadStudentPortalPolicy(ctx, input.studentId);
   await assertUnlockedPolicy(ctx, { entity: input.entity, settings, studentId: input.studentId });
-  await assertUsageLimitPolicy(ctx, { ...input, now, settings });
-  const minuteStartedAt = startOfUtcMinute(now);
+  const windows = usageWindows(now);
+  const weekday = now.getUTCDay();
 
-  await ctx.withRls((tx) =>
-    tx.studentPortalUsageMinute.upsert({
-      where: { studentId_minuteStartedAt: { studentId: input.studentId, minuteStartedAt } },
-      create: {
-        studentId: input.studentId,
-        minuteStartedAt,
-        sessionKey: input.sessionKey ?? null,
-        firstSeenAt: now,
-        lastSeenAt: now,
-      },
-      update: {
-        lastSeenAt: now,
-        sessionKey: input.sessionKey ?? null,
-      },
+  const result = await ctx.withRls((tx) =>
+    recordHeartbeatInTx(tx, {
+      now,
+      settings,
+      sessionKey: input.sessionKey,
+      studentId: input.studentId,
+      weekday,
+      windows,
     }),
   );
 
-  return loadStudentPortalUsageStatus(ctx, { now, studentId: input.studentId });
+  if (result.blocked) {
+    await throwDeniedUsageStatus(ctx, input, result.status, weekday);
+  }
+
+  return result.status;
 }

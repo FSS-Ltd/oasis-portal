@@ -17,11 +17,20 @@ import {
 } from '@oasis/domain';
 import type { AppContext } from './context.js';
 
+const CLIENT_INTERNAL_ERROR_MESSAGE =
+  'Something went wrong. Try again, or contact an administrator if it continues.';
+
+export function clientSafeErrorMessage(error: TRPCError, message: string): string {
+  return error.code === 'INTERNAL_SERVER_ERROR' ? CLIENT_INTERNAL_ERROR_MESSAGE : message;
+}
+
 const t = initTRPC.context<AppContext>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
+    const message = clientSafeErrorMessage(error, shape.message);
     return {
       ...shape,
+      message,
       data: {
         ...shape.data,
         accessDenied: error.cause instanceof AccessDeniedError,
