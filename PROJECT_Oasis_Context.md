@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-06
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 8 investment market snapshots.
+**Phase:** Phase 8 server-side Twelve Data quote refresh.
 
 ---
 
@@ -28,6 +28,60 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-06 Twelve Data server-side quote refresh
+
+Working branch: `feat/twelve-data-server-quotes`.
+
+**PR scope:** Fetch Twelve Data quotes only from the server, persist quote
+snapshots before student reads, expose cached market data through the investment
+router, and add a cron refresh path without changing ledger accounting or the
+student investment UI.
+
+Completed:
+
+- Fast-forwarded local `main` to GitHub `main` before branching.
+- Added a server-side Twelve Data refresh service with London-session checks,
+  persisted daily/minute quota guards, timeout/retry handling, raw payload
+  hashing, provider credit metadata capture, oldest-due cohort selection, and
+  stale-cache fallback.
+- Added internal GBP conversion support for non-GBP quotes and fixed `GBp`/`GBX`
+  pence conversion to GBP values.
+- Extended investment market-data storage with typed snapshot counting for quota
+  checks.
+- Added `investment.marketData` cached reads and full-admin-only
+  `investment.refreshMarketData`.
+- Added `/api/cron/investment-market-refresh` behind `CRON_SECRET`.
+- Regenerated graphify output and the component relationship map.
+
+Verification:
+
+- `pnpm --filter @oasis/domain exec vitest run src/__tests__/investmentMarketData.test.ts`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/investment-market-data-storage.test.ts src/__tests__/twelve-data-refresh.test.ts src/__tests__/investment.router.test.ts`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/web typecheck`
+- `pnpm --filter @oasis/db typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/web lint`
+- `pnpm --filter @oasis/db lint`
+- `pnpm exec prettier --check` on changed TypeScript files.
+- `git diff --check`
+- `pnpm db:generate`
+- `pnpm --filter @oasis/web build`
+- `graphify update .`
+- `pnpm docs:component-map`
+
+Notes:
+
+- Student-facing reads use cached DB snapshots only and do not invoke provider
+  HTTP calls.
+- More than 8 enabled instruments are handled as quota-safe cohorts rather than
+  one full-list request, matching the PR-8.2 note that current seeds exceed the
+  original 8-instrument planning cap.
+- No Prisma schema, RLS, merit ledger, buy/sell accounting, or investment UI
+  files were changed.
 
 ## Current session - 2026-06-06 Investment market snapshots
 

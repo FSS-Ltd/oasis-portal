@@ -13,6 +13,12 @@ import { generateNavSeries } from '@oasis/domain/investmentSim';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
+import {
+  readCachedInvestmentMarketData,
+  refreshTwelveDataQuotes,
+  type TwelveDataRefreshDb,
+} from '../services/market-data/twelve-data-refresh.js';
+import type { InvestmentMarketDataStorageDb } from '../services/market-data/investment-market-data-storage.js';
 import { authedProcedure, router } from '../trpc.js';
 
 const DEFAULT_NAV_SEED = 'oasis-v1';
@@ -71,6 +77,14 @@ function toNumber(value: Prisma.Decimal | number | string): number {
 
 function toSixDecimal(value: number): Prisma.Decimal {
   return new Prisma.Decimal(value.toFixed(6));
+}
+
+function marketDataStorageDb(db: AppContext['db']): InvestmentMarketDataStorageDb {
+  return db as unknown as InvestmentMarketDataStorageDb;
+}
+
+function twelveDataRefreshDb(db: AppContext['db']): TwelveDataRefreshDb {
+  return db as unknown as TwelveDataRefreshDb;
 }
 
 function mapNav(row: { date: Date; nav: Prisma.Decimal; dailyReturn: Prisma.Decimal }): NavDto {
@@ -261,6 +275,10 @@ async function latestNavOrTickToday(
 }
 
 export const investmentRouter = router({
+  marketData: authedProcedure.query(async ({ ctx }) =>
+    readCachedInvestmentMarketData({ db: marketDataStorageDb(ctx.db) }),
+  ),
+
   account: authedProcedure.input(studentInput).query(async ({ ctx, input }) => {
     const student = await loadActiveStudent(ctx, input.studentId);
     await assertCanReadInvestment(ctx, student, 'investment.account');
@@ -567,5 +585,29 @@ export const investmentRouter = router({
     );
 
     return result;
+  }),
+
+  refreshMarketData: authedProcedure.mutation(async ({ ctx }) => {
+    if (!isFullAdmin(ctx.user)) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'PermissionDenied',
+          entity: 'MarketDataSnapshot',
+          meta: {
+            source: 'investment.refreshMarketData',
+            role: ctx.user.role,
+            reason: 'full-admin access required',
+          },
+        },
+      });
+      throw new TRPCError({ code: 'FORBIDDEN', message: 'full-admin access required' });
+    }
+
+    return refreshTwelveDataQuotes({
+      auditUserId: ctx.user.id,
+      db: twelveDataRefreshDb(ctx.db),
+      mode: 'manual',
+    });
   }),
 });

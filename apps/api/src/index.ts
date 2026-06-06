@@ -84,6 +84,16 @@ export {
   type SavingsInterestRunResultDto,
 } from './services/savings-interest.js';
 export {
+  createTwelveDataMarketDataProvider,
+  isLondonStockMarketOpen,
+  readCachedInvestmentMarketData,
+  refreshTwelveDataQuotes,
+  type CachedMarketDataResult,
+  type MarketDataRefreshResult,
+  type TwelveDataRefreshDb,
+  type TwelveDataQuoteProvider,
+} from './services/market-data/twelve-data-refresh.js';
+export {
   behaviourRouter,
   createBehaviourRouter,
   type BehaviourRouterDeps,

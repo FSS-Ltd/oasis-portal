@@ -89,6 +89,39 @@ interface StoredInvestmentTransaction {
   createdAt: Date;
 }
 
+interface StoredInvestmentInstrument {
+  id: string;
+  symbol: string;
+  provider: string;
+  providerSymbol: string;
+  displayName: string;
+  kind: string;
+  exchangeMic: string;
+  sourceCurrency: string;
+  riskBand: string;
+  enabled: boolean;
+  sortOrder: number;
+}
+
+interface StoredMarketDataSnapshot {
+  id: string;
+  instrumentId: string;
+  provider: string;
+  providerTimestamp: Date;
+  serverFetchedAt: Date;
+  sourceCurrency: string;
+  sourcePrice: number;
+  gbpConversionRate: number;
+  gbpPrice: number;
+  previousCloseGbp: number;
+  dayChangePct: number;
+  rawPayloadHash: string;
+  providerCreditsUsed: number | null;
+  providerCreditsLeft: number | null;
+  createdAt: Date;
+  instrument: StoredInvestmentInstrument;
+}
+
 interface FakeStudentFindUniqueArgs {
   where: { id: string };
   select?: { id?: true; active?: true; userId?: true };
@@ -167,6 +200,51 @@ interface FakeInvestmentTransactionFindManyArgs {
   };
 }
 
+interface FakeInstrumentFindManyArgs {
+  where?: { enabled?: boolean };
+}
+
+interface FakeInstrumentFindFirstArgs {
+  where: {
+    provider: string;
+    providerSymbol: string;
+    enabled: boolean;
+  };
+}
+
+interface FakeMarketDataSnapshotFindManyArgs {
+  where?: { instrumentId?: { in: string[] } };
+}
+
+interface FakeMarketDataSnapshotCreateArgs {
+  data: {
+    instrumentId: string;
+    provider: string;
+    providerTimestamp: Date;
+    serverFetchedAt: Date;
+    sourceCurrency: string;
+    sourcePrice: number;
+    gbpConversionRate: number;
+    gbpPrice: number;
+    previousCloseGbp: number;
+    dayChangePct: number;
+    rawPayloadHash: string;
+    providerCreditsUsed?: number;
+    providerCreditsLeft?: number;
+  };
+  include: { instrument: true };
+}
+
+interface FakeMarketDataSnapshotCountArgs {
+  where: {
+    provider: string;
+    serverFetchedAt: {
+      gte: Date;
+      lt: Date;
+    };
+  };
+}
+
 interface FakeAuditCreateArgs {
   data: {
     userId: string | null;
@@ -209,6 +287,66 @@ function mapAccount(row: StoredInvestmentAccount) {
   return { units: decimal(row.units) };
 }
 
+function makeInstrument(
+  input: Partial<StoredInvestmentInstrument> & Pick<StoredInvestmentInstrument, 'id' | 'symbol'>,
+): StoredInvestmentInstrument {
+  return {
+    displayName: input.symbol,
+    enabled: true,
+    exchangeMic: 'XLON',
+    kind: 'etf',
+    provider: 'twelve-data',
+    providerSymbol: input.symbol,
+    riskBand: 'medium',
+    sortOrder: 1,
+    sourceCurrency: 'GBP',
+    ...input,
+  };
+}
+
+function mapSnapshot(row: StoredMarketDataSnapshot) {
+  return {
+    ...row,
+    dayChangePct: decimal(row.dayChangePct),
+    gbpConversionRate: decimal(row.gbpConversionRate),
+    gbpPrice: decimal(row.gbpPrice),
+    previousCloseGbp: decimal(row.previousCloseGbp),
+    sourcePrice: decimal(row.sourcePrice),
+  };
+}
+
+function makeMarketSnapshot(input: {
+  id: string;
+  instrument: StoredInvestmentInstrument;
+  serverFetchedAt: Date;
+}): StoredMarketDataSnapshot {
+  return {
+    createdAt: input.serverFetchedAt,
+    dayChangePct: 1.25,
+    gbpConversionRate: 1,
+    gbpPrice: 75,
+    id: input.id,
+    instrument: input.instrument,
+    instrumentId: input.instrument.id,
+    previousCloseGbp: 74,
+    provider: 'twelve-data',
+    providerCreditsLeft: null,
+    providerCreditsUsed: null,
+    providerTimestamp: input.serverFetchedAt,
+    rawPayloadHash: `sha256:${input.id}`,
+    serverFetchedAt: input.serverFetchedAt,
+    sourceCurrency: input.instrument.sourceCurrency,
+    sourcePrice: 75,
+  };
+}
+
+function sortInstruments(
+  left: StoredInvestmentInstrument,
+  right: StoredInvestmentInstrument,
+): number {
+  return left.sortOrder - right.sortOrder || left.symbol.localeCompare(right.symbol);
+}
+
 function makeFakeDb(
   input: {
     students?: StoredStudent[];
@@ -217,6 +355,8 @@ function makeFakeDb(
     navs?: StoredInvestmentNav[];
     accounts?: StoredInvestmentAccount[];
     transactions?: StoredInvestmentTransaction[];
+    instruments?: StoredInvestmentInstrument[];
+    snapshots?: StoredMarketDataSnapshot[];
   } = {},
 ) {
   const students = input.students ?? [
@@ -228,6 +368,8 @@ function makeFakeDb(
   const navs = input.navs ?? [];
   const accounts = input.accounts ?? [];
   const transactions = input.transactions ?? [];
+  const instruments = input.instruments ?? [];
+  const snapshots = input.snapshots ?? [];
   let nextTransaction = transactions.length + 1;
 
   const db = {
@@ -351,12 +493,73 @@ function makeFakeDb(
         ),
       ),
     },
+    investmentInstrument: {
+      findMany: vi.fn((args: FakeInstrumentFindManyArgs) =>
+        Promise.resolve(
+          instruments
+            .filter((instrument) =>
+              args.where?.enabled === undefined ? true : instrument.enabled === args.where.enabled,
+            )
+            .sort(sortInstruments),
+        ),
+      ),
+      findFirst: vi.fn((args: FakeInstrumentFindFirstArgs) =>
+        Promise.resolve(
+          instruments.find(
+            (instrument) =>
+              instrument.provider === args.where.provider &&
+              instrument.providerSymbol === args.where.providerSymbol &&
+              instrument.enabled === args.where.enabled,
+          ) ?? null,
+        ),
+      ),
+    },
+    marketDataSnapshot: {
+      count: vi.fn((args: FakeMarketDataSnapshotCountArgs) =>
+        Promise.resolve(
+          snapshots.filter(
+            (snapshot) =>
+              snapshot.provider === args.where.provider &&
+              snapshot.serverFetchedAt >= args.where.serverFetchedAt.gte &&
+              snapshot.serverFetchedAt < args.where.serverFetchedAt.lt,
+          ).length,
+        ),
+      ),
+      create: vi.fn((args: FakeMarketDataSnapshotCreateArgs) => {
+        const instrument = instruments.find((candidate) => candidate.id === args.data.instrumentId);
+        if (!instrument) throw new Error('missing fake instrument');
+
+        const row: StoredMarketDataSnapshot = {
+          ...args.data,
+          createdAt: args.data.serverFetchedAt,
+          id: `ckmarketsnapshot${String(snapshots.length + 1).padStart(8, '0')}`,
+          instrument,
+          providerCreditsLeft: args.data.providerCreditsLeft ?? null,
+          providerCreditsUsed: args.data.providerCreditsUsed ?? null,
+        };
+        snapshots.push(row);
+        return Promise.resolve(mapSnapshot(row));
+      }),
+      findMany: vi.fn((args: FakeMarketDataSnapshotFindManyArgs) =>
+        Promise.resolve(
+          snapshots
+            .filter((snapshot) =>
+              args.where?.instrumentId
+                ? args.where.instrumentId.in.includes(snapshot.instrumentId)
+                : true,
+            )
+            .map(mapSnapshot),
+        ),
+      ),
+    },
     students,
     guardians,
     ledger,
     navs,
     accounts,
     transactions,
+    instruments,
+    snapshots,
   };
 
   db.$transaction.mockImplementation(async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db));
@@ -393,7 +596,112 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   delete process.env['INVESTMENT_NAV_SEED'];
+  delete process.env['TWELVE_DATA_API_KEY'];
+  delete process.env['TWELVE_DATA_BASE_URL'];
+});
+
+describe('investment.marketData', () => {
+  it('returns cached market snapshots without calling the provider', async () => {
+    const instrument = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const fetchImpl = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchImpl);
+
+    await expect(
+      makeCaller(
+        studentUser,
+        makeFakeDb({
+          instruments: [instrument],
+          snapshots: [
+            makeMarketSnapshot({
+              id: 'snapshot-vusa',
+              instrument,
+              serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+            }),
+          ],
+        }),
+      ).caller.investment.marketData(),
+    ).resolves.toMatchObject({
+      freshness: 'fresh',
+      snapshots: [
+        {
+          gbpPrice: 75,
+          rawPayloadHash: 'sha256:snapshot-vusa',
+          symbol: 'VUSA',
+        },
+      ],
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('investment.refreshMarketData', () => {
+  it('requires full-admin access and audits denials', async () => {
+    const { caller, db } = makeCaller(supervisorUser);
+
+    await expect(caller.investment.refreshMarketData()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'PermissionDenied',
+        entity: 'MarketDataSnapshot',
+        meta: expect.objectContaining({
+          source: 'investment.refreshMarketData',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('lets full admins refresh cached market snapshots server-side', async () => {
+    process.env['TWELVE_DATA_API_KEY'] = 'test-key';
+    process.env['TWELVE_DATA_BASE_URL'] = 'https://example.test';
+    const instrument = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          close: '75.00',
+          currency: 'GBP',
+          mic_code: 'XLON',
+          name: 'Vanguard S&P 500 UCITS ETF',
+          percent_change: '1.25',
+          previous_close: '74.00',
+          symbol: 'VUSA',
+          timestamp: '1778846100',
+        }),
+        {
+          headers: {
+            'api-credits-left': '792',
+            'api-credits-used': '8',
+          },
+          status: 200,
+        },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchImpl);
+    const { caller, db } = makeCaller(
+      headUser,
+      makeFakeDb({
+        instruments: [instrument],
+      }),
+    );
+
+    await expect(caller.investment.refreshMarketData()).resolves.toMatchObject({
+      attemptedSymbols: ['VUSA'],
+      refreshedCount: 1,
+      status: 'updated',
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(db.snapshots).toEqual([
+      expect.objectContaining({
+        gbpPrice: 75,
+        instrumentId: 'instrument-vusa',
+        providerCreditsLeft: 792,
+        providerCreditsUsed: 8,
+      }),
+    ]);
+  });
 });
 
 describe('investment.tickNav', () => {

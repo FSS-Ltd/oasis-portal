@@ -1,6 +1,7 @@
 import type { ProviderQuoteSnapshot } from '@oasis/domain/investmentMarketData';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  countMarketDataSnapshots,
   listEnabledInvestmentInstruments,
   loadLatestMarketDataSnapshots,
   persistProviderQuoteSnapshot,
@@ -75,6 +76,16 @@ interface SnapshotCreateArgs {
   include: { instrument: true };
 }
 
+interface SnapshotCountArgs {
+  where: {
+    provider: string;
+    serverFetchedAt: {
+      gte: Date;
+      lt: Date;
+    };
+  };
+}
+
 function sortInstruments(
   left: StoredInvestmentInstrument,
   right: StoredInvestmentInstrument,
@@ -137,6 +148,16 @@ function makeDb(input: {
           providerCreditsUsed: args.data.providerCreditsUsed ?? null,
         });
       }),
+      count: vi.fn((args: SnapshotCountArgs) =>
+        Promise.resolve(
+          snapshots.filter(
+            (snapshot) =>
+              snapshot.provider === args.where.provider &&
+              snapshot.serverFetchedAt >= args.where.serverFetchedAt.gte &&
+              snapshot.serverFetchedAt < args.where.serverFetchedAt.lt,
+          ).length,
+        ),
+      ),
     },
   };
 }
@@ -326,6 +347,54 @@ describe('investment market data storage', () => {
       include: { instrument: true },
     });
     expect(db.marketDataSnapshot.create.mock.calls[0]?.[0].data).not.toHaveProperty('rawPayload');
+  });
+
+  it('counts persisted snapshots in a quota window', async () => {
+    const db = makeDb({
+      instruments: [aaplInstrument],
+      snapshots: [
+        {
+          ...quoteSnapshot(),
+          createdAt: new Date('2026-06-06T12:00:00.000Z'),
+          id: 'snapshot-aapl-current',
+          instrument: aaplInstrument,
+          instrumentId: 'instrument-aapl',
+          providerCreditsLeft: null,
+          providerCreditsUsed: null,
+          rawPayloadHash: 'sha256:current',
+          serverFetchedAt: new Date('2026-06-06T12:00:30.000Z'),
+        },
+        {
+          ...quoteSnapshot(),
+          createdAt: new Date('2026-06-06T11:59:00.000Z'),
+          id: 'snapshot-aapl-previous',
+          instrument: aaplInstrument,
+          instrumentId: 'instrument-aapl',
+          providerCreditsLeft: null,
+          providerCreditsUsed: null,
+          rawPayloadHash: 'sha256:previous',
+          serverFetchedAt: new Date('2026-06-06T11:59:59.000Z'),
+        },
+      ],
+    });
+
+    await expect(
+      countMarketDataSnapshots({
+        db,
+        from: new Date('2026-06-06T12:00:00.000Z'),
+        provider: 'twelve-data',
+        to: new Date('2026-06-06T12:01:00.000Z'),
+      }),
+    ).resolves.toBe(1);
+    expect(db.marketDataSnapshot.count).toHaveBeenCalledWith({
+      where: {
+        provider: 'twelve-data',
+        serverFetchedAt: {
+          gte: new Date('2026-06-06T12:00:00.000Z'),
+          lt: new Date('2026-06-06T12:01:00.000Z'),
+        },
+      },
+    });
   });
 
   it('rejects snapshots for disabled or unknown instruments', async () => {
