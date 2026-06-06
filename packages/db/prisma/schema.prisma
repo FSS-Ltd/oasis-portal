@@ -1053,6 +1053,51 @@ model InvestmentNav {
   dailyReturn Decimal  @db.Decimal(10, 6)
 }
 
+model InvestmentInstrument {
+  id             String   @id @default(cuid())
+  symbol         String
+  provider       String
+  providerSymbol String
+  displayName    String
+  kind           String
+  exchangeMic    String
+  sourceCurrency String
+  riskBand       String
+  enabled        Boolean  @default(true)
+  sortOrder      Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  snapshots MarketDataSnapshot[]
+
+  @@unique([provider, providerSymbol])
+  @@index([enabled, sortOrder])
+  @@index([symbol])
+}
+
+model MarketDataSnapshot {
+  id                  String   @id @default(cuid())
+  instrumentId        String
+  provider            String
+  providerTimestamp   DateTime
+  serverFetchedAt     DateTime
+  sourceCurrency      String
+  sourcePrice         Decimal  @db.Decimal(18, 6)
+  gbpConversionRate   Decimal  @db.Decimal(18, 6)
+  gbpPrice            Decimal  @db.Decimal(18, 6)
+  previousCloseGbp    Decimal  @db.Decimal(18, 6)
+  dayChangePct        Decimal  @db.Decimal(10, 6)
+  rawPayloadHash      String
+  providerCreditsUsed Int?
+  providerCreditsLeft Int?
+  createdAt           DateTime @default(now())
+
+  instrument InvestmentInstrument @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+
+  @@index([instrumentId, serverFetchedAt])
+  @@index([provider, providerTimestamp])
+}
+
 enum InvestmentTxType {
   Buy
   Sell
