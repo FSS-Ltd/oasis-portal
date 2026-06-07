@@ -64,6 +64,29 @@ export interface ProviderInstrumentProfile {
   country?: string | undefined;
 }
 
+export const GBP_PER_MERIT = 10;
+
+const MERIT_DECIMAL_PLACES = 6;
+const MONEY_DECIMAL_PLACES = 6;
+
+export type DecimalValue = number | string | { toString(): string };
+
+export interface MarketDataMeritValuationInput {
+  gbpPrice: DecimalValue;
+  previousCloseGbp: DecimalValue;
+}
+
+export interface MarketDataMeritValuation {
+  priceMerits: number;
+  previousCloseMerits: number;
+  dailyMovementMerits: number;
+}
+
+export interface HoldingValueMeritsInput {
+  units: DecimalValue;
+  gbpPrice: DecimalValue;
+}
+
 export interface TwelveDataQuoteContext {
   symbol: string;
   exchangeMic: string;
@@ -193,6 +216,108 @@ function gbpRateFor(
 
 function roundMoney(value: number): number {
   return Number(value.toFixed(6));
+}
+
+function decimalText(value: DecimalValue): string {
+  const raw = typeof value === 'number' ? value.toString() : value.toString().trim();
+  if (!raw) {
+    throw new Error('decimal value is required');
+  }
+  if (!/e/i.test(raw)) {
+    return raw;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`decimal value ${raw} is not finite`);
+  }
+  return parsed.toFixed(12).replace(/\.?0+$/, '');
+}
+
+function decimalToScaledInteger(value: DecimalValue, scale: number): bigint {
+  if (!Number.isInteger(scale) || scale < 0) {
+    throw new Error('scale must be a non-negative integer');
+  }
+
+  const match = /^([+-])?(\d+)(?:\.(\d+))?$/.exec(decimalText(value));
+  if (!match) {
+    throw new Error(`decimal value ${value.toString()} is not valid`);
+  }
+
+  const sign = match[1] === '-' ? -1n : 1n;
+  const integerPart = match[2] ?? '0';
+  const fractionPart = match[3] ?? '';
+  const paddedFraction = fractionPart.padEnd(scale + 1, '0');
+  const keptFraction = scale === 0 ? '' : paddedFraction.slice(0, scale);
+  const roundingDigit = Number(paddedFraction[scale] ?? '0');
+  const magnitudeText = `${integerPart}${keptFraction}`.replace(/^0+/, '') || '0';
+  let scaled = BigInt(magnitudeText);
+  if (roundingDigit >= 5) {
+    scaled += 1n;
+  }
+  return sign * scaled;
+}
+
+function divideRounded(value: bigint, divisor: bigint): bigint {
+  if (divisor <= 0n) {
+    throw new Error('divisor must be positive');
+  }
+
+  const sign = value < 0n ? -1n : 1n;
+  const magnitude = value < 0n ? -value : value;
+  let quotient = magnitude / divisor;
+  const remainder = magnitude % divisor;
+  if (remainder * 2n >= divisor) {
+    quotient += 1n;
+  }
+  return sign * quotient;
+}
+
+function scaledIntegerToNumber(value: bigint, scale: number): number {
+  const sign = value < 0n ? '-' : '';
+  const magnitude = value < 0n ? -value : value;
+  if (scale === 0) {
+    return Number(`${sign}${magnitude.toString()}`);
+  }
+
+  const divisor = 10n ** BigInt(scale);
+  const integerPart = magnitude / divisor;
+  const fractionPart = (magnitude % divisor).toString().padStart(scale, '0');
+  return Number(`${sign}${integerPart.toString()}.${fractionPart}`);
+}
+
+function gbpToMeritScaled(value: DecimalValue): bigint {
+  const gbpScaled = decimalToScaledInteger(value, MERIT_DECIMAL_PLACES + 1);
+  return divideRounded(gbpScaled, BigInt(GBP_PER_MERIT * 10));
+}
+
+export function gbpToMerits(value: DecimalValue): number {
+  return scaledIntegerToNumber(gbpToMeritScaled(value), MERIT_DECIMAL_PLACES);
+}
+
+export function buildMarketDataMeritValuation(
+  input: MarketDataMeritValuationInput,
+): MarketDataMeritValuation {
+  const priceScaled = gbpToMeritScaled(input.gbpPrice);
+  const previousCloseScaled = gbpToMeritScaled(input.previousCloseGbp);
+  return {
+    dailyMovementMerits: scaledIntegerToNumber(
+      priceScaled - previousCloseScaled,
+      MERIT_DECIMAL_PLACES,
+    ),
+    previousCloseMerits: scaledIntegerToNumber(previousCloseScaled, MERIT_DECIMAL_PLACES),
+    priceMerits: scaledIntegerToNumber(priceScaled, MERIT_DECIMAL_PLACES),
+  };
+}
+
+export function holdingValueMeritsFromGbpPrice(input: HoldingValueMeritsInput): number {
+  const unitsScaled = decimalToScaledInteger(input.units, MERIT_DECIMAL_PLACES);
+  if (unitsScaled <= 0n) return 0;
+
+  const gbpPriceScaled = decimalToScaledInteger(input.gbpPrice, MONEY_DECIMAL_PLACES);
+  const product = unitsScaled * gbpPriceScaled;
+  const divisor = BigInt(GBP_PER_MERIT) * 10n ** BigInt(MONEY_DECIMAL_PLACES);
+  return scaledIntegerToNumber(divideRounded(product, divisor), MERIT_DECIMAL_PLACES);
 }
 
 function parseProviderError(input: unknown): MarketDataNormalisationError | null {

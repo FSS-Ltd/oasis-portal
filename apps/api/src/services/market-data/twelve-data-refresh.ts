@@ -1,4 +1,5 @@
 import {
+  buildMarketDataMeritValuation,
   normaliseTwelveDataQuoteResponse,
   type InvestmentMarketInstrumentKind,
   type MarketDataNormalisationError,
@@ -63,9 +64,27 @@ export type MarketDataRefreshStatus =
   | 'market_closed'
   | 'quota_exhausted';
 
+export interface MarketDataSnapshotValuationDto {
+  id: string;
+  instrumentId: string;
+  symbol: string;
+  provider: string;
+  providerTimestamp: Date;
+  serverFetchedAt: Date;
+  sourceCurrency: string;
+  dayChangePct: number;
+  priceMerits: number;
+  previousCloseMerits: number;
+  dailyMovementMerits: number;
+  rawPayloadHash: string;
+  providerCreditsUsed: number | null;
+  providerCreditsLeft: number | null;
+  createdAt: Date;
+}
+
 export interface CachedMarketDataResult {
   freshness: MarketDataFreshness;
-  snapshots: MarketDataSnapshotDto[];
+  snapshots: MarketDataSnapshotValuationDto[];
 }
 
 export interface MarketDataRefreshResult extends CachedMarketDataResult {
@@ -144,11 +163,48 @@ function marketDataFreshness(
   return now.getTime() - newest.serverFetchedAt.getTime() > maxSnapshotAgeMs ? 'stale' : 'fresh';
 }
 
-export async function readCachedInvestmentMarketData(input: {
+interface CachedMarketDataSnapshots {
+  freshness: MarketDataFreshness;
+  snapshots: MarketDataSnapshotDto[];
+}
+
+function mapSnapshotValuation(snapshot: MarketDataSnapshotDto): MarketDataSnapshotValuationDto {
+  const valuation = buildMarketDataMeritValuation({
+    gbpPrice: snapshot.gbpPrice,
+    previousCloseGbp: snapshot.previousCloseGbp,
+  });
+
+  return {
+    createdAt: snapshot.createdAt,
+    dailyMovementMerits: valuation.dailyMovementMerits,
+    dayChangePct: snapshot.dayChangePct,
+    id: snapshot.id,
+    instrumentId: snapshot.instrumentId,
+    previousCloseMerits: valuation.previousCloseMerits,
+    priceMerits: valuation.priceMerits,
+    provider: snapshot.provider,
+    providerCreditsLeft: snapshot.providerCreditsLeft,
+    providerCreditsUsed: snapshot.providerCreditsUsed,
+    providerTimestamp: snapshot.providerTimestamp,
+    rawPayloadHash: snapshot.rawPayloadHash,
+    serverFetchedAt: snapshot.serverFetchedAt,
+    sourceCurrency: snapshot.sourceCurrency,
+    symbol: snapshot.symbol,
+  };
+}
+
+function mapCachedMarketDataResult(cached: CachedMarketDataSnapshots): CachedMarketDataResult {
+  return {
+    freshness: cached.freshness,
+    snapshots: cached.snapshots.map(mapSnapshotValuation),
+  };
+}
+
+async function readCachedMarketDataSnapshots(input: {
   db: InvestmentMarketDataStorageDb;
   now?: Date;
   maxSnapshotAgeMs?: number;
-}): Promise<CachedMarketDataResult> {
+}): Promise<CachedMarketDataSnapshots> {
   const now = input.now ?? new Date();
   const snapshots = await loadLatestMarketDataSnapshots(input.db);
   return {
@@ -159,6 +215,14 @@ export async function readCachedInvestmentMarketData(input: {
     ),
     snapshots,
   };
+}
+
+export async function readCachedInvestmentMarketData(input: {
+  db: InvestmentMarketDataStorageDb;
+  now?: Date;
+  maxSnapshotAgeMs?: number;
+}): Promise<CachedMarketDataResult> {
+  return mapCachedMarketDataResult(await readCachedMarketDataSnapshots(input));
 }
 
 async function quotaAvailable(input: {
@@ -305,18 +369,19 @@ export async function refreshTwelveDataQuotes(
 ): Promise<MarketDataRefreshResult> {
   const now = options.now ?? new Date();
   const maxSnapshotAgeMs = options.maxSnapshotAgeMs ?? DEFAULT_MAX_SNAPSHOT_AGE_MS;
-  const cached = await readCachedInvestmentMarketData({
+  const cached = await readCachedMarketDataSnapshots({
     db: options.db,
     maxSnapshotAgeMs,
     now,
   });
+  const cachedResult = mapCachedMarketDataResult(cached);
 
   if (
     options.mode === 'scheduled' &&
     !isLondonStockMarketOpen(now, options.closedDates ? { closedDates: options.closedDates } : {})
   ) {
     return {
-      ...cached,
+      ...cachedResult,
       attemptedSymbols: [],
       failed: [],
       mode: options.mode,
@@ -329,7 +394,7 @@ export async function refreshTwelveDataQuotes(
   const instruments = await listEnabledInvestmentInstruments(options.db);
   if (instruments.length === 0) {
     return {
-      ...cached,
+      ...cachedResult,
       attemptedSymbols: [],
       failed: [],
       mode: options.mode,
@@ -350,7 +415,7 @@ export async function refreshTwelveDataQuotes(
 
   if (selected.length === 0) {
     return {
-      ...cached,
+      ...cachedResult,
       attemptedSymbols: [],
       failed: [],
       mode: options.mode,
@@ -363,7 +428,7 @@ export async function refreshTwelveDataQuotes(
   const creditsNeeded = creditCostFor(selected);
   if (!(await quotaAvailable({ creditsNeeded, db: options.db, now }))) {
     const result: MarketDataRefreshResult = {
-      ...cached,
+      ...cachedResult,
       attemptedSymbols: [],
       failed: [],
       mode: options.mode,
@@ -383,7 +448,7 @@ export async function refreshTwelveDataQuotes(
     conversionRates = await loadGbpConversionRates({ instruments: selected, provider });
   } catch (err) {
     const result: MarketDataRefreshResult = {
-      ...cached,
+      ...cachedResult,
       attemptedSymbols: selected.map((instrument) => instrument.symbol),
       failed: [
         {
@@ -442,11 +507,12 @@ export async function refreshTwelveDataQuotes(
     }
   }
 
-  const latest = await readCachedInvestmentMarketData({
+  const latest = await readCachedMarketDataSnapshots({
     db: options.db,
     maxSnapshotAgeMs,
     now,
   });
+  const latestResult = mapCachedMarketDataResult(latest);
   const skippedSymbols = instruments
     .filter(
       (instrument) =>
@@ -460,7 +526,7 @@ export async function refreshTwelveDataQuotes(
         ? 'partial_failure'
         : fallbackStatus(latest.freshness);
   const result: MarketDataRefreshResult = {
-    ...latest,
+    ...latestResult,
     attemptedSymbols: selected.map((instrument) => instrument.symbol),
     failed,
     mode: options.mode,

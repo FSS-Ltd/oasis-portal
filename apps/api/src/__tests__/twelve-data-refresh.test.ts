@@ -395,6 +395,14 @@ describe('refreshTwelveDataQuotes', () => {
     ).resolves.toMatchObject({
       freshness: 'stale',
       refreshedCount: 0,
+      snapshots: [
+        {
+          dailyMovementMerits: 0.1,
+          previousCloseMerits: 9.9,
+          priceMerits: 10,
+          symbol: 'VUSA',
+        },
+      ],
       status: 'stale',
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
