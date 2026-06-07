@@ -60,6 +60,12 @@ function shiftToForm(shift: ClubShift): ShiftForm {
   };
 }
 
+function selectedCandidateIds(candidates: readonly Candidate[]): Set<string> {
+  return new Set(
+    candidates.filter((candidate) => candidate.selected).map((candidate) => candidate.id),
+  );
+}
+
 function availabilityLabel(window: {
   dayOfWeek: number;
   startMinute: number;
@@ -144,13 +150,7 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
 
   useEffect(() => {
     if (!candidatesQuery.data) return;
-    setSelectedUserIds(
-      new Set(
-        candidatesQuery.data
-          .filter((candidate) => candidate.selected)
-          .map((candidate) => candidate.id),
-      ),
-    );
+    setSelectedUserIds(selectedCandidateIds(candidatesQuery.data));
   }, [candidatesQuery.data]);
 
   async function refreshRota() {
@@ -452,7 +452,9 @@ export function ClubRotaPanel({ club }: { club: ManagedClub }) {
         </div>
       </section>
 
-      {mutationError ? <p className="status--error">{friendlyErrorMessage(mutationError)}</p> : null}
+      {mutationError ? (
+        <p className="status--error">{friendlyErrorMessage(mutationError)}</p>
+      ) : null}
     </section>
   );
 }

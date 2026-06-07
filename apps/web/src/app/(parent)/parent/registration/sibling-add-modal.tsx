@@ -33,6 +33,15 @@ interface SiblingAddModalButtonProps {
   variant?: ButtonProps['variant'];
 }
 
+const issueLabelByField = new Map<string, string>([
+  ['dob', 'Choose a valid date of birth.'],
+  ['fullName', 'Enter the full name.'],
+  ['gender', 'Choose Male or Female, or leave gender blank.'],
+  ['initials', 'Enter initials for this consent.'],
+  ['startDate', 'Choose a valid start date.'],
+  ['yearGroup', 'Choose a year group or check the date of birth.'],
+]);
+
 function TextArea({
   label,
   error,
@@ -72,12 +81,8 @@ function fieldPathForIssue(issue: ZodIssue): string {
 
 function labelForIssue(issue: ZodIssue): string {
   const last = String(issue.path.at(-1) ?? '');
-  if (last === 'fullName') return 'Enter the full name.';
-  if (last === 'dob') return 'Choose a valid date of birth.';
-  if (last === 'yearGroup') return 'Choose a year group or check the date of birth.';
-  if (last === 'startDate') return 'Choose a valid start date.';
-  if (last === 'gender') return 'Choose Male or Female, or leave gender blank.';
-  if (last === 'initials') return 'Enter initials for this consent.';
+  const label = issueLabelByField.get(last);
+  if (label) return label;
   return issue.message || 'Check this field.';
 }
 
@@ -427,11 +432,7 @@ export function SiblingAddModalButton({
                   </p>
                 ) : null}
               </div>
-              <Button
-                onClick={closeModal}
-                type="button"
-                variant="ghost"
-              >
+              <Button onClick={closeModal} type="button" variant="ghost">
                 Cancel
               </Button>
               <Button

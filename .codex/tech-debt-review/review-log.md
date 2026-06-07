@@ -331,3 +331,53 @@
 
 ### Follow-Ups Deferred
 - Larger UI splits remain warranted for the selected oversized screens, but were deferred to avoid broader workflow and visual-regression risk.
+
+## 2026-06-07 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/clubs/parent-my-clubs-client.tsx`
+2. `apps/api/src/services/market-data/twelve-data-refresh.ts`
+3. `apps/mobile/src/components/smoke/parent-smoke-children.tsx`
+4. `apps/web/src/components/student/invest/student-invest-ui.tsx`
+5. `apps/web/src/components/permission-slips/admin-permission-slip-form.tsx`
+6. `apps/web/src/app/(parent)/parent/parent-dashboard-client.tsx`
+7. `apps/web/src/components/permission-slips/parent-permission-slips-client.tsx`
+8. `apps/web/src/app/(admin)/admin/student-portal/student-portal-readiness-client.tsx`
+9. `apps/web/src/components/clubs/club-rota-panel.tsx`
+10. `apps/web/src/app/(parent)/parent/registration/sibling-add-modal.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck`, `pnpm --filter @oasis/mobile typecheck`, and `pnpm --filter @oasis/api typecheck` passed before edits.
+- Tests: not run at baseline; focused API market-data tests were run after the cleanup.
+
+### Changes Made
+- `apps/web/src/components/clubs/parent-my-clubs-client.tsx`: Cached the notice date formatter instead of constructing it per format call.
+- `apps/api/src/services/market-data/twelve-data-refresh.ts`: Named day/minute duration constants and extracted provider FX currency-code collection.
+- `apps/mobile/src/components/smoke/parent-smoke-children.tsx`: Cached short date and date-time formatters used by parent smoke child cards.
+- `apps/web/src/components/student/invest/student-invest-ui.tsx`: Reviewed chart and investment UI helpers; no safe local cleanup justified without visual regression risk.
+- `apps/web/src/components/permission-slips/admin-permission-slip-form.tsx`: Extracted student ID, year grouping, and question payload helpers from the admin permission-slip form.
+- `apps/web/src/app/(parent)/parent/parent-dashboard-client.tsx`: Cached parent dashboard date and date-time formatters.
+- `apps/web/src/components/permission-slips/parent-permission-slips-client.tsx`: Extracted parent slip row flattening and outstanding/completed grouping helpers.
+- `apps/web/src/app/(admin)/admin/student-portal/student-portal-readiness-client.tsx`: Named the visible PACE subject limit and extracted the visible-subject helper.
+- `apps/web/src/components/clubs/club-rota-panel.tsx`: Extracted selected rota candidate ID collection into a named helper.
+- `apps/web/src/app/(parent)/parent/registration/sibling-add-modal.tsx`: Replaced repeated sibling validation issue label branches with a typed lookup map.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/api lint`
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/api typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/twelve-data-refresh.test.ts`; UI-focused tests not run because the selected UI changes are helper-only and have no focused unit tests.
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff whitespace: pass, `git diff --check`
+- graph update: pass with existing lower-node-count warning, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger splits remain warranted for the oversized parent clubs, permission slips, dashboard, student portal, and club rota UI surfaces, but were deferred to keep this run low-risk.
+- `apps/web/src/components/student/invest/student-invest-ui.tsx` was reviewed and left unchanged because chart/UI extraction would need visual regression coverage.

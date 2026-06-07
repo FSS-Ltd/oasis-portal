@@ -3,10 +3,10 @@
 - Current pass: 1
 - Pass started: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files detected: 509
-- Files reviewed so far: 60
-- Files remaining estimate: 449
-- Last run: 2026-06-06
+- Current eligible files detected: 520
+- Files reviewed so far: 70
+- Files remaining estimate: 450
+- Last run: 2026-06-07
 - Next selection strategy: continue pass 1 by selecting 10 unreviewed oversized production source files first; prioritise UI files over 300 lines and backend/domain utilities over 400 lines, then high-churn files.
 
 ## Reviewed This Pass
@@ -39,35 +39,45 @@
 26. `apps/api/src/routers/shop.ts`
 27. `apps/api/src/routers/student.ts`
 28. `apps/api/src/routers/studentSettings.ts`
-29. `apps/mobile/src/components/smoke/portal-mobile-shell.tsx`
-30. `apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx`
-31. `apps/mobile/src/components/smoke/student-smoke-shop.tsx`
-32. `apps/mobile/src/components/smoke/supervisor-smoke-screen.tsx`
-33. `apps/web/src/app/(admin)/admin/academic/academic-settings-client.tsx`
-34. `apps/web/src/app/(admin)/admin/staff/_components/user-profile-panel.tsx`
-35. `apps/web/src/app/(admin)/admin/students/[id]/student-admin-editor.tsx`
-36. `apps/web/src/app/(supervisor)/supervisor/supervisor-dashboard-client.tsx`
-37. `apps/web/src/app/landing-page.tsx`
-38. `apps/web/src/app/registration/registration-form.tsx`
-39. `apps/web/src/components/behaviour/behaviour-log-client.tsx`
-40. `apps/web/src/components/calendar/shared-calendar.tsx`
-41. `apps/web/src/components/child-log/child-snapshot-client.tsx`
-42. `apps/web/src/components/clubs/clubs-lead-portal-client.tsx`
-43. `apps/web/src/components/incidents/incident-staff-workflow.tsx`
-44. `apps/web/src/components/invoices/admin-invoice-create-modal.tsx`
-45. `apps/web/src/components/invoices/admin-invoice-upload-modal.tsx`
-46. `apps/web/src/components/invoices/admin-invoices-client.tsx`
-47. `apps/web/src/components/messages/message-centre.tsx`
-48. `apps/web/src/components/parent/parent-student-settings-client.tsx`
-49. `apps/web/src/components/permission-slips/admin-permission-slips-client.tsx`
-50. `apps/web/src/components/shop/shop-workflow-client.tsx`
-51. `apps/web/src/components/student-drillthrough/student-drillthrough-content.tsx`
-52. `apps/web/src/components/student/invest/student-invest-data.ts`
-53. `apps/web/src/components/student/invest/student-invest-market.tsx`
-54. `apps/web/src/components/student/invest/student-invest-overview.tsx`
-55. `packages/db/src/pace-score-backfill.ts`
-56. `packages/domain/src/invoice.ts`
-57. `packages/domain/src/rbac.ts`
-58. `packages/domain/src/shop.ts`
-59. `packages/domain/src/studentPortalSettings.ts`
-60. `packages/domain/src/tithe.ts`
+29. `apps/api/src/services/market-data/twelve-data-refresh.ts`
+30. `apps/mobile/src/components/smoke/parent-smoke-children.tsx`
+31. `apps/mobile/src/components/smoke/portal-mobile-shell.tsx`
+32. `apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx`
+33. `apps/mobile/src/components/smoke/student-smoke-shop.tsx`
+34. `apps/mobile/src/components/smoke/supervisor-smoke-screen.tsx`
+35. `apps/web/src/app/(admin)/admin/academic/academic-settings-client.tsx`
+36. `apps/web/src/app/(admin)/admin/staff/_components/user-profile-panel.tsx`
+37. `apps/web/src/app/(admin)/admin/student-portal/student-portal-readiness-client.tsx`
+38. `apps/web/src/app/(admin)/admin/students/[id]/student-admin-editor.tsx`
+39. `apps/web/src/app/(parent)/parent/parent-dashboard-client.tsx`
+40. `apps/web/src/app/(parent)/parent/registration/sibling-add-modal.tsx`
+41. `apps/web/src/app/(supervisor)/supervisor/supervisor-dashboard-client.tsx`
+42. `apps/web/src/app/landing-page.tsx`
+43. `apps/web/src/app/registration/registration-form.tsx`
+44. `apps/web/src/components/behaviour/behaviour-log-client.tsx`
+45. `apps/web/src/components/calendar/shared-calendar.tsx`
+46. `apps/web/src/components/child-log/child-snapshot-client.tsx`
+47. `apps/web/src/components/clubs/club-rota-panel.tsx`
+48. `apps/web/src/components/clubs/clubs-lead-portal-client.tsx`
+49. `apps/web/src/components/clubs/parent-my-clubs-client.tsx`
+50. `apps/web/src/components/incidents/incident-staff-workflow.tsx`
+51. `apps/web/src/components/invoices/admin-invoice-create-modal.tsx`
+52. `apps/web/src/components/invoices/admin-invoice-upload-modal.tsx`
+53. `apps/web/src/components/invoices/admin-invoices-client.tsx`
+54. `apps/web/src/components/messages/message-centre.tsx`
+55. `apps/web/src/components/parent/parent-student-settings-client.tsx`
+56. `apps/web/src/components/permission-slips/admin-permission-slip-form.tsx`
+57. `apps/web/src/components/permission-slips/admin-permission-slips-client.tsx`
+58. `apps/web/src/components/permission-slips/parent-permission-slips-client.tsx`
+59. `apps/web/src/components/shop/shop-workflow-client.tsx`
+60. `apps/web/src/components/student-drillthrough/student-drillthrough-content.tsx`
+61. `apps/web/src/components/student/invest/student-invest-data.ts`
+62. `apps/web/src/components/student/invest/student-invest-market.tsx`
+63. `apps/web/src/components/student/invest/student-invest-overview.tsx`
+64. `apps/web/src/components/student/invest/student-invest-ui.tsx`
+65. `packages/db/src/pace-score-backfill.ts`
+66. `packages/domain/src/invoice.ts`
+67. `packages/domain/src/rbac.ts`
+68. `packages/domain/src/shop.ts`
+69. `packages/domain/src/studentPortalSettings.ts`
+70. `packages/domain/src/tithe.ts`

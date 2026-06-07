@@ -19,6 +19,7 @@ type ReportStatus = 'All' | 'Ready' | 'Exceptions';
 
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const usernamePattern = /^[a-z0-9]+$/iu;
+const maxVisiblePaceSubjects = 3;
 
 function ratio(value: number | null): string {
   return value === null ? 'No records' : `${String(value)}%`;
@@ -42,6 +43,10 @@ function usageLabel(row: ReportRow): string {
       : null,
   ].filter((part): part is string => Boolean(part));
   return parts.join(' · ');
+}
+
+function visiblePaceSubjects(row: ReportRow): ReportRow['paceSubjects'] {
+  return row.paceSubjects.slice(0, maxVisiblePaceSubjects);
 }
 
 function StudentPortalSummary({ report }: { report: Report }) {
@@ -336,7 +341,7 @@ function StudentPortalTable({
               <td>
                 {row.paceSubjects.length > 0 ? (
                   <div className="student-portal-admin-stack">
-                    {row.paceSubjects.slice(0, 3).map((subject) => (
+                    {visiblePaceSubjects(row).map((subject) => (
                       <span key={`${row.studentId}-${subject.subjectName}`}>
                         {subject.subjectName} {String(subject.currentPaceNumber)}
                       </span>

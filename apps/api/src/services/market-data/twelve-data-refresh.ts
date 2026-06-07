@@ -30,8 +30,10 @@ export {
 const PROVIDER = 'twelve-data';
 const FREE_TIER_DAILY_CREDITS = 800;
 const FREE_TIER_MINUTE_CREDITS = 8;
-const DEFAULT_MIN_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
-const DEFAULT_MAX_SNAPSHOT_AGE_MS = 15 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+const DEFAULT_MIN_REFRESH_INTERVAL_MS = 5 * MINUTE_MS;
+const DEFAULT_MAX_SNAPSHOT_AGE_MS = 15 * MINUTE_MS;
 
 type AuditAction = 'Create' | 'Update' | 'PermissionDenied';
 
@@ -125,11 +127,11 @@ function startOfUtcMinute(date: Date): Date {
 }
 
 function addDays(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+  return new Date(date.getTime() + days * DAY_MS);
 }
 
 function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60 * 1000);
+  return new Date(date.getTime() + minutes * MINUTE_MS);
 }
 
 function sourceCurrencyNeedsProviderFx(sourceCurrency: string): boolean {
@@ -138,13 +140,16 @@ function sourceCurrencyNeedsProviderFx(sourceCurrency: string): boolean {
 }
 
 function creditCostFor(instruments: InvestmentInstrumentDto[]): number {
-  const providerFxCurrencies = new Set(
+  return instruments.length + providerFxCurrencyCodes(instruments).size;
+}
+
+function providerFxCurrencyCodes(instruments: InvestmentInstrumentDto[]): Set<string> {
+  return new Set(
     instruments
       .map((instrument) => instrument.sourceCurrency)
       .filter(sourceCurrencyNeedsProviderFx)
       .map((currency) => currency.trim().toUpperCase()),
   );
-  return instruments.length + providerFxCurrencies.size;
 }
 
 function latestSnapshotMap(snapshots: MarketDataSnapshotDto[]): Map<string, MarketDataSnapshotDto> {
