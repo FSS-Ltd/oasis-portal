@@ -55,13 +55,15 @@ const BASE_TABS = [
   ['notices', 'Notices'],
 ] as const satisfies readonly [ParentClubsTab, string][];
 
+const noticeDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'short',
+});
+
 function formatNoticeDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
+  return noticeDateFormatter.format(new Date(value));
 }
 
 function signedUpClubCount(clubs: readonly ParentClub[]): number {

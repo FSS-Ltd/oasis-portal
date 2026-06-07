@@ -27,6 +27,25 @@ interface QuestionDraft {
 const defaultConsent =
   'I give permission for my child to take part in this activity. I understand that my child will be supervised by Oasis staff at all times.';
 
+function studentIdsFor(students: readonly StudentCandidate[]): string[] {
+  return students.map((student) => student.id);
+}
+
+function groupStudentsByYear(
+  students: readonly StudentCandidate[],
+): Record<string, StudentCandidate[]> {
+  return students.reduce<Record<string, StudentCandidate[]>>((groups, student) => {
+    groups[student.yearGroup] = [...(groups[student.yearGroup] ?? []), student];
+    return groups;
+  }, {});
+}
+
+function questionsForCreate(questions: readonly QuestionDraft[]): CreateInput['questions'] {
+  return questions
+    .filter((question) => question.label.trim())
+    .map((question) => ({ label: question.label.trim(), required: question.required }));
+}
+
 export function AdminPermissionSlipForm({
   creating,
   onClose,
@@ -48,27 +67,18 @@ export function AdminPermissionSlipForm({
   const [requireMedical, setRequireMedical] = useState(true);
   const [requireEmergencyContact, setRequireEmergencyContact] = useState(true);
   const [requirePayment, setRequirePayment] = useState(false);
-  const [studentIds, setStudentIds] = useState<string[]>(() =>
-    students.map((student) => student.id),
-  );
+  const [studentIds, setStudentIds] = useState<string[]>(() => studentIdsFor(students));
   const [bringDraft, setBringDraft] = useState('');
   const [bringItems, setBringItems] = useState<string[]>([]);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
 
   const selectedStudentCount = studentIds.length;
   const canSubmit = title.trim() && deadline && consentText.trim() && selectedStudentCount > 0;
-  const studentsByYear = useMemo(
-    () =>
-      students.reduce<Record<string, StudentCandidate[]>>((groups, student) => {
-        groups[student.yearGroup] = [...(groups[student.yearGroup] ?? []), student];
-        return groups;
-      }, {}),
-    [students],
-  );
+  const studentsByYear = useMemo(() => groupStudentsByYear(students), [students]);
 
   useEffect(() => {
     setStudentIds((current) =>
-      current.length === 0 && students.length > 0 ? students.map((student) => student.id) : current,
+      current.length === 0 && students.length > 0 ? studentIdsFor(students) : current,
     );
   }, [students]);
 
@@ -107,9 +117,7 @@ export function AdminPermissionSlipForm({
       recipientLabel: recipientLabel.trim(),
       studentIds,
       bringItems,
-      questions: questions
-        .filter((question) => question.label.trim())
-        .map((question) => ({ label: question.label.trim(), required: question.required })),
+      questions: questionsForCreate(questions),
     });
   }
 
