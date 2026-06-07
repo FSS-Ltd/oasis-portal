@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-07
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 8 server-side Twelve Data quote refresh.
+**Phase:** Phase 8 Twelve Data merit valuation.
 
 ---
 
@@ -28,6 +28,47 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-07 Twelve Data merit valuation
+
+Working branch: `feat/convert-twelve-data-values-to-merits`.
+
+**PR scope:** Convert cached Twelve Data market values into backend-owned merit
+valuation responses for PR-8.4 without changing provider snapshot storage,
+ledger accounting, buy/sell flows, or student investment UI.
+
+Completed:
+
+- Fast-forwarded local `main` to GitHub `main` at `53a63d3` before branching.
+- Added central domain helpers for `1 merit = GBP 10`, deterministic
+  six-decimal GBP-to-merit conversion, market snapshot valuation fields, and
+  holding value valuation from units and GBP prices.
+- Kept persisted `MarketDataSnapshot` source/GBP fields unchanged for audit and
+  replay.
+- Mapped cached market-data API responses to merit-denominated `priceMerits`,
+  `previousCloseMerits`, and `dailyMovementMerits` fields so clients do not
+  receive raw provider price fields from `investment.marketData`.
+- Exported the public market-data valuation DTO type from the API package.
+- Added regression coverage for conversion rounding, non-GBP-after-GBP
+  valuation, zero-unit holdings, cached API responses, and stale cache results.
+
+Verification:
+
+- `pnpm --filter @oasis/domain test`
+- `pnpm --filter @oasis/api test`
+- `pnpm --filter @oasis/domain typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/domain lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check` on changed TypeScript files.
+- `graphify update .`
+
+Notes:
+
+- No Prisma schema, RLS, migration, cron, provider HTTP, ledger, buy/sell
+  accounting, or UI file was changed.
+- The API tests still emit existing PDF `standardFontDataUrl` warnings in
+  unrelated invoice/incident tests, but the suites pass.
 
 ## Current session - 2026-06-06 Twelve Data server-side quote refresh
 

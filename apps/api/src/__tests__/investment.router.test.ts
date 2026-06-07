@@ -608,30 +608,34 @@ describe('investment.marketData', () => {
     const fetchImpl = vi.fn<typeof fetch>();
     vi.stubGlobal('fetch', fetchImpl);
 
-    await expect(
-      makeCaller(
-        studentUser,
-        makeFakeDb({
-          instruments: [instrument],
-          snapshots: [
-            makeMarketSnapshot({
-              id: 'snapshot-vusa',
-              instrument,
-              serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
-            }),
-          ],
-        }),
-      ).caller.investment.marketData(),
-    ).resolves.toMatchObject({
+    const result = await makeCaller(
+      studentUser,
+      makeFakeDb({
+        instruments: [instrument],
+        snapshots: [
+          makeMarketSnapshot({
+            id: 'snapshot-vusa',
+            instrument,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+        ],
+      }),
+    ).caller.investment.marketData();
+
+    expect(result).toMatchObject({
       freshness: 'fresh',
       snapshots: [
         {
-          gbpPrice: 75,
-          rawPayloadHash: 'sha256:snapshot-vusa',
+          dailyMovementMerits: 0.1,
+          previousCloseMerits: 7.4,
+          priceMerits: 7.5,
           symbol: 'VUSA',
         },
       ],
     });
+    expect(result.snapshots[0]).not.toHaveProperty('gbpPrice');
+    expect(result.snapshots[0]).not.toHaveProperty('sourcePrice');
+    expect(result.snapshots[0]).not.toHaveProperty('previousCloseGbp');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
