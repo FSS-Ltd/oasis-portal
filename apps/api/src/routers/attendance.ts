@@ -16,6 +16,7 @@ import {
   studentMatchesDailyScope,
   studentWhereForDailyScope,
 } from '../lib/daily-year-band-scope.js';
+import { canUseStudentAcademicScreens } from '../lib/student-academic-screens.js';
 import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -421,10 +422,12 @@ async function assertActiveStaffUser(
   }
 }
 
-async function loadOwnActiveStudent(ctx: AuthedContext): Promise<{ id: string; active: boolean }> {
+async function loadOwnActiveStudent(
+  ctx: AuthedContext,
+): Promise<{ id: string; active: boolean; yearGroup: string }> {
   const student = await ctx.db.student.findUnique({
     where: { userId: ctx.user.id },
-    select: { id: true, active: true },
+    select: { id: true, active: true, yearGroup: true },
   });
   if (!student?.active) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student profile not found' });
@@ -1049,6 +1052,12 @@ export const attendanceRouter = router({
         entity: 'attendance.studentSummary',
         studentId: student.id,
       });
+      if (!(await canUseStudentAcademicScreens(ctx.db, student.yearGroup))) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'attendance summary is only available to secondary students',
+        });
+      }
 
       const to = normalizeDate(input?.to ?? new Date());
       const from = normalizeDate(input?.from ?? addUtcDays(to, -89));

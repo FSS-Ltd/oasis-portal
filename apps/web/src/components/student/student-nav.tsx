@@ -37,6 +37,17 @@ const visibleStudentNavItems = studentNavItems.filter(
     canUseStudentInvestPrototype({ NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV }),
 );
 
+function useVisibleStudentNavItems() {
+  const profile = api.student.me.useQuery(undefined, { retry: false });
+  const academicScreensEnabled = profile.data?.academicScreensEnabled ?? false;
+
+  return visibleStudentNavItems.filter(
+    (item) =>
+      (item.href !== '/student/pace' && item.href !== '/student/attendance') ||
+      academicScreensEnabled,
+  );
+}
+
 function isActiveRoute(pathname: string, href: string) {
   return href === '/student'
     ? pathname === href
@@ -60,10 +71,11 @@ function badgeForItem(item: (typeof studentNavItems)[number], unreadBadge: strin
 export function StudentTopNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
+  const navItems = useVisibleStudentNavItems();
 
   return (
     <nav aria-label="Student portal sections" className="student-top-nav">
-      {visibleStudentNavItems.map((item) => {
+      {navItems.map((item) => {
         const active = isActiveRoute(pathname, item.href);
         const Icon = item.icon;
         const badge = badgeForItem(item, unreadBadge);
@@ -88,10 +100,11 @@ export function StudentTopNav() {
 export function StudentSidebarNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
+  const navItems = useVisibleStudentNavItems();
 
   return (
     <nav className="admin-shell__nav">
-      {visibleStudentNavItems.map((item) => {
+      {navItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
         const badge = badgeForItem(item, unreadBadge);
@@ -119,10 +132,11 @@ export function StudentSidebarNav() {
 export function StudentBottomNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
+  const navItems = useVisibleStudentNavItems();
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
-      {visibleStudentNavItems.map((item) => {
+      {navItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
         const badge = badgeForItem(item, unreadBadge);

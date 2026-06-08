@@ -17,6 +17,7 @@ import {
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
+import { canUseStudentAcademicScreens } from '../lib/student-academic-screens.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
@@ -763,6 +764,16 @@ export const paceRouter = router({
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is not active' });
     }
     const scope = await loadPaceScopeForStudentRead(ctx, input.date, student, 'pace.forStudent');
+    if (
+      ctx.user.role === 'Student' &&
+      student.userId === ctx.user.id &&
+      !(await canUseStudentAcademicScreens(ctx.db, student.yearGroup))
+    ) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: 'PACE progress is only available to secondary students',
+      });
+    }
 
     const storedPolicy = await ctx.db.pacePolicy.findUnique({ where: { id: 'default' } });
     const policy = storedPolicy ?? DEFAULT_POLICY;

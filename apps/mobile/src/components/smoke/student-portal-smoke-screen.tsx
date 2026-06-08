@@ -106,11 +106,13 @@ function firstUsageLimitMessage(messages: Array<string | undefined>): string | n
 }
 
 function StudentHomePanel({
+  academicScreensEnabled,
   balances,
   loading,
   pace,
   profile,
 }: {
+  academicScreensEnabled: boolean;
   balances: MeritBalances | undefined;
   loading: boolean;
   pace: PaceDetail | undefined;
@@ -148,15 +150,19 @@ function StudentHomePanel({
         <View style={styles.heroStats}>
           <HeroStat label="Spend" value={String(balances?.balances.Spend ?? 0)} />
           <HeroStat label="Saving" value={String(balances?.balances.Saving ?? 0)} />
-          <HeroStat label="PACEs" value={String(completedPaces(pace))} />
+          {academicScreensEnabled ? (
+            <HeroStat label="PACEs" value={String(completedPaces(pace))} />
+          ) : null}
         </View>
       </Card>
       <Card style={styles.compactCard}>
         <View style={styles.cardHeader}>
           <SectionTitle>Today</SectionTitle>
-          <Badge variant="blue">
-            {pace ? `${String(pace.today.testCount)} PACE tests` : 'Loading'}
-          </Badge>
+          {academicScreensEnabled ? (
+            <Badge variant="blue">
+              {pace ? `${String(pace.today.testCount)} PACE tests` : 'Loading'}
+            </Badge>
+          ) : null}
         </View>
         <MutedText>{todayFormatter.format(new Date())}</MutedText>
       </Card>
@@ -200,6 +206,11 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
 
   const student = api.student.me.useQuery(undefined, { retry: false });
   const studentId = student.data?.id ?? '';
+  const academicScreensEnabled = student.data?.academicScreensEnabled ?? false;
+  const visibleStudentTabs = useMemo(
+    () => studentTabs.filter((tab) => tab.id !== 'pace' || academicScreensEnabled),
+    [academicScreensEnabled],
+  );
   const balances = api.meritLedger.balances.useQuery(
     { studentId },
     { enabled: Boolean(studentId), retry: false },
@@ -218,7 +229,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
   );
   const pace = api.pace.forStudent.useQuery(
     { studentId, date: today },
-    { enabled: Boolean(studentId), retry: false },
+    { enabled: Boolean(studentId) && academicScreensEnabled, retry: false },
   );
   const leaderboard = api.leaderboard.get.useQuery(
     { kind: leaderboardKind, limit: 10 },
@@ -245,7 +256,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     weekActivity.isFetching ||
     monthActivity.isFetching ||
     investment.isFetching ||
-    pace.isFetching ||
+    (academicScreensEnabled && pace.isFetching) ||
     leaderboard.isFetching ||
     shopItems.isFetching;
   const queryError = firstError(
@@ -255,7 +266,9 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     studentFriendlyErrorMessage(weekActivity.error?.message) ?? undefined,
     studentFriendlyErrorMessage(monthActivity.error?.message) ?? undefined,
     studentFriendlyErrorMessage(investment.error?.message) ?? undefined,
-    studentFriendlyErrorMessage(pace.error?.message) ?? undefined,
+    academicScreensEnabled
+      ? (studentFriendlyErrorMessage(pace.error?.message) ?? undefined)
+      : undefined,
     studentFriendlyErrorMessage(leaderboard.error?.message) ?? undefined,
     studentFriendlyErrorMessage(shopItems.error?.message) ?? undefined,
   );
@@ -266,7 +279,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     weekActivity.error?.message,
     monthActivity.error?.message,
     investment.error?.message,
-    pace.error?.message,
+    academicScreensEnabled ? pace.error?.message : undefined,
     leaderboard.error?.message,
     shopItems.error?.message,
   ]);
@@ -285,6 +298,12 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     };
   }, [studentId, sessionKey, usageLimitNotice]);
 
+  useEffect(() => {
+    if (!academicScreensEnabled && activeTab === 'pace') {
+      setActiveTab('home');
+    }
+  }, [academicScreensEnabled, activeTab]);
+
   async function refresh() {
     await student.refetch();
     if (studentId) {
@@ -293,7 +312,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
         weekActivity.refetch(),
         monthActivity.refetch(),
         investment.refetch(),
-        pace.refetch(),
+        ...(academicScreensEnabled ? [pace.refetch()] : []),
       ]);
     }
     await Promise.all([leaderboard.refetch(), shopItems.refetch()]);
@@ -354,8 +373,9 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
         {!usageLimitMessage && activeTab === 'home' ? (
           <StudentHomePanel
             balances={balances.data}
+            academicScreensEnabled={academicScreensEnabled}
             loading={student.isLoading}
-            pace={pace.data}
+            pace={academicScreensEnabled ? pace.data : undefined}
             profile={student.data}
           />
         ) : null}
@@ -376,7 +396,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
           />
         ) : null}
 
-        {!usageLimitMessage && activeTab === 'pace' ? (
+        {!usageLimitMessage && academicScreensEnabled && activeTab === 'pace' ? (
           <StudentPacePanel loading={pace.isFetching} pace={pace.data} />
         ) : null}
 
@@ -402,7 +422,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
       </ScrollView>
       <PortalMobileBottomNav
         activeId={activeTab}
-        items={studentTabs}
+        items={visibleStudentTabs}
         primaryItemLimit={5}
         variant="dark"
         onSelect={setActiveTab}

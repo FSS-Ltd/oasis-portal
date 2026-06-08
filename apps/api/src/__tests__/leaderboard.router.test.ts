@@ -66,6 +66,7 @@ interface StoredLedgerRow {
   studentId: string;
   account: MeritAccount;
   delta: number;
+  reason?: string | undefined;
 }
 
 interface StoredInvestmentAccount {
@@ -131,7 +132,7 @@ interface FakeLedgerGroupByArgs {
 }
 
 interface FakeLedgerAggregateArgs {
-  where: { account: MeritAccount; delta?: { gt: number } };
+  where: { account: MeritAccount; delta?: { gt: number }; reason?: { startsWith: string } };
   _sum: { delta: true };
 }
 
@@ -268,6 +269,9 @@ function makeFakeDb(
         const delta = ledger
           .filter((row) => row.account === args.where.account)
           .filter((row) => (args.where.delta ? row.delta > args.where.delta.gt : true))
+          .filter((row) =>
+            args.where.reason ? (row.reason ?? '').startsWith(args.where.reason.startsWith) : true,
+          )
           .reduce((total, row) => total + row.delta, 0);
         return Promise.resolve({ _sum: { delta: delta === 0 ? null : delta } });
       }),
@@ -869,7 +873,7 @@ describe('leaderboard.charityPot', () => {
     });
   });
 
-  it('uses Given ledger rows for charity pot progress', async () => {
+  it('uses only direct charity gift rows for charity pot progress', async () => {
     const db = makeFakeDb({
       charityPot: {
         id: 'default',
@@ -879,9 +883,16 @@ describe('leaderboard.charityPot', () => {
         updatedAt: new Date('2026-06-04T12:00:00.000Z'),
       },
       ledger: [
-        { studentId: 's1', account: 'Given', delta: 30 },
-        { studentId: 's2', account: 'Given', delta: 20 },
-        { studentId: 's2', account: 'Spend', delta: -20 },
+        { studentId: 's1', account: 'Given', delta: 30, reason: 'charity:give' },
+        { studentId: 's2', account: 'Given', delta: 20, reason: 'charity:give' },
+        { studentId: 's3', account: 'Given', delta: 40, reason: 'shop:item_1:x2' },
+        {
+          studentId: 's4',
+          account: 'Given',
+          delta: 50,
+          reason: 'shop-reservation:reservation_1:collected',
+        },
+        { studentId: 's2', account: 'Spend', delta: -20, reason: 'charity:give' },
       ],
     });
 

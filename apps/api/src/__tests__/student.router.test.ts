@@ -181,6 +181,9 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
   };
+  yearGroupBand: {
+    findFirst: ReturnType<typeof vi.fn>;
+  };
   studentPortalSettings: {
     findUnique: ReturnType<typeof vi.fn>;
   };
@@ -352,6 +355,13 @@ function makeFakeDb(
       colour: '#5B90C5',
       active: true,
     },
+    {
+      id: 'band_secondary',
+      name: 'Secondary',
+      standardYears: ['Year 7', 'Year 8'],
+      colour: '#7D1C2C',
+      active: true,
+    },
   ];
   const assignments: StoredAssignment[] = [];
 
@@ -475,6 +485,24 @@ function makeFakeDb(
           if (!student) return Promise.resolve(null);
           if (select) return Promise.resolve(selectedStudent(student, select, portalSettings));
           return Promise.resolve(makeRow(student, assignments, subjects));
+        },
+      ),
+    },
+    yearGroupBand: {
+      findFirst: vi.fn(
+        ({
+          where,
+        }: {
+          where: { active: boolean; name: { equals: string; mode: 'insensitive' } };
+          select: { standardYears: true };
+        }) => {
+          const name = where.name.equals.toLowerCase();
+          const band =
+            bands.find(
+              (candidate) =>
+                candidate.active === where.active && candidate.name.toLowerCase() === name,
+            ) ?? null;
+          return Promise.resolve(band ? { standardYears: band.standardYears } : null);
         },
       ),
     },
@@ -1074,6 +1102,7 @@ describe('student.me', () => {
       yearGroup: 'Year 6',
       enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
       active: true,
+      academicScreensEnabled: false,
     });
     expect(db.auditLog.create).toHaveBeenCalledWith({
       data: {
@@ -1083,6 +1112,22 @@ describe('student.me', () => {
         entityId: studentId,
         meta: { count: 1, source: 'student.me' },
       },
+    });
+  });
+
+  it('enables academic screens for students in the configured Secondary band', async () => {
+    const { db, students } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await createStudent(headCaller);
+    const storedStudent = students[0];
+    if (!storedStudent) throw new Error('test student missing');
+    storedStudent.userId = studentUser.id;
+    storedStudent.yearGroup = 'Year 7';
+
+    await expect(makeCaller(studentUser, db).student.me()).resolves.toMatchObject({
+      id: studentId,
+      yearGroup: 'Year 7',
+      academicScreensEnabled: true,
     });
   });
 
@@ -1189,6 +1234,7 @@ describe('student.dashboard', () => {
           yearGroup: 'Year 6',
           yearGroupLabel: 'Level 6',
           ageBand: '11-13',
+          academicScreensEnabled: false,
         },
         merits: {
           balances: {
