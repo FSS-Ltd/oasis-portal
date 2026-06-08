@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-07",
+  "lastRunDate": "2026-06-08",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -864,6 +864,130 @@
       ],
       "validationStatus": "pass",
       "notes": "Registration payload and validation messages preserved."
+    },
+    "apps/web/src/components/student/student-wallet-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 452,
+      "lineCountAfter": 460,
+      "issuesFixed": [
+        "Cached merit and wallet date Intl formatters instead of constructing them for each format call.",
+        "Formatted selected wallet JSX to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized student wallet UI; no wallet behaviour or tithe/payment semantics changed."
+    },
+    "apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 448,
+      "lineCountAfter": 448,
+      "issuesFixed": [
+        "Reviewed rota scheduler for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized rota UI; route, DTO, and rota semantics were not changed."
+    },
+    "apps/web/src/app/(supervisor)/supervisor/_components/supervisor-dashboard-overview.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 448,
+      "lineCountAfter": 463,
+      "issuesFixed": [
+        "Grouped weekly shifts by date once per render instead of filtering the full shift list for every day card."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized supervisor dashboard UI; display content and routing were preserved."
+    },
+    "apps/web/src/app/registration/registration-form-model.ts": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 444,
+      "lineCountAfter": 444,
+      "issuesFixed": [
+        "Reviewed registration form model for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized registration model; registration DTO and validation semantics were not changed."
+    },
+    "apps/web/src/components/shop/parent-shop-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 436,
+      "lineCountAfter": 458,
+      "issuesFixed": [
+        "Extracted parent shop category counting into a pure helper.",
+        "Extracted visible-item filtering into a pure helper and memoized derived item lists.",
+        "Formatted selected parent shop JSX to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent shop UI; reservation and merit-balance behaviour were preserved."
+    },
+    "apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 432,
+      "lineCountAfter": 438,
+      "issuesFixed": [
+        "Cached audit date/time Intl formatters instead of constructing them for each row render.",
+        "Formatted selected audit JSX to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized audit UI; filter/query shape and audit data rendering semantics were preserved."
+    },
+    "apps/web/src/components/noticeboard/staff-noticeboard.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 426,
+      "lineCountAfter": 428,
+      "issuesFixed": [
+        "Cached noticeboard date/time Intl formatter instead of constructing it for each notice date render."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized noticeboard UI; notice posting, read-state, and attachment behaviour were preserved."
+    },
+    "apps/web/src/components/leaderboard/leaderboard-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 425,
+      "lineCountAfter": 425,
+      "issuesFixed": [
+        "Reviewed leaderboard client for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized leaderboard UI; ranking and charity goal behaviour were not changed."
+    },
+    "apps/web/src/components/attendance/attendance-capture.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 409,
+      "lineCountAfter": 409,
+      "issuesFixed": [
+        "Reviewed attendance capture for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized attendance UI; attendance recording and export behaviour were not changed."
+    },
+    "packages/domain/src/investmentMarketData.ts": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 487,
+      "lineCountAfter": 487,
+      "issuesFixed": [
+        "Reused the existing money decimal-place constant when rounding normalized market prices."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized investment market data helper; provider response semantics and conversions were preserved."
     }
   },
   "deferredFiles": {},

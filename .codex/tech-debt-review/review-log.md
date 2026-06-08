@@ -381,3 +381,53 @@
 ### Follow-Ups Deferred
 - Larger splits remain warranted for the oversized parent clubs, permission slips, dashboard, student portal, and club rota UI surfaces, but were deferred to keep this run low-risk.
 - `apps/web/src/components/student/invest/student-invest-ui.tsx` was reviewed and left unchanged because chart/UI extraction would need visual regression coverage.
+
+## 2026-06-08 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/student/student-wallet-client.tsx`
+2. `apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx`
+3. `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-dashboard-overview.tsx`
+4. `apps/web/src/app/registration/registration-form-model.ts`
+5. `apps/web/src/components/shop/parent-shop-client.tsx`
+6. `apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx`
+7. `apps/web/src/components/noticeboard/staff-noticeboard.tsx`
+8. `apps/web/src/components/leaderboard/leaderboard-client.tsx`
+9. `apps/web/src/components/attendance/attendance-capture.tsx`
+10. `packages/domain/src/investmentMarketData.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed for web and domain files before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck` and `pnpm --filter @oasis/domain typecheck` passed before edits.
+- Tests: focused domain investment market data test command was reserved for post-change validation; UI files have no focused unit tests.
+- Formatting: selected-file Prettier check failed before edits for `student-wallet-client.tsx`, `parent-shop-client.tsx`, and `audit-log-viewer.tsx`.
+
+### Changes Made
+- `apps/web/src/components/student/student-wallet-client.tsx`: Cached merit and wallet date Intl formatters instead of constructing them for each format call. Formatted selected wallet JSX to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx`: Reviewed rota scheduler for lint, type, and formatting issues; no safe local source change was needed.
+- `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-dashboard-overview.tsx`: Grouped weekly shifts by date once per render instead of filtering the full shift list for every day card.
+- `apps/web/src/app/registration/registration-form-model.ts`: Reviewed registration form model for lint, type, and formatting issues; no safe local source change was needed.
+- `apps/web/src/components/shop/parent-shop-client.tsx`: Extracted parent shop category counting into a pure helper. Extracted visible-item filtering into a pure helper and memoized derived item lists. Formatted selected parent shop JSX to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx`: Cached audit date/time Intl formatters instead of constructing them for each row render. Formatted selected audit JSX to satisfy Prettier.
+- `apps/web/src/components/noticeboard/staff-noticeboard.tsx`: Cached noticeboard date/time Intl formatter instead of constructing it for each notice date render.
+- `apps/web/src/components/leaderboard/leaderboard-client.tsx`: Reviewed leaderboard client for lint, type, and formatting issues; no safe local source change was needed.
+- `apps/web/src/components/attendance/attendance-capture.tsx`: Reviewed attendance capture for lint, type, and formatting issues; no safe local source change was needed.
+- `packages/domain/src/investmentMarketData.ts`: Reused the existing money decimal-place constant when rounding normalized market prices.
+
+### Validation
+- lint command: pass, `pnpm --filter @oasis/web exec eslint ...selected files...`; pass, `pnpm --filter @oasis/domain exec eslint src/investmentMarketData.ts`; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/domain lint`.
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/domain typecheck`.
+- relevant tests: pass, `pnpm --filter @oasis/domain test -- investmentMarketData`.
+- formatting: pass, selected-file `pnpm exec prettier --check ...`.
+- graph: pass, `graphify update .`.
+- diff hygiene: pass, `git diff --check`.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Large test files remain oversized; deferred because this pass prioritised production source files and avoiding broad test-suite restructuring.
