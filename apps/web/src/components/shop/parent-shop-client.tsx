@@ -41,13 +41,39 @@ function cartLinesFor(items: readonly ShopItem[], cart: readonly CartLine[]) {
     .filter((line): line is CartLine & { item: ShopItem; lineTotal: number } => line !== null);
 }
 
-function ParentShopItemCard({
-  item,
-  onAdd,
+function categoryCountsFor(activeItems: readonly ShopItem[]): Map<CategoryFilter, number> {
+  const counts = new Map<CategoryFilter, number>([['All', activeItems.length]]);
+  for (const category of SHOP_CATEGORY_OPTIONS) {
+    counts.set(category, 0);
+  }
+  for (const item of activeItems) {
+    counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function filterShopItems({
+  activeCategory,
+  items,
+  search,
 }: {
-  item: ShopItem;
-  onAdd: (item: ShopItem) => void;
-}) {
+  activeCategory: CategoryFilter;
+  items: readonly ShopItem[];
+  search: string;
+}): ShopItem[] {
+  const query = search.trim().toLowerCase();
+  return items.filter((item) => {
+    if (activeCategory !== 'All' && item.category !== activeCategory) return false;
+    if (!query) return true;
+    return (
+      item.name.toLowerCase().includes(query) ||
+      (item.blurb ?? '').toLowerCase().includes(query) ||
+      (item.description ?? '').toLowerCase().includes(query)
+    );
+  });
+}
+
+function ParentShopItemCard({ item, onAdd }: { item: ShopItem; onAdd: (item: ShopItem) => void }) {
   const disabled = !item.active || item.stockStatus === 'OutOfStock';
 
   return (
@@ -122,7 +148,10 @@ export function ParentShopClient() {
   const utils = api.useUtils();
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
   const itemsQuery = api.shop.listItems.useQuery(undefined, { retry: false });
-  const reservationsQuery = api.shop.listReservations.useQuery({ status: 'Ready' }, { retry: false });
+  const reservationsQuery = api.shop.listReservations.useQuery(
+    { status: 'Ready' },
+    { retry: false },
+  );
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('All');
   const [search, setSearch] = useState('');
@@ -159,24 +188,12 @@ export function ParentShopClient() {
   });
 
   const items = itemsQuery.data ?? [];
-  const activeItems = items.filter((item) => item.active);
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<CategoryFilter, number>([['All', activeItems.length]]);
-    for (const category of SHOP_CATEGORY_OPTIONS) {
-      counts.set(category, activeItems.filter((item) => item.category === category).length);
-    }
-    return counts;
-  }, [activeItems]);
-  const visibleItems = activeItems.filter((item) => {
-    if (activeCategory !== 'All' && item.category !== activeCategory) return false;
-    const query = search.trim().toLowerCase();
-    if (!query) return true;
-    return (
-      item.name.toLowerCase().includes(query) ||
-      (item.blurb ?? '').toLowerCase().includes(query) ||
-      (item.description ?? '').toLowerCase().includes(query)
-    );
-  });
+  const activeItems = useMemo(() => items.filter((item) => item.active), [items]);
+  const categoryCounts = useMemo(() => categoryCountsFor(activeItems), [activeItems]);
+  const visibleItems = useMemo(
+    () => filterShopItems({ activeCategory, items: activeItems, search }),
+    [activeCategory, activeItems, search],
+  );
   const cartLines = cartLinesFor(items, cart);
   const cartCount = cart.reduce((total, line) => total + line.quantity, 0);
   const cartTotal = cartLines.reduce((total, line) => total + line.lineTotal, 0);
@@ -223,7 +240,9 @@ export function ParentShopClient() {
       return;
     }
     if (!canReserve) {
-      setLocalError(balanceAfter < 0 ? 'There are not enough Spend merits available.' : 'Add an item.');
+      setLocalError(
+        balanceAfter < 0 ? 'There are not enough Spend merits available.' : 'Add an item.',
+      );
       return;
     }
     try {
@@ -344,7 +363,10 @@ export function ParentShopClient() {
           </div>
         </section>
 
-        <aside className="panel panel__body parent-shop-cart" aria-labelledby="parent-shop-cart-title">
+        <aside
+          className="panel panel__body parent-shop-cart"
+          aria-labelledby="parent-shop-cart-title"
+        >
           <div className="section-title">
             <div>
               <h2 id="parent-shop-cart-title">My Cart</h2>

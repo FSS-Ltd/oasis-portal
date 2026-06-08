@@ -33,8 +33,15 @@ const weeklyDayOptions = [
   { value: 6, label: 'Saturday' },
 ] as const;
 
+const meritFormatter = new Intl.NumberFormat('en-GB');
+const walletDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
 function formatMerits(value: number): string {
-  return new Intl.NumberFormat('en-GB').format(value);
+  return meritFormatter.format(value);
 }
 
 function formatSignedMerits(value: number): string {
@@ -44,11 +51,7 @@ function formatSignedMerits(value: number): string {
 }
 
 function formatDate(value: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(value);
+  return walletDateFormatter.format(value);
 }
 
 function accountLabel(account: StudentWallet['history'][number]['account']): string {
@@ -98,7 +101,9 @@ function WalletHistory({ history }: { history: StudentWallet['history'] }) {
         const Icon = positive ? ArrowUp : ArrowDown;
         return (
           <article
-            className={positive ? 'student-wallet-row is-positive' : 'student-wallet-row is-negative'}
+            className={
+              positive ? 'student-wallet-row is-positive' : 'student-wallet-row is-negative'
+            }
             key={entry.id}
           >
             <span aria-hidden="true">
@@ -154,13 +159,7 @@ function amountFromInput(value: string): number | null {
   return amount;
 }
 
-function SavingsPanel({
-  balances,
-  studentId,
-}: {
-  balances: WalletBalances;
-  studentId: string;
-}) {
+function SavingsPanel({ balances, studentId }: { balances: WalletBalances; studentId: string }) {
   const utils = api.useUtils();
   const [amount, setAmount] = useState('');
   const transfer = api.meritLedger.transfer.useMutation({
@@ -326,7 +325,13 @@ function TithePanel({ status }: { status: TitheStatus }) {
             </select>
           </label>
         ) : (
-          <NumberInput label="Tithe date" max={31} min={1} onChange={setMonthlyDate} value={monthlyDate} />
+          <NumberInput
+            label="Tithe date"
+            max={31}
+            min={1}
+            onChange={setMonthlyDate}
+            value={monthlyDate}
+          />
         )}
       </div>
       <div className="student-wallet-action-row">
@@ -357,7 +362,10 @@ function CharityPanel({ balances, studentId }: { balances: WalletBalances; stude
     async onSuccess() {
       setAmount('');
       showSuccessToast('Charity gift added.');
-      await Promise.all([utils.student.wallet.invalidate(), utils.leaderboard.charityPot.get.invalidate()]);
+      await Promise.all([
+        utils.student.wallet.invalidate(),
+        utils.leaderboard.charityPot.get.invalidate(),
+      ]);
     },
     onError(error) {
       showErrorToast(error, 'Charity gift failed.');

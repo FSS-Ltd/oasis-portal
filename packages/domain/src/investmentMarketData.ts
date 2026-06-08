@@ -215,7 +215,7 @@ function gbpRateFor(
 }
 
 function roundMoney(value: number): number {
-  return Number(value.toFixed(6));
+  return Number(value.toFixed(MONEY_DECIMAL_PLACES));
 }
 
 function decimalText(value: DecimalValue): string {
