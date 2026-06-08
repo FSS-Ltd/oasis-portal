@@ -383,7 +383,7 @@ async function loadCharityPot(ctx: AuthedContext): Promise<CharityPotDto> {
       select: { id: true, goalMerits: true, updatedAt: true, updatedById: true },
     }),
     ctx.db.meritLedger.aggregate({
-      where: { account: 'Given', delta: { gt: 0 } },
+      where: { account: 'Given', delta: { gt: 0 }, reason: { startsWith: 'charity:' } },
       _sum: { delta: true },
     }),
   ]);
@@ -457,7 +457,7 @@ export const leaderboardRouter = router({
         },
       });
       const gifts = await ctx.db.meritLedger.aggregate({
-        where: { account: 'Given', delta: { gt: 0 } },
+        where: { account: 'Given', delta: { gt: 0 }, reason: { startsWith: 'charity:' } },
         _sum: { delta: true },
       });
       return charityPotDto(row, gifts._sum.delta ?? 0);

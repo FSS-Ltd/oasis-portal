@@ -153,7 +153,7 @@ interface FakeDb {
     update: ReturnType<typeof vi.fn>;
   };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
-  yearGroupBand: { findMany: ReturnType<typeof vi.fn> };
+  yearGroupBand: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
 }
 
@@ -668,6 +668,22 @@ function makeFakeDb(overrides: Partial<FakeDb> = {}): FakeDb {
     },
     yearGroupBand: {
       findMany: vi.fn().mockResolvedValue(defaultBands),
+      findFirst: vi.fn(
+        ({
+          where,
+        }: {
+          where: { active: boolean; name: { equals: string; mode: 'insensitive' } };
+          select: { standardYears: true };
+        }) => {
+          const name = where.name.equals.toLowerCase();
+          const band =
+            defaultBands.find(
+              (candidate) =>
+                candidate.active === where.active && candidate.name.toLowerCase() === name,
+            ) ?? null;
+          return Promise.resolve(band ? { standardYears: band.standardYears } : null);
+        },
+      ),
     },
     $transaction,
     ...overrides,
@@ -741,7 +757,9 @@ describe('pace.forStudent RBAC', () => {
   });
 
   it('allows a linked Student to read their own PACE progress', async () => {
-    const { caller } = makeCaller(studentUser);
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({ ...defaultStudent, yearGroup: 'Year 8' });
+    const { caller } = makeCaller(studentUser, db);
     const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
 
     expect(result).toMatchObject({
@@ -749,6 +767,15 @@ describe('pace.forStudent RBAC', () => {
       studentName: 'Jane',
     });
     expect(JSON.stringify(result)).not.toContain('Learner');
+  });
+
+  it('rejects linked Student PACE reads outside the configured Secondary band', async () => {
+    const { caller } = makeCaller(studentUser);
+
+    await expect(caller.pace.forStudent({ studentId: STUDENT_ID })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'PACE progress is only available to secondary students',
+    });
   });
 
   it('rejects Student reads for another student', async () => {
@@ -772,6 +799,7 @@ describe('pace.forStudent RBAC', () => {
     const db = makeFakeDb();
     db.student.findUnique.mockResolvedValue({
       ...defaultStudent,
+      yearGroup: 'Year 8',
       subjects: [],
     });
     const { caller } = makeCaller(studentUser, db);

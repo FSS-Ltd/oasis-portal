@@ -15,6 +15,7 @@ import {
   type ClerkInvitationResult,
 } from '../lib/clerk.js';
 import { loadDailyYearBandScope, studentWhereForDailyScope } from '../lib/daily-year-band-scope.js';
+import { canUseStudentAcademicScreens } from '../lib/student-academic-screens.js';
 import { buildUserInviteEmail, createResendEmailClient, type EmailClient } from '../lib/email.js';
 import {
   assertStudentPortalAccess,
@@ -440,6 +441,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       yearGroup: student.yearGroup,
       enrolmentDate: student.enrolmentDate,
       active: ownStudent.active,
+      academicScreensEnabled: await canUseStudentAcademicScreens(ctx.db, student.yearGroup),
     };
   }),
 
@@ -478,13 +480,22 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
       throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'student PII decrypt failed' });
     }
     const firstName = firstNameFrom(fullName);
-    const [balances, pace, attendance, notifications, shortcuts, faithCorner] = await Promise.all([
+    const [
+      balances,
+      pace,
+      attendance,
+      notifications,
+      shortcuts,
+      faithCorner,
+      academicScreensEnabled,
+    ] = await Promise.all([
       loadMeritBalances(ctx, ownStudent.id),
       loadPaceDashboard(ctx, ownStudent.id),
       loadAttendanceDashboard(ctx, ownStudent.id),
       ctx.withRls((tx) => loadStudentNotificationPreview(tx, ownStudent.id)),
       loadShortcutDashboard(ctx, ownStudent.id),
       loadCurrentFaithCornerContent(ctx),
+      canUseStudentAcademicScreens(ctx.db, student.yearGroup),
     ]);
     const totalMerits = totalMeritBalance(balances);
 
@@ -499,6 +510,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         yearGroup: student.yearGroup,
         yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
         ageBand: ageBandFromDob(dob),
+        academicScreensEnabled,
       },
       merits: {
         balances,
