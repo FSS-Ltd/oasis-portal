@@ -196,6 +196,11 @@ interface FakeDb {
   attendance: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { count: ReturnType<typeof vi.fn> };
   faithCornerContent: { findFirst: ReturnType<typeof vi.fn> };
+  faithCornerContentLike: {
+    count: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+  };
+  faithCornerComment: { count: ReturnType<typeof vi.fn> };
   studentNotification: { count: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
   shopItem: { count: ReturnType<typeof vi.fn> };
   subject: { findUnique: ReturnType<typeof vi.fn> };
@@ -656,6 +661,13 @@ function makeFakeDb(
             : null,
         );
       }),
+    },
+    faithCornerContentLike: {
+      count: vi.fn().mockResolvedValue(0),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    faithCornerComment: {
+      count: vi.fn().mockResolvedValue(0),
     },
     studentNotification: {
       count: vi.fn(({ where }: { where: { studentId: string; readAt?: null } }) =>
@@ -1287,6 +1299,9 @@ describe('student.dashboard', () => {
           reflectionPrompt: 'What does trust look like today?',
           verseOfDay: null,
           publishedAt: new Date('2026-06-03T09:00:00.000Z'),
+          likeCount: 0,
+          commentCount: 0,
+          likedByCurrentStudent: false,
           ready: true,
         },
       });

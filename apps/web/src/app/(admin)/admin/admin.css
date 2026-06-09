@@ -118,6 +118,54 @@
   border-top: 1px solid var(--oasis-border-light);
 }
 
+.faith-corner-admin-moderation {
+  grid-column: 1 / -1;
+}
+
+.faith-corner-comment-review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.faith-corner-comment-review {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+.faith-corner-comment-review small,
+.faith-corner-comment-review h3,
+.faith-corner-comment-review time,
+.faith-corner-comment-review p {
+  margin: 0;
+}
+
+.faith-corner-comment-review small,
+.faith-corner-comment-review time {
+  color: var(--oasis-text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.faith-corner-comment-review h3 {
+  color: var(--oasis-navy);
+  font-size: 1rem;
+}
+
+.faith-corner-comment-review p {
+  color: var(--oasis-text-secondary);
+  line-height: 1.55;
+}
+
+.faith-corner-comment-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 1040px) {
   .faith-corner-admin-layout,
   .student-notification-admin-layout {
