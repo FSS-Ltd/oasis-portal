@@ -167,6 +167,9 @@ model User {
   faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
+  homeworkAssignmentsCreated       HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
+  homeworkSubmissionsReviewed      HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
+  homeworkSubmissionImagesUploaded HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
   charityPotsUpdated               CharityPot[]                     @relation("CharityPotUpdated")
 
   @@index([role])
@@ -260,6 +263,7 @@ model Student {
   portalSettings           StudentPortalSettings?
   portalUsageMinutes       StudentPortalUsageMinute[]
   notifications            StudentNotification[]
+  homeworkSubmissions      HomeworkSubmission[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
@@ -454,6 +458,87 @@ model StudentNotification {
   @@index([createdById, createdAt])
 }
 
+enum HomeworkSubmissionMethod {
+  UploadImage
+  InPerson
+}
+
+model HomeworkAssignment {
+  id                String                   @id @default(cuid())
+  title             String
+  descriptionEnc    String
+  dueDate           DateTime                 @db.Date
+  submissionMethod  HomeworkSubmissionMethod
+  allYearGroupBands Boolean                  @default(true)
+  active            Boolean                  @default(true)
+  createdById       String
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  createdBy   User                     @relation("HomeworkAssignmentsCreated", fields: [createdById], references: [id])
+  bands       HomeworkAssignmentBand[]
+  submissions HomeworkSubmission[]
+
+  @@index([active, dueDate])
+  @@index([createdById, createdAt])
+}
+
+model HomeworkAssignmentBand {
+  assignmentId    String
+  yearGroupBandId String
+  createdAt       DateTime @default(now())
+
+  assignment    HomeworkAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  yearGroupBand YearGroupBand      @relation(fields: [yearGroupBandId], references: [id], onDelete: Restrict)
+
+  @@id([assignmentId, yearGroupBandId])
+  @@index([yearGroupBandId])
+}
+
+model HomeworkSubmission {
+  id               String    @id @default(cuid())
+  assignmentId     String
+  studentId        String
+  submittedAt      DateTime?
+  reviewedAt       DateTime?
+  reviewedById     String?
+  scorePercent     Int?
+  commentsEnc      String?
+  meritAmount      Int       @default(0)
+  behaviourEntryId String?   @unique
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  assignment     HomeworkAssignment       @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student        Student                  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy     User?                    @relation("HomeworkSubmissionsReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+  behaviourEntry BehaviourEntry?          @relation("HomeworkSubmissionBehaviour", fields: [behaviourEntryId], references: [id], onDelete: SetNull)
+  images         HomeworkSubmissionImage[]
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId, reviewedAt, submittedAt])
+  @@index([assignmentId, reviewedAt])
+  @@index([reviewedById, reviewedAt])
+}
+
+model HomeworkSubmissionImage {
+  id                  String   @id @default(cuid())
+  submissionId        String
+  uploadedById        String
+  originalFileNameEnc String
+  mimeType            String
+  sizeBytes           Int
+  storageBucket       String
+  storagePathEnc      String
+  createdAt           DateTime @default(now())
+
+  submission HomeworkSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  uploadedBy User               @relation("HomeworkSubmissionImagesUploaded", fields: [uploadedById], references: [id])
+
+  @@index([submissionId, createdAt])
+  @@index([uploadedById, createdAt])
+}
+
 model Subject {
   id                   String                    @id @default(cuid())
   code                 String                    @unique // e.g. "MATH", "ENG", "SOC"
@@ -486,6 +571,7 @@ model YearGroupBand {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   staffShifts   StaffShift[]
+  homeworkAssignments HomeworkAssignmentBand[]
 
   @@index([active, sortOrder])
 }
@@ -908,6 +994,7 @@ model BehaviourEntry {
   seenBy     User?         @relation("SeenBehaviour", fields: [seenById], references: [id], onDelete: SetNull)
   paceRecord PaceRecord?   @relation("PaceRecordAutomaticMerit", fields: [paceRecordId], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
+  homeworkSubmission HomeworkSubmission? @relation("HomeworkSubmissionBehaviour")
 
   @@index([clubId, createdAt])
   @@index([studentId, createdAt])

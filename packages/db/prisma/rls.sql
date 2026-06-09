@@ -1487,3 +1487,166 @@ CREATE POLICY incident_event_staff_insert ON "IncidentReportEvent"
     OR "actorId" = current_setting('app.user_id', true)
     OR current_setting('app.full_admin', true) = 'true'
   );
+
+ALTER TABLE "HomeworkAssignment" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkAssignment" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkAssignmentBand" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkAssignmentBand" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkSubmission" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkSubmission" FORCE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkSubmissionImage" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "HomeworkSubmissionImage" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS homework_assignment_full_admin_all ON "HomeworkAssignment";
+DROP POLICY IF EXISTS homework_assignment_student_select ON "HomeworkAssignment";
+DROP POLICY IF EXISTS homework_assignment_band_full_admin_all ON "HomeworkAssignmentBand";
+DROP POLICY IF EXISTS homework_assignment_band_student_select ON "HomeworkAssignmentBand";
+DROP POLICY IF EXISTS homework_submission_full_admin_all ON "HomeworkSubmission";
+DROP POLICY IF EXISTS homework_submission_student_select ON "HomeworkSubmission";
+DROP POLICY IF EXISTS homework_submission_student_insert ON "HomeworkSubmission";
+DROP POLICY IF EXISTS homework_submission_student_update ON "HomeworkSubmission";
+DROP POLICY IF EXISTS homework_submission_image_full_admin_all ON "HomeworkSubmissionImage";
+DROP POLICY IF EXISTS homework_submission_image_student_select ON "HomeworkSubmissionImage";
+DROP POLICY IF EXISTS homework_submission_image_student_insert ON "HomeworkSubmissionImage";
+
+CREATE POLICY homework_assignment_full_admin_all ON "HomeworkAssignment"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY homework_assignment_student_select ON "HomeworkAssignment"
+  FOR SELECT
+  USING (
+    "active" = true
+    AND current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1
+      FROM "Student" s
+      WHERE s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+        AND (
+          "HomeworkAssignment"."allYearGroupBands" = true
+          OR EXISTS (
+            SELECT 1
+            FROM "HomeworkAssignmentBand" hab
+            JOIN "YearGroupBand" ygb ON ygb."id" = hab."yearGroupBandId"
+            WHERE hab."assignmentId" = "HomeworkAssignment"."id"
+              AND ygb."active" = true
+              AND s."yearGroup" = ANY(ygb."standardYears")
+          )
+        )
+    )
+  );
+
+CREATE POLICY homework_assignment_band_full_admin_all ON "HomeworkAssignmentBand"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY homework_assignment_band_student_select ON "HomeworkAssignmentBand"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1
+      FROM "HomeworkAssignment" ha
+      JOIN "YearGroupBand" ygb ON ygb."id" = "HomeworkAssignmentBand"."yearGroupBandId"
+      JOIN "Student" s ON s."userId" = current_setting('app.user_id', true)
+      WHERE ha."id" = "HomeworkAssignmentBand"."assignmentId"
+        AND ha."active" = true
+        AND ygb."active" = true
+        AND s."active" = true
+        AND s."yearGroup" = ANY(ygb."standardYears")
+    )
+  );
+
+CREATE POLICY homework_submission_full_admin_all ON "HomeworkSubmission"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY homework_submission_student_select ON "HomeworkSubmission"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1
+      FROM "Student" s
+      WHERE s."id" = "HomeworkSubmission"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+    )
+  );
+
+CREATE POLICY homework_submission_student_insert ON "HomeworkSubmission"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1
+      FROM "Student" s
+      WHERE s."id" = "HomeworkSubmission"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+    )
+  );
+
+CREATE POLICY homework_submission_student_update ON "HomeworkSubmission"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND "reviewedAt" IS NULL
+    AND EXISTS (
+      SELECT 1
+      FROM "Student" s
+      WHERE s."id" = "HomeworkSubmission"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+    )
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Student'
+    AND "reviewedAt" IS NULL
+    AND EXISTS (
+      SELECT 1
+      FROM "Student" s
+      WHERE s."id" = "HomeworkSubmission"."studentId"
+        AND s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+    )
+  );
+
+CREATE POLICY homework_submission_image_full_admin_all ON "HomeworkSubmissionImage"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY homework_submission_image_student_select ON "HomeworkSubmissionImage"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Student'
+    AND EXISTS (
+      SELECT 1
+      FROM "HomeworkSubmission" hs
+      JOIN "Student" s ON s."id" = hs."studentId"
+      WHERE hs."id" = "HomeworkSubmissionImage"."submissionId"
+        AND s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+    )
+  );
+
+CREATE POLICY homework_submission_image_student_insert ON "HomeworkSubmissionImage"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Student'
+    AND "uploadedById" = current_setting('app.user_id', true)
+    AND EXISTS (
+      SELECT 1
+      FROM "HomeworkSubmission" hs
+      JOIN "Student" s ON s."id" = hs."studentId"
+      WHERE hs."id" = "HomeworkSubmissionImage"."submissionId"
+        AND hs."reviewedAt" IS NULL
+        AND s."userId" = current_setting('app.user_id', true)
+        AND s."active" = true
+    )
+  );
