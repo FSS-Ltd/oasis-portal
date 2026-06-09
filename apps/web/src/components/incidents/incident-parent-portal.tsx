@@ -29,6 +29,28 @@ import { formatIncidentDate, incidentTypeLabels } from './incident-format';
 type ParentIncident = RouterOutputs['incident']['listParent'][number];
 type IncidentType = keyof typeof incidentTypeLabels;
 
+const incidentTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function parentIncidentStats(incidents: readonly ParentIncident[]): {
+  acknowledged: number;
+  downloaded: number;
+  shared: number;
+  waiting: number;
+} {
+  return incidents.reduce(
+    (stats, incident) => ({
+      acknowledged: stats.acknowledged + (incident.acknowledgedAt ? 1 : 0),
+      downloaded: stats.downloaded + (incident.downloadedAt ? 1 : 0),
+      shared: stats.shared + 1,
+      waiting: stats.waiting + (incident.requiresAcknowledgement ? 1 : 0),
+    }),
+    { acknowledged: 0, downloaded: 0, shared: 0, waiting: 0 },
+  );
+}
+
 function ParentIncidentPreview({
   incident,
   onAcknowledge,
@@ -44,10 +66,7 @@ function ParentIncidentPreview({
     return null;
   }
   const occurredAt = new Date(incident.occurredAt);
-  const timeLabel = new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(occurredAt);
+  const timeLabel = incidentTimeFormatter.format(occurredAt);
   const signedOffLabel = incident.signedOffAt
     ? formatIncidentDate(incident.signedOffAt)
     : incident.sharedAt
@@ -194,12 +213,7 @@ export function IncidentParentPortal() {
     () => visibleRows.find((incident) => incident.id === selectedId) ?? null,
     [visibleRows, selectedId],
   );
-  const stats = {
-    acknowledged: visibleRows.filter((incident) => incident.acknowledgedAt).length,
-    downloaded: visibleRows.filter((incident) => incident.downloadedAt).length,
-    shared: visibleRows.length,
-    waiting: visibleRows.filter((incident) => incident.requiresAcknowledgement).length,
-  };
+  const stats = parentIncidentStats(visibleRows);
   const columns: DataTableColumn<ParentIncident>[] = [
     {
       id: 'report',
@@ -332,7 +346,9 @@ export function IncidentParentPortal() {
         />
       </div>
 
-      <div className={selected ? 'incident-layout incident-layout--parent-preview' : 'incident-layout'}>
+      <div
+        className={selected ? 'incident-layout incident-layout--parent-preview' : 'incident-layout'}
+      >
         <div className="incident-parent-main-column">
           <Panel body className="incident-list-panel">
             <h2>Shared incident reports</h2>
@@ -362,7 +378,10 @@ export function IncidentParentPortal() {
               </p>
             </div>
             <div>
-              <a className="parent-contact-action parent-contact-action--message" href="/parent/messages">
+              <a
+                className="parent-contact-action parent-contact-action--message"
+                href="/parent/messages"
+              >
                 <MessageSquare aria-hidden="true" size={15} />
                 Message supervisor
               </a>

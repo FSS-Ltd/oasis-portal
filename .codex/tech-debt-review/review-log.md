@@ -431,3 +431,53 @@
 
 ### Follow-Ups Deferred
 - Large test files remain oversized; deferred because this pass prioritised production source files and avoiding broad test-suite restructuring.
+
+## 2026-06-09 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/smoke/parent-message-conversation.tsx`
+2. `apps/web/src/components/incidents/incident-parent-portal.tsx`
+3. `apps/web/src/components/invoices/parent-fees-client.tsx`
+4. `apps/web/src/app/(admin)/admin/access/access-account-panel.tsx`
+5. `apps/web/src/components/pace/pace-workflow-client.tsx`
+6. `apps/web/src/app/(admin)/admin/attendance/staff-attendance-roster.tsx`
+7. `apps/web/src/components/clubs/club-management-detail.tsx`
+8. `apps/mobile/src/components/smoke/sign-in-panel.tsx`
+9. `apps/mobile/src/components/smoke/student-smoke-wallet.tsx`
+10. `apps/web/src/components/noticeboard/noticeboard-attachments.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed for web and mobile files before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck` and `pnpm --filter @oasis/mobile typecheck` passed before edits.
+- Tests: not run at baseline; selected files are UI/helper surfaces without focused unit tests.
+- Formatting: selected-file Prettier check failed before edits for `parent-message-conversation.tsx`, `incident-parent-portal.tsx`, and `pace-workflow-client.tsx`.
+
+### Changes Made
+- `apps/mobile/src/components/smoke/parent-message-conversation.tsx`: Extracted parent message metadata label formatting into a named helper. Formatted the selected file to satisfy Prettier.
+- `apps/web/src/components/incidents/incident-parent-portal.tsx`: Cached the incident preview time formatter. Computed parent incident stats in one pass instead of repeated filters. Formatted the selected file to satisfy Prettier.
+- `apps/web/src/components/invoices/parent-fees-client.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/web/src/app/(admin)/admin/access/access-account-panel.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/web/src/components/pace/pace-workflow-client.tsx`: Extracted active-or-first PACE subject selection into a named helper. Formatted the selected file to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/attendance/staff-attendance-roster.tsx`: Cached the UTC staff schedule time formatter used by roster shift labels.
+- `apps/web/src/components/clubs/club-management-detail.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/mobile/src/components/smoke/sign-in-panel.tsx`: Replaced second-factor priority map/find chaining with a typed priority constant and early-return loop.
+- `apps/mobile/src/components/smoke/student-smoke-wallet.tsx`: Moved repeated tithe option labels into a small typed constant.
+- `apps/web/src/components/noticeboard/noticeboard-attachments.tsx`: Extracted repeated attachment byte-signature comparisons into named signature constants and a bytesStartWith helper.
+
+### Validation
+- lint command: pass, selected-file ESLint for web and mobile files; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/mobile lint`.
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/mobile typecheck`.
+- relevant tests: not run; no focused unit tests exist for these UI/helper-only cleanups.
+- formatting: pass, selected-file `pnpm exec prettier --check`.
+- diff hygiene: pass, `git diff --check`.
+- graph update: pass, `graphify update .`.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger component splits remain warranted for the selected oversized UI surfaces, but were deferred to avoid broader workflow and visual-regression risk.

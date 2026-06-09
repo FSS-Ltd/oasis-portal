@@ -12,6 +12,13 @@ type SecondFactor =
   | { strategy: 'phone_code'; phoneNumberId?: string | undefined; safeIdentifier?: string }
   | { strategy: 'email_code'; emailAddressId?: string | undefined; safeIdentifier?: string };
 
+const secondFactorPriority: readonly SecondFactor['strategy'][] = [
+  'totp',
+  'phone_code',
+  'email_code',
+  'backup_code',
+];
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Sign-in failed.';
 }
@@ -37,11 +44,12 @@ function isSecondFactor(value: unknown): value is SecondFactor {
 }
 
 function preferredSecondFactor(factors: SecondFactor[]): SecondFactor | null {
-  const order: SecondFactor['strategy'][] = ['totp', 'phone_code', 'email_code', 'backup_code'];
-  return (
-    order.map((strategy) => factors.find((factor) => factor.strategy === strategy)).find(Boolean) ??
-    null
-  );
+  for (const strategy of secondFactorPriority) {
+    const factor = factors.find((candidate) => candidate.strategy === strategy);
+    if (factor) return factor;
+  }
+
+  return null;
 }
 
 function factorLabel(factor: SecondFactor | null): string {

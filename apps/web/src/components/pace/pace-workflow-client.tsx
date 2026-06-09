@@ -62,6 +62,10 @@ function nextRecordTestType(subject: PaceSubject): PaceTestType {
   return subject.latestSelfTest ? 'FinalTest' : 'SelfTest';
 }
 
+function firstRecordableSubject(subjects: readonly PaceSubject[]): PaceSubject | null {
+  return subjects.find((subject) => subject.active) ?? subjects[0] ?? null;
+}
+
 export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProps) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [selectedStudentId, setSelectedStudentId] = useState('');
@@ -204,7 +208,7 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
             <Button
               disabled={!selectedStudent || subjects.length === 0}
               onClick={() => {
-                const subject = subjects.find((item) => item.active) ?? subjects[0] ?? null;
+                const subject = firstRecordableSubject(subjects);
                 setScoreModal(
                   subject
                     ? { initialTestType: nextRecordTestType(subject), mode: 'create', subject }
@@ -342,7 +346,9 @@ export function PaceWorkflowClient({ canManageProgress }: PaceWorkflowClientProp
       ) : null}
       {canManageProgress && approvalModal ? (
         <PaceApprovalModal
-          errorMessage={approveAdvance.error ? friendlyErrorMessage(approveAdvance.error) : undefined}
+          errorMessage={
+            approveAdvance.error ? friendlyErrorMessage(approveAdvance.error) : undefined
+          }
           onClose={() => {
             if (!approveAdvance.isPending) setApprovalModal(null);
           }}

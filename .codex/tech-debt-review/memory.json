@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-08",
+  "lastRunDate": "2026-06-09",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -988,6 +988,130 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized investment market data helper; provider response semantics and conversions were preserved."
+    },
+    "apps/mobile/src/components/smoke/parent-message-conversation.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 392,
+      "lineCountAfter": 388,
+      "issuesFixed": [
+        "Extracted parent message metadata label formatting into a named helper.",
+        "Formatted the selected file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile conversation UI; message rendering semantics were not changed."
+    },
+    "apps/web/src/components/incidents/incident-parent-portal.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 388,
+      "lineCountAfter": 407,
+      "issuesFixed": [
+        "Cached the incident preview time formatter.",
+        "Computed parent incident stats in one pass instead of repeated filters.",
+        "Formatted the selected file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent incident UI; acknowledgement, PDF, and parent-copy semantics were not changed."
+    },
+    "apps/web/src/components/invoices/parent-fees-client.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 385,
+      "lineCountAfter": 385,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent fees UI; invoice and payment flows were not changed."
+    },
+    "apps/web/src/app/(admin)/admin/access/access-account-panel.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 362,
+      "lineCountAfter": 362,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized access-account UI; status, permission tag, and RBAC semantics were not changed."
+    },
+    "apps/web/src/components/pace/pace-workflow-client.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 362,
+      "lineCountAfter": 368,
+      "issuesFixed": [
+        "Extracted active-or-first PACE subject selection into a named helper.",
+        "Formatted the selected file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized PACE workflow UI; score, approval, and mutation semantics were not changed."
+    },
+    "apps/web/src/app/(admin)/admin/attendance/staff-attendance-roster.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 354,
+      "lineCountAfter": 355,
+      "issuesFixed": [
+        "Cached the UTC staff schedule time formatter used by roster shift labels."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized staff attendance UI; attendance status and reset semantics were not changed."
+    },
+    "apps/web/src/components/clubs/club-management-detail.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 349,
+      "lineCountAfter": 349,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized club detail UI; club tabs, roster, rota, lead assignment, and notice behavior were not changed."
+    },
+    "apps/mobile/src/components/smoke/sign-in-panel.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 342,
+      "lineCountAfter": 350,
+      "issuesFixed": [
+        "Replaced second-factor priority map/find chaining with a typed priority constant and early-return loop."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile sign-in UI; Clerk sign-in and MFA semantics were not changed."
+    },
+    "apps/mobile/src/components/smoke/student-smoke-wallet.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 341,
+      "lineCountAfter": 344,
+      "issuesFixed": [
+        "Moved repeated tithe option labels into a small typed constant."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile wallet UI; balances, transfers, and investment display semantics were not changed."
+    },
+    "apps/web/src/components/noticeboard/noticeboard-attachments.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 340,
+      "lineCountAfter": 342,
+      "issuesFixed": [
+        "Extracted repeated attachment byte-signature comparisons into named signature constants and a bytesStartWith helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized noticeboard attachment UI; upload validation, accepted types, and storage behavior were not changed."
     }
   },
   "deferredFiles": {},

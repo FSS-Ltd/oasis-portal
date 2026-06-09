@@ -106,11 +106,7 @@ export function ConversationView({
               </View>
             ) : (
               detail.messages.map((message) => (
-                <MessageBubble
-                  currentUserId={currentUserId}
-                  key={message.id}
-                  message={message}
-                />
+                <MessageBubble currentUserId={currentUserId} key={message.id} message={message} />
               ))
             )}
           </ScrollView>
@@ -137,15 +133,12 @@ function MessageBubble({
   message: ThreadDetail['messages'][number];
 }) {
   const mine = currentUserId === message.senderId;
-  const status = message.readByOtherParticipant ? 'Read' : 'Sent';
+  const metaLabel = messageMetaLabel(message, mine);
 
   return (
     <View style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowTheirs]}>
       <View
-        style={[
-          styles.messageBubble,
-          mine ? styles.messageBubbleMine : styles.messageBubbleTheirs,
-        ]}
+        style={[styles.messageBubble, mine ? styles.messageBubbleMine : styles.messageBubbleTheirs]}
       >
         {!mine ? (
           <Text numberOfLines={1} style={styles.messageSender}>
@@ -156,13 +149,16 @@ function MessageBubble({
           {message.body}
         </Text>
       </View>
-      <Text style={[styles.messageMeta, mine ? styles.messageMetaMine : null]}>
-        {mine
-          ? `${status} ${formatThreadTime(message.createdAt)}`
-          : formatDateTime(message.createdAt)}
-      </Text>
+      <Text style={[styles.messageMeta, mine ? styles.messageMetaMine : null]}>{metaLabel}</Text>
     </View>
   );
+}
+
+function messageMetaLabel(message: ThreadDetail['messages'][number], mine: boolean): string {
+  if (!mine) return formatDateTime(message.createdAt);
+
+  const status = message.readByOtherParticipant ? 'Read' : 'Sent';
+  return `${status} ${formatThreadTime(message.createdAt)}`;
 }
 
 function ReplyComposer({
