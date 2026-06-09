@@ -1774,6 +1774,204 @@
   }
 }
 
+.student-homework-page {
+  gap: 20px;
+}
+
+.student-homework-hero__meta {
+  display: grid;
+  min-width: 150px;
+  align-content: center;
+  justify-items: end;
+  gap: 4px;
+}
+
+.student-homework-hero__meta small,
+.student-homework-hero__meta strong {
+  margin: 0;
+  color: #ffffff;
+}
+
+.student-homework-hero__meta small {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.student-homework-hero__meta strong {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.student-homework-section,
+.student-homework-card {
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-homework-section {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.student-homework-list {
+  display: grid;
+  gap: 12px;
+}
+
+.student-homework-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.student-homework-card__head,
+.student-homework-card__result,
+.student-homework-card__in-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-homework-card__head {
+  justify-content: space-between;
+}
+
+.student-homework-card__head p,
+.student-homework-card__head h2,
+.student-homework-card__description,
+.student-homework-card__meta,
+.student-homework-card blockquote {
+  margin: 0;
+}
+
+.student-homework-card__head p {
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.student-homework-card__head h2 {
+  color: var(--oasis-navy);
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.student-homework-card__description {
+  color: var(--oasis-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.student-homework-card__meta,
+.student-homework-card__result,
+.student-homework-card__in-person {
+  color: var(--oasis-text-muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.student-homework-card__result {
+  flex-wrap: wrap;
+}
+
+.student-homework-card__result span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.student-homework-card__in-person {
+  width: fit-content;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.student-homework-card blockquote {
+  padding: 10px 12px;
+  border-left: 3px solid var(--oasis-blue);
+  background: #f7faff;
+  color: var(--oasis-text-secondary);
+  line-height: 1.5;
+}
+
+.homework-badge,
+.homework-score {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.homework-badge {
+  padding: 0 10px;
+  background: var(--oasis-warning-bg);
+  color: var(--oasis-warning);
+}
+
+.homework-badge--danger {
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
+}
+
+.homework-badge--success {
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+
+.homework-badge--muted {
+  background: var(--oasis-bg);
+  color: var(--oasis-text-secondary);
+}
+
+.homework-score {
+  min-width: 48px;
+  padding: 0 12px;
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
+}
+
+.homework-upload-control {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.homework-upload-control__input {
+  display: none;
+}
+
+.homework-image-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.homework-image-links a {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 @media (max-width: 1080px) {
   .student-shop-page {
     --student-shop-page-width: 100%;
@@ -1846,6 +2044,10 @@
     justify-items: start;
   }
 
+  .student-homework-hero__meta {
+    justify-items: start;
+  }
+
   .student-hero__meta {
     flex: none;
     justify-items: start;
@@ -1892,6 +2094,11 @@
   }
 
   .student-state-card {
+    flex-direction: column;
+  }
+
+  .student-homework-card__head {
+    align-items: flex-start;
     flex-direction: column;
   }
 }

@@ -180,6 +180,25 @@ const PRODUCT_MODULES = [
     ],
   },
   {
+    name: 'Homework assignments, submissions, and review',
+    owns: 'Head-created homework assignments, age-band targeting, student image submissions, in-person evidence uploads, review comments, scores, and linked homework merit awards.',
+    apiRouters: ['homework'],
+    domainFiles: ['packages/domain/src/schoolYears.ts', 'packages/domain/src/meritLedger.ts'],
+    webSurfaces: [
+      'apps/web/src/app/(admin)/admin/homework/',
+      'apps/web/src/app/(student)/student/homework/',
+      'apps/web/src/app/api/homework/',
+      'apps/web/src/components/homework/',
+      'apps/web/src/components/admin/admin-nav.tsx',
+      'apps/web/src/components/student/student-nav.tsx',
+    ],
+    mobileSurfaces: [],
+    sharedSurfaces: [
+      'apps/api/src/services/homework-submission-storage.ts',
+      'packages/db/prisma/migrations/20260609111500_homework_portal/',
+    ],
+  },
+  {
     name: 'Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email',
     owns: 'Commercial, wallet, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
     apiRouters: [

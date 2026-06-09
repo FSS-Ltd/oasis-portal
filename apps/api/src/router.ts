@@ -32,6 +32,7 @@ import { incidentRouter } from './routers/incident.js';
 import { studentSettingsRouter } from './routers/studentSettings.js';
 import { faithCornerRouter } from './routers/faithCorner.js';
 import { studentNotificationRouter } from './routers/studentNotification.js';
+import { homeworkRouter } from './routers/homework.js';
 
 export const appRouter = router({
   admin: adminRouter,
@@ -63,6 +64,7 @@ export const appRouter = router({
   studentSettings: studentSettingsRouter,
   faithCorner: faithCornerRouter,
   studentNotification: studentNotificationRouter,
+  homework: homeworkRouter,
 });
 
 export type AppRouter = typeof appRouter;

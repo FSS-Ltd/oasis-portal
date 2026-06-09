@@ -42,6 +42,7 @@ const navItems = [
   { href: '/admin/behaviour', label: 'Behaviour', icon: Star },
   { href: '/admin/leaderboard', label: 'Leaderboard', icon: Medal },
   { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
+  { href: '/admin/homework', label: 'Homework', icon: ClipboardList },
   { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
   { href: '/admin/faith-corner', label: 'Faith Corner', icon: BookOpenText },
@@ -126,6 +127,7 @@ function visibleForUser(
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Leaderboard') return access.canUseAdminOperations;
   if (item.label === 'Clubs') return access.canManageClubs;
+  if (item.label === 'Homework') return access.fullAdmin;
   if (item.label === 'Permission Slips') return access.canManagePermissionSlips;
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;
   if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;
