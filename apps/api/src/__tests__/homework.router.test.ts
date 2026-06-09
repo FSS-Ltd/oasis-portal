@@ -379,7 +379,7 @@ function makeFakeDb(input?: {
             bands: data.bands
               ? defaultBands
                   .filter((band) =>
-                    data.bands!.create.map((b) => b.yearGroupBandId).includes(band.id),
+                    data.bands.create.map((b) => b.yearGroupBandId).includes(band.id),
                   )
                   .map((yearGroupBand) => ({ yearGroupBand }))
               : assignment.bands,
@@ -807,11 +807,13 @@ describe('homework router', () => {
     });
     expect(db.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        data: {
           action: 'Update',
           entity: 'HomeworkAssignment',
           entityId: assignment.id,
-        }),
+          userId: headUser.id,
+          meta: expect.anything() as unknown,
+        },
       }),
     );
     expect(db.homeworkAssignmentBand.deleteMany).toHaveBeenCalledWith({
@@ -902,10 +904,13 @@ describe('homework router', () => {
     });
     expect(db.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        data: {
           action: 'Create',
           entity: 'HomeworkAssignmentImage',
-        }),
+          userId: headUser.id,
+          entityId: 'assignment_image_1',
+          meta: expect.anything() as unknown,
+        },
       }),
     );
   });
