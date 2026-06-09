@@ -377,11 +377,14 @@ function makeFakeDb(input?: {
             submissionMethod: data.submissionMethod,
             allYearGroupBands: data.allYearGroupBands,
             bands: data.bands
-              ? defaultBands
-                  .filter((band) =>
-                    data.bands.create.map((b) => b.yearGroupBandId).includes(band.id),
-                  )
-                  .map((yearGroupBand) => ({ yearGroupBand }))
+              ? (() => {
+                  const bands = data.bands;
+                  return defaultBands
+                    .filter((band) =>
+                      bands.create.map((b) => b.yearGroupBandId).includes(band.id),
+                    )
+                    .map((yearGroupBand) => ({ yearGroupBand }));
+                })()
               : assignment.bands,
             updatedAt: new Date(),
           });
