@@ -85,9 +85,10 @@ interface StoredMeritLedger {
   createdAt?: Date;
 }
 
-interface StoredPaceProgress {
+interface StoredPaceRecord {
   studentId: string;
   completedAt: Date | null;
+  paceTestScore: number | null;
 }
 
 interface StoredAttendance {
@@ -192,7 +193,8 @@ interface FakeDb {
     upsert: ReturnType<typeof vi.fn>;
   };
   meritLedger: { aggregate: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
-  paceProgress: { count: ReturnType<typeof vi.fn> };
+  paceRecord: { findMany: ReturnType<typeof vi.fn> };
+  pacePolicy: { findUnique: ReturnType<typeof vi.fn> };
   attendance: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: { count: ReturnType<typeof vi.fn> };
   faithCornerContent: { findFirst: ReturnType<typeof vi.fn> };
@@ -326,7 +328,7 @@ function makeFakeDb(
     faithCornerContent?: StoredFaithCornerContent[];
     meritLedger?: StoredMeritLedger[];
     notifications?: StoredStudentNotification[];
-    paceProgress?: StoredPaceProgress[];
+    paceRecords?: StoredPaceRecord[];
     portalSettings?: Array<
       Partial<StoredStudentPortalSettings> & Pick<StoredStudentPortalSettings, 'studentId'>
     >;
@@ -345,7 +347,7 @@ function makeFakeDb(
   const faithCornerContent = input.faithCornerContent ?? [];
   const meritLedger = input.meritLedger ?? [];
   const notifications = input.notifications ?? [];
-  const paceProgress = input.paceProgress ?? [];
+  const paceRecords = input.paceRecords ?? [];
   const portalSettings = (input.portalSettings ?? []).map(makePortalSettings);
   const shopItems = input.shopItems ?? [];
   const usageMinutes = (input.usageMinutes ?? []).map(makeUsageMinute);
@@ -594,14 +596,32 @@ function makeFakeDb(
           ),
       ),
     },
-    paceProgress: {
-      count: vi.fn(({ where }: { where: { studentId: string; completedAt: { not: null } } }) =>
-        Promise.resolve(
-          paceProgress.filter(
-            (row) => row.studentId === where.studentId && row.completedAt !== where.completedAt.not,
-          ).length,
-        ),
+    paceRecord: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            studentId: string;
+            completedAt: { gte: Date };
+            paceTestScore: { not: null };
+          };
+        }) =>
+          Promise.resolve(
+            paceRecords
+              .filter(
+                (row) =>
+                  row.studentId === where.studentId &&
+                  row.completedAt !== null &&
+                  row.completedAt >= where.completedAt.gte &&
+                  row.paceTestScore !== null,
+              )
+              .map((row) => ({ paceTestScore: row.paceTestScore })),
+          ),
       ),
+    },
+    pacePolicy: {
+      findUnique: vi.fn(() => Promise.resolve({ passThreshold: 80 })),
     },
     attendance: {
       findMany: vi.fn(
@@ -819,7 +839,7 @@ function makeFakeDb(
     faithCornerContent,
     meritLedger,
     notifications,
-    paceProgress,
+    paceRecords,
     portalSettings,
     shopItems,
     usageMinutes,
@@ -1220,9 +1240,9 @@ describe('student.dashboard', () => {
           { studentId, account: 'Investment', delta: 10 },
           { studentId, account: 'ShopReserved', delta: -5 },
         ],
-        paceProgress: [
-          { studentId, completedAt: new Date('2026-05-01T10:00:00.000Z') },
-          { studentId, completedAt: null },
+        paceRecords: [
+          { studentId, completedAt: new Date('2026-05-01T10:00:00.000Z'), paceTestScore: 85 },
+          { studentId, completedAt: null, paceTestScore: null },
         ],
         portalSettings: [
           {
