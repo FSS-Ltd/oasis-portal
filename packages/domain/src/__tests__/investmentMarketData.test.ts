@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   GBP_PER_MERIT,
+  LEARNING_RETURN_MULTIPLIER,
+  applyLearningReturnMultiplier,
   buildMarketDataMeritValuation,
+  computeLearningHoldingReturn,
   holdingValueMeritsFromGbpPrice,
   gbpToMerits,
   normaliseTwelveDataHistoryResponse,
@@ -417,5 +420,136 @@ describe('normaliseTwelveDataProfileResponse', () => {
         providerStatus: undefined,
       },
     });
+  });
+});
+
+describe('applyLearningReturnMultiplier', () => {
+  it('documents the default learning multiplier', () => {
+    expect(LEARNING_RETURN_MULTIPLIER).toBe(10);
+  });
+
+  it('scales a small positive return by the multiplier', () => {
+    expect(applyLearningReturnMultiplier(0.003, 'daily')).toBeCloseTo(0.03);
+  });
+
+  it('scales a small negative return (loss is also amplified)', () => {
+    expect(applyLearningReturnMultiplier(-0.003, 'daily')).toBeCloseTo(-0.03);
+  });
+
+  it('returns zero for a flat market', () => {
+    expect(applyLearningReturnMultiplier(0, 'daily')).toBe(0);
+  });
+
+  it('clamps an extreme positive daily return to the daily cap', () => {
+    expect(applyLearningReturnMultiplier(0.05, 'daily')).toBe(0.08);
+  });
+
+  it('clamps an extreme negative daily return to the daily cap', () => {
+    expect(applyLearningReturnMultiplier(-0.05, 'daily')).toBe(-0.08);
+  });
+
+  it('hits the daily cap exactly when raw × multiplier equals the cap', () => {
+    expect(applyLearningReturnMultiplier(0.008, 'daily')).toBeCloseTo(0.08);
+  });
+
+  it('clamps to the weekly cap', () => {
+    expect(applyLearningReturnMultiplier(0.1, 'weekly')).toBe(0.18);
+    expect(applyLearningReturnMultiplier(-0.1, 'weekly')).toBe(-0.18);
+  });
+
+  it('clamps to the monthly cap', () => {
+    expect(applyLearningReturnMultiplier(0.2, 'monthly')).toBe(0.35);
+    expect(applyLearningReturnMultiplier(-0.2, 'monthly')).toBe(-0.35);
+  });
+
+  it('respects a custom multiplier override', () => {
+    expect(applyLearningReturnMultiplier(0.01, 'daily', 5)).toBeCloseTo(0.05);
+  });
+});
+
+describe('computeLearningHoldingReturn', () => {
+  it('computes raw and learning returns for a gain', () => {
+    // 1 unit at 100 GBP cost → 10 merits cost basis
+    // current price 110 GBP → 11 merits raw value → +10% raw
+    // learning: 10% × 10 = 100% → clamped to +8% daily
+    const result = computeLearningHoldingReturn({
+      units: '1',
+      costBasisMerits: '10',
+      currentGbpPrice: '110',
+      range: 'daily',
+    });
+
+    expect(result.rawValueMerits).toBe(11);
+    expect(result.rawReturnRate).toBeCloseTo(0.1);
+    expect(result.rawProfitMerits).toBeCloseTo(1);
+    expect(result.learningReturnRate).toBe(0.08);
+    expect(result.learningValueMerits).toBeCloseTo(10.8);
+    expect(result.learningProfitMerits).toBeCloseTo(0.8);
+  });
+
+  it('amplifies a loss up to the daily cap', () => {
+    // current price 90 GBP → 9 merits raw → -10% raw
+    // learning: -10% × 10 = -100% → clamped to -8% daily
+    const result = computeLearningHoldingReturn({
+      units: '1',
+      costBasisMerits: '10',
+      currentGbpPrice: '90',
+      range: 'daily',
+    });
+
+    expect(result.rawReturnRate).toBeCloseTo(-0.1);
+    expect(result.learningReturnRate).toBe(-0.08);
+    expect(result.learningValueMerits).toBeCloseTo(9.2);
+    expect(result.learningProfitMerits).toBeCloseTo(-0.8);
+  });
+
+  it('returns zero profit for a flat holding', () => {
+    const result = computeLearningHoldingReturn({
+      units: '1',
+      costBasisMerits: '10',
+      currentGbpPrice: '100',
+      range: 'daily',
+    });
+
+    expect(result.rawReturnRate).toBe(0);
+    expect(result.learningReturnRate).toBe(0);
+    expect(result.rawProfitMerits).toBe(0);
+    expect(result.learningProfitMerits).toBe(0);
+  });
+
+  it('does not divide by zero when cost basis is zero', () => {
+    const result = computeLearningHoldingReturn({
+      units: '1',
+      costBasisMerits: '0',
+      currentGbpPrice: '100',
+      range: 'daily',
+    });
+
+    expect(result.rawReturnRate).toBe(0);
+    expect(result.learningReturnRate).toBe(0);
+  });
+
+  it('does not mutate the costBasisMerits input', () => {
+    const input = {
+      units: '1',
+      costBasisMerits: '10',
+      currentGbpPrice: '120',
+      range: 'daily' as const,
+    };
+    computeLearningHoldingReturn(input);
+    expect(input.costBasisMerits).toBe('10');
+  });
+
+  it('respects a custom multiplier passed to the input', () => {
+    // 2% gain × multiplier 2 = 4% → uncapped at daily (cap is 8%)
+    const result = computeLearningHoldingReturn({
+      units: '1',
+      costBasisMerits: '10',
+      currentGbpPrice: '102',
+      range: 'daily',
+      multiplier: 2,
+    });
+
+    expect(result.learningReturnRate).toBeCloseTo(0.04);
   });
 });

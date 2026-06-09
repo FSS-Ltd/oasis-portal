@@ -320,6 +320,67 @@ export function holdingValueMeritsFromGbpPrice(input: HoldingValueMeritsInput): 
   return scaledIntegerToNumber(divideRounded(product, divisor), MERIT_DECIMAL_PLACES);
 }
 
+export const LEARNING_RETURN_MULTIPLIER = 10;
+
+export type LearningReturnRange = 'daily' | 'weekly' | 'monthly';
+
+const LEARNING_RETURN_CAPS: Record<LearningReturnRange, number> = {
+  daily: 0.08,
+  weekly: 0.18,
+  monthly: 0.35,
+};
+
+export interface LearningHoldingReturnInput {
+  units: DecimalValue;
+  costBasisMerits: DecimalValue;
+  currentGbpPrice: DecimalValue;
+  range: LearningReturnRange;
+  multiplier?: number;
+}
+
+export interface LearningHoldingReturnResult {
+  rawReturnRate: number;
+  rawValueMerits: number;
+  rawProfitMerits: number;
+  learningReturnRate: number;
+  learningValueMerits: number;
+  learningProfitMerits: number;
+}
+
+export function applyLearningReturnMultiplier(
+  rawReturnRate: number,
+  range: LearningReturnRange,
+  multiplier = LEARNING_RETURN_MULTIPLIER,
+): number {
+  const cap = LEARNING_RETURN_CAPS[range];
+  const scaled = rawReturnRate * multiplier;
+  return Math.min(cap, Math.max(-cap, scaled));
+}
+
+export function computeLearningHoldingReturn(
+  input: LearningHoldingReturnInput,
+): LearningHoldingReturnResult {
+  const multiplier = input.multiplier ?? LEARNING_RETURN_MULTIPLIER;
+  const rawValueMerits = holdingValueMeritsFromGbpPrice({
+    units: input.units,
+    gbpPrice: input.currentGbpPrice,
+  });
+  const costBasis = Number(input.costBasisMerits.toString());
+  const rawReturnRate = costBasis === 0 ? 0 : (rawValueMerits - costBasis) / costBasis;
+  const learningReturnRate = applyLearningReturnMultiplier(rawReturnRate, input.range, multiplier);
+  const learningValueMerits = Number(
+    (costBasis * (1 + learningReturnRate)).toFixed(MERIT_DECIMAL_PLACES),
+  );
+  return {
+    learningProfitMerits: Number((learningValueMerits - costBasis).toFixed(MERIT_DECIMAL_PLACES)),
+    learningReturnRate,
+    learningValueMerits,
+    rawProfitMerits: Number((rawValueMerits - costBasis).toFixed(MERIT_DECIMAL_PLACES)),
+    rawReturnRate,
+    rawValueMerits,
+  };
+}
+
 function parseProviderError(input: unknown): MarketDataNormalisationError | null {
   const parsed = providerErrorSchema.safeParse(input);
   if (!parsed.success) return null;

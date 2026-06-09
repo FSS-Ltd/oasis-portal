@@ -1,4 +1,5 @@
 import {
+  applyLearningReturnMultiplier,
   buildMarketDataMeritValuation,
   normaliseTwelveDataQuoteResponse,
   type InvestmentMarketInstrumentKind,
@@ -78,6 +79,8 @@ export interface MarketDataSnapshotValuationDto {
   priceMerits: number;
   previousCloseMerits: number;
   dailyMovementMerits: number;
+  learningDayChangePct: number;
+  learningDailyMovementMerits: number;
   rawPayloadHash: string;
   providerCreditsUsed: number | null;
   providerCreditsLeft: number | null;
@@ -178,6 +181,10 @@ function mapSnapshotValuation(snapshot: MarketDataSnapshotDto): MarketDataSnapsh
     gbpPrice: snapshot.gbpPrice,
     previousCloseGbp: snapshot.previousCloseGbp,
   });
+  const learningDayReturnRate = applyLearningReturnMultiplier(
+    snapshot.dayChangePct / 100,
+    'daily',
+  );
 
   return {
     createdAt: snapshot.createdAt,
@@ -185,6 +192,10 @@ function mapSnapshotValuation(snapshot: MarketDataSnapshotDto): MarketDataSnapsh
     dayChangePct: snapshot.dayChangePct,
     id: snapshot.id,
     instrumentId: snapshot.instrumentId,
+    learningDailyMovementMerits: Number(
+      (valuation.previousCloseMerits * learningDayReturnRate).toFixed(6),
+    ),
+    learningDayChangePct: Number((learningDayReturnRate * 100).toFixed(6)),
     previousCloseMerits: valuation.previousCloseMerits,
     priceMerits: valuation.priceMerits,
     provider: snapshot.provider,
