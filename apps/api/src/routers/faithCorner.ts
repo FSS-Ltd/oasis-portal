@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { FaithCornerCommentStatus, Prisma } from '@oasis/db';
+import { type FaithCornerCommentStatus, Prisma } from '@oasis/db';
 import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
