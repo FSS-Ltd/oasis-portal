@@ -22,6 +22,11 @@ import {
 type StaffAttendanceRow = RouterOutputs['attendance']['staffForDate']['rows'][number];
 
 const NO_SELECTION = '';
+const staffTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+});
 
 function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
@@ -40,11 +45,7 @@ function withoutRecordKey<T>(record: Record<string, T>, keyToRemove: string): Re
 }
 
 function formatTime(value: Date): string {
-  return value.toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'UTC',
-  });
+  return staffTimeFormatter.format(value);
 }
 
 function scheduleLabel(row: StaffAttendanceRow): string {
