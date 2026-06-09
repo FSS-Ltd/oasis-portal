@@ -249,7 +249,23 @@ jobs:
           fi
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@${{ env.VERCEL_CLI_VERSION }}
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-factor 2
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
+          for attempt in 1 2 3; do
+            if npm install --global "vercel@${VERCEL_CLI_VERSION}"; then
+              exit 0
+            fi
+
+            if [ "${attempt}" = "3" ]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 10))
+          done
 
       - name: Pull Vercel preview environment
         run: vercel pull --yes --environment=preview
@@ -359,7 +375,23 @@ jobs:
         run: pnpm db:migrate
 
       - name: Install Vercel CLI
-        run: npm install --global vercel@${{ env.VERCEL_CLI_VERSION }}
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-factor 2
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
+          for attempt in 1 2 3; do
+            if npm install --global "vercel@${VERCEL_CLI_VERSION}"; then
+              exit 0
+            fi
+
+            if [ "${attempt}" = "3" ]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 10))
+          done
 
       - name: Pull Vercel production environment
         run: vercel pull --yes --environment=production
