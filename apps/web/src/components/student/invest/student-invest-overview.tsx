@@ -11,13 +11,9 @@ import {
   formatShortDate,
   formatSignedMerits,
   holdingCostMerits,
-  holdingDayProfitLoss,
-  holdingValueMerits,
   holdingsCostMerits,
-  holdingsValueMerits,
   instrumentForTicker,
   isLiveHolding,
-  netWorthMerits,
   percentChange,
   portfolioSeries,
   today,
@@ -33,6 +29,7 @@ import {
   DeltaPill,
   HelpTip,
   InvestmentCard,
+  LearningBadge,
   MeritIcon,
   MeritValue,
   RangeTabs,
@@ -45,6 +42,7 @@ interface OverviewProps {
   cashMerits: number;
   defaultRange: RangeId;
   holdings: readonly Holding[];
+  liveInstruments?: readonly Instrument[];
   onNavigate: (screen: 'market' | 'portfolio' | 'withdraw') => void;
   onOpenStock: (ticker: string) => void;
 }
@@ -53,6 +51,7 @@ interface PortfolioProps {
   cashMerits: number;
   defaultRange: RangeId;
   holdings: readonly Holding[];
+  liveInstruments?: readonly Instrument[];
   onNavigate: (screen: 'market' | 'overview') => void;
   onOpenStock: (ticker: string) => void;
 }
@@ -68,19 +67,35 @@ export function InvestmentOverview({
   cashMerits,
   defaultRange,
   holdings,
+  liveInstruments,
   onNavigate,
   onOpenStock,
 }: OverviewProps) {
   const [range, setRange] = useState<RangeId>(defaultRange);
   const liveHoldings = holdings.filter(isLiveHolding);
-  const netWorth = netWorthMerits(liveHoldings, cashMerits);
-  const invested = holdingsValueMerits(liveHoldings);
+  const liveInstrumentMap = useMemo(
+    () => new Map((liveInstruments ?? []).map((i) => [i.ticker, i])),
+    [liveInstruments],
+  );
+  const invested = useMemo(
+    () =>
+      liveHoldings.reduce((total, h) => {
+        const inst = liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker);
+        return total + toMerits(h.units * inst.price);
+      }, 0),
+    [liveHoldings, liveInstrumentMap],
+  );
+  const netWorth = invested + cashMerits;
   const cost = holdingsCostMerits(liveHoldings);
   const totalReturn = invested - cost;
   const totalReturnPct = (totalReturn / (cost || 1)) * 100;
-  const dayProfitLoss = liveHoldings.reduce(
-    (total, holding) => total + holdingDayProfitLoss(holding),
-    0,
+  const dayProfitLoss = useMemo(
+    () =>
+      liveHoldings.reduce((total, h) => {
+        const inst = liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker);
+        return total + toMerits(h.units * inst.dayChange);
+      }, 0),
+    [liveHoldings, liveInstrumentMap],
   );
   const dayPct = (dayProfitLoss / (netWorth - dayProfitLoss || 1)) * 100;
   const weekSeries = portfolioSeries(liveHoldings, cashMerits, '1W', null);
@@ -89,7 +104,7 @@ export function InvestmentOverview({
   const series = portfolioSeries(liveHoldings, cashMerits, range, null);
   const rangePct = percentChange(series.first, series.last);
   const movers = liveHoldings
-    .map((holding) => instrumentForTicker(holding.ticker))
+    .map((holding) => liveInstrumentMap.get(holding.ticker) ?? instrumentForTicker(holding.ticker))
     .sort((left, right) => right.dayChangePct - left.dayChangePct);
   const risers = movers.filter((instrument) => instrument.dayChangePct >= 0).slice(0, 3);
   const fallers = movers
@@ -213,7 +228,7 @@ export function InvestmentOverview({
                 Details
               </button>
             </div>
-            <AllocationBar holdings={liveHoldings} />
+            <AllocationBar holdings={liveHoldings} liveInstrumentMap={liveInstrumentMap} />
           </InvestmentCard>
         </div>
       </div>
@@ -258,6 +273,7 @@ export function InvestmentPortfolio({
   cashMerits,
   defaultRange,
   holdings,
+  liveInstruments,
   onNavigate,
   onOpenStock,
 }: PortfolioProps) {
@@ -265,11 +281,26 @@ export function InvestmentPortfolio({
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [showCustom, setShowCustom] = useState(false);
   const liveHoldings = holdings.filter(isLiveHolding);
-  const netWorth = netWorthMerits(liveHoldings, cashMerits);
+  const liveInstrumentMap = useMemo(
+    () => new Map((liveInstruments ?? []).map((i) => [i.ticker, i])),
+    [liveInstruments],
+  );
+  const netWorth = useMemo(
+    () =>
+      liveHoldings.reduce(
+        (total, h) =>
+          total +
+          toMerits(
+            h.units * (liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker)).price,
+          ),
+        cashMerits,
+      ),
+    [liveHoldings, liveInstrumentMap, cashMerits],
+  );
   const series = portfolioSeries(liveHoldings, cashMerits, range, customRange);
   const rangeDelta = series.last - series.first;
   const rangePct = percentChange(series.first, series.last);
-  const rows = useAllocationRows(liveHoldings);
+  const rows = useAllocationRows(liveHoldings, liveInstrumentMap);
   const minDate = formatDateInput(dayDate(0));
   const maxDate = formatDateInput(today);
 
@@ -396,7 +427,14 @@ export function InvestmentPortfolio({
                     </td>
                     <td>{formatMerits(toMerits(row.instrument.price), 1)}</td>
                     <td>
-                      <DeltaPill arrow={false} plain value={row.instrument.dayChangePct} />
+                      {row.instrument.learningDayChangePct !== undefined ? (
+                        <LearningBadge
+                          learningPct={row.instrument.learningDayChangePct}
+                          rawPct={row.instrument.dayChangePct}
+                        />
+                      ) : (
+                        <DeltaPill arrow={false} plain value={row.instrument.dayChangePct} />
+                      )}
                     </td>
                     <td>{row.holding.units.toFixed(2)}</td>
                     <td>{formatMerits(row.value, 1)}</td>
@@ -461,8 +499,14 @@ function MiniStat({ label, tip, value }: { label: string; tip?: string; value: R
   );
 }
 
-function AllocationBar({ holdings }: { holdings: readonly Holding[] }) {
-  const rows = useAllocationRows(holdings);
+function AllocationBar({
+  holdings,
+  liveInstrumentMap,
+}: {
+  holdings: readonly Holding[];
+  liveInstrumentMap: ReadonlyMap<string, Instrument>;
+}) {
+  const rows = useAllocationRows(holdings, liveInstrumentMap);
   return (
     <>
       <div aria-hidden="true" className={styles.allocationBar}>
@@ -576,22 +620,21 @@ function RiskReminder() {
   );
 }
 
-function useAllocationRows(holdings: readonly Holding[]): readonly AllocationRow[] {
+function useAllocationRows(
+  holdings: readonly Holding[],
+  instrumentMap: ReadonlyMap<string, Instrument>,
+): readonly AllocationRow[] {
   return useMemo(() => {
-    const total = holdingsValueMerits(holdings) || 1;
-    return holdings
-      .map((holding) => {
-        const instrument = instrumentForTicker(holding.ticker);
-        const value = holdingValueMerits(holding);
-        return {
-          holding,
-          instrument,
-          value,
-          weight: (value / total) * 100,
-        };
-      })
+    const mapped = holdings.map((holding) => {
+      const instrument = instrumentMap.get(holding.ticker) ?? instrumentForTicker(holding.ticker);
+      const value = toMerits(holding.units * instrument.price);
+      return { holding, instrument, value };
+    });
+    const total = mapped.reduce((sum, r) => sum + r.value, 0) || 1;
+    return mapped
+      .map((r) => ({ ...r, weight: (r.value / total) * 100 }))
       .sort((left, right) => right.value - left.value);
-  }, [holdings]);
+  }, [holdings, instrumentMap]);
 }
 
 function historyStartOffset(): number {

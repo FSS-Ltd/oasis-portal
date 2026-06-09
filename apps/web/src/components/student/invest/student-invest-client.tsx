@@ -3,17 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { History, LineChart, Store, WalletCards, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/trpc';
 import {
   formatMerits,
   initialCashMerits,
   initialHoldings,
   initialTransactions,
   instrumentForTicker,
-  netWorthMerits,
+  instruments,
+  meritGbp,
   studentInvestor,
   today,
   toMerits,
   type Holding,
+  type Instrument,
   type InvestmentTransaction,
   type RangeId,
 } from './student-invest-data';
@@ -62,8 +65,49 @@ export function StudentInvestClient() {
   const [view, setView] = useState<ViewState>({ screen: 'overview', ticker: null });
   const [toast, setToast] = useState<string | null>(null);
   const [stateLoaded, setStateLoaded] = useState(false);
+
+  const marketQuery = api.investment.marketData.useQuery(undefined, {
+    refetchInterval: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const liveInstruments = useMemo<readonly Instrument[]>(() => {
+    const snapshots = marketQuery.data?.snapshots;
+    if (!snapshots?.length) return instruments;
+    const bySymbol = new Map(snapshots.map((s) => [s.symbol, s]));
+    return instruments.map((inst) => {
+      const s = bySymbol.get(inst.ticker);
+      if (!s) return inst;
+      const price = s.priceMerits * meritGbp;
+      const prevClose = s.previousCloseMerits * meritGbp;
+      return {
+        ...inst,
+        price,
+        prevClose,
+        dayChange: price - prevClose,
+        dayChangePct: s.dayChangePct,
+        learningDayChangePct: s.learningDayChangePct,
+      };
+    });
+  }, [marketQuery.data]);
+
+  const marketFreshness = marketQuery.data?.freshness;
+  const marketLoading = marketQuery.isLoading && !marketQuery.data;
+
   const liveHoldings = holdings.filter((holding) => holding.units > 0.000001);
-  const netWorth = netWorthMerits(liveHoldings, cashMerits);
+
+  const liveInstrumentMap = useMemo(
+    () => new Map(liveInstruments.map((i) => [i.ticker, i])),
+    [liveInstruments],
+  );
+
+  const netWorth = useMemo(() => {
+    const holdingsValue = liveHoldings.reduce((total, h) => {
+      const inst = liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker);
+      return total + toMerits(h.units * inst.price);
+    }, 0);
+    return holdingsValue + cashMerits;
+  }, [liveHoldings, liveInstrumentMap, cashMerits]);
 
   useEffect(() => {
     try {
@@ -121,7 +165,7 @@ export function StudentInvestClient() {
 
   const buy = useCallback(
     (ticker: string, merits: number) => {
-      const instrument = instrumentForTicker(ticker);
+      const instrument = liveInstrumentMap.get(ticker) ?? instrumentForTicker(ticker);
       const unitsToAdd = merits / toMerits(instrument.price);
       setHoldings((currentHoldings) => {
         const existing = currentHoldings.find((holding) => holding.ticker === ticker);
@@ -149,12 +193,12 @@ export function StudentInvestClient() {
         ...currentTransactions,
       ]);
     },
-    [nextTransactionId, todayLabel],
+    [liveInstrumentMap, nextTransactionId, todayLabel],
   );
 
   const sell = useCallback(
     (ticker: string, merits: number) => {
-      const instrument = instrumentForTicker(ticker);
+      const instrument = liveInstrumentMap.get(ticker) ?? instrumentForTicker(ticker);
       const unitsToRemove = merits / toMerits(instrument.price);
       setHoldings((currentHoldings) =>
         currentHoldings
@@ -179,7 +223,7 @@ export function StudentInvestClient() {
         ...currentTransactions,
       ]);
     },
-    [nextTransactionId, todayLabel],
+    [liveInstrumentMap, nextTransactionId, todayLabel],
   );
 
   const withdraw = useCallback(
@@ -269,6 +313,7 @@ export function StudentInvestClient() {
           cashMerits={cashMerits}
           defaultRange={defaultRange}
           holdings={holdings}
+          liveInstruments={liveInstruments}
           onNavigate={(screen) => {
             navigate(screen);
           }}
@@ -282,6 +327,7 @@ export function StudentInvestClient() {
           cashMerits={cashMerits}
           defaultRange={defaultRange}
           holdings={holdings}
+          liveInstruments={liveInstruments}
           onNavigate={(screen) => {
             navigate(screen);
           }}
@@ -293,6 +339,9 @@ export function StudentInvestClient() {
       {view.screen === 'market' ? (
         <InvestmentMarket
           holdings={holdings}
+          liveInstruments={liveInstruments}
+          marketFreshness={marketFreshness}
+          marketLoading={marketLoading}
           onOpenStock={(ticker) => {
             navigate('stock', ticker);
           }}
@@ -302,6 +351,7 @@ export function StudentInvestClient() {
         <InvestmentStockDetail
           cashMerits={cashMerits}
           holdings={holdings}
+          liveInstruments={liveInstruments}
           onBack={() => {
             navigate('market');
           }}

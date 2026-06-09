@@ -450,6 +450,40 @@ export function RiskDots({ instrument }: { instrument: Instrument }) {
   );
 }
 
+export function LearningBadge({
+  rawPct,
+  learningPct,
+}: {
+  rawPct: number;
+  learningPct: number;
+}) {
+  const rawPositive = rawPct >= 0;
+  const learningPositive = learningPct >= 0;
+  return (
+    <span className={styles.learningBadge}>
+      <span
+        className={cn(
+          styles.learningBadgeItem,
+          rawPositive ? styles.positivePill : styles.negativePill,
+        )}
+      >
+        <span className={styles.learningBadgeLabel}>Mkt</span>
+        {formatPercent(rawPct)}
+      </span>
+      <span
+        className={cn(
+          styles.learningBadgeItem,
+          learningPositive ? styles.positivePill : styles.negativePill,
+        )}
+        title="Learning view: returns amplified ×10 (capped at ±8% daily) for educational effect"
+      >
+        <span className={styles.learningBadgeLabel}>Learning</span>
+        {formatPercent(learningPct)}
+      </span>
+    </span>
+  );
+}
+
 function useMeasuredWidth(): [RefObject<HTMLDivElement>, number] {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
