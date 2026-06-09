@@ -1643,6 +1643,49 @@
   font-size: 0.86rem;
 }
 
+.student-faith-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.student-faith-action,
+.student-faith-comment__like,
+.student-faith-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-text-secondary);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.student-faith-action {
+  min-width: 82px;
+  padding: 0 12px;
+}
+
+.student-faith-action.is-active,
+.student-faith-comment__like.is-active {
+  border-color: var(--oasis-maroon);
+  background: #fff6f8;
+  color: var(--oasis-maroon);
+}
+
+.student-faith-action:disabled,
+.student-faith-comment__like:disabled,
+.student-faith-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .student-faith-layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1686,6 +1729,116 @@
   font-size: 0.76rem;
   font-weight: 850;
 }
+
+.student-faith-comments {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+}
+
+.student-faith-comment-form {
+  display: grid;
+  gap: 8px;
+}
+
+.student-faith-comment-form label {
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.student-faith-comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--oasis-navy);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.student-faith-comment-form textarea:focus {
+  border-color: var(--oasis-blue);
+  outline: 3px solid rgba(91, 144, 197, 0.18);
+}
+
+.student-faith-submit {
+  justify-self: start;
+  padding: 0 14px;
+  border-color: var(--oasis-navy);
+  background: var(--oasis-navy);
+  color: #ffffff;
+}
+
+.student-faith-comment-error {
+  margin: 0;
+  color: var(--oasis-maroon);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.student-faith-comment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-faith-comment {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f7faff;
+}
+
+.student-faith-comment > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.student-faith-comment strong,
+.student-faith-comment p {
+  margin: 0;
+}
+
+.student-faith-comment strong {
+  color: var(--oasis-navy);
+  font-size: 0.88rem;
+}
+
+.student-faith-comment p {
+  color: var(--oasis-text-secondary);
+  line-height: 1.55;
+}
+
+.student-faith-comment__status {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.student-faith-comment__status.is-rejected {
+  background: #fff1f2;
+  color: var(--oasis-maroon);
+}
+
+.student-faith-comment__like {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
 
 .student-placeholder-page__header {
   display: grid;

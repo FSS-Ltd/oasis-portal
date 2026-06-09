@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormEvent, useEffect, useState } from 'react';
-import { BookOpenText, Sparkles } from 'lucide-react';
+import { BookOpenText, Check, MessageCircle, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, TextInput } from '@/components/ui/field';
@@ -33,6 +33,7 @@ function formatDate(value: Date | null): string {
 export function FaithCornerAdminClient() {
   const utils = api.useUtils();
   const current = api.faithCorner.currentForAdmin.useQuery(undefined, { retry: false });
+  const pendingComments = api.faithCorner.pendingCommentsForAdmin.useQuery(undefined, { retry: false });
   const [form, setForm] = useState<FaithCornerForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -56,6 +57,18 @@ export function FaithCornerAdminClient() {
     },
     onError(error) {
       showErrorToast(error, 'Faith Corner could not be published.');
+    },
+  });
+  const reviewComment = api.faithCorner.reviewComment.useMutation({
+    async onSuccess() {
+      showSuccessToast('Faith Corner comment reviewed.');
+      await Promise.all([
+        utils.faithCorner.pendingCommentsForAdmin.invalidate(),
+        utils.faithCorner.currentForAdmin.invalidate(),
+      ]);
+    },
+    onError(error) {
+      showErrorToast(error, 'Faith Corner comment could not be reviewed.');
     },
   });
 
@@ -207,6 +220,64 @@ export function FaithCornerAdminClient() {
           ) : null}
           {current.data && !current.data.ready ? (
             <EmptyState detail="Publish content before students see Faith Corner." title="No content" />
+          ) : null}
+        </section>
+
+        <section
+          className="panel panel__body faith-corner-admin-moderation"
+          aria-labelledby="faith-corner-comments-title"
+        >
+          <div className="panel__header">
+            <div>
+              <p className="eyebrow">Student comments</p>
+              <h2 id="faith-corner-comments-title">Awaiting approval</h2>
+            </div>
+            <MessageCircle aria-hidden="true" size={20} />
+          </div>
+
+          {pendingComments.isLoading ? <div className="empty-state">Loading comments...</div> : null}
+          {pendingComments.error ? (
+            <EmptyState detail={friendlyErrorMessage(pendingComments.error)} title="Comments unavailable" />
+          ) : null}
+          {pendingComments.data?.length === 0 ? (
+            <EmptyState detail="New student comments will appear here before they are visible to children." title="No pending comments" />
+          ) : null}
+          {pendingComments.data && pendingComments.data.length > 0 ? (
+            <div className="faith-corner-comment-review-list">
+              {pendingComments.data.map((comment) => (
+                <article className="faith-corner-comment-review" key={comment.id}>
+                  <div>
+                    <small>{comment.weeklyTheme}</small>
+                    <h3>{comment.authorFirstName}</h3>
+                    <time dateTime={comment.createdAt.toISOString()}>{formatDate(comment.createdAt)}</time>
+                  </div>
+                  <p>{comment.body}</p>
+                  <div className="faith-corner-comment-review__actions">
+                    <Button
+                      onClick={() => {
+                        reviewComment.mutate({ commentId: comment.id, status: 'Approved' });
+                      }}
+                      pending={reviewComment.isPending}
+                      type="button"
+                    >
+                      <Check aria-hidden="true" size={16} />
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        reviewComment.mutate({ commentId: comment.id, status: 'Rejected' });
+                      }}
+                      pending={reviewComment.isPending}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <X aria-hidden="true" size={16} />
+                      Reject
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
           ) : null}
         </section>
       </div>

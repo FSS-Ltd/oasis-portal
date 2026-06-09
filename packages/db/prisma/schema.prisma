@@ -166,6 +166,7 @@ model User {
   studentPortalIconPhotosUpdated   StudentPortalSettings[]          @relation("StudentPortalIconPhotosUpdated")
   faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
+  faithCornerCommentsReviewed      FaithCornerComment[]             @relation("FaithCornerCommentsReviewed")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
   homeworkAssignmentsCreated         HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
   homeworkSubmissionsReviewed        HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
@@ -265,6 +266,9 @@ model Student {
   portalUsageMinutes       StudentPortalUsageMinute[]
   notifications            StudentNotification[]
   homeworkSubmissions      HomeworkSubmission[]
+  faithCornerLikes         FaithCornerContentLike[]
+  faithCornerComments      FaithCornerComment[]
+  faithCornerCommentLikes  FaithCornerCommentLike[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
@@ -1453,10 +1457,64 @@ model FaithCornerContent {
 
   createdBy User  @relation("FaithCornerCreated", fields: [createdById], references: [id])
   updatedBy User? @relation("FaithCornerUpdated", fields: [updatedById], references: [id], onDelete: SetNull)
+  likes     FaithCornerContentLike[]
+  comments  FaithCornerComment[]
 
   @@index([active, publishedAt])
   @@index([createdById, publishedAt])
   @@index([updatedById, updatedAt])
+}
+
+enum FaithCornerCommentStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+model FaithCornerContentLike {
+  contentId String
+  studentId String
+  createdAt DateTime @default(now())
+
+  content FaithCornerContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  student Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([contentId, studentId])
+  @@index([studentId, createdAt])
+}
+
+model FaithCornerComment {
+  id           String                   @id @default(cuid())
+  contentId    String
+  studentId    String
+  bodyEnc      String
+  status       FaithCornerCommentStatus @default(Pending)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  content    FaithCornerContent     @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  student    Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy User?                  @relation("FaithCornerCommentsReviewed", fields: [reviewedById], references: [id], onDelete: SetNull)
+  likes      FaithCornerCommentLike[]
+
+  @@index([contentId, status, createdAt])
+  @@index([studentId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewedById, reviewedAt])
+}
+
+model FaithCornerCommentLike {
+  commentId String
+  studentId String
+  createdAt DateTime @default(now())
+
+  comment FaithCornerComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  student Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([commentId, studentId])
+  @@index([studentId, createdAt])
 }
 
 model ClubAttendance {

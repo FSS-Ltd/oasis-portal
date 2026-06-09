@@ -7,6 +7,7 @@ export {
   CalendarEventCategory,
   CalendarEventAudience,
   ChildRegistrationPromptStatus,
+  FaithCornerCommentStatus,
   IncidentConfidentiality,
   IncidentEventType,
   IncidentParentCopyStatus,

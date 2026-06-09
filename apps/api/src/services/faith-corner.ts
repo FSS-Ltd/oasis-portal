@@ -17,6 +17,9 @@ export interface FaithCornerDto {
     translation: 'NKJV';
   } | null;
   publishedAt: Date | null;
+  likeCount: number;
+  commentCount: number;
+  likedByCurrentStudent: boolean;
   ready: boolean;
 }
 
@@ -40,6 +43,9 @@ export const emptyFaithCorner: FaithCornerDto = {
   reflectionPrompt: null,
   verseOfDay: null,
   publishedAt: null,
+  likeCount: 0,
+  commentCount: 0,
+  likedByCurrentStudent: false,
   ready: false,
 };
 
@@ -60,6 +66,11 @@ function decryptRequired(
 export function mapFaithCornerContent(
   decrypt: (value: string | null | undefined) => string | null,
   row: FaithCornerRow | null,
+  interactions?: {
+    commentCount: number;
+    likedByCurrentStudent: boolean;
+    likeCount: number;
+  },
 ): FaithCornerDto {
   if (!row) return emptyFaithCorner;
 
@@ -86,11 +97,17 @@ export function mapFaithCornerContent(
           }
         : null,
     publishedAt: row.publishedAt,
+    likeCount: interactions?.likeCount ?? 0,
+    commentCount: interactions?.commentCount ?? 0,
+    likedByCurrentStudent: interactions?.likedByCurrentStudent ?? false,
     ready: true,
   };
 }
 
-export async function loadCurrentFaithCornerContent(ctx: AppContext): Promise<FaithCornerDto> {
+export async function loadCurrentFaithCornerContent(
+  ctx: AppContext,
+  currentStudentId?: string,
+): Promise<FaithCornerDto> {
   const row = await ctx.db.faithCornerContent.findFirst({
     where: { active: true },
     select: faithCornerSelect,
@@ -109,5 +126,22 @@ export async function loadCurrentFaithCornerContent(ctx: AppContext): Promise<Fa
     });
   }
 
-  return mapFaithCornerContent(ctx.db.$enc.decrypt, row);
+  if (!row) return emptyFaithCorner;
+
+  const [likeCount, commentCount, ownLike] = await Promise.all([
+    ctx.db.faithCornerContentLike.count({ where: { contentId: row.id } }),
+    ctx.db.faithCornerComment.count({ where: { contentId: row.id, status: 'Approved' } }),
+    currentStudentId
+      ? ctx.db.faithCornerContentLike.findUnique({
+          where: { contentId_studentId: { contentId: row.id, studentId: currentStudentId } },
+          select: { contentId: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  return mapFaithCornerContent(ctx.db.$enc.decrypt, row, {
+    likeCount,
+    commentCount,
+    likedByCurrentStudent: ownLike !== null,
+  });
 }
