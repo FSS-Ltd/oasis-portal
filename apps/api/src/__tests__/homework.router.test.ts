@@ -4,6 +4,11 @@ import type { AppContext, RlsTx } from '../context.js';
 import { homeworkRouter } from '../routers/homework.js';
 import { router } from '../trpc.js';
 
+vi.mock('../services/homework-submission-storage.js', () => ({
+  homeworkSubmissionBucket: () => 'homework-submissions',
+  assertUploadedHomeworkSubmissionImages: vi.fn().mockResolvedValue(undefined),
+}));
+
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
 const primaryStudentUser: SessionUser = {
   id: 'u_student_primary',
@@ -43,6 +48,18 @@ interface StoredYearGroupBand {
   sortOrder: number;
 }
 
+interface StoredHomeworkAssignmentImage {
+  id: string;
+  assignmentId: string;
+  uploadedById: string;
+  originalFileNameEnc: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageBucket: string;
+  storagePathEnc: string;
+  createdAt: Date;
+}
+
 interface StoredHomeworkAssignment {
   id: string;
   title: string;
@@ -56,6 +73,7 @@ interface StoredHomeworkAssignment {
   updatedAt: Date;
   bands: Array<{ yearGroupBand: StoredYearGroupBand }>;
   submissions: StoredHomeworkSubmission[];
+  questionImages: StoredHomeworkAssignmentImage[];
 }
 
 interface StoredHomeworkSubmission {
@@ -100,6 +118,12 @@ interface FakeDb {
     findFirst: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
+  homeworkAssignmentBand: { deleteMany: ReturnType<typeof vi.fn> };
+  homeworkAssignmentImage: {
+    create: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
   };
   homeworkSubmission: {
     findFirst: ReturnType<typeof vi.fn>;
@@ -120,6 +144,7 @@ interface FakeDb {
   studentPortalUsageMinute: { count: ReturnType<typeof vi.fn> };
   yearGroupBand: { findMany: ReturnType<typeof vi.fn> };
   assignments: StoredHomeworkAssignment[];
+  assignmentImages: StoredHomeworkAssignmentImage[];
   behaviourEntries: Array<{ id: string; studentId: string; meritDelta: number }>;
   images: StoredHomeworkSubmissionImage[];
   ledgerRows: Array<{ studentId: string; account: string; delta: number; reason: string }>;
@@ -139,9 +164,11 @@ function withAssignmentIncludes(
   assignment: StoredHomeworkAssignment,
   submissions: StoredHomeworkSubmission[],
   images: StoredHomeworkSubmissionImage[],
+  assignmentImages: StoredHomeworkAssignmentImage[] = [],
 ): StoredHomeworkAssignment {
   return {
     ...assignment,
+    questionImages: assignmentImages.filter((img) => img.assignmentId === assignment.id),
     submissions: submissions
       .filter((submission) => submission.assignmentId === assignment.id)
       .map((submission) => ({
@@ -178,6 +205,7 @@ function makeAssignment(input: {
     updatedAt: new Date('2026-06-01T09:00:00.000Z'),
     bands,
     submissions: [],
+    questionImages: [],
   };
 }
 
@@ -244,12 +272,14 @@ function makeSubmission(input: {
 
 function makeFakeDb(input?: {
   assignments?: StoredHomeworkAssignment[];
+  assignmentImages?: StoredHomeworkAssignmentImage[];
   images?: StoredHomeworkSubmissionImage[];
   submissions?: StoredHomeworkSubmission[];
 }): FakeDb {
   const assignments = input?.assignments ?? [];
   const submissions = input?.submissions ?? [];
   const images = input?.images ?? [];
+  const assignmentImages: StoredHomeworkAssignmentImage[] = input?.assignmentImages ?? [];
   const behaviourEntries: FakeDb['behaviourEntries'] = [];
   const ledgerRows: FakeDb['ledgerRows'] = [];
   const notifications: FakeDb['notifications'] = [];
@@ -308,17 +338,114 @@ function makeFakeDb(input?: {
             .filter(
               (assignment) => where?.active === undefined || assignment.active === where.active,
             )
-            .map((assignment) => withAssignmentIncludes(assignment, submissions, images)),
+            .map((assignment) =>
+              withAssignmentIncludes(assignment, submissions, images, assignmentImages),
+            ),
         ),
       ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(
           (() => {
             const assignment = assignments.find((item) => item.id === where.id);
-            return assignment ? withAssignmentIncludes(assignment, submissions, images) : null;
+            return assignment
+              ? withAssignmentIncludes(assignment, submissions, images, assignmentImages)
+              : null;
           })(),
         ),
       ),
+      update: vi.fn(
+        ({
+          data,
+          where,
+        }: {
+          data: {
+            allYearGroupBands: boolean;
+            bands?: { create: Array<{ yearGroupBandId: string }> };
+            descriptionEnc: string;
+            dueDate: Date;
+            submissionMethod: SubmissionMethod;
+            title: string;
+          };
+          where: { id: string };
+        }) => {
+          const assignment = assignments.find((item) => item.id === where.id);
+          if (!assignment) return Promise.resolve(null);
+          Object.assign(assignment, {
+            title: data.title,
+            descriptionEnc: data.descriptionEnc,
+            dueDate: data.dueDate,
+            submissionMethod: data.submissionMethod,
+            allYearGroupBands: data.allYearGroupBands,
+            bands: data.bands
+              ? (() => {
+                  const bands = data.bands;
+                  return defaultBands
+                    .filter((band) =>
+                      bands.create.map((b) => b.yearGroupBandId).includes(band.id),
+                    )
+                    .map((yearGroupBand) => ({ yearGroupBand }));
+                })()
+              : assignment.bands,
+            updatedAt: new Date(),
+          });
+          return Promise.resolve(
+            withAssignmentIncludes(assignment, submissions, images, assignmentImages),
+          );
+        },
+      ),
+    },
+    homeworkAssignmentBand: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    homeworkAssignmentImage: {
+      create: vi.fn(
+        ({
+          data,
+        }: {
+          data: {
+            assignmentId: string;
+            uploadedById: string;
+            originalFileNameEnc: string;
+            mimeType: string;
+            sizeBytes: number;
+            storageBucket: string;
+            storagePathEnc: string;
+          };
+        }) => {
+          const img: StoredHomeworkAssignmentImage = {
+            id: `assignment_image_${String(assignmentImages.length + 1)}`,
+            assignmentId: data.assignmentId,
+            uploadedById: data.uploadedById,
+            originalFileNameEnc: data.originalFileNameEnc,
+            mimeType: data.mimeType,
+            sizeBytes: data.sizeBytes,
+            storageBucket: data.storageBucket,
+            storagePathEnc: data.storagePathEnc,
+            createdAt: new Date('2026-06-12T10:00:00.000Z'),
+          };
+          assignmentImages.push(img);
+          return Promise.resolve(img);
+        },
+      ),
+      findFirst: vi.fn(({ where }: { where: { id: string } }) => {
+        const img = assignmentImages.find((item) => item.id === where.id);
+        const assignment = img
+          ? assignments.find((item) => item.id === img.assignmentId)
+          : undefined;
+        return Promise.resolve(
+          img && assignment
+            ? {
+                ...img,
+                assignment: withAssignmentIncludes(
+                  assignment,
+                  submissions,
+                  images,
+                  assignmentImages,
+                ),
+              }
+            : null,
+        );
+      }),
     },
     homeworkSubmission: {
       findFirst: vi.fn(
@@ -353,12 +480,17 @@ function makeFakeDb(input?: {
       ),
       findMany: vi.fn(() =>
         Promise.resolve(
-          submissions.map((submission) => ({
-            ...submission,
-            assignment: assignments.find((assignment) => assignment.id === submission.assignmentId),
-            student: defaultStudents.find((student) => student.id === submission.studentId),
-            images: images.filter((image) => image.submissionId === submission.id),
-          })),
+          submissions.map((submission) => {
+            const assignment = assignments.find((a) => a.id === submission.assignmentId);
+            return {
+              ...submission,
+              assignment: assignment
+                ? withAssignmentIncludes(assignment, submissions, images, assignmentImages)
+                : undefined,
+              student: defaultStudents.find((student) => student.id === submission.studentId),
+              images: images.filter((image) => image.submissionId === submission.id),
+            };
+          }),
         ),
       ),
       upsert: vi.fn(
@@ -496,6 +628,7 @@ function makeFakeDb(input?: {
       ),
     },
     assignments,
+    assignmentImages,
     behaviourEntries,
     images,
     ledgerRows,
@@ -649,6 +782,228 @@ describe('homework router', () => {
         title: 'Merits awarded',
       },
     ]);
+  });
+
+  it('lets heads update an assignment title, description, and due date', async () => {
+    const assignment = makeAssignment({
+      allYearGroupBands: true,
+      id: 'homework_update',
+      title: 'Original title',
+    });
+    const db = makeFakeDb({ assignments: [assignment] });
+
+    const updated = await makeCaller(headUser, db).homework.updateAssignment({
+      id: assignment.id,
+      allYearGroupBands: true,
+      description: 'Updated description.',
+      dueDate: new Date('2026-07-01T00:00:00.000Z'),
+      submissionMethod: 'InPerson',
+      title: 'Updated title',
+      yearGroupBandIds: [],
+    });
+
+    expect(updated).toMatchObject({
+      id: assignment.id,
+      title: 'Updated title',
+      description: 'Updated description.',
+      submissionMethod: 'InPerson',
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          action: 'Update',
+          entity: 'HomeworkAssignment',
+          entityId: assignment.id,
+          userId: headUser.id,
+          meta: expect.anything() as unknown,
+        },
+      }),
+    );
+    expect(db.homeworkAssignmentBand.deleteMany).toHaveBeenCalledWith({
+      where: { assignmentId: assignment.id },
+    });
+  });
+
+  it('rejects updateAssignment for an unknown or inactive assignment', async () => {
+    const db = makeFakeDb();
+    await expect(
+      makeCaller(headUser, db).homework.updateAssignment({
+        id: 'nonexistent',
+        allYearGroupBands: true,
+        description: 'Whatever.',
+        dueDate: new Date('2026-07-01T00:00:00.000Z'),
+        submissionMethod: 'UploadImage',
+        title: 'Whatever',
+        yearGroupBandIds: [],
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('lets heads prepare an assignment image upload', async () => {
+    const assignment = makeAssignment({
+      allYearGroupBands: true,
+      id: 'homework_with_image',
+      title: 'Science project',
+    });
+    const db = makeFakeDb({ assignments: [assignment] });
+
+    const result = await makeCaller(headUser, db).homework.prepareAssignmentImageUpload({
+      assignmentId: assignment.id,
+      files: [{ fileName: 'questions.png', mimeType: 'image/png', sizeBytes: 512 }],
+    });
+
+    expect(result.bucket).toBe('homework-submissions');
+    const firstImage = result.images[0];
+    expect(firstImage).toMatchObject({
+      fileName: 'questions.png',
+      mimeType: 'image/png',
+      sizeBytes: 512,
+    });
+    expect(firstImage?.storagePath).toMatch(
+      /^assignment-questions\/u_head\/homework_with_image\//u,
+    );
+  });
+
+  it('rejects prepareAssignmentImageUpload for students', async () => {
+    const assignment = makeAssignment({
+      allYearGroupBands: true,
+      id: 'homework_upload_guard',
+      title: 'Guard test',
+    });
+    const db = makeFakeDb({ assignments: [assignment] });
+
+    await expect(
+      makeCaller(primaryStudentUser, db).homework.prepareAssignmentImageUpload({
+        assignmentId: assignment.id,
+        files: [{ fileName: 'test.png', mimeType: 'image/png', sizeBytes: 100 }],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets heads attach an assignment image and records an audit log', async () => {
+    const assignment = makeAssignment({
+      allYearGroupBands: true,
+      id: 'homework_attach',
+      title: 'Geography',
+    });
+    const db = makeFakeDb({ assignments: [assignment] });
+
+    const result = await makeCaller(headUser, db).homework.attachAssignmentImage({
+      assignmentId: assignment.id,
+      image: {
+        fileName: 'map.png',
+        mimeType: 'image/png',
+        sizeBytes: 1024,
+        storageBucket: 'homework-submissions',
+        storagePath: `assignment-questions/u_head/${assignment.id}/uuid-map.png`,
+      },
+    });
+
+    expect(result).toMatchObject({ id: 'assignment_image_1' });
+    expect(db.assignmentImages).toHaveLength(1);
+    expect(db.assignmentImages[0]).toMatchObject({
+      assignmentId: assignment.id,
+      mimeType: 'image/png',
+    });
+    expect(db.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          action: 'Create',
+          entity: 'HomeworkAssignmentImage',
+          userId: headUser.id,
+          entityId: 'assignment_image_1',
+          meta: expect.anything() as unknown,
+        },
+      }),
+    );
+  });
+
+  it('rejects attachAssignmentImage with wrong storage path', async () => {
+    const assignment = makeAssignment({
+      allYearGroupBands: true,
+      id: 'homework_attach_bad',
+      title: 'Art',
+    });
+    const db = makeFakeDb({ assignments: [assignment] });
+
+    await expect(
+      makeCaller(headUser, db).homework.attachAssignmentImage({
+        assignmentId: assignment.id,
+        image: {
+          fileName: 'drawing.png',
+          mimeType: 'image/png',
+          sizeBytes: 500,
+          storageBucket: 'homework-submissions',
+          storagePath: `homework/u_head/${assignment.id}/uuid-drawing.png`,
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('lets admins download any assignment image and denies other students', async () => {
+    const allBandAssignment = makeAssignment({
+      allYearGroupBands: true,
+      id: 'homework_img_dl',
+      title: 'Download test',
+    });
+    const lowerBandAssignment = makeAssignment({
+      allYearGroupBands: false,
+      bandIds: [lowerBandId],
+      id: 'homework_img_lower',
+      title: 'Lower band only',
+    });
+    const allBandImg: StoredHomeworkAssignmentImage = {
+      id: 'assignment_image_all',
+      assignmentId: allBandAssignment.id,
+      uploadedById: headUser.id,
+      originalFileNameEnc: encrypt('question.png'),
+      mimeType: 'image/png',
+      sizeBytes: 256,
+      storageBucket: 'homework-submissions',
+      storagePathEnc: encrypt(
+        `assignment-questions/u_head/${allBandAssignment.id}/uuid-question.png`,
+      ),
+      createdAt: new Date('2026-06-12T10:00:00.000Z'),
+    };
+    const lowerBandImg: StoredHomeworkAssignmentImage = {
+      id: 'assignment_image_lower',
+      assignmentId: lowerBandAssignment.id,
+      uploadedById: headUser.id,
+      originalFileNameEnc: encrypt('lower-question.png'),
+      mimeType: 'image/png',
+      sizeBytes: 512,
+      storageBucket: 'homework-submissions',
+      storagePathEnc: encrypt(
+        `assignment-questions/u_head/${lowerBandAssignment.id}/uuid-lower.png`,
+      ),
+      createdAt: new Date('2026-06-12T10:00:00.000Z'),
+    };
+    const db = makeFakeDb({
+      assignments: [allBandAssignment, lowerBandAssignment],
+      assignmentImages: [allBandImg, lowerBandImg],
+    });
+
+    await expect(
+      makeCaller(headUser, db).homework.downloadAssignmentImage({ imageId: allBandImg.id }),
+    ).resolves.toMatchObject({ fileName: 'question.png', storageBucket: 'homework-submissions' });
+
+    await expect(
+      makeCaller(primaryStudentUser, db).homework.downloadAssignmentImage({
+        imageId: allBandImg.id,
+      }),
+    ).resolves.toMatchObject({ fileName: 'question.png' });
+
+    await expect(
+      makeCaller(secondaryStudentUser, db).homework.downloadAssignmentImage({
+        imageId: lowerBandImg.id,
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    await expect(
+      makeCaller(primaryStudentUser, db).homework.downloadAssignmentImage({
+        imageId: lowerBandImg.id,
+      }),
+    ).resolves.toMatchObject({ fileName: 'lower-question.png' });
   });
 
   it('denies homework image download metadata to another student', async () => {

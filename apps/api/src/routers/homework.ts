@@ -76,6 +76,7 @@ interface HomeworkAssignmentRow {
   updatedAt: Date;
   bands?: HomeworkBandRow[];
   submissions?: HomeworkSubmissionRow[];
+  questionImages?: HomeworkImageRow[];
 }
 
 interface ActiveStudentRow {
@@ -108,15 +109,23 @@ const homeworkImageInput = homeworkImageMetadataInput.extend({
   storageBucket: z.string().trim().min(1).max(120),
   storagePath: z.string().trim().min(1).max(512),
 });
-const createAssignmentInput = z
-  .object({
-    allYearGroupBands: z.boolean(),
-    description: z.string().trim().min(1).max(5000),
-    dueDate: z.coerce.date(),
-    submissionMethod: submissionMethodSchema,
-    title: z.string().trim().min(1).max(160),
-    yearGroupBandIds: z.array(z.string().min(1)).max(50).default([]),
-  })
+const assignmentFieldsSchema = z.object({
+  allYearGroupBands: z.boolean(),
+  description: z.string().trim().min(1).max(5000),
+  dueDate: z.coerce.date(),
+  submissionMethod: submissionMethodSchema,
+  title: z.string().trim().min(1).max(160),
+  yearGroupBandIds: z.array(z.string().min(1)).max(50).default([]),
+});
+const createAssignmentInput = assignmentFieldsSchema.refine(
+  (input) => input.allYearGroupBands || input.yearGroupBandIds.length > 0,
+  {
+    message: 'Select at least one year group band, or assign to all bands.',
+    path: ['yearGroupBandIds'],
+  },
+);
+const updateAssignmentInput = assignmentFieldsSchema
+  .extend({ id: z.string().min(1) })
   .refine((input) => input.allYearGroupBands || input.yearGroupBandIds.length > 0, {
     message: 'Select at least one year group band, or assign to all bands.',
     path: ['yearGroupBandIds'],
@@ -139,6 +148,15 @@ const reviewSubmissionInput = z.object({
   studentId: z.string().min(1),
 });
 const imageIdInput = z.object({ imageId: z.string().min(1) });
+const prepareAssignmentImageUploadInput = z.object({
+  assignmentId: z.string().min(1),
+  files: z.array(homeworkImageMetadataInput).min(1).max(1),
+});
+const attachAssignmentImageInput = z.object({
+  assignmentId: z.string().min(1),
+  image: homeworkImageInput,
+});
+const assignmentImageIdInput = z.object({ imageId: z.string().min(1) });
 
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
@@ -175,6 +193,14 @@ function storagePathForHomeworkImage(
   return `homework/${userId}/${studentId}/${assignmentId}/${randomUUID()}-${safeStorageFileName(
     fileName,
   )}`;
+}
+
+function storagePathForAssignmentImage(
+  adminId: string,
+  assignmentId: string,
+  fileName: string,
+): string {
+  return `assignment-questions/${adminId}/${assignmentId}/${randomUUID()}-${safeStorageFileName(fileName)}`;
 }
 
 function validateHomeworkImageMetadata(
@@ -217,6 +243,25 @@ function assertHomeworkStorageTarget(
   }
 }
 
+function assertAssignmentImageStorageTarget(
+  input: Pick<UploadedHomeworkSubmissionImage, 'storageBucket' | 'storagePath'>,
+  adminId: string,
+  assignmentId: string,
+): void {
+  if (input.storageBucket !== homeworkSubmissionBucket()) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid assignment image bucket' });
+  }
+  const expectedPrefix = `assignment-questions/${adminId}/${assignmentId}/`;
+  if (
+    !input.storagePath.startsWith(expectedPrefix) ||
+    input.storagePath.includes('..') ||
+    input.storagePath.startsWith('/') ||
+    input.storagePath.endsWith('/')
+  ) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid assignment image path' });
+  }
+}
+
 function prepareHomeworkImage(
   input: z.infer<typeof homeworkImageMetadataInput>,
   userId: string,
@@ -244,6 +289,34 @@ function validateUploadedHomeworkImage(
     storagePath: input.storagePath,
   };
   assertHomeworkStorageTarget(image, userId, studentId, assignmentId);
+  return image;
+}
+
+function prepareAssignmentImage(
+  input: z.infer<typeof homeworkImageMetadataInput>,
+  adminId: string,
+  assignmentId: string,
+): UploadedHomeworkSubmissionImage {
+  const metadata = validateHomeworkImageMetadata(input);
+  return {
+    ...metadata,
+    storageBucket: homeworkSubmissionBucket(),
+    storagePath: storagePathForAssignmentImage(adminId, assignmentId, metadata.fileName),
+  };
+}
+
+function validateUploadedAssignmentImage(
+  input: z.infer<typeof homeworkImageInput>,
+  adminId: string,
+  assignmentId: string,
+): UploadedHomeworkSubmissionImage {
+  const metadata = validateHomeworkImageMetadata(input);
+  const image = {
+    ...metadata,
+    storageBucket: input.storageBucket,
+    storagePath: input.storagePath,
+  };
+  assertAssignmentImageStorageTarget(image, adminId, assignmentId);
   return image;
 }
 
@@ -312,6 +385,7 @@ function mapAssignment(
       : null,
     meritAmount: submission?.meritAmount ?? 0,
     images: (submission?.images ?? []).map((image) => mapImage(ctx, image)),
+    questionImages: (assignment.questionImages ?? []).map((image) => mapImage(ctx, image)),
   };
 }
 
@@ -357,6 +431,7 @@ async function loadAssignment(
     include: {
       bands: { include: { yearGroupBand: true } },
       submissions: { include: { images: true } },
+      questionImages: true,
     },
   })) as HomeworkAssignmentRow | null;
   if (!assignment?.active) {
@@ -377,6 +452,7 @@ async function listActiveAssignments(ctx: AuthedContext): Promise<HomeworkAssign
     include: {
       bands: { include: { yearGroupBand: true } },
       submissions: { include: { images: true } },
+      questionImages: true,
     },
     orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }],
   });
@@ -475,7 +551,11 @@ export const homeworkRouter = router({
                   },
                 }),
           },
-          include: { bands: { include: { yearGroupBand: true } }, submissions: true },
+          include: {
+            bands: { include: { yearGroupBand: true } },
+            submissions: true,
+            questionImages: true,
+          },
         }),
       )) as HomeworkAssignmentRow;
 
@@ -487,6 +567,71 @@ export const homeworkRouter = router({
           entityId: assignment.id,
           meta: {
             source: 'homework.createAssignment',
+            allYearGroupBands: input.allYearGroupBands,
+            yearGroupBandIds: input.allYearGroupBands ? [] : bandIds,
+          },
+        },
+      });
+
+      return mapAssignment(ctx, assignment);
+    }),
+
+  updateAssignment: fullAdminProcedure
+    .input(updateAssignmentInput)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.homeworkAssignment.findUnique({
+        where: { id: input.id },
+        select: { id: true, active: true },
+      });
+      if (!existing?.active) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'homework assignment not found' });
+      }
+
+      const bandIds = [...new Set(input.yearGroupBandIds)];
+      if (!input.allYearGroupBands) {
+        const bands = await ctx.db.yearGroupBand.findMany({
+          where: { id: { in: bandIds }, active: true },
+          select: { id: true },
+        });
+        if (bands.length !== bandIds.length) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid year group band selected' });
+        }
+      }
+
+      const assignment = (await ctx.withRls(async (tx) => {
+        await tx.homeworkAssignmentBand.deleteMany({ where: { assignmentId: input.id } });
+        return tx.homeworkAssignment.update({
+          where: { id: input.id },
+          data: {
+            title: input.title,
+            descriptionEnc: ctx.db.$enc.encrypt(input.description),
+            dueDate: input.dueDate,
+            submissionMethod: input.submissionMethod,
+            allYearGroupBands: input.allYearGroupBands,
+            ...(input.allYearGroupBands
+              ? {}
+              : {
+                  bands: {
+                    create: bandIds.map((yearGroupBandId) => ({ yearGroupBandId })),
+                  },
+                }),
+          },
+          include: {
+            bands: { include: { yearGroupBand: true } },
+            submissions: { include: { images: true } },
+            questionImages: true,
+          },
+        });
+      })) as HomeworkAssignmentRow;
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'HomeworkAssignment',
+          entityId: assignment.id,
+          meta: {
+            source: 'homework.updateAssignment',
             allYearGroupBands: input.allYearGroupBands,
             yearGroupBandIds: input.allYearGroupBands ? [] : bandIds,
           },
@@ -575,7 +720,12 @@ export const homeworkRouter = router({
       tx.homeworkSubmission.findMany({
         where: { studentId: student.id, reviewedAt: { not: null } },
         include: {
-          assignment: { include: { bands: { include: { yearGroupBand: true } } } },
+          assignment: {
+            include: {
+              bands: { include: { yearGroupBand: true } },
+              questionImages: true,
+            },
+          },
           images: true,
         },
         orderBy: { reviewedAt: 'desc' },
@@ -748,6 +898,138 @@ export const homeworkRouter = router({
         assignmentId: assignment.id,
         behaviourEntryId: reviewed.behaviourEntryId,
         studentId: student.id,
+      };
+    }),
+
+  prepareAssignmentImageUpload: fullAdminProcedure
+    .input(prepareAssignmentImageUploadInput)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.homeworkAssignment.findUnique({
+        where: { id: input.assignmentId },
+        select: { id: true, active: true },
+      });
+      if (!existing?.active) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'homework assignment not found' });
+      }
+
+      const images = input.files.map((file) =>
+        prepareAssignmentImage(file, ctx.user.id, input.assignmentId),
+      );
+
+      return { bucket: homeworkSubmissionBucket(), images };
+    }),
+
+  attachAssignmentImage: fullAdminProcedure
+    .input(attachAssignmentImageInput)
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.homeworkAssignment.findUnique({
+        where: { id: input.assignmentId },
+        select: { id: true, active: true },
+      });
+      if (!existing?.active) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'homework assignment not found' });
+      }
+
+      const image = validateUploadedAssignmentImage(input.image, ctx.user.id, input.assignmentId);
+      await assertUploadedHomeworkSubmissionImages([image]);
+
+      const imageRow = await ctx.withRls((tx) =>
+        tx.homeworkAssignmentImage.create({
+          data: {
+            assignmentId: input.assignmentId,
+            uploadedById: ctx.user.id,
+            originalFileNameEnc: ctx.db.$enc.encrypt(image.fileName),
+            mimeType: image.mimeType,
+            sizeBytes: image.sizeBytes,
+            storageBucket: image.storageBucket,
+            storagePathEnc: ctx.db.$enc.encrypt(image.storagePath),
+          },
+        }),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'HomeworkAssignmentImage',
+          entityId: imageRow.id,
+          meta: {
+            source: 'homework.attachAssignmentImage',
+            assignmentId: input.assignmentId,
+          },
+        },
+      });
+
+      return { id: imageRow.id };
+    }),
+
+  downloadAssignmentImage: authedProcedure
+    .input(assignmentImageIdInput)
+    .query(async ({ ctx, input }) => {
+      const image = (await ctx.withRls((tx) =>
+        tx.homeworkAssignmentImage.findFirst({
+          where: { id: input.imageId },
+          include: {
+            assignment: {
+              include: { bands: { include: { yearGroupBand: true } } },
+            },
+          },
+        }),
+      )) as
+        | (HomeworkImageRow & { assignment: HomeworkAssignmentRow })
+        | null;
+
+      if (!image) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'assignment image not found' });
+      }
+
+      if (!isFullAdmin(ctx.user)) {
+        if (ctx.user.role !== 'Student') {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'assignment image not found' });
+        }
+        const student = await ctx.db.student.findUnique({
+          where: { userId: ctx.user.id },
+          select: { id: true, active: true, yearGroup: true },
+        });
+        if (
+          !student?.active ||
+          !studentMatchesAssignment(
+            { ...student, userId: ctx.user.id, fullNameEnc: '' },
+            image.assignment,
+          )
+        ) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'assignment image not found' });
+        }
+      }
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'ReadSensitive',
+          entity: 'HomeworkAssignmentImage',
+          entityId: image.id,
+          meta: {
+            source: 'homework.downloadAssignmentImage',
+            assignmentId: image.assignment.id,
+          },
+        },
+      });
+
+      return {
+        imageId: image.id,
+        fileName: decryptRequired(
+          ctx.db.$enc.decrypt,
+          image.originalFileNameEnc,
+          'assignment image name',
+        ),
+        mimeType: image.mimeType,
+        sizeBytes: image.sizeBytes,
+        storageBucket: image.storageBucket,
+        storagePath: decryptRequired(
+          ctx.db.$enc.decrypt,
+          image.storagePathEnc,
+          'assignment image path',
+        ),
       };
     }),
 

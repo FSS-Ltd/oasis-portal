@@ -1,7 +1,8 @@
 'use client';
 
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Eye, Image, ListChecks, Save } from 'lucide-react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useSession } from '@clerk/nextjs';
+import { ClipboardList, Eye, Image, ListChecks, Pencil, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -10,6 +11,7 @@ import {
   type HomeworkImagePayload,
 } from '@/components/homework/homework-image-upload';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
+import { createClient } from '@/lib/supabase/client';
 import { api, type RouterOutputs } from '@/lib/trpc';
 
 type AdminAssignment = RouterOutputs['homework']['adminAssignments'][number];
@@ -83,6 +85,26 @@ function HomeworkImageLinks({ images }: { images: readonly AdminHomeworkImage[] 
   );
 }
 
+function QuestionImageLinks({ images }: { images: readonly AdminHomeworkImage[] }) {
+  if (images.length === 0) return null;
+
+  return (
+    <div className="homework-image-links" aria-label="Question images">
+      {images.map((image) => (
+        <a
+          href={`/api/homework/assignment-images/${image.id}`}
+          key={image.id}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <Eye aria-hidden="true" size={15} />
+          <span>{image.fileName}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function BandCheckboxes({
   bands,
   disabled,
@@ -120,6 +142,58 @@ function BandCheckboxes({
   );
 }
 
+interface HomeworkUploadResponse {
+  bucket: string;
+  images: (HomeworkImagePayload & { token: string })[];
+}
+
+async function uploadAssignmentQuestionImage(
+  assignmentId: string,
+  file: File,
+  supabase: ReturnType<typeof createClient>,
+): Promise<HomeworkImagePayload> {
+  const response = await fetch('/api/homework/assignment-upload', {
+    body: JSON.stringify({
+      assignmentId,
+      files: [{ fileName: file.name, mimeType: file.type, sizeBytes: file.size }],
+    }),
+    headers: { 'Content-Type': 'application/json' },
+    method: 'POST',
+  });
+  const payload = (await response.json()) as Partial<HomeworkUploadResponse> & { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? 'Question image could not be prepared.');
+  const image = payload.images?.[0];
+  if (!payload.bucket || !image) throw new Error('Question image upload token was not returned.');
+
+  const { error } = await supabase.storage
+    .from(payload.bucket)
+    .uploadToSignedUrl(image.storagePath, image.token, file, { contentType: image.mimeType });
+  if (error) throw error;
+
+  return {
+    fileName: image.fileName,
+    mimeType: image.mimeType,
+    sizeBytes: image.sizeBytes,
+    storageBucket: image.storageBucket,
+    storagePath: image.storagePath,
+  };
+}
+
+function assignmentToForm(assignment: AdminAssignment): AssignmentForm {
+  const offsetMs = new Date(assignment.dueDate).getTimezoneOffset() * 60 * 1000;
+  const dueDate = new Date(new Date(assignment.dueDate).getTime() - offsetMs)
+    .toISOString()
+    .slice(0, 10);
+  return {
+    allYearGroupBands: assignment.allYearGroupBands,
+    description: assignment.description,
+    dueDate,
+    submissionMethod: assignment.submissionMethod,
+    title: assignment.title,
+    yearGroupBandIds: assignment.bands.map((b) => b.id),
+  };
+}
+
 export function AdminHomeworkClient() {
   const utils = api.useUtils();
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
@@ -129,6 +203,10 @@ export function AdminHomeworkClient() {
     ...defaultAssignmentForm,
     dueDate: defaultDueDateValue(),
   });
+  const [editingAssignment, setEditingAssignment] = useState<AdminAssignment | null>(null);
+  const [pendingQuestionFile, setPendingQuestionFile] = useState<File | null>(null);
+  const [uploadingQuestionImage, setUploadingQuestionImage] = useState(false);
+  const questionFileInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('all');
   const [selectedReviewKey, setSelectedReviewKey] = useState<string | null>(null);
   const [reviewForm, setReviewForm] = useState({
@@ -138,17 +216,67 @@ export function AdminHomeworkClient() {
   });
   const [reviewImage, setReviewImage] = useState<HomeworkImagePayload | null>(null);
 
+  const { session } = useSession();
+  const supabase = useMemo(
+    () => createClient({ accessToken: async () => session?.getToken() ?? null }),
+    [session],
+  );
+
+  const attachAssignmentImage = api.homework.attachAssignmentImage.useMutation({
+    onError(error) {
+      showErrorToast(error, 'Question image could not be saved — but assignment was created/saved.');
+    },
+  });
+
+  async function handleUploadQuestionImage(assignmentId: string, file: File): Promise<void> {
+    setUploadingQuestionImage(true);
+    try {
+      const payload = await uploadAssignmentQuestionImage(assignmentId, file, supabase);
+      await attachAssignmentImage.mutateAsync({
+        assignmentId,
+        image: payload,
+      });
+      await utils.homework.adminAssignments.invalidate();
+    } finally {
+      setUploadingQuestionImage(false);
+      setPendingQuestionFile(null);
+    }
+  }
+
   const createAssignment = api.homework.createAssignment.useMutation({
-    async onSuccess() {
+    async onSuccess(data) {
       showSuccessToast('Homework assignment created.');
+      const file = pendingQuestionFile;
       setAssignmentForm({ ...defaultAssignmentForm, dueDate: defaultDueDateValue() });
       await Promise.all([
         utils.homework.adminAssignments.invalidate(),
         utils.homework.reviewQueue.invalidate(),
       ]);
+      if (file) {
+        await handleUploadQuestionImage(data.id, file);
+      }
     },
     onError(error) {
       showErrorToast(error, 'Homework assignment could not be created.');
+    },
+  });
+
+  const updateAssignment = api.homework.updateAssignment.useMutation({
+    async onSuccess(data) {
+      showSuccessToast('Homework assignment updated.');
+      const file = pendingQuestionFile;
+      setEditingAssignment(null);
+      setAssignmentForm({ ...defaultAssignmentForm, dueDate: defaultDueDateValue() });
+      await Promise.all([
+        utils.homework.adminAssignments.invalidate(),
+        utils.homework.reviewQueue.invalidate(),
+      ]);
+      if (file) {
+        await handleUploadQuestionImage(data.id, file);
+      }
+    },
+    onError(error) {
+      showErrorToast(error, 'Homework assignment could not be updated.');
     },
   });
 
@@ -192,16 +320,33 @@ export function AdminHomeworkClient() {
     setReviewImage(null);
   }, [selectedReview]);
 
+  function startEditing(assignment: AdminAssignment): void {
+    setEditingAssignment(assignment);
+    setAssignmentForm(assignmentToForm(assignment));
+    setPendingQuestionFile(null);
+  }
+
+  function cancelEditing(): void {
+    setEditingAssignment(null);
+    setAssignmentForm({ ...defaultAssignmentForm, dueDate: defaultDueDateValue() });
+    setPendingQuestionFile(null);
+  }
+
   function submitAssignment(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    createAssignment.mutate({
+    const payload = {
       allYearGroupBands: assignmentForm.allYearGroupBands,
       description: assignmentForm.description,
       dueDate: new Date(`${assignmentForm.dueDate}T00:00:00`),
       submissionMethod: assignmentForm.submissionMethod,
       title: assignmentForm.title,
       yearGroupBandIds: assignmentForm.allYearGroupBands ? [] : assignmentForm.yearGroupBandIds,
-    });
+    };
+    if (editingAssignment) {
+      updateAssignment.mutate({ id: editingAssignment.id, ...payload });
+    } else {
+      createAssignment.mutate(payload);
+    }
   }
 
   function submitReview(event: FormEvent<HTMLFormElement>): void {
@@ -221,6 +366,11 @@ export function AdminHomeworkClient() {
   const bands = bandsQuery.data ?? [];
   const loading = bandsQuery.isLoading || assignmentsQuery.isLoading || reviewQueueQuery.isLoading;
   const error = bandsQuery.error ?? assignmentsQuery.error ?? reviewQueueQuery.error;
+  const formPending =
+    createAssignment.isPending ||
+    updateAssignment.isPending ||
+    uploadingQuestionImage ||
+    attachAssignmentImage.isPending;
 
   return (
     <div className="homework-admin-page">
@@ -243,7 +393,9 @@ export function AdminHomeworkClient() {
           <div className="panel__header">
             <div>
               <p className="eyebrow">Assignments</p>
-              <h2 id="homework-create-title">Create homework</h2>
+              <h2 id="homework-create-title">
+                {editingAssignment ? 'Edit homework' : 'Create homework'}
+              </h2>
             </div>
             <ClipboardList aria-hidden="true" size={20} />
           </div>
@@ -297,6 +449,53 @@ export function AdminHomeworkClient() {
                 value={assignmentForm.description}
               />
             </Field>
+            <Field label="Question images (optional)">
+              {editingAssignment && editingAssignment.questionImages.length > 0 ? (
+                <QuestionImageLinks images={editingAssignment.questionImages} />
+              ) : null}
+              <div className="homework-upload-control">
+                <input
+                  ref={questionFileInputRef}
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  className="homework-upload-control__input"
+                  disabled={formPending}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    event.target.value = '';
+                    setPendingQuestionFile(file);
+                  }}
+                  type="file"
+                />
+                {pendingQuestionFile ? (
+                  <div className="homework-question-file">
+                    <Image aria-hidden="true" size={15} />
+                    <span>{pendingQuestionFile.name}</span>
+                    <button
+                      aria-label="Remove selected file"
+                      className="homework-question-file__remove"
+                      disabled={formPending}
+                      onClick={() => {
+                        setPendingQuestionFile(null);
+                      }}
+                      type="button"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    disabled={formPending}
+                    onClick={() => questionFileInputRef.current?.click()}
+                    type="button"
+                    variant="secondary"
+                  >
+                    <Image aria-hidden="true" size={16} />
+                    Choose image
+                  </Button>
+                )}
+                <p className="muted">JPEG, PNG, or WebP. Max 10 MB.</p>
+              </div>
+            </Field>
             <label className="homework-toggle">
               <input
                 checked={assignmentForm.allYearGroupBands}
@@ -313,16 +512,23 @@ export function AdminHomeworkClient() {
             {!assignmentForm.allYearGroupBands ? (
               <BandCheckboxes
                 bands={bands}
-                disabled={createAssignment.isPending}
+                disabled={formPending}
                 onChange={(yearGroupBandIds) => {
                   setAssignmentForm((current) => ({ ...current, yearGroupBandIds }));
                 }}
                 selectedIds={assignmentForm.yearGroupBandIds}
               />
             ) : null}
-            <Button pending={createAssignment.isPending} type="submit">
-              Create homework
-            </Button>
+            <div className="homework-form-actions">
+              <Button pending={formPending} type="submit">
+                {editingAssignment ? 'Save changes' : 'Create homework'}
+              </Button>
+              {editingAssignment ? (
+                <Button disabled={formPending} onClick={cancelEditing} type="button" variant="ghost">
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
           </form>
         </section>
 
@@ -345,7 +551,19 @@ export function AdminHomeworkClient() {
                     <h3>{assignment.title}</h3>
                     <p>{assignmentAudience(assignment)}</p>
                   </div>
-                  <span>{formatDate(assignment.dueDate)}</span>
+                  <div className="homework-admin-assignment__actions">
+                    <span>{formatDate(assignment.dueDate)}</span>
+                    <button
+                      aria-label={`Edit ${assignment.title}`}
+                      className="homework-edit-btn"
+                      onClick={() => {
+                        startEditing(assignment);
+                      }}
+                      type="button"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -445,6 +663,7 @@ export function AdminHomeworkClient() {
                 <p className="homework-review-detail__description">
                   {selectedReview.assignment.description}
                 </p>
+                <QuestionImageLinks images={selectedReview.assignment.questionImages} />
                 <HomeworkImageLinks images={selectedReview.assignment.images} />
                 {selectedReview.assignment.submissionMethod === 'InPerson' ? (
                   <div className="homework-review-upload">

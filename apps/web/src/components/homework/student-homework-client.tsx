@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardCheck, Image, Medal, UploadCloud } from 'lucide-react';
+import { BookOpen, ClipboardCheck, Image, Medal, UploadCloud } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
   HomeworkImageUpload,
@@ -30,18 +30,39 @@ function isOverdue(value: Date): boolean {
   return dueDate < today;
 }
 
-function imageHref(image: HomeworkImage): string {
-  return `/api/homework/images/${image.id}`;
-}
-
-function HomeworkImages({ images }: { images: readonly HomeworkImage[] }) {
+function SubmissionImages({ images }: { images: readonly HomeworkImage[] }) {
   if (images.length === 0) return null;
 
   return (
     <div className="homework-image-links" aria-label="Submitted homework images">
       {images.map((image) => (
-        <a href={imageHref(image)} key={image.id} rel="noreferrer" target="_blank">
+        <a
+          href={`/api/homework/images/${image.id}`}
+          key={image.id}
+          rel="noreferrer"
+          target="_blank"
+        >
           <Image aria-hidden="true" size={15} />
+          <span>{image.fileName}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function QuestionImages({ images }: { images: readonly HomeworkImage[] }) {
+  if (images.length === 0) return null;
+
+  return (
+    <div className="homework-image-links homework-image-links--questions" aria-label="Question images">
+      {images.map((image) => (
+        <a
+          href={`/api/homework/assignment-images/${image.id}`}
+          key={image.id}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <BookOpen aria-hidden="true" size={15} />
           <span>{image.fileName}</span>
         </a>
       ))}
@@ -72,7 +93,8 @@ function AssignmentCard({
         </span>
       </div>
       <p className="student-homework-card__description">{assignment.description}</p>
-      <HomeworkImages images={assignment.images} />
+      <QuestionImages images={assignment.questionImages} />
+      <SubmissionImages images={assignment.images} />
       {assignment.submittedAt ? (
         <p className="student-homework-card__meta">
           Submitted {formatDate(assignment.submittedAt)}
@@ -111,6 +133,7 @@ function GradedCard({ assignment }: { assignment: StudentHomework }) {
         <span className="homework-score">{String(assignment.scorePercent ?? 0)}%</span>
       </div>
       <p className="student-homework-card__description">{assignment.description}</p>
+      <QuestionImages images={assignment.questionImages} />
       <div className="student-homework-card__result">
         <span>
           <Medal aria-hidden="true" size={15} />
@@ -121,7 +144,7 @@ function GradedCard({ assignment }: { assignment: StudentHomework }) {
         {assignment.reviewedAt ? <span>Reviewed {formatDate(assignment.reviewedAt)}</span> : null}
       </div>
       {assignment.comments ? <blockquote>{assignment.comments}</blockquote> : null}
-      <HomeworkImages images={assignment.images} />
+      <SubmissionImages images={assignment.images} />
     </article>
   );
 }

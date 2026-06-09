@@ -167,9 +167,10 @@ model User {
   faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
-  homeworkAssignmentsCreated       HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
-  homeworkSubmissionsReviewed      HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
-  homeworkSubmissionImagesUploaded HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
+  homeworkAssignmentsCreated         HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
+  homeworkSubmissionsReviewed        HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
+  homeworkSubmissionImagesUploaded   HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
+  homeworkAssignmentImagesUploaded   HomeworkAssignmentImage[]         @relation("HomeworkAssignmentImagesUploaded")
   charityPotsUpdated               CharityPot[]                     @relation("CharityPotUpdated")
 
   @@index([role])
@@ -475,9 +476,10 @@ model HomeworkAssignment {
   createdAt         DateTime                 @default(now())
   updatedAt         DateTime                 @updatedAt
 
-  createdBy   User                     @relation("HomeworkAssignmentsCreated", fields: [createdById], references: [id])
-  bands       HomeworkAssignmentBand[]
-  submissions HomeworkSubmission[]
+  createdBy      User                     @relation("HomeworkAssignmentsCreated", fields: [createdById], references: [id])
+  bands          HomeworkAssignmentBand[]
+  submissions    HomeworkSubmission[]
+  questionImages HomeworkAssignmentImage[] @relation("HomeworkAssignmentImages")
 
   @@index([active, dueDate])
   @@index([createdById, createdAt])
@@ -538,6 +540,25 @@ model HomeworkSubmissionImage {
   @@index([submissionId, createdAt])
   @@index([uploadedById, createdAt])
 }
+
+model HomeworkAssignmentImage {
+  id                  String   @id @default(cuid())
+  assignmentId        String
+  uploadedById        String
+  originalFileNameEnc String
+  mimeType            String
+  sizeBytes           Int
+  storageBucket       String
+  storagePathEnc      String
+  createdAt           DateTime @default(now())
+
+  assignment HomeworkAssignment @relation("HomeworkAssignmentImages", fields: [assignmentId], references: [id], onDelete: Cascade)
+  uploadedBy User               @relation("HomeworkAssignmentImagesUploaded", fields: [uploadedById], references: [id])
+
+  @@index([assignmentId, createdAt])
+  @@index([uploadedById, createdAt])
+}
+
 
 model Subject {
   id                   String                    @id @default(cuid())
