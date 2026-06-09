@@ -6,19 +6,20 @@ import { Badge, Card, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type ChildDetail = RouterOutputs['childLog']['drillThrough'];
 
+const shortDateFormatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'short',
+});
+
 function formatDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(
-    new Date(value),
-  );
+  return shortDateFormatter.format(new Date(value));
 }
 
 function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
+  return dateTimeFormatter.format(new Date(value));
 }
 
 function initials(name: string): string {

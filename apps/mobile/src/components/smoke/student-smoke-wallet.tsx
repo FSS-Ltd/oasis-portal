@@ -37,6 +37,7 @@ const walletRows: Array<{ account: WalletAccount; label: string; color: string }
   { account: 'Saving', label: 'Saving Account', color: C.navy },
   { account: 'Investment', label: 'Investment Account', color: C.blue },
 ];
+const titheOptionLabels = ['10%', '15%', '20%'] as const;
 
 function signed(value: number): string {
   return value > 0 ? `+${String(value)}` : String(value);
@@ -209,9 +210,11 @@ function TithePolicyCard() {
         policy.
       </MutedText>
       <View style={styles.titheOptions}>
-        <Badge variant="blue">10%</Badge>
-        <Badge variant="blue">15%</Badge>
-        <Badge variant="blue">20%</Badge>
+        {titheOptionLabels.map((label) => (
+          <Badge key={label} variant="blue">
+            {label}
+          </Badge>
+        ))}
       </View>
     </Card>
   );

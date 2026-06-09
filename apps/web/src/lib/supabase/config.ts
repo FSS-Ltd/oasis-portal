@@ -4,6 +4,7 @@ interface SupabaseConfig {
 }
 
 interface SupabaseServiceRoleConfig extends SupabaseConfig {
+  homeworkSubmissionsBucket: string;
   noticeAttachmentsBucket: string;
   serviceRoleKey: string;
   shopItemPhotosBucket: string;
@@ -27,6 +28,8 @@ export function getSupabaseConfig(): SupabaseConfig {
 export function getSupabaseServiceRoleConfig(): SupabaseServiceRoleConfig {
   const config = getSupabaseConfig();
   const serviceRoleKey = process.env['SUPABASE_SERVICE_ROLE_KEY'];
+  const homeworkSubmissionsBucket =
+    process.env['SUPABASE_HOMEWORK_SUBMISSIONS_BUCKET'] ?? 'homework-submissions';
   const noticeAttachmentsBucket =
     process.env['SUPABASE_NOTICE_ATTACHMENTS_BUCKET'] ?? 'notice-attachments';
   const shopItemPhotosBucket =
@@ -36,5 +39,11 @@ export function getSupabaseServiceRoleConfig(): SupabaseServiceRoleConfig {
     throw new Error('Missing required env var: SUPABASE_SERVICE_ROLE_KEY');
   }
 
-  return { ...config, noticeAttachmentsBucket, serviceRoleKey, shopItemPhotosBucket };
+  return {
+    ...config,
+    homeworkSubmissionsBucket,
+    noticeAttachmentsBucket,
+    serviceRoleKey,
+    shopItemPhotosBucket,
+  };
 }

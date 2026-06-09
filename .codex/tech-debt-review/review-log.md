@@ -331,3 +331,153 @@
 
 ### Follow-Ups Deferred
 - Larger UI splits remain warranted for the selected oversized screens, but were deferred to avoid broader workflow and visual-regression risk.
+
+## 2026-06-07 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/clubs/parent-my-clubs-client.tsx`
+2. `apps/api/src/services/market-data/twelve-data-refresh.ts`
+3. `apps/mobile/src/components/smoke/parent-smoke-children.tsx`
+4. `apps/web/src/components/student/invest/student-invest-ui.tsx`
+5. `apps/web/src/components/permission-slips/admin-permission-slip-form.tsx`
+6. `apps/web/src/app/(parent)/parent/parent-dashboard-client.tsx`
+7. `apps/web/src/components/permission-slips/parent-permission-slips-client.tsx`
+8. `apps/web/src/app/(admin)/admin/student-portal/student-portal-readiness-client.tsx`
+9. `apps/web/src/components/clubs/club-rota-panel.tsx`
+10. `apps/web/src/app/(parent)/parent/registration/sibling-add-modal.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck`, `pnpm --filter @oasis/mobile typecheck`, and `pnpm --filter @oasis/api typecheck` passed before edits.
+- Tests: not run at baseline; focused API market-data tests were run after the cleanup.
+
+### Changes Made
+- `apps/web/src/components/clubs/parent-my-clubs-client.tsx`: Cached the notice date formatter instead of constructing it per format call.
+- `apps/api/src/services/market-data/twelve-data-refresh.ts`: Named day/minute duration constants and extracted provider FX currency-code collection.
+- `apps/mobile/src/components/smoke/parent-smoke-children.tsx`: Cached short date and date-time formatters used by parent smoke child cards.
+- `apps/web/src/components/student/invest/student-invest-ui.tsx`: Reviewed chart and investment UI helpers; no safe local cleanup justified without visual regression risk.
+- `apps/web/src/components/permission-slips/admin-permission-slip-form.tsx`: Extracted student ID, year grouping, and question payload helpers from the admin permission-slip form.
+- `apps/web/src/app/(parent)/parent/parent-dashboard-client.tsx`: Cached parent dashboard date and date-time formatters.
+- `apps/web/src/components/permission-slips/parent-permission-slips-client.tsx`: Extracted parent slip row flattening and outstanding/completed grouping helpers.
+- `apps/web/src/app/(admin)/admin/student-portal/student-portal-readiness-client.tsx`: Named the visible PACE subject limit and extracted the visible-subject helper.
+- `apps/web/src/components/clubs/club-rota-panel.tsx`: Extracted selected rota candidate ID collection into a named helper.
+- `apps/web/src/app/(parent)/parent/registration/sibling-add-modal.tsx`: Replaced repeated sibling validation issue label branches with a typed lookup map.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/api lint`
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/api typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/twelve-data-refresh.test.ts`; UI-focused tests not run because the selected UI changes are helper-only and have no focused unit tests.
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff whitespace: pass, `git diff --check`
+- graph update: pass with existing lower-node-count warning, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger splits remain warranted for the oversized parent clubs, permission slips, dashboard, student portal, and club rota UI surfaces, but were deferred to keep this run low-risk.
+- `apps/web/src/components/student/invest/student-invest-ui.tsx` was reviewed and left unchanged because chart/UI extraction would need visual regression coverage.
+
+## 2026-06-08 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/student/student-wallet-client.tsx`
+2. `apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx`
+3. `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-dashboard-overview.tsx`
+4. `apps/web/src/app/registration/registration-form-model.ts`
+5. `apps/web/src/components/shop/parent-shop-client.tsx`
+6. `apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx`
+7. `apps/web/src/components/noticeboard/staff-noticeboard.tsx`
+8. `apps/web/src/components/leaderboard/leaderboard-client.tsx`
+9. `apps/web/src/components/attendance/attendance-capture.tsx`
+10. `packages/domain/src/investmentMarketData.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed for web and domain files before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck` and `pnpm --filter @oasis/domain typecheck` passed before edits.
+- Tests: focused domain investment market data test command was reserved for post-change validation; UI files have no focused unit tests.
+- Formatting: selected-file Prettier check failed before edits for `student-wallet-client.tsx`, `parent-shop-client.tsx`, and `audit-log-viewer.tsx`.
+
+### Changes Made
+- `apps/web/src/components/student/student-wallet-client.tsx`: Cached merit and wallet date Intl formatters instead of constructing them for each format call. Formatted selected wallet JSX to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx`: Reviewed rota scheduler for lint, type, and formatting issues; no safe local source change was needed.
+- `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-dashboard-overview.tsx`: Grouped weekly shifts by date once per render instead of filtering the full shift list for every day card.
+- `apps/web/src/app/registration/registration-form-model.ts`: Reviewed registration form model for lint, type, and formatting issues; no safe local source change was needed.
+- `apps/web/src/components/shop/parent-shop-client.tsx`: Extracted parent shop category counting into a pure helper. Extracted visible-item filtering into a pure helper and memoized derived item lists. Formatted selected parent shop JSX to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx`: Cached audit date/time Intl formatters instead of constructing them for each row render. Formatted selected audit JSX to satisfy Prettier.
+- `apps/web/src/components/noticeboard/staff-noticeboard.tsx`: Cached noticeboard date/time Intl formatter instead of constructing it for each notice date render.
+- `apps/web/src/components/leaderboard/leaderboard-client.tsx`: Reviewed leaderboard client for lint, type, and formatting issues; no safe local source change was needed.
+- `apps/web/src/components/attendance/attendance-capture.tsx`: Reviewed attendance capture for lint, type, and formatting issues; no safe local source change was needed.
+- `packages/domain/src/investmentMarketData.ts`: Reused the existing money decimal-place constant when rounding normalized market prices.
+
+### Validation
+- lint command: pass, `pnpm --filter @oasis/web exec eslint ...selected files...`; pass, `pnpm --filter @oasis/domain exec eslint src/investmentMarketData.ts`; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/domain lint`.
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/domain typecheck`.
+- relevant tests: pass, `pnpm --filter @oasis/domain test -- investmentMarketData`.
+- formatting: pass, selected-file `pnpm exec prettier --check ...`.
+- graph: pass, `graphify update .`.
+- diff hygiene: pass, `git diff --check`.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Large test files remain oversized; deferred because this pass prioritised production source files and avoiding broad test-suite restructuring.
+
+## 2026-06-09 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/smoke/parent-message-conversation.tsx`
+2. `apps/web/src/components/incidents/incident-parent-portal.tsx`
+3. `apps/web/src/components/invoices/parent-fees-client.tsx`
+4. `apps/web/src/app/(admin)/admin/access/access-account-panel.tsx`
+5. `apps/web/src/components/pace/pace-workflow-client.tsx`
+6. `apps/web/src/app/(admin)/admin/attendance/staff-attendance-roster.tsx`
+7. `apps/web/src/components/clubs/club-management-detail.tsx`
+8. `apps/mobile/src/components/smoke/sign-in-panel.tsx`
+9. `apps/mobile/src/components/smoke/student-smoke-wallet.tsx`
+10. `apps/web/src/components/noticeboard/noticeboard-attachments.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed for web and mobile files before edits.
+- Typecheck: `pnpm --filter @oasis/web typecheck` and `pnpm --filter @oasis/mobile typecheck` passed before edits.
+- Tests: not run at baseline; selected files are UI/helper surfaces without focused unit tests.
+- Formatting: selected-file Prettier check failed before edits for `parent-message-conversation.tsx`, `incident-parent-portal.tsx`, and `pace-workflow-client.tsx`.
+
+### Changes Made
+- `apps/mobile/src/components/smoke/parent-message-conversation.tsx`: Extracted parent message metadata label formatting into a named helper. Formatted the selected file to satisfy Prettier.
+- `apps/web/src/components/incidents/incident-parent-portal.tsx`: Cached the incident preview time formatter. Computed parent incident stats in one pass instead of repeated filters. Formatted the selected file to satisfy Prettier.
+- `apps/web/src/components/invoices/parent-fees-client.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/web/src/app/(admin)/admin/access/access-account-panel.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/web/src/components/pace/pace-workflow-client.tsx`: Extracted active-or-first PACE subject selection into a named helper. Formatted the selected file to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/attendance/staff-attendance-roster.tsx`: Cached the UTC staff schedule time formatter used by roster shift labels.
+- `apps/web/src/components/clubs/club-management-detail.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/mobile/src/components/smoke/sign-in-panel.tsx`: Replaced second-factor priority map/find chaining with a typed priority constant and early-return loop.
+- `apps/mobile/src/components/smoke/student-smoke-wallet.tsx`: Moved repeated tithe option labels into a small typed constant.
+- `apps/web/src/components/noticeboard/noticeboard-attachments.tsx`: Extracted repeated attachment byte-signature comparisons into named signature constants and a bytesStartWith helper.
+
+### Validation
+- lint command: pass, selected-file ESLint for web and mobile files; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/mobile lint`.
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/mobile typecheck`.
+- relevant tests: not run; no focused unit tests exist for these UI/helper-only cleanups.
+- formatting: pass, selected-file `pnpm exec prettier --check`.
+- diff hygiene: pass, `git diff --check`.
+- graph update: pass, `graphify update .`.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger component splits remain warranted for the selected oversized UI surfaces, but were deferred to avoid broader workflow and visual-regression risk.

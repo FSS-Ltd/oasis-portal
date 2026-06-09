@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-06",
+  "lastRunDate": "2026-06-09",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -744,6 +744,374 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized staff profile panel; role semantics preserved."
+    },
+    "apps/web/src/components/clubs/parent-my-clubs-client.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 494,
+      "lineCountAfter": 496,
+      "issuesFixed": [
+        "Cached the notice date formatter instead of constructing it per format call."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed oversized parent clubs UI surface; tab/detail behaviour unchanged."
+    },
+    "apps/api/src/services/market-data/twelve-data-refresh.ts": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 473,
+      "lineCountAfter": 478,
+      "issuesFixed": [
+        "Named day/minute duration constants and extracted provider FX currency-code collection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed market-data refresh service; quota, fallback, provider, and audit semantics unchanged."
+    },
+    "apps/mobile/src/components/smoke/parent-smoke-children.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 471,
+      "lineCountAfter": 472,
+      "issuesFixed": [
+        "Cached short date and date-time formatters used by parent smoke child cards."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed mobile parent child overview surface; rendering behaviour unchanged."
+    },
+    "apps/web/src/components/student/invest/student-invest-ui.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 470,
+      "lineCountAfter": 470,
+      "issuesFixed": [
+        "Reviewed chart and investment UI helpers; no safe local cleanup justified without visual regression risk."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged intentionally after lint/type review."
+    },
+    "apps/web/src/components/permission-slips/admin-permission-slip-form.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 466,
+      "lineCountAfter": 474,
+      "issuesFixed": [
+        "Extracted student ID, year grouping, and question payload helpers from the admin permission-slip form."
+      ],
+      "validationStatus": "pass",
+      "notes": "Form request shape and validation behaviour preserved."
+    },
+    "apps/web/src/app/(parent)/parent/parent-dashboard-client.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 462,
+      "lineCountAfter": 466,
+      "issuesFixed": [
+        "Cached parent dashboard date and date-time formatters."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed parent dashboard UI surface; data selection and links unchanged."
+    },
+    "apps/web/src/components/permission-slips/parent-permission-slips-client.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 461,
+      "lineCountAfter": 478,
+      "issuesFixed": [
+        "Extracted parent slip row flattening and outstanding/completed grouping helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Response flow, tab labels, and recipient semantics preserved."
+    },
+    "apps/web/src/app/(admin)/admin/student-portal/student-portal-readiness-client.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 459,
+      "lineCountAfter": 464,
+      "issuesFixed": [
+        "Named the visible PACE subject limit and extracted the visible-subject helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Readiness filters, table columns, and create-login flow unchanged."
+    },
+    "apps/web/src/components/clubs/club-rota-panel.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 458,
+      "lineCountAfter": 460,
+      "issuesFixed": [
+        "Extracted selected rota candidate ID collection into a named helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Rota participant, shift, and availability behaviour preserved."
+    },
+    "apps/web/src/app/(parent)/parent/registration/sibling-add-modal.tsx": {
+      "lastReviewedAt": "2026-06-07",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 451,
+      "lineCountAfter": 452,
+      "issuesFixed": [
+        "Replaced repeated sibling validation issue label branches with a typed lookup map."
+      ],
+      "validationStatus": "pass",
+      "notes": "Registration payload and validation messages preserved."
+    },
+    "apps/web/src/components/student/student-wallet-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 452,
+      "lineCountAfter": 460,
+      "issuesFixed": [
+        "Cached merit and wallet date Intl formatters instead of constructing them for each format call.",
+        "Formatted selected wallet JSX to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized student wallet UI; no wallet behaviour or tithe/payment semantics changed."
+    },
+    "apps/web/src/app/(admin)/admin/rota/rota-scheduler-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 448,
+      "lineCountAfter": 448,
+      "issuesFixed": [
+        "Reviewed rota scheduler for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized rota UI; route, DTO, and rota semantics were not changed."
+    },
+    "apps/web/src/app/(supervisor)/supervisor/_components/supervisor-dashboard-overview.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 448,
+      "lineCountAfter": 463,
+      "issuesFixed": [
+        "Grouped weekly shifts by date once per render instead of filtering the full shift list for every day card."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized supervisor dashboard UI; display content and routing were preserved."
+    },
+    "apps/web/src/app/registration/registration-form-model.ts": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 444,
+      "lineCountAfter": 444,
+      "issuesFixed": [
+        "Reviewed registration form model for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized registration model; registration DTO and validation semantics were not changed."
+    },
+    "apps/web/src/components/shop/parent-shop-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 436,
+      "lineCountAfter": 458,
+      "issuesFixed": [
+        "Extracted parent shop category counting into a pure helper.",
+        "Extracted visible-item filtering into a pure helper and memoized derived item lists.",
+        "Formatted selected parent shop JSX to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent shop UI; reservation and merit-balance behaviour were preserved."
+    },
+    "apps/web/src/app/(admin)/admin/audit/audit-log-viewer.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 432,
+      "lineCountAfter": 438,
+      "issuesFixed": [
+        "Cached audit date/time Intl formatters instead of constructing them for each row render.",
+        "Formatted selected audit JSX to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized audit UI; filter/query shape and audit data rendering semantics were preserved."
+    },
+    "apps/web/src/components/noticeboard/staff-noticeboard.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 426,
+      "lineCountAfter": 428,
+      "issuesFixed": [
+        "Cached noticeboard date/time Intl formatter instead of constructing it for each notice date render."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized noticeboard UI; notice posting, read-state, and attachment behaviour were preserved."
+    },
+    "apps/web/src/components/leaderboard/leaderboard-client.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 425,
+      "lineCountAfter": 425,
+      "issuesFixed": [
+        "Reviewed leaderboard client for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized leaderboard UI; ranking and charity goal behaviour were not changed."
+    },
+    "apps/web/src/components/attendance/attendance-capture.tsx": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 409,
+      "lineCountAfter": 409,
+      "issuesFixed": [
+        "Reviewed attendance capture for lint, type, and formatting issues; no safe local source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized attendance UI; attendance recording and export behaviour were not changed."
+    },
+    "packages/domain/src/investmentMarketData.ts": {
+      "lastReviewedAt": "2026-06-08",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 487,
+      "lineCountAfter": 487,
+      "issuesFixed": [
+        "Reused the existing money decimal-place constant when rounding normalized market prices."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized investment market data helper; provider response semantics and conversions were preserved."
+    },
+    "apps/mobile/src/components/smoke/parent-message-conversation.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 392,
+      "lineCountAfter": 388,
+      "issuesFixed": [
+        "Extracted parent message metadata label formatting into a named helper.",
+        "Formatted the selected file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile conversation UI; message rendering semantics were not changed."
+    },
+    "apps/web/src/components/incidents/incident-parent-portal.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 388,
+      "lineCountAfter": 407,
+      "issuesFixed": [
+        "Cached the incident preview time formatter.",
+        "Computed parent incident stats in one pass instead of repeated filters.",
+        "Formatted the selected file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent incident UI; acknowledgement, PDF, and parent-copy semantics were not changed."
+    },
+    "apps/web/src/components/invoices/parent-fees-client.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 385,
+      "lineCountAfter": 385,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent fees UI; invoice and payment flows were not changed."
+    },
+    "apps/web/src/app/(admin)/admin/access/access-account-panel.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 362,
+      "lineCountAfter": 362,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized access-account UI; status, permission tag, and RBAC semantics were not changed."
+    },
+    "apps/web/src/components/pace/pace-workflow-client.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 362,
+      "lineCountAfter": 368,
+      "issuesFixed": [
+        "Extracted active-or-first PACE subject selection into a named helper.",
+        "Formatted the selected file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized PACE workflow UI; score, approval, and mutation semantics were not changed."
+    },
+    "apps/web/src/app/(admin)/admin/attendance/staff-attendance-roster.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 354,
+      "lineCountAfter": 355,
+      "issuesFixed": [
+        "Cached the UTC staff schedule time formatter used by roster shift labels."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized staff attendance UI; attendance status and reset semantics were not changed."
+    },
+    "apps/web/src/components/clubs/club-management-detail.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 349,
+      "lineCountAfter": 349,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized club detail UI; club tabs, roster, rota, lead assignment, and notice behavior were not changed."
+    },
+    "apps/mobile/src/components/smoke/sign-in-panel.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 342,
+      "lineCountAfter": 350,
+      "issuesFixed": [
+        "Replaced second-factor priority map/find chaining with a typed priority constant and early-return loop."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile sign-in UI; Clerk sign-in and MFA semantics were not changed."
+    },
+    "apps/mobile/src/components/smoke/student-smoke-wallet.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 341,
+      "lineCountAfter": 344,
+      "issuesFixed": [
+        "Moved repeated tithe option labels into a small typed constant."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile wallet UI; balances, transfers, and investment display semantics were not changed."
+    },
+    "apps/web/src/components/noticeboard/noticeboard-attachments.tsx": {
+      "lastReviewedAt": "2026-06-09",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 340,
+      "lineCountAfter": 342,
+      "issuesFixed": [
+        "Extracted repeated attachment byte-signature comparisons into named signature constants and a bytesStartWith helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized noticeboard attachment UI; upload validation, accepted types, and storage behavior were not changed."
     }
   },
   "deferredFiles": {},

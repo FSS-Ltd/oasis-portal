@@ -264,6 +264,7 @@ model Student {
   portalSettings           StudentPortalSettings?
   portalUsageMinutes       StudentPortalUsageMinute[]
   notifications            StudentNotification[]
+  homeworkSubmissions      HomeworkSubmission[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
@@ -558,6 +559,7 @@ model HomeworkAssignmentImage {
   @@index([uploadedById, createdAt])
 }
 
+
 model Subject {
   id                   String                    @id @default(cuid())
   code                 String                    @unique // e.g. "MATH", "ENG", "SOC"
@@ -590,6 +592,7 @@ model YearGroupBand {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   staffShifts   StaffShift[]
+  homeworkAssignments HomeworkAssignmentBand[]
 
   @@index([active, sortOrder])
 }
@@ -1012,6 +1015,7 @@ model BehaviourEntry {
   seenBy     User?         @relation("SeenBehaviour", fields: [seenById], references: [id], onDelete: SetNull)
   paceRecord PaceRecord?   @relation("PaceRecordAutomaticMerit", fields: [paceRecordId], references: [id], onDelete: SetNull)
   ledgerRows MeritLedger[]
+  homeworkSubmission HomeworkSubmission? @relation("HomeworkSubmissionBehaviour")
 
   @@index([clubId, createdAt])
   @@index([studentId, createdAt])

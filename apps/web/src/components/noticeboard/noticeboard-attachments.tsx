@@ -15,6 +15,8 @@ const ATTACHMENT_ACCEPT =
 
 const allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.webp'] as const;
 const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp'] as const;
+const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] as const;
+const wordSignature = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1] as const;
 const mimeTypeByExtension: Record<string, string> = {
   '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -73,6 +75,10 @@ function formatBytes(value: number): string {
   return `${Math.max(1, Math.round(value / 1024)).toString()} KB`;
 }
 
+function bytesStartWith(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((value, index) => bytes[index] === value);
+}
+
 function validateFiles(
   existing: readonly NoticeAttachmentPayload[],
   files: readonly File[],
@@ -109,9 +115,7 @@ function hasSignature(fileName: string, bytes: Uint8Array): boolean {
     return String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-';
   }
   if (extension === '.png') {
-    return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
-      (value, index) => bytes[index] === value,
-    );
+    return bytesStartWith(bytes, pngSignature);
   }
   if (extension === '.jpg' || extension === '.jpeg') {
     return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -123,9 +127,7 @@ function hasSignature(fileName: string, bytes: Uint8Array): boolean {
     );
   }
   if (extension === '.doc') {
-    return [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every(
-      (value, index) => bytes[index] === value,
-    );
+    return bytesStartWith(bytes, wordSignature);
   }
   if (extension === '.docx') {
     return bytes[0] === 0x50 && bytes[1] === 0x4b;

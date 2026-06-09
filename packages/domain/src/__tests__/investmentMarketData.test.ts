@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GBP_PER_MERIT,
+  buildMarketDataMeritValuation,
+  holdingValueMeritsFromGbpPrice,
+  gbpToMerits,
   normaliseTwelveDataHistoryResponse,
   normaliseTwelveDataProfileResponse,
   normaliseTwelveDataQuoteResponse,
@@ -18,6 +22,36 @@ const gbpQuote = {
   previous_close: '70.00',
   percent_change: '3.442857',
 };
+
+describe('market data merit valuation', () => {
+  it('documents the backend GBP-to-merit rate', () => {
+    expect(GBP_PER_MERIT).toBe(10);
+  });
+
+  it('converts GBP prices to six-decimal merit prices deterministically', () => {
+    expect(gbpToMerits('72.41')).toBe(7.241);
+    expect(gbpToMerits('75.325555')).toBe(7.532556);
+    expect(gbpToMerits('-1.25')).toBe(-0.125);
+  });
+
+  it('builds merit valuation fields from GBP-normalized market snapshots', () => {
+    expect(
+      buildMarketDataMeritValuation({
+        gbpPrice: '160.00',
+        previousCloseGbp: '158.75',
+      }),
+    ).toEqual({
+      dailyMovementMerits: 0.125,
+      previousCloseMerits: 15.875,
+      priceMerits: 16,
+    });
+  });
+
+  it('values holdings from units and GBP prices while preserving zero-unit holdings', () => {
+    expect(holdingValueMeritsFromGbpPrice({ gbpPrice: '160.00', units: '1.5' })).toBe(24);
+    expect(holdingValueMeritsFromGbpPrice({ gbpPrice: '160.00', units: '0' })).toBe(0);
+  });
+});
 
 describe('normaliseTwelveDataQuoteResponse', () => {
   it('normalises a GBP stock quote into a server snapshot', () => {

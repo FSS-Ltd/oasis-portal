@@ -194,6 +194,7 @@ export function StudentHomeClient() {
   }
 
   const attendance = dashboard.data.attendance;
+  const academicScreensEnabled = dashboard.data.profile.academicScreensEnabled;
   const attendanceValue =
     attendance.attendanceRate === null ? 'No records' : `${String(attendance.attendanceRate)}%`;
   const paceMeta =
@@ -216,21 +217,27 @@ export function StudentHomeClient() {
           title="Merits"
           value={formatMerits(dashboard.data.merits.totalMerits)}
         />
-        <StudentMetricCard
-          detail={`${String(dashboard.data.pace.completedPaceCount)} completed PACEs recorded.`}
-          icon={BookOpenCheck}
-          meta={paceMeta}
-          title="PACE"
-          value={String(dashboard.data.pace.completedPaceCount)}
-        />
-        <StudentMetricCard
-          detail={`${String(attendance.Present)} present, ${String(attendance.Late)} late, ${String(
-            attendance.Absent,
-          )} absent in the last ${String(attendance.days)} days.`}
-          icon={CalendarDays}
-          title="Attendance"
-          value={attendanceValue}
-        />
+        {academicScreensEnabled ? (
+          <>
+            <StudentMetricCard
+              detail={`${String(dashboard.data.pace.completedPaceCount)} completed PACEs recorded.`}
+              icon={BookOpenCheck}
+              meta={paceMeta}
+              title="PACE"
+              value={String(dashboard.data.pace.completedPaceCount)}
+            />
+            <StudentMetricCard
+              detail={`${String(attendance.Present)} present, ${String(
+                attendance.Late,
+              )} late, ${String(attendance.Absent)} absent in the last ${String(
+                attendance.days,
+              )} days.`}
+              icon={CalendarDays}
+              title="Attendance"
+              value={attendanceValue}
+            />
+          </>
+        ) : null}
         <StudentMetricCard
           detail={`${String(dashboard.data.shortcuts.activeClubCount)} active clubs and ${String(
             dashboard.data.shortcuts.activeShopItemCount,
@@ -243,7 +250,7 @@ export function StudentHomeClient() {
         />
       </section>
       <div className="student-dashboard-main">
-        <PacePanel pace={dashboard.data.pace} />
+        {academicScreensEnabled ? <PacePanel pace={dashboard.data.pace} /> : null}
         <FaithPanel faithCorner={dashboard.data.faithCorner} />
         <section className="student-dashboard-panel" aria-labelledby="student-notifications-title">
           <div className="student-dashboard-panel__head">

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { useMemo } from 'react';
 import {
   ArrowRight,
   BookOpenCheck,
@@ -111,6 +112,19 @@ function AttendanceSummary({
   );
 }
 
+function shiftsByDate(shifts: readonly SupervisorShift[]): Map<string, SupervisorShift[]> {
+  const grouped = new Map<string, SupervisorShift[]>();
+  for (const shift of shifts) {
+    const current = grouped.get(shift.date);
+    if (current) {
+      current.push(shift);
+    } else {
+      grouped.set(shift.date, [shift]);
+    }
+  }
+  return grouped;
+}
+
 export function SupervisorDashboardOverview({
   absentCount,
   attendanceError,
@@ -141,6 +155,7 @@ export function SupervisorDashboardOverview({
   const attendanceBreakdown = `${String(absentCount)} absent · ${String(lateCount)} late · ${String(
     onTimeCount,
   )} on time`;
+  const weekShiftsByDate = useMemo(() => shiftsByDate(weekShifts), [weekShifts]);
 
   return (
     <div className="supervisor-dashboard-home" aria-label="Supervisor daily overview">
@@ -203,7 +218,7 @@ export function SupervisorDashboardOverview({
             <div className="supervisor-week-grid">
               {weekDays.map((dayItem) => {
                 const dayKey = dateKey(dayItem);
-                const shiftsForDay = weekShifts.filter((shift) => shift.date === dayKey);
+                const shiftsForDay = weekShiftsByDate.get(dayKey) ?? [];
                 const isToday = isSameDay(dayItem, date);
                 const isPast = dayItem.getTime() < asDate(todayKey()).getTime();
                 const className = [

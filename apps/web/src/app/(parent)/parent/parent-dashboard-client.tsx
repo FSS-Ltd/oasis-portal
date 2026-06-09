@@ -29,29 +29,33 @@ const statusTone = {
   Present: 'green',
 } as const satisfies Record<AttendanceStatus, 'amber' | 'green' | 'red'>;
 
+const shortDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+});
+const longDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  weekday: 'long',
+  year: 'numeric',
+});
+const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'short',
+});
+
 function formatDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-  }).format(new Date(value));
+  return shortDateFormatter.format(new Date(value));
 }
 
 function formatLongDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    weekday: 'long',
-    year: 'numeric',
-  }).format(new Date(value));
+  return longDateFormatter.format(new Date(value));
 }
 
 function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
+  return dateTimeFormatter.format(new Date(value));
 }
 
 function attendanceSub(child: DashboardChild): string {

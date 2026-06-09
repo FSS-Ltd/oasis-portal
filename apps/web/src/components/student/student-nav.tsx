@@ -7,6 +7,7 @@ import {
   BookOpenText,
   CalendarCheck,
   Bell,
+  ClipboardList,
   Home,
   Medal,
   ShoppingBag,
@@ -23,6 +24,7 @@ const studentNavItems = [
   { href: '/student/wallet', label: 'Wallet', icon: Wallet },
   { href: '/student/invest', label: 'Invest', icon: TrendingUp },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
+  { href: '/student/homework', label: 'Homework', icon: ClipboardList },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/student/clubs', label: 'Clubs', icon: UsersRound },
   { href: '/student/faith', label: 'Faith', icon: BookOpenText },
@@ -36,6 +38,17 @@ const visibleStudentNavItems = studentNavItems.filter(
     item.href !== '/student/invest' ||
     canUseStudentInvestPrototype({ NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV }),
 );
+
+function useVisibleStudentNavItems() {
+  const profile = api.student.me.useQuery(undefined, { retry: false });
+  const academicScreensEnabled = profile.data?.academicScreensEnabled ?? false;
+
+  return visibleStudentNavItems.filter(
+    (item) =>
+      (item.href !== '/student/pace' && item.href !== '/student/attendance') ||
+      academicScreensEnabled,
+  );
+}
 
 function isActiveRoute(pathname: string, href: string) {
   return href === '/student'
@@ -60,10 +73,11 @@ function badgeForItem(item: (typeof studentNavItems)[number], unreadBadge: strin
 export function StudentTopNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
+  const navItems = useVisibleStudentNavItems();
 
   return (
     <nav aria-label="Student portal sections" className="student-top-nav">
-      {visibleStudentNavItems.map((item) => {
+      {navItems.map((item) => {
         const active = isActiveRoute(pathname, item.href);
         const Icon = item.icon;
         const badge = badgeForItem(item, unreadBadge);
@@ -88,10 +102,11 @@ export function StudentTopNav() {
 export function StudentSidebarNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
+  const navItems = useVisibleStudentNavItems();
 
   return (
     <nav className="admin-shell__nav">
-      {visibleStudentNavItems.map((item) => {
+      {navItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
         const badge = badgeForItem(item, unreadBadge);
@@ -119,10 +134,11 @@ export function StudentSidebarNav() {
 export function StudentBottomNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
+  const navItems = useVisibleStudentNavItems();
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
-      {visibleStudentNavItems.map((item) => {
+      {navItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
         const badge = badgeForItem(item, unreadBadge);

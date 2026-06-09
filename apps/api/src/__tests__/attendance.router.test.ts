@@ -172,6 +172,7 @@ interface FakeDb {
   };
   yearGroupBand: {
     findMany: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
   };
   staffShift: {
     findMany: ReturnType<typeof vi.fn>;
@@ -754,6 +755,22 @@ function makeFakeDb() {
               sortOrder,
             })),
         ),
+      ),
+      findFirst: vi.fn(
+        ({
+          where,
+        }: {
+          where: { active: boolean; name: { equals: string; mode: 'insensitive' } };
+          select: { standardYears: true };
+        }) => {
+          const name = where.name.equals.toLowerCase();
+          const band =
+            yearGroupBands.find(
+              (candidate) =>
+                candidate.active === where.active && candidate.name.toLowerCase() === name,
+            ) ?? null;
+          return Promise.resolve(band ? { standardYears: band.standardYears } : null);
+        },
       ),
     },
     staffShift: {
@@ -1783,7 +1800,10 @@ describe('attendance.studentHistory', () => {
 
 describe('attendance.studentSummary', () => {
   it('returns student-safe own attendance with absence reason labels only when entered', async () => {
-    const { attendance, db } = makeFakeDb();
+    const { attendance, db, students } = makeFakeDb();
+    const student = students.find((row) => row.id === activeStudentId);
+    if (!student) throw new Error('active student missing');
+    student.yearGroup = 'Year 7';
     attendance.push(
       {
         id: 'ckattendanceown0000001',
@@ -1852,7 +1872,10 @@ describe('attendance.studentSummary', () => {
   });
 
   it('returns an empty summary when the student has no attendance records in range', async () => {
-    const { db } = makeFakeDb();
+    const { db, students } = makeFakeDb();
+    const student = students.find((row) => row.id === activeStudentId);
+    if (!student) throw new Error('active student missing');
+    student.yearGroup = 'Year 7';
 
     await expect(
       makeCaller(studentUser, db).attendance.studentSummary({
@@ -1874,8 +1897,25 @@ describe('attendance.studentSummary', () => {
     });
   });
 
-  it('is student-only and rejects invalid ranges', async () => {
+  it('rejects non-secondary students', async () => {
     const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(studentUser, db).attendance.studentSummary({
+        from: day('2026-04-28'),
+        to: day('2026-04-29'),
+      }),
+    ).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+      message: 'attendance summary is only available to secondary students',
+    });
+  });
+
+  it('is student-only and rejects invalid ranges', async () => {
+    const { db, students } = makeFakeDb();
+    const student = students.find((row) => row.id === activeStudentId);
+    if (!student) throw new Error('active student missing');
+    student.yearGroup = 'Year 7';
     const input = {
       from: day('2026-04-28'),
       to: day('2026-04-29'),

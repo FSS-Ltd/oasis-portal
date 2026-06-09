@@ -57,6 +57,27 @@ function isOutstanding(row: ParentSlipRow): boolean {
   return row.recipient.responseStatus === 'Pending' && !row.slip.inactive;
 }
 
+function parentSlipRows(slips: readonly ParentPermissionSlip[]): ParentSlipRow[] {
+  return slips.flatMap((slip) => slip.recipients.map((recipient) => ({ slip, recipient })));
+}
+
+function splitParentSlipRows(rows: readonly ParentSlipRow[]): {
+  completedRows: ParentSlipRow[];
+  outstandingRows: ParentSlipRow[];
+} {
+  return rows.reduce<{ completedRows: ParentSlipRow[]; outstandingRows: ParentSlipRow[] }>(
+    (groups, row) => {
+      if (isOutstanding(row)) {
+        groups.outstandingRows.push(row);
+      } else {
+        groups.completedRows.push(row);
+      }
+      return groups;
+    },
+    { completedRows: [], outstandingRows: [] },
+  );
+}
+
 function ParentSlipCard({ onOpen, row }: { onOpen: () => void; row: ParentSlipRow }) {
   const { recipient, slip } = row;
   const statusClass =
@@ -381,14 +402,10 @@ export function ParentPermissionSlipsClient() {
   const slipsQuery = api.permissionSlip.listParent.useQuery(undefined, { retry: false });
 
   const rows = useMemo<ParentSlipRow[]>(
-    () =>
-      (slipsQuery.data?.slips ?? []).flatMap((slip) =>
-        slip.recipients.map((recipient) => ({ slip, recipient })),
-      ),
+    () => parentSlipRows(slipsQuery.data?.slips ?? []),
     [slipsQuery.data?.slips],
   );
-  const outstandingRows = rows.filter(isOutstanding);
-  const completedRows = rows.filter((row) => !isOutstanding(row));
+  const { completedRows, outstandingRows } = useMemo(() => splitParentSlipRows(rows), [rows]);
   const visibleRows = tab === 'outstanding' ? outstandingRows : completedRows;
 
   if (selected) {

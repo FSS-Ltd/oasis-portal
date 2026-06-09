@@ -11,12 +11,7 @@ import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { SelectInput, TextInput } from '@/components/ui/field';
 
-const ACTIONS = [
-  'Create',
-  'Update',
-  'Delete',
-  'PermissionDenied',
-] as const;
+const ACTIONS = ['Create', 'Update', 'Delete', 'PermissionDenied'] as const;
 
 type AuditActionFilter = (typeof ACTIONS)[number] | '';
 type AuditFilters = {
@@ -42,17 +37,20 @@ const ENTITIES = [
   'User',
 ] as const;
 
+const auditDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+const auditDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+});
+
 function formatDate(value: string | Date) {
-  return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return auditDateTimeFormatter.format(new Date(value));
 }
 
 function formatShortDate(value: string | Date) {
-  return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-  }).format(new Date(value));
+  return auditDateFormatter.format(new Date(value));
 }
 
 function actionTone(action: AuditRow['action']): 'amber' | 'blue' | 'green' | 'red' {
@@ -212,7 +210,9 @@ export function AuditLogViewer() {
       render: (row) => (
         <span className="audit-date">
           <strong>{formatShortDate(row.createdAt)}</strong>
-          <span>{formatDate(row.createdAt).replace(`${formatShortDate(row.createdAt)}, `, '')}</span>
+          <span>
+            {formatDate(row.createdAt).replace(`${formatShortDate(row.createdAt)}, `, '')}
+          </span>
         </span>
       ),
     },
@@ -304,7 +304,13 @@ export function AuditLogViewer() {
             </Button>
             <Button
               onClick={() => {
-                const empty: AuditFilters = { action: '', entity: '', userId: '', from: '', to: '' };
+                const empty: AuditFilters = {
+                  action: '',
+                  entity: '',
+                  userId: '',
+                  from: '',
+                  to: '',
+                };
                 setDraft(empty);
                 setFilters(empty);
                 setCursor(undefined);

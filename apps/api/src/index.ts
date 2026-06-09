@@ -90,6 +90,7 @@ export {
   refreshTwelveDataQuotes,
   type CachedMarketDataResult,
   type MarketDataRefreshResult,
+  type MarketDataSnapshotValuationDto,
   type TwelveDataRefreshDb,
   type TwelveDataQuoteProvider,
 } from './services/market-data/twelve-data-refresh.js';
