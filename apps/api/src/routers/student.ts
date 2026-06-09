@@ -2,6 +2,7 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
+  academicYearStart,
   canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   deriveEnglandWalesSchoolYear,
@@ -317,20 +318,32 @@ async function loadMeritBalances(ctx: AppContext, studentId: string): Promise<Me
 }
 
 async function loadPaceDashboard(ctx: AppContext, studentId: string) {
-  const [assignments, completedPaces] = await Promise.all([
+  const yearStart = academicYearStart();
+  const [assignments, policy, completedPaceRecords] = await Promise.all([
     ctx.db.studentSubject.findMany({
       where: { studentId, subject: { active: true } },
       include: { subject: true },
       orderBy: { subject: { code: 'asc' } },
     }),
-    ctx.db.paceProgress.count({
-      where: { studentId, completedAt: { not: null } },
+    ctx.db.pacePolicy.findUnique({ where: { id: 'default' }, select: { passThreshold: true } }),
+    ctx.db.paceRecord.findMany({
+      where: {
+        studentId,
+        completedAt: { gte: yearStart },
+        paceTestScore: { not: null },
+      },
+      select: { paceTestScore: true },
     }),
   ]);
 
+  const passThreshold = policy?.passThreshold ?? 80;
+  const completedPaceCount = completedPaceRecords.filter(
+    (r) => r.paceTestScore !== null && r.paceTestScore >= passThreshold,
+  ).length;
+
   return {
     assignedSubjectCount: assignments.length,
-    completedPaceCount: completedPaces,
+    completedPaceCount,
     currentPaces: assignments.slice(0, 4).map((assignment) => ({
       subjectCode: assignment.subject.code,
       subjectName: assignment.subject.name,
