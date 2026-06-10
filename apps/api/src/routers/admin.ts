@@ -1203,6 +1203,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     listUsers: adminOperationsProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
+        where: { role: { not: 'Student' } },
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
         select: adminUserProfileSelect,
