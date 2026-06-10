@@ -134,7 +134,7 @@ describe('investment accounting invariants', () => {
           action: 'Update',
           entity: 'MarketDataSnapshot',
           meta: expect.objectContaining({ status: 'stale' }) as unknown,
-        }),
+        }) as unknown,
       }),
     );
   });
@@ -146,7 +146,7 @@ describe('investment accounting invariants', () => {
     ];
     const snapshots = Array.from({ length: 8 }, (_, index) =>
       makeMarketSnapshot({
-        id: `snapshot-${index}`,
+        id: `snapshot-${String(index)}`,
         instrument,
         serverFetchedAt: new Date('2026-05-15T12:00:00.000Z'),
       }),
@@ -176,7 +176,7 @@ describe('investment accounting invariants', () => {
           action: 'Update',
           entity: 'MarketDataSnapshot',
           meta: expect.objectContaining({ status: 'quota_exhausted' }) as unknown,
-        }),
+        }) as unknown,
       }),
     );
   });
