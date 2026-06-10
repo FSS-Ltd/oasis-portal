@@ -155,7 +155,7 @@ async function uploadAssignmentQuestionImage(
   const response = await fetch('/api/homework/assignment-upload', {
     body: JSON.stringify({
       assignmentId,
-      files: [{ fileName: file.name, mimeType: file.type, sizeBytes: file.size }],
+      files: [{ fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }],
     }),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
@@ -456,7 +456,6 @@ export function AdminHomeworkClient() {
               <div className="homework-upload-control">
                 <input
                   ref={questionFileInputRef}
-                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   className="homework-upload-control__input"
                   disabled={formPending}
                   onChange={(event) => {
@@ -493,7 +492,7 @@ export function AdminHomeworkClient() {
                     Choose image
                   </Button>
                 )}
-                <p className="muted">JPEG, PNG, or WebP. Max 10 MB.</p>
+                <p className="muted">Max 10 MB.</p>
               </div>
             </Field>
             <label className="homework-toggle">
