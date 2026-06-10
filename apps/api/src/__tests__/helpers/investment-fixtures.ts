@@ -583,9 +583,14 @@ export function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFake
   } satisfies AppContext;
 }
 
-export function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
-  const appRouter = router({ investment: investmentRouter });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db };
+const investmentAppRouter = router({ investment: investmentRouter });
+type InvestmentCaller = ReturnType<typeof investmentAppRouter.createCaller>;
+
+export function makeCaller(
+  user: SessionUser | null,
+  db = makeFakeDb(),
+): { caller: InvestmentCaller; db: ReturnType<typeof makeFakeDb> } {
+  return { caller: investmentAppRouter.createCaller(makeCtx(user, db)), db };
 }
 
 export function auditCreates(db: ReturnType<typeof makeFakeDb>): FakeAuditCreateArgs[] {
