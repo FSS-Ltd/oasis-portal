@@ -89,15 +89,6 @@ interface ActiveStudentRow {
 }
 
 const MAX_HOMEWORK_IMAGE_BYTES = 10 * 1024 * 1024;
-const HOMEWORK_IMAGE_EXTENSIONS = ['.jpeg', '.jpg', '.png', '.webp'] as const;
-type HomeworkImageExtension = (typeof HOMEWORK_IMAGE_EXTENSIONS)[number];
-
-const homeworkImageMimeByExtension: Record<HomeworkImageExtension, string> = {
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-};
 
 const submissionMethodSchema = z.enum(['UploadImage', 'InPerson']);
 const homeworkImageMetadataInput = z.object({
@@ -175,11 +166,6 @@ function safeOriginalFileName(value: string): string {
   return fileName?.replace(/^\.+/u, '').trim() || 'homework-image';
 }
 
-function homeworkImageExtension(fileName: string): HomeworkImageExtension | null {
-  const lowerName = fileName.toLowerCase();
-  return HOMEWORK_IMAGE_EXTENSIONS.find((candidate) => lowerName.endsWith(candidate)) ?? null;
-}
-
 function safeStorageFileName(fileName: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/gu, '-').replace(/-+/gu, '-');
 }
@@ -207,19 +193,10 @@ function validateHomeworkImageMetadata(
   input: z.infer<typeof homeworkImageMetadataInput>,
 ): Pick<UploadedHomeworkSubmissionImage, 'fileName' | 'mimeType' | 'sizeBytes'> {
   const fileName = safeOriginalFileName(input.fileName);
-  const extension = homeworkImageExtension(fileName);
-  if (!extension) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'unsupported homework image type' });
-  }
-
   const mimeType = input.mimeType.toLowerCase();
-  if (mimeType !== homeworkImageMimeByExtension[extension]) {
-    throw new TRPCError({ code: 'BAD_REQUEST', message: 'homework image type mismatch' });
-  }
   if (input.sizeBytes > MAX_HOMEWORK_IMAGE_BYTES) {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'homework image is too large' });
   }
-
   return { fileName, mimeType, sizeBytes: input.sizeBytes };
 }
 

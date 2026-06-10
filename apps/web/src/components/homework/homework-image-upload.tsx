@@ -7,14 +7,6 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 
 const MAX_HOMEWORK_IMAGE_BYTES = 10 * 1024 * 1024;
-const HOMEWORK_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp';
-const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'] as const;
-const mimeTypeByExtension: Record<string, string> = {
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-};
 
 export interface HomeworkImagePayload {
   fileName: string;
@@ -38,50 +30,29 @@ interface HomeworkImageUploadProps {
   studentId?: string;
 }
 
-function fileExtension(fileName: string): string {
-  const lowerName = fileName.toLowerCase();
-  return allowedExtensions.find((extension) => lowerName.endsWith(extension)) ?? '';
-}
-
 function mimeTypeForFile(file: File): string {
-  if (file.type) return file.type;
-  return mimeTypeByExtension[fileExtension(file.name)] ?? 'application/octet-stream';
+  return file.type || 'application/octet-stream';
 }
 
 function validateFile(file: File): string | null {
-  const extension = fileExtension(file.name);
-  if (!extension) return 'Homework images must be JPEG, PNG, or WebP files.';
-  if (mimeTypeForFile(file).toLowerCase() !== mimeTypeByExtension[extension]) {
-    return 'The homework image type does not match the file extension.';
-  }
-  if (file.size > MAX_HOMEWORK_IMAGE_BYTES) return 'Homework images must be 10 MB or less.';
+  if (file.size > MAX_HOMEWORK_IMAGE_BYTES) return 'Homework files must be 10 MB or less.';
   return null;
 }
 
-function hasSignature(fileName: string, bytes: Uint8Array): boolean {
-  const extension = fileExtension(fileName);
-  if (extension === '.png') {
-    return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
-      (value, index) => bytes[index] === value,
-    );
-  }
-  if (extension === '.jpg' || extension === '.jpeg') {
-    return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  }
-  if (extension === '.webp') {
-    return (
-      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
-      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
-    );
-  }
-  return false;
-}
-
 async function validateSignature(file: File): Promise<string | null> {
+  const mimeType = mimeTypeForFile(file).toLowerCase();
+  const isKnownImage =
+    mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/webp';
+  if (!isKnownImage) return null;
   const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  return hasSignature(file.name, bytes)
-    ? null
-    : `${file.name} does not match its selected file type.`;
+  const ok =
+    (mimeType === 'image/png' &&
+      [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => bytes[i] === v)) ||
+    (mimeType === 'image/jpeg' && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+    (mimeType === 'image/webp' &&
+      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
+      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP');
+  return ok ? null : `${file.name} does not match its selected file type.`;
 }
 
 async function uploadHomeworkImage(
@@ -182,7 +153,6 @@ export function HomeworkImageUpload({
     <div className="homework-upload-control">
       <input
         ref={inputRef}
-        accept={HOMEWORK_IMAGE_ACCEPT}
         className="homework-upload-control__input"
         disabled={disabled || uploading}
         onChange={(event) => {
@@ -200,7 +170,7 @@ export function HomeworkImageUpload({
         <ImageUp aria-hidden="true" size={16} />
         {label}
       </Button>
-      <p className="muted">JPEG, PNG, or WebP. Max 10 MB.</p>
+      <p className="muted">Max 10 MB.</p>
     </div>
   );
 }

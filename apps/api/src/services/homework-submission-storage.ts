@@ -60,7 +60,7 @@ function hasExpectedSignature(mimeType: string, bytes: Uint8Array): boolean {
   if (mimeType === 'image/webp') {
     return ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 12) === 'WEBP';
   }
-  return false;
+  return true;
 }
 
 function normalizeContentType(value: string | null): string {
