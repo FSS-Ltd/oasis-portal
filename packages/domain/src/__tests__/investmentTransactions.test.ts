@@ -88,4 +88,27 @@ describe('planInvestmentSell', () => {
     });
     expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
   });
+
+  it('balances a partial sell after multiple buys and consumes cost basis in proportion', () => {
+    const firstBuy = planInvestmentBuy({ studentId: 'student_1', merits: 250, nav: 125 });
+    const secondBuy = planInvestmentBuy({ studentId: 'student_1', merits: 250, nav: 125 });
+    const sell = planInvestmentSell({
+      studentId: 'student_1',
+      units: 1,
+      currentUnits: firstBuy.units + secondBuy.units,
+      totalCostBasisMerits: 500,
+      nav: 125,
+    });
+
+    expect(firstBuy.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expect(secondBuy.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expect(sell).toMatchObject({
+      proceedsMerits: 125,
+      feeMerits: 6,
+      netMerits: 119,
+      costBasisMerits: 125,
+      investmentReturnDelta: 0,
+    });
+    expect(sell.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
 });
