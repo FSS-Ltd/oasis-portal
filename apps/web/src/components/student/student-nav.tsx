@@ -19,17 +19,17 @@ import { api } from '@/lib/trpc';
 import { canUseStudentInvestPrototype } from '@/lib/student-invest-feature';
 
 const studentNavItems = [
-  { href: '/student', label: 'Home', icon: Home },
+  { href: '/student', label: 'Home', icon: Home, bottomNav: true },
   { href: '/student/notifications', label: 'Updates', icon: Bell, badge: true },
-  { href: '/student/wallet', label: 'Wallet', icon: Wallet },
+  { href: '/student/wallet', label: 'Wallet', icon: Wallet, bottomNav: true },
   { href: '/student/invest', label: 'Invest', icon: TrendingUp },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
-  { href: '/student/homework', label: 'Homework', icon: ClipboardList },
+  { href: '/student/homework', label: 'Homework', icon: ClipboardList, bottomNav: true },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/student/clubs', label: 'Clubs', icon: UsersRound },
-  { href: '/student/faith', label: 'Faith', icon: BookOpenText },
+  { href: '/student/faith', label: 'Faith', icon: BookOpenText, bottomNav: true },
   { href: '/student/ranks', label: 'Ranks', icon: Medal },
-  { href: '/student/shop', label: 'Shop', icon: ShoppingBag },
+  { href: '/student/shop', label: 'Shop', icon: ShoppingBag, bottomNav: true },
 ] as const;
 
 const navIconSize = 16;
@@ -134,7 +134,7 @@ export function StudentSidebarNav() {
 export function StudentBottomNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
-  const navItems = useVisibleStudentNavItems();
+  const navItems = useVisibleStudentNavItems().filter((item) => 'bottomNav' in item);
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
