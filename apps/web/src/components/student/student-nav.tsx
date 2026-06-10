@@ -134,7 +134,7 @@ export function StudentSidebarNav() {
 export function StudentBottomNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
-  const navItems = useVisibleStudentNavItems().filter((item) => 'bottomNav' in item && item.bottomNav);
+  const navItems = useVisibleStudentNavItems().filter((item) => 'bottomNav' in item);
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
