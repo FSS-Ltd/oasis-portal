@@ -35,7 +35,6 @@ packages/db/src/multi-student-pace-score-backfill.ts
 packages/db/src/__tests__/multi-student-pace-score-backfill.test.ts
 
 # Agent Rules
-CLAUDE.md
 CODEX.md
 AGENTS.md
 BUILD.MD
