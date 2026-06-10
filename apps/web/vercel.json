@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/savings-interest-monthly",
       "schedule": "0 8 1 * *"
+    },
+    {
+      "path": "/api/cron/investment-market-refresh",
+      "schedule": "*/5 7-16 * * 1-5"
     }
   ],
   "git": {
