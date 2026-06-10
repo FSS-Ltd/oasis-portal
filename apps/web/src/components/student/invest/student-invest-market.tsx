@@ -9,12 +9,9 @@ import {
   formatPercent,
   formatShortDate,
   formatSignedMerits,
-  holdingCostMerits,
-  holdingValueMerits,
   historyDays,
   instrumentForTicker,
   instruments,
-  isPositiveHolding,
   msDay,
   percentChange,
   riskBand,
@@ -22,7 +19,6 @@ import {
   today,
   toMerits,
   type CustomRange,
-  type Holding,
   type Instrument,
   type RangeId,
 } from './student-invest-data';
@@ -40,11 +36,9 @@ import {
   Sparkline,
   TickerMark,
 } from './student-invest-ui';
-import { TradePanel } from './student-invest-trade';
 import styles from './student-invest.module.css';
 
 interface MarketProps {
-  holdings: readonly Holding[];
   liveInstruments?: readonly Instrument[];
   marketFreshness?: string | undefined;
   marketLoading?: boolean;
@@ -52,13 +46,8 @@ interface MarketProps {
 }
 
 interface StockDetailProps {
-  cashMerits: number;
-  holdings: readonly Holding[];
   liveInstruments?: readonly Instrument[];
   onBack: () => void;
-  onBuy: (ticker: string, merits: number) => void;
-  onSell: (ticker: string, merits: number) => void;
-  onToast: (message: string) => void;
   ticker: string;
 }
 
@@ -66,7 +55,6 @@ type MarketFilter = 'All' | 'ETFs' | 'Stocks';
 type MarketSort = 'largest' | 'gainers' | 'losers';
 
 export function InvestmentMarket({
-  holdings,
   liveInstruments,
   marketFreshness,
   marketLoading,
@@ -76,7 +64,7 @@ export function InvestmentMarket({
   const [filter, setFilter] = useState<MarketFilter>('All');
   const [sort, setSort] = useState<MarketSort>('largest');
   const sourceInstruments = liveInstruments ?? instruments;
-  const heldTickers = new Set(holdings.filter(isPositiveHolding).map((holding) => holding.ticker));
+
   const filteredInstruments = useMemo(() => {
     return sourceInstruments
       .filter((instrument) => {
@@ -100,7 +88,7 @@ export function InvestmentMarket({
           <p className={styles.eyebrow}>Market</p>
           <h1>Stocks and ETFs</h1>
           <p>
-            Buy a slice of real companies and funds with merits.
+            Educational market data — browse real companies and funds.
             <HelpTip
               label="What is an ETF?"
               text="An ETF is a ready-made basket of many companies in one investment. It can spread risk more than a single stock."
@@ -153,7 +141,9 @@ export function InvestmentMarket({
         </div>
       ) : null}
       {marketFreshness === 'empty' ? (
-        <p className={styles.emptyState}>Market data is unavailable. Check back during LSE trading hours.</p>
+        <p className={styles.emptyState}>
+          Market data is unavailable. Check back during LSE trading hours.
+        </p>
       ) : null}
 
       <InvestmentCard flush>
@@ -187,10 +177,7 @@ export function InvestmentMarket({
                             <strong>{instrument.ticker}</strong>{' '}
                             <InvestmentBadge tone={instrument.type === 'etf' ? 'blue' : 'grey'}>
                               {instrument.type === 'etf' ? 'ETF' : 'Stock'}
-                            </InvestmentBadge>{' '}
-                            {heldTickers.has(instrument.ticker) ? (
-                              <InvestmentBadge tone="gold">Owned</InvestmentBadge>
-                            ) : null}
+                            </InvestmentBadge>
                             <br />
                             <span className={styles.smallText}>
                               {instrument.name} - {instrument.sector}
@@ -224,7 +211,7 @@ export function InvestmentMarket({
                           }}
                           type="button"
                         >
-                          Trade
+                          View
                         </button>
                       </td>
                     </tr>
@@ -322,23 +309,12 @@ function MarketSkeleton() {
   );
 }
 
-export function InvestmentStockDetail({
-  cashMerits,
-  holdings,
-  liveInstruments,
-  onBack,
-  onBuy,
-  onSell,
-  onToast,
-  ticker,
-}: StockDetailProps) {
+export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: StockDetailProps) {
   const instrument =
     liveInstruments?.find((i) => i.ticker === ticker) ?? instrumentForTicker(ticker);
-  const holding = holdings.find((item) => item.ticker === ticker && item.units > 0);
   const [range, setRange] = useState<RangeId>('3M');
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [showCustom, setShowCustom] = useState(false);
-  const [mobileTradeOpen, setMobileTradeOpen] = useState(false);
   const series = sliceInstrumentSeries(instrument, range, customRange);
   const rangePct = percentChange(series.first, series.last);
   const recent = instrument.daily.slice(-30);
@@ -347,21 +323,6 @@ export function InvestmentStockDetail({
   const risk = riskBand(instrument.volatility);
   const minDate = formatDateInput(new Date(today.getTime() - (historyDays - 1) * msDay));
   const maxDate = formatDateInput(today);
-  const tradePanel = (
-    <TradePanel
-      cashMerits={cashMerits}
-      holding={holding}
-      instrument={instrument}
-      onBuy={onBuy}
-      onSell={onSell}
-      onTradeComplete={(side, merits) => {
-        setMobileTradeOpen(false);
-        onToast(
-          `${side === 'buy' ? 'Invested' : 'Sold'} ${formatMerits(merits, 1)} merits ${side === 'buy' ? 'into' : 'of'} ${instrument.ticker}`,
-        );
-      }}
-    />
-  );
 
   return (
     <>
@@ -407,150 +368,66 @@ export function InvestmentStockDetail({
         </div>
       </section>
 
-      <div className={styles.stockDetailGrid}>
-        <div className={styles.titleBlock}>
-          <InvestmentCard>
-            <div className={styles.cardHeader}>
-              <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
-                {formatPercent(rangePct)}
-                <span className={styles.smallText}>
-                  {' '}
-                  {customRange
-                    ? `${formatShortDate(customRange.from)} to ${formatShortDate(customRange.to)}`
-                    : 'selected range'}
-                </span>
-              </span>
-              <RangeTabs
-                customActive={Boolean(customRange) || showCustom}
-                onCustom={() => {
-                  setShowCustom((current) => !current);
-                }}
-                onRange={(nextRange) => {
-                  setRange(nextRange);
-                  setCustomRange(null);
-                  setShowCustom(false);
-                }}
-                value={range}
-              />
-            </div>
-            {showCustom ? (
-              <StockCustomRange
-                maxDate={maxDate}
-                minDate={minDate}
-                onApply={(nextRange) => {
-                  setCustomRange(nextRange);
-                  setShowCustom(false);
-                }}
-              />
-            ) : null}
-            <AreaChart
-              height={300}
-              series={series}
-              valueFormatter={(value) => formatMerits(toMerits(value), 2)}
-            />
-          </InvestmentCard>
-
-          <InvestmentCard>
-            <span className={styles.sectionLabel}>About {instrument.name}</span>
-            <p className={styles.mutedText}>{instrument.about}</p>
-            <div className={styles.statGrid}>
-              <StatBox label="30-day low" value={formatMerits(toMerits(low), 1)} />
-              <StatBox label="30-day high" value={formatMerits(toMerits(high), 1)} />
-              <StatBox
-                label="Prev. close"
-                value={formatMerits(toMerits(instrument.prevClose), 2)}
-              />
-              <StatBox label="Risk level" value={risk.label} />
-            </div>
-            <div className={styles.noticeCard} style={{ marginTop: 16 }}>
-              <strong>{instrument.type === 'etf' ? 'ETF note' : 'Stock note'}</strong>
-              <p>
-                {instrument.type === 'etf'
-                  ? 'ETFs spread merits across many companies, but they can still fall.'
-                  : `Single stocks like ${instrument.name} can swing more than a fund. Consider holding a mix.`}
-              </p>
-            </div>
-          </InvestmentCard>
-        </div>
-
-        <aside className={styles.rightRail}>
-          {holding ? (
-            <InvestmentCard>
-              <span className={styles.sectionLabel}>Your position</span>
-              <div className={styles.positionRow}>
-                <span className={styles.smallText}>Value</span>
-                <MeritValue value={holdingValueMerits(holding)} />
-              </div>
-              <div className={styles.positionRow}>
-                <span className={styles.smallText}>Units</span>
-                <strong>{holding.units.toFixed(3)}</strong>
-              </div>
-              <div className={styles.positionRow}>
-                <span className={styles.smallText}>Return</span>
-                <PositionReturn holding={holding} />
-              </div>
-            </InvestmentCard>
-          ) : null}
-          <InvestmentCard className={styles.desktopTrade}>
-            <h2 className={styles.cardTitle}>Trade {instrument.ticker}</h2>
-            {tradePanel}
-          </InvestmentCard>
-        </aside>
-      </div>
-
-      <div className={styles.mobileTradeBar}>
-        <button
-          className={styles.successButton}
-          onClick={() => {
-            setMobileTradeOpen(true);
-          }}
-          type="button"
-        >
-          Buy
-        </button>
-        {holding ? (
-          <button
-            className={styles.dangerButton}
-            onClick={() => {
-              setMobileTradeOpen(true);
+      <InvestmentCard>
+        <div className={styles.cardHeader}>
+          <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
+            {formatPercent(rangePct)}
+            <span className={styles.smallText}>
+              {' '}
+              {customRange
+                ? `${formatShortDate(customRange.from)} to ${formatShortDate(customRange.to)}`
+                : 'selected range'}
+            </span>
+          </span>
+          <RangeTabs
+            customActive={Boolean(customRange) || showCustom}
+            onCustom={() => {
+              setShowCustom((current) => !current);
             }}
-            type="button"
-          >
-            Sell
-          </button>
+            onRange={(nextRange) => {
+              setRange(nextRange);
+              setCustomRange(null);
+              setShowCustom(false);
+            }}
+            value={range}
+          />
+        </div>
+        {showCustom ? (
+          <StockCustomRange
+            maxDate={maxDate}
+            minDate={minDate}
+            onApply={(nextRange) => {
+              setCustomRange(nextRange);
+              setShowCustom(false);
+            }}
+          />
         ) : null}
-      </div>
-      {mobileTradeOpen ? (
-        <div
-          className={styles.modalBackdrop}
-          onClick={() => {
-            setMobileTradeOpen(false);
-          }}
-          role="presentation"
-        >
-          <div
-            className={styles.modal}
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-            role="dialog"
-          >
-            <div className={styles.modalBody}>{tradePanel}</div>
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
-}
+        <AreaChart
+          height={300}
+          series={series}
+          valueFormatter={(value) => formatMerits(toMerits(value), 2)}
+        />
+      </InvestmentCard>
 
-function PositionReturn({ holding }: { holding: Holding }) {
-  const value = holdingValueMerits(holding);
-  const cost = holdingCostMerits(holding);
-  const delta = value - cost;
-  return (
-    <strong className={delta >= 0 ? styles.positiveText : styles.negativeText}>
-      {formatSignedMerits(delta, 1)} ({formatPercent((delta / (cost || 1)) * 100)})
-    </strong>
+      <InvestmentCard>
+        <span className={styles.sectionLabel}>About {instrument.name}</span>
+        <p className={styles.mutedText}>{instrument.about}</p>
+        <div className={styles.statGrid}>
+          <StatBox label="30-day low" value={formatMerits(toMerits(low), 1)} />
+          <StatBox label="30-day high" value={formatMerits(toMerits(high), 1)} />
+          <StatBox label="Prev. close" value={formatMerits(toMerits(instrument.prevClose), 2)} />
+          <StatBox label="Risk level" value={risk.label} />
+        </div>
+        <div className={styles.noticeCard} style={{ marginTop: 16 }}>
+          <strong>{instrument.type === 'etf' ? 'ETF note' : 'Stock note'}</strong>
+          <p>
+            {instrument.type === 'etf'
+              ? 'ETFs spread merits across many companies, but they can still fall.'
+              : `Single stocks like ${instrument.name} can swing more than a fund. Consider holding a mix.`}
+          </p>
+        </div>
+      </InvestmentCard>
+    </>
   );
 }
 
@@ -572,7 +449,7 @@ function StockCustomRange({
   minDate: string;
   onApply: (range: CustomRange) => void;
 }) {
-  const [from, setFrom] = useState('2026-03-06');
+  const [from, setFrom] = useState(formatDateInput(new Date(today.getTime() - 90 * msDay)));
   const [to, setTo] = useState(maxDate);
   const valid = new Date(from) < new Date(to);
   return (

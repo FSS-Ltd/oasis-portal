@@ -1,22 +1,7 @@
 .shell {
-  --invest-navy: #1b2b5e;
-  --invest-blue: #5b90c5;
-  --invest-crimson: #7d1c2c;
-  --invest-gold: #b8860b;
-  --invest-bg: #eef2f9;
-  --invest-surface: #ffffff;
-  --invest-surface-alt: #f6f8fc;
-  --invest-border: #dde3f0;
-  --invest-border-light: #eef2f9;
-  --invest-text-secondary: #5a6a8a;
-  --invest-text-muted: #8899bb;
-  --invest-up: #137a47;
-  --invest-up-bg: #e3f5ec;
-  --invest-down: #c0392b;
-  --invest-down-bg: #fbeae7;
   display: grid;
   gap: 18px;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
 }
 
 .topRow,
@@ -63,7 +48,7 @@
 .fieldLabel,
 .tableHead,
 .metaLabel {
-  color: var(--invest-text-secondary);
+  color: var(--oasis-text-secondary);
   font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -78,7 +63,7 @@
 .positionValue,
 .walletValue {
   margin: 0;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
 }
 
 .titleBlock h1,
@@ -95,7 +80,7 @@
 .riskNote,
 .emptyState {
   margin: 0;
-  color: var(--invest-text-secondary);
+  color: var(--oasis-text-secondary);
   line-height: 1.5;
 }
 
@@ -124,7 +109,7 @@
   width: fit-content;
   padding: 4px;
   border-radius: 8px;
-  background: var(--invest-bg);
+  background: var(--oasis-bg);
 }
 
 .tabButton,
@@ -143,7 +128,7 @@
   padding: 0 12px;
   border-radius: 7px;
   background: transparent;
-  color: var(--invest-text-secondary);
+  color: var(--oasis-text-secondary);
   font-size: 0.78rem;
   font-weight: 850;
 }
@@ -151,7 +136,7 @@
 .tabButtonActive,
 .rangeButtonActive {
   background: #ffffff;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   box-shadow: 0 1px 4px rgba(27, 43, 94, 0.12);
 }
 
@@ -174,23 +159,23 @@
 }
 
 .button {
-  background: var(--invest-crimson);
+  background: var(--oasis-crimson);
   color: #ffffff;
 }
 
 .secondaryButton {
-  border-color: var(--invest-border);
+  border-color: var(--oasis-border);
   background: #ffffff;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
 }
 
 .successButton {
-  background: var(--invest-up);
+  background: var(--oasis-success);
   color: #ffffff;
 }
 
 .dangerButton {
-  background: var(--invest-down);
+  background: var(--oasis-danger);
   color: #ffffff;
 }
 
@@ -215,7 +200,7 @@
 
 .card {
   padding: 20px;
-  border: 1px solid var(--invest-border);
+  border: 1px solid var(--oasis-border);
   background: #ffffff;
   box-shadow: 0 1px 4px rgba(27, 43, 94, 0.07);
 }
@@ -297,7 +282,7 @@
   flex-wrap: wrap;
   margin-top: 14px;
   padding-top: 16px;
-  border-top: 1px solid var(--invest-border-light);
+  border-top: 1px solid var(--oasis-border-light);
 }
 
 .miniStat {
@@ -307,7 +292,7 @@
 
 .miniStat strong,
 .strongValue {
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   font-size: 1rem;
   font-weight: 900;
 }
@@ -338,7 +323,7 @@
   gap: 2px;
   overflow: hidden;
   border-radius: 6px;
-  background: var(--invest-bg);
+  background: var(--oasis-bg);
 }
 
 .allocationLegend {
@@ -352,7 +337,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--invest-text-secondary);
+  color: var(--oasis-text-secondary);
   font-size: 0.78rem;
   font-weight: 750;
 }
@@ -424,7 +409,7 @@
 .activityMain strong {
   display: block;
   overflow-wrap: anywhere;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   font-size: 0.86rem;
   line-height: 1.2;
 }
@@ -442,7 +427,7 @@
 .activityMain span {
   display: block;
   overflow: hidden;
-  color: var(--invest-text-muted);
+  color: var(--oasis-text-muted);
   font-size: 0.74rem;
   font-weight: 700;
   text-overflow: ellipsis;
@@ -467,21 +452,21 @@
 }
 
 .positiveText {
-  color: var(--invest-up);
+  color: var(--oasis-success);
 }
 
 .negativeText {
-  color: var(--invest-down);
+  color: var(--oasis-danger);
 }
 
 .positivePill {
-  background: var(--invest-up-bg);
-  color: var(--invest-up);
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
 }
 
 .negativePill {
-  background: var(--invest-down-bg);
-  color: var(--invest-down);
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
 }
 
 .badge {
@@ -492,14 +477,14 @@
   padding: 3px 8px;
   border-radius: 999px;
   background: #eaf1fb;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   font-size: 0.68rem;
   font-weight: 850;
 }
 
 .badgeGrey {
   background: #eef2f9;
-  color: var(--invest-text-secondary);
+  color: var(--oasis-text-secondary);
 }
 
 .learningBadge {
@@ -521,7 +506,7 @@
 }
 
 .learningBadgeLabel {
-  color: var(--invest-text-muted);
+  color: var(--oasis-text-muted);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -530,17 +515,17 @@
 
 .badgeGold {
   background: #fbf3d9;
-  color: var(--invest-gold);
+  color: #b8860b;
 }
 
 .badgeGreen {
-  background: var(--invest-up-bg);
-  color: var(--invest-up);
+  background: var(--oasis-success-bg);
+  color: var(--oasis-success);
 }
 
 .badgeRed {
-  background: var(--invest-down-bg);
-  color: var(--invest-down);
+  background: var(--oasis-danger-bg);
+  color: var(--oasis-danger);
 }
 
 .chartWrap {
@@ -567,7 +552,7 @@
   min-width: 122px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--invest-navy);
+  background: var(--oasis-navy);
   color: #ffffff;
   box-shadow: 0 8px 22px rgba(27, 43, 94, 0.3);
   pointer-events: none;
@@ -596,10 +581,10 @@
   height: 16px;
   place-items: center;
   margin-left: 5px;
-  border: 1.5px solid var(--invest-text-muted);
+  border: 1.5px solid var(--oasis-text-muted);
   border-radius: 50%;
   background: transparent;
-  color: var(--invest-text-muted);
+  color: var(--oasis-text-muted);
   font-size: 0.62rem;
   font-weight: 900;
   cursor: help;
@@ -613,7 +598,7 @@
   width: min(230px, 72vw);
   padding: 10px 12px;
   border-radius: 8px;
-  background: var(--invest-navy);
+  background: var(--oasis-navy);
   color: #ffffff;
   font-size: 0.74rem;
   font-weight: 600;
@@ -627,10 +612,10 @@
 .selectInput,
 .amountInput,
 .dateInput {
-  border: 1.5px solid var(--invest-border);
+  border: 1.5px solid var(--oasis-border);
   border-radius: 8px;
   background: #ffffff;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   font: inherit;
   font-weight: 750;
 }
@@ -669,7 +654,7 @@
   width: fit-content;
   padding: 8px;
   border-radius: 8px;
-  background: var(--invest-bg);
+  background: var(--oasis-bg);
   flex-wrap: wrap;
 }
 
@@ -682,7 +667,7 @@
 .table th,
 .table td {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--invest-border-light);
+  border-bottom: 1px solid var(--oasis-border-light);
   text-align: right;
   vertical-align: middle;
 }
@@ -697,7 +682,7 @@
 }
 
 .table tbody tr:hover {
-  background: var(--invest-surface-alt);
+  background: #f6f8fc;
 }
 
 .holdingCell,
@@ -714,7 +699,7 @@
   height: 6px;
   overflow: hidden;
   border-radius: 4px;
-  background: var(--invest-bg);
+  background: var(--oasis-bg);
 }
 
 .marketList {
@@ -738,7 +723,7 @@
   align-items: flex-end;
   justify-content: flex-end;
   gap: 8px;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   font-size: 1.9rem;
   font-weight: 900;
   line-height: 1;
@@ -756,7 +741,7 @@
   gap: 4px;
   padding: 12px;
   border-radius: 10px;
-  background: var(--invest-surface-alt);
+  background: #f6f8fc;
 }
 
 .riskDots {
@@ -774,7 +759,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--invest-border);
+  background: var(--oasis-border);
 }
 
 .tradePanel {
@@ -788,7 +773,7 @@
   gap: 4px;
   padding: 4px;
   border-radius: 8px;
-  background: var(--invest-bg);
+  background: var(--oasis-bg);
 }
 
 .tradeSwitch button {
@@ -796,7 +781,7 @@
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: var(--invest-text-secondary);
+  color: var(--oasis-text-secondary);
   font: inherit;
   font-weight: 900;
   text-transform: capitalize;
@@ -809,12 +794,12 @@
 }
 
 .buyActive {
-  background: var(--invest-up) !important;
+  background: var(--oasis-success) !important;
   color: #ffffff !important;
 }
 
 .sellActive {
-  background: var(--invest-down) !important;
+  background: var(--oasis-danger) !important;
   color: #ffffff !important;
 }
 
@@ -825,10 +810,10 @@
 
 .chipButton {
   min-height: 34px;
-  border: 1.5px solid var(--invest-border);
+  border: 1.5px solid var(--oasis-border);
   border-radius: 8px;
   background: #ffffff;
-  color: var(--invest-navy);
+  color: var(--oasis-navy);
   font-size: 0.78rem;
   font-weight: 850;
 }
@@ -838,7 +823,7 @@
   gap: 9px;
   padding: 13px;
   border-radius: 8px;
-  background: var(--invest-surface-alt);
+  background: #f6f8fc;
 }
 
 .tradeSummaryRow,
@@ -866,7 +851,7 @@
 }
 
 .walletBox {
-  background: var(--invest-surface-alt);
+  background: #f6f8fc;
 }
 
 .spendBox {
@@ -877,7 +862,7 @@
   align-items: center;
   gap: 13px;
   padding: 14px 20px;
-  border-bottom: 1px solid var(--invest-border-light);
+  border-bottom: 1px solid var(--oasis-border-light);
 }
 
 .activityIcon {
@@ -898,7 +883,7 @@
   gap: 9px;
   padding: 12px 18px;
   border-radius: 8px;
-  background: var(--invest-navy);
+  background: var(--oasis-navy);
   color: #ffffff;
   font-size: 0.84rem;
   font-weight: 850;
@@ -982,7 +967,7 @@
     display: flex;
     gap: 10px;
     padding: 10px 16px;
-    border-top: 1px solid var(--invest-border);
+    border-top: 1px solid var(--oasis-border);
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(8px);
   }

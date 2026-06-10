@@ -1,387 +1,108 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import {
-  dayDate,
-  formatDateInput,
-  formatGbp,
   formatMerits,
   formatPercent,
-  formatShortDate,
   formatSignedMerits,
-  holdingCostMerits,
-  holdingsCostMerits,
-  instrumentForTicker,
-  isLiveHolding,
+  navHistoryToChartSeries,
   percentChange,
-  portfolioSeries,
-  today,
   toGbp,
-  toMerits,
-  type CustomRange,
-  type Holding,
-  type Instrument,
+  type NavDto,
   type RangeId,
 } from './student-invest-data';
+import { TradePanel } from './student-invest-trade';
 import {
   AreaChart,
   DeltaPill,
   HelpTip,
   InvestmentCard,
-  LearningBadge,
   MeritIcon,
   MeritValue,
   RangeTabs,
-  Sparkline,
-  TickerMark,
 } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
 interface OverviewProps {
-  cashMerits: number;
+  costBasisMerits: number;
+  currentValueMerits: number;
   defaultRange: RangeId;
-  holdings: readonly Holding[];
-  liveInstruments?: readonly Instrument[];
-  onNavigate: (screen: 'market' | 'portfolio' | 'withdraw') => void;
-  onOpenStock: (ticker: string) => void;
-}
-
-interface PortfolioProps {
-  cashMerits: number;
-  defaultRange: RangeId;
-  holdings: readonly Holding[];
-  liveInstruments?: readonly Instrument[];
-  onNavigate: (screen: 'market' | 'overview') => void;
-  onOpenStock: (ticker: string) => void;
-}
-
-interface AllocationRow {
-  holding: Holding;
-  instrument: Instrument;
-  value: number;
-  weight: number;
+  isBuying: boolean;
+  isSelling: boolean;
+  latestNav: { nav: number; dailyReturn: number } | null;
+  loading: boolean;
+  navHistory: readonly NavDto[];
+  onBuy: (merits: number) => void;
+  onNavigate: (screen: 'market') => void;
+  onSell: (units: number) => void;
+  spendBalance: number;
+  studentFirstName: string;
+  units: number;
 }
 
 export function InvestmentOverview({
-  cashMerits,
+  costBasisMerits,
+  currentValueMerits,
   defaultRange,
-  holdings,
-  liveInstruments,
+  isBuying,
+  isSelling,
+  latestNav,
+  loading,
+  navHistory,
+  onBuy,
   onNavigate,
-  onOpenStock,
+  onSell,
+  spendBalance,
+  studentFirstName,
+  units,
 }: OverviewProps) {
   const [range, setRange] = useState<RangeId>(defaultRange);
-  const liveHoldings = holdings.filter(isLiveHolding);
-  const liveInstrumentMap = useMemo(
-    () => new Map((liveInstruments ?? []).map((i) => [i.ticker, i])),
-    [liveInstruments],
-  );
-  const invested = useMemo(
-    () =>
-      liveHoldings.reduce((total, h) => {
-        const inst = liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker);
-        return total + toMerits(h.units * inst.price);
-      }, 0),
-    [liveHoldings, liveInstrumentMap],
-  );
-  const netWorth = invested + cashMerits;
-  const cost = holdingsCostMerits(liveHoldings);
-  const totalReturn = invested - cost;
-  const totalReturnPct = (totalReturn / (cost || 1)) * 100;
-  const dayProfitLoss = useMemo(
-    () =>
-      liveHoldings.reduce((total, h) => {
-        const inst = liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker);
-        return total + toMerits(h.units * inst.dayChange);
-      }, 0),
-    [liveHoldings, liveInstrumentMap],
-  );
-  const dayPct = (dayProfitLoss / (netWorth - dayProfitLoss || 1)) * 100;
-  const weekSeries = portfolioSeries(liveHoldings, cashMerits, '1W', null);
-  const weekDelta = weekSeries.last - weekSeries.first;
-  const weekPct = percentChange(weekSeries.first, weekSeries.last);
-  const series = portfolioSeries(liveHoldings, cashMerits, range, null);
+  const greeting = studentFirstName ? `Good morning, ${studentFirstName}` : 'Good morning';
+  const totalReturn = currentValueMerits - costBasisMerits;
+  const totalReturnPct = costBasisMerits > 0 ? (totalReturn / costBasisMerits) * 100 : 0;
+  const dailyReturnPct = latestNav?.dailyReturn ?? 0;
+  const dailyReturnMerits = currentValueMerits * (dailyReturnPct / (1 + dailyReturnPct));
+
+  const fullSeries = useMemo(() => navHistoryToChartSeries(navHistory), [navHistory]);
+
+  const series = useMemo(() => {
+    if (fullSeries.points.length === 0) return fullSeries;
+    const daysForRange = (r: RangeId): number => {
+      if (r === '1D') return 1;
+      if (r === '1W') return 7;
+      if (r === '1M') return 30;
+      if (r === '3M') return 90;
+      if (r === '1Y') return 365;
+      return 9999;
+    };
+    const days = daysForRange(range);
+    const cutoff = fullSeries.points.length - days;
+    const sliced = fullSeries.points.slice(Math.max(0, cutoff));
+    if (sliced.length === 0) return fullSeries;
+    const scaled = sliced.map((p, i) => ({
+      ...p,
+      x: i / (sliced.length - 1 || 1),
+    }));
+    return {
+      points: scaled,
+      first: scaled[0]!.value,
+      last: scaled[scaled.length - 1]!.value,
+    };
+  }, [fullSeries, range]);
+
   const rangePct = percentChange(series.first, series.last);
-  const movers = liveHoldings
-    .map((holding) => liveInstrumentMap.get(holding.ticker) ?? instrumentForTicker(holding.ticker))
-    .sort((left, right) => right.dayChangePct - left.dayChangePct);
-  const risers = movers.filter((instrument) => instrument.dayChangePct >= 0).slice(0, 3);
-  const fallers = movers
-    .filter((instrument) => instrument.dayChangePct < 0)
-    .reverse()
-    .slice(0, 3);
 
   return (
     <>
       <section className={styles.screenHeader}>
         <div>
           <p className={styles.eyebrow}>Overview</p>
-          <h1>Good morning, Grace</h1>
-          <p>Here is how your Merit Markets portfolio is doing today.</p>
+          <h1>{greeting}</h1>
+          <p>Here is how your Merit Markets fund is performing.</p>
         </div>
         <div className={styles.inlineActions}>
           <button
-            className={styles.secondaryButton}
-            onClick={() => {
-              onNavigate('withdraw');
-            }}
-            type="button"
-          >
-            Withdraw
-          </button>
-          <button
             className={styles.button}
-            onClick={() => {
-              onNavigate('market');
-            }}
-            type="button"
-          >
-            Invest merits
-          </button>
-        </div>
-      </section>
-
-      <div className={styles.dashboardGrid}>
-        <InvestmentCard>
-          <div className={styles.cardHeader}>
-            <div>
-              <span className={styles.sectionLabel}>
-                Total net worth
-                <HelpTip
-                  label="Net worth"
-                  text="Everything your investment account is worth right now: holdings at today's prices plus uninvested merits."
-                />
-              </span>
-              <div className={styles.heroValue}>
-                <MeritIcon size={30} />
-                {formatMerits(netWorth, 1)}
-                <span className={styles.smallText}>merits</span>
-              </div>
-              <div className={styles.valueMeta}>
-                <span className={dayProfitLoss >= 0 ? styles.positiveText : styles.negativeText}>
-                  {formatSignedMerits(dayProfitLoss, 1)}
-                </span>
-                <span className={styles.smallText}>{formatPercent(dayPct)} today</span>
-                <span className={styles.smallText}>approx {formatGbp(toGbp(netWorth))}</span>
-              </div>
-            </div>
-            <div className={styles.titleBlock}>
-              <RangeTabs
-                onCustom={() => {
-                  onNavigate('portfolio');
-                }}
-                onRange={setRange}
-                value={range}
-              />
-              <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
-                {formatPercent(rangePct)} over range
-              </span>
-            </div>
-          </div>
-          <AreaChart series={series} />
-          <div className={styles.metricGrid}>
-            <MiniStat label="Invested" value={<MeritValue value={invested} />} />
-            <MiniStat
-              label="Cash"
-              value={<MeritValue value={cashMerits} />}
-              tip="Merits in your investment account that are ready to buy stocks or ETFs."
-            />
-            <MiniStat
-              label="All-time return"
-              value={
-                <span className={totalReturn >= 0 ? styles.positiveText : styles.negativeText}>
-                  {formatSignedMerits(totalReturn, 1)} ({formatPercent(totalReturnPct)})
-                </span>
-              }
-            />
-          </div>
-        </InvestmentCard>
-
-        <div className={styles.titleBlock}>
-          <section className={styles.darkCard}>
-            <div className={styles.cardHeader}>
-              <span className={styles.sectionLabel}>This week&apos;s result</span>
-              <span className={styles.badge}>{formatPercent(weekPct)}</span>
-            </div>
-            <div className={styles.weekValue}>
-              <MeritIcon size={24} />
-              {formatSignedMerits(weekDelta, 1)}
-            </div>
-            <p className={styles.mutedText}>
-              {weekDelta >= 0 ? 'Your portfolio grew' : 'Your portfolio dipped'} over the last 7
-              days.
-            </p>
-            <AreaChart height={92} series={weekSeries} />
-          </section>
-
-          <InvestmentCard>
-            <div className={styles.cardHeader}>
-              <span className={styles.sectionLabel}>Allocation</span>
-              <button
-                className={styles.ghostButton}
-                onClick={() => {
-                  onNavigate('portfolio');
-                }}
-                type="button"
-              >
-                Details
-              </button>
-            </div>
-            <AllocationBar holdings={liveHoldings} liveInstrumentMap={liveInstrumentMap} />
-          </InvestmentCard>
-        </div>
-      </div>
-
-      <div className={styles.moversGrid}>
-        <InvestmentCard>
-          <div className={styles.cardHeader}>
-            <span className={styles.sectionLabel}>
-              <ArrowUpRight aria-hidden="true" size={16} /> Rising today
-            </span>
-          </div>
-          {risers.length > 0 ? (
-            risers.map((instrument) => (
-              <MoverRow instrument={instrument} key={instrument.ticker} onOpenStock={onOpenStock} />
-            ))
-          ) : (
-            <p className={styles.emptyState}>Nothing in the green today.</p>
-          )}
-        </InvestmentCard>
-        <InvestmentCard>
-          <div className={styles.cardHeader}>
-            <span className={styles.sectionLabel}>
-              <ArrowDownRight aria-hidden="true" size={16} /> Falling today
-            </span>
-          </div>
-          {fallers.length > 0 ? (
-            fallers.map((instrument) => (
-              <MoverRow instrument={instrument} key={instrument.ticker} onOpenStock={onOpenStock} />
-            ))
-          ) : (
-            <p className={styles.emptyState}>Everything you hold is up today.</p>
-          )}
-        </InvestmentCard>
-      </div>
-
-      <RiskReminder />
-    </>
-  );
-}
-
-export function InvestmentPortfolio({
-  cashMerits,
-  defaultRange,
-  holdings,
-  liveInstruments,
-  onNavigate,
-  onOpenStock,
-}: PortfolioProps) {
-  const [range, setRange] = useState<RangeId>(defaultRange === '1D' ? '1M' : defaultRange);
-  const [customRange, setCustomRange] = useState<CustomRange | null>(null);
-  const [showCustom, setShowCustom] = useState(false);
-  const liveHoldings = holdings.filter(isLiveHolding);
-  const liveInstrumentMap = useMemo(
-    () => new Map((liveInstruments ?? []).map((i) => [i.ticker, i])),
-    [liveInstruments],
-  );
-  const netWorth = useMemo(
-    () =>
-      liveHoldings.reduce(
-        (total, h) =>
-          total +
-          toMerits(
-            h.units * (liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker)).price,
-          ),
-        cashMerits,
-      ),
-    [liveHoldings, liveInstrumentMap, cashMerits],
-  );
-  const series = portfolioSeries(liveHoldings, cashMerits, range, customRange);
-  const rangeDelta = series.last - series.first;
-  const rangePct = percentChange(series.first, series.last);
-  const rows = useAllocationRows(liveHoldings, liveInstrumentMap);
-  const minDate = formatDateInput(dayDate(0));
-  const maxDate = formatDateInput(today);
-
-  return (
-    <>
-      <section className={styles.screenHeader}>
-        <div>
-          <button
-            className={styles.ghostButton}
-            onClick={() => {
-              onNavigate('overview');
-            }}
-            type="button"
-          >
-            Back to overview
-          </button>
-          <h1>Portfolio growth</h1>
-          <p>Review your holdings by day, week, month, year, or a custom date range.</p>
-        </div>
-        <button
-          className={styles.button}
-          onClick={() => {
-            onNavigate('market');
-          }}
-          type="button"
-        >
-          Browse market
-        </button>
-      </section>
-
-      <InvestmentCard>
-        <div className={styles.cardHeader}>
-          <div>
-            <div className={styles.heroValue}>
-              <MeritIcon size={28} />
-              {formatMerits(netWorth, 1)}
-            </div>
-            <div className={styles.valueMeta}>
-              <span className={rangeDelta >= 0 ? styles.positiveText : styles.negativeText}>
-                {formatSignedMerits(rangeDelta, 1)} ({formatPercent(rangePct)})
-              </span>
-              <span className={styles.smallText}>
-                {customRange
-                  ? `${formatShortDate(customRange.from)} to ${formatShortDate(customRange.to)}`
-                  : 'selected period'}
-              </span>
-            </div>
-          </div>
-          <div className={styles.titleBlock}>
-            <RangeTabs
-              customActive={Boolean(customRange) || showCustom}
-              onCustom={() => {
-                setShowCustom((current) => !current);
-              }}
-              onRange={(nextRange) => {
-                setRange(nextRange);
-                setCustomRange(null);
-                setShowCustom(false);
-              }}
-              value={range}
-            />
-            {showCustom ? (
-              <CustomRangeControls
-                maxDate={maxDate}
-                minDate={minDate}
-                onApply={(nextRange) => {
-                  setCustomRange(nextRange);
-                  setShowCustom(false);
-                }}
-              />
-            ) : null}
-          </div>
-        </div>
-        <AreaChart height={320} series={series} />
-      </InvestmentCard>
-
-      <InvestmentCard flush>
-        <div className={styles.cardHeader} style={{ padding: '16px 20px' }}>
-          <span className={styles.sectionLabel}>Your holdings - {String(rows.length)}</span>
-          <button
-            className={styles.secondaryButton}
             onClick={() => {
               onNavigate('market');
             }}
@@ -390,104 +111,143 @@ export function InvestmentPortfolio({
             Browse market
           </button>
         </div>
-        <div className={styles.holdingsDesktop}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {['Holding', 'Price', 'Today', 'Units', 'Value', 'Total return', 'Weight'].map(
-                  (label) => (
-                    <th className={styles.tableHead} key={label}>
-                      {label}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const cost = holdingCostMerits(row.holding);
-                const totalReturn = row.value - cost;
-                const totalReturnPct = (totalReturn / (cost || 1)) * 100;
-                return (
-                  <tr
-                    key={row.holding.ticker}
-                    onClick={() => {
-                      onOpenStock(row.holding.ticker);
-                    }}
-                  >
-                    <td>
-                      <span className={styles.holdingCell}>
-                        <TickerMark instrument={row.instrument} size={34} />
-                        <span>
-                          <strong>{row.holding.ticker}</strong>
-                          <br />
-                          <span className={styles.smallText}>{row.instrument.name}</span>
-                        </span>
-                      </span>
-                    </td>
-                    <td>{formatMerits(toMerits(row.instrument.price), 1)}</td>
-                    <td>
-                      {row.instrument.learningDayChangePct !== undefined ? (
-                        <LearningBadge
-                          learningPct={row.instrument.learningDayChangePct}
-                          rawPct={row.instrument.dayChangePct}
-                        />
-                      ) : (
-                        <DeltaPill arrow={false} plain value={row.instrument.dayChangePct} />
-                      )}
-                    </td>
-                    <td>{row.holding.units.toFixed(2)}</td>
-                    <td>{formatMerits(row.value, 1)}</td>
-                    <td className={totalReturn >= 0 ? styles.positiveText : styles.negativeText}>
-                      {formatSignedMerits(totalReturn, 1)} ({formatPercent(totalReturnPct)})
-                    </td>
-                    <td>
-                      <span className={styles.weightBar}>
-                        <span
-                          style={{
-                            backgroundColor: row.instrument.color,
-                            width: `${String(row.weight)}%`,
-                          }}
-                        />
-                      </span>{' '}
-                      {row.weight.toFixed(0)}%
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className={styles.holdingsMobile}>
-          {rows.map((row) => (
-            <button
-              className={styles.holdingMobileRow}
-              key={row.holding.ticker}
-              onClick={() => {
-                onOpenStock(row.holding.ticker);
-              }}
-              type="button"
-            >
-              <TickerMark instrument={row.instrument} size={38} />
-              <span className={styles.holdingMain}>
-                <strong>{row.holding.ticker}</strong>
-                <span>
-                  {row.holding.units.toFixed(2)} units - {row.weight.toFixed(0)}%
+      </section>
+
+      <div className={styles.dashboardGrid}>
+        <div className={styles.titleBlock}>
+          <InvestmentCard>
+            <div className={styles.cardHeader}>
+              <div>
+                <span className={styles.sectionLabel}>
+                  Portfolio value
+                  <HelpTip
+                    label="Portfolio value"
+                    text="Your investment units multiplied by today's fund NAV — how much your account is worth right now."
+                  />
                 </span>
-              </span>
-              <span>
-                <MeritValue value={row.value} />
-                <DeltaPill arrow={false} plain value={row.instrument.dayChangePct} />
-              </span>
-            </button>
-          ))}
+                <div className={styles.heroValue}>
+                  {loading ? (
+                    <span className={styles.mutedText}>Loading…</span>
+                  ) : (
+                    <>
+                      <MeritIcon size={30} />
+                      {formatMerits(currentValueMerits, 1)}
+                      <span className={styles.smallText}>merits</span>
+                    </>
+                  )}
+                </div>
+                <div className={styles.valueMeta}>
+                  <span className={dailyReturnPct >= 0 ? styles.positiveText : styles.negativeText}>
+                    {formatSignedMerits(dailyReturnMerits, 1)}
+                  </span>
+                  <DeltaPill value={dailyReturnPct * 100} />
+                  <span className={styles.smallText}>today</span>
+                  {currentValueMerits > 0 ? (
+                    <span className={styles.smallText}>
+                      approx £{toGbp(currentValueMerits).toFixed(2)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div className={styles.titleBlock}>
+                <RangeTabs onCustom={() => {}} onRange={setRange} value={range} />
+                <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
+                  {formatPercent(rangePct)} NAV change
+                </span>
+              </div>
+            </div>
+            {navHistory.length > 0 ? (
+              <AreaChart series={series} />
+            ) : loading ? (
+              <div style={{ height: 180 }} />
+            ) : (
+              <p className={styles.emptyState}>No NAV history available yet.</p>
+            )}
+            <div className={styles.metricGrid}>
+              <MiniStat label="Units held" value={<strong>{units.toFixed(4)}</strong>} />
+              <MiniStat
+                label="Cost basis"
+                value={<MeritValue value={costBasisMerits} />}
+                tip="Total merits you have invested in the fund."
+              />
+              <MiniStat
+                label="All-time return"
+                value={
+                  <span className={totalReturn >= 0 ? styles.positiveText : styles.negativeText}>
+                    {formatSignedMerits(totalReturn, 1)} ({formatPercent(totalReturnPct)})
+                  </span>
+                }
+              />
+              <MiniStat
+                label="Spend balance"
+                value={<MeritValue value={spendBalance} />}
+                tip="Merits available in your Spend wallet to invest."
+              />
+            </div>
+          </InvestmentCard>
+
+          <RiskReminder />
         </div>
-      </InvestmentCard>
+
+        <div className={styles.rightRail}>
+          <InvestmentCard>
+            <h2 className={styles.cardTitle}>Invest or withdraw</h2>
+            <TradePanel
+              isBuying={isBuying}
+              isSelling={isSelling}
+              latestNav={latestNav}
+              onBuy={onBuy}
+              onSell={onSell}
+              spendBalance={spendBalance}
+              units={units}
+            />
+          </InvestmentCard>
+
+          {latestNav ? (
+            <InvestmentCard>
+              <span className={styles.sectionLabel}>Fund info</span>
+              <div className={styles.metricGrid} style={{ marginTop: 8, paddingTop: 8 }}>
+                <MiniStat
+                  label="NAV today"
+                  value={
+                    <strong>
+                      <MeritIcon size={12} /> {formatMerits(latestNav.nav, 2)}
+                    </strong>
+                  }
+                />
+                <MiniStat
+                  label="Daily return"
+                  value={
+                    <span
+                      className={
+                        latestNav.dailyReturn >= 0 ? styles.positiveText : styles.negativeText
+                      }
+                    >
+                      {formatPercent(latestNav.dailyReturn * 100)}
+                    </span>
+                  }
+                />
+              </div>
+              <p className={styles.tradeHint} style={{ marginTop: 10 }}>
+                The fund tracks a diversified basket of global assets. NAV is updated daily.
+              </p>
+            </InvestmentCard>
+          ) : null}
+        </div>
+      </div>
     </>
   );
 }
 
-function MiniStat({ label, tip, value }: { label: string; tip?: string; value: ReactNode }) {
+function MiniStat({
+  label,
+  tip,
+  value,
+}: {
+  label: string;
+  tip?: string;
+  value: ReactNode;
+}) {
   return (
     <div className={styles.miniStat}>
       <span className={styles.sectionLabel}>
@@ -495,115 +255,6 @@ function MiniStat({ label, tip, value }: { label: string; tip?: string; value: R
         {tip ? <HelpTip label={label} text={tip} /> : null}
       </span>
       {value}
-    </div>
-  );
-}
-
-function AllocationBar({
-  holdings,
-  liveInstrumentMap,
-}: {
-  holdings: readonly Holding[];
-  liveInstrumentMap: ReadonlyMap<string, Instrument>;
-}) {
-  const rows = useAllocationRows(holdings, liveInstrumentMap);
-  return (
-    <>
-      <div aria-hidden="true" className={styles.allocationBar}>
-        {rows.map((row) => (
-          <span
-            key={row.holding.ticker}
-            style={{ backgroundColor: row.instrument.color, width: `${String(row.weight)}%` }}
-          />
-        ))}
-      </div>
-      <div className={styles.allocationLegend}>
-        {rows.slice(0, 8).map((row) => (
-          <span className={styles.legendItem} key={row.holding.ticker}>
-            <span className={styles.legendDot} style={{ backgroundColor: row.instrument.color }} />
-            <strong>{row.holding.ticker}</strong>
-            <span>{row.weight.toFixed(0)}%</span>
-          </span>
-        ))}
-      </div>
-    </>
-  );
-}
-
-function MoverRow({
-  instrument,
-  onOpenStock,
-}: {
-  instrument: Instrument;
-  onOpenStock: (ticker: string) => void;
-}) {
-  return (
-    <button
-      className={styles.moverRow}
-      onClick={() => {
-        onOpenStock(instrument.ticker);
-      }}
-      type="button"
-    >
-      <TickerMark instrument={instrument} size={34} />
-      <span className={styles.moverMain}>
-        <strong>{instrument.ticker}</strong>
-        <span>{instrument.name}</span>
-      </span>
-      <Sparkline daily={instrument.daily} width={58} />
-      <span>
-        <MeritValue digits={1} value={toMerits(instrument.price)} />
-        <DeltaPill arrow={false} plain value={instrument.dayChangePct} />
-      </span>
-    </button>
-  );
-}
-
-function CustomRangeControls({
-  maxDate,
-  minDate,
-  onApply,
-}: {
-  maxDate: string;
-  minDate: string;
-  onApply: (range: CustomRange) => void;
-}) {
-  const [from, setFrom] = useState(formatDateInput(dayDate(historyStartOffset())));
-  const [to, setTo] = useState(maxDate);
-  const valid = new Date(from) < new Date(to);
-  return (
-    <div className={styles.customRange}>
-      <input
-        className={styles.dateInput}
-        max={maxDate}
-        min={minDate}
-        onChange={(event) => {
-          setFrom(event.target.value);
-        }}
-        type="date"
-        value={from}
-      />
-      <span className={styles.smallText}>to</span>
-      <input
-        className={styles.dateInput}
-        max={maxDate}
-        min={minDate}
-        onChange={(event) => {
-          setTo(event.target.value);
-        }}
-        type="date"
-        value={to}
-      />
-      <button
-        className={styles.secondaryButton}
-        disabled={!valid}
-        onClick={() => {
-          onApply({ from: new Date(from), to: new Date(to) });
-        }}
-        type="button"
-      >
-        Apply
-      </button>
     </div>
   );
 }
@@ -618,25 +269,4 @@ function RiskReminder() {
       </p>
     </section>
   );
-}
-
-function useAllocationRows(
-  holdings: readonly Holding[],
-  instrumentMap: ReadonlyMap<string, Instrument>,
-): readonly AllocationRow[] {
-  return useMemo(() => {
-    const mapped = holdings.map((holding) => {
-      const instrument = instrumentMap.get(holding.ticker) ?? instrumentForTicker(holding.ticker);
-      const value = toMerits(holding.units * instrument.price);
-      return { holding, instrument, value };
-    });
-    const total = mapped.reduce((sum, r) => sum + r.value, 0) || 1;
-    return mapped
-      .map((r) => ({ ...r, weight: (r.value / total) * 100 }))
-      .sort((left, right) => right.value - left.value);
-  }, [holdings, instrumentMap]);
-}
-
-function historyStartOffset(): number {
-  return 400 - 90;
 }
