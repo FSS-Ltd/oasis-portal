@@ -68,7 +68,7 @@ export interface NavDto {
 }
 
 export interface AccountTransaction {
-  id: number;
+  id: string;
   type: 'Buy' | 'Sell';
   units: number;
   nav: number;
