@@ -16,7 +16,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { api } from '@/lib/trpc';
-import { canUseStudentInvestPrototype } from '@/lib/student-invest-feature';
 
 const studentNavItems = [
   { href: '/student', label: 'Home', icon: Home, bottomNav: true },
@@ -33,17 +32,12 @@ const studentNavItems = [
 ] as const;
 
 const navIconSize = 16;
-const visibleStudentNavItems = studentNavItems.filter(
-  (item) =>
-    item.href !== '/student/invest' ||
-    canUseStudentInvestPrototype({ NEXT_PUBLIC_VERCEL_ENV: process.env.NEXT_PUBLIC_VERCEL_ENV }),
-);
 
 function useVisibleStudentNavItems() {
   const profile = api.student.me.useQuery(undefined, { retry: false });
   const academicScreensEnabled = profile.data?.academicScreensEnabled ?? false;
 
-  return visibleStudentNavItems.filter(
+  return studentNavItems.filter(
     (item) =>
       (item.href !== '/student/pace' && item.href !== '/student/attendance') ||
       academicScreensEnabled,
