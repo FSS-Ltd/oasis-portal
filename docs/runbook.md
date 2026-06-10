@@ -316,7 +316,61 @@ seed storage — the seed must be persisted per student on their first buy
 and never regenerated. If regenerated, you'll see a discontinuous NAV
 history; the fix is to reseed from the first-buy timestamp and replay.
 
-### 5.5 Clerk sign-in throttling / outage
+### 5.5 Twelve Data provider outage
+
+**Symptom:** the live-investment refresh path stops returning fresh prices or
+logs repeated provider-failure errors from the market-data connector.
+
+1. Check the provider status page and the deployment log for the latest
+   `TWELVE_DATA_API_KEY`-backed request failures.
+2. If the provider is down, stop using the provider for the current window and
+   keep the last known snapshot in place; do not invent new market values.
+3. Keep the API in read-only market-data mode for the affected window if the
+   provider is unavailable for more than one refresh cycle.
+4. Record the failed window and the last good snapshot so the operator can
+   reconcile the next successful refresh.
+
+### 5.6 Twelve Data credit exhaustion / quota guard
+
+**Symptom:** refresh attempts return a quota-exhausted response and no new
+snapshot is written.
+
+1. Check the provider dashboard or billing panel for remaining credits.
+2. If credits are exhausted, pause non-essential refreshes and let the stale
+   snapshot remain until a new window opens.
+3. Confirm no ledger rows were written during the blocked refresh; the guard
+   should leave account balances unchanged.
+4. When credits return, run the refresh again and verify the next snapshot is
+   marked fresh.
+
+### 5.7 Closed market / stale quote window
+
+**Symptom:** the valuation endpoint shows stale data or the market-data snapshot
+is older than the expected refresh cadence.
+
+1. Confirm the instrument's market calendar before treating the data as an
+   incident; overnight, weekend, or holiday windows are expected to stay stale.
+2. If the market is closed but the provider still returns a stale quote, keep the
+   last known snapshot and do not create synthetic movements.
+3. If the market is open and the quote remains stale beyond the expected window,
+   treat it as a provider incident and follow the outage playbook above.
+4. Record the last good timestamp and the refreshed-at timestamp for the next
+   handoff.
+
+### 5.8 Live investment data verification
+
+**Source of truth:** use the Phase 8 plan in `docs/phase-8-live-investment-data-plan.md`
+for the current verification checklist and expected commands.
+
+1. Re-run the investment domain regression set and the API invariant suite that
+   covers buy/sell balances, stale reads, quota guard, provider fallback, and
+   learning-adjusted valuation.
+2. Verify the operator can read the same status from the runbook and the plan
+   without needing a second checklist.
+3. If a regression appears, fix the test first, then update the runbook only if
+   the operator workflow changed.
+
+### 5.9 Clerk sign-in throttling / outage
 
 1. Check https://status.clerk.com.
 2. If Clerk is down: API rejects with UNAUTHORIZED (session verification
@@ -324,7 +378,7 @@ history; the fix is to reseed from the first-buy timestamp and replay.
    Communicate via status page.
 3. For rate-limited users: Clerk dashboard → user → reset rate limit.
 
-### 5.6 Clerk 2FA enforcement and recovery
+### 5.10 Clerk 2FA enforcement and recovery
 
 2FA enforcement is currently feature-flagged off until the Clerk upgrade is
 complete. To enable it, set `OASIS_ENFORCE_2FA=true` in the relevant preview or
