@@ -188,6 +188,10 @@ export function SupervisorSmokeScreen() {
     ? numericInput(paceNumber, selectedPaceSubject.currentPaceNumber)
     : 0;
   const activePaceScore = numericInput(paceScore, 0);
+  const selfTestExistsForPace =
+    selectedPaceSubject !== null &&
+    activePaceNumber > 0 &&
+    selectedPaceSubject.selfTestPaceNumbers.includes(activePaceNumber);
   const selectedStudentName =
     attendance.data?.find((row) => row.studentId === activeStudentId)?.studentName ?? 'None';
   const markedAttendance = (attendance.data ?? []).filter((row) => row.status).length;
@@ -580,6 +584,7 @@ export function SupervisorSmokeScreen() {
                 {paceTestTypes.map((type) => (
                   <SmokeButton
                     compact
+                    disabled={type === 'FinalTest' && !selfTestExistsForPace}
                     key={type}
                     label={type === 'SelfTest' ? 'Self' : 'Final'}
                     onPress={() => {
@@ -609,6 +614,7 @@ export function SupervisorSmokeScreen() {
                   !activePaceStudentId ||
                   !activePaceSubjectId ||
                   activePaceScore <= 0 ||
+                  (paceTestType === 'FinalTest' && !selfTestExistsForPace) ||
                   recordPace.isPending
                 }
                 label={recordPace.isPending ? 'Saving PACE...' : 'Record PACE score'}
