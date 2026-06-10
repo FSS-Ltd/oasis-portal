@@ -16,6 +16,8 @@ export interface Instrument {
   prevClose: number;
   dayChange: number;
   dayChangePct: number;
+  /** Learning-multiplied day change pct (10× amplified, capped ±8%). Present when live market data is loaded. */
+  learningDayChangePct?: number;
   volatility: number;
   color: string;
   about: string;

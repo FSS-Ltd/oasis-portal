@@ -48,9 +48,9 @@
 .topRow {
   padding: 16px;
   border: 1px solid rgba(91, 144, 197, 0.24);
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
-  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+  box-shadow: 0 1px 4px rgba(27, 43, 94, 0.07);
 }
 
 .titleBlock {
@@ -210,14 +210,14 @@
 .darkCard,
 .noticeCard {
   min-width: 0;
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .card {
   padding: 20px;
   border: 1px solid var(--invest-border);
   background: #ffffff;
-  box-shadow: 0 12px 30px rgba(27, 43, 94, 0.08);
+  box-shadow: 0 1px 4px rgba(27, 43, 94, 0.07);
 }
 
 .cardFlush {
@@ -376,7 +376,7 @@
 .tickerMark {
   width: 42px;
   height: 42px;
-  border-radius: 8px;
+  border-radius: 10px;
   color: #ffffff;
   font-weight: 900;
   box-shadow: inset 0 -2px 6px rgba(0, 0, 0, 0.16);
@@ -500,6 +500,32 @@
 .badgeGrey {
   background: #eef2f9;
   color: var(--invest-text-secondary);
+}
+
+.learningBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.learningBadgeItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.67rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.learningBadgeLabel {
+  color: var(--invest-text-muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .badgeGold {
@@ -729,7 +755,7 @@
   display: grid;
   gap: 4px;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--invest-surface-alt);
 }
 
@@ -857,7 +883,7 @@
 .activityIcon {
   width: 38px;
   height: 38px;
-  border-radius: 8px;
+  border-radius: 10px;
   font-weight: 900;
 }
 

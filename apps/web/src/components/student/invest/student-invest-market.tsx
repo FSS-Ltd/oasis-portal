@@ -23,6 +23,7 @@ import {
   toMerits,
   type CustomRange,
   type Holding,
+  type Instrument,
   type RangeId,
 } from './student-invest-data';
 import {
@@ -31,6 +32,7 @@ import {
   HelpTip,
   InvestmentBadge,
   InvestmentCard,
+  LearningBadge,
   MeritIcon,
   MeritValue,
   RangeTabs,
@@ -43,12 +45,16 @@ import styles from './student-invest.module.css';
 
 interface MarketProps {
   holdings: readonly Holding[];
+  liveInstruments?: readonly Instrument[];
+  marketFreshness?: string | undefined;
+  marketLoading?: boolean;
   onOpenStock: (ticker: string) => void;
 }
 
 interface StockDetailProps {
   cashMerits: number;
   holdings: readonly Holding[];
+  liveInstruments?: readonly Instrument[];
   onBack: () => void;
   onBuy: (ticker: string, merits: number) => void;
   onSell: (ticker: string, merits: number) => void;
@@ -59,13 +65,20 @@ interface StockDetailProps {
 type MarketFilter = 'All' | 'ETFs' | 'Stocks';
 type MarketSort = 'largest' | 'gainers' | 'losers';
 
-export function InvestmentMarket({ holdings, onOpenStock }: MarketProps) {
+export function InvestmentMarket({
+  holdings,
+  liveInstruments,
+  marketFreshness,
+  marketLoading,
+  onOpenStock,
+}: MarketProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MarketFilter>('All');
   const [sort, setSort] = useState<MarketSort>('largest');
+  const sourceInstruments = liveInstruments ?? instruments;
   const heldTickers = new Set(holdings.filter(isPositiveHolding).map((holding) => holding.ticker));
   const filteredInstruments = useMemo(() => {
-    return instruments
+    return sourceInstruments
       .filter((instrument) => {
         if (filter === 'ETFs' && instrument.type !== 'etf') return false;
         if (filter === 'Stocks' && instrument.type !== 'stock') return false;
@@ -78,7 +91,7 @@ export function InvestmentMarket({ holdings, onOpenStock }: MarketProps) {
         if (sort === 'losers') return left.dayChangePct - right.dayChangePct;
         return right.price - left.price;
       });
-  }, [filter, query, sort]);
+  }, [filter, query, sort, sourceInstruments]);
 
   return (
     <>
@@ -133,112 +146,194 @@ export function InvestmentMarket({ holdings, onOpenStock }: MarketProps) {
         </select>
       </div>
 
+      {marketFreshness === 'stale' ? (
+        <div className={styles.noticeCard} role="status">
+          <span>⚠</span>
+          <span>Market prices may be delayed. Last available snapshot shown.</span>
+        </div>
+      ) : null}
+      {marketFreshness === 'empty' ? (
+        <p className={styles.emptyState}>Market data is unavailable. Check back during LSE trading hours.</p>
+      ) : null}
+
       <InvestmentCard flush>
-        <div className={styles.marketDesktop}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {['Name', 'Price', 'Today', '30-day', 'Risk', ''].map((label) => (
-                  <th className={styles.tableHead} key={label}>
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+        {marketLoading ? (
+          <MarketSkeleton />
+        ) : (
+          <>
+            <div className={styles.marketDesktop}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    {['Name', 'Price', 'Today', '30-day', 'Risk', ''].map((label) => (
+                      <th className={styles.tableHead} key={label}>
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInstruments.map((instrument) => (
+                    <tr
+                      key={instrument.ticker}
+                      onClick={() => {
+                        onOpenStock(instrument.ticker);
+                      }}
+                    >
+                      <td>
+                        <span className={styles.stockNameCell}>
+                          <TickerMark instrument={instrument} size={38} />
+                          <span>
+                            <strong>{instrument.ticker}</strong>{' '}
+                            <InvestmentBadge tone={instrument.type === 'etf' ? 'blue' : 'grey'}>
+                              {instrument.type === 'etf' ? 'ETF' : 'Stock'}
+                            </InvestmentBadge>{' '}
+                            {heldTickers.has(instrument.ticker) ? (
+                              <InvestmentBadge tone="gold">Owned</InvestmentBadge>
+                            ) : null}
+                            <br />
+                            <span className={styles.smallText}>
+                              {instrument.name} - {instrument.sector}
+                            </span>
+                          </span>
+                        </span>
+                      </td>
+                      <td>{formatMerits(toMerits(instrument.price), 1)}</td>
+                      <td>
+                        {instrument.learningDayChangePct !== undefined ? (
+                          <LearningBadge
+                            learningPct={instrument.learningDayChangePct}
+                            rawPct={instrument.dayChangePct}
+                          />
+                        ) : (
+                          <DeltaPill arrow={false} plain value={instrument.dayChangePct} />
+                        )}
+                      </td>
+                      <td>
+                        <Sparkline daily={instrument.daily} width={96} />
+                      </td>
+                      <td>
+                        <RiskDots instrument={instrument} />
+                      </td>
+                      <td>
+                        <button
+                          className={styles.secondaryButton}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenStock(instrument.ticker);
+                          }}
+                          type="button"
+                        >
+                          Trade
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className={styles.marketMobile}>
               {filteredInstruments.map((instrument) => (
-                <tr
+                <button
+                  className={styles.marketMobileRow}
                   key={instrument.ticker}
                   onClick={() => {
                     onOpenStock(instrument.ticker);
                   }}
+                  type="button"
                 >
-                  <td>
-                    <span className={styles.stockNameCell}>
-                      <TickerMark instrument={instrument} size={38} />
-                      <span>
-                        <strong>{instrument.ticker}</strong>{' '}
-                        <InvestmentBadge tone={instrument.type === 'etf' ? 'blue' : 'grey'}>
-                          {instrument.type === 'etf' ? 'ETF' : 'Stock'}
-                        </InvestmentBadge>{' '}
-                        {heldTickers.has(instrument.ticker) ? (
-                          <InvestmentBadge tone="gold">Owned</InvestmentBadge>
-                        ) : null}
-                        <br />
-                        <span className={styles.smallText}>
-                          {instrument.name} - {instrument.sector}
-                        </span>
-                      </span>
-                    </span>
-                  </td>
-                  <td>{formatMerits(toMerits(instrument.price), 1)}</td>
-                  <td>
+                  <TickerMark instrument={instrument} size={40} />
+                  <span className={styles.marketMain}>
+                    <strong>{instrument.ticker}</strong>
+                    <span>{instrument.name}</span>
+                  </span>
+                  <Sparkline daily={instrument.daily} width={54} />
+                  <span>
+                    <MeritValue value={toMerits(instrument.price)} />
                     <DeltaPill arrow={false} plain value={instrument.dayChangePct} />
-                  </td>
-                  <td>
-                    <Sparkline daily={instrument.daily} width={96} />
-                  </td>
-                  <td>
-                    <RiskDots instrument={instrument} />
-                  </td>
-                  <td>
-                    <button
-                      className={styles.secondaryButton}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenStock(instrument.ticker);
-                      }}
-                      type="button"
-                    >
-                      Trade
-                    </button>
-                  </td>
-                </tr>
+                  </span>
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
-        <div className={styles.marketMobile}>
-          {filteredInstruments.map((instrument) => (
-            <button
-              className={styles.marketMobileRow}
-              key={instrument.ticker}
-              onClick={() => {
-                onOpenStock(instrument.ticker);
-              }}
-              type="button"
-            >
-              <TickerMark instrument={instrument} size={40} />
-              <span className={styles.marketMain}>
-                <strong>{instrument.ticker}</strong>
-                <span>{instrument.name}</span>
-              </span>
-              <Sparkline daily={instrument.daily} width={54} />
-              <span>
-                <MeritValue value={toMerits(instrument.price)} />
-                <DeltaPill arrow={false} plain value={instrument.dayChangePct} />
-              </span>
-            </button>
-          ))}
-        </div>
-        {filteredInstruments.length === 0 ? (
-          <p className={styles.emptyState}>No matches for &quot;{query}&quot;.</p>
-        ) : null}
+            </div>
+            {filteredInstruments.length === 0 ? (
+              <p className={styles.emptyState}>No matches for &quot;{query}&quot;.</p>
+            ) : null}
+          </>
+        )}
       </InvestmentCard>
     </>
+  );
+}
+
+function MarketSkeleton() {
+  return (
+    <div className={styles.marketDesktop}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            {['Name', 'Price', 'Today', '30-day', 'Risk', ''].map((label) => (
+              <th className={styles.tableHead} key={label}>
+                {label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 6 }, (_, index) => (
+            <tr key={index}>
+              <td>
+                <span className={styles.stockNameCell}>
+                  <span
+                    className={styles.tickerMark}
+                    style={{ backgroundColor: '#dde3f0', height: 38, width: 38 }}
+                  />
+                  <span>
+                    <span
+                      style={{
+                        background: '#dde3f0',
+                        borderRadius: 4,
+                        display: 'inline-block',
+                        height: 12,
+                        width: 48 + (index % 3) * 16,
+                      }}
+                    />
+                  </span>
+                </span>
+              </td>
+              {[56, 40, 72, 24].map((w) => (
+                <td key={w}>
+                  <span
+                    style={{
+                      background: '#dde3f0',
+                      borderRadius: 4,
+                      display: 'inline-block',
+                      height: 12,
+                      width: w,
+                    }}
+                  />
+                </td>
+              ))}
+              <td />
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 export function InvestmentStockDetail({
   cashMerits,
   holdings,
+  liveInstruments,
   onBack,
   onBuy,
   onSell,
   onToast,
   ticker,
 }: StockDetailProps) {
-  const instrument = instrumentForTicker(ticker);
+  const instrument =
+    liveInstruments?.find((i) => i.ticker === ticker) ?? instrumentForTicker(ticker);
   const holding = holdings.find((item) => item.ticker === ticker && item.units > 0);
   const [range, setRange] = useState<RangeId>('3M');
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
@@ -299,7 +394,14 @@ export function InvestmentStockDetail({
             <span className={instrument.dayChange >= 0 ? styles.positiveText : styles.negativeText}>
               {formatSignedMerits(toMerits(instrument.dayChange), 2)}
             </span>
-            <DeltaPill plain value={instrument.dayChangePct} />
+            {instrument.learningDayChangePct !== undefined ? (
+              <LearningBadge
+                learningPct={instrument.learningDayChangePct}
+                rawPct={instrument.dayChangePct}
+              />
+            ) : (
+              <DeltaPill plain value={instrument.dayChangePct} />
+            )}
             <span className={styles.smallText}>{formatGbp(instrument.price)}</span>
           </div>
         </div>
