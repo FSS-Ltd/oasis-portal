@@ -709,6 +709,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       },
     ]);
     expect(db.user.findMany).toHaveBeenCalledWith({
+      where: { role: { not: 'Student' } },
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {
