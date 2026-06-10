@@ -61,6 +61,21 @@ export interface RangeOption {
   days: number;
 }
 
+export interface NavDto {
+  date: Date;
+  nav: number;
+  dailyReturn: number;
+}
+
+export interface AccountTransaction {
+  id: string;
+  type: 'Buy' | 'Sell';
+  units: number;
+  nav: number;
+  feeMerits: number;
+  createdAt: Date;
+}
+
 interface RawInstrument {
   ticker: string;
   name: string;
@@ -73,15 +88,13 @@ interface RawInstrument {
   about: string;
 }
 
-export const today = new Date(2026, 5, 4);
+export const today = new Date();
 export const historyDays = 400;
 export const meritGbp = 10;
-export const spendWalletBalance = 238;
 export const withdrawFeePct = 5;
 export const capitalGainsTaxPct = 15;
 
 export const msDay = 86_400_000;
-const liveHoldingUnitThreshold = 0.000001;
 
 export const rangeOptions: readonly RangeOption[] = [
   { id: '1D', label: '1D', days: 1 },
@@ -91,15 +104,6 @@ export const rangeOptions: readonly RangeOption[] = [
   { id: '1Y', label: '1Y', days: 365 },
   { id: 'ALL', label: 'All', days: historyDays },
 ];
-
-export const studentInvestor = {
-  name: 'Grace Williams',
-  firstName: 'Grace',
-  initials: 'GW',
-  year: 'Y8',
-  tutor: 'Mrs Thompson',
-  color: '#7d3c98',
-} as const;
 
 const rawInstruments: readonly RawInstrument[] = [
   {
@@ -287,89 +291,6 @@ const rawInstruments: readonly RawInstrument[] = [
   },
 ];
 
-export const initialHoldings: readonly Holding[] = [
-  { ticker: 'VUSA', units: 8.1, avgCost: 64.8 },
-  { ticker: 'EQQQ', units: 1.05, avgCost: 298.4 },
-  { ticker: 'AAPL', units: 1.6, avgCost: 151.2 },
-  { ticker: 'MSFT', units: 0.62, avgCost: 305.1 },
-  { ticker: 'NVDA', units: 3.2, avgCost: 79.5 },
-  { ticker: 'INRG', units: 9.5, avgCost: 9.85 },
-  { ticker: 'DIS', units: 1.4, avgCost: 104.2 },
-  { ticker: 'NKE', units: 1.8, avgCost: 82.6 },
-];
-
-export const initialCashMerits = 18.5;
-
-export const initialTransactions: readonly InvestmentTransaction[] = [
-  {
-    id: 1,
-    kind: 'buy',
-    ticker: 'VUSA',
-    units: 1.2,
-    merits: 8.5,
-    date: '28 May 2026',
-    note: 'Recurring weekly invest',
-  },
-  {
-    id: 2,
-    kind: 'award',
-    ticker: null,
-    units: 0,
-    merits: 15,
-    date: '26 May 2026',
-    note: 'Scripture Memory merit to Investment',
-  },
-  {
-    id: 3,
-    kind: 'sell',
-    ticker: 'TSLA',
-    units: 0.4,
-    merits: 8.6,
-    date: '21 May 2026',
-    note: 'Trimmed a volatile holding',
-  },
-  { id: 4, kind: 'buy', ticker: 'NVDA', units: 0.8, merits: 8.4, date: '19 May 2026', note: '' },
-  {
-    id: 5,
-    kind: 'dividend',
-    ticker: 'KO',
-    units: 0,
-    merits: 0.6,
-    date: '15 May 2026',
-    note: 'Quarterly dividend',
-  },
-  { id: 6, kind: 'buy', ticker: 'INRG', units: 4.5, merits: 4, date: '12 May 2026', note: '' },
-  {
-    id: 7,
-    kind: 'withdraw',
-    ticker: null,
-    units: 0,
-    merits: -12,
-    date: '8 May 2026',
-    note: 'To Spend wallet',
-  },
-  { id: 8, kind: 'buy', ticker: 'AAPL', units: 0.6, merits: 9.5, date: '2 May 2026', note: '' },
-  {
-    id: 9,
-    kind: 'award',
-    ticker: null,
-    units: 0,
-    merits: 10,
-    date: '28 Apr 2026',
-    note: 'Academic Excellence merit to Investment',
-  },
-  { id: 10, kind: 'buy', ticker: 'EQQQ', units: 0.3, merits: 9.6, date: '21 Apr 2026', note: '' },
-  {
-    id: 11,
-    kind: 'dividend',
-    ticker: 'VUSA',
-    units: 0,
-    merits: 1.1,
-    date: '15 Apr 2026',
-    note: 'Fund distribution',
-  },
-  { id: 12, kind: 'sell', ticker: 'DIS', units: 0.3, merits: 2.9, date: '9 Apr 2026', note: '' },
-];
 
 function hashString(value: string): number {
   let hash = 1_779_033_703 ^ value.length;
@@ -471,39 +392,6 @@ export function instrumentForTicker(ticker: string): Instrument {
   return instrument;
 }
 
-export function holdingValueMerits(holding: Holding): number {
-  return toMerits(holding.units * instrumentForTicker(holding.ticker).price);
-}
-
-export function holdingCostMerits(holding: Holding): number {
-  return toMerits(holding.units * holding.avgCost);
-}
-
-export function holdingsValueMerits(holdings: readonly Holding[]): number {
-  return holdings.reduce((total, holding) => total + holdingValueMerits(holding), 0);
-}
-
-export function holdingsCostMerits(holdings: readonly Holding[]): number {
-  return holdings.reduce((total, holding) => total + holdingCostMerits(holding), 0);
-}
-
-export function netWorthMerits(holdings: readonly Holding[], cashMerits: number): number {
-  return holdingsValueMerits(holdings) + cashMerits;
-}
-
-export function holdingDayProfitLoss(holding: Holding): number {
-  const instrument = instrumentForTicker(holding.ticker);
-  return toMerits(holding.units * (instrument.price - instrument.prevClose));
-}
-
-export function isLiveHolding(holding: Holding): boolean {
-  return holding.units > liveHoldingUnitThreshold;
-}
-
-export function isPositiveHolding(holding: Holding): boolean {
-  return holding.units > 0;
-}
-
 export function percentChange(first: number, last: number): number {
   return ((last - first) / (first || 1)) * 100;
 }
@@ -538,57 +426,18 @@ export function sliceInstrumentSeries(
   };
 }
 
-export function portfolioSeries(
-  holdings: readonly Holding[],
-  cashMerits: number,
-  rangeId: RangeId,
-  customRange: CustomRange | null,
-): ChartSeries {
-  const liveHoldings = holdings.filter(isLiveHolding);
-  if (rangeId === '1D' && !customRange) {
-    const points = Array.from({ length: 32 }, (_, index) => {
-      const gbp = liveHoldings.reduce(
-        (total, holding) =>
-          total +
-          holding.units *
-            (instrumentForTicker(holding.ticker).intraday[index] ??
-              instrumentForTicker(holding.ticker).price),
-        0,
-      );
-      return {
-        x: index / 31,
-        value: cashMerits + toMerits(gbp),
-        date: today,
-      };
-    });
-    return {
-      points,
-      first: points[0]?.value ?? cashMerits,
-      last: points[points.length - 1]?.value ?? cashMerits,
-    };
-  }
 
-  const { startIndex, endIndex } = seriesIndexes(rangeId, customRange);
-  const points: ChartPoint[] = [];
-  for (let index = startIndex; index <= endIndex; index += 1) {
-    const gbp = liveHoldings.reduce(
-      (total, holding) =>
-        total +
-        holding.units *
-          (instrumentForTicker(holding.ticker).daily[index] ??
-            instrumentForTicker(holding.ticker).price),
-      0,
-    );
-    points.push({
-      x: (index - startIndex) / (endIndex - startIndex || 1),
-      value: cashMerits + toMerits(gbp),
-      date: dayDate(index),
-    });
-  }
+export function navHistoryToChartSeries(history: readonly NavDto[]): ChartSeries {
+  if (history.length === 0) return { points: [], first: 0, last: 0 };
+  const points = history.map((entry, index) => ({
+    x: index / (history.length - 1 || 1),
+    value: entry.nav,
+    date: new Date(entry.date),
+  }));
   return {
     points,
-    first: points[0]?.value ?? cashMerits,
-    last: points[points.length - 1]?.value ?? cashMerits,
+    first: points[0]?.value ?? 0,
+    last: points[points.length - 1]?.value ?? 0,
   };
 }
 

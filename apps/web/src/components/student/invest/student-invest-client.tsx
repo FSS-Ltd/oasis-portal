@@ -1,74 +1,87 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { History, LineChart, Store, WalletCards, type LucideIcon } from 'lucide-react';
+import { History, LineChart, Store, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/trpc';
 import {
   formatMerits,
-  initialCashMerits,
-  initialHoldings,
-  initialTransactions,
-  instrumentForTicker,
   instruments,
   meritGbp,
-  studentInvestor,
-  today,
-  toMerits,
-  type Holding,
   type Instrument,
-  type InvestmentTransaction,
   type RangeId,
 } from './student-invest-data';
-import {
-  InvestmentActivity,
-  InvestmentWithdraw,
-  proportionalWithdrawalScale,
-} from './student-invest-extras';
+import { InvestmentActivity } from './student-invest-extras';
 import { InvestmentMarket, InvestmentStockDetail } from './student-invest-market';
-import { InvestmentOverview, InvestmentPortfolio } from './student-invest-overview';
+import { InvestmentOverview } from './student-invest-overview';
 import { MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
-type Screen = 'activity' | 'market' | 'overview' | 'portfolio' | 'stock' | 'withdraw';
+type Screen = 'activity' | 'market' | 'overview' | 'stock';
 
 interface ViewState {
   screen: Screen;
   ticker: string | null;
 }
 
-interface SavedState {
-  cashMerits: number;
-  holdings: readonly Holding[];
-  transactions: readonly InvestmentTransaction[];
-}
-
-const storageKey = 'oasis-student-invest-v1';
 const defaultRange: RangeId = '1M';
 
 const navItems: readonly {
   icon: LucideIcon;
   label: string;
-  screen: Exclude<Screen, 'stock' | 'withdraw'>;
+  screen: Exclude<Screen, 'stock'>;
 }[] = [
   { icon: LineChart, label: 'Overview', screen: 'overview' },
-  { icon: WalletCards, label: 'Portfolio', screen: 'portfolio' },
   { icon: Store, label: 'Market', screen: 'market' },
   { icon: History, label: 'Activity', screen: 'activity' },
 ];
 
 export function StudentInvestClient() {
-  const [holdings, setHoldings] = useState<readonly Holding[]>(initialHoldings);
-  const [cashMerits, setCashMerits] = useState(initialCashMerits);
-  const [transactions, setTransactions] =
-    useState<readonly InvestmentTransaction[]>(initialTransactions);
   const [view, setView] = useState<ViewState>({ screen: 'overview', ticker: null });
   const [toast, setToast] = useState<string | null>(null);
-  const [stateLoaded, setStateLoaded] = useState(false);
+
+  const dashboardQuery = api.student.dashboard.useQuery(undefined, { retry: false });
+  const studentId = dashboardQuery.data?.profile.studentId;
+  const spendBalance = dashboardQuery.data?.merits.balances.Spend ?? 0;
+  const studentFirstName = dashboardQuery.data?.profile.firstName ?? '';
+
+  const accountQuery = api.investment.account.useQuery(
+    { studentId: studentId ?? '' },
+    { enabled: !!studentId, refetchInterval: 60_000 },
+  );
+
+  const navHistoryQuery = api.investment.navHistory.useQuery(
+    { days: 365 },
+    { enabled: !!studentId },
+  );
 
   const marketQuery = api.investment.marketData.useQuery(undefined, {
     refetchInterval: 5 * 60 * 1000,
     retry: false,
+  });
+
+  const buyMutation = api.investment.buy.useMutation({
+    onSuccess: (data) => {
+      void accountQuery.refetch();
+      void dashboardQuery.refetch();
+      setToast(
+        `Invested ${formatMerits(data.unitsBought * data.nav.nav, 1)} merits — ${data.unitsBought.toFixed(4)} units added.`,
+      );
+    },
+    onError: () => {
+      setToast('Investment failed. Check your Spend balance and try again.');
+    },
+  });
+
+  const sellMutation = api.investment.sell.useMutation({
+    onSuccess: () => {
+      void accountQuery.refetch();
+      void dashboardQuery.refetch();
+      setToast('Withdrawal complete — merits returned to your Spend wallet.');
+    },
+    onError: () => {
+      setToast('Withdrawal failed. Check your available units and try again.');
+    },
   });
 
   const liveInstruments = useMemo<readonly Instrument[]>(() => {
@@ -94,44 +107,12 @@ export function StudentInvestClient() {
   const marketFreshness = marketQuery.data?.freshness;
   const marketLoading = marketQuery.isLoading && !marketQuery.data;
 
-  const liveHoldings = holdings.filter((holding) => holding.units > 0.000001);
-
-  const liveInstrumentMap = useMemo(
-    () => new Map(liveInstruments.map((i) => [i.ticker, i])),
-    [liveInstruments],
-  );
-
-  const netWorth = useMemo(() => {
-    const holdingsValue = liveHoldings.reduce((total, h) => {
-      const inst = liveInstrumentMap.get(h.ticker) ?? instrumentForTicker(h.ticker);
-      return total + toMerits(h.units * inst.price);
-    }, 0);
-    return holdingsValue + cashMerits;
-  }, [liveHoldings, liveInstrumentMap, cashMerits]);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved) as Partial<SavedState>;
-        if (Array.isArray(parsed.holdings)) setHoldings(parsed.holdings);
-        if (typeof parsed.cashMerits === 'number') setCashMerits(parsed.cashMerits);
-        if (Array.isArray(parsed.transactions)) setTransactions(parsed.transactions);
-      }
-    } catch {
-      window.localStorage.removeItem(storageKey);
-    } finally {
-      setStateLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!stateLoaded) return;
-    window.localStorage.setItem(
-      storageKey,
-      JSON.stringify({ cashMerits, holdings, transactions } satisfies SavedState),
-    );
-  }, [cashMerits, holdings, stateLoaded, transactions]);
+  const units = accountQuery.data?.units ?? 0;
+  const currentValueMerits = accountQuery.data?.currentValueMerits ?? 0;
+  const costBasisMerits = accountQuery.data?.costBasisMerits ?? 0;
+  const latestNav = accountQuery.data?.latestNav ?? null;
+  const transactions = accountQuery.data?.transactions ?? [];
+  const navHistory = navHistoryQuery.data ?? [];
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -148,116 +129,21 @@ export function StudentInvestClient() {
     window.scrollTo({ top: 0 });
   }, []);
 
-  const nextTransactionId = useCallback(
-    () => Math.max(0, ...transactions.map((transaction) => transaction.id)) + 1,
-    [transactions],
-  );
-
-  const todayLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      }).format(today),
-    [],
-  );
-
   const buy = useCallback(
-    (ticker: string, merits: number) => {
-      const instrument = liveInstrumentMap.get(ticker) ?? instrumentForTicker(ticker);
-      const unitsToAdd = merits / toMerits(instrument.price);
-      setHoldings((currentHoldings) => {
-        const existing = currentHoldings.find((holding) => holding.ticker === ticker);
-        if (!existing) {
-          return [...currentHoldings, { avgCost: instrument.price, ticker, units: unitsToAdd }];
-        }
-        const totalUnits = existing.units + unitsToAdd;
-        const avgCost =
-          (existing.units * existing.avgCost + unitsToAdd * instrument.price) / totalUnits;
-        return currentHoldings.map((holding) =>
-          holding.ticker === ticker ? { ...holding, avgCost, units: totalUnits } : holding,
-        );
-      });
-      setCashMerits((currentCash) => Number((currentCash - merits).toFixed(4)));
-      setTransactions((currentTransactions) => [
-        {
-          date: todayLabel,
-          id: nextTransactionId(),
-          kind: 'buy',
-          merits,
-          note: '',
-          ticker,
-          units: unitsToAdd,
-        },
-        ...currentTransactions,
-      ]);
+    (merits: number) => {
+      if (!studentId) return;
+      buyMutation.mutate({ studentId, merits });
     },
-    [liveInstrumentMap, nextTransactionId, todayLabel],
+    [buyMutation, studentId],
   );
 
   const sell = useCallback(
-    (ticker: string, merits: number) => {
-      const instrument = liveInstrumentMap.get(ticker) ?? instrumentForTicker(ticker);
-      const unitsToRemove = merits / toMerits(instrument.price);
-      setHoldings((currentHoldings) =>
-        currentHoldings
-          .map((holding) =>
-            holding.ticker === ticker
-              ? { ...holding, units: Math.max(0, holding.units - unitsToRemove) }
-              : holding,
-          )
-          .filter((holding) => holding.units > 0.0001),
-      );
-      setCashMerits((currentCash) => Number((currentCash + merits).toFixed(4)));
-      setTransactions((currentTransactions) => [
-        {
-          date: todayLabel,
-          id: nextTransactionId(),
-          kind: 'sell',
-          merits,
-          note: '',
-          ticker,
-          units: unitsToRemove,
-        },
-        ...currentTransactions,
-      ]);
+    (sellUnits: number) => {
+      if (!studentId) return;
+      sellMutation.mutate({ studentId, units: sellUnits });
     },
-    [liveInstrumentMap, nextTransactionId, todayLabel],
+    [sellMutation, studentId],
   );
-
-  const withdraw = useCallback(
-    (grossMerits: number, netMerits: number) => {
-      const scale = proportionalWithdrawalScale(liveHoldings, cashMerits, grossMerits);
-      setHoldings((currentHoldings) =>
-        currentHoldings
-          .map((holding) => ({ ...holding, units: holding.units * scale }))
-          .filter((holding) => holding.units > 0.0001),
-      );
-      setCashMerits((currentCash) => Number((currentCash * scale).toFixed(4)));
-      setTransactions((currentTransactions) => [
-        {
-          date: todayLabel,
-          id: nextTransactionId(),
-          kind: 'withdraw',
-          merits: -grossMerits,
-          note: `${formatMerits(netMerits, 1)} to Spend wallet`,
-          ticker: null,
-          units: 0,
-        },
-        ...currentTransactions,
-      ]);
-    },
-    [cashMerits, liveHoldings, nextTransactionId, todayLabel],
-  );
-
-  const resetPrototype = useCallback(() => {
-    setHoldings(initialHoldings);
-    setCashMerits(initialCashMerits);
-    setTransactions(initialTransactions);
-    setToast('Portfolio reset to its starting state.');
-    navigate('overview');
-  }, [navigate]);
 
   return (
     <div className={styles.shell}>
@@ -265,23 +151,17 @@ export function StudentInvestClient() {
         <div className={styles.titleBlock}>
           <p className={styles.eyebrow}>Merit Markets</p>
           <h1>Investment portfolio</h1>
-          <p>
-            {studentInvestor.name} - {studentInvestor.year} - {studentInvestor.tutor}
-          </p>
+          {studentFirstName ? (
+            <p>{studentFirstName}&apos;s investment account</p>
+          ) : null}
         </div>
         <div className={styles.topActions}>
-          <div className={styles.studentAvatar} style={{ backgroundColor: studentInvestor.color }}>
-            {studentInvestor.initials}
-          </div>
           <div className={styles.walletValue}>
-            <span className={styles.metaLabel}>Net worth</span>
+            <span className={styles.metaLabel}>Portfolio value</span>
             <strong>
-              <MeritIcon size={16} /> {formatMerits(netWorth, 1)}
+              <MeritIcon size={16} /> {formatMerits(currentValueMerits, 1)}
             </strong>
           </div>
-          <button className={styles.secondaryButton} onClick={resetPrototype} type="button">
-            Reset
-          </button>
         </div>
       </section>
 
@@ -290,8 +170,7 @@ export function StudentInvestClient() {
           const Icon = item.icon;
           const active =
             view.screen === item.screen ||
-            (item.screen === 'market' && view.screen === 'stock') ||
-            (item.screen === 'overview' && view.screen === 'withdraw');
+            (item.screen === 'market' && view.screen === 'stock');
           return (
             <button
               className={cn(styles.tabButton, active ? styles.tabButtonActive : undefined)}
@@ -310,35 +189,26 @@ export function StudentInvestClient() {
 
       {view.screen === 'overview' ? (
         <InvestmentOverview
-          cashMerits={cashMerits}
+          costBasisMerits={costBasisMerits}
+          currentValueMerits={currentValueMerits}
           defaultRange={defaultRange}
-          holdings={holdings}
-          liveInstruments={liveInstruments}
+          isBuying={buyMutation.isPending}
+          isSelling={sellMutation.isPending}
+          latestNav={latestNav}
+          loading={accountQuery.isLoading}
+          navHistory={navHistory}
+          onBuy={buy}
           onNavigate={(screen) => {
             navigate(screen);
           }}
-          onOpenStock={(ticker) => {
-            navigate('stock', ticker);
-          }}
-        />
-      ) : null}
-      {view.screen === 'portfolio' ? (
-        <InvestmentPortfolio
-          cashMerits={cashMerits}
-          defaultRange={defaultRange}
-          holdings={holdings}
-          liveInstruments={liveInstruments}
-          onNavigate={(screen) => {
-            navigate(screen);
-          }}
-          onOpenStock={(ticker) => {
-            navigate('stock', ticker);
-          }}
+          onSell={sell}
+          spendBalance={spendBalance}
+          studentFirstName={studentFirstName}
+          units={units}
         />
       ) : null}
       {view.screen === 'market' ? (
         <InvestmentMarket
-          holdings={holdings}
           liveInstruments={liveInstruments}
           marketFreshness={marketFreshness}
           marketLoading={marketLoading}
@@ -349,27 +219,11 @@ export function StudentInvestClient() {
       ) : null}
       {view.screen === 'stock' && view.ticker ? (
         <InvestmentStockDetail
-          cashMerits={cashMerits}
-          holdings={holdings}
           liveInstruments={liveInstruments}
           onBack={() => {
             navigate('market');
           }}
-          onBuy={buy}
-          onSell={sell}
-          onToast={setToast}
           ticker={view.ticker}
-        />
-      ) : null}
-      {view.screen === 'withdraw' ? (
-        <InvestmentWithdraw
-          cashMerits={cashMerits}
-          holdings={holdings}
-          onBack={() => {
-            navigate('overview');
-          }}
-          onToast={setToast}
-          onWithdraw={withdraw}
         />
       ) : null}
       {view.screen === 'activity' ? <InvestmentActivity transactions={transactions} /> : null}
