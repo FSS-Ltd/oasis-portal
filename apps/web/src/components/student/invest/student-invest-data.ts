@@ -436,8 +436,8 @@ export function navHistoryToChartSeries(history: readonly NavDto[]): ChartSeries
   }));
   return {
     points,
-    first: points[0]!.value,
-    last: points[points.length - 1]!.value,
+    first: points[0]?.value ?? 0,
+    last: points[points.length - 1]?.value ?? 0,
   };
 }
 

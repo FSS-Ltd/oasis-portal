@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { formatDate, formatMerits, withdrawFeePct, type AccountTransaction } from './student-invest-data';
-import { InvestmentCard, MeritIcon, MeritValue } from './student-invest-ui';
+import { formatDate, formatMerits, type AccountTransaction } from './student-invest-data';
+import { InvestmentCard, MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
 interface ActivityProps {

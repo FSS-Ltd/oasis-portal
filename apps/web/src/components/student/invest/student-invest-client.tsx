@@ -46,7 +46,7 @@ export function StudentInvestClient() {
   const studentFirstName = dashboardQuery.data?.profile.firstName ?? '';
 
   const accountQuery = api.investment.account.useQuery(
-    { studentId: studentId! },
+    { studentId: studentId ?? '' },
     { enabled: !!studentId, refetchInterval: 60_000 },
   );
 

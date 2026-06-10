@@ -85,8 +85,8 @@ export function InvestmentOverview({
     }));
     return {
       points: scaled,
-      first: scaled[0]!.value,
-      last: scaled[scaled.length - 1]!.value,
+      first: scaled[0]?.value ?? 0,
+      last: scaled[scaled.length - 1]?.value ?? 0,
     };
   }, [fullSeries, range]);
 
