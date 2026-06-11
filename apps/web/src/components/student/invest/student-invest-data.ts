@@ -8,6 +8,7 @@ export interface CustomRange {
 }
 
 export interface Instrument {
+  instrumentId?: string;
   ticker: string;
   name: string;
   type: InstrumentType;
@@ -18,6 +19,7 @@ export interface Instrument {
   dayChangePct: number;
   /** Learning-multiplied day change pct (10× amplified, capped ±8%). Present when live market data is loaded. */
   learningDayChangePct?: number;
+  priceMerits?: number;
   volatility: number;
   color: string;
   about: string;
@@ -70,10 +72,29 @@ export interface NavDto {
 export interface AccountTransaction {
   id: string;
   type: 'Buy' | 'Sell';
+  instrumentId: string | null;
   units: number;
   nav: number;
   feeMerits: number;
+  grossMerits: number | null;
+  taxMerits: number;
+  costBasisMerits: number | null;
   createdAt: Date;
+}
+
+export interface AccountHolding {
+  id: string;
+  instrumentId: string;
+  symbol: string;
+  displayName: string;
+  kind: string;
+  riskBand: string;
+  units: number;
+  costBasisMerits: number;
+  currentPriceMerits: number;
+  currentValueMerits: number;
+  returnMerits: number;
+  weightPct: number;
 }
 
 interface RawInstrument {

@@ -250,6 +250,7 @@ model Student {
   titheRuns                TitheRun[]
   savingsInterestRuns      SavingsInterestRun[]
   investment               InvestmentAccount?
+  investmentHolding        InvestmentHolding[]
   investmentTx             InvestmentTransaction[]
   shopPurchases            ShopPurchase[]
   shopReservations         ShopReservation[]
@@ -1090,6 +1091,7 @@ enum MeritAccount {
   TithePaid
   Given
   FeeSink
+  TaxSink
   ShopReserved
 }
 
@@ -1181,10 +1183,29 @@ model InvestmentInstrument {
   updatedAt      DateTime @updatedAt
 
   snapshots MarketDataSnapshot[]
+  holdings  InvestmentHolding[]
+  tx        InvestmentTransaction[]
 
   @@unique([provider, providerSymbol])
   @@index([enabled, sortOrder])
   @@index([symbol])
+}
+
+model InvestmentHolding {
+  id              String   @id @default(cuid())
+  studentId       String
+  instrumentId    String
+  units           Decimal  @default(0) @db.Decimal(18, 6)
+  costBasisMerits Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  student    Student              @relation(fields: [studentId], references: [id])
+  instrument InvestmentInstrument @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, instrumentId])
+  @@index([studentId])
+  @@index([instrumentId])
 }
 
 model MarketDataSnapshot {
@@ -1219,14 +1240,20 @@ model InvestmentTransaction {
   id        String           @id @default(cuid())
   studentId String
   type      InvestmentTxType
+  instrumentId    String?
   units     Decimal          @db.Decimal(18, 6)
   nav       Decimal          @db.Decimal(18, 6)
   feeMerits Int              @default(0)
+  grossMerits     Int?
+  taxMerits       Int        @default(0)
+  costBasisMerits Int?
   createdAt DateTime         @default(now())
 
-  student Student @relation(fields: [studentId], references: [id])
+  student    Student               @relation(fields: [studentId], references: [id])
+  instrument InvestmentInstrument? @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
 
   @@index([studentId, createdAt])
+  @@index([instrumentId])
 }
 
 model CharityPot {

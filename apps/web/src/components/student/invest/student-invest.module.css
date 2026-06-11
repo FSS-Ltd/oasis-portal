@@ -318,7 +318,8 @@
 
 .dashboardGrid,
 .marketGrid,
-.withdrawGrid {
+.withdrawGrid,
+.transferGrid {
   display: grid;
   gap: 18px;
 }
@@ -337,6 +338,11 @@
 .marketGrid,
 .withdrawGrid {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 0.5fr);
+}
+
+.transferGrid {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.75fr);
+  align-items: start;
 }
 
 .rightRail {
@@ -938,6 +944,75 @@
   overflow-wrap: anywhere;
 }
 
+.backLink {
+  display: inline-flex;
+  width: fit-content;
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.tableToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.summaryTotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--oasis-border);
+  color: var(--oasis-navy);
+}
+
+.summaryTotal span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--oasis-success);
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.portfolioEmpty {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.portfolioEmpty h2 {
+  margin: 0 0 6px;
+  color: var(--oasis-navy);
+  font-size: 1.05rem;
+}
+
+.portfolioEmpty p {
+  max-width: 480px;
+  margin: 0 0 14px;
+  color: var(--oasis-text-secondary);
+  font-weight: 700;
+}
+
+.skeletonList {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+}
+
+.skeletonList span {
+  display: block;
+  height: 16px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #eef2f9 0%, #dde3f0 45%, #eef2f9 100%);
+}
+
 .withdrawRoute {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -1047,6 +1122,7 @@
   .moversGrid,
   .marketGrid,
   .withdrawGrid,
+  .transferGrid,
   .stockDetailGrid {
     grid-template-columns: 1fr;
   }

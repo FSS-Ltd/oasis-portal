@@ -4,6 +4,8 @@ import {
   AccessDeniedError,
   isFullAdmin,
   planInvestmentBuy,
+  planInvestmentHoldingBuy,
+  planInvestmentPortfolioWithdrawal,
   planInvestmentSell,
   requireOwnChild,
   requireSelfStudent,
@@ -16,6 +18,7 @@ import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
   readCachedInvestmentMarketData,
   refreshTwelveDataQuotes,
+  type MarketDataSnapshotValuationDto,
   type TwelveDataRefreshDb,
 } from '../services/market-data/twelve-data-refresh.js';
 import type { InvestmentMarketDataStorageDb } from '../services/market-data/investment-market-data-storage.js';
@@ -50,9 +53,20 @@ const buyInput = z.object({
   merits: z.number().int().positive(),
 });
 
+const buyHoldingInput = z.object({
+  studentId: z.string().cuid(),
+  instrumentId: z.string().min(1),
+  merits: z.number().int().positive(),
+});
+
 const sellInput = z.object({
   studentId: z.string().cuid(),
   units: z.number().positive(),
+});
+
+const withdrawPortfolioInput = z.object({
+  studentId: z.string().cuid(),
+  grossMerits: z.number().int().positive(),
 });
 
 function startOfUtcDay(date: Date): Date {
@@ -274,6 +288,119 @@ async function latestNavOrTickToday(
   return (await tickToday(store)).nav;
 }
 
+interface HoldingInstrumentDto {
+  id: string;
+  symbol: string;
+  displayName: string;
+  kind: string;
+  riskBand: string;
+  sortOrder: number;
+}
+
+interface HoldingRow {
+  id: string;
+  studentId: string;
+  instrumentId: string;
+  units: Prisma.Decimal;
+  costBasisMerits: number;
+  instrument: HoldingInstrumentDto;
+}
+
+export interface AccountHoldingDto {
+  id: string;
+  instrumentId: string;
+  symbol: string;
+  displayName: string;
+  kind: string;
+  riskBand: string;
+  units: number;
+  costBasisMerits: number;
+  currentPriceMerits: number;
+  currentValueMerits: number;
+  returnMerits: number;
+  weightPct: number;
+}
+
+function snapshotMap(
+  snapshots: readonly MarketDataSnapshotValuationDto[],
+): Map<string, MarketDataSnapshotValuationDto> {
+  return new Map(snapshots.map((snapshot) => [snapshot.instrumentId, snapshot]));
+}
+
+function mapHoldingForAccount(
+  holding: HoldingRow,
+  snapshot: MarketDataSnapshotValuationDto | undefined,
+  portfolioValueMerits: number,
+): AccountHoldingDto {
+  const units = toNumber(holding.units);
+  const currentPriceMerits = snapshot?.priceMerits ?? 0;
+  const currentValueMerits = Math.floor(units * currentPriceMerits);
+  return {
+    costBasisMerits: holding.costBasisMerits,
+    currentPriceMerits,
+    currentValueMerits,
+    displayName: holding.instrument.displayName,
+    id: holding.id,
+    instrumentId: holding.instrumentId,
+    kind: holding.instrument.kind,
+    returnMerits: currentValueMerits - holding.costBasisMerits,
+    riskBand: holding.instrument.riskBand,
+    symbol: holding.instrument.symbol,
+    units,
+    weightPct: portfolioValueMerits > 0 ? (currentValueMerits / portfolioValueMerits) * 100 : 0,
+  };
+}
+
+async function loadMarketSnapshots(
+  store: AppContext['db'],
+): Promise<MarketDataSnapshotValuationDto[]> {
+  return (await readCachedInvestmentMarketData({ db: marketDataStorageDb(store) })).snapshots;
+}
+
+async function loadPricedHoldings(store: AppContext['db'], studentId: string): Promise<{
+  holdings: HoldingRow[];
+  mappedHoldings: AccountHoldingDto[];
+  snapshotsByInstrument: Map<string, MarketDataSnapshotValuationDto>;
+  portfolioValueMerits: number;
+  portfolioCostBasisMerits: number;
+  portfolioReturnMerits: number;
+}> {
+  const [holdings, snapshots] = await Promise.all([
+    store.investmentHolding.findMany({
+      where: { studentId },
+      include: { instrument: true },
+    }) as Promise<HoldingRow[]>,
+    loadMarketSnapshots(store),
+  ]);
+  const snapshotsByInstrument = snapshotMap(snapshots);
+  const portfolioValueMerits = holdings.reduce((sum, holding) => {
+    const snapshot = snapshotsByInstrument.get(holding.instrumentId);
+    return sum + Math.floor(toNumber(holding.units) * (snapshot?.priceMerits ?? 0));
+  }, 0);
+  const mappedHoldings = holdings
+    .slice()
+    .sort(
+      (left, right) =>
+        left.instrument.sortOrder - right.instrument.sortOrder ||
+        left.instrument.symbol.localeCompare(right.instrument.symbol),
+    )
+    .map((holding) =>
+      mapHoldingForAccount(holding, snapshotsByInstrument.get(holding.instrumentId), portfolioValueMerits),
+    );
+  const portfolioCostBasisMerits = mappedHoldings.reduce(
+    (sum, holding) => sum + holding.costBasisMerits,
+    0,
+  );
+  return {
+    holdings,
+    mappedHoldings,
+    portfolioCostBasisMerits,
+    portfolioReturnMerits: portfolioValueMerits - portfolioCostBasisMerits,
+    portfolioValueMerits,
+    snapshotsByInstrument,
+  };
+}
+
 export const investmentRouter = router({
   marketData: authedProcedure.query(async ({ ctx }) =>
     readCachedInvestmentMarketData({ db: marketDataStorageDb(ctx.db) }),
@@ -283,7 +410,7 @@ export const investmentRouter = router({
     const student = await loadActiveStudent(ctx, input.studentId);
     await assertCanReadInvestment(ctx, student, 'investment.account');
 
-    const [account, latestNav, costBasisMerits, transactions] = await Promise.all([
+    const [account, latestNav, costBasisMerits, transactions, pricedHoldings] = await Promise.all([
       ctx.db.investmentAccount.findUnique({
         where: { studentId: student.id },
         select: { units: true },
@@ -300,9 +427,14 @@ export const investmentRouter = router({
           units: true,
           nav: true,
           feeMerits: true,
+          grossMerits: true,
+          taxMerits: true,
+          costBasisMerits: true,
+          instrumentId: true,
           createdAt: true,
         },
       }),
+      loadPricedHoldings(ctx.db, student.id),
     ]);
     const units = account ? toNumber(account.units) : 0;
     const currentValueMerits = latestNav ? Math.floor(units * latestNav.nav) : 0;
@@ -313,12 +445,21 @@ export const investmentRouter = router({
       latestNav,
       currentValueMerits,
       costBasisMerits,
+      investmentCashMerits: currentValueMerits,
+      holdings: pricedHoldings.mappedHoldings,
+      portfolioValueMerits: pricedHoldings.portfolioValueMerits,
+      portfolioCostBasisMerits: pricedHoldings.portfolioCostBasisMerits,
+      portfolioReturnMerits: pricedHoldings.portfolioReturnMerits,
       transactions: transactions.map((transaction) => ({
         id: transaction.id,
         type: transaction.type,
+        instrumentId: transaction.instrumentId,
         units: toNumber(transaction.units),
         nav: toNumber(transaction.nav),
         feeMerits: transaction.feeMerits,
+        grossMerits: transaction.grossMerits,
+        taxMerits: transaction.taxMerits,
+        costBasisMerits: transaction.costBasisMerits,
         createdAt: transaction.createdAt,
       })),
     };
@@ -426,6 +567,283 @@ export const investmentRouter = router({
       nav: result.nav,
     };
   }),
+
+  buyHolding: authedProcedure.input(buyHoldingInput).mutation(async ({ ctx, input }) => {
+    const student = await loadActiveStudent(ctx, input.studentId);
+    await assertCanTransactInvestment(ctx, student, 'investment.buyHolding');
+
+    const result = await ctx.db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const snapshots = await loadMarketSnapshots(tx as unknown as AppContext['db']);
+        const snapshot = snapshots.find((item) => item.instrumentId === input.instrumentId);
+        if (!snapshot) {
+          return { ok: false as const, reason: 'InstrumentUnavailable' };
+        }
+
+        const spendBalance = await loadWalletBalance(tx, student.id, 'Spend');
+        if (spendBalance < input.merits) {
+          return { ok: false as const, reason: 'InsufficientSpend' };
+        }
+
+        const plan = planInvestmentHoldingBuy({
+          studentId: student.id,
+          merits: input.merits,
+          priceMerits: snapshot.priceMerits,
+        });
+
+        const holding = await tx.investmentHolding.upsert({
+          where: {
+            studentId_instrumentId: {
+              studentId: student.id,
+              instrumentId: input.instrumentId,
+            },
+          },
+          create: {
+            studentId: student.id,
+            instrumentId: input.instrumentId,
+            units: toSixDecimal(plan.units),
+            costBasisMerits: plan.costBasisMerits,
+          },
+          update: {
+            units: { increment: toSixDecimal(plan.units) },
+            costBasisMerits: { increment: plan.costBasisMerits },
+          },
+          include: { instrument: true },
+        });
+        const transaction = await tx.investmentTransaction.create({
+          data: {
+            studentId: student.id,
+            type: 'Buy',
+            instrumentId: input.instrumentId,
+            units: toSixDecimal(plan.units),
+            nav: toSixDecimal(snapshot.priceMerits),
+            feeMerits: 0,
+            grossMerits: input.merits,
+            taxMerits: 0,
+            costBasisMerits: plan.costBasisMerits,
+          },
+          select: { id: true },
+        });
+        await tx.meritLedger.createMany({ data: plan.ledgerRows });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'InvestmentTransaction',
+            entityId: transaction.id,
+            meta: {
+              source: 'investment.buyHolding',
+              studentId: student.id,
+              instrumentId: input.instrumentId,
+              merits: input.merits,
+              units: plan.units,
+              priceMerits: snapshot.priceMerits,
+            },
+          },
+        });
+
+        return {
+          ok: true as const,
+          costBasisMerits: plan.costBasisMerits,
+          holding: {
+            id: holding.id,
+            instrumentId: holding.instrumentId,
+            units: toNumber(holding.units),
+            costBasisMerits: holding.costBasisMerits,
+          },
+          priceMerits: snapshot.priceMerits,
+          transactionId: transaction.id,
+          unitsBought: plan.units,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (!result.ok) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'InvestmentTransaction',
+          entityId: student.id,
+          meta: {
+            source: 'investment.buyHolding',
+            outcome: 'Rejected',
+            reason: result.reason,
+            instrumentId: input.instrumentId,
+            merits: input.merits,
+          },
+        },
+      });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message:
+          result.reason === 'InsufficientSpend'
+            ? 'insufficient Spend balance'
+            : 'investment instrument is unavailable',
+      });
+    }
+
+    return {
+      studentId: student.id,
+      transactionId: result.transactionId,
+      unitsBought: result.unitsBought,
+      priceMerits: result.priceMerits,
+      costBasisMerits: result.costBasisMerits,
+      holding: result.holding,
+    };
+  }),
+
+  withdrawPortfolio: authedProcedure
+    .input(withdrawPortfolioInput)
+    .mutation(async ({ ctx, input }) => {
+      const student = await loadActiveStudent(ctx, input.studentId);
+      await assertCanTransactInvestment(ctx, student, 'investment.withdrawPortfolio');
+
+      const result = await ctx.db.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          const priced = await loadPricedHoldings(tx as unknown as AppContext['db'], student.id);
+          const withdrawalHoldings = priced.holdings
+            .map((holding) => {
+              const snapshot = priced.snapshotsByInstrument.get(holding.instrumentId);
+              return snapshot
+                ? {
+                    instrumentId: holding.instrumentId,
+                    units: toNumber(holding.units),
+                    costBasisMerits: holding.costBasisMerits,
+                    currentPriceMerits: snapshot.priceMerits,
+                  }
+                : null;
+            })
+            .filter((holding): holding is NonNullable<typeof holding> => Boolean(holding));
+
+          if (withdrawalHoldings.length === 0) {
+            return { ok: false as const, reason: 'NoHoldings' };
+          }
+
+          let plan;
+          try {
+            plan = planInvestmentPortfolioWithdrawal({
+              studentId: student.id,
+              grossMerits: input.grossMerits,
+              holdings: withdrawalHoldings,
+            });
+          } catch (error) {
+            return {
+              ok: false as const,
+              reason:
+                error instanceof Error && error.message.includes('current portfolio value')
+                  ? 'InsufficientHoldings'
+                  : 'InvalidWithdrawal',
+            };
+          }
+
+          for (const sale of plan.sales) {
+            const holding = priced.holdings.find(
+              (candidate) => candidate.instrumentId === sale.instrumentId,
+            );
+            if (!holding) {
+              return { ok: false as const, reason: 'NoHoldings' };
+            }
+            await tx.investmentHolding.update({
+              where: { id: holding.id },
+              data: {
+                units: toSixDecimal(sale.remainingUnits),
+                costBasisMerits: holding.costBasisMerits - sale.costBasisMerits,
+              },
+              include: { instrument: true },
+            });
+          }
+
+          const transactions: Array<{ id: string }> = [];
+          for (const [index, sale] of plan.sales.entries()) {
+            const snapshot = priced.snapshotsByInstrument.get(sale.instrumentId);
+            if (!snapshot) {
+              return { ok: false as const, reason: 'InstrumentUnavailable' };
+            }
+            const transaction = await tx.investmentTransaction.create({
+              data: {
+                studentId: student.id,
+                type: 'Sell',
+                instrumentId: sale.instrumentId,
+                units: toSixDecimal(sale.unitsSold),
+                nav: toSixDecimal(snapshot.priceMerits),
+                feeMerits: index === 0 ? plan.feeMerits : 0,
+                grossMerits: sale.grossMerits,
+                taxMerits: index === 0 ? plan.taxMerits : 0,
+                costBasisMerits: sale.costBasisMerits,
+              },
+              select: { id: true },
+            });
+            transactions.push(transaction);
+          }
+
+          await tx.meritLedger.createMany({ data: plan.ledgerRows });
+          await tx.auditLog.create({
+            data: {
+              userId: ctx.user.id,
+              action: 'Create',
+              entity: 'InvestmentTransaction',
+              entityId: transactions[0]?.id ?? student.id,
+              meta: {
+                source: 'investment.withdrawPortfolio',
+                studentId: student.id,
+                grossMerits: plan.grossMerits,
+                feeMerits: plan.feeMerits,
+                taxMerits: plan.taxMerits,
+                netMerits: plan.netMerits,
+                costBasisMerits: plan.costBasisMerits,
+                investmentReturnDelta: plan.investmentReturnDelta,
+                sales: plan.sales,
+              } as unknown as Prisma.InputJsonObject,
+            },
+          });
+
+          return {
+            ok: true as const,
+            transactionIds: transactions.map((transaction) => transaction.id),
+            ...plan,
+          };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+      if (!result.ok) {
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'InvestmentTransaction',
+            entityId: student.id,
+            meta: {
+              source: 'investment.withdrawPortfolio',
+              outcome: 'Rejected',
+              reason: result.reason,
+              grossMerits: input.grossMerits,
+            },
+          },
+        });
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            result.reason === 'InsufficientHoldings'
+              ? 'insufficient portfolio value'
+              : 'no investment holdings available',
+        });
+      }
+
+      return {
+        studentId: student.id,
+        transactionIds: result.transactionIds,
+        grossMerits: result.grossMerits,
+        feeMerits: result.feeMerits,
+        taxMerits: result.taxMerits,
+        netMerits: result.netMerits,
+        costBasisMerits: result.costBasisMerits,
+        investmentReturnDelta: result.investmentReturnDelta,
+        sales: result.sales,
+      };
+    }),
 
   sell: authedProcedure.input(sellInput).mutation(async ({ ctx, input }) => {
     const student = await loadActiveStudent(ctx, input.studentId);

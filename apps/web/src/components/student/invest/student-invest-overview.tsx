@@ -1,16 +1,17 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import {
   formatMerits,
   formatPercent,
   formatSignedMerits,
   navHistoryToChartSeries,
   percentChange,
+  type AccountHolding,
   type NavDto,
   type RangeId,
 } from './student-invest-data';
-import { TradePanel } from './student-invest-trade';
 import {
   AreaChart,
   DeltaPill,
@@ -24,42 +25,43 @@ import {
 import styles from './student-invest.module.css';
 
 interface OverviewProps {
-  costBasisMerits: number;
   currentValueMerits: number;
   defaultRange: RangeId;
-  isBuying: boolean;
-  isSelling: boolean;
+  holdings: readonly AccountHolding[];
+  investmentCashMerits: number;
   latestNav: { nav: number; dailyReturn: number } | null;
   loading: boolean;
   navHistory: readonly NavDto[];
-  onBuy: (merits: number) => void;
   onNavigate: (screen: 'market') => void;
-  onSell: (units: number) => void;
+  portfolioReturnMerits: number;
+  portfolioValueMerits: number;
   spendBalance: number;
   studentFirstName: string;
+  totalNetWorthMerits: number;
   units: number;
 }
 
 export function InvestmentOverview({
-  costBasisMerits,
   currentValueMerits,
   defaultRange,
-  isBuying,
-  isSelling,
+  holdings,
+  investmentCashMerits,
   latestNav,
   loading,
   navHistory,
-  onBuy,
   onNavigate,
-  onSell,
+  portfolioReturnMerits,
+  portfolioValueMerits,
   spendBalance,
   studentFirstName,
+  totalNetWorthMerits,
   units,
 }: OverviewProps) {
   const [range, setRange] = useState<RangeId>(defaultRange);
   const greeting = studentFirstName ? `Good morning, ${studentFirstName}` : 'Good morning';
-  const totalReturn = currentValueMerits - costBasisMerits;
-  const totalReturnPct = costBasisMerits > 0 ? (totalReturn / costBasisMerits) * 100 : 0;
+  const totalReturn = portfolioReturnMerits;
+  const stockCostBasis = holdings.reduce((sum, holding) => sum + holding.costBasisMerits, 0);
+  const totalReturnPct = stockCostBasis > 0 ? (totalReturn / stockCostBasis) * 100 : 0;
   const dailyReturnPct = latestNav?.dailyReturn ?? 0;
   const dailyReturnMerits = currentValueMerits * (dailyReturnPct / (1 + dailyReturnPct));
 
@@ -96,20 +98,16 @@ export function InvestmentOverview({
     <>
       <section className={styles.screenHeader}>
         <div>
-          <p className={styles.eyebrow}>Overview</p>
           <h1>{greeting}</h1>
-          <p>Here is how your Merit Markets fund is performing.</p>
+          <p>Here&apos;s how your Merit Markets portfolio is doing today.</p>
         </div>
         <div className={styles.inlineActions}>
-          <button
-            className={styles.button}
-            onClick={() => {
-              onNavigate('market');
-            }}
-            type="button"
-          >
-            Browse market
-          </button>
+          <Link className={styles.secondaryButton} href={{ pathname: '/student/invest/withdraw' }}>
+            Withdraw
+          </Link>
+          <Link className={styles.button} href={{ pathname: '/student/invest/invest' }}>
+            + Invest merits
+          </Link>
         </div>
       </section>
 
@@ -119,10 +117,10 @@ export function InvestmentOverview({
             <div className={styles.cardHeader}>
               <div>
                 <span className={styles.sectionLabel}>
-                  Portfolio value
+                  Total net worth
                   <HelpTip
-                    label="Portfolio value"
-                    text="Your investment units multiplied by today's fund NAV — how much your account is worth right now."
+                    label="Total net worth"
+                    text="Investment cash plus the current value of your stocks and ETFs."
                   />
                 </span>
                 <div className={styles.heroValue}>
@@ -131,7 +129,7 @@ export function InvestmentOverview({
                   ) : (
                     <>
                       <MeritIcon size={30} />
-                      {formatMerits(currentValueMerits, 1)}
+                      {formatMerits(totalNetWorthMerits, 1)}
                       <span className={styles.smallText}>merits</span>
                     </>
                   )}
@@ -142,8 +140,8 @@ export function InvestmentOverview({
                   </span>
                   <DeltaPill value={dailyReturnPct * 100} />
                   <span className={styles.smallText}>today</span>
-                  {currentValueMerits > 0 ? (
-                    <GbpEquivalent value={currentValueMerits} />
+                  {totalNetWorthMerits > 0 ? (
+                    <GbpEquivalent value={totalNetWorthMerits} />
                   ) : null}
                 </div>
               </div>
@@ -162,11 +160,11 @@ export function InvestmentOverview({
               <p className={styles.emptyState}>No NAV history available yet.</p>
             )}
             <div className={styles.metricGrid}>
-              <MiniStat label="Units held" value={<strong>{units.toFixed(4)}</strong>} />
+              <MiniStat label="Fund units" value={<strong>{units.toFixed(4)}</strong>} />
               <MiniStat
-                label="Cost basis"
-                value={<MeritValueStack value={costBasisMerits} />}
-                tip="Total merits you have invested in the fund."
+                label="Invested"
+                value={<MeritValueStack value={investmentCashMerits + portfolioValueMerits} />}
+                tip="Unallocated investment cash plus current stock and ETF value."
               />
               <MiniStat
                 label="All-time return"
@@ -191,18 +189,8 @@ export function InvestmentOverview({
         </div>
 
         <div className={styles.rightRail}>
-          <InvestmentCard>
-            <h2 className={styles.cardTitle}>Invest or withdraw</h2>
-            <TradePanel
-              isBuying={isBuying}
-              isSelling={isSelling}
-              latestNav={latestNav}
-              onBuy={onBuy}
-              onSell={onSell}
-              spendBalance={spendBalance}
-              units={units}
-            />
-          </InvestmentCard>
+          <WeeklyResult value={portfolioReturnMerits} />
+          <AllocationCard holdings={holdings} onNavigate={onNavigate} />
 
           {latestNav ? (
             <InvestmentCard>
@@ -254,6 +242,82 @@ function MiniStat({
       {value}
     </div>
   );
+}
+
+function WeeklyResult({ value }: { value: number }) {
+  return (
+    <section className={styles.darkCard}>
+      <span className={styles.sectionLabel}>This week&apos;s result</span>
+      <div className={styles.weekValue}>
+        <MeritIcon size={26} />
+        {formatSignedMerits(value || 0, 1)}
+      </div>
+      <p className={styles.mutedText}>
+        Your portfolio grew over the last 7 days. Nice work staying invested.
+      </p>
+    </section>
+  );
+}
+
+function AllocationCard({
+  holdings,
+  onNavigate,
+}: {
+  holdings: readonly AccountHolding[];
+  onNavigate: (screen: 'market') => void;
+}) {
+  const sorted = holdings.slice().sort((left, right) => right.weightPct - left.weightPct);
+  return (
+    <InvestmentCard>
+      <div className={styles.cardHeader}>
+        <span className={styles.sectionLabel}>Allocation</span>
+        <button
+          className={styles.ghostButton}
+          onClick={() => {
+            onNavigate('market');
+          }}
+          type="button"
+        >
+          Details →
+        </button>
+      </div>
+      {sorted.length > 0 ? (
+        <>
+          <div className={styles.allocationBar}>
+            {sorted.map((holding) => (
+              <span
+                key={holding.id}
+                style={{
+                  backgroundColor: colorForSymbol(holding.symbol),
+                  width: `${String(Math.max(4, holding.weightPct))}%`,
+                }}
+              />
+            ))}
+          </div>
+          <div className={styles.allocationLegend}>
+            {sorted.slice(0, 8).map((holding) => (
+              <span className={styles.legendItem} key={holding.id}>
+                <span
+                  className={styles.legendDot}
+                  style={{ backgroundColor: colorForSymbol(holding.symbol) }}
+                />
+                <strong>{holding.symbol}</strong>
+                <span>{holding.weightPct.toFixed(0)}%</span>
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className={styles.emptyState}>Portfolio allocation appears after the first stock buy.</p>
+      )}
+    </InvestmentCard>
+  );
+}
+
+function colorForSymbol(symbol: string): string {
+  const palette = ['#2e5e8c', '#4338ca', '#1a7a4a', '#555b61', '#6b4c0a', '#4aa176'];
+  const code = symbol.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return palette[code % palette.length] ?? '#2e5e8c';
 }
 
 function RiskReminder() {

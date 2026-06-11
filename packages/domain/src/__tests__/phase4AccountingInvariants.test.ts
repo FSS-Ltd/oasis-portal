@@ -87,6 +87,7 @@ describe('Phase 4 accounting invariants', () => {
       TithePaid: 10,
       Given: 30,
       FeeSink: 0,
+      TaxSink: 0,
       ShopReserved: 0,
     });
   });
