@@ -70,6 +70,8 @@ function accountLabel(account: StudentWallet['history'][number]['account']): str
       return 'Charity';
     case 'FeeSink':
       return 'Fee';
+    case 'TaxSink':
+      return 'Tax';
     case 'ShopReserved':
       return 'Held';
   }
