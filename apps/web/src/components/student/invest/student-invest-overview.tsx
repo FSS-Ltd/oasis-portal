@@ -7,7 +7,6 @@ import {
   formatSignedMerits,
   navHistoryToChartSeries,
   percentChange,
-  toGbp,
   type NavDto,
   type RangeId,
 } from './student-invest-data';
@@ -15,10 +14,11 @@ import { TradePanel } from './student-invest-trade';
 import {
   AreaChart,
   DeltaPill,
+  GbpEquivalent,
   HelpTip,
   InvestmentCard,
   MeritIcon,
-  MeritValue,
+  MeritValueStack,
   RangeTabs,
 } from './student-invest-ui';
 import styles from './student-invest.module.css';
@@ -143,9 +143,7 @@ export function InvestmentOverview({
                   <DeltaPill value={dailyReturnPct * 100} />
                   <span className={styles.smallText}>today</span>
                   {currentValueMerits > 0 ? (
-                    <span className={styles.smallText}>
-                      approx £{toGbp(currentValueMerits).toFixed(2)}
-                    </span>
+                    <GbpEquivalent value={currentValueMerits} />
                   ) : null}
                 </div>
               </div>
@@ -167,20 +165,23 @@ export function InvestmentOverview({
               <MiniStat label="Units held" value={<strong>{units.toFixed(4)}</strong>} />
               <MiniStat
                 label="Cost basis"
-                value={<MeritValue value={costBasisMerits} />}
+                value={<MeritValueStack value={costBasisMerits} />}
                 tip="Total merits you have invested in the fund."
               />
               <MiniStat
                 label="All-time return"
                 value={
-                  <span className={totalReturn >= 0 ? styles.positiveText : styles.negativeText}>
-                    {formatSignedMerits(totalReturn, 1)} ({formatPercent(totalReturnPct)})
+                  <span className={styles.valueStack}>
+                    <span className={totalReturn >= 0 ? styles.positiveText : styles.negativeText}>
+                      {formatSignedMerits(totalReturn, 1)} ({formatPercent(totalReturnPct)})
+                    </span>
+                    <GbpEquivalent value={totalReturn} />
                   </span>
                 }
               />
               <MiniStat
                 label="Spend balance"
-                value={<MeritValue value={spendBalance} />}
+                value={<MeritValueStack value={spendBalance} />}
                 tip="Merits available in your Spend wallet to invest."
               />
             </div>
@@ -209,11 +210,7 @@ export function InvestmentOverview({
               <div className={styles.metricGrid} style={{ marginTop: 8, paddingTop: 8 }}>
                 <MiniStat
                   label="NAV today"
-                  value={
-                    <strong>
-                      <MeritIcon size={12} /> {formatMerits(latestNav.nav, 2)}
-                    </strong>
-                  }
+                  value={<MeritValueStack digits={2} value={latestNav.nav} />}
                 />
                 <MiniStat
                   label="Daily return"

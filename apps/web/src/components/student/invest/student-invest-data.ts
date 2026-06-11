@@ -504,6 +504,14 @@ export function formatGbp(value: number): string {
   }).format(value);
 }
 
+export function formatGbpForMerits(merits: number): string {
+  return formatGbp(toGbp(merits));
+}
+
+export function formatMeritsWithGbp(value: number, digits = 1): string {
+  return `${formatMerits(value, digits)} merits (${formatGbpForMerits(value)})`;
+}
+
 export function formatDate(value: Date): string {
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',

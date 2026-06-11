@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { formatDate, formatMerits, type AccountTransaction } from './student-invest-data';
-import { InvestmentCard, MeritIcon } from './student-invest-ui';
+import { GbpEquivalent, InvestmentCard, MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
 interface ActivityProps {
@@ -86,12 +86,14 @@ export function InvestmentActivity({ transactions }: ActivityProps) {
                     : ''}
                 </span>
               </span>
-              <strong className={isBuy ? undefined : styles.positiveText}>
-                {isBuy ? '' : '+'}
-                <MeritIcon size={13} />
-                {' '}
-                {formatMerits(isBuy ? meritValue : meritValue - transaction.feeMerits, 1)}
-              </strong>
+              <span className={styles.activityValue}>
+                <strong className={isBuy ? undefined : styles.positiveText}>
+                  {isBuy ? '' : '+'}
+                  <MeritIcon size={13} />{' '}
+                  {formatMerits(isBuy ? meritValue : meritValue - transaction.feeMerits, 1)}
+                </strong>
+                <GbpEquivalent value={isBuy ? meritValue : meritValue - transaction.feeMerits} />
+              </span>
             </article>
           );
         })}

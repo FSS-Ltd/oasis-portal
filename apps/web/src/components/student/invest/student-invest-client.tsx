@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { History, LineChart, Store, type LucideIcon } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { History, Home, LineChart, Store, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/trpc';
 import {
@@ -14,7 +16,7 @@ import {
 import { InvestmentActivity } from './student-invest-extras';
 import { InvestmentMarket, InvestmentStockDetail } from './student-invest-market';
 import { InvestmentOverview } from './student-invest-overview';
-import { MeritIcon } from './student-invest-ui';
+import { GbpEquivalent, MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
 type Screen = 'activity' | 'market' | 'overview' | 'stock';
@@ -147,21 +149,33 @@ export function StudentInvestClient() {
 
   return (
     <div className={styles.shell}>
-      <section className={styles.topRow}>
-        <div className={styles.titleBlock}>
-          <p className={styles.eyebrow}>Merit Markets</p>
-          <h1>Investment portfolio</h1>
-          {studentFirstName ? (
-            <p>{studentFirstName}&apos;s investment account</p>
-          ) : null}
+      <section className={styles.portalHeader}>
+        <div className={styles.portalBrand}>
+          <span className={styles.portalLogoFrame}>
+            <Image alt="" height={44} src="/oasis-logo.svg" width={44} />
+          </span>
+          <div className={styles.titleBlock}>
+            <p className={styles.eyebrow}>Student portal</p>
+            <h1>Merit Markets</h1>
+            <p>
+              {studentFirstName
+                ? `${studentFirstName}'s investment account`
+                : 'Investment account'}
+            </p>
+          </div>
         </div>
-        <div className={styles.topActions}>
+        <div className={styles.portalActions}>
           <div className={styles.walletValue}>
             <span className={styles.metaLabel}>Portfolio value</span>
             <strong>
               <MeritIcon size={16} /> {formatMerits(currentValueMerits, 1)}
             </strong>
+            <GbpEquivalent value={currentValueMerits} />
           </div>
+          <Link className={styles.homeButton} href="/student">
+            <Home aria-hidden="true" size={15} />
+            Home
+          </Link>
         </div>
       </section>
 
