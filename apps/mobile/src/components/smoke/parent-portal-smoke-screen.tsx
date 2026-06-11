@@ -30,6 +30,8 @@ const tabs: Array<PortalMobileNavItem<ParentMobileTab>> = [
   { id: 'shop', label: 'Shop', icon: 'shop' },
 ];
 
+const fullDateFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' });
+
 function firstError(...messages: Array<string | undefined>): string | null {
   return messages.find((message) => Boolean(message)) ?? null;
 }
@@ -37,9 +39,7 @@ function firstError(...messages: Array<string | undefined>): string | null {
 function ParentHomeIntro({ child }: { child: DashboardChild | null }) {
   return (
     <View style={styles.homeIntro}>
-      <Text style={styles.dateText}>
-        {new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(new Date())}
-      </Text>
+      <Text style={styles.dateText}>{fullDateFormatter.format(new Date())}</Text>
       <Text style={styles.homeTitle}>Welcome</Text>
       <Text style={styles.homeSubtitle}>
         {child ? `Parent of ${child.student.fullName}` : 'Your family dashboard'}

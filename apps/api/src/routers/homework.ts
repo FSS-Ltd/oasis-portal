@@ -88,6 +88,11 @@ interface ActiveStudentRow {
   createdAt?: Date;
 }
 
+interface AssignmentBandSelection {
+  allYearGroupBands: boolean;
+  yearGroupBandIds: string[];
+}
+
 const MAX_HOMEWORK_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const submissionMethodSchema = z.enum(['UploadImage', 'InPerson']);
@@ -417,6 +422,23 @@ async function loadAssignment(
   return assignment;
 }
 
+async function validateSelectedBandIds(
+  ctx: Pick<AppContext, 'db'>,
+  input: AssignmentBandSelection,
+): Promise<string[]> {
+  const bandIds = [...new Set(input.yearGroupBandIds)];
+  if (input.allYearGroupBands) return bandIds;
+
+  const bands = await ctx.db.yearGroupBand.findMany({
+    where: { id: { in: bandIds }, active: true },
+    select: { id: true },
+  });
+  if (bands.length !== bandIds.length) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid year group band selected' });
+  }
+  return bandIds;
+}
+
 function assertStudentAssigned(student: ActiveStudentRow, assignment: HomeworkAssignmentRow): void {
   if (!studentMatchesAssignment(student, assignment)) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'homework assignment not found' });
@@ -500,16 +522,7 @@ export const homeworkRouter = router({
   createAssignment: fullAdminProcedure
     .input(createAssignmentInput)
     .mutation(async ({ ctx, input }) => {
-      const bandIds = [...new Set(input.yearGroupBandIds)];
-      if (!input.allYearGroupBands) {
-        const bands = await ctx.db.yearGroupBand.findMany({
-          where: { id: { in: bandIds }, active: true },
-          select: { id: true },
-        });
-        if (bands.length !== bandIds.length) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid year group band selected' });
-        }
-      }
+      const bandIds = await validateSelectedBandIds(ctx, input);
 
       const assignment = (await ctx.withRls((tx) =>
         tx.homeworkAssignment.create({
@@ -564,16 +577,7 @@ export const homeworkRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'homework assignment not found' });
       }
 
-      const bandIds = [...new Set(input.yearGroupBandIds)];
-      if (!input.allYearGroupBands) {
-        const bands = await ctx.db.yearGroupBand.findMany({
-          where: { id: { in: bandIds }, active: true },
-          select: { id: true },
-        });
-        if (bands.length !== bandIds.length) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: 'invalid year group band selected' });
-        }
-      }
+      const bandIds = await validateSelectedBandIds(ctx, input);
 
       const assignment = (await ctx.withRls(async (tx) => {
         await tx.homeworkAssignmentBand.deleteMany({ where: { assignmentId: input.id } });
@@ -952,9 +956,7 @@ export const homeworkRouter = router({
             },
           },
         }),
-      )) as
-        | (HomeworkImageRow & { assignment: HomeworkAssignmentRow })
-        | null;
+      )) as (HomeworkImageRow & { assignment: HomeworkAssignmentRow }) | null;
 
       if (!image) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'assignment image not found' });

@@ -15,11 +15,7 @@ import {
   type ReportStudent,
   type ReportWorkflowMode,
 } from './report-student-selector';
-import {
-  formatNumber,
-  formatTerm,
-  type TermReport,
-} from './report-format';
+import { formatNumber, formatTerm, type TermReport } from './report-format';
 
 type AdminStudent = RouterOutputs['student']['list'][number];
 type ParentStudent = RouterOutputs['childLog']['listAccessibleStudents'][number];
@@ -249,7 +245,10 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
             term={term}
           />
 
-          <section className="panel panel__body report-list-panel" aria-labelledby="report-list-title">
+          <section
+            className="panel panel__body report-list-panel"
+            aria-labelledby="report-list-title"
+          >
             <div className="section-title">
               <div>
                 <h2 id="report-list-title">Report History</h2>

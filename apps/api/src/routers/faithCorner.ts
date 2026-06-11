@@ -3,10 +3,7 @@ import { z } from 'zod';
 import { type FaithCornerCommentStatus, Prisma } from '@oasis/db';
 import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
-import {
-  loadCurrentFaithCornerContent,
-  mapFaithCornerContent,
-} from '../services/faith-corner.js';
+import { loadCurrentFaithCornerContent, mapFaithCornerContent } from '../services/faith-corner.js';
 import { adminOperationsProcedure, roleProcedure, router } from '../trpc.js';
 
 const optionalTextInput = z
@@ -71,6 +68,7 @@ type CommentRow = Prisma.FaithCornerCommentGetPayload<{ select: typeof commentSe
 type AdminCommentRow = Prisma.FaithCornerCommentGetPayload<{
   select: typeof adminCommentSelect;
 }>;
+type FaithCornerAuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
 
 export interface FaithCornerCommentDto {
   id: string;
@@ -182,6 +180,23 @@ async function loadCommentLikeState(
   return new Set(likes.map((like) => like.commentId));
 }
 
+async function auditCommentDecrypt(
+  ctx: FaithCornerAuthedContext,
+  source: string,
+  commentCount: number,
+): Promise<void> {
+  if (commentCount === 0) return;
+
+  await ctx.db.auditLog.create({
+    data: {
+      userId: ctx.user.id,
+      action: 'DecryptPii',
+      entity: 'FaithCornerComment',
+      meta: { source, count: commentCount * 2 },
+    },
+  });
+}
+
 export const faithCornerRouter = router({
   currentForAdmin: adminOperationsProcedure.query(async ({ ctx }) =>
     loadCurrentFaithCornerContent(ctx),
@@ -219,16 +234,7 @@ export const faithCornerRouter = router({
       student.id,
     );
 
-    if (comments.length > 0) {
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'FaithCornerComment',
-          meta: { source: 'faithCorner.listComments', count: comments.length * 2 },
-        },
-      });
-    }
+    await auditCommentDecrypt(ctx, 'faithCorner.listComments', comments.length);
 
     return comments.map((comment) => mapComment(ctx, comment, likedCommentIds, student.id));
   }),
@@ -336,16 +342,7 @@ export const faithCornerRouter = router({
       orderBy: [{ createdAt: 'asc' }],
     });
 
-    if (comments.length > 0) {
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'FaithCornerComment',
-          meta: { source: 'faithCorner.pendingCommentsForAdmin', count: comments.length * 2 },
-        },
-      });
-    }
+    await auditCommentDecrypt(ctx, 'faithCorner.pendingCommentsForAdmin', comments.length);
 
     return comments.map((comment) => mapAdminComment(ctx, comment));
   }),

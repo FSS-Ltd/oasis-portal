@@ -65,6 +65,14 @@ function mapAvailability(window: AvailabilityRow): AvailabilityDraft {
   };
 }
 
+function updateAvailabilityDraft(
+  rows: readonly AvailabilityDraft[],
+  id: string,
+  patch: Partial<Pick<AvailabilityDraft, 'dayOfWeek' | 'endMinute' | 'startMinute'>>,
+): AvailabilityDraft[] {
+  return rows.map((row) => (row.id === id ? { ...row, ...patch } : row));
+}
+
 export function MyClubRotaPanel({ accessClubs }: MyClubRotaPanelProps = {}) {
   const utils = api.useUtils();
   const [weekStart, setWeekStart] = useState(() => mondayFor(dateFromKey(dateKey(new Date()))));
@@ -243,11 +251,9 @@ export function MyClubRotaPanel({ accessClubs }: MyClubRotaPanelProps = {}) {
                     <SelectInput
                       onChange={(event) => {
                         setAvailabilityDraft((rows) =>
-                          rows.map((row) =>
-                            row.id === window.id
-                              ? { ...row, dayOfWeek: Number(event.target.value) }
-                              : row,
-                          ),
+                          updateAvailabilityDraft(rows, window.id, {
+                            dayOfWeek: Number(event.target.value),
+                          }),
                         );
                       }}
                       value={window.dayOfWeek}
@@ -263,11 +269,9 @@ export function MyClubRotaPanel({ accessClubs }: MyClubRotaPanelProps = {}) {
                     <TextInput
                       onChange={(event) => {
                         setAvailabilityDraft((rows) =>
-                          rows.map((row) =>
-                            row.id === window.id
-                              ? { ...row, startMinute: fromTimeValue(event.target.value) }
-                              : row,
-                          ),
+                          updateAvailabilityDraft(rows, window.id, {
+                            startMinute: fromTimeValue(event.target.value),
+                          }),
                         );
                       }}
                       type="time"
@@ -278,11 +282,9 @@ export function MyClubRotaPanel({ accessClubs }: MyClubRotaPanelProps = {}) {
                     <TextInput
                       onChange={(event) => {
                         setAvailabilityDraft((rows) =>
-                          rows.map((row) =>
-                            row.id === window.id
-                              ? { ...row, endMinute: fromTimeValue(event.target.value) }
-                              : row,
-                          ),
+                          updateAvailabilityDraft(rows, window.id, {
+                            endMinute: fromTimeValue(event.target.value),
+                          }),
                         );
                       }}
                       type="time"

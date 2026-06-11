@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-09",
+  "lastRunDate": "2026-06-11",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1112,6 +1112,130 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized noticeboard attachment UI; upload validation, accepted types, and storage behavior were not changed."
+    },
+    "apps/api/src/routers/homework.ts": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1075,
+      "lineCountAfter": 1077,
+      "issuesFixed": [
+        "Extracted shared assignment band validation for create/update homework assignment paths.",
+        "Formatted selected router file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as the largest unreviewed API router; endpoint contracts, auth, and validation semantics were preserved."
+    },
+    "apps/web/src/components/homework/admin-homework-client.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 749,
+      "lineCountAfter": 765,
+      "issuesFixed": [
+        "Extracted review row key construction into a named helper.",
+        "Formatted selected homework admin component to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized homework admin UI; no workflow or route behaviour changed."
+    },
+    "apps/api/src/routers/faithCorner.ts": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 441,
+      "lineCountAfter": 438,
+      "issuesFixed": [
+        "Extracted repeated Faith Corner comment decrypt audit logging into a shared helper.",
+        "Formatted selected router file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized API router; student portal access, comment review, and publish semantics were preserved."
+    },
+    "apps/web/src/components/clubs/club-assignment-panels.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 338,
+      "lineCountAfter": 338,
+      "issuesFixed": [
+        "Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized club assignment UI; left unchanged to avoid cosmetic component churn."
+    },
+    "apps/web/src/components/reports/report-workflow-client.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 332,
+      "lineCountAfter": 331,
+      "issuesFixed": [
+        "Formatted selected report workflow component to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized report workflow UI; no report state or mutation behaviour changed."
+    },
+    "apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 325,
+      "lineCountAfter": 325,
+      "issuesFixed": [
+        "Cached the parent portal full-date formatter instead of constructing it during render."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile parent portal smoke screen."
+    },
+    "apps/web/src/components/invoices/admin-invoice-upload-utils.ts": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 323,
+      "lineCountAfter": 323,
+      "issuesFixed": [
+        "Cached the invoice term formatter used by uploaded invoice defaults."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as large invoice upload utility; public helper exports were preserved."
+    },
+    "apps/web/src/components/clubs/my-club-rota-panel.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 321,
+      "lineCountAfter": 323,
+      "issuesFixed": [
+        "Extracted repeated availability draft row updates into a local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized club rota UI; tRPC calls and form semantics were preserved."
+    },
+    "apps/web/src/components/profile/self-profile-client.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 320,
+      "lineCountAfter": 326,
+      "issuesFixed": [
+        "Cached the profile date formatter.",
+        "Formatted selected profile component to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized profile UI; profile update payloads and tab behaviour were preserved."
+    },
+    "apps/web/src/components/attendance/special-attendance-capture.tsx": {
+      "lastReviewedAt": "2026-06-11",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 316,
+      "lineCountAfter": 318,
+      "issuesFixed": [
+        "Extracted row-key removal into a local helper that satisfies lint rules without dynamic delete."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized special attendance UI; attendance status and reset semantics were preserved."
     }
   },
   "deferredFiles": {},
