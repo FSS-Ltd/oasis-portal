@@ -14,6 +14,7 @@ import { CalendarDays, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   formatDate,
+  formatGbpForMerits,
   formatMerits,
   formatPercent,
   formatShortDate,
@@ -58,6 +59,38 @@ export function MeritValue({
   return (
     <span className={cn(styles.strongValue, colorClass)}>
       <MeritIcon size={14} /> {formatMerits(value, digits)}
+    </span>
+  );
+}
+
+export function GbpEquivalent({
+  className,
+  prefix = 'Approx.',
+  value,
+}: {
+  className?: string | undefined;
+  prefix?: string;
+  value: number;
+}) {
+  if (!Number.isFinite(value)) return null;
+  return (
+    <span className={cn(styles.gbpEquivalent, className)}>
+      {prefix} {formatGbpForMerits(value)}
+    </span>
+  );
+}
+
+export function MeritValueStack({
+  digits = 1,
+  value,
+}: {
+  digits?: number;
+  value: number;
+}) {
+  return (
+    <span className={styles.valueStack}>
+      <MeritValue digits={digits} value={value} />
+      <GbpEquivalent value={value} />
     </span>
   );
 }

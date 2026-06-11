@@ -4,7 +4,7 @@
   color: var(--oasis-navy);
 }
 
-.topRow,
+.portalHeader,
 .screenHeader,
 .cardHeader,
 .metricRow,
@@ -21,7 +21,7 @@
   min-width: 0;
 }
 
-.topRow,
+.portalHeader,
 .screenHeader,
 .cardHeader,
 .stockHeader {
@@ -30,12 +30,69 @@
   gap: 14px;
 }
 
-.topRow {
-  padding: 16px;
-  border: 1px solid rgba(91, 144, 197, 0.24);
-  border-radius: 12px;
+.portalHeader {
+  padding: 18px;
+  border: 1px solid rgba(91, 144, 197, 0.28);
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--oasis-navy) 0%, var(--oasis-navy-light) 100%);
+  color: #ffffff;
+  box-shadow: 0 18px 42px rgba(27, 43, 94, 0.16);
+}
+
+.portalBrand,
+.portalActions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.portalLogoFrame {
+  display: inline-grid;
+  width: 58px;
+  height: 58px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 1px 4px rgba(27, 43, 94, 0.07);
+}
+
+.portalLogoFrame img {
+  width: 44px;
+  max-height: 44px;
+  object-fit: contain;
+}
+
+.portalHeader .titleBlock h1,
+.portalHeader .titleBlock p,
+.portalHeader .eyebrow,
+.portalHeader .metaLabel,
+.portalHeader .walletValue,
+.portalHeader .walletValue strong {
+  color: #ffffff;
+}
+
+.portalHeader .titleBlock p,
+.portalHeader .eyebrow,
+.portalHeader .metaLabel,
+.portalHeader .gbpEquivalent {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.homeButton {
+  display: inline-flex;
+  min-height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .titleBlock {
@@ -90,7 +147,7 @@
   font-weight: 700;
 }
 
-.topActions,
+.portalActions,
 .inlineActions,
 .tabList,
 .rangeTabs,
@@ -101,6 +158,38 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.walletValue {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.walletValue strong {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--oasis-navy);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.valueStack,
+.activityValue {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.gbpEquivalent {
+  display: block;
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .tabList,
@@ -389,6 +478,14 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.marketMobileRow > span:last-child {
+  display: grid;
+  min-width: 92px;
+  justify-items: end;
+  gap: 3px;
+  text-align: right;
 }
 
 .moverMain,
@@ -834,6 +931,13 @@
   gap: 12px;
 }
 
+.tradeSummaryRow > span:last-child,
+.tradeSummaryRow > strong:last-child {
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
 .withdrawRoute {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -863,6 +967,20 @@
   gap: 13px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.activityValue {
+  flex: 0 1 auto;
+  justify-items: end;
+  text-align: right;
+}
+
+.activityValue strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
 }
 
 .activityIcon {
@@ -937,19 +1055,20 @@
     position: static;
   }
 
-  .topRow,
+  .portalHeader,
   .screenHeader,
   .stockHeader {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .topActions {
+  .portalActions {
     width: 100%;
+    justify-content: space-between;
   }
 
-  .topActions > * {
-    flex: 1 1 auto;
+  .portalActions > * {
+    flex: 0 1 auto;
   }
 
   .marketDesktop,
@@ -985,10 +1104,19 @@
     gap: 14px;
   }
 
-  .topRow,
+  .portalHeader,
   .card,
   .darkCard {
     padding: 16px;
+  }
+
+  .portalBrand,
+  .portalActions {
+    width: 100%;
+  }
+
+  .portalActions {
+    align-items: stretch;
   }
 
   .metricGrid,
@@ -1026,7 +1154,74 @@
     justify-content: flex-start;
   }
 
+  .activityRow {
+    align-items: flex-start;
+  }
+
+  .activityValue {
+    justify-items: start;
+    padding-left: 51px;
+    text-align: left;
+  }
+
   .quickAmounts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .portalHeader {
+    gap: 16px;
+  }
+
+  .portalBrand {
+    align-items: flex-start;
+  }
+
+  .portalLogoFrame {
+    width: 46px;
+    height: 46px;
+  }
+
+  .portalLogoFrame img {
+    width: 36px;
+    max-height: 36px;
+  }
+
+  .homeButton {
+    flex: 1 1 116px;
+  }
+
+  .walletValue {
+    flex: 1 1 150px;
+  }
+
+  .cardHeader,
+  .tradeSummaryRow,
+  .activityRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tradeSummaryRow > span:last-child,
+  .tradeSummaryRow > strong:last-child {
+    text-align: left;
+  }
+
+  .marketMobileRow {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .marketMobileRow > svg,
+  .marketMobileRow > span:last-child {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .activityValue {
+    padding-left: 0;
   }
 }

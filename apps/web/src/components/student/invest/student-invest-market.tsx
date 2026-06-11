@@ -1,10 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import {
   formatDateInput,
-  formatGbp,
   formatMerits,
   formatPercent,
   formatShortDate,
@@ -25,12 +24,14 @@ import {
 import {
   AreaChart,
   DeltaPill,
+  GbpEquivalent,
   HelpTip,
   InvestmentBadge,
   InvestmentCard,
   LearningBadge,
   MeritIcon,
   MeritValue,
+  MeritValueStack,
   RangeTabs,
   RiskDots,
   Sparkline,
@@ -185,7 +186,9 @@ export function InvestmentMarket({
                           </span>
                         </span>
                       </td>
-                      <td>{formatMerits(toMerits(instrument.price), 1)}</td>
+                      <td>
+                        <MeritValueStack value={toMerits(instrument.price)} />
+                      </td>
                       <td>
                         {instrument.learningDayChangePct !== undefined ? (
                           <LearningBadge
@@ -237,6 +240,7 @@ export function InvestmentMarket({
                   <Sparkline daily={instrument.daily} width={54} />
                   <span>
                     <MeritValue value={toMerits(instrument.price)} />
+                    <GbpEquivalent value={toMerits(instrument.price)} />
                     <DeltaPill arrow={false} plain value={instrument.dayChangePct} />
                   </span>
                 </button>
@@ -363,7 +367,7 @@ export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: Stock
             ) : (
               <DeltaPill plain value={instrument.dayChangePct} />
             )}
-            <span className={styles.smallText}>{formatGbp(instrument.price)}</span>
+            <GbpEquivalent value={toMerits(instrument.price)} />
           </div>
         </div>
       </section>
@@ -413,9 +417,12 @@ export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: Stock
         <span className={styles.sectionLabel}>About {instrument.name}</span>
         <p className={styles.mutedText}>{instrument.about}</p>
         <div className={styles.statGrid}>
-          <StatBox label="30-day low" value={formatMerits(toMerits(low), 1)} />
-          <StatBox label="30-day high" value={formatMerits(toMerits(high), 1)} />
-          <StatBox label="Prev. close" value={formatMerits(toMerits(instrument.prevClose), 2)} />
+          <StatBox label="30-day low" value={<MeritValueStack value={toMerits(low)} />} />
+          <StatBox label="30-day high" value={<MeritValueStack value={toMerits(high)} />} />
+          <StatBox
+            label="Prev. close"
+            value={<MeritValueStack digits={2} value={toMerits(instrument.prevClose)} />}
+          />
           <StatBox label="Risk level" value={risk.label} />
         </div>
         <div className={styles.noticeCard} style={{ marginTop: 16 }}>
@@ -431,7 +438,7 @@ export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: Stock
   );
 }
 
-function StatBox({ label, value }: { label: string; value: string }) {
+function StatBox({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className={styles.statBox}>
       <span className={styles.metaLabel}>{label}</span>

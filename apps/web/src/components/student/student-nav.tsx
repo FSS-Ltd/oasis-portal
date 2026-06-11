@@ -21,7 +21,7 @@ const studentNavItems = [
   { href: '/student', label: 'Home', icon: Home, bottomNav: true },
   { href: '/student/notifications', label: 'Updates', icon: Bell, badge: true },
   { href: '/student/wallet', label: 'Wallet', icon: Wallet, bottomNav: true },
-  { href: '/student/invest', label: 'Invest', icon: TrendingUp },
+  { href: '/student/invest', label: 'Merit Markets', icon: TrendingUp },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/student/homework', label: 'Homework', icon: ClipboardList, bottomNav: true },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },

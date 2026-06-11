@@ -1,8 +1,9 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { formatMerits, withdrawFeePct } from './student-invest-data';
+import { formatMeritsWithGbp, withdrawFeePct } from './student-invest-data';
 import { MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
@@ -142,7 +143,7 @@ export function TradePanel({
       <div className={styles.tradeSummary}>
         <SummaryRow
           label="Fund NAV"
-          value={nav > 0 ? `${formatMerits(nav, 2)} merits / unit` : '—'}
+          value={nav > 0 ? `${formatMeritsWithGbp(nav, 2)} / unit` : '—'}
         />
         {side === 'buy' ? (
           <SummaryRow
@@ -153,11 +154,11 @@ export function TradePanel({
           <>
             <SummaryRow
               label="Gross merit value"
-              value={parsedAmount > 0 ? `${formatMerits(meritValueOfUnits, 1)} merits` : '—'}
+              value={parsedAmount > 0 ? formatMeritsWithGbp(meritValueOfUnits, 1) : '—'}
             />
             <SummaryRow
               label={`Withdrawal fee (${String(withdrawFeePct)}%)`}
-              value={parsedAmount > 0 ? `-${formatMerits(fee, 2)} merits` : '—'}
+              value={parsedAmount > 0 ? formatMeritsWithGbp(-fee, 2) : '—'}
             />
           </>
         )}
@@ -166,8 +167,8 @@ export function TradePanel({
           strong
           value={
             side === 'buy'
-              ? `${formatMerits(spendBalance - intMerits, 1)} merits`
-              : `${formatMerits(spendBalance + netMerits, 1)} merits`
+              ? formatMeritsWithGbp(spendBalance - intMerits, 1)
+              : formatMeritsWithGbp(spendBalance + netMerits, 1)
           }
         />
         <p className={styles.tradeHint}>
@@ -212,7 +213,7 @@ function SummaryRow({
 }: {
   label: string;
   strong?: boolean;
-  value: string;
+  value: ReactNode;
 }) {
   return (
     <div className={styles.tradeSummaryRow}>
