@@ -106,7 +106,7 @@ export function InvestmentOverview({
             Withdraw
           </Link>
           <Link className={styles.button} href={{ pathname: '/student/invest/invest' }}>
-            + Invest merits
+            + Fund balance
           </Link>
         </div>
       </section>
@@ -140,9 +140,7 @@ export function InvestmentOverview({
                   </span>
                   <DeltaPill value={dailyReturnPct * 100} />
                   <span className={styles.smallText}>today</span>
-                  {totalNetWorthMerits > 0 ? (
-                    <GbpEquivalent value={totalNetWorthMerits} />
-                  ) : null}
+                  {totalNetWorthMerits > 0 ? <GbpEquivalent value={totalNetWorthMerits} /> : null}
                 </div>
               </div>
               <div className={styles.titleBlock}>
@@ -224,15 +222,7 @@ export function InvestmentOverview({
   );
 }
 
-function MiniStat({
-  label,
-  tip,
-  value,
-}: {
-  label: string;
-  tip?: string;
-  value: ReactNode;
-}) {
+function MiniStat({ label, tip, value }: { label: string; tip?: string; value: ReactNode }) {
   return (
     <div className={styles.miniStat}>
       <span className={styles.sectionLabel}>

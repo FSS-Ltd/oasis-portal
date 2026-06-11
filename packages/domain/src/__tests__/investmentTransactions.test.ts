@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  planInvestmentCashFunding,
   planInvestmentBuy,
+  planInvestmentHoldingCashBuy,
+  planInvestmentHoldingCashSell,
   planInvestmentHoldingBuy,
   planInvestmentPortfolioWithdrawal,
   planInvestmentSell,
@@ -23,6 +26,28 @@ describe('planInvestmentBuy', () => {
         account: 'Investment',
         delta: 250,
         reason: 'investment:buy',
+      },
+    ]);
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+});
+
+describe('planInvestmentCashFunding', () => {
+  it('moves whole Spend merits into Merit Markets cash with balanced ledger rows', () => {
+    const plan = planInvestmentCashFunding({ studentId: 'student_1', merits: 75 });
+
+    expect(plan.ledgerRows).toEqual([
+      {
+        studentId: 'student_1',
+        account: 'Spend',
+        delta: -75,
+        reason: 'investment:cash:fund',
+      },
+      {
+        studentId: 'student_1',
+        account: 'Investment',
+        delta: 75,
+        reason: 'investment:cash:fund',
       },
     ]);
     expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
@@ -142,6 +167,89 @@ describe('planInvestmentHoldingBuy', () => {
         account: 'Investment',
         delta: 125,
         reason: 'investment:holding:buy',
+      },
+    ]);
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+});
+
+describe('planInvestmentHoldingCashBuy', () => {
+  it('converts investment cash into stock units without creating ledger rows', () => {
+    const plan = planInvestmentHoldingCashBuy({
+      merits: 125,
+      priceMerits: 25,
+    });
+
+    expect(plan).toEqual({
+      costBasisMerits: 125,
+      units: 5,
+      ledgerRows: [],
+    });
+  });
+});
+
+describe('planInvestmentHoldingCashSell', () => {
+  it('returns a profitable stock sale to investment cash with no fee or tax', () => {
+    const plan = planInvestmentHoldingCashSell({
+      currentPriceMerits: 30,
+      currentUnits: 5,
+      studentId: 'student_1',
+      totalCostBasisMerits: 100,
+      units: 4,
+    });
+
+    expect(plan).toMatchObject({
+      costBasisMerits: 80,
+      grossMerits: 120,
+      investmentReturnDelta: -40,
+      remainingUnits: 1,
+      unitsSold: 4,
+    });
+    expect(plan.ledgerRows).toEqual([
+      {
+        studentId: 'student_1',
+        account: 'Investment',
+        delta: 40,
+        reason: 'investment:holding:sell',
+      },
+      {
+        studentId: 'student_1',
+        account: 'InvestmentReturn',
+        delta: -40,
+        reason: 'investment:holding:sell',
+      },
+    ]);
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+
+  it('returns a loss-making stock sale to investment cash with no fee or tax', () => {
+    const plan = planInvestmentHoldingCashSell({
+      currentPriceMerits: 15,
+      currentUnits: 5,
+      studentId: 'student_1',
+      totalCostBasisMerits: 100,
+      units: 4,
+    });
+
+    expect(plan).toMatchObject({
+      costBasisMerits: 80,
+      grossMerits: 60,
+      investmentReturnDelta: 20,
+      remainingUnits: 1,
+      unitsSold: 4,
+    });
+    expect(plan.ledgerRows).toEqual([
+      {
+        studentId: 'student_1',
+        account: 'Investment',
+        delta: -20,
+        reason: 'investment:holding:sell',
+      },
+      {
+        studentId: 'student_1',
+        account: 'InvestmentReturn',
+        delta: 20,
+        reason: 'investment:holding:sell',
       },
     ]);
     expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);

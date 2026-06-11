@@ -213,13 +213,22 @@
 
 .tabButton,
 .rangeButton {
+  display: inline-flex;
   min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 0 12px;
   border-radius: 7px;
   background: transparent;
   color: var(--oasis-text-secondary);
   font-size: 0.78rem;
   font-weight: 850;
+}
+
+.tabButton > svg,
+.rangeButton > svg {
+  flex: 0 0 auto;
 }
 
 .tabButtonActive,
@@ -1198,7 +1207,7 @@
   .metricGrid,
   .allocationLegend,
   .statGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .metricGrid {
@@ -1286,15 +1295,18 @@
 
   .marketMobileRow {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr) auto minmax(86px, auto);
+    align-items: center;
   }
 
   .marketMobileRow > svg,
   .marketMobileRow > span:last-child {
-    grid-column: 2;
-    justify-items: start;
-    text-align: left;
+    grid-column: auto;
+  }
+
+  .marketMobileRow > span:last-child {
+    justify-items: end;
+    text-align: right;
   }
 
   .activityValue {

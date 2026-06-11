@@ -11,7 +11,6 @@ import {
   withdrawFeePct,
   type AccountHolding,
   type ChartSeries,
-  type Instrument,
   type RangeId,
 } from './student-invest-data';
 import { AreaChart, InvestmentCard, MeritIcon, RangeTabs } from './student-invest-ui';
@@ -27,10 +26,9 @@ interface PortfolioPageProps {
 }
 
 interface InvestPageProps {
-  investmentBalanceMerits: number;
-  instruments: readonly Instrument[];
-  isBuying: boolean;
-  onBuyHolding: (input: { instrumentId: string; merits: number }) => void;
+  investmentCashMerits: number;
+  isFunding: boolean;
+  onFundCash: (merits: number) => void;
   spendBalance: number;
 }
 
@@ -110,33 +108,28 @@ export function InvestmentPortfolioPage({
 }
 
 export function InvestmentInvestPage({
-  investmentBalanceMerits,
-  instruments,
-  isBuying,
-  onBuyHolding,
+  investmentCashMerits,
+  isFunding,
+  onFundCash,
   spendBalance,
 }: InvestPageProps) {
-  const priced = instruments.filter((instrument) => instrument.instrumentId && instrument.priceMerits);
-  const [instrumentId, setInstrumentId] = useState(priced[0]?.instrumentId ?? '');
-  const selectedInstrumentId = instrumentId || priced[0]?.instrumentId || '';
   const [amount, setAmount] = useState('');
-  const selected = priced.find((instrument) => instrument.instrumentId === selectedInstrumentId);
   const merits = Math.floor(Number.parseFloat(amount) || 0);
-  const priceMerits = selected?.priceMerits ?? 0;
-  const units = merits > 0 && priceMerits > 0 ? merits / priceMerits : 0;
-  const valid = Boolean(selected?.instrumentId) && merits > 0 && merits <= Math.floor(spendBalance);
+  const cashAfter = investmentCashMerits + merits;
+  const spendAfter = spendBalance - merits;
+  const valid = merits > 0 && merits <= Math.floor(spendBalance);
 
   function submit() {
-    if (!valid || !selected?.instrumentId) return;
-    onBuyHolding({ instrumentId: selected.instrumentId, merits });
+    if (!valid) return;
+    onFundCash(merits);
     setAmount('');
   }
 
   return (
     <>
       <TransferHeader
-        description="Move merits from Spend into a stock or ETF. Investing has no fees or taxes."
-        title="Invest merits"
+        description="Move merits from Spend into your Merit Markets cash balance. Use that cash later to buy stocks and ETFs."
+        title="Fund Merit Markets"
       />
       <div className={styles.transferGrid}>
         <InvestmentCard>
@@ -144,30 +137,13 @@ export function InvestmentInvestPage({
           <RouteBoxes
             leftLabel="Spend wallet"
             leftValue={spendBalance}
-            rightLabel="Investment"
-            rightValue={investmentBalanceMerits}
+            rightLabel="Markets cash"
+            rightValue={investmentCashMerits}
           />
-          <label className={styles.fieldLabel} htmlFor="investment-instrument">
-            Choose investment
-          </label>
-          <select
-            className={styles.selectInput}
-            id="investment-instrument"
-            onChange={(event) => {
-              setInstrumentId(event.target.value);
-            }}
-            value={selectedInstrumentId}
-          >
-            {priced.map((instrument) => (
-              <option key={instrument.instrumentId} value={instrument.instrumentId}>
-                {instrument.ticker} · {instrument.name}
-              </option>
-            ))}
-          </select>
           <AmountInput
             amount={amount}
             id="invest-amount"
-            label="Amount to invest"
+            label="Amount to fund"
             max={Math.floor(spendBalance)}
             onAmount={setAmount}
           />
@@ -175,21 +151,26 @@ export function InvestmentInvestPage({
 
         <InvestmentCard>
           <span className={styles.sectionLabel}>Breakdown</span>
-          <SummaryLine label="You invest" value={merits} />
+          <SummaryLine label="You move" value={merits} />
           <SummaryLine label="Fees" muted value={0} />
           <SummaryLine label="Taxes" muted value={0} />
           <div className={styles.summaryTotal}>
-            <strong>Units bought</strong>
-            <span>{units > 0 ? units.toFixed(4) : '0.0000'}</span>
+            <strong>Markets cash after</strong>
+            <span>
+              <MeritIcon size={16} /> {formatMerits(cashAfter, 1)}
+            </span>
           </div>
-          <p className={styles.tradeHint}>Buying uses whole merits from Spend. No fee or tax applies.</p>
+          <SummaryLine label="Spend after" value={spendAfter} />
+          <p className={styles.tradeHint}>
+            Funding only moves merits into cash. Choose a ticker in Market when you want to buy.
+          </p>
           <button
             className={cn(styles.button, styles.buttonFull)}
-            disabled={!valid || isBuying}
+            disabled={!valid || isFunding}
             onClick={submit}
             type="button"
           >
-            <MeritIcon size={15} /> {isBuying ? 'Investing merits' : 'Invest merits'}
+            <MeritIcon size={15} /> {isFunding ? 'Funding balance' : 'Fund balance'}
           </button>
         </InvestmentCard>
       </div>
@@ -249,7 +230,7 @@ export function InvestmentWithdrawPage({
                   : 'Buy a stock or ETF first. Withdrawals sell a small slice of each holding.'}
               </p>
               <Link className={styles.button} href={{ pathname: '/student/invest/invest' }}>
-                Invest merits
+                Fund balance
               </Link>
             </div>
           </div>
@@ -352,7 +333,9 @@ function HoldingsTable({ holdings }: { holdings: readonly AccountHolding[] }) {
                 <strong>{formatMerits(holding.currentValueMerits, 1)}</strong>
               </td>
               <td>
-                <span className={holding.returnMerits >= 0 ? styles.positiveText : styles.negativeText}>
+                <span
+                  className={holding.returnMerits >= 0 ? styles.positiveText : styles.negativeText}
+                >
                   {formatSignedMerits(holding.returnMerits, 1)}
                 </span>
               </td>
@@ -373,7 +356,7 @@ function EmptyPortfolio() {
         <h2>No stocks yet</h2>
         <p>Buy your first stock or ETF and this portfolio table will fill in.</p>
         <Link className={styles.button} href={{ pathname: '/student/invest/invest' }}>
-          Invest merits
+          Fund balance
         </Link>
       </div>
     </div>

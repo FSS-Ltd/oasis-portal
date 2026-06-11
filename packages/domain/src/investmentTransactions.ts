@@ -25,6 +25,19 @@ export interface InvestmentHoldingBuyPlan {
   ledgerRows: LedgerRow[];
 }
 
+export interface InvestmentCashFundingPlan {
+  ledgerRows: LedgerRow[];
+}
+
+export interface InvestmentHoldingCashSellPlan {
+  costBasisMerits: number;
+  grossMerits: number;
+  investmentReturnDelta: number;
+  ledgerRows: LedgerRow[];
+  remainingUnits: number;
+  unitsSold: number;
+}
+
 export interface InvestmentPortfolioWithdrawalHolding {
   instrumentId: string;
   units: number;
@@ -95,6 +108,32 @@ export function planInvestmentBuy(params: {
   };
 }
 
+export function planInvestmentCashFunding(params: {
+  studentId: string;
+  merits: number;
+}): InvestmentCashFundingPlan {
+  if (!Number.isInteger(params.merits) || params.merits <= 0) {
+    throw new Error('merits must be a positive integer');
+  }
+
+  return {
+    ledgerRows: [
+      {
+        studentId: params.studentId,
+        account: 'Spend',
+        delta: -params.merits,
+        reason: 'investment:cash:fund',
+      },
+      {
+        studentId: params.studentId,
+        account: 'Investment',
+        delta: params.merits,
+        reason: 'investment:cash:fund',
+      },
+    ],
+  };
+}
+
 export function planInvestmentHoldingBuy(params: {
   studentId: string;
   merits: number;
@@ -127,6 +166,78 @@ export function planInvestmentHoldingBuy(params: {
         reason: 'investment:holding:buy',
       },
     ],
+  };
+}
+
+export function planInvestmentHoldingCashBuy(params: {
+  merits: number;
+  priceMerits: number;
+}): InvestmentHoldingBuyPlan {
+  if (!Number.isInteger(params.merits) || params.merits <= 0) {
+    throw new Error('merits must be a positive integer');
+  }
+  requirePositiveFinite(params.priceMerits, 'priceMerits');
+
+  const units = unitsToSixDecimals(params.merits / params.priceMerits);
+  if (units <= 0) {
+    throw new Error('merits are too small to buy investment units at current price');
+  }
+
+  return {
+    costBasisMerits: params.merits,
+    units,
+    ledgerRows: [],
+  };
+}
+
+export function planInvestmentHoldingCashSell(params: {
+  studentId: string;
+  units: number;
+  currentUnits: number;
+  totalCostBasisMerits: number;
+  currentPriceMerits: number;
+}): InvestmentHoldingCashSellPlan {
+  requirePositiveFinite(params.units, 'units');
+  requirePositiveFinite(params.currentUnits, 'currentUnits');
+  requirePositiveFinite(params.currentPriceMerits, 'currentPriceMerits');
+  if (!Number.isInteger(params.totalCostBasisMerits) || params.totalCostBasisMerits < 0) {
+    throw new Error('totalCostBasisMerits must be a non-negative integer');
+  }
+  if (params.units > params.currentUnits) {
+    throw new Error('cannot sell more units than currently held');
+  }
+
+  const isFullExit = Math.abs(params.currentUnits - params.units) < 1 / UNIT_SCALE;
+  const costBasisMerits = isFullExit
+    ? params.totalCostBasisMerits
+    : Math.floor(params.totalCostBasisMerits * (params.units / params.currentUnits));
+  const grossMerits = Math.floor(params.units * params.currentPriceMerits);
+  const investmentGainMerits = grossMerits - costBasisMerits;
+  const investmentReturnDelta = -investmentGainMerits;
+  const remainingUnits = Math.max(0, unitsToSixDecimals(params.currentUnits - params.units));
+  const reason = 'investment:holding:sell';
+  const ledgerRows: LedgerRow[] = [
+    {
+      studentId: params.studentId,
+      account: 'Investment',
+      delta: investmentGainMerits,
+      reason,
+    },
+    {
+      studentId: params.studentId,
+      account: 'InvestmentReturn',
+      delta: investmentReturnDelta,
+      reason,
+    },
+  ];
+
+  return {
+    costBasisMerits,
+    grossMerits,
+    investmentReturnDelta,
+    ledgerRows: ledgerRows.filter((row) => row.delta !== 0),
+    remainingUnits,
+    unitsSold: params.units,
   };
 }
 
