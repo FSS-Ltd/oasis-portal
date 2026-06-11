@@ -481,3 +481,53 @@
 
 ### Follow-Ups Deferred
 - Larger component splits remain warranted for the selected oversized UI surfaces, but were deferred to avoid broader workflow and visual-regression risk.
+
+## 2026-06-11 - Pass 1
+
+### Selected Files
+1. `apps/api/src/routers/homework.ts`
+2. `apps/web/src/components/homework/admin-homework-client.tsx`
+3. `apps/api/src/routers/faithCorner.ts`
+4. `apps/web/src/components/clubs/club-assignment-panels.tsx`
+5. `apps/web/src/components/reports/report-workflow-client.tsx`
+6. `apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx`
+7. `apps/web/src/components/invoices/admin-invoice-upload-utils.ts`
+8. `apps/web/src/components/clubs/my-club-rota-panel.tsx`
+9. `apps/web/src/components/profile/self-profile-client.tsx`
+10. `apps/web/src/components/attendance/special-attendance-capture.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed for API, web, and mobile files before edits.
+- Typecheck: `pnpm --filter @oasis/api typecheck`, `pnpm --filter @oasis/web typecheck`, and `pnpm --filter @oasis/mobile typecheck` passed before edits.
+- Tests: focused API homework and Faith Corner router tests were reserved for post-change validation.
+- Formatting: selected-file Prettier check failed before edits for `apps/api/src/routers/homework.ts`, `apps/web/src/components/homework/admin-homework-client.tsx`, `apps/api/src/routers/faithCorner.ts`, `apps/web/src/components/reports/report-workflow-client.tsx`, and `apps/web/src/components/profile/self-profile-client.tsx`.
+
+### Changes Made
+- `apps/api/src/routers/homework.ts`: Extracted shared assignment band validation for create/update homework assignment paths. Formatted selected router file to satisfy Prettier.
+- `apps/web/src/components/homework/admin-homework-client.tsx`: Extracted review row key construction into a named helper. Formatted selected homework admin component to satisfy Prettier.
+- `apps/api/src/routers/faithCorner.ts`: Extracted repeated Faith Corner comment decrypt audit logging into a shared helper. Formatted selected router file to satisfy Prettier.
+- `apps/web/src/components/clubs/club-assignment-panels.tsx`: Reviewed for lint, type, formatting, and safe extraction opportunities; no source change was needed.
+- `apps/web/src/components/reports/report-workflow-client.tsx`: Formatted selected report workflow component to satisfy Prettier.
+- `apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx`: Cached the parent portal full-date formatter instead of constructing it during render.
+- `apps/web/src/components/invoices/admin-invoice-upload-utils.ts`: Cached the invoice term formatter used by uploaded invoice defaults.
+- `apps/web/src/components/clubs/my-club-rota-panel.tsx`: Extracted repeated availability draft row updates into a local helper.
+- `apps/web/src/components/profile/self-profile-client.tsx`: Cached the profile date formatter. Formatted selected profile component to satisfy Prettier.
+- `apps/web/src/components/attendance/special-attendance-capture.tsx`: Extracted row-key removal into a local helper that satisfies lint rules without dynamic delete.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/api lint`; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/mobile lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`; pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/mobile typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/homework.router.test.ts src/__tests__/faithCorner.router.test.ts`
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff hygiene: pass, `git diff --check`
+- graph update: pass, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Larger splits remain warranted for the selected oversized homework, club, report, profile, and attendance UI surfaces, but were deferred to avoid broad workflow and visual-regression risk.

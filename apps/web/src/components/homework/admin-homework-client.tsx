@@ -65,6 +65,10 @@ function statusClass(status: ReviewRow['reviewStatus']): string {
   return 'homework-badge homework-badge--muted';
 }
 
+function reviewRowKey(row: Pick<ReviewRow, 'assignmentId' | 'student'>): string {
+  return `${row.assignmentId}:${row.student.id}`;
+}
+
 function HomeworkImageLinks({ images }: { images: readonly AdminHomeworkImage[] }) {
   if (images.length === 0) return null;
 
@@ -155,7 +159,13 @@ async function uploadAssignmentQuestionImage(
   const response = await fetch('/api/homework/assignment-upload', {
     body: JSON.stringify({
       assignmentId,
-      files: [{ fileName: file.name, mimeType: file.type || 'application/octet-stream', sizeBytes: file.size }],
+      files: [
+        {
+          fileName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+        },
+      ],
     }),
     headers: { 'Content-Type': 'application/json' },
     method: 'POST',
@@ -224,7 +234,10 @@ export function AdminHomeworkClient() {
 
   const attachAssignmentImage = api.homework.attachAssignmentImage.useMutation({
     onError(error) {
-      showErrorToast(error, 'Question image could not be saved — but assignment was created/saved.');
+      showErrorToast(
+        error,
+        'Question image could not be saved — but assignment was created/saved.',
+      );
     },
   });
 
@@ -303,15 +316,13 @@ export function AdminHomeworkClient() {
     [reviewRows, selectedAssignmentId],
   );
   const selectedReview =
-    filteredReviewRows.find(
-      (row) => `${row.assignmentId}:${row.student.id}` === selectedReviewKey,
-    ) ??
+    filteredReviewRows.find((row) => reviewRowKey(row) === selectedReviewKey) ??
     filteredReviewRows[0] ??
     null;
 
   useEffect(() => {
     if (!selectedReview) return;
-    setSelectedReviewKey(`${selectedReview.assignmentId}:${selectedReview.student.id}`);
+    setSelectedReviewKey(reviewRowKey(selectedReview));
     setReviewForm({
       comments: selectedReview.assignment.comments ?? '',
       meritAmount: String(selectedReview.meritAmount),
@@ -523,7 +534,12 @@ export function AdminHomeworkClient() {
                 {editingAssignment ? 'Save changes' : 'Create homework'}
               </Button>
               {editingAssignment ? (
-                <Button disabled={formPending} onClick={cancelEditing} type="button" variant="ghost">
+                <Button
+                  disabled={formPending}
+                  onClick={cancelEditing}
+                  type="button"
+                  variant="ghost"
+                >
                   Cancel
                 </Button>
               ) : null}
@@ -609,7 +625,7 @@ export function AdminHomeworkClient() {
           <div className="homework-review-list" role="list">
             {filteredReviewRows.length > 0 ? (
               filteredReviewRows.map((row) => {
-                const reviewKey = `${row.assignmentId}:${row.student.id}`;
+                const reviewKey = reviewRowKey(row);
                 return (
                   <button
                     className={

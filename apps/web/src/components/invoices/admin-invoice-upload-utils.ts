@@ -53,6 +53,12 @@ export interface LineForm {
   unitAmount: string;
 }
 
+const invoiceTermFormatter = new Intl.DateTimeFormat('en-GB', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
 interface PromiseWithResolversResult<T> {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
@@ -231,13 +237,7 @@ export function defaultDueDate(issuedOn: string): string {
 
 export function defaultTerm(issuedOn: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/u.test(issuedOn)) return '';
-  return new Intl.DateTimeFormat('en-GB', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-    .format(new Date(`${issuedOn}T00:00:00.000Z`))
-    .toUpperCase();
+  return invoiceTermFormatter.format(new Date(`${issuedOn}T00:00:00.000Z`)).toUpperCase();
 }
 
 export function lineFormsFromParsed(lines: readonly UploadLineItem[]): LineForm[] {

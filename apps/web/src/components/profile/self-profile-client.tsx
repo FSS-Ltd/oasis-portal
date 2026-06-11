@@ -32,6 +32,12 @@ const tabs: readonly { id: ProfileTab; label: string }[] = [
 
 const childrenTab = { id: 'children', label: 'Children' } as const;
 
+const profileDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
 function profileForm(profile: Profile) {
   return {
     fullName: profile.fullName,
@@ -42,11 +48,7 @@ function profileForm(profile: Profile) {
 }
 
 function formatDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+  return profileDateFormatter.format(new Date(value));
 }
 
 function isAdultProfile(profile: Profile): boolean {
@@ -91,7 +93,11 @@ export function SelfProfileClient({
   if (profileQuery.error || !profileQuery.data) {
     return (
       <EmptyState
-        detail={profileQuery.error ? friendlyErrorMessage(profileQuery.error) : 'Your profile could not be loaded.'}
+        detail={
+          profileQuery.error
+            ? friendlyErrorMessage(profileQuery.error)
+            : 'Your profile could not be loaded.'
+        }
         title="Profile unavailable"
       />
     );

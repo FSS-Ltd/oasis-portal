@@ -53,6 +53,16 @@ function registerLabel(register: SpecialAttendanceRegister): string {
   return specialRegisters.find((option) => option.id === register)?.label ?? register;
 }
 
+function withoutRecordKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next: Record<string, T> = {};
+  for (const [recordKey, value] of Object.entries(record)) {
+    if (recordKey !== key) {
+      next[recordKey] = value;
+    }
+  }
+  return next;
+}
+
 export function SpecialAttendanceCapture({
   canRecord,
   selectedDate: controlledSelectedDate,
@@ -93,11 +103,7 @@ export function SpecialAttendanceCapture({
 
   async function markSpecial(row: SpecialAttendanceRow, status: AttendanceStatus) {
     setPendingRows((current) => ({ ...current, [row.studentId]: true }));
-    setRowErrors((current) => {
-      const { [row.studentId]: _removed, ...next } = current;
-      void _removed;
-      return next;
-    });
+    setRowErrors((current) => withoutRecordKey(current, row.studentId));
 
     try {
       await markMutation.mutateAsync({ date, register, studentId: row.studentId, status });
@@ -110,11 +116,7 @@ export function SpecialAttendanceCapture({
       }));
       showErrorToast(error, 'Special attendance could not be saved.');
     } finally {
-      setPendingRows((current) => {
-        const { [row.studentId]: _removed, ...next } = current;
-        void _removed;
-        return next;
-      });
+      setPendingRows((current) => withoutRecordKey(current, row.studentId));
     }
   }
 
