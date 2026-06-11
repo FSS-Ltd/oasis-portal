@@ -1,0 +1,707 @@
+/* Landing page motion & redesign layer. Loaded after landing.css.
+   Everything is namespaced under `landing-` because both files are global.
+   All hiding/animating rules live inside `prefers-reduced-motion: no-preference`
+   so reduced-motion users (and bots) always get the static, fully visible page. */
+
+.landing-page {
+  --landing-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --landing-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+html:has(.landing-page) {
+  scroll-padding-top: 96px;
+}
+
+/* ---------- Film grain ---------- */
+
+.landing-page::after {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background-image: var(--landing-grain);
+  background-size: 160px 160px;
+  content: '';
+  mix-blend-mode: overlay;
+  opacity: 0.05;
+  pointer-events: none;
+}
+
+/* ---------- Footer curtain ---------- */
+
+.landing-curtain {
+  position: relative;
+  z-index: 1;
+  background: var(--landing-paper);
+}
+
+.landing-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 0;
+}
+
+/* ---------- Masked type reveals ---------- */
+
+.landing-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding-block: 0.09em;
+  margin-block: -0.09em;
+}
+
+.landing-mask__inner,
+.landing-mask__word {
+  display: inline-block;
+  transform-origin: left bottom;
+}
+
+span.landing-cascade {
+  display: inline-block;
+}
+
+/* ---------- Hero backdrop: line texture + aurora layers ---------- */
+
+.landing-hero__backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.landing-hero__backdrop .landing-hero__bg {
+  inset: -140px 0 0;
+}
+
+.landing-aurora {
+  position: absolute;
+  width: 58vw;
+  max-width: 740px;
+  aspect-ratio: 1 / 1;
+}
+
+.landing-aurora--a {
+  top: -22%;
+  left: -14%;
+}
+
+.landing-aurora--b {
+  right: -12%;
+  bottom: -30%;
+}
+
+.landing-aurora__blob {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.55;
+}
+
+.landing-aurora__blob--a {
+  background: radial-gradient(circle at 35% 35%, rgba(91, 144, 197, 0.6), transparent 65%);
+}
+
+.landing-aurora__blob--b {
+  background: radial-gradient(circle at 60% 40%, rgba(125, 28, 44, 0.75), transparent 65%);
+}
+
+.landing-aurora__blob--term {
+  background: radial-gradient(circle at 50% 50%, rgba(91, 144, 197, 0.35), transparent 65%);
+  filter: blur(80px);
+  opacity: 0.6;
+}
+
+/* ---------- Hero preview cards ---------- */
+
+.landing-preview {
+  perspective: 1100px;
+}
+
+.landing-preview-item {
+  position: absolute;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.landing-preview-item--merits {
+  top: 0;
+  left: 0;
+  width: 62%;
+}
+
+.landing-preview-item--behaviour {
+  top: 160px;
+  right: 0;
+  width: 60%;
+}
+
+.landing-preview-item--slip {
+  bottom: 0;
+  left: 8%;
+  width: 58%;
+}
+
+.landing-preview-card {
+  will-change: transform;
+}
+
+/* ---------- Scroll cue ---------- */
+
+.landing-scroll-cue {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.landing-scroll-cue__label {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.landing-scroll-cue__line {
+  position: relative;
+  width: 1px;
+  height: 42px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.landing-scroll-cue__line::after {
+  position: absolute;
+  top: -40%;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: #e8b4bc;
+  content: '';
+}
+
+/* ---------- Nav: scrolled state, active marker, mobile menu ---------- */
+
+.landing-nav {
+  transition: background 0.3s ease;
+}
+
+.landing-nav__inner {
+  position: relative;
+  z-index: 2;
+  transition: min-height 0.3s ease;
+}
+
+.landing-nav--scrolled {
+  background: rgba(15, 26, 58, 0.96);
+}
+
+.landing-nav--scrolled .landing-nav__inner {
+  min-height: 56px;
+}
+
+.landing-brand__logo {
+  transition:
+    width 0.3s ease,
+    height 0.3s ease;
+}
+
+.landing-brand__logo img {
+  width: 100%;
+  height: 100%;
+}
+
+.landing-nav--scrolled .landing-brand__logo {
+  width: 30px;
+  height: 30px;
+}
+
+.landing-brand small {
+  overflow: hidden;
+  max-height: 14px;
+  transition:
+    max-height 0.3s ease,
+    opacity 0.3s ease;
+}
+
+.landing-nav--scrolled .landing-brand small {
+  max-height: 0;
+  opacity: 0;
+}
+
+.landing-nav__links a {
+  position: relative;
+  padding: 6px 0;
+}
+
+.landing-nav__links a.is-active {
+  color: #ffffff;
+}
+
+.landing-nav__marker {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: #e8b4bc;
+}
+
+.landing-nav__toggle {
+  position: relative;
+  display: none;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.landing-nav__toggle span {
+  position: absolute;
+  right: 12px;
+  left: 12px;
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: #ffffff;
+  transition:
+    transform 0.3s var(--landing-ease),
+    opacity 0.2s ease;
+}
+
+.landing-nav__toggle span:nth-child(1) {
+  top: 15px;
+}
+
+.landing-nav__toggle span:nth-child(2) {
+  top: 21px;
+}
+
+.landing-nav__toggle span:nth-child(3) {
+  top: 27px;
+}
+
+.landing-nav__toggle.is-open span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.landing-nav__toggle.is-open span:nth-child(2) {
+  opacity: 0;
+}
+
+.landing-nav__toggle.is-open span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+.landing-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 44px;
+  background: var(--landing-navy-deep);
+  padding: 96px 28px 48px;
+}
+
+.landing-menu__links {
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-menu__links a {
+  min-height: 48px;
+  color: var(--landing-cream);
+  font-family: Fraunces, Georgia, serif;
+  font-size: clamp(30px, 8vw, 44px);
+  font-weight: 500;
+  line-height: 1.15;
+  padding: 8px 0;
+}
+
+.landing-menu__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.landing-menu__actions .landing-btn {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .landing-nav {
+    /* backdrop-filter blurs are expensive on low-end phones; go solid instead */
+    background: rgba(15, 26, 58, 0.97);
+    backdrop-filter: none;
+  }
+
+  .landing-nav__toggle {
+    display: inline-flex;
+  }
+
+  .landing-menu {
+    display: flex;
+  }
+}
+
+/* ---------- Marquee ---------- */
+
+.landing-marquee {
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--landing-navy-deep);
+  padding: 20px 0;
+}
+
+.landing-marquee__track {
+  display: flex;
+  width: max-content;
+}
+
+.landing-marquee__group {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding-right: 40px;
+}
+
+.landing-marquee__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 40px;
+  color: rgba(246, 241, 230, 0.82);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 24px;
+  font-style: italic;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.landing-marquee__dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(232, 180, 188, 0.7);
+}
+
+/* ---------- Role deck (sticky stacking cards) ---------- */
+
+.landing-role-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (min-width: 901px) {
+  .landing-role-deck {
+    gap: 36px;
+  }
+
+  .landing-role-deck__card {
+    position: sticky;
+    top: var(--deck-top, 108px);
+  }
+
+  .landing-role-deck__inner {
+    transform-origin: center top;
+    will-change: transform;
+  }
+
+  .landing-role-deck .landing-role-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-rows: auto auto 1fr auto;
+    column-gap: 56px;
+    padding: 44px 48px 36px;
+    box-shadow: 0 -24px 48px -36px rgba(27, 43, 94, 0.4);
+  }
+
+  .landing-role-deck .landing-role-tag {
+    grid-column: 1;
+  }
+
+  .landing-role-deck .landing-role-card h3 {
+    grid-column: 1;
+    font-size: 32px;
+  }
+
+  .landing-role-deck .landing-role-card__description {
+    grid-column: 1;
+    align-self: start;
+    max-width: 46ch;
+    font-size: 14.5px;
+  }
+
+  .landing-role-deck .landing-role-list {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+    gap: 14px;
+  }
+
+  .landing-role-deck .landing-role-foot {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    margin-top: 28px;
+  }
+}
+
+/* ---------- Features grid: reveal cells + hover micro-interactions ---------- */
+
+.landing-feature-cell {
+  display: flex;
+}
+
+.landing-feature-cell .landing-feature {
+  width: 100%;
+  flex: 1;
+}
+
+.landing-feature {
+  transition: background 0.25s ease;
+}
+
+.landing-feature__glyph {
+  transition:
+    transform 0.3s var(--landing-ease),
+    color 0.3s ease;
+}
+
+@media (hover: hover) {
+  .landing-feature:hover {
+    background: #fffdf6;
+  }
+
+  .landing-feature:hover .landing-feature__glyph {
+    transform: rotate(-6deg) scale(1.1);
+    color: var(--landing-crimson);
+  }
+
+  .landing-role-foot a:hover {
+    color: var(--landing-crimson);
+  }
+}
+
+/* ---------- Term band ---------- */
+
+.landing-term-band__fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.landing-term-band__aurora {
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 55vw;
+  max-width: 700px;
+  aspect-ratio: 1 / 1;
+}
+
+.landing-parallax__inner {
+  width: 100%;
+  height: 100%;
+}
+
+.landing-term-cell {
+  display: flex;
+}
+
+.landing-term-cell .landing-term-card {
+  width: 100%;
+  flex: 1;
+}
+
+.landing-verse__word {
+  display: inline;
+}
+
+/* ---------- CTA band ---------- */
+
+.landing-cta-card .landing-cta-card__title {
+  margin: 0 0 16px;
+  font-size: clamp(42px, 6.5vw, 92px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.02;
+}
+
+.landing-cta-card {
+  isolation: isolate;
+}
+
+.landing-cta-card::after {
+  position: absolute;
+  inset: -40%;
+  z-index: -1;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.16), transparent 45%);
+  content: '';
+  pointer-events: none;
+}
+
+.landing-magnet {
+  display: inline-flex;
+}
+
+/* ---------- Entrance & ambient animations (motion-safe only) ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-cascade {
+    opacity: 0;
+    animation: landing-fade-up 0.8s var(--landing-ease) forwards;
+    animation-delay: var(--d, 0ms);
+  }
+
+  .landing-mask__inner {
+    opacity: 0;
+    transform: translateY(112%) rotate(4deg);
+    animation: landing-mask-up 0.75s var(--landing-ease) forwards;
+    animation-delay: calc(var(--i, 0) * 50ms + 80ms);
+  }
+
+  .landing-preview-item {
+    opacity: 0;
+    animation: landing-card-in 0.9s var(--landing-ease) forwards;
+  }
+
+  .landing-preview-item--merits {
+    animation-delay: 0.45s;
+  }
+
+  .landing-preview-item--behaviour {
+    animation-delay: 0.62s;
+  }
+
+  .landing-preview-item--slip {
+    animation-delay: 0.8s;
+  }
+
+  .landing-scroll-cue__line::after {
+    animation: landing-scroll-pulse 2.2s ease-in-out infinite;
+  }
+
+  .landing-marquee__track {
+    animation: landing-marquee 42s linear infinite;
+  }
+
+  .landing-marquee:hover .landing-marquee__track {
+    animation-play-state: paused;
+  }
+
+  .landing-aurora__blob--a {
+    animation: landing-drift-a 46s ease-in-out infinite alternate;
+  }
+
+  .landing-aurora__blob--b {
+    animation: landing-drift-b 58s ease-in-out infinite alternate;
+  }
+
+  .landing-cta-card::after {
+    animation: landing-cta-glow 9s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes landing-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-mask-up {
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes landing-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(46px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-scroll-pulse {
+  to {
+    top: 110%;
+  }
+}
+
+@keyframes landing-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes landing-drift-a {
+  to {
+    transform: translate3d(7%, 10%, 0) scale(1.14);
+  }
+}
+
+@keyframes landing-drift-b {
+  to {
+    transform: translate3d(-6%, -8%, 0) scale(1.1);
+  }
+}
+
+@keyframes landing-cta-glow {
+  to {
+    transform: translate3d(18%, 12%, 0) scale(1.15);
+  }
+}
+
+/* ---------- Belt-and-braces reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-page *,
+  .landing-page *::before,
+  .landing-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ---------- Mobile tuning ---------- */
+
+@media (max-width: 900px) {
+  .landing-aurora__blob {
+    filter: blur(60px);
+    opacity: 0.4;
+  }
+
+  .landing-marquee__item {
+    font-size: 19px;
+  }
+
+  .landing-scroll-cue {
+    display: none;
+  }
+}

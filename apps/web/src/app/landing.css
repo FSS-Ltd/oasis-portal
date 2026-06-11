@@ -14,6 +14,7 @@
   --landing-line: #e4e1d6;
   --landing-line-cool: #dde3f0;
   min-height: 100vh;
+  overflow-x: clip;
   background: var(--landing-paper);
   color: var(--landing-ink);
   font-family:
@@ -54,7 +55,7 @@
 .landing-nav {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: 100;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(15, 26, 58, 0.85);
   backdrop-filter: blur(14px) saturate(140%);
@@ -309,7 +310,7 @@
 }
 
 .landing-preview-card {
-  position: absolute;
+  width: 100%;
   border: 1px solid var(--landing-line-cool);
   border-radius: 16px;
   background: #ffffff;
@@ -322,22 +323,7 @@
 }
 
 .landing-preview-card--merits {
-  top: 0;
-  left: 0;
-  width: 62%;
   padding: 20px;
-}
-
-.landing-preview-card--behaviour {
-  top: 160px;
-  right: 0;
-  width: 60%;
-}
-
-.landing-preview-card--slip {
-  bottom: 0;
-  left: 8%;
-  width: 58%;
 }
 
 .landing-preview-card__eyebrow {
@@ -565,12 +551,6 @@
   border-top: 1px solid var(--landing-line);
   border-bottom: 1px solid var(--landing-line);
   background: #ffffff;
-}
-
-.landing-roles {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
 }
 
 .landing-role-card {
@@ -801,9 +781,8 @@
 .landing-term-card {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(38, 53, 105, 0.55);
   padding: 28px;
-  backdrop-filter: blur(6px);
 }
 
 .landing-term-card__label {
@@ -1092,12 +1071,6 @@
   text-align: right;
 }
 
-@media (max-width: 1180px) {
-  .landing-roles {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 @media (max-width: 980px) {
   .landing-hero h1 {
     font-size: 56px;
@@ -1118,7 +1091,6 @@
     display: none;
   }
 
-  .landing-roles,
   .landing-term-grid {
     grid-template-columns: 1fr;
   }
@@ -1205,16 +1177,16 @@
     font-size: 32px;
   }
 
-  .landing-preview-card--merits {
+  .landing-preview-item--merits {
     width: 78%;
   }
 
-  .landing-preview-card--behaviour {
+  .landing-preview-item--behaviour {
     top: 180px;
     width: 74%;
   }
 
-  .landing-preview-card--slip {
+  .landing-preview-item--slip {
     left: 4%;
     width: 72%;
   }
