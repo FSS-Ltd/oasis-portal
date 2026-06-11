@@ -92,6 +92,30 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
     },
   });
 
+  const fundCashMutation = api.investment.fundCash.useMutation({
+    onSuccess: (data) => {
+      void accountQuery.refetch();
+      void dashboardQuery.refetch();
+      setToast(`Moved ${formatMerits(data.cashFundedMerits, 1)} merits into Merit Markets cash.`);
+    },
+    onError: () => {
+      setToast('Funding failed. Check your Spend balance and try again.');
+    },
+  });
+
+  const sellHoldingMutation = api.investment.sellHolding.useMutation({
+    onSuccess: (data) => {
+      void accountQuery.refetch();
+      void dashboardQuery.refetch();
+      setToast(
+        `Sold ${data.unitsSold.toFixed(4)} units — ${formatMerits(data.grossMerits, 1)} merits returned to cash.`,
+      );
+    },
+    onError: () => {
+      setToast('Sale failed. Check your units and market price, then try again.');
+    },
+  });
+
   const withdrawPortfolioMutation = api.investment.withdrawPortfolio.useMutation({
     onSuccess: (data) => {
       void accountQuery.refetch();
@@ -167,6 +191,22 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
     [buyHoldingMutation, studentId],
   );
 
+  const fundCash = useCallback(
+    (merits: number) => {
+      if (!studentId) return;
+      fundCashMutation.mutate({ studentId, merits });
+    },
+    [fundCashMutation, studentId],
+  );
+
+  const sellHolding = useCallback(
+    (input: { instrumentId: string; units: number }) => {
+      if (!studentId) return;
+      sellHoldingMutation.mutate({ studentId, ...input });
+    },
+    [sellHoldingMutation, studentId],
+  );
+
   const withdrawPortfolio = useCallback(
     (grossMerits: number) => {
       if (!studentId) return;
@@ -186,9 +226,7 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
             <p className={styles.eyebrow}>Student portal</p>
             <h1>Merit Markets</h1>
             <p>
-              {studentFirstName
-                ? `${studentFirstName}'s investment account`
-                : 'Investment account'}
+              {studentFirstName ? `${studentFirstName}'s investment account` : 'Investment account'}
             </p>
           </div>
         </div>
@@ -207,8 +245,7 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
         {navItems.map((item) => {
           const Icon = item.icon;
           const active =
-            view.screen === item.screen ||
-            (item.screen === 'market' && view.screen === 'stock');
+            view.screen === item.screen || (item.screen === 'market' && view.screen === 'stock');
           return item.href ? (
             <Link
               className={cn(styles.tabButton, active ? styles.tabButtonActive : undefined)}
@@ -266,10 +303,9 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
       ) : null}
       {view.screen === 'invest' ? (
         <InvestmentInvestPage
-          investmentBalanceMerits={investmentCashMerits + portfolioValueMerits}
-          instruments={liveInstruments}
-          isBuying={buyHoldingMutation.isPending}
-          onBuyHolding={buyHolding}
+          investmentCashMerits={investmentCashMerits}
+          isFunding={fundCashMutation.isPending}
+          onFundCash={fundCash}
           spendBalance={spendBalance}
         />
       ) : null}
@@ -296,10 +332,16 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
       ) : null}
       {view.screen === 'stock' && view.ticker ? (
         <InvestmentStockDetail
+          cashBalanceMerits={investmentCashMerits}
+          holding={holdings.find((holding) => holding.symbol === view.ticker) ?? null}
+          isBuying={buyHoldingMutation.isPending}
+          isSelling={sellHoldingMutation.isPending}
           liveInstruments={liveInstruments}
+          onBuyHolding={buyHolding}
           onBack={() => {
             navigate('market');
           }}
+          onSellHolding={sellHolding}
           ticker={view.ticker}
         />
       ) : null}

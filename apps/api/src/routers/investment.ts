@@ -4,7 +4,9 @@ import {
   AccessDeniedError,
   isFullAdmin,
   planInvestmentBuy,
-  planInvestmentHoldingBuy,
+  planInvestmentCashFunding,
+  planInvestmentHoldingCashBuy,
+  planInvestmentHoldingCashSell,
   planInvestmentPortfolioWithdrawal,
   planInvestmentSell,
   requireOwnChild,
@@ -53,10 +55,18 @@ const buyInput = z.object({
   merits: z.number().int().positive(),
 });
 
+const fundCashInput = buyInput;
+
 const buyHoldingInput = z.object({
   studentId: z.string().cuid(),
   instrumentId: z.string().min(1),
   merits: z.number().int().positive(),
+});
+
+const sellHoldingInput = z.object({
+  studentId: z.string().cuid(),
+  instrumentId: z.string().min(1),
+  units: z.number().positive(),
 });
 
 const sellInput = z.object({
@@ -246,6 +256,15 @@ async function loadWalletBalance(
   return result._sum.delta ?? 0;
 }
 
+async function loadInvestmentCashBalance(
+  store: Pick<AppContext['db'], 'meritLedger'>,
+  studentId: string,
+  portfolioCostBasisMerits: number,
+): Promise<number> {
+  const investmentBalance = await loadWalletBalance(store, studentId, 'Investment');
+  return Math.max(0, investmentBalance - portfolioCostBasisMerits);
+}
+
 async function loadLatestNav(
   store: Pick<AppContext['db'], 'investmentNav'>,
 ): Promise<NavDto | null> {
@@ -357,7 +376,10 @@ async function loadMarketSnapshots(
   return (await readCachedInvestmentMarketData({ db: marketDataStorageDb(store) })).snapshots;
 }
 
-async function loadPricedHoldings(store: AppContext['db'], studentId: string): Promise<{
+async function loadPricedHoldings(
+  store: AppContext['db'],
+  studentId: string,
+): Promise<{
   holdings: HoldingRow[];
   mappedHoldings: AccountHoldingDto[];
   snapshotsByInstrument: Map<string, MarketDataSnapshotValuationDto>;
@@ -385,7 +407,11 @@ async function loadPricedHoldings(store: AppContext['db'], studentId: string): P
         left.instrument.symbol.localeCompare(right.instrument.symbol),
     )
     .map((holding) =>
-      mapHoldingForAccount(holding, snapshotsByInstrument.get(holding.instrumentId), portfolioValueMerits),
+      mapHoldingForAccount(
+        holding,
+        snapshotsByInstrument.get(holding.instrumentId),
+        portfolioValueMerits,
+      ),
     );
   const portfolioCostBasisMerits = mappedHoldings.reduce(
     (sum, holding) => sum + holding.costBasisMerits,
@@ -438,6 +464,10 @@ export const investmentRouter = router({
     ]);
     const units = account ? toNumber(account.units) : 0;
     const currentValueMerits = latestNav ? Math.floor(units * latestNav.nav) : 0;
+    const investmentCashMerits = Math.max(
+      0,
+      costBasisMerits - pricedHoldings.portfolioCostBasisMerits,
+    );
 
     return {
       studentId: student.id,
@@ -445,7 +475,7 @@ export const investmentRouter = router({
       latestNav,
       currentValueMerits,
       costBasisMerits,
-      investmentCashMerits: currentValueMerits,
+      investmentCashMerits,
       holdings: pricedHoldings.mappedHoldings,
       portfolioValueMerits: pricedHoldings.portfolioValueMerits,
       portfolioCostBasisMerits: pricedHoldings.portfolioCostBasisMerits,
@@ -568,6 +598,68 @@ export const investmentRouter = router({
     };
   }),
 
+  fundCash: authedProcedure.input(fundCashInput).mutation(async ({ ctx, input }) => {
+    const student = await loadActiveStudent(ctx, input.studentId);
+    await assertCanTransactInvestment(ctx, student, 'investment.fundCash');
+
+    const result = await ctx.db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const spendBalance = await loadWalletBalance(tx, student.id, 'Spend');
+        if (spendBalance < input.merits) {
+          return { ok: false as const, reason: 'InsufficientSpend' };
+        }
+
+        const plan = planInvestmentCashFunding({
+          studentId: student.id,
+          merits: input.merits,
+        });
+        await tx.meritLedger.createMany({ data: plan.ledgerRows });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'InvestmentCashFunding',
+            entityId: student.id,
+            meta: {
+              source: 'investment.fundCash',
+              studentId: student.id,
+              merits: input.merits,
+            },
+          },
+        });
+
+        return {
+          ok: true as const,
+          cashFundedMerits: input.merits,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (!result.ok) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'InvestmentCashFunding',
+          entityId: student.id,
+          meta: {
+            source: 'investment.fundCash',
+            outcome: 'Rejected',
+            reason: result.reason,
+            merits: input.merits,
+          },
+        },
+      });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'insufficient Spend balance' });
+    }
+
+    return {
+      studentId: student.id,
+      cashFundedMerits: result.cashFundedMerits,
+    };
+  }),
+
   buyHolding: authedProcedure.input(buyHoldingInput).mutation(async ({ ctx, input }) => {
     const student = await loadActiveStudent(ctx, input.studentId);
     await assertCanTransactInvestment(ctx, student, 'investment.buyHolding');
@@ -580,13 +672,17 @@ export const investmentRouter = router({
           return { ok: false as const, reason: 'InstrumentUnavailable' };
         }
 
-        const spendBalance = await loadWalletBalance(tx, student.id, 'Spend');
-        if (spendBalance < input.merits) {
-          return { ok: false as const, reason: 'InsufficientSpend' };
+        const priced = await loadPricedHoldings(tx as unknown as AppContext['db'], student.id);
+        const investmentCashMerits = await loadInvestmentCashBalance(
+          tx,
+          student.id,
+          priced.portfolioCostBasisMerits,
+        );
+        if (investmentCashMerits < input.merits) {
+          return { ok: false as const, reason: 'InsufficientInvestmentCash' };
         }
 
-        const plan = planInvestmentHoldingBuy({
-          studentId: student.id,
+        const plan = planInvestmentHoldingCashBuy({
           merits: input.merits,
           priceMerits: snapshot.priceMerits,
         });
@@ -624,7 +720,9 @@ export const investmentRouter = router({
           },
           select: { id: true },
         });
-        await tx.meritLedger.createMany({ data: plan.ledgerRows });
+        if (plan.ledgerRows.length > 0) {
+          await tx.meritLedger.createMany({ data: plan.ledgerRows });
+        }
         await tx.auditLog.create({
           data: {
             userId: ctx.user.id,
@@ -678,8 +776,8 @@ export const investmentRouter = router({
       throw new TRPCError({
         code: 'BAD_REQUEST',
         message:
-          result.reason === 'InsufficientSpend'
-            ? 'insufficient Spend balance'
+          result.reason === 'InsufficientInvestmentCash'
+            ? 'insufficient Merit Markets cash balance'
             : 'investment instrument is unavailable',
       });
     }
@@ -690,6 +788,133 @@ export const investmentRouter = router({
       unitsBought: result.unitsBought,
       priceMerits: result.priceMerits,
       costBasisMerits: result.costBasisMerits,
+      holding: result.holding,
+    };
+  }),
+
+  sellHolding: authedProcedure.input(sellHoldingInput).mutation(async ({ ctx, input }) => {
+    const student = await loadActiveStudent(ctx, input.studentId);
+    await assertCanTransactInvestment(ctx, student, 'investment.sellHolding');
+
+    const result = await ctx.db.$transaction(
+      async (tx: Prisma.TransactionClient) => {
+        const priced = await loadPricedHoldings(tx as unknown as AppContext['db'], student.id);
+        const holding = priced.holdings.find(
+          (candidate) => candidate.instrumentId === input.instrumentId,
+        );
+        const snapshot = priced.snapshotsByInstrument.get(input.instrumentId);
+        if (!holding || !snapshot) {
+          return { ok: false as const, reason: 'HoldingUnavailable' };
+        }
+
+        const currentUnits = toNumber(holding.units);
+        if (input.units > currentUnits) {
+          return { ok: false as const, reason: 'InsufficientUnits' };
+        }
+
+        const plan = planInvestmentHoldingCashSell({
+          studentId: student.id,
+          units: input.units,
+          currentUnits,
+          totalCostBasisMerits: holding.costBasisMerits,
+          currentPriceMerits: snapshot.priceMerits,
+        });
+        const updatedHolding = await tx.investmentHolding.update({
+          where: { id: holding.id },
+          data: {
+            units: toSixDecimal(plan.remainingUnits),
+            costBasisMerits: holding.costBasisMerits - plan.costBasisMerits,
+          },
+          include: { instrument: true },
+        });
+        const transaction = await tx.investmentTransaction.create({
+          data: {
+            studentId: student.id,
+            type: 'Sell',
+            instrumentId: input.instrumentId,
+            units: toSixDecimal(plan.unitsSold),
+            nav: toSixDecimal(snapshot.priceMerits),
+            feeMerits: 0,
+            grossMerits: plan.grossMerits,
+            taxMerits: 0,
+            costBasisMerits: plan.costBasisMerits,
+          },
+          select: { id: true },
+        });
+        if (plan.ledgerRows.length > 0) {
+          await tx.meritLedger.createMany({ data: plan.ledgerRows });
+        }
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'InvestmentTransaction',
+            entityId: transaction.id,
+            meta: {
+              source: 'investment.sellHolding',
+              studentId: student.id,
+              instrumentId: input.instrumentId,
+              units: input.units,
+              priceMerits: snapshot.priceMerits,
+              grossMerits: plan.grossMerits,
+              costBasisMerits: plan.costBasisMerits,
+              investmentReturnDelta: plan.investmentReturnDelta,
+            },
+          },
+        });
+
+        return {
+          ok: true as const,
+          costBasisMerits: plan.costBasisMerits,
+          grossMerits: plan.grossMerits,
+          holding: {
+            id: updatedHolding.id,
+            instrumentId: updatedHolding.instrumentId,
+            units: toNumber(updatedHolding.units),
+            costBasisMerits: updatedHolding.costBasisMerits,
+          },
+          investmentReturnDelta: plan.investmentReturnDelta,
+          priceMerits: snapshot.priceMerits,
+          transactionId: transaction.id,
+          unitsSold: plan.unitsSold,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (!result.ok) {
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'InvestmentTransaction',
+          entityId: student.id,
+          meta: {
+            source: 'investment.sellHolding',
+            outcome: 'Rejected',
+            reason: result.reason,
+            instrumentId: input.instrumentId,
+            units: input.units,
+          },
+        },
+      });
+      throw new TRPCError({
+        code: 'BAD_REQUEST',
+        message:
+          result.reason === 'InsufficientUnits'
+            ? 'insufficient holding units'
+            : 'investment holding is unavailable',
+      });
+    }
+
+    return {
+      studentId: student.id,
+      transactionId: result.transactionId,
+      unitsSold: result.unitsSold,
+      priceMerits: result.priceMerits,
+      grossMerits: result.grossMerits,
+      costBasisMerits: result.costBasisMerits,
+      investmentReturnDelta: result.investmentReturnDelta,
       holding: result.holding,
     };
   }),

@@ -17,10 +17,12 @@ import {
   sliceInstrumentSeries,
   today,
   toMerits,
+  type AccountHolding,
   type CustomRange,
   type Instrument,
   type RangeId,
 } from './student-invest-data';
+import { TradePanel } from './student-invest-trade';
 import {
   AreaChart,
   DeltaPill,
@@ -47,8 +49,14 @@ interface MarketProps {
 }
 
 interface StockDetailProps {
+  cashBalanceMerits: number;
+  holding: AccountHolding | null;
+  isBuying: boolean;
+  isSelling: boolean;
   liveInstruments?: readonly Instrument[];
+  onBuyHolding: (input: { instrumentId: string; merits: number }) => void;
   onBack: () => void;
+  onSellHolding: (input: { instrumentId: string; units: number }) => void;
   ticker: string;
 }
 
@@ -313,12 +321,23 @@ function MarketSkeleton() {
   );
 }
 
-export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: StockDetailProps) {
+export function InvestmentStockDetail({
+  cashBalanceMerits,
+  holding,
+  isBuying,
+  isSelling,
+  liveInstruments,
+  onBack,
+  onBuyHolding,
+  onSellHolding,
+  ticker,
+}: StockDetailProps) {
   const instrument =
     liveInstruments?.find((i) => i.ticker === ticker) ?? instrumentForTicker(ticker);
   const [range, setRange] = useState<RangeId>('3M');
   const [customRange, setCustomRange] = useState<CustomRange | null>(null);
   const [showCustom, setShowCustom] = useState(false);
+  const [mobileTradeSide, setMobileTradeSide] = useState<'buy' | 'sell' | null>(null);
   const series = sliceInstrumentSeries(instrument, range, customRange);
   const rangePct = percentChange(series.first, series.last);
   const recent = instrument.daily.slice(-30);
@@ -327,6 +346,39 @@ export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: Stock
   const risk = riskBand(instrument.volatility);
   const minDate = formatDateInput(new Date(today.getTime() - (historyDays - 1) * msDay));
   const maxDate = formatDateInput(today);
+  const holdingUnits = holding?.units ?? 0;
+
+  function buySelectedHolding(merits: number) {
+    if (!instrument.instrumentId) return;
+    onBuyHolding({ instrumentId: instrument.instrumentId, merits });
+  }
+
+  function sellSelectedHolding(units: number) {
+    if (!instrument.instrumentId) return;
+    onSellHolding({ instrumentId: instrument.instrumentId, units });
+  }
+
+  const tradePanel = (initialSide: 'buy' | 'sell', closeAfterSubmit = false) => {
+    const closeTradeModal = () => {
+      setMobileTradeSide(null);
+    };
+    const commonProps = {
+      cashBalanceMerits,
+      holdingUnits,
+      initialSide,
+      instrument,
+      isBuying,
+      isSelling,
+      onBuy: buySelectedHolding,
+      onSell: sellSelectedHolding,
+    };
+
+    return closeAfterSubmit ? (
+      <TradePanel {...commonProps} onAfterSubmit={closeTradeModal} />
+    ) : (
+      <TradePanel {...commonProps} />
+    );
+  };
 
   return (
     <>
@@ -372,68 +424,148 @@ export function InvestmentStockDetail({ liveInstruments, onBack, ticker }: Stock
         </div>
       </section>
 
-      <InvestmentCard>
-        <div className={styles.cardHeader}>
-          <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
-            {formatPercent(rangePct)}
-            <span className={styles.smallText}>
-              {' '}
-              {customRange
-                ? `${formatShortDate(customRange.from)} to ${formatShortDate(customRange.to)}`
-                : 'selected range'}
-            </span>
-          </span>
-          <RangeTabs
-            customActive={Boolean(customRange) || showCustom}
-            onCustom={() => {
-              setShowCustom((current) => !current);
-            }}
-            onRange={(nextRange) => {
-              setRange(nextRange);
-              setCustomRange(null);
-              setShowCustom(false);
-            }}
-            value={range}
-          />
-        </div>
-        {showCustom ? (
-          <StockCustomRange
-            maxDate={maxDate}
-            minDate={minDate}
-            onApply={(nextRange) => {
-              setCustomRange(nextRange);
-              setShowCustom(false);
-            }}
-          />
-        ) : null}
-        <AreaChart
-          height={300}
-          series={series}
-          valueFormatter={(value) => formatMerits(toMerits(value), 2)}
-        />
-      </InvestmentCard>
+      <div className={styles.stockDetailGrid}>
+        <div className={styles.titleBlock}>
+          <InvestmentCard>
+            <div className={styles.cardHeader}>
+              <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
+                {formatPercent(rangePct)}
+                <span className={styles.smallText}>
+                  {' '}
+                  {customRange
+                    ? `${formatShortDate(customRange.from)} to ${formatShortDate(customRange.to)}`
+                    : 'selected range'}
+                </span>
+              </span>
+              <RangeTabs
+                customActive={Boolean(customRange) || showCustom}
+                onCustom={() => {
+                  setShowCustom((current) => !current);
+                }}
+                onRange={(nextRange) => {
+                  setRange(nextRange);
+                  setCustomRange(null);
+                  setShowCustom(false);
+                }}
+                value={range}
+              />
+            </div>
+            {showCustom ? (
+              <StockCustomRange
+                maxDate={maxDate}
+                minDate={minDate}
+                onApply={(nextRange) => {
+                  setCustomRange(nextRange);
+                  setShowCustom(false);
+                }}
+              />
+            ) : null}
+            <AreaChart
+              height={300}
+              series={series}
+              valueFormatter={(value) => formatMerits(toMerits(value), 2)}
+            />
+          </InvestmentCard>
 
-      <InvestmentCard>
-        <span className={styles.sectionLabel}>About {instrument.name}</span>
-        <p className={styles.mutedText}>{instrument.about}</p>
-        <div className={styles.statGrid}>
-          <StatBox label="30-day low" value={<MeritValueStack value={toMerits(low)} />} />
-          <StatBox label="30-day high" value={<MeritValueStack value={toMerits(high)} />} />
-          <StatBox
-            label="Prev. close"
-            value={<MeritValueStack digits={2} value={toMerits(instrument.prevClose)} />}
-          />
-          <StatBox label="Risk level" value={risk.label} />
+          <InvestmentCard>
+            <span className={styles.sectionLabel}>About {instrument.name}</span>
+            <p className={styles.mutedText}>{instrument.about}</p>
+            <div className={styles.statGrid}>
+              <StatBox label="30-day low" value={<MeritValueStack value={toMerits(low)} />} />
+              <StatBox label="30-day high" value={<MeritValueStack value={toMerits(high)} />} />
+              <StatBox
+                label="Prev. close"
+                value={<MeritValueStack digits={2} value={toMerits(instrument.prevClose)} />}
+              />
+              <StatBox label="Risk level" value={risk.label} />
+            </div>
+            <div className={styles.noticeCard} style={{ marginTop: 16 }}>
+              <strong>{instrument.type === 'etf' ? 'ETF note' : 'Stock note'}</strong>
+              <p>
+                {instrument.type === 'etf'
+                  ? 'ETFs spread merits across many companies, but they can still fall.'
+                  : `Single stocks like ${instrument.name} can swing more than a fund. Consider holding a mix.`}
+              </p>
+            </div>
+          </InvestmentCard>
         </div>
-        <div className={styles.noticeCard} style={{ marginTop: 16 }}>
-          <strong>{instrument.type === 'etf' ? 'ETF note' : 'Stock note'}</strong>
-          <p>
-            {instrument.type === 'etf'
-              ? 'ETFs spread merits across many companies, but they can still fall.'
-              : `Single stocks like ${instrument.name} can swing more than a fund. Consider holding a mix.`}
-          </p>
+
+        <div className={styles.desktopTrade}>
+          <InvestmentCard>
+            <span className={styles.sectionLabel}>Trade {instrument.ticker}</span>
+            <div className={styles.positionRow}>
+              <span className={styles.smallText}>Your units</span>
+              <strong>{holdingUnits.toFixed(4)}</strong>
+            </div>
+            {tradePanel('buy')}
+          </InvestmentCard>
         </div>
-      </InvestmentCard>
+      </div>
+
+      <div className={styles.mobileTradeBar}>
+        <button
+          className={cn(styles.successButton, styles.buttonFull)}
+          onClick={() => {
+            setMobileTradeSide('buy');
+          }}
+          type="button"
+        >
+          Buy
+        </button>
+        <button
+          className={cn(styles.dangerButton, styles.buttonFull)}
+          disabled={holdingUnits <= 0.000001}
+          onClick={() => {
+            setMobileTradeSide('sell');
+          }}
+          type="button"
+        >
+          Sell
+        </button>
+      </div>
+
+      {mobileTradeSide ? (
+        <div
+          className={styles.modalBackdrop}
+          onClick={() => {
+            setMobileTradeSide(null);
+          }}
+          role="presentation"
+        >
+          <div
+            aria-modal="true"
+            className={styles.modal}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+            role="dialog"
+          >
+            <div className={styles.modalBody}>
+              <div className={styles.cardHeader}>
+                <div className={styles.stockNameCell}>
+                  <TickerMark instrument={instrument} size={40} />
+                  <div>
+                    <h2 className={styles.cardTitle}>{instrument.name}</h2>
+                    <p className={styles.smallText}>
+                      {formatMerits(toMerits(instrument.price), 2)} merits
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className={styles.ghostButton}
+                  onClick={() => {
+                    setMobileTradeSide(null);
+                  }}
+                  type="button"
+                >
+                  Close
+                </button>
+              </div>
+              {tradePanel(mobileTradeSide, true)}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

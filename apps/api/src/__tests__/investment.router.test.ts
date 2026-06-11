@@ -529,9 +529,7 @@ function makeFakeDb(
     investmentHolding: {
       findMany: vi.fn((args: FakeInvestmentHoldingFindManyArgs) =>
         Promise.resolve(
-          holdings
-            .filter((holding) => holding.studentId === args.where.studentId)
-            .map(mapHolding),
+          holdings.filter((holding) => holding.studentId === args.where.studentId).map(mapHolding),
         ),
       ),
       upsert: vi.fn((args: FakeInvestmentHoldingUpsertArgs) => {
@@ -917,7 +915,7 @@ describe('investment.account', () => {
       currentValueMerits: 187,
       costBasisMerits: 200,
       holdings: [],
-      investmentCashMerits: 187,
+      investmentCashMerits: 200,
       portfolioCostBasisMerits: 0,
       portfolioReturnMerits: 0,
       portfolioValueMerits: 0,
@@ -1121,14 +1119,82 @@ describe('investment.buy', () => {
   });
 });
 
+describe('investment.fundCash', () => {
+  it('moves Spend merits into Merit Markets cash and audits the funding event', async () => {
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      caller.investment.fundCash({ studentId: linkedStudentId, merits: 75 }),
+    ).resolves.toMatchObject({
+      cashFundedMerits: 75,
+      studentId: linkedStudentId,
+    });
+    expect(db.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' },
+      {
+        studentId: linkedStudentId,
+        account: 'Spend',
+        delta: -75,
+        reason: 'investment:cash:fund',
+      },
+      {
+        studentId: linkedStudentId,
+        account: 'Investment',
+        delta: 75,
+        reason: 'investment:cash:fund',
+      },
+    ]);
+    expect(
+      db.ledger
+        .filter((row) => row.reason === 'investment:cash:fund')
+        .reduce((total, row) => total + row.delta, 0),
+    ).toBe(0);
+    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
+      expect.objectContaining({
+        action: 'Create',
+        entity: 'InvestmentCashFunding',
+        meta: expect.objectContaining({
+          source: 'investment.fundCash',
+          merits: 75,
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('rejects insufficient Spend and parent write attempts before writing rows', async () => {
+    const insufficient = makeCaller(
+      studentUser,
+      makeFakeDb({
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 10, reason: 'merit' }],
+      }),
+    );
+
+    await expect(
+      insufficient.caller.investment.fundCash({ studentId: linkedStudentId, merits: 11 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(insufficient.db.meritLedger.createMany).not.toHaveBeenCalled();
+
+    const parent = makeCaller(parentUser);
+    await expect(
+      parent.caller.investment.fundCash({ studentId: linkedStudentId, merits: 1 }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(parent.db.meritLedger.createMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('investment.buyHolding', () => {
-  it('buys instrument units from Spend and records a holding transaction', async () => {
+  it('buys instrument units from Merit Markets cash and records a holding transaction', async () => {
     const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
     const { caller, db } = makeCaller(
       studentUser,
       makeFakeDb({
         instruments: [vusa],
-        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+        ledger: [{ studentId: linkedStudentId, account: 'Investment', delta: 100, reason: 'fund' }],
         snapshots: [
           makeMarketSnapshot({
             gbpPrice: 75,
@@ -1178,9 +1244,42 @@ describe('investment.buyHolding', () => {
     ]);
     expect(
       db.ledger
-        .filter((row) => row.reason === 'investment:holding:buy')
+        .filter((row) => row.reason === 'investment:holding:buy' || row.account === 'Spend')
         .reduce((total, row) => total + row.delta, 0),
     ).toBe(0);
+    expect(db.meritLedger.createMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects buys that exceed Merit Markets cash even when Spend has enough merits', async () => {
+    const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        instruments: [vusa],
+        ledger: [
+          { studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' },
+          { studentId: linkedStudentId, account: 'Investment', delta: 10, reason: 'fund' },
+        ],
+        snapshots: [
+          makeMarketSnapshot({
+            gbpPrice: 75,
+            id: 'snapshot-vusa',
+            instrument: vusa,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      caller.investment.buyHolding({
+        instrumentId: 'instrument-vusa',
+        merits: 75,
+        studentId: linkedStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.investmentTransaction.create).not.toHaveBeenCalled();
+    expect(db.meritLedger.createMany).not.toHaveBeenCalled();
   });
 
   it('blocks parents from buying holdings for linked children', async () => {
@@ -1191,6 +1290,138 @@ describe('investment.buyHolding', () => {
         instrumentId: 'instrument-vusa',
         merits: 10,
         studentId: linkedStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(parent.db.investmentTransaction.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('investment.sellHolding', () => {
+  it('sells one holding back into Merit Markets cash without fee or tax', async () => {
+    const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        holdings: [
+          {
+            costBasisMerits: 100,
+            id: 'holding-vusa',
+            instrument: vusa,
+            instrumentId: vusa.id,
+            studentId: linkedStudentId,
+            units: 4,
+          },
+        ],
+        instruments: [vusa],
+        ledger: [{ studentId: linkedStudentId, account: 'Investment', delta: 100, reason: 'fund' }],
+        snapshots: [
+          makeMarketSnapshot({
+            gbpPrice: 300,
+            id: 'snapshot-vusa',
+            instrument: vusa,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      caller.investment.sellHolding({
+        instrumentId: 'instrument-vusa',
+        studentId: linkedStudentId,
+        units: 2,
+      }),
+    ).resolves.toMatchObject({
+      costBasisMerits: 50,
+      grossMerits: 60,
+      investmentReturnDelta: -10,
+      priceMerits: 30,
+      unitsSold: 2,
+    });
+    expect(db.holdings).toMatchObject([
+      {
+        costBasisMerits: 50,
+        id: 'holding-vusa',
+        units: 2,
+      },
+    ]);
+    expect(db.transactions).toMatchObject([
+      {
+        costBasisMerits: 50,
+        feeMerits: 0,
+        grossMerits: 60,
+        instrumentId: 'instrument-vusa',
+        nav: 30,
+        taxMerits: 0,
+        type: 'Sell',
+        units: 2,
+      },
+    ]);
+    expect(db.ledger).toEqual([
+      { studentId: linkedStudentId, account: 'Investment', delta: 100, reason: 'fund' },
+      {
+        account: 'Investment',
+        delta: 10,
+        reason: 'investment:holding:sell',
+        studentId: linkedStudentId,
+      },
+      {
+        account: 'InvestmentReturn',
+        delta: -10,
+        reason: 'investment:holding:sell',
+        studentId: linkedStudentId,
+      },
+    ]);
+    expect(
+      db.ledger
+        .filter((row) => row.reason === 'investment:holding:sell')
+        .reduce((total, row) => total + row.delta, 0),
+    ).toBe(0);
+  });
+
+  it('rejects parent sell attempts and insufficient holding units before writing rows', async () => {
+    const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const insufficient = makeCaller(
+      studentUser,
+      makeFakeDb({
+        holdings: [
+          {
+            costBasisMerits: 100,
+            id: 'holding-vusa',
+            instrument: vusa,
+            instrumentId: vusa.id,
+            studentId: linkedStudentId,
+            units: 1,
+          },
+        ],
+        instruments: [vusa],
+        snapshots: [
+          makeMarketSnapshot({
+            gbpPrice: 300,
+            id: 'snapshot-vusa',
+            instrument: vusa,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      insufficient.caller.investment.sellHolding({
+        instrumentId: 'instrument-vusa',
+        studentId: linkedStudentId,
+        units: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(insufficient.db.investmentTransaction.create).not.toHaveBeenCalled();
+    expect(insufficient.db.meritLedger.createMany).not.toHaveBeenCalled();
+
+    const parent = makeCaller(parentUser);
+    await expect(
+      parent.caller.investment.sellHolding({
+        instrumentId: 'instrument-vusa',
+        studentId: linkedStudentId,
+        units: 1,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(parent.db.investmentTransaction.create).not.toHaveBeenCalled();

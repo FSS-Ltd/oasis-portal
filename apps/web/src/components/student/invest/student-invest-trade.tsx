@@ -3,46 +3,47 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { formatMeritsWithGbp, withdrawFeePct } from './student-invest-data';
+import { formatMeritsWithGbp, type Instrument } from './student-invest-data';
 import { MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
 type TradeSide = 'buy' | 'sell';
 
 interface TradePanelProps {
+  cashBalanceMerits: number;
+  holdingUnits: number;
+  initialSide?: TradeSide;
+  instrument: Instrument;
   isBuying: boolean;
   isSelling: boolean;
-  latestNav: { nav: number; dailyReturn: number } | null;
+  onAfterSubmit?: () => void;
   onBuy: (merits: number) => void;
   onSell: (units: number) => void;
-  spendBalance: number;
-  units: number;
 }
 
 export function TradePanel({
+  cashBalanceMerits,
+  holdingUnits,
+  initialSide = 'buy',
+  instrument,
   isBuying,
   isSelling,
-  latestNav,
+  onAfterSubmit,
   onBuy,
   onSell,
-  spendBalance,
-  units,
 }: TradePanelProps) {
-  const [side, setSide] = useState<TradeSide>('buy');
+  const [side, setSide] = useState<TradeSide>(initialSide);
   const [amount, setAmount] = useState('');
-  const nav = latestNav?.nav ?? 0;
+  const priceMerits = instrument.priceMerits ?? 0;
   const parsedAmount = Number.parseFloat(amount) || 0;
 
-  // Buy: integer merits → units. Sell: decimal units → merits minus fee.
   const intMerits = Math.floor(parsedAmount);
-  const unitsBought = nav > 0 ? intMerits / nav : 0;
-  const meritValueOfUnits = parsedAmount * nav;
-  const fee = side === 'sell' ? (meritValueOfUnits * withdrawFeePct) / 100 : 0;
-  const netMerits = meritValueOfUnits - fee;
+  const unitsBought = priceMerits > 0 ? intMerits / priceMerits : 0;
+  const grossSaleMerits = Math.floor(parsedAmount * priceMerits);
 
-  const maxBuy = Math.floor(spendBalance);
-  const maxSell = units;
-  const validBuy = intMerits >= 1 && intMerits <= maxBuy;
+  const maxBuy = Math.floor(cashBalanceMerits);
+  const maxSell = holdingUnits;
+  const validBuy = priceMerits > 0 && intMerits >= 1 && intMerits <= maxBuy;
   const validSell = parsedAmount > 0.000001 && parsedAmount <= maxSell + 0.000001;
   const valid = side === 'buy' ? validBuy : validSell;
 
@@ -59,6 +60,7 @@ export function TradePanel({
       onSell(parsedAmount);
     }
     setAmount('');
+    onAfterSubmit?.();
   }
 
   return (
@@ -71,23 +73,30 @@ export function TradePanel({
           }}
           type="button"
         >
-          Invest
+          Buy
         </button>
         <button
           className={side === 'sell' ? styles.sellActive : undefined}
-          disabled={units <= 0.000001}
+          disabled={holdingUnits <= 0.000001}
           onClick={() => {
             setSideAndReset('sell');
           }}
           type="button"
         >
-          Withdraw
+          Sell
         </button>
       </div>
 
       <label className={styles.fieldLabel} htmlFor="fund-trade-amount">
-        {side === 'buy' ? 'Merits to invest (whole number)' : 'Units to sell'}
+        {side === 'buy' ? 'Merits to invest' : 'Units to sell'}
       </label>
+      <div className={styles.formRow}>
+        <span className={styles.smallText}>
+          {side === 'buy'
+            ? `Cash: ${formatMeritsWithGbp(cashBalanceMerits, 1)}`
+            : `Owned: ${holdingUnits.toFixed(4)} units`}
+        </span>
+      </div>
       <input
         className={styles.amountInput}
         id="fund-trade-amount"
@@ -118,6 +127,7 @@ export function TradePanel({
           : [25, 50, 75].map((chip) => (
               <button
                 className={styles.chipButton}
+                disabled={maxSell <= 0}
                 key={chip}
                 onClick={() => {
                   setAmount(String(Number(((maxSell * chip) / 100).toFixed(6))));
@@ -129,10 +139,9 @@ export function TradePanel({
             ))}
         <button
           className={styles.chipButton}
+          disabled={side === 'buy' ? maxBuy <= 0 : maxSell <= 0}
           onClick={() => {
-            setAmount(
-              side === 'buy' ? String(maxBuy) : String(Number(maxSell.toFixed(6))),
-            );
+            setAmount(side === 'buy' ? String(maxBuy) : String(Number(maxSell.toFixed(6))));
           }}
           type="button"
         >
@@ -142,39 +151,35 @@ export function TradePanel({
 
       <div className={styles.tradeSummary}>
         <SummaryRow
-          label="Fund NAV"
-          value={nav > 0 ? `${formatMeritsWithGbp(nav, 2)} / unit` : '—'}
+          label={`${instrument.ticker} price`}
+          value={priceMerits > 0 ? `${formatMeritsWithGbp(priceMerits, 2)} / unit` : '—'}
         />
         {side === 'buy' ? (
           <SummaryRow
-            label="Units you receive"
-            value={intMerits >= 1 && nav > 0 ? unitsBought.toFixed(4) : '—'}
+            label="Units"
+            value={intMerits >= 1 && priceMerits > 0 ? unitsBought.toFixed(4) : '—'}
           />
         ) : (
           <>
             <SummaryRow
-              label="Gross merit value"
-              value={parsedAmount > 0 ? formatMeritsWithGbp(meritValueOfUnits, 1) : '—'}
-            />
-            <SummaryRow
-              label={`Withdrawal fee (${String(withdrawFeePct)}%)`}
-              value={parsedAmount > 0 ? formatMeritsWithGbp(-fee, 2) : '—'}
+              label="Cash returned"
+              value={parsedAmount > 0 ? formatMeritsWithGbp(grossSaleMerits, 1) : '—'}
             />
           </>
         )}
         <SummaryRow
-          label="Spend after"
+          label="Cash after"
           strong
           value={
             side === 'buy'
-              ? formatMeritsWithGbp(spendBalance - intMerits, 1)
-              : formatMeritsWithGbp(spendBalance + netMerits, 1)
+              ? formatMeritsWithGbp(cashBalanceMerits - intMerits, 1)
+              : formatMeritsWithGbp(cashBalanceMerits + grossSaleMerits, 1)
           }
         />
         <p className={styles.tradeHint}>
           {side === 'buy'
-            ? 'Merits are taken from your Spend wallet. Buying is fee-free.'
-            : `A ${String(withdrawFeePct)}% fee is charged on the gross merit value when selling.`}
+            ? 'Buying is free and uses your Merit Markets cash balance.'
+            : 'Selling returns merits to your cash balance. Fees and tax only apply when you withdraw to Spend.'}
         </p>
       </div>
 
@@ -190,16 +195,15 @@ export function TradePanel({
         <MeritIcon size={15} />
         {side === 'buy'
           ? isBuying
-            ? 'Investing…'
-            : 'Confirm investment'
+            ? 'Buying'
+            : 'Confirm buy'
           : isSelling
-            ? 'Processing…'
-            : 'Confirm withdrawal'}
+            ? 'Selling'
+            : 'Confirm sell'}
       </button>
-      {parsedAmount > 0 &&
-      parsedAmount > (side === 'buy' ? maxBuy : maxSell) + 0.0001 ? (
+      {parsedAmount > 0 && parsedAmount > (side === 'buy' ? maxBuy : maxSell) + 0.0001 ? (
         <p className={styles.negativeText}>
-          Exceeds your available {side === 'buy' ? 'Spend balance' : 'units'}.
+          Exceeds your available {side === 'buy' ? 'cash balance' : 'units'}.
         </p>
       ) : null}
     </div>
