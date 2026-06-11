@@ -73,6 +73,15 @@ interface StoredInvestmentAccount {
   units: number;
 }
 
+interface StoredInvestmentHolding {
+  id: string;
+  studentId: string;
+  instrumentId: string;
+  units: number;
+  costBasisMerits: number;
+  instrument: StoredInvestmentInstrument;
+}
+
 interface StoredInvestmentNav {
   date: Date;
   nav: number;
@@ -83,9 +92,13 @@ interface StoredInvestmentTransaction {
   id: string;
   studentId: string;
   type: 'Buy' | 'Sell';
+  instrumentId?: string | null;
   units: number;
   nav: number;
   feeMerits: number;
+  grossMerits?: number | null;
+  taxMerits?: number;
+  costBasisMerits?: number | null;
   createdAt: Date;
 }
 
@@ -175,13 +188,43 @@ interface FakeInvestmentAccountUpdateArgs {
   select: { units: true };
 }
 
+interface FakeInvestmentHoldingFindManyArgs {
+  where: { studentId: string };
+  include?: { instrument: true };
+}
+
+interface FakeInvestmentHoldingUpsertArgs {
+  where: { studentId_instrumentId: { studentId: string; instrumentId: string } };
+  create: {
+    studentId: string;
+    instrumentId: string;
+    units: Prisma.Decimal;
+    costBasisMerits: number;
+  };
+  update: {
+    units: { increment: Prisma.Decimal };
+    costBasisMerits: { increment: number };
+  };
+  include?: { instrument: true };
+}
+
+interface FakeInvestmentHoldingUpdateArgs {
+  where: { id: string };
+  data: { units: Prisma.Decimal; costBasisMerits: number };
+  include?: { instrument: true };
+}
+
 interface FakeInvestmentTransactionCreateArgs {
   data: {
     studentId: string;
     type: 'Buy' | 'Sell';
+    instrumentId?: string | null;
     units: Prisma.Decimal;
     nav: Prisma.Decimal;
     feeMerits: number;
+    grossMerits?: number | null;
+    taxMerits?: number;
+    costBasisMerits?: number | null;
   };
   select: { id: true };
 }
@@ -196,6 +239,10 @@ interface FakeInvestmentTransactionFindManyArgs {
     units: true;
     nav: true;
     feeMerits: true;
+    grossMerits?: true;
+    taxMerits?: true;
+    costBasisMerits?: true;
+    instrumentId?: true;
     createdAt: true;
   };
 }
@@ -287,6 +334,17 @@ function mapAccount(row: StoredInvestmentAccount) {
   return { units: decimal(row.units) };
 }
 
+function mapHolding(row: StoredInvestmentHolding) {
+  return {
+    id: row.id,
+    studentId: row.studentId,
+    instrumentId: row.instrumentId,
+    units: decimal(row.units),
+    costBasisMerits: row.costBasisMerits,
+    instrument: row.instrument,
+  };
+}
+
 function makeInstrument(
   input: Partial<StoredInvestmentInstrument> & Pick<StoredInvestmentInstrument, 'id' | 'symbol'>,
 ): StoredInvestmentInstrument {
@@ -319,16 +377,20 @@ function makeMarketSnapshot(input: {
   id: string;
   instrument: StoredInvestmentInstrument;
   serverFetchedAt: Date;
+  gbpPrice?: number;
+  previousCloseGbp?: number;
 }): StoredMarketDataSnapshot {
+  const gbpPrice = input.gbpPrice ?? 75;
+  const previousCloseGbp = input.previousCloseGbp ?? 74;
   return {
     createdAt: input.serverFetchedAt,
     dayChangePct: 1.25,
     gbpConversionRate: 1,
-    gbpPrice: 75,
+    gbpPrice,
     id: input.id,
     instrument: input.instrument,
     instrumentId: input.instrument.id,
-    previousCloseGbp: 74,
+    previousCloseGbp,
     provider: 'twelve-data',
     providerCreditsLeft: null,
     providerCreditsUsed: null,
@@ -336,7 +398,7 @@ function makeMarketSnapshot(input: {
     rawPayloadHash: `sha256:${input.id}`,
     serverFetchedAt: input.serverFetchedAt,
     sourceCurrency: input.instrument.sourceCurrency,
-    sourcePrice: 75,
+    sourcePrice: gbpPrice,
   };
 }
 
@@ -354,6 +416,7 @@ function makeFakeDb(
     ledger?: StoredLedgerRow[];
     navs?: StoredInvestmentNav[];
     accounts?: StoredInvestmentAccount[];
+    holdings?: StoredInvestmentHolding[];
     transactions?: StoredInvestmentTransaction[];
     instruments?: StoredInvestmentInstrument[];
     snapshots?: StoredMarketDataSnapshot[];
@@ -367,6 +430,7 @@ function makeFakeDb(
   const ledger = input.ledger ?? [];
   const navs = input.navs ?? [];
   const accounts = input.accounts ?? [];
+  const holdings = input.holdings ?? [];
   const transactions = input.transactions ?? [];
   const instruments = input.instruments ?? [];
   const snapshots = input.snapshots ?? [];
@@ -462,15 +526,62 @@ function makeFakeDb(
         return Promise.resolve(mapAccount(existing));
       }),
     },
+    investmentHolding: {
+      findMany: vi.fn((args: FakeInvestmentHoldingFindManyArgs) =>
+        Promise.resolve(
+          holdings
+            .filter((holding) => holding.studentId === args.where.studentId)
+            .map(mapHolding),
+        ),
+      ),
+      upsert: vi.fn((args: FakeInvestmentHoldingUpsertArgs) => {
+        const key = args.where.studentId_instrumentId;
+        const existing = holdings.find(
+          (holding) =>
+            holding.studentId === key.studentId && holding.instrumentId === key.instrumentId,
+        );
+        if (existing) {
+          existing.units += decimalNumber(args.update.units.increment);
+          existing.costBasisMerits += args.update.costBasisMerits.increment;
+          return Promise.resolve(mapHolding(existing));
+        }
+
+        const instrument = instruments.find(
+          (candidate) => candidate.id === args.create.instrumentId,
+        );
+        if (!instrument) throw new Error('missing fake instrument');
+        const created: StoredInvestmentHolding = {
+          costBasisMerits: args.create.costBasisMerits,
+          id: `ckholding${String(holdings.length + 1).padStart(12, '0')}`,
+          instrument,
+          instrumentId: args.create.instrumentId,
+          studentId: args.create.studentId,
+          units: decimalNumber(args.create.units),
+        };
+        holdings.push(created);
+        return Promise.resolve(mapHolding(created));
+      }),
+      update: vi.fn((args: FakeInvestmentHoldingUpdateArgs) => {
+        const existing = holdings.find((holding) => holding.id === args.where.id);
+        if (!existing) throw new Error('missing investment holding');
+        existing.units = decimalNumber(args.data.units);
+        existing.costBasisMerits = args.data.costBasisMerits;
+        return Promise.resolve(mapHolding(existing));
+      }),
+    },
     investmentTransaction: {
       create: vi.fn((args: FakeInvestmentTransactionCreateArgs) => {
         const row: StoredInvestmentTransaction = {
           id: `ckinvesttxn${String(nextTransaction++).padStart(12, '0')}`,
+          costBasisMerits: args.data.costBasisMerits ?? null,
+          grossMerits: args.data.grossMerits ?? null,
+          instrumentId: args.data.instrumentId ?? null,
           studentId: args.data.studentId,
           type: args.data.type,
           units: decimalNumber(args.data.units),
           nav: decimalNumber(args.data.nav),
           feeMerits: args.data.feeMerits,
+          taxMerits: args.data.taxMerits ?? 0,
           createdAt: new Date(),
         };
         transactions.push(row);
@@ -488,6 +599,10 @@ function makeFakeDb(
               units: decimal(row.units),
               nav: decimal(row.nav),
               feeMerits: row.feeMerits,
+              grossMerits: row.grossMerits ?? null,
+              taxMerits: row.taxMerits ?? 0,
+              costBasisMerits: row.costBasisMerits ?? null,
+              instrumentId: row.instrumentId ?? null,
               createdAt: row.createdAt,
             })),
         ),
@@ -557,6 +672,7 @@ function makeFakeDb(
     ledger,
     navs,
     accounts,
+    holdings,
     transactions,
     instruments,
     snapshots,
@@ -800,6 +916,11 @@ describe('investment.account', () => {
       latestNav: { date: day('2026-05-15'), nav: 125, dailyReturn: 0.01 },
       currentValueMerits: 187,
       costBasisMerits: 200,
+      holdings: [],
+      investmentCashMerits: 187,
+      portfolioCostBasisMerits: 0,
+      portfolioReturnMerits: 0,
+      portfolioValueMerits: 0,
       transactions: [
         {
           id: 'ckinvesttxn000000000001',
@@ -815,6 +936,72 @@ describe('investment.account', () => {
     await expect(
       makeCaller(studentUser, db).caller.investment.account({ studentId: linkedStudentId }),
     ).resolves.toMatchObject({ studentId: linkedStudentId, units: 1.5 });
+  });
+
+  it('returns current per-instrument holdings when students own stocks', async () => {
+    const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const eqqq = makeInstrument({ id: 'instrument-eqqq', sortOrder: 2, symbol: 'EQQQ' });
+    const db = makeFakeDb({
+      holdings: [
+        {
+          costBasisMerits: 100,
+          id: 'holding-vusa',
+          instrument: vusa,
+          instrumentId: vusa.id,
+          studentId: linkedStudentId,
+          units: 4,
+        },
+        {
+          costBasisMerits: 200,
+          id: 'holding-eqqq',
+          instrument: eqqq,
+          instrumentId: eqqq.id,
+          studentId: linkedStudentId,
+          units: 6,
+        },
+      ],
+      instruments: [vusa, eqqq],
+      snapshots: [
+        makeMarketSnapshot({
+          gbpPrice: 250,
+          id: 'snapshot-vusa',
+          instrument: vusa,
+          serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+        }),
+        makeMarketSnapshot({
+          gbpPrice: 500,
+          id: 'snapshot-eqqq',
+          instrument: eqqq,
+          serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(studentUser, db).caller.investment.account({ studentId: linkedStudentId }),
+    ).resolves.toMatchObject({
+      holdings: [
+        {
+          costBasisMerits: 100,
+          currentPriceMerits: 25,
+          currentValueMerits: 100,
+          instrumentId: 'instrument-vusa',
+          symbol: 'VUSA',
+          units: 4,
+        },
+        {
+          costBasisMerits: 200,
+          currentPriceMerits: 50,
+          currentValueMerits: 300,
+          instrumentId: 'instrument-eqqq',
+          symbol: 'EQQQ',
+          units: 6,
+        },
+      ],
+      portfolioCostBasisMerits: 300,
+      portfolioReturnMerits: 100,
+      portfolioValueMerits: 400,
+    });
   });
 
   it('blocks supervisors and unlinked parents from account reads', async () => {
@@ -931,6 +1118,219 @@ describe('investment.buy', () => {
       parent.caller.investment.buy({ studentId: linkedStudentId, merits: 1 }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(parent.db.investmentTransaction.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('investment.buyHolding', () => {
+  it('buys instrument units from Spend and records a holding transaction', async () => {
+    const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        instruments: [vusa],
+        ledger: [{ studentId: linkedStudentId, account: 'Spend', delta: 100, reason: 'merit' }],
+        snapshots: [
+          makeMarketSnapshot({
+            gbpPrice: 75,
+            id: 'snapshot-vusa',
+            instrument: vusa,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      caller.investment.buyHolding({
+        instrumentId: 'instrument-vusa',
+        merits: 75,
+        studentId: linkedStudentId,
+      }),
+    ).resolves.toMatchObject({
+      costBasisMerits: 75,
+      holding: {
+        costBasisMerits: 75,
+        instrumentId: 'instrument-vusa',
+        units: 10,
+      },
+      priceMerits: 7.5,
+      unitsBought: 10,
+    });
+    expect(db.holdings).toMatchObject([
+      {
+        costBasisMerits: 75,
+        instrumentId: 'instrument-vusa',
+        studentId: linkedStudentId,
+        units: 10,
+      },
+    ]);
+    expect(db.transactions).toMatchObject([
+      {
+        costBasisMerits: 75,
+        feeMerits: 0,
+        grossMerits: 75,
+        instrumentId: 'instrument-vusa',
+        nav: 7.5,
+        taxMerits: 0,
+        type: 'Buy',
+        units: 10,
+      },
+    ]);
+    expect(
+      db.ledger
+        .filter((row) => row.reason === 'investment:holding:buy')
+        .reduce((total, row) => total + row.delta, 0),
+    ).toBe(0);
+  });
+
+  it('blocks parents from buying holdings for linked children', async () => {
+    const parent = makeCaller(parentUser);
+
+    await expect(
+      parent.caller.investment.buyHolding({
+        instrumentId: 'instrument-vusa',
+        merits: 10,
+        studentId: linkedStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(parent.db.investmentTransaction.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('investment.withdrawPortfolio', () => {
+  it('sells holdings pro-rata, deducts fee and tax, and updates holdings', async () => {
+    const vusa = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const eqqq = makeInstrument({ id: 'instrument-eqqq', sortOrder: 2, symbol: 'EQQQ' });
+    const { caller, db } = makeCaller(
+      studentUser,
+      makeFakeDb({
+        holdings: [
+          {
+            costBasisMerits: 100,
+            id: 'holding-vusa',
+            instrument: vusa,
+            instrumentId: vusa.id,
+            studentId: linkedStudentId,
+            units: 4,
+          },
+          {
+            costBasisMerits: 200,
+            id: 'holding-eqqq',
+            instrument: eqqq,
+            instrumentId: eqqq.id,
+            studentId: linkedStudentId,
+            units: 6,
+          },
+        ],
+        instruments: [vusa, eqqq],
+        snapshots: [
+          makeMarketSnapshot({
+            gbpPrice: 250,
+            id: 'snapshot-vusa',
+            instrument: vusa,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+          makeMarketSnapshot({
+            gbpPrice: 500,
+            id: 'snapshot-eqqq',
+            instrument: eqqq,
+            serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
+          }),
+        ],
+      }),
+    );
+
+    await expect(
+      caller.investment.withdrawPortfolio({
+        grossMerits: 200,
+        studentId: linkedStudentId,
+      }),
+    ).resolves.toMatchObject({
+      costBasisMerits: 150,
+      feeMerits: 10,
+      grossMerits: 200,
+      netMerits: 183,
+      taxMerits: 7,
+    });
+    expect(db.holdings).toMatchObject([
+      {
+        costBasisMerits: 50,
+        id: 'holding-vusa',
+        units: 2,
+      },
+      {
+        costBasisMerits: 100,
+        id: 'holding-eqqq',
+        units: 3,
+      },
+    ]);
+    expect(db.transactions).toMatchObject([
+      {
+        costBasisMerits: 50,
+        feeMerits: 10,
+        grossMerits: 50,
+        instrumentId: 'instrument-vusa',
+        nav: 25,
+        taxMerits: 7,
+        type: 'Sell',
+        units: 2,
+      },
+      {
+        costBasisMerits: 100,
+        feeMerits: 0,
+        grossMerits: 150,
+        instrumentId: 'instrument-eqqq',
+        nav: 50,
+        taxMerits: 0,
+        type: 'Sell',
+        units: 3,
+      },
+    ]);
+    expect(db.ledger).toEqual([
+      {
+        account: 'Investment',
+        delta: -150,
+        reason: 'investment:portfolio:withdraw',
+        studentId: linkedStudentId,
+      },
+      {
+        account: 'Spend',
+        delta: 183,
+        reason: 'investment:portfolio:withdraw',
+        studentId: linkedStudentId,
+      },
+      {
+        account: 'FeeSink',
+        delta: 10,
+        reason: 'investment:portfolio:withdraw',
+        studentId: linkedStudentId,
+      },
+      {
+        account: 'TaxSink',
+        delta: 7,
+        reason: 'investment:portfolio:withdraw',
+        studentId: linkedStudentId,
+      },
+      {
+        account: 'InvestmentReturn',
+        delta: -50,
+        reason: 'investment:portfolio:withdraw',
+        studentId: linkedStudentId,
+      },
+    ]);
+    expect(db.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
+  });
+
+  it('rejects withdrawals when there are no holdings', async () => {
+    const { caller, db } = makeCaller(studentUser);
+
+    await expect(
+      caller.investment.withdrawPortfolio({
+        grossMerits: 1,
+        studentId: linkedStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    expect(db.investmentTransaction.create).not.toHaveBeenCalled();
   });
 });
 

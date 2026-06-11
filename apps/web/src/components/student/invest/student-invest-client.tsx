@@ -3,43 +3,60 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { History, Home, LineChart, Store, type LucideIcon } from 'lucide-react';
+import { BriefcaseBusiness, History, LineChart, Store, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/trpc';
 import {
   formatMerits,
   instruments,
   meritGbp,
+  navHistoryToChartSeries,
   type Instrument,
   type RangeId,
 } from './student-invest-data';
 import { InvestmentActivity } from './student-invest-extras';
 import { InvestmentMarket, InvestmentStockDetail } from './student-invest-market';
 import { InvestmentOverview } from './student-invest-overview';
+import {
+  InvestmentInvestPage,
+  InvestmentPortfolioPage,
+  InvestmentWithdrawPage,
+} from './student-invest-pages';
 import { GbpEquivalent, MeritIcon } from './student-invest-ui';
 import styles from './student-invest.module.css';
 
-type Screen = 'activity' | 'market' | 'overview' | 'stock';
+type Screen = 'activity' | 'invest' | 'market' | 'overview' | 'portfolio' | 'stock' | 'withdraw';
 
 interface ViewState {
   screen: Screen;
   ticker: string | null;
 }
 
+interface StudentInvestClientProps {
+  initialScreen?: Exclude<Screen, 'stock'>;
+}
+
 const defaultRange: RangeId = '1M';
 
 const navItems: readonly {
+  href?: string;
   icon: LucideIcon;
   label: string;
   screen: Exclude<Screen, 'stock'>;
 }[] = [
-  { icon: LineChart, label: 'Overview', screen: 'overview' },
+  { href: '/student/invest', icon: LineChart, label: 'Overview', screen: 'overview' },
+  {
+    href: '/student/invest/portfolio',
+    icon: BriefcaseBusiness,
+    label: 'Portfolio',
+    screen: 'portfolio',
+  },
   { icon: Store, label: 'Market', screen: 'market' },
   { icon: History, label: 'Activity', screen: 'activity' },
 ];
 
-export function StudentInvestClient() {
-  const [view, setView] = useState<ViewState>({ screen: 'overview', ticker: null });
+export function StudentInvestClient({ initialScreen = 'overview' }: StudentInvestClientProps) {
+  const [view, setView] = useState<ViewState>({ screen: initialScreen, ticker: null });
   const [toast, setToast] = useState<string | null>(null);
 
   const dashboardQuery = api.student.dashboard.useQuery(undefined, { retry: false });
@@ -62,27 +79,29 @@ export function StudentInvestClient() {
     retry: false,
   });
 
-  const buyMutation = api.investment.buy.useMutation({
+  const buyHoldingMutation = api.investment.buyHolding.useMutation({
     onSuccess: (data) => {
       void accountQuery.refetch();
       void dashboardQuery.refetch();
       setToast(
-        `Invested ${formatMerits(data.unitsBought * data.nav.nav, 1)} merits — ${data.unitsBought.toFixed(4)} units added.`,
+        `Invested ${formatMerits(data.costBasisMerits, 1)} merits — ${data.unitsBought.toFixed(4)} units added.`,
       );
     },
     onError: () => {
-      setToast('Investment failed. Check your Spend balance and try again.');
+      setToast('Investment failed. Check your Spend balance and market price, then try again.');
     },
   });
 
-  const sellMutation = api.investment.sell.useMutation({
-    onSuccess: () => {
+  const withdrawPortfolioMutation = api.investment.withdrawPortfolio.useMutation({
+    onSuccess: (data) => {
       void accountQuery.refetch();
       void dashboardQuery.refetch();
-      setToast('Withdrawal complete — merits returned to your Spend wallet.');
+      setToast(
+        `Withdrawal complete — ${formatMerits(data.netMerits, 1)} merits returned to Spend.`,
+      );
     },
     onError: () => {
-      setToast('Withdrawal failed. Check your available units and try again.');
+      setToast('Withdrawal failed. Check your portfolio value and try again.');
     },
   });
 
@@ -97,7 +116,9 @@ export function StudentInvestClient() {
       const prevClose = s.previousCloseMerits * meritGbp;
       return {
         ...inst,
+        instrumentId: s.instrumentId,
         price,
+        priceMerits: s.priceMerits,
         prevClose,
         dayChange: price - prevClose,
         dayChangePct: s.dayChangePct,
@@ -112,9 +133,16 @@ export function StudentInvestClient() {
   const units = accountQuery.data?.units ?? 0;
   const currentValueMerits = accountQuery.data?.currentValueMerits ?? 0;
   const costBasisMerits = accountQuery.data?.costBasisMerits ?? 0;
+  const investmentCashMerits = accountQuery.data?.investmentCashMerits ?? costBasisMerits;
+  const holdings = accountQuery.data?.holdings ?? [];
+  const portfolioValueMerits = accountQuery.data?.portfolioValueMerits ?? 0;
+  const portfolioCostBasisMerits = accountQuery.data?.portfolioCostBasisMerits ?? 0;
+  const portfolioReturnMerits = accountQuery.data?.portfolioReturnMerits ?? 0;
+  const totalNetWorthMerits = investmentCashMerits + portfolioValueMerits;
   const latestNav = accountQuery.data?.latestNav ?? null;
   const transactions = accountQuery.data?.transactions ?? [];
   const navHistory = navHistoryQuery.data ?? [];
+  const navSeries = useMemo(() => navHistoryToChartSeries(navHistory), [navHistory]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -131,20 +159,20 @@ export function StudentInvestClient() {
     window.scrollTo({ top: 0 });
   }, []);
 
-  const buy = useCallback(
-    (merits: number) => {
+  const buyHolding = useCallback(
+    (input: { instrumentId: string; merits: number }) => {
       if (!studentId) return;
-      buyMutation.mutate({ studentId, merits });
+      buyHoldingMutation.mutate({ studentId, ...input });
     },
-    [buyMutation, studentId],
+    [buyHoldingMutation, studentId],
   );
 
-  const sell = useCallback(
-    (sellUnits: number) => {
+  const withdrawPortfolio = useCallback(
+    (grossMerits: number) => {
       if (!studentId) return;
-      sellMutation.mutate({ studentId, units: sellUnits });
+      withdrawPortfolioMutation.mutate({ studentId, grossMerits });
     },
-    [sellMutation, studentId],
+    [studentId, withdrawPortfolioMutation],
   );
 
   return (
@@ -166,16 +194,12 @@ export function StudentInvestClient() {
         </div>
         <div className={styles.portalActions}>
           <div className={styles.walletValue}>
-            <span className={styles.metaLabel}>Portfolio value</span>
+            <span className={styles.metaLabel}>Net worth</span>
             <strong>
-              <MeritIcon size={16} /> {formatMerits(currentValueMerits, 1)}
+              <MeritIcon size={16} /> {formatMerits(totalNetWorthMerits, 1)}
             </strong>
-            <GbpEquivalent value={currentValueMerits} />
+            <GbpEquivalent value={totalNetWorthMerits} />
           </div>
-          <Link className={styles.homeButton} href="/student">
-            <Home aria-hidden="true" size={15} />
-            Home
-          </Link>
         </div>
       </section>
 
@@ -185,7 +209,16 @@ export function StudentInvestClient() {
           const active =
             view.screen === item.screen ||
             (item.screen === 'market' && view.screen === 'stock');
-          return (
+          return item.href ? (
+            <Link
+              className={cn(styles.tabButton, active ? styles.tabButtonActive : undefined)}
+              href={{ pathname: item.href }}
+              key={item.screen}
+            >
+              <Icon size={15} />
+              {item.label}
+            </Link>
+          ) : (
             <button
               className={cn(styles.tabButton, active ? styles.tabButtonActive : undefined)}
               key={item.screen}
@@ -203,22 +236,52 @@ export function StudentInvestClient() {
 
       {view.screen === 'overview' ? (
         <InvestmentOverview
-          costBasisMerits={costBasisMerits}
           currentValueMerits={currentValueMerits}
           defaultRange={defaultRange}
-          isBuying={buyMutation.isPending}
-          isSelling={sellMutation.isPending}
+          holdings={holdings}
+          investmentCashMerits={investmentCashMerits}
           latestNav={latestNav}
           loading={accountQuery.isLoading}
           navHistory={navHistory}
-          onBuy={buy}
           onNavigate={(screen) => {
             navigate(screen);
           }}
-          onSell={sell}
+          portfolioReturnMerits={portfolioReturnMerits}
+          portfolioValueMerits={portfolioValueMerits}
           spendBalance={spendBalance}
           studentFirstName={studentFirstName}
+          totalNetWorthMerits={totalNetWorthMerits}
           units={units}
+        />
+      ) : null}
+      {view.screen === 'portfolio' ? (
+        <InvestmentPortfolioPage
+          holdings={holdings}
+          loading={accountQuery.isLoading}
+          navSeries={navSeries}
+          portfolioCostBasisMerits={portfolioCostBasisMerits}
+          portfolioReturnMerits={portfolioReturnMerits}
+          portfolioValueMerits={portfolioValueMerits}
+        />
+      ) : null}
+      {view.screen === 'invest' ? (
+        <InvestmentInvestPage
+          investmentBalanceMerits={investmentCashMerits + portfolioValueMerits}
+          instruments={liveInstruments}
+          isBuying={buyHoldingMutation.isPending}
+          onBuyHolding={buyHolding}
+          spendBalance={spendBalance}
+        />
+      ) : null}
+      {view.screen === 'withdraw' ? (
+        <InvestmentWithdrawPage
+          holdings={holdings}
+          isWithdrawing={withdrawPortfolioMutation.isPending}
+          loading={accountQuery.isLoading}
+          onWithdrawPortfolio={withdrawPortfolio}
+          portfolioCostBasisMerits={portfolioCostBasisMerits}
+          portfolioValueMerits={portfolioValueMerits}
+          spendBalance={spendBalance}
         />
       ) : null}
       {view.screen === 'market' ? (

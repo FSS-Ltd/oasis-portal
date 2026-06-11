@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { planInvestmentBuy, planInvestmentSell } from '../investmentTransactions.js';
+import {
+  planInvestmentBuy,
+  planInvestmentHoldingBuy,
+  planInvestmentPortfolioWithdrawal,
+  planInvestmentSell,
+} from '../investmentTransactions.js';
 
 describe('planInvestmentBuy', () => {
   it('converts Spend merits into six-decimal investment units and balanced ledger rows', () => {
@@ -110,5 +115,144 @@ describe('planInvestmentSell', () => {
       investmentReturnDelta: 0,
     });
     expect(sell.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+});
+
+describe('planInvestmentHoldingBuy', () => {
+  it('converts Spend merits into stock units and balanced ledger rows', () => {
+    const plan = planInvestmentHoldingBuy({
+      merits: 125,
+      priceMerits: 25,
+      studentId: 'student_1',
+    });
+
+    expect(plan).toMatchObject({
+      costBasisMerits: 125,
+      units: 5,
+    });
+    expect(plan.ledgerRows).toEqual([
+      {
+        studentId: 'student_1',
+        account: 'Spend',
+        delta: -125,
+        reason: 'investment:holding:buy',
+      },
+      {
+        studentId: 'student_1',
+        account: 'Investment',
+        delta: 125,
+        reason: 'investment:holding:buy',
+      },
+    ]);
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+});
+
+describe('planInvestmentPortfolioWithdrawal', () => {
+  it('sells holdings pro-rata and deducts fee and tax from positive gains', () => {
+    const plan = planInvestmentPortfolioWithdrawal({
+      grossMerits: 200,
+      holdings: [
+        {
+          costBasisMerits: 100,
+          currentPriceMerits: 25,
+          instrumentId: 'instrument_a',
+          units: 4,
+        },
+        {
+          costBasisMerits: 200,
+          currentPriceMerits: 50,
+          instrumentId: 'instrument_b',
+          units: 6,
+        },
+      ],
+      studentId: 'student_1',
+    });
+
+    expect(plan).toMatchObject({
+      costBasisMerits: 150,
+      feeMerits: 10,
+      grossMerits: 200,
+      netMerits: 183,
+      taxMerits: 7,
+    });
+    expect(plan.sales).toEqual([
+      {
+        costBasisMerits: 50,
+        grossMerits: 50,
+        instrumentId: 'instrument_a',
+        remainingUnits: 2,
+        unitsSold: 2,
+      },
+      {
+        costBasisMerits: 100,
+        grossMerits: 150,
+        instrumentId: 'instrument_b',
+        remainingUnits: 3,
+        unitsSold: 3,
+      },
+    ]);
+    expect(plan.ledgerRows).toEqual([
+      {
+        studentId: 'student_1',
+        account: 'Investment',
+        delta: -150,
+        reason: 'investment:portfolio:withdraw',
+      },
+      {
+        studentId: 'student_1',
+        account: 'Spend',
+        delta: 183,
+        reason: 'investment:portfolio:withdraw',
+      },
+      {
+        studentId: 'student_1',
+        account: 'FeeSink',
+        delta: 10,
+        reason: 'investment:portfolio:withdraw',
+      },
+      {
+        studentId: 'student_1',
+        account: 'TaxSink',
+        delta: 7,
+        reason: 'investment:portfolio:withdraw',
+      },
+      {
+        studentId: 'student_1',
+        account: 'InvestmentReturn',
+        delta: -50,
+        reason: 'investment:portfolio:withdraw',
+      },
+    ]);
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+
+  it('does not charge capital-gains tax when the sale realizes a loss', () => {
+    const plan = planInvestmentPortfolioWithdrawal({
+      grossMerits: 80,
+      holdings: [
+        {
+          costBasisMerits: 200,
+          currentPriceMerits: 40,
+          instrumentId: 'instrument_a',
+          units: 2,
+        },
+      ],
+      studentId: 'student_1',
+    });
+
+    expect(plan).toMatchObject({
+      costBasisMerits: 200,
+      feeMerits: 4,
+      grossMerits: 80,
+      netMerits: 76,
+      taxMerits: 0,
+    });
+    expect(plan.ledgerRows).not.toContainEqual(
+      expect.objectContaining({
+        account: 'TaxSink',
+      }),
+    );
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
   });
 });
