@@ -76,14 +76,19 @@ export function PaceScoreModal({
   );
   const selectedSubject = subjects.find((item) => item.subjectId === subjectId) ?? subject;
   const scoreNumber = score.trim() === '' ? null : Number(score);
+  const paceNumberValue = Number(paceNumber);
   const validScore =
     scoreNumber !== null && Number.isFinite(scoreNumber) && scoreNumber >= 0 && scoreNumber <= 100;
-  const validPaceNumber = Number.isInteger(Number(paceNumber)) && Number(paceNumber) > 0;
+  const validPaceNumber = Number.isInteger(paceNumberValue) && paceNumberValue > 0;
   const finalTestPrerequisiteMet =
-    validPaceNumber && selectedSubject.selfTestPaceNumbers.includes(Number(paceNumber));
+    validPaceNumber && selectedSubject.selfTestPaceNumbers.includes(paceNumberValue);
   const selfTestAlreadyRecorded = !isUpdateMode && finalTestPrerequisiteMet;
   const selfTestDisabled = selfTestAlreadyRecorded;
   const finalTestDisabled = !isUpdateMode && !finalTestPrerequisiteMet;
+  const selectedTestTypeDisabled =
+    (testType === 'SelfTest' && selfTestDisabled) ||
+    (testType === 'FinalTest' && finalTestDisabled);
+  const saveDisabled = !validScore || !validPaceNumber || selectedTestTypeDisabled;
   const testTypeHint = selfTestDisabled
     ? 'A Self-Test already exists for this PACE number. Record a PACE Test instead.'
     : finalTestDisabled
@@ -110,17 +115,12 @@ export function PaceScoreModal({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      !validScore ||
-      !validPaceNumber ||
-      (testType === 'SelfTest' && selfTestDisabled) ||
-      (testType === 'FinalTest' && finalTestDisabled)
-    ) {
+    if (saveDisabled) {
       return;
     }
     await onSave({
       completedAt: date,
-      paceNumber: Number(paceNumber),
+      paceNumber: paceNumberValue,
       recordId: isUpdateMode ? initialRecord.id : undefined,
       score: scoreNumber,
       startedAt: isUpdateMode ? startedDate : undefined,
@@ -280,16 +280,7 @@ export function PaceScoreModal({
           <Button disabled={pending} onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>
-          <Button
-            disabled={
-              !validScore ||
-              !validPaceNumber ||
-              (testType === 'SelfTest' && selfTestDisabled) ||
-              (testType === 'FinalTest' && finalTestDisabled)
-            }
-            pending={pending}
-            type="submit"
-          >
+          <Button disabled={saveDisabled} pending={pending} type="submit">
             <Save aria-hidden="true" size={16} />
             {isUpdateMode ? 'Update Score' : 'Save Score'}
           </Button>

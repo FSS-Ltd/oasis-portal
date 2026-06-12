@@ -72,7 +72,6 @@ type AdminNavProps = {
   canViewPace: boolean;
   canViewStudents: boolean;
   canManageUserAccounts: boolean;
-  canManageCalendar: boolean;
   canManageClubs: boolean;
   canManageInvoices: boolean;
   canManagePermissionSlips: boolean;
@@ -84,6 +83,8 @@ type AdminNavProps = {
   canUseMessages: boolean;
   unreadMessageCount: number;
 };
+
+type AdminNavAccess = Omit<AdminNavProps, 'unreadMessageCount'>;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
   if (href === '/admin') {
@@ -102,27 +103,7 @@ function isPreferredMobileLabel(label: string): boolean {
   return preferredMobileLabels.includes(label as (typeof preferredMobileLabels)[number]);
 }
 
-function visibleForUser(
-  item: (typeof navItems)[number],
-  access: Pick<
-    AdminNavProps,
-    | 'canManageUserAccounts'
-    | 'canManageCalendar'
-    | 'canManageClubs'
-    | 'canManageInvoices'
-    | 'canManagePermissionSlips'
-    | 'canUseShop'
-    | 'canUseAdminOperations'
-    | 'clubsOnly'
-    | 'canViewAudit'
-    | 'canViewBehaviour'
-    | 'canExportAttendance'
-    | 'canViewPace'
-    | 'canViewStudents'
-    | 'fullAdmin'
-    | 'canUseMessages'
-  >,
-) {
+function visibleForUser(item: (typeof navItems)[number], access: AdminNavAccess) {
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
   if (item.label === 'Leaderboard') return access.canUseAdminOperations;
@@ -147,44 +128,13 @@ function visibleForUser(
   return false;
 }
 
-export function AdminSidebarNav({
-  canViewAudit,
-  canViewBehaviour,
-  canViewPace,
-  canViewStudents,
-  canManageUserAccounts,
-  canManageCalendar,
-  canManageClubs,
-  canManageInvoices,
-  canManagePermissionSlips,
-  canUseShop,
-  canUseAdminOperations,
-  clubsOnly,
-  canExportAttendance,
-  fullAdmin,
-  canUseMessages,
-  unreadMessageCount,
-}: AdminNavProps) {
+function visibleNavItemsFor(access: AdminNavAccess) {
+  return navItems.filter((item) => visibleForUser(item, access));
+}
+
+export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleNavItems = navItems.filter((item) =>
-    visibleForUser(item, {
-      canManageUserAccounts,
-      canManageCalendar,
-      canManageClubs,
-      canManageInvoices,
-      canManagePermissionSlips,
-      canUseShop,
-      canUseAdminOperations,
-      clubsOnly,
-      canViewAudit,
-      canViewBehaviour,
-      canExportAttendance,
-      canViewPace,
-      canViewStudents,
-      fullAdmin,
-      canUseMessages,
-    }),
-  );
+  const visibleNavItems = visibleNavItemsFor(access);
 
   return (
     <nav className="admin-shell__nav">
@@ -213,44 +163,9 @@ export function AdminSidebarNav({
   );
 }
 
-export function AdminBottomNav({
-  canViewAudit,
-  canViewBehaviour,
-  canViewPace,
-  canViewStudents,
-  canManageUserAccounts,
-  canManageCalendar,
-  canManageClubs,
-  canManageInvoices,
-  canManagePermissionSlips,
-  canUseShop,
-  canUseAdminOperations,
-  clubsOnly,
-  canExportAttendance,
-  fullAdmin,
-  canUseMessages,
-  unreadMessageCount,
-}: AdminNavProps) {
+export function AdminBottomNav({ unreadMessageCount, ...access }: AdminNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleNavItems = navItems.filter((item) =>
-    visibleForUser(item, {
-      canManageUserAccounts,
-      canManageCalendar,
-      canManageClubs,
-      canManageInvoices,
-      canManagePermissionSlips,
-      canUseShop,
-      canUseAdminOperations,
-      clubsOnly,
-      canViewAudit,
-      canViewBehaviour,
-      canExportAttendance,
-      canViewPace,
-      canViewStudents,
-      fullAdmin,
-      canUseMessages,
-    }),
-  );
+  const visibleNavItems = visibleNavItemsFor(access);
   const mobileNavItems = [
     ...preferredMobileLabels.flatMap((label) =>
       visibleNavItems.filter((item) => item.label === label),

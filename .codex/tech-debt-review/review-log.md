@@ -531,3 +531,53 @@
 
 ### Follow-Ups Deferred
 - Larger splits remain warranted for the selected oversized homework, club, report, profile, and attendance UI surfaces, but were deferred to avoid broad workflow and visual-regression risk.
+
+## 2026-06-12 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/pace/pace-score-modal.tsx`
+2. `apps/web/src/components/admin/admin-nav.tsx`
+3. `apps/web/src/components/admin/require-full-admin.tsx`
+4. `apps/web/src/app/(admin)/admin/layout.tsx`
+5. `apps/api/src/index.ts`
+6. `apps/web/src/components/supervisor/supervisor-nav.tsx`
+7. `packages/db/src/index.ts`
+8. `apps/api/src/router.ts`
+9. `apps/web/src/app/(supervisor)/supervisor/layout.tsx`
+10. `packages/domain/src/index.ts`
+
+### Baseline Findings
+- Lint: initial selected-file ESLint was blocked until isolated-worktree dependencies were installed; selected-file ESLint then passed for web, API, DB, and domain files before edits.
+- Typecheck: initial web typecheck was blocked until dependencies were installed; web, API, DB, and domain package typechecks passed before edits.
+- Tests: not run at baseline; selected changes were UI/helper and entrypoint cleanups without focused unit tests.
+- Formatting: selected-file Prettier check passed before edits.
+
+### Changes Made
+- `apps/web/src/components/pace/pace-score-modal.tsx`: Parsed the PACE number once and reused a single save-disabled guard for submit and button state.
+- `apps/web/src/components/admin/admin-nav.tsx`: Consolidated repeated admin nav visibility filtering into a local helper. Removed the unused admin nav canManageCalendar prop while preserving the layout permission check.
+- `apps/web/src/components/admin/require-full-admin.tsx`: Extracted the admin shell access predicate into a named local helper without changing permission checks.
+- `apps/web/src/app/(admin)/admin/layout.tsx`: Stopped passing the now-removed unused canManageCalendar prop into admin nav props.
+- `apps/api/src/index.ts`: Reviewed exports, imports, lint, typecheck, and formatting; no source change was needed.
+- `apps/web/src/components/supervisor/supervisor-nav.tsx`: Consolidated supervisor nav visibility filtering into a local helper. Removed the always-true enabled flag and no-op aria-disabled=false output.
+- `packages/db/src/index.ts`: Reviewed Prisma client export surface, lint, typecheck, and formatting; no source change was needed.
+- `apps/api/src/router.ts`: Reviewed root tRPC router composition, lint, typecheck, and formatting; no source change was needed.
+- `apps/web/src/app/(supervisor)/supervisor/layout.tsx`: Reviewed supervisor shell data loading, lint, typecheck, and formatting; no source change was needed.
+- `packages/domain/src/index.ts`: Reviewed domain barrel exports, lint, typecheck, and formatting; no source change was needed.
+
+### Validation
+- lint command: pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/api lint`; pass, `pnpm --filter @oasis/db lint`; pass, `pnpm --filter @oasis/domain lint`.
+- typecheck command: pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/api typecheck`; pass, `pnpm --filter @oasis/db typecheck`; pass, `pnpm --filter @oasis/domain typecheck`.
+- relevant tests: not run; no focused tests cover these local nav/access-helper and entrypoint cleanups.
+- formatting: pass, selected-file `pnpm exec prettier --check ...`.
+- graph update: pass, `graphify update .`.
+- diff hygiene: pass, `git diff --check`.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Oversized router test files remain candidates for a dedicated test-suite cleanup pass; deferred today to avoid mixing production-source maintenance with larger test restructuring.
