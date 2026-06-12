@@ -10,6 +10,7 @@
     "./rbac": "./src/rbac.ts",
     "./users": "./src/users.ts",
     "./meritLedger": "./src/meritLedger.ts",
+    "./attendance": "./src/attendance.ts",
     "./tithe": "./src/tithe.ts",
     "./investmentSim": "./src/investmentSim.ts",
     "./investmentMarketData": "./src/investmentMarketData.ts",

@@ -3,6 +3,7 @@ import { createClerkClient, type ClerkClient } from '@clerk/backend';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
+import { attendanceRate } from '@oasis/domain/attendance';
 import {
   canParentControlStudent,
   canUseLinkedChildStudentSettingsAccess,
@@ -612,11 +613,6 @@ function defaultsFor(settings: SettingsRow | null): SettingsDefaults {
   };
 }
 
-function percentage(numerator: number, denominator: number): number | null {
-  if (denominator <= 0) return null;
-  return Math.round((numerator / denominator) * 100);
-}
-
 function countMap(
   rows: readonly { studentId: string; _count: { _all: number } }[],
 ): Map<string, number> {
@@ -703,7 +699,12 @@ function mapAdminReadinessStudent(
     meritsTotal: input.meritsTotal,
     attendance: {
       ...input.attendance,
-      attendanceRate: percentage(input.attendance.present, input.attendance.recorded),
+      attended: input.attendance.present + input.attendance.late,
+      attendanceRate: attendanceRate({
+        late: input.attendance.late,
+        present: input.attendance.present,
+        total: input.attendance.recorded,
+      }),
     },
     paceSubjects: input.paceSubjects,
     activeClubSignupCount: input.clubSignupCount,

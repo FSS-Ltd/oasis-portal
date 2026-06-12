@@ -74,6 +74,28 @@ interface StoredInvestmentAccount {
   units: number;
 }
 
+interface StoredInvestmentHolding {
+  costBasisMerits: number;
+  instrumentId: string;
+  studentId: string;
+  units: number;
+}
+
+interface StoredMarketDataSnapshot {
+  gbpPrice: number;
+  instrumentId: string;
+  serverFetchedAt: Date;
+}
+
+interface StoredInvestmentTransaction {
+  costBasisMerits: number | null;
+  grossMerits: number | null;
+  instrumentId: string | null;
+  studentId: string;
+  taxMerits: number;
+  type: 'Buy' | 'Dividend' | 'Sell';
+}
+
 interface StoredBehaviourEntry {
   studentId: string;
   type: 'Merit' | 'Demerit' | 'General';
@@ -131,6 +153,11 @@ interface FakeLedgerGroupByArgs {
   _sum: { delta: true };
 }
 
+interface FakeLedgerFindManyArgs {
+  where: { account: MeritAccount; delta?: { lt: number }; studentId?: { in: string[] } };
+  select: { studentId: true; delta: true };
+}
+
 interface FakeLedgerAggregateArgs {
   where: { account: MeritAccount; delta?: { gt: number }; reason?: { startsWith: string } };
   _sum: { delta: true };
@@ -148,6 +175,36 @@ interface FakeInvestmentAccountFindManyArgs {
 interface FakeInvestmentNavFindFirstArgs {
   orderBy: { date: 'desc' };
   select: { nav: true };
+}
+
+interface FakeInvestmentHoldingFindManyArgs {
+  where: { student: { active: true } };
+  select: {
+    costBasisMerits: true;
+    instrumentId: true;
+    studentId: true;
+    units: true;
+    student: { select: { fullNameEnc: true; yearGroup: true; enrolmentDate: true } };
+    instrument: {
+      select: {
+        snapshots: {
+          orderBy: { serverFetchedAt: 'desc' };
+          take: 1;
+          select: { gbpPrice: true };
+        };
+      };
+    };
+  };
+}
+
+interface FakeInvestmentTransactionFindManyArgs {
+  where: { instrumentId: { not: null }; type: 'Sell'; studentId?: { in: string[] } };
+  select: {
+    costBasisMerits: true;
+    grossMerits: true;
+    studentId: true;
+    taxMerits: true;
+  };
 }
 
 interface FakeBehaviourGroupByArgs {
@@ -203,6 +260,9 @@ function makeFakeDb(
     students?: StoredStudent[];
     ledger?: StoredLedgerRow[];
     investmentAccounts?: StoredInvestmentAccount[];
+    investmentHoldings?: StoredInvestmentHolding[];
+    investmentSnapshots?: StoredMarketDataSnapshot[];
+    investmentTransactions?: StoredInvestmentTransaction[];
     latestNav?: number | null;
     behaviourEntries?: StoredBehaviourEntry[];
     guardians?: StoredGuardian[];
@@ -212,6 +272,9 @@ function makeFakeDb(
   const students = input.students ?? [];
   const ledger = input.ledger ?? [];
   const investmentAccounts = input.investmentAccounts ?? [];
+  const investmentHoldings = input.investmentHoldings ?? [];
+  const investmentSnapshots = input.investmentSnapshots ?? [];
+  const investmentTransactions = input.investmentTransactions ?? [];
   const latestNav = input.latestNav ?? null;
   const behaviourEntries = input.behaviourEntries ?? [];
   const guardians = input.guardians ?? [];
@@ -292,6 +355,16 @@ function makeFakeDb(
           })),
         );
       }),
+      findMany: vi.fn((args: FakeLedgerFindManyArgs) => {
+        const allowedStudentIds = args.where.studentId ? new Set(args.where.studentId.in) : null;
+        return Promise.resolve(
+          ledger
+            .filter((row) => row.account === args.where.account)
+            .filter((row) => (allowedStudentIds ? allowedStudentIds.has(row.studentId) : true))
+            .filter((row) => (args.where.delta ? row.delta < args.where.delta.lt : true))
+            .map((row) => ({ studentId: row.studentId, delta: row.delta })),
+        );
+      }),
     },
     investmentNav: {
       findFirst: vi.fn((args: FakeInvestmentNavFindFirstArgs) => {
@@ -318,6 +391,55 @@ function makeFakeDb(
               },
             ];
           }),
+        );
+      }),
+    },
+    investmentHolding: {
+      findMany: vi.fn((args: FakeInvestmentHoldingFindManyArgs) => {
+        void args;
+        return Promise.resolve(
+          investmentHoldings.flatMap((holding) => {
+            const student = students.find((row) => row.id === holding.studentId);
+            if (!student?.active) return [];
+            const snapshots = investmentSnapshots
+              .filter((snapshot) => snapshot.instrumentId === holding.instrumentId)
+              .sort((left, right) => right.serverFetchedAt.getTime() - left.serverFetchedAt.getTime())
+              .slice(0, 1)
+              .map((snapshot) => ({ gbpPrice: snapshot.gbpPrice }));
+            return [
+              {
+                costBasisMerits: holding.costBasisMerits,
+                instrumentId: holding.instrumentId,
+                studentId: holding.studentId,
+                units: holding.units,
+                student: {
+                  fullNameEnc: student.fullNameEnc,
+                  yearGroup: student.yearGroup,
+                  enrolmentDate: student.enrolmentDate,
+                },
+                instrument: { snapshots },
+              },
+            ];
+          }),
+        );
+      }),
+    },
+    investmentTransaction: {
+      findMany: vi.fn((args: FakeInvestmentTransactionFindManyArgs) => {
+        const allowedStudentIds = args.where.studentId ? new Set(args.where.studentId.in) : null;
+        return Promise.resolve(
+          investmentTransactions
+            .filter((transaction) => transaction.type === args.where.type)
+            .filter((transaction) => transaction.instrumentId !== null)
+            .filter((transaction) =>
+              allowedStudentIds ? allowedStudentIds.has(transaction.studentId) : true,
+            )
+            .map((transaction) => ({
+              costBasisMerits: transaction.costBasisMerits,
+              grossMerits: transaction.grossMerits,
+              studentId: transaction.studentId,
+              taxMerits: transaction.taxMerits,
+            })),
         );
       }),
     },
@@ -464,22 +586,63 @@ describe('leaderboard.get', () => {
     });
   });
 
-  it('ranks TopInvestors by current invested value from latest NAV', async () => {
+  it('ranks TopInvestors by live market net worth plus realised gains', async () => {
     const db = makeFakeDb({
       students: [
-        makeStudent({ id: 'student-higher-value', fullNameEnc: 'Higher Value Student' }),
-        makeStudent({ id: 'student-higher-return', fullNameEnc: 'Higher Return Student' }),
+        makeStudent({ id: 'student-high-worth', fullNameEnc: 'Higher Worth Student' }),
+        makeStudent({ id: 'student-high-profit', fullNameEnc: 'Higher Profit Student' }),
         makeStudent({ id: 'student-inactive', active: false, fullNameEnc: 'Inactive Student' }),
       ],
-      latestNav: 10,
-      investmentAccounts: [
-        { studentId: 'student-higher-value', units: 20 },
-        { studentId: 'student-higher-return', units: 10 },
-        { studentId: 'student-inactive', units: 100 },
+      investmentHoldings: [
+        {
+          studentId: 'student-high-worth',
+          instrumentId: 'instrument-a',
+          units: 20,
+          costBasisMerits: 10,
+        },
+        {
+          studentId: 'student-high-profit',
+          instrumentId: 'instrument-a',
+          units: 10,
+          costBasisMerits: 5,
+        },
+        {
+          studentId: 'student-inactive',
+          instrumentId: 'instrument-a',
+          units: 100,
+          costBasisMerits: 1,
+        },
+      ],
+      investmentSnapshots: [
+        {
+          instrumentId: 'instrument-a',
+          gbpPrice: 100,
+          serverFetchedAt: new Date('2026-06-12T10:00:00.000Z'),
+        },
+      ],
+      investmentTransactions: [
+        {
+          studentId: 'student-high-worth',
+          type: 'Sell',
+          instrumentId: 'instrument-a',
+          grossMerits: 70,
+          costBasisMerits: 40,
+          taxMerits: 6,
+        },
+        {
+          studentId: 'student-high-profit',
+          type: 'Sell',
+          instrumentId: 'instrument-a',
+          grossMerits: 20,
+          costBasisMerits: 10,
+          taxMerits: 2,
+        },
       ],
       ledger: [
-        { studentId: 'student-higher-value', account: 'Investment', delta: 200 },
-        { studentId: 'student-higher-return', account: 'Investment', delta: 10 },
+        { studentId: 'student-high-worth', account: 'Investment', delta: 30 },
+        { studentId: 'student-high-worth', account: 'InvestmentReturn', delta: -30 },
+        { studentId: 'student-high-profit', account: 'Investment', delta: 10 },
+        { studentId: 'student-high-profit', account: 'InvestmentReturn', delta: -120 },
         { studentId: 'student-inactive', account: 'Investment', delta: 1 },
       ],
     });
@@ -492,12 +655,20 @@ describe('leaderboard.get', () => {
     expect(result.rows).toHaveLength(2);
     expect(result.rows[0]).toMatchObject({
       rank: 1,
-      studentId: 'student-higher-value',
-      displayName: 'Higher Value Student',
-      score: 200,
+      studentId: 'student-high-profit',
+      displayName: 'Higher Profit Student',
+      realizedProfitMerits: 120,
+      score: 135,
+      withdrawnProfitGbp: 800,
+      withdrawnProfitMerits: 8,
     });
-    expect(result.rows[1]?.studentId).toBe('student-higher-return');
-    expect(result.rows[1]?.score).toBe(100);
+    expect(result.rows[1]).toMatchObject({
+      studentId: 'student-high-worth',
+      realizedProfitMerits: 30,
+      score: 70,
+      withdrawnProfitGbp: 2400,
+      withdrawnProfitMerits: 24,
+    });
   });
 
   it('adds only linked guardian children as viewerRows when they rank outside the top ten', async () => {

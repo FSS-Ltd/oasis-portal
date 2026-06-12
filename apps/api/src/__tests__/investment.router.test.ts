@@ -761,9 +761,9 @@ describe('investment.marketData', () => {
       freshness: 'fresh',
       snapshots: [
         {
-          dailyMovementMerits: 0.1,
-          previousCloseMerits: 7.4,
-          priceMerits: 7.5,
+          dailyMovementMerits: 0.01,
+          previousCloseMerits: 0.74,
+          priceMerits: 0.75,
           symbol: 'VUSA',
         },
       ],
@@ -975,7 +975,7 @@ describe('investment.account', () => {
           instrument: vusa,
           instrumentId: vusa.id,
           studentId: linkedStudentId,
-          units: 4,
+          units: 40,
         },
         {
           costBasisMerits: 200,
@@ -983,7 +983,7 @@ describe('investment.account', () => {
           instrument: eqqq,
           instrumentId: eqqq.id,
           studentId: linkedStudentId,
-          units: 6,
+          units: 60,
         },
       ],
       instruments: [vusa, eqqq],
@@ -1009,19 +1009,19 @@ describe('investment.account', () => {
       holdings: [
         {
           costBasisMerits: 100,
-          currentPriceMerits: 25,
+          currentPriceMerits: 2.5,
           currentValueMerits: 100,
           instrumentId: 'instrument-vusa',
           symbol: 'VUSA',
-          units: 4,
+          units: 40,
         },
         {
           costBasisMerits: 200,
-          currentPriceMerits: 50,
+          currentPriceMerits: 5,
           currentValueMerits: 300,
           instrumentId: 'instrument-eqqq',
           symbol: 'EQQQ',
-          units: 6,
+          units: 60,
         },
       ],
       portfolioCostBasisMerits: 300,
@@ -1245,17 +1245,17 @@ describe('investment.buyHolding', () => {
       holding: {
         costBasisMerits: 75,
         instrumentId: 'instrument-vusa',
-        units: 10,
+        units: 100,
       },
-      priceMerits: 7.5,
-      unitsBought: 10,
+      priceMerits: 0.75,
+      unitsBought: 100,
     });
     expect(db.holdings).toMatchObject([
       {
         costBasisMerits: 75,
         instrumentId: 'instrument-vusa',
         studentId: linkedStudentId,
-        units: 10,
+        units: 100,
       },
     ]);
     expect(db.transactions).toMatchObject([
@@ -1264,10 +1264,10 @@ describe('investment.buyHolding', () => {
         feeMerits: 0,
         grossMerits: 75,
         instrumentId: 'instrument-vusa',
-        nav: 7.5,
+        nav: 0.75,
         taxMerits: 0,
         type: 'Buy',
-        units: 10,
+        units: 100,
       },
     ]);
     expect(
@@ -1337,7 +1337,7 @@ describe('investment.sellHolding', () => {
             instrument: vusa,
             instrumentId: vusa.id,
             studentId: linkedStudentId,
-            units: 4,
+            units: 40,
           },
         ],
         instruments: [vusa],
@@ -1357,20 +1357,20 @@ describe('investment.sellHolding', () => {
       caller.investment.sellHolding({
         instrumentId: 'instrument-vusa',
         studentId: linkedStudentId,
-        units: 2,
+        units: 20,
       }),
     ).resolves.toMatchObject({
       costBasisMerits: 50,
       grossMerits: 60,
       investmentReturnDelta: -10,
-      priceMerits: 30,
-      unitsSold: 2,
+      priceMerits: 3,
+      unitsSold: 20,
     });
     expect(db.holdings).toMatchObject([
       {
         costBasisMerits: 50,
         id: 'holding-vusa',
-        units: 2,
+        units: 20,
       },
     ]);
     expect(db.transactions).toMatchObject([
@@ -1379,10 +1379,10 @@ describe('investment.sellHolding', () => {
         feeMerits: 0,
         grossMerits: 60,
         instrumentId: 'instrument-vusa',
-        nav: 30,
+        nav: 3,
         taxMerits: 0,
         type: 'Sell',
-        units: 2,
+        units: 20,
       },
     ]);
     expect(db.ledger).toEqual([
@@ -1470,7 +1470,7 @@ describe('investment.withdrawPortfolio', () => {
             instrument: vusa,
             instrumentId: vusa.id,
             studentId: linkedStudentId,
-            units: 4,
+            units: 40,
           },
           {
             costBasisMerits: 200,
@@ -1478,7 +1478,7 @@ describe('investment.withdrawPortfolio', () => {
             instrument: eqqq,
             instrumentId: eqqq.id,
             studentId: linkedStudentId,
-            units: 6,
+            units: 60,
           },
         ],
         instruments: [vusa, eqqq],
@@ -1515,12 +1515,12 @@ describe('investment.withdrawPortfolio', () => {
       {
         costBasisMerits: 50,
         id: 'holding-vusa',
-        units: 2,
+        units: 20,
       },
       {
         costBasisMerits: 100,
         id: 'holding-eqqq',
-        units: 3,
+        units: 30,
       },
     ]);
     expect(db.transactions).toMatchObject([
@@ -1529,20 +1529,20 @@ describe('investment.withdrawPortfolio', () => {
         feeMerits: 10,
         grossMerits: 50,
         instrumentId: 'instrument-vusa',
-        nav: 25,
+        nav: 2.5,
         taxMerits: 7,
         type: 'Sell',
-        units: 2,
+        units: 20,
       },
       {
         costBasisMerits: 100,
         feeMerits: 0,
         grossMerits: 150,
         instrumentId: 'instrument-eqqq',
-        nav: 50,
+        nav: 5,
         taxMerits: 0,
         type: 'Sell',
-        units: 3,
+        units: 30,
       },
     ]);
     expect(db.ledger).toEqual([

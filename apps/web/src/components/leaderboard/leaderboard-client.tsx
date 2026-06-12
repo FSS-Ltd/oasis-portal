@@ -59,6 +59,14 @@ function formatScore(value: number, label: string): string {
   return `${numberFormatter.format(Math.round(value))} ${label}`;
 }
 
+function formatGbp(value: number): string {
+  return new Intl.NumberFormat('en-GB', {
+    currency: 'GBP',
+    maximumFractionDigits: 0,
+    style: 'currency',
+  }).format(Math.round(value));
+}
+
 function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] ?? name;
 }
@@ -150,7 +158,15 @@ function LeaderboardRowItem({
         <strong>{row.displayName}</strong>
         <small>{displaySchoolYearLabel(row.yearGroup)}</small>
       </span>
-      <strong className="leaderboard-row__score">{formatScore(row.score, scoreLabel)}</strong>
+      <span className="leaderboard-row__score">
+        <strong>{formatScore(row.score, scoreLabel)}</strong>
+        {row.withdrawnProfitMerits !== undefined && row.withdrawnProfitMerits > 0 ? (
+          <span className="leaderboard-row__profit-badge">
+            Profit - {formatScore(row.withdrawnProfitMerits, 'merits')} (
+            {formatGbp(row.withdrawnProfitGbp ?? 0)})
+          </span>
+        ) : null}
+      </span>
     </li>
   );
 }

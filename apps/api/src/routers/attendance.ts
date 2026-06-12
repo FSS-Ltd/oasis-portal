@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import {
   AccessDeniedError,
+  attendanceRate as calculateAttendanceRate,
   canExportAttendance,
   canRecordStudentAttendance,
   isStaff,
@@ -209,14 +210,17 @@ function emptySummary(): AttendanceSummary {
   return { total: 0, Present: 0, Absent: 0, Late: 0 };
 }
 
-function attendanceRate(summary: Pick<AttendanceSummary, 'Present' | 'total'>): number | null {
-  if (summary.total === 0) return null;
-  return Math.round((summary.Present / summary.total) * 100);
-}
-
 function incrementSummary(summary: AttendanceSummary, status: AttendanceStatus): void {
   summary.total += 1;
   summary[status] += 1;
+}
+
+function attendanceRateForSummary(summary: AttendanceSummary): number | null {
+  return calculateAttendanceRate({
+    late: summary.Late,
+    present: summary.Present,
+    total: summary.total,
+  });
 }
 
 function addUtcDays(date: Date, days: number): Date {
@@ -298,7 +302,8 @@ function buildInsightsResult(
       present: summary.Present,
       absent: summary.Absent,
       late: summary.Late,
-      attendanceRate: attendanceRate(summary),
+      attended: summary.Present + summary.Late,
+      attendanceRate: attendanceRateForSummary(summary),
     },
     trend: [...trendByDate.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
@@ -308,7 +313,8 @@ function buildInsightsResult(
         present: daySummary.Present,
         absent: daySummary.Absent,
         late: daySummary.Late,
-        attendanceRate: attendanceRate(daySummary),
+        attended: daySummary.Present + daySummary.Late,
+        attendanceRate: attendanceRateForSummary(daySummary),
       })),
     statusBreakdown: ATTENDANCE_STATUSES.map((status) => ({
       status,
@@ -1096,7 +1102,8 @@ export const attendanceRouter = router({
           present: summary.Present,
           absent: summary.Absent,
           late: summary.Late,
-          attendanceRate: attendanceRate(summary),
+          attended: summary.Present + summary.Late,
+          attendanceRate: attendanceRateForSummary(summary),
         },
         records: rows.map((row) => ({
           id: row.id,

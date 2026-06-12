@@ -397,9 +397,9 @@ describe('refreshTwelveDataQuotes', () => {
       refreshedCount: 0,
       snapshots: [
         {
-          dailyMovementMerits: 0.1,
-          previousCloseMerits: 9.9,
-          priceMerits: 10,
+          dailyMovementMerits: 0.01,
+          previousCloseMerits: 0.99,
+          priceMerits: 1,
           symbol: 'VUSA',
         },
       ],

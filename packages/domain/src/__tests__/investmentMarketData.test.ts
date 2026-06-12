@@ -33,13 +33,13 @@ const gbpQuote = {
 
 describe('market data merit valuation', () => {
   it('documents the backend GBP-to-merit rate', () => {
-    expect(GBP_PER_MERIT).toBe(10);
+    expect(GBP_PER_MERIT).toBe(100);
   });
 
   it('converts GBP prices to six-decimal merit prices deterministically', () => {
-    expect(gbpToMerits('72.41')).toBe(7.241);
-    expect(gbpToMerits('75.325555')).toBe(7.532556);
-    expect(gbpToMerits('-1.25')).toBe(-0.125);
+    expect(gbpToMerits('72.41')).toBe(0.7241);
+    expect(gbpToMerits('75.325555')).toBe(0.753256);
+    expect(gbpToMerits('-1.25')).toBe(-0.0125);
   });
 
   it('builds merit valuation fields from GBP-normalized market snapshots', () => {
@@ -49,14 +49,14 @@ describe('market data merit valuation', () => {
         previousCloseGbp: '158.75',
       }),
     ).toEqual({
-      dailyMovementMerits: 0.125,
-      previousCloseMerits: 15.875,
-      priceMerits: 16,
+      dailyMovementMerits: 0.0125,
+      previousCloseMerits: 1.5875,
+      priceMerits: 1.6,
     });
   });
 
   it('values holdings from units and GBP prices while preserving zero-unit holdings', () => {
-    expect(holdingValueMeritsFromGbpPrice({ gbpPrice: '160.00', units: '1.5' })).toBe(24);
+    expect(holdingValueMeritsFromGbpPrice({ gbpPrice: '160.00', units: '1.5' })).toBe(2.4);
     expect(holdingValueMeritsFromGbpPrice({ gbpPrice: '160.00', units: '0' })).toBe(0);
   });
 });
@@ -489,7 +489,7 @@ describe('normaliseFinnhubDividendResponse', () => {
       value: [
         {
           amountGbp: 0.2,
-          amountMerits: 0.02,
+          amountMerits: 0.002,
           amountSource: 0.25,
           exDate: new Date('2026-06-15T00:00:00.000Z'),
           payDate: new Date('2026-07-01T00:00:00.000Z'),
@@ -536,7 +536,7 @@ describe('normaliseYahooFinanceDividendResponse', () => {
       value: [
         {
           amountGbp: 0.208,
-          amountMerits: 0.0208,
+          amountMerits: 0.00208,
           amountSource: 0.26,
           exDate: new Date('2025-05-12T00:00:00.000Z'),
           providerEventId: 'AAPL:2025-05-12:0.26',
@@ -553,7 +553,7 @@ describe('forecastSimulatedDividendEvents', () => {
     const history = [
       {
         amountGbp: 0.2,
-        amountMerits: 0.02,
+        amountMerits: 0.002,
         amountSource: 0.25,
         exDate: new Date('2025-11-10T00:00:00.000Z'),
         providerEventId: 'AAPL:2025-11-10:0.25',
@@ -562,7 +562,7 @@ describe('forecastSimulatedDividendEvents', () => {
       },
       {
         amountGbp: 0.208,
-        amountMerits: 0.0208,
+        amountMerits: 0.00208,
         amountSource: 0.26,
         exDate: new Date('2026-02-10T00:00:00.000Z'),
         providerEventId: 'AAPL:2026-02-10:0.26',
@@ -571,7 +571,7 @@ describe('forecastSimulatedDividendEvents', () => {
       },
       {
         amountGbp: 0.216,
-        amountMerits: 0.0216,
+        amountMerits: 0.00216,
         amountSource: 0.27,
         exDate: new Date('2026-05-12T00:00:00.000Z'),
         providerEventId: 'AAPL:2026-05-12:0.27',
@@ -590,7 +590,7 @@ describe('forecastSimulatedDividendEvents', () => {
     ).toEqual([
       {
         amountGbp: 0.216,
-        amountMerits: 0.0216,
+        amountMerits: 0.00216,
         amountSource: 0.27,
         exDate: new Date('2026-08-11T00:00:00.000Z'),
         providerEventId: 'AAPL:simulated:2026-08-11:0.27',
@@ -599,7 +599,7 @@ describe('forecastSimulatedDividendEvents', () => {
       },
       {
         amountGbp: 0.216,
-        amountMerits: 0.0216,
+        amountMerits: 0.00216,
         amountSource: 0.27,
         exDate: new Date('2026-11-10T00:00:00.000Z'),
         providerEventId: 'AAPL:simulated:2026-11-10:0.27',
@@ -615,7 +615,7 @@ describe('forecastSimulatedDividendEvents', () => {
         [
           {
             amountGbp: 0.2,
-            amountMerits: 0.02,
+            amountMerits: 0.002,
             amountSource: 0.25,
             exDate: new Date('2026-05-12T00:00:00.000Z'),
             providerEventId: 'AAPL:2026-05-12:0.25',
@@ -834,11 +834,11 @@ describe('applyLearningReturnMultiplier', () => {
 
 describe('computeLearningHoldingReturn', () => {
   it('computes raw and learning returns for a gain', () => {
-    // 1 unit at 100 GBP cost → 10 merits cost basis
+    // 10 units at 100 GBP cost → 10 merits cost basis
     // current price 110 GBP → 11 merits raw value → +10% raw
     // learning: 10% × 10 = 100% → clamped to +8% daily
     const result = computeLearningHoldingReturn({
-      units: '1',
+      units: '10',
       costBasisMerits: '10',
       currentGbpPrice: '110',
       range: 'daily',
@@ -856,7 +856,7 @@ describe('computeLearningHoldingReturn', () => {
     // current price 90 GBP → 9 merits raw → -10% raw
     // learning: -10% × 10 = -100% → clamped to -8% daily
     const result = computeLearningHoldingReturn({
-      units: '1',
+      units: '10',
       costBasisMerits: '10',
       currentGbpPrice: '90',
       range: 'daily',
@@ -870,7 +870,7 @@ describe('computeLearningHoldingReturn', () => {
 
   it('returns zero profit for a flat holding', () => {
     const result = computeLearningHoldingReturn({
-      units: '1',
+      units: '10',
       costBasisMerits: '10',
       currentGbpPrice: '100',
       range: 'daily',
@@ -884,7 +884,7 @@ describe('computeLearningHoldingReturn', () => {
 
   it('does not divide by zero when cost basis is zero', () => {
     const result = computeLearningHoldingReturn({
-      units: '1',
+      units: '10',
       costBasisMerits: '0',
       currentGbpPrice: '100',
       range: 'daily',
@@ -896,7 +896,7 @@ describe('computeLearningHoldingReturn', () => {
 
   it('does not mutate the costBasisMerits input', () => {
     const input = {
-      units: '1',
+      units: '10',
       costBasisMerits: '10',
       currentGbpPrice: '120',
       range: 'daily' as const,
@@ -908,7 +908,7 @@ describe('computeLearningHoldingReturn', () => {
   it('respects a custom multiplier passed to the input', () => {
     // 2% gain × multiplier 2 = 4% → uncapped at daily (cap is 8%)
     const result = computeLearningHoldingReturn({
-      units: '1',
+      units: '10',
       costBasisMerits: '10',
       currentGbpPrice: '102',
       range: 'daily',

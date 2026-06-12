@@ -9314,11 +9314,29 @@ button.club-assignment-row {
 }
 
 .leaderboard-row__score {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
   color: var(--oasis-blue);
   font-size: 0.86rem;
   font-weight: 850;
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.leaderboard-row__profit-badge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 7px;
+  border: 1px solid rgba(22, 101, 52, 0.18);
+  border-radius: 999px;
+  background: rgba(220, 252, 231, 0.9);
+  color: #166534;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1.2;
 }
 
 .leaderboard-viewer-section {

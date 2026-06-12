@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
   academicYearStart,
+  attendanceRate as calculateAttendanceRate,
   canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   deriveEnglandWalesSchoolYear,
@@ -219,8 +220,11 @@ function emptyAttendanceSummary(): AttendanceSummary {
 }
 
 function attendanceRate(summary: AttendanceSummary): number | null {
-  if (summary.total === 0) return null;
-  return Math.round((summary.Present / summary.total) * 100);
+  return calculateAttendanceRate({
+    late: summary.Late,
+    present: summary.Present,
+    total: summary.total,
+  });
 }
 
 function totalMeritBalance(balances: MeritBalances): number {
@@ -368,6 +372,7 @@ async function loadAttendanceDashboard(ctx: AppContext, studentId: string) {
   return {
     days: DASHBOARD_ATTENDANCE_DAYS,
     ...summary,
+    attended: summary.Present + summary.Late,
     attendanceRate: attendanceRate(summary),
   };
 }

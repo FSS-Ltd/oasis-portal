@@ -537,7 +537,7 @@ describe('report.draft', () => {
       status: 'Draft',
       compiled: {
         studentDisplayName: 'Jane Learner',
-        attendance: { total: 4, present: 2, absent: 1, late: 1, attendancePct: 50 },
+        attendance: { total: 4, present: 2, absent: 1, late: 1, attendancePct: 75 },
         behaviour: {
           meritsEarned: 10,
           demeritsCount: 1,

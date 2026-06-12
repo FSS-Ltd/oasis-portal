@@ -64,7 +64,7 @@ export interface ProviderInstrumentProfile {
   country?: string | undefined;
 }
 
-export const GBP_PER_MERIT = 10;
+export const GBP_PER_MERIT = 100;
 
 const MERIT_DECIMAL_PLACES = 6;
 const MONEY_DECIMAL_PLACES = 6;
