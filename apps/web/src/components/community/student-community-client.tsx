@@ -2,7 +2,7 @@
 
 import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '@clerk/nextjs';
-import { Hash, Lock, MessageCircle, Send, UsersRound } from 'lucide-react';
+import { ChevronLeft, Hash, Lock, MessageCircle, Send, UsersRound } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { friendlyErrorMessage, showErrorToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
@@ -137,6 +137,7 @@ export function StudentCommunityClient() {
   const blocked = groupsQuery.data?.communityMessagingBlocked ?? false;
   const blockedReason = groupsQuery.data?.communityMessagingBlockedReason ?? null;
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0] ?? null;
   const activeGroupId = selectedGroup?.id ?? null;
   const [body, setBody] = useState('');
@@ -182,6 +183,11 @@ export function StudentCommunityClient() {
   useEffect(() => {
     if (!selectedGroupId && groups[0]) setSelectedGroupId(groups[0].id);
   }, [groups, selectedGroupId]);
+
+  function selectGroup(groupId: string) {
+    setSelectedGroupId(groupId);
+    setMobileChatOpen(true);
+  }
 
   useEffect(() => {
     if (!activeGroupId || !currentStudentId) return;
@@ -276,7 +282,11 @@ export function StudentCommunityClient() {
   }
 
   return (
-    <div className="student-page community-page">
+    <div
+      className={
+        mobileChatOpen ? 'student-page community-page is-chat-open' : 'student-page community-page'
+      }
+    >
       <section className="student-hero community-hero">
         <div className="student-hero__identity">
           <span className="student-hero__icon" aria-hidden="true">
@@ -302,7 +312,7 @@ export function StudentCommunityClient() {
                 active={group.id === activeGroupId}
                 group={group}
                 key={group.id}
-                onSelect={setSelectedGroupId}
+                onSelect={selectGroup}
               />
             ))}
           </div>
@@ -311,6 +321,17 @@ export function StudentCommunityClient() {
         <section className="panel panel__body community-chat-panel" aria-live="polite">
           {selectedGroup ? (
             <div className="community-chat-header">
+              <button
+                aria-label="Back to community groups"
+                className="community-chat-back"
+                onClick={() => {
+                  setMobileChatOpen(false);
+                }}
+                type="button"
+              >
+                <ChevronLeft aria-hidden="true" size={22} />
+                <span>Groups</span>
+              </button>
               <div>
                 <p>{selectedGroup.isCentral ? 'Central space' : 'Group chat'}</p>
                 <h2>{selectedGroup.title}</h2>

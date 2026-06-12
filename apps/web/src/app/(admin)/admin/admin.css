@@ -3167,6 +3167,10 @@
   border-bottom: 1px solid var(--oasis-border-light);
 }
 
+.community-chat-back {
+  display: none;
+}
+
 .community-chat-header p,
 .community-chat-header span {
   margin: 0;
@@ -15332,6 +15336,140 @@ button.club-assignment-row {
   .homework-review-detail__title {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .community-page:not(.is-chat-open) .community-chat-panel {
+    display: none;
+  }
+
+  .community-page.is-chat-open {
+    display: block;
+  }
+
+  .community-page.is-chat-open .community-hero,
+  .community-page.is-chat-open .community-group-panel {
+    display: none;
+  }
+
+  .community-page.is-chat-open .community-layout {
+    display: block;
+    min-height: 0;
+  }
+
+  .community-page.is-chat-open .community-chat-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    min-height: 100dvh;
+    padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 0;
+    background: #f4f8ff;
+    box-shadow: none;
+  }
+
+  .community-page.is-chat-open .community-chat-header {
+    position: relative;
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) 88px;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px;
+    padding: 4px 0 12px;
+  }
+
+  .community-page.is-chat-open .community-chat-header > div {
+    grid-column: 2;
+    min-width: 0;
+    text-align: center;
+  }
+
+  .community-page.is-chat-open .community-chat-header p {
+    display: none;
+  }
+
+  .community-page.is-chat-open .community-chat-header h2 {
+    overflow: hidden;
+    margin: 0;
+    color: var(--oasis-navy);
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .community-page.is-chat-open .community-chat-header span {
+    display: block;
+    overflow: hidden;
+    margin-top: 2px;
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .community-page.is-chat-open .community-chat-header .button {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  .community-chat-back {
+    display: inline-flex;
+    grid-column: 1;
+    width: fit-content;
+    min-height: 42px;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--oasis-blue);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 850;
+  }
+
+  .community-page.is-chat-open .community-message-list {
+    min-height: 0;
+    padding: 10px 2px 14px;
+  }
+
+  .community-page.is-chat-open .community-message {
+    max-width: 78%;
+    border-radius: 20px 20px 20px 6px;
+    box-shadow: none;
+  }
+
+  .community-page.is-chat-open .community-message.is-mine {
+    border-radius: 20px 20px 6px 20px;
+    background: #2383ee;
+  }
+
+  .community-page.is-chat-open .community-message header {
+    gap: 8px;
+  }
+
+  .community-page.is-chat-open .community-message p {
+    font-size: 0.94rem;
+  }
+
+  .community-page.is-chat-open .community-composer {
+    grid-template-columns: minmax(0, 1fr) 46px;
+    gap: 10px;
+    padding: 10px 0 0;
+    border-top: 0;
+  }
+
+  .community-page.is-chat-open .community-composer .textarea {
+    min-height: 46px;
+    max-height: 110px;
+    border-radius: 999px;
+    resize: none;
+  }
+
+  .community-page.is-chat-open .community-composer .button {
+    width: 46px;
+    min-width: 46px;
+    min-height: 46px;
   }
 
   .community-admin-actions {
