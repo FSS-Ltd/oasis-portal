@@ -46,7 +46,7 @@ describe('compileTermReport', () => {
       ],
       headSummary: 'Great term.',
     });
-    expect(out.attendance.attendancePct).toBe(90);
+    expect(out.attendance.attendancePct).toBe(95);
     expect(out.balances.Spend).toBe(20);
     expect(out.balances.Saving).toBe(10);
     expect(out.headSummary).toBe('Great term.');

@@ -228,7 +228,7 @@ describe('investment accounting invariants', () => {
     expect(result.snapshots[0]).toMatchObject({
       dayChangePct: 1.25,
       learningDayChangePct: 8,
-      learningDailyMovementMerits: 0.72,
+      learningDailyMovementMerits: 0.072,
       symbol: 'VUSA',
     });
     expect(db.ledger).toEqual(initialLedger);

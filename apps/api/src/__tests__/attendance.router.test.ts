@@ -1848,7 +1848,8 @@ describe('attendance.studentSummary', () => {
         present: 0,
         absent: 1,
         late: 1,
-        attendanceRate: 0,
+        attended: 1,
+        attendanceRate: 50,
       },
       records: [
         {
@@ -1891,6 +1892,7 @@ describe('attendance.studentSummary', () => {
         present: 0,
         absent: 0,
         late: 0,
+        attended: 0,
         attendanceRate: null,
       },
       records: [],
@@ -2556,7 +2558,8 @@ describe('attendance.insights', () => {
       present: 1,
       absent: 1,
       late: 1,
-      attendanceRate: 33,
+      attended: 2,
+      attendanceRate: 67,
     });
     expect(aggregate.trend).toHaveLength(2);
     expect(aggregate.absenceReasons.find((reason) => reason.reason === 'Sick')).toMatchObject({

@@ -130,7 +130,7 @@ interface RawInstrument {
 
 export const today = new Date();
 export const historyDays = 400;
-export const meritGbp = 10;
+export const meritGbp = 100;
 export const withdrawFeePct = 5;
 export const capitalGainsTaxPct = 15;
 

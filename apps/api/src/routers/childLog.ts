@@ -4,6 +4,7 @@ import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   academicYearStart,
+  attendanceRate,
   canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
   canViewAnyStudentDrillThrough,
@@ -118,11 +119,6 @@ function parentDashboardTodayStatus(
   if (!isOasisOperatingDay(date)) return { date: key, kind: 'closed', label: 'Closed' };
   if (attendanceStatus) return { date: key, kind: 'attendance', label: attendanceStatus };
   return { date: key, kind: 'unmarked', label: 'No mark' };
-}
-
-function percentage(numerator: number, denominator: number): number | null {
-  if (denominator === 0) return null;
-  return Math.round((numerator / denominator) * 100);
 }
 
 function paceProgressKey(record: {
@@ -910,6 +906,8 @@ export const childLogRouter = router({
         const studentAttendance = attendance.filter((row) => row.studentId === student.id);
         const todayAttendance = studentAttendance.find((row) => dateKey(row.date) === todayKey);
         const presentDays = studentAttendance.filter((row) => row.status === 'Present').length;
+        const lateDays = studentAttendance.filter((row) => row.status === 'Late').length;
+        const attendedDays = presentDays + lateDays;
         const studentPace = paceTests.filter((record) => record.studentId === student.id);
         const pacesCompletedThisAcademicYear = countPassedFinalPaceTests(
           studentPace,
@@ -923,7 +921,12 @@ export const childLogRouter = router({
             totalMerits:
               balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved,
             pacesCompletedThisAcademicYear,
-            attendanceRate: percentage(presentDays, studentAttendance.length),
+            attendanceRate: attendanceRate({
+              late: lateDays,
+              present: presentDays,
+              total: studentAttendance.length,
+            }),
+            attendedDays,
             presentDays,
             recordedAttendanceDays: studentAttendance.length,
           },
@@ -1080,6 +1083,8 @@ export const childLogRouter = router({
       const paceStartedAtByKey = await loadPaceStartedAtByKey(ctx, paceTests);
       const pacesCompletedThisAcademicYear = countPassedFinalPaceTests(paceTests, passThreshold);
       const presentDays = attendance.filter((row) => row.status === 'Present').length;
+      const lateDays = attendance.filter((row) => row.status === 'Late').length;
+      const attendedDays = presentDays + lateDays;
       const recordedAttendanceDays = attendance.length;
       const disciplineDay = localDayBounds(new Date());
       const disciplineDemerits = behaviour.filter(
@@ -1167,7 +1172,12 @@ export const childLogRouter = router({
           totalMerits:
             balances.Spend + balances.Saving + balances.Investment + balances.ShopReserved,
           pacesCompletedThisAcademicYear,
-          attendanceRate: percentage(presentDays, recordedAttendanceDays),
+          attendanceRate: attendanceRate({
+            late: lateDays,
+            present: presentDays,
+            total: recordedAttendanceDays,
+          }),
+          attendedDays,
           presentDays,
           recordedAttendanceDays,
         },

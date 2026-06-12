@@ -43,7 +43,9 @@ function AttendanceSummaryCards({ summary }: { summary: StudentAttendance['summa
         <CalendarCheck aria-hidden="true" size={18} />
         <small>Attendance rate</small>
         <strong>{summary.attendanceRate === null ? 'No records' : `${String(summary.attendanceRate)}%`}</strong>
-        <span>{String(summary.total)} recorded days</span>
+        <span>
+          {String(summary.attended)}/{String(summary.total)} attended days
+        </span>
       </article>
       {summaryCards.map((card) => {
         const Icon = card.icon;

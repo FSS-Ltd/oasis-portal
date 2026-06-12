@@ -9,6 +9,7 @@
  *      an already-sent report.
  */
 import { applyRows, type LedgerRow, type Balances } from './meritLedger.js';
+import { attendanceRate } from './attendance.js';
 
 export interface PaceSnapshot {
   subjectCode: string;
@@ -68,10 +69,7 @@ export interface CompiledReport {
 
 export function compileTermReport(input: CompileReportInput): CompiledReport {
   if (input.attendance.total < 0) throw new Error('attendance.total must be >= 0');
-  const attendancePct =
-    input.attendance.total === 0
-      ? 0
-      : Math.round((input.attendance.present / input.attendance.total) * 100);
+  const attendancePct = attendanceRate(input.attendance) ?? 0;
 
   return {
     studentId: input.studentId,

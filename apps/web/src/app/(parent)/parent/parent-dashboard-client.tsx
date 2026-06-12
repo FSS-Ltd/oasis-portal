@@ -59,9 +59,9 @@ function formatDateTime(value: Date | string): string {
 }
 
 function attendanceSub(child: DashboardChild): string {
-  const { attendanceRate, presentDays, recordedAttendanceDays } = child.metrics;
+  const { attendanceRate, attendedDays, recordedAttendanceDays } = child.metrics;
   if (attendanceRate === null) return 'No attendance recorded';
-  return `${String(presentDays)}/${String(recordedAttendanceDays)} marked present`;
+  return `${String(attendedDays)}/${String(recordedAttendanceDays)} attended`;
 }
 
 function ChildHero({ child }: { child: DashboardChild }) {

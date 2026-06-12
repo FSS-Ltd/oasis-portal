@@ -333,6 +333,9 @@ function StudentPortalTable({
                 <div className="student-portal-admin-stack">
                   <span>{ratio(row.attendance.attendanceRate)}</span>
                   <span>
+                    {String(row.attendance.attended)}/{String(row.attendance.recorded)} attended
+                  </span>
+                  <span>
                     {String(row.attendance.present)} present · {String(row.attendance.late)} late ·{' '}
                     {String(row.attendance.absent)} absent
                   </span>

@@ -2,11 +2,13 @@ import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
+  GBP_PER_MERIT,
   DEFAULT_LEADERBOARD,
   LEADERBOARD_KINDS,
   canUseAdminOperations,
   canUseLinkedChildGuardianAccess,
   canViewDemeritLeaderboard,
+  holdingValueMeritsFromGbpPrice,
   isFullAdmin,
   rankStudentMetrics,
   type LeaderboardKind,
@@ -30,6 +32,9 @@ interface StudentIdentity {
 
 interface LeaderboardMetricCandidate extends RankableStudentMetric {
   fullNameEnc: string;
+  realizedProfitMerits?: number;
+  withdrawnProfitGbp?: number;
+  withdrawnProfitMerits?: number;
   yearGroup: string;
 }
 
@@ -205,42 +210,125 @@ async function loadPositiveLedgerCandidates(
   });
 }
 
-async function loadLatestNav(ctx: AuthedContext): Promise<number | null> {
-  const row = await ctx.db.investmentNav.findFirst({
-    orderBy: { date: 'desc' },
-    select: { nav: true },
-  });
-  return row ? toNumber(row.nav) : null;
+function addToMap(map: Map<string, number>, studentId: string, value: number): void {
+  map.set(studentId, (map.get(studentId) ?? 0) + value);
 }
 
 async function loadInvestmentCandidates(ctx: AuthedContext): Promise<LeaderboardMetricCandidate[]> {
-  const [latestNav, accounts] = await Promise.all([
-    loadLatestNav(ctx),
-    ctx.db.investmentAccount.findMany({
+  const [holdings, investmentTotals, realizedRows] = await Promise.all([
+    ctx.db.investmentHolding.findMany({
       where: { student: { active: true } },
       select: {
+        costBasisMerits: true,
+        instrumentId: true,
         studentId: true,
         units: true,
-        student: { select: { fullNameEnc: true, yearGroup: true, enrolmentDate: true } },
+        instrument: {
+          select: {
+            snapshots: {
+              orderBy: { serverFetchedAt: 'desc' },
+              take: 1,
+              select: { gbpPrice: true },
+            },
+          },
+        },
       },
+    }),
+    ctx.db.meritLedger.groupBy({
+      by: ['studentId'],
+      where: { account: 'Investment', student: { active: true } },
+      _sum: { delta: true },
+    }),
+    ctx.db.meritLedger.findMany({
+      where: { account: 'InvestmentReturn', delta: { lt: 0 }, student: { active: true } },
+      select: { studentId: true, delta: true },
     }),
   ]);
 
-  if (latestNav === null || accounts.length === 0) return [];
+  const studentIds = new Set<string>();
+  const currentValueByStudent = new Map<string, number>();
+  const costBasisByStudent = new Map<string, number>();
+  const investmentBalanceByStudent = new Map<string, number>();
+  const realizedProfitByStudent = new Map<string, number>();
+  const withdrawnProfitByStudent = new Map<string, number>();
 
-  return accounts.flatMap((account) => {
-    const units = toNumber(account.units);
-    if (units <= 0) return [];
+  for (const holding of holdings) {
+    const snapshot = holding.instrument.snapshots[0];
+    if (!snapshot) continue;
+    const units = toNumber(holding.units);
+    const currentValue = Math.floor(
+      holdingValueMeritsFromGbpPrice({ gbpPrice: snapshot.gbpPrice, units }),
+    );
+    if (currentValue <= 0 && holding.costBasisMerits <= 0) continue;
+    studentIds.add(holding.studentId);
+    addToMap(currentValueByStudent, holding.studentId, currentValue);
+    addToMap(costBasisByStudent, holding.studentId, holding.costBasisMerits);
+  }
 
-    return [
-      {
-        studentId: account.studentId,
-        fullNameEnc: account.student.fullNameEnc,
-        yearGroup: account.student.yearGroup,
-        enrolmentDate: account.student.enrolmentDate,
-        metric: Math.floor(units * latestNav),
-      },
-    ];
+  for (const total of investmentTotals) {
+    const balance = total._sum.delta ?? 0;
+    if (balance <= 0) continue;
+    studentIds.add(total.studentId);
+    investmentBalanceByStudent.set(total.studentId, balance);
+  }
+
+  for (const row of realizedRows) {
+    const profit = Math.abs(row.delta);
+    studentIds.add(row.studentId);
+    addToMap(realizedProfitByStudent, row.studentId, profit);
+  }
+
+  const withdrawnRows =
+    studentIds.size === 0
+      ? []
+      : await ctx.db.investmentTransaction.findMany({
+          where: {
+            instrumentId: { not: null },
+            studentId: { in: [...studentIds] },
+            type: 'Sell',
+          },
+          select: {
+            costBasisMerits: true,
+            grossMerits: true,
+            studentId: true,
+            taxMerits: true,
+          },
+        });
+
+  for (const row of withdrawnRows) {
+    const grossMerits = row.grossMerits ?? 0;
+    const costBasisMerits = row.costBasisMerits ?? 0;
+    const withdrawnProfit = Math.max(0, grossMerits - costBasisMerits - row.taxMerits);
+    if (withdrawnProfit <= 0) continue;
+    studentIds.add(row.studentId);
+    addToMap(withdrawnProfitByStudent, row.studentId, withdrawnProfit);
+  }
+
+  const students = await loadActiveStudentMap(ctx, [...studentIds]);
+  return [...studentIds].flatMap((studentId) => {
+    const student = students.get(studentId);
+    if (!student) return [];
+    const costBasisMerits = costBasisByStudent.get(studentId) ?? 0;
+    const investmentCashMerits = Math.max(
+      0,
+      (investmentBalanceByStudent.get(studentId) ?? 0) - costBasisMerits,
+    );
+    const realizedProfitMerits = realizedProfitByStudent.get(studentId) ?? 0;
+    const withdrawnProfitMerits = withdrawnProfitByStudent.get(studentId) ?? 0;
+    const metric =
+      (currentValueByStudent.get(studentId) ?? 0) + investmentCashMerits + realizedProfitMerits;
+
+    const candidate = metricCandidate(student, metric);
+    return candidate
+      ? [
+          {
+            ...candidate,
+            realizedProfitMerits,
+            withdrawnProfitGbp: withdrawnProfitMerits * GBP_PER_MERIT,
+            withdrawnProfitMerits,
+          },
+        ]
+      : [];
   });
 }
 
@@ -288,6 +376,13 @@ function buildRows(
     displayName: decryptRequired(ctx.db.$enc.decrypt, row.fullNameEnc),
     yearGroup: row.yearGroup,
     score: row.metric,
+    ...(row.realizedProfitMerits !== undefined
+      ? { realizedProfitMerits: row.realizedProfitMerits }
+      : {}),
+    ...(row.withdrawnProfitGbp !== undefined ? { withdrawnProfitGbp: row.withdrawnProfitGbp } : {}),
+    ...(row.withdrawnProfitMerits !== undefined
+      ? { withdrawnProfitMerits: row.withdrawnProfitMerits }
+      : {}),
   }));
 }
 

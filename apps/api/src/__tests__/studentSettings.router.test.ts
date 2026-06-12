@@ -1224,7 +1224,8 @@ describe('studentSettings admin readiness reporting', () => {
       readinessIssues: ['Merit shop blocked', 'Usage limit reached'],
     });
     expect(childRow?.attendance).toMatchObject({
-      attendanceRate: 67,
+      attended: 3,
+      attendanceRate: 100,
       late: 1,
       present: 2,
       recorded: 3,

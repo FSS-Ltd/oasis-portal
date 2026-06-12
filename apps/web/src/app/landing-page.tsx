@@ -234,9 +234,10 @@ function formatAttendanceSub(data: LandingPageData): string {
     return `No centre-wide attendance has been recorded for ${data.term.label.toLowerCase()} yet.`;
   }
 
+  const attended = data.attendance.present + data.attendance.late;
   return `Centre-wide attendance for ${data.term.label.toLowerCase()} to date: ${String(
-    data.attendance.present,
-  )}/${String(data.attendance.total)} marked present.`;
+    attended,
+  )}/${String(data.attendance.total)} attended.`;
 }
 
 function eventDescription(event: LandingCalendarEvent): string {

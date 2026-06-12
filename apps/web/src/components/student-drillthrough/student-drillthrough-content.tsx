@@ -231,9 +231,9 @@ function OverviewTab({
         <SnapshotStatCard
           accent={data.metrics.attendanceRate === null ? 'amber' : 'green'}
           label="Attendance Rate"
-          sub={`${String(data.metrics.presentDays)}/${String(
+          sub={`${String(data.metrics.attendedDays)}/${String(
             data.metrics.recordedAttendanceDays,
-          )} days this year`}
+          )} attended this year`}
           value={
             data.metrics.attendanceRate === null ? '—' : `${String(data.metrics.attendanceRate)}%`
           }

@@ -1315,7 +1315,8 @@ describe('childLog.snapshot', () => {
     expect(dashboard.children[0]).toMatchObject({
       student: { id: 'student_1', fullName: 'Jane Learner', active: true },
       metrics: {
-        attendanceRate: 0,
+        attendanceRate: 100,
+        attendedDays: 1,
         pacesCompletedThisAcademicYear: 2,
         totalMerits: 17,
       },

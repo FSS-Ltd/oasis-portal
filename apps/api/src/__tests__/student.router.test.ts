@@ -1297,7 +1297,8 @@ describe('student.dashboard', () => {
           Present: 1,
           Late: 1,
           Absent: 0,
-          attendanceRate: 50,
+          attended: 2,
+          attendanceRate: 100,
         },
         notifications: {
           count: 0,

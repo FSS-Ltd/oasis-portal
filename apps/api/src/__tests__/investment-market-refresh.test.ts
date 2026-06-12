@@ -402,7 +402,7 @@ describe('refreshInvestmentMarketData', () => {
           instrumentId: stock.id,
           studentId: 'student-1',
           type: 'Buy',
-          units: 12.5,
+          units: 125,
         },
       ],
     });

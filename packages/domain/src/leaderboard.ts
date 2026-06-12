@@ -26,6 +26,9 @@ export interface StudentMetric {
   yearGroup: string;
   metric: number;
   enrolmentDate: Date;
+  realizedProfitMerits?: number;
+  withdrawnProfitGbp?: number;
+  withdrawnProfitMerits?: number;
 }
 
 export interface RankableStudentMetric {
@@ -40,6 +43,9 @@ export interface LeaderboardRow {
   displayName: string;
   yearGroup: string;
   score: number;
+  realizedProfitMerits?: number;
+  withdrawnProfitGbp?: number;
+  withdrawnProfitMerits?: number;
 }
 
 export function canViewDemeritLeaderboard(user: SessionUser): boolean {
@@ -74,6 +80,13 @@ export function rankLeaderboard(rows: readonly StudentMetric[], limit = 10): Lea
     displayName: r.displayName,
     yearGroup: r.yearGroup,
     score: r.metric,
+    ...(r.realizedProfitMerits !== undefined
+      ? { realizedProfitMerits: r.realizedProfitMerits }
+      : {}),
+    ...(r.withdrawnProfitGbp !== undefined ? { withdrawnProfitGbp: r.withdrawnProfitGbp } : {}),
+    ...(r.withdrawnProfitMerits !== undefined
+      ? { withdrawnProfitMerits: r.withdrawnProfitMerits }
+      : {}),
   }));
 }
 

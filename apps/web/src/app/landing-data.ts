@@ -3,7 +3,7 @@ import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { logOperationalEvent, operationalErrorMessage } from '@oasis/api';
 import { prisma } from '@oasis/db';
-import { currentOasisTerm, type OasisTerm } from '@oasis/domain';
+import { attendanceRate, currentOasisTerm, type OasisTerm } from '@oasis/domain';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LANDING_EVENT_LIMIT = 4;
@@ -68,11 +68,6 @@ function dateKey(date: Date): string {
 function weekStart(date: Date): Date {
   const dayOffset = (date.getUTCDay() + 6) % 7;
   return addUtcDays(startOfUtcDay(date), -dayOffset);
-}
-
-function percentage(present: number, total: number): number | null {
-  if (total === 0) return null;
-  return Math.round((present / total) * 1000) / 10;
 }
 
 function decryptCalendarDescription(value: string | null): string | null {
@@ -203,13 +198,14 @@ async function loadLandingAttendance(
   const absent = rows.filter((row) => row.status === 'Absent').length;
   const late = rows.filter((row) => row.status === 'Late').length;
   const total = rows.length;
-  const weekCounts = new Map<string, { present: number; total: number }>();
+  const weekCounts = new Map<string, { late: number; present: number; total: number }>();
 
   for (const row of rows) {
     const key = dateKey(weekStart(row.date));
-    const current = weekCounts.get(key) ?? { present: 0, total: 0 };
+    const current = weekCounts.get(key) ?? { late: 0, present: 0, total: 0 };
     current.total += 1;
     if (row.status === 'Present') current.present += 1;
+    if (row.status === 'Late') current.late += 1;
     weekCounts.set(key, current);
   }
 
@@ -218,12 +214,12 @@ async function loadLandingAttendance(
     present,
     absent,
     late,
-    attendanceRate: percentage(present, total),
+    attendanceRate: attendanceRate({ late, present, total }, { decimalPlaces: 1 }),
     weeks: termWeekStarts(term, today).map((startDate) => {
-      const counts = weekCounts.get(dateKey(startDate)) ?? { present: 0, total: 0 };
+      const counts = weekCounts.get(dateKey(startDate)) ?? { late: 0, present: 0, total: 0 };
       return {
         startDate,
-        attendanceRate: percentage(counts.present, counts.total),
+        attendanceRate: attendanceRate(counts, { decimalPlaces: 1 }),
       };
     }),
   };
