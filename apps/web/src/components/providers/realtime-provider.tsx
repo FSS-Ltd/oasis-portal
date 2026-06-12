@@ -26,6 +26,16 @@ function invalidateForRealtimeEvent(
       void utils.message.listInThread.invalidate({ threadId: event.threadId });
       return;
 
+    case OASIS_REALTIME_EVENTS.communityGroupChanged:
+    case OASIS_REALTIME_EVENTS.communityMessageChanged:
+    case OASIS_REALTIME_EVENTS.communityReadChanged:
+    case OASIS_REALTIME_EVENTS.communityMemberChanged:
+      void utils.community.listStudentGroups.invalidate();
+      void utils.community.listGroupMessages.invalidate({ groupId: event.groupId });
+      void utils.community.listAdminGroups.invalidate();
+      void utils.community.listStudentModeration.invalidate();
+      return;
+
     case OASIS_REALTIME_EVENTS.childNotesChanged:
       void utils.childNotes.listForStudent.invalidate();
       void utils.childLog.snapshot.invalidate();

@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Home,
   Medal,
+  MessageCircle,
   ShieldAlert,
   MessageSquare,
   MonitorCheck,
@@ -47,6 +48,7 @@ const navItems = [
   { href: '/admin/academic', label: 'Academics', icon: BookOpen },
   { href: '/admin/faith-corner', label: 'Faith Corner', icon: BookOpenText },
   { href: '/admin/student-notifications', label: 'Student Alerts', icon: Bell },
+  { href: '/admin/community', label: 'Community', icon: MessageCircle },
   { href: '/admin/student-portal', label: 'Student Portal', icon: MonitorCheck },
   { href: '/admin/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText },
@@ -106,6 +108,7 @@ function isPreferredMobileLabel(label: string): boolean {
 function visibleForUser(item: (typeof navItems)[number], access: AdminNavAccess) {
   if (item.label === 'Supervisor') return access.clubsOnly;
   if (item.label === 'Messages') return access.canUseMessages;
+  if (item.label === 'Community') return access.fullAdmin;
   if (item.label === 'Leaderboard') return access.canUseAdminOperations;
   if (item.label === 'Clubs') return access.canManageClubs;
   if (item.label === 'Homework') return access.fullAdmin;
