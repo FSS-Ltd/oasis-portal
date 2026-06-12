@@ -1,4 +1,4 @@
-export type InstrumentType = 'etf' | 'stock';
+export type InstrumentType = 'crypto' | 'etf' | 'stock';
 
 export type RangeId = '1D' | '1W' | '1M' | '3M' | '1Y' | 'ALL';
 
@@ -25,6 +25,25 @@ export interface Instrument {
   about: string;
   daily: readonly number[];
   intraday: readonly number[];
+}
+
+export interface MarketNewsItem {
+  id: string;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  imageUrl: string | null;
+  publishedAt: Date;
+}
+
+export interface MarketDividendEvent {
+  id: string;
+  exDate: Date;
+  payDate: Date | null;
+  amountMerits: number;
+  amountSource: number;
+  sourceCurrency: string;
 }
 
 export interface Holding {
@@ -71,7 +90,7 @@ export interface NavDto {
 
 export interface AccountTransaction {
   id: string;
-  type: 'Buy' | 'Sell';
+  type: 'Buy' | 'Dividend' | 'Sell';
   instrumentId: string | null;
   units: number;
   nav: number;
@@ -366,6 +385,23 @@ function buildIntraday(ticker: string, prevClose: number, price: number): readon
   output[0] = prevClose;
   output[points - 1] = price;
   return output;
+}
+
+export function buildSyntheticDailySeries(
+  ticker: string,
+  price: number,
+  volatility: number,
+): readonly number[] {
+  const drift = volatility > 0.02 ? 0.0007 : 0.0004;
+  return buildSeries(ticker, Math.max(0.01, price), drift, volatility);
+}
+
+export function buildSyntheticIntradaySeries(
+  ticker: string,
+  prevClose: number,
+  price: number,
+): readonly number[] {
+  return buildIntraday(ticker, Math.max(0.01, prevClose), Math.max(0.01, price));
 }
 
 export const instruments: readonly Instrument[] = rawInstruments.map((item) => {

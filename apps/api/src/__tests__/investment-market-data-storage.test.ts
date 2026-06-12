@@ -232,28 +232,38 @@ describe('investment market data storage', () => {
 
     await expect(listEnabledInvestmentInstruments(db)).resolves.toEqual([
       {
+        category: null,
         displayName: 'Apple',
+        dividendSymbol: null,
         exchangeMic: 'XNAS',
         id: 'instrument-aapl',
         kind: 'stock',
+        newsSymbol: null,
         provider: 'twelve-data',
         providerSymbol: 'AAPL',
         riskBand: 'high',
         sortOrder: 1,
         sourceCurrency: 'USD',
+        summary: null,
         symbol: 'AAPL',
+        themeColor: null,
       },
       {
+        category: null,
         displayName: 'Vanguard S&P 500 ETF',
+        dividendSymbol: null,
         exchangeMic: 'ARCX',
         id: 'instrument-voo',
         kind: 'etf',
+        newsSymbol: null,
         provider: 'twelve-data',
         providerSymbol: 'VOO',
         riskBand: 'medium',
         sortOrder: 2,
         sourceCurrency: 'USD',
+        summary: null,
         symbol: 'VOO',
+        themeColor: null,
       },
     ]);
     expect(db.investmentInstrument.findMany).toHaveBeenCalledWith({

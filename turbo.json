@@ -20,8 +20,11 @@
         "AXIOM_TOKEN",
         "CLERK_SECRET_KEY",
         "CLERK_WEBHOOK_SIGNING_SECRET",
+        "CRON_SECRET",
         "DATABASE_URL",
         "DIRECT_URL",
+        "FINNHUB_API_KEY",
+        "FINNHUB_BASE_URL",
         "OASIS_BIDX_PEPPER",
         "OASIS_MASTER_KEY",
         "OASIS_MASTER_KEY_VERSION",
@@ -32,7 +35,10 @@
         "SENTRY_ORG",
         "SENTRY_PROJECT",
         "SUPABASE_NOTICE_ATTACHMENTS_BUCKET",
-        "SUPABASE_SERVICE_ROLE_KEY"
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "TWELVE_DATA_API_KEY",
+        "TWELVE_DATA_BASE_URL",
+        "YAHOO_FINANCE_BASE_URL"
       ]
     },
     "dev": {

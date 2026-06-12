@@ -5,11 +5,16 @@ import {
   applyLearningReturnMultiplier,
   buildMarketDataMeritValuation,
   computeLearningHoldingReturn,
+  forecastSimulatedDividendEvents,
   holdingValueMeritsFromGbpPrice,
   gbpToMerits,
+  normaliseFinnhubDividendResponse,
+  normaliseFinnhubNewsResponse,
   normaliseTwelveDataHistoryResponse,
   normaliseTwelveDataProfileResponse,
   normaliseTwelveDataQuoteResponse,
+  normaliseYahooFinanceDividendResponse,
+  normaliseYahooFinanceQuoteResponse,
 } from '../investmentMarketData.js';
 
 const serverFetchedAt = new Date('2026-06-05T15:45:00.000Z');
@@ -273,6 +278,362 @@ describe('normaliseTwelveDataQuoteResponse', () => {
   });
 });
 
+describe('normaliseYahooFinanceQuoteResponse', () => {
+  it('normalises a Yahoo stock quote into a GBP-valued snapshot', () => {
+    const result = normaliseYahooFinanceQuoteResponse(
+      {
+        chart: {
+          result: [
+            {
+              meta: {
+                currency: 'USD',
+                regularMarketPrice: 200,
+                chartPreviousClose: 198,
+                regularMarketTime: 1780672500,
+                symbol: 'AAPL',
+                shortName: 'Apple',
+              },
+            },
+          ],
+        },
+      },
+      {
+        exchangeMic: 'XNAS',
+        gbpConversionRates: { USD: 0.8 },
+        instrumentKind: 'stock',
+        serverFetchedAt,
+        symbol: 'AAPL',
+      },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        dayChangePct: 1.010101,
+        exchangeMic: 'XNAS',
+        gbpConversionRate: 0.8,
+        gbpPrice: 160,
+        instrumentKind: 'stock',
+        name: 'Apple',
+        previousCloseGbp: 158.4,
+        provider: 'yahoo-finance',
+        providerTimestamp: new Date('2026-06-05T15:15:00.000Z'),
+        serverFetchedAt,
+        sourceCurrency: 'USD',
+        sourcePrice: 200,
+        symbol: 'AAPL',
+      },
+    });
+  });
+
+  it('rejects Yahoo quotes without a hidden GBP conversion rate', () => {
+    const result = normaliseYahooFinanceQuoteResponse(
+      {
+        chart: {
+          result: [
+            {
+              meta: {
+                currency: 'USD',
+                regularMarketPrice: 200,
+                chartPreviousClose: 198,
+                regularMarketTime: 1780672500,
+                symbol: 'AAPL',
+              },
+            },
+          ],
+        },
+      },
+      {
+        exchangeMic: 'XNAS',
+        instrumentKind: 'stock',
+        serverFetchedAt,
+        symbol: 'AAPL',
+      },
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: 'missing_conversion_rate',
+        message: 'GBP conversion rate is required for USD quotes',
+        providerStatus: undefined,
+      },
+    });
+  });
+});
+
+describe('normaliseTwelveDataQuoteResponse for crypto', () => {
+  it('normalises a Twelve Data crypto quote without creating an FX instrument', () => {
+    const result = normaliseTwelveDataQuoteResponse(
+      {
+        close: '63000.00',
+        currency: 'USD',
+        name: 'Bitcoin',
+        percent_change: '2.5',
+        previous_close: '62000.00',
+        symbol: 'BTC/USD',
+        timestamp: '1780672500',
+      },
+      {
+        exchangeMic: 'CRYPTO',
+        gbpConversionRates: { USD: 0.8 },
+        instrumentKind: 'crypto',
+        serverFetchedAt,
+        symbol: 'BTC/USD',
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        exchangeMic: 'CRYPTO',
+        gbpConversionRate: 0.8,
+        gbpPrice: 50400,
+        instrumentKind: 'crypto',
+        previousCloseGbp: 49600,
+        provider: 'twelve-data',
+        sourceCurrency: 'USD',
+        sourcePrice: 63000,
+        symbol: 'BTC/USD',
+      },
+    });
+  });
+
+  it('uses the instrument source currency when a crypto quote omits currency', () => {
+    const result = normaliseTwelveDataQuoteResponse(
+      {
+        close: '63000.00',
+        name: 'Bitcoin',
+        percent_change: '2.5',
+        previous_close: '62000.00',
+        symbol: 'BTC/USD',
+        timestamp: '1780672500',
+      },
+      {
+        exchangeMic: 'CRYPTO',
+        gbpConversionRates: { USD: 0.8 },
+        instrumentKind: 'crypto',
+        serverFetchedAt,
+        sourceCurrency: 'USD',
+        symbol: 'BTC/USD',
+      },
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        gbpConversionRate: 0.8,
+        gbpPrice: 50400,
+        previousCloseGbp: 49600,
+        sourceCurrency: 'USD',
+        sourcePrice: 63000,
+        symbol: 'BTC/USD',
+      },
+    });
+  });
+});
+
+describe('normaliseFinnhubNewsResponse', () => {
+  it('normalises Finnhub news rows for cached educational display', () => {
+    const result = normaliseFinnhubNewsResponse([
+      {
+        category: 'company',
+        datetime: 1780672500,
+        headline: 'Apple announces education update',
+        id: 123456,
+        image: 'https://example.test/apple.png',
+        related: 'AAPL',
+        source: 'Finnhub Test',
+        summary: 'Apple shared a new education product update.',
+        url: 'https://example.test/news/apple',
+      },
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          headline: 'Apple announces education update',
+          imageUrl: 'https://example.test/apple.png',
+          providerNewsId: '123456',
+          publishedAt: new Date('2026-06-05T15:15:00.000Z'),
+          source: 'Finnhub Test',
+          summary: 'Apple shared a new education product update.',
+          url: 'https://example.test/news/apple',
+        },
+      ],
+    });
+  });
+});
+
+describe('normaliseFinnhubDividendResponse', () => {
+  it('normalises Finnhub dividend events into GBP and merits', () => {
+    const result = normaliseFinnhubDividendResponse(
+      [
+        {
+          amount: 0.25,
+          currency: 'USD',
+          date: '2026-06-15',
+          payDate: '2026-07-01',
+          symbol: 'AAPL',
+        },
+      ],
+      {
+        gbpConversionRates: { USD: 0.8 },
+        symbol: 'AAPL',
+      },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          amountGbp: 0.2,
+          amountMerits: 0.02,
+          amountSource: 0.25,
+          exDate: new Date('2026-06-15T00:00:00.000Z'),
+          payDate: new Date('2026-07-01T00:00:00.000Z'),
+          providerEventId: 'AAPL:2026-06-15:0.25',
+          sourceCurrency: 'USD',
+          symbol: 'AAPL',
+        },
+      ],
+    });
+  });
+});
+
+describe('normaliseYahooFinanceDividendResponse', () => {
+  it('normalises Yahoo chart dividend events into GBP and merits', () => {
+    const result = normaliseYahooFinanceDividendResponse(
+      {
+        chart: {
+          result: [
+            {
+              events: {
+                dividends: {
+                  1747056600: {
+                    amount: 0.26,
+                    date: 1747056600,
+                  },
+                },
+              },
+              meta: {
+                currency: 'USD',
+                symbol: 'AAPL',
+              },
+            },
+          ],
+        },
+      },
+      {
+        gbpConversionRates: { USD: 0.8 },
+        symbol: 'AAPL',
+      },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        {
+          amountGbp: 0.208,
+          amountMerits: 0.0208,
+          amountSource: 0.26,
+          exDate: new Date('2025-05-12T00:00:00.000Z'),
+          providerEventId: 'AAPL:2025-05-12:0.26',
+          sourceCurrency: 'USD',
+          symbol: 'AAPL',
+        },
+      ],
+    });
+  });
+});
+
+describe('forecastSimulatedDividendEvents', () => {
+  it('projects future dividend events from the observed dividend cadence', () => {
+    const history = [
+      {
+        amountGbp: 0.2,
+        amountMerits: 0.02,
+        amountSource: 0.25,
+        exDate: new Date('2025-11-10T00:00:00.000Z'),
+        providerEventId: 'AAPL:2025-11-10:0.25',
+        sourceCurrency: 'USD',
+        symbol: 'AAPL',
+      },
+      {
+        amountGbp: 0.208,
+        amountMerits: 0.0208,
+        amountSource: 0.26,
+        exDate: new Date('2026-02-10T00:00:00.000Z'),
+        providerEventId: 'AAPL:2026-02-10:0.26',
+        sourceCurrency: 'USD',
+        symbol: 'AAPL',
+      },
+      {
+        amountGbp: 0.216,
+        amountMerits: 0.0216,
+        amountSource: 0.27,
+        exDate: new Date('2026-05-12T00:00:00.000Z'),
+        providerEventId: 'AAPL:2026-05-12:0.27',
+        sourceCurrency: 'USD',
+        symbol: 'AAPL',
+      },
+    ];
+
+    expect(
+      forecastSimulatedDividendEvents(history, {
+        gbpConversionRates: { USD: 0.8 },
+        horizonDays: 200,
+        now: new Date('2026-06-01T12:00:00.000Z'),
+        symbol: 'AAPL',
+      }),
+    ).toEqual([
+      {
+        amountGbp: 0.216,
+        amountMerits: 0.0216,
+        amountSource: 0.27,
+        exDate: new Date('2026-08-11T00:00:00.000Z'),
+        providerEventId: 'AAPL:simulated:2026-08-11:0.27',
+        sourceCurrency: 'USD',
+        symbol: 'AAPL',
+      },
+      {
+        amountGbp: 0.216,
+        amountMerits: 0.0216,
+        amountSource: 0.27,
+        exDate: new Date('2026-11-10T00:00:00.000Z'),
+        providerEventId: 'AAPL:simulated:2026-11-10:0.27',
+        sourceCurrency: 'USD',
+        symbol: 'AAPL',
+      },
+    ]);
+  });
+
+  it('does not forecast dividends from a single historical event', () => {
+    expect(
+      forecastSimulatedDividendEvents(
+        [
+          {
+            amountGbp: 0.2,
+            amountMerits: 0.02,
+            amountSource: 0.25,
+            exDate: new Date('2026-05-12T00:00:00.000Z'),
+            providerEventId: 'AAPL:2026-05-12:0.25',
+            sourceCurrency: 'USD',
+            symbol: 'AAPL',
+          },
+        ],
+        {
+          gbpConversionRates: { USD: 0.8 },
+          horizonDays: 200,
+          now: new Date('2026-06-01T12:00:00.000Z'),
+          symbol: 'AAPL',
+        },
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe('normaliseTwelveDataHistoryResponse', () => {
   it('normalises history points in ascending timestamp order', () => {
     const result = normaliseTwelveDataHistoryResponse(
@@ -401,7 +762,7 @@ describe('normaliseTwelveDataProfileResponse', () => {
     });
   });
 
-  it('rejects unsupported instrument profiles', () => {
+  it('normalises crypto profiles when the provider returns digital currency metadata', () => {
     expect(
       normaliseTwelveDataProfileResponse({
         symbol: 'BTC',
@@ -413,11 +774,15 @@ describe('normaliseTwelveDataProfileResponse', () => {
         type: 'Digital Currency',
       }),
     ).toEqual({
-      ok: false,
-      error: {
-        code: 'unsupported_instrument_type',
-        message: 'Twelve Data profile type Digital Currency is not supported',
-        providerStatus: undefined,
+      ok: true,
+      value: {
+        country: '',
+        exchangeMic: 'CRYPTO',
+        instrumentKind: 'crypto',
+        name: 'Bitcoin',
+        provider: 'twelve-data',
+        sourceCurrency: 'USD',
+        symbol: 'BTC',
       },
     });
   });

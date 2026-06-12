@@ -252,6 +252,7 @@ model Student {
   investment               InvestmentAccount?
   investmentHolding        InvestmentHolding[]
   investmentTx             InvestmentTransaction[]
+  investmentDividendPayment InvestmentDividendPayment[]
   shopPurchases            ShopPurchase[]
   shopReservations         ShopReservation[]
   clubSignups              ClubSignup[]
@@ -1177,6 +1178,11 @@ model InvestmentInstrument {
   exchangeMic    String
   sourceCurrency String
   riskBand       String
+  category       String?
+  summary        String?
+  themeColor     String?
+  newsSymbol     String?
+  dividendSymbol String?
   enabled        Boolean  @default(true)
   sortOrder      Int
   createdAt      DateTime @default(now())
@@ -1185,6 +1191,8 @@ model InvestmentInstrument {
   snapshots MarketDataSnapshot[]
   holdings  InvestmentHolding[]
   tx        InvestmentTransaction[]
+  news      InvestmentNewsItem[]
+  dividends InvestmentDividendEvent[]
 
   @@unique([provider, providerSymbol])
   @@index([enabled, sortOrder])
@@ -1234,6 +1242,7 @@ model MarketDataSnapshot {
 enum InvestmentTxType {
   Buy
   Sell
+  Dividend
 }
 
 model InvestmentTransaction {
@@ -1251,9 +1260,69 @@ model InvestmentTransaction {
 
   student    Student               @relation(fields: [studentId], references: [id])
   instrument InvestmentInstrument? @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+  dividendPayments InvestmentDividendPayment[]
 
   @@index([studentId, createdAt])
   @@index([instrumentId])
+}
+
+model InvestmentNewsItem {
+  id             String   @id @default(cuid())
+  instrumentId   String
+  provider       String
+  providerNewsId String
+  headline       String
+  summary        String   @default("")
+  source         String
+  url            String
+  imageUrl       String?
+  publishedAt    DateTime
+  createdAt      DateTime @default(now())
+
+  instrument InvestmentInstrument @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerNewsId])
+  @@index([instrumentId, publishedAt])
+}
+
+model InvestmentDividendEvent {
+  id                String   @id @default(cuid())
+  instrumentId      String
+  provider          String
+  providerEventId   String
+  exDate            DateTime @db.Date
+  payDate           DateTime? @db.Date
+  sourceCurrency    String
+  amountSource      Decimal  @db.Decimal(18, 6)
+  gbpConversionRate Decimal  @db.Decimal(18, 6)
+  amountGbp         Decimal  @db.Decimal(18, 6)
+  amountMerits      Decimal  @db.Decimal(18, 6)
+  createdAt         DateTime @default(now())
+
+  instrument InvestmentInstrument @relation(fields: [instrumentId], references: [id], onDelete: Restrict)
+  payments   InvestmentDividendPayment[]
+
+  @@unique([provider, providerEventId])
+  @@unique([instrumentId, exDate, amountSource])
+  @@index([instrumentId, exDate])
+}
+
+model InvestmentDividendPayment {
+  id              String   @id @default(cuid())
+  studentId       String
+  dividendEventId String
+  transactionId   String
+  units           Decimal  @db.Decimal(18, 6)
+  payoutMerits    Int
+  createdAt       DateTime @default(now())
+
+  student       Student                 @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  dividendEvent InvestmentDividendEvent @relation(fields: [dividendEventId], references: [id], onDelete: Restrict)
+  transaction   InvestmentTransaction   @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, dividendEventId])
+  @@index([dividendEventId])
+  @@index([transactionId])
 }
 
 model CharityPot {

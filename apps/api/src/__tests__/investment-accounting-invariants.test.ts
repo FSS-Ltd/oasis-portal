@@ -98,7 +98,12 @@ describe('investment accounting invariants', () => {
   });
 
   it('falls back to the last known snapshot when the provider fails and leaves ledger rows alone', async () => {
-    const instrument = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const instrument = makeInstrument({
+      id: 'instrument-vusa',
+      provider: 'yahoo-finance',
+      providerSymbol: 'VUSA.L',
+      symbol: 'VUSA',
+    });
     const initialLedger = [
       { studentId: linkedStudentId, account: 'Spend' as const, delta: 1000, reason: 'merit' },
     ];
@@ -140,7 +145,15 @@ describe('investment accounting invariants', () => {
   });
 
   it('blocks refreshes when the daily quota window is exhausted and writes no ledger rows', async () => {
-    const instrument = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const instrument = makeInstrument({
+      exchangeMic: 'CRYPTO',
+      id: 'instrument-btc',
+      kind: 'crypto',
+      provider: 'twelve-data',
+      providerSymbol: 'BTC/USD',
+      sourceCurrency: 'USD',
+      symbol: 'BTC/USD',
+    });
     const initialLedger = [
       { studentId: linkedStudentId, account: 'Spend' as const, delta: 1000, reason: 'merit' },
     ];

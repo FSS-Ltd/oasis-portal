@@ -10,27 +10,37 @@ interface ActivityProps {
   transactions: readonly AccountTransaction[];
 }
 
-type ActivityFilter = 'all' | 'buy' | 'sell';
+type ActivityFilter = 'all' | 'buy' | 'dividend' | 'sell';
 
 const activityFilters: readonly { id: ActivityFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'buy', label: 'Investments' },
+  { id: 'dividend', label: 'Dividends' },
   { id: 'sell', label: 'Withdrawals' },
 ];
 
 const transactionMeta: Record<
-  'Buy' | 'Sell',
+  AccountTransaction['type'],
   { color: string; background: string; icon: string; label: string }
 > = {
   Buy: { background: '#eaf1fb', color: '#4a7db5', icon: 'B', label: 'Invested' },
+  Dividend: { background: '#eaf7ef', color: '#137a47', icon: 'D', label: 'Dividend' },
   Sell: { background: '#fce8ea', color: '#7d1c2c', icon: 'W', label: 'Withdrawn' },
 };
+
+function emptyActivityText(filter: ActivityFilter, transactionCount: number): string {
+  if (transactionCount === 0) return 'No transactions yet. Invest some merits to get started.';
+  if (filter === 'buy') return 'No investment activity yet.';
+  if (filter === 'dividend') return 'No dividend activity yet.';
+  return 'No withdrawal activity yet.';
+}
 
 export function InvestmentActivity({ transactions }: ActivityProps) {
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const filteredTransactions = transactions.filter((transaction) => {
     if (filter === 'all') return true;
     if (filter === 'buy') return transaction.type === 'Buy';
+    if (filter === 'dividend') return transaction.type === 'Dividend';
     return transaction.type === 'Sell';
   });
 
@@ -65,8 +75,10 @@ export function InvestmentActivity({ transactions }: ActivityProps) {
       <InvestmentCard flush>
         {filteredTransactions.map((transaction) => {
           const meta = transactionMeta[transaction.type];
-          const meritValue = transaction.units * transaction.nav;
+          const meritValue =
+            transaction.grossMerits ?? Math.round(transaction.units * transaction.nav);
           const isBuy = transaction.type === 'Buy';
+          const isDividend = transaction.type === 'Dividend';
           return (
             <article className={styles.activityRow} key={transaction.id}>
               <span
@@ -79,9 +91,10 @@ export function InvestmentActivity({ transactions }: ActivityProps) {
               <span className={styles.activityMain}>
                 <strong>{meta.label}</strong>
                 <span>
-                  {formatDate(new Date(transaction.createdAt))} —{' '}
+                  {formatDate(new Date(transaction.createdAt))} -{' '}
                   {transaction.units.toFixed(4)} units @ {formatMerits(transaction.nav, 2)} merits
-                  {!isBuy && transaction.feeMerits > 0
+                  {isDividend ? ' dividend' : ''}
+                  {transaction.type === 'Sell' && transaction.feeMerits > 0
                     ? ` (fee: ${formatMerits(transaction.feeMerits, 2)})`
                     : ''}
                 </span>
@@ -90,19 +103,22 @@ export function InvestmentActivity({ transactions }: ActivityProps) {
                 <strong className={isBuy ? undefined : styles.positiveText}>
                   {isBuy ? '' : '+'}
                   <MeritIcon size={13} />{' '}
-                  {formatMerits(isBuy ? meritValue : meritValue - transaction.feeMerits, 1)}
+                  {formatMerits(
+                    transaction.type === 'Sell' ? meritValue - transaction.feeMerits : meritValue,
+                    1,
+                  )}
                 </strong>
-                <GbpEquivalent value={isBuy ? meritValue : meritValue - transaction.feeMerits} />
+                <GbpEquivalent
+                  value={
+                    transaction.type === 'Sell' ? meritValue - transaction.feeMerits : meritValue
+                  }
+                />
               </span>
             </article>
           );
         })}
         {filteredTransactions.length === 0 ? (
-          <p className={styles.emptyState}>
-            {transactions.length === 0
-              ? 'No transactions yet. Invest some merits to get started.'
-              : `No ${filter === 'buy' ? 'investment' : 'withdrawal'} activity yet.`}
-          </p>
+          <p className={styles.emptyState}>{emptyActivityText(filter, transactions.length)}</p>
         ) : null}
       </InvestmentCard>
     </>

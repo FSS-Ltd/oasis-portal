@@ -44,7 +44,8 @@ export function TradePanel({
   const maxBuy = Math.floor(cashBalanceMerits);
   const maxSell = holdingUnits;
   const validBuy = priceMerits > 0 && intMerits >= 1 && intMerits <= maxBuy;
-  const validSell = parsedAmount > 0.000001 && parsedAmount <= maxSell + 0.000001;
+  const validSell =
+    priceMerits > 0 && parsedAmount > 0.000001 && parsedAmount <= maxSell + 0.000001;
   const valid = side === 'buy' ? validBuy : validSell;
 
   function setSideAndReset(nextSide: TradeSide) {

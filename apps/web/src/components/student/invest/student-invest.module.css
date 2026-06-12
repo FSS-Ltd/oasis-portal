@@ -325,6 +325,11 @@
   color: #6b5310;
 }
 
+.noticeCard p,
+.noticeCard strong {
+  margin: 0;
+}
+
 .dashboardGrid,
 .marketGrid,
 .withdrawGrid,
@@ -797,6 +802,29 @@
   background: #f6f8fc;
 }
 
+.paginationBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.paginationControls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paginationCount {
+  min-width: 86px;
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .holdingCell,
 .stockNameCell {
   display: flex;
@@ -816,6 +844,11 @@
 
 .marketList {
   display: grid;
+}
+
+.detailStack {
+  display: grid;
+  gap: 18px;
 }
 
 .stockDetailGrid {
@@ -936,6 +969,35 @@
   padding: 13px;
   border-radius: 8px;
   background: #f6f8fc;
+}
+
+.infoList {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 12px 0 0;
+  list-style: none;
+}
+
+.infoItem {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f6f8fc;
+}
+
+.infoLink {
+  color: var(--oasis-navy);
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.infoMeta {
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .tradeSummaryRow,
@@ -1174,6 +1236,15 @@
     border-top: 1px solid var(--oasis-border);
     background: rgba(255, 255, 255, 0.96);
     backdrop-filter: blur(8px);
+  }
+
+  .paginationBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .paginationControls {
+    justify-content: space-between;
   }
 }
 

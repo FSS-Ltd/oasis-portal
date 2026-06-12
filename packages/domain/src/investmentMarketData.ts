@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export type MarketDataProvider = 'twelve-data';
-export type InvestmentMarketInstrumentKind = 'stock' | 'etf';
+export type MarketDataProvider = 'twelve-data' | 'yahoo-finance';
+export type InvestmentMarketInstrumentKind = 'stock' | 'etf' | 'crypto';
 
 export type MarketDataErrorCode =
   | 'invalid_response'
@@ -91,6 +91,7 @@ export interface TwelveDataQuoteContext {
   symbol: string;
   exchangeMic: string;
   instrumentKind: InvestmentMarketInstrumentKind;
+  sourceCurrency?: string;
   serverFetchedAt: Date;
   gbpConversionRates?: Partial<Record<string, number>>;
   maxQuoteAgeMs?: number;
@@ -103,6 +104,57 @@ export interface TwelveDataHistoryContext {
   symbol: string;
   sourceCurrency: string;
   gbpConversionRate: number;
+}
+
+export interface YahooFinanceQuoteContext {
+  symbol: string;
+  exchangeMic: string;
+  instrumentKind: InvestmentMarketInstrumentKind;
+  serverFetchedAt: Date;
+  gbpConversionRates?: Partial<Record<string, number>>;
+  maxQuoteAgeMs?: number;
+  httpStatus?: number;
+}
+
+export interface FinnhubNewsItem {
+  providerNewsId: string;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  imageUrl?: string | undefined;
+  publishedAt: Date;
+}
+
+export interface FinnhubDividendContext {
+  symbol: string;
+  gbpConversionRates?: Partial<Record<string, number>>;
+}
+
+export interface ProviderDividendEvent {
+  providerEventId: string;
+  symbol: string;
+  exDate: Date;
+  payDate?: Date | undefined;
+  sourceCurrency: string;
+  amountSource: number;
+  amountGbp: number;
+  amountMerits: number;
+}
+
+export type FinnhubDividendEvent = ProviderDividendEvent;
+
+export interface YahooFinanceDividendContext {
+  symbol: string;
+  sourceCurrency?: string;
+  gbpConversionRates?: Partial<Record<string, number>>;
+}
+
+export interface SimulatedDividendForecastContext {
+  symbol: string;
+  now: Date;
+  horizonDays: number;
+  gbpConversionRates?: Partial<Record<string, number>>;
 }
 
 const providerErrorSchema = z.object({
@@ -121,6 +173,60 @@ const quoteSchema = z.object({
   close: z.union([z.string(), z.number()]).optional(),
   previous_close: z.union([z.string(), z.number()]).optional(),
   percent_change: z.union([z.string(), z.number()]).optional(),
+});
+
+const yahooChartSchema = z.object({
+  chart: z.object({
+    result: z
+      .array(
+        z.object({
+          meta: z.object({
+            symbol: z.string().optional(),
+            shortName: z.string().optional(),
+            longName: z.string().optional(),
+            currency: z.string().min(1).optional(),
+            regularMarketTime: z.union([z.string(), z.number()]).optional(),
+            regularMarketPrice: z.union([z.string(), z.number()]).optional(),
+            chartPreviousClose: z.union([z.string(), z.number()]).optional(),
+            previousClose: z.union([z.string(), z.number()]).optional(),
+          }),
+        }),
+      )
+      .nullable()
+      .optional(),
+    error: z.unknown().optional(),
+  }),
+});
+
+const yahooDividendChartSchema = z.object({
+  chart: z.object({
+    result: z
+      .array(
+        z.object({
+          events: z
+            .object({
+              dividends: z
+                .record(
+                  z.object({
+                    amount: z.union([z.string(), z.number()]),
+                    date: z.union([z.string(), z.number()]),
+                  }),
+                )
+                .optional(),
+            })
+            .optional(),
+          meta: z
+            .object({
+              currency: z.string().min(1).optional(),
+              symbol: z.string().optional(),
+            })
+            .optional(),
+        }),
+      )
+      .nullable()
+      .optional(),
+    error: z.unknown().optional(),
+  }),
 });
 
 const historyPointSchema = z.object({
@@ -144,6 +250,28 @@ const profileSchema = z.object({
   country: z.string().optional(),
   type: z.string().min(1),
 });
+
+const finnhubNewsSchema = z.array(
+  z.object({
+    datetime: z.union([z.string(), z.number()]),
+    headline: z.string().min(1),
+    id: z.union([z.string(), z.number()]),
+    image: z.string().optional(),
+    source: z.string().min(1),
+    summary: z.string().optional(),
+    url: z.string().min(1),
+  }),
+);
+
+const finnhubDividendSchema = z.array(
+  z.object({
+    amount: z.union([z.string(), z.number()]),
+    currency: z.string().min(1).optional(),
+    date: z.string().min(1),
+    payDate: z.string().optional(),
+    symbol: z.string().min(1),
+  }),
+);
 
 function error(
   code: MarketDataErrorCode,
@@ -216,6 +344,26 @@ function gbpRateFor(
 
 function roundMoney(value: number): number {
   return Number(value.toFixed(MONEY_DECIMAL_PLACES));
+}
+
+function amountKey(value: number): string {
+  return value.toFixed(6).replace(/\.?0+$/, '');
+}
+
+function startOfUtcDate(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function daysBetweenUtc(left: Date, right: Date): number {
+  return Math.round((startOfUtcDate(right).getTime() - startOfUtcDate(left).getTime()) / 86_400_000);
+}
+
+function isoDateKey(date: Date): string {
+  return startOfUtcDate(date).toISOString().slice(0, 10);
 }
 
 function decimalText(value: DecimalValue): string {
@@ -408,7 +556,7 @@ export function normaliseTwelveDataQuoteResponse(
     return error('invalid_response', 'Twelve Data quote response was not valid');
   }
 
-  const sourceCurrencyValue = parsed.data.currency?.trim();
+  const sourceCurrencyValue = parsed.data.currency?.trim() || context.sourceCurrency?.trim();
   if (!sourceCurrencyValue) {
     return error('missing_currency', 'Twelve Data quote did not include a currency');
   }
@@ -463,6 +611,269 @@ export function normaliseTwelveDataQuoteResponse(
   };
 }
 
+export function normaliseYahooFinanceQuoteResponse(
+  input: unknown,
+  context: YahooFinanceQuoteContext,
+): MarketDataNormalisationResult<ProviderQuoteSnapshot> {
+  if (context.httpStatus === 429) {
+    return error('rate_limited', 'Yahoo Finance rate limit was reached', 429);
+  }
+
+  const parsed = yahooChartSchema.safeParse(input);
+  const meta = parsed.success ? parsed.data.chart.result?.[0]?.meta : undefined;
+  if (!parsed.success || !meta) {
+    return error('invalid_response', 'Yahoo Finance quote response was not valid');
+  }
+
+  const sourceCurrencyValue = meta.currency?.trim();
+  if (!sourceCurrencyValue) {
+    return error('missing_currency', 'Yahoo Finance quote did not include a currency');
+  }
+  const sourceCurrency = normaliseCurrency(sourceCurrencyValue);
+  const sourcePrice = parseFinitePositiveNumber(meta.regularMarketPrice);
+  if (!sourcePrice) {
+    return error('missing_price', 'Yahoo Finance quote did not include a valid market price');
+  }
+
+  const providerTimestamp = parseTimestamp(meta.regularMarketTime, undefined);
+  if (!providerTimestamp) {
+    return error('missing_timestamp', 'Yahoo Finance quote did not include a valid timestamp');
+  }
+
+  if (
+    context.maxQuoteAgeMs !== undefined &&
+    context.serverFetchedAt.getTime() - providerTimestamp.getTime() > context.maxQuoteAgeMs
+  ) {
+    return error('stale_quote', 'Yahoo Finance quote is older than the allowed max age');
+  }
+
+  const gbpConversionRate = gbpRateFor(sourceCurrency, context.gbpConversionRates);
+  if (!gbpConversionRate) {
+    return error(
+      'missing_conversion_rate',
+      `GBP conversion rate is required for ${sourceCurrency} quotes`,
+    );
+  }
+
+  const previousClose =
+    parseFinitePositiveNumber(meta.chartPreviousClose) ??
+    parseFinitePositiveNumber(meta.previousClose) ??
+    sourcePrice;
+  const rawDayChangePct = previousClose === 0 ? 0 : ((sourcePrice - previousClose) / previousClose) * 100;
+
+  return {
+    ok: true,
+    value: {
+      dayChangePct: Number(rawDayChangePct.toFixed(6)),
+      exchangeMic: context.exchangeMic,
+      gbpConversionRate,
+      gbpPrice: roundMoney(sourcePrice * gbpConversionRate),
+      instrumentKind: context.instrumentKind,
+      name: meta.shortName?.trim() || meta.longName?.trim() || undefined,
+      previousCloseGbp: roundMoney(previousClose * gbpConversionRate),
+      provider: 'yahoo-finance',
+      providerTimestamp,
+      serverFetchedAt: context.serverFetchedAt,
+      sourceCurrency,
+      sourcePrice,
+      symbol: context.symbol,
+    },
+  };
+}
+
+export function normaliseFinnhubNewsResponse(
+  input: unknown,
+): MarketDataNormalisationResult<FinnhubNewsItem[]> {
+  const parsed = finnhubNewsSchema.safeParse(input);
+  if (!parsed.success) {
+    return error('invalid_response', 'Finnhub news response was not valid');
+  }
+
+  const items: FinnhubNewsItem[] = [];
+  for (const item of parsed.data) {
+    const publishedAt = parseTimestamp(item.datetime, undefined);
+    if (!publishedAt) {
+      return error('missing_timestamp', 'Finnhub news item did not include a valid timestamp');
+    }
+
+    const mapped: FinnhubNewsItem = {
+      headline: item.headline.trim(),
+      providerNewsId: String(item.id),
+      publishedAt,
+      source: item.source.trim(),
+      summary: item.summary?.trim() ?? '',
+      url: item.url.trim(),
+    };
+    const imageUrl = item.image?.trim();
+    if (imageUrl) mapped.imageUrl = imageUrl;
+    items.push(mapped);
+  }
+
+  return { ok: true, value: items };
+}
+
+function parseIsoDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export function normaliseFinnhubDividendResponse(
+  input: unknown,
+  context: FinnhubDividendContext,
+): MarketDataNormalisationResult<FinnhubDividendEvent[]> {
+  const parsed = finnhubDividendSchema.safeParse(input);
+  if (!parsed.success) {
+    return error('invalid_response', 'Finnhub dividend response was not valid');
+  }
+
+  const events: FinnhubDividendEvent[] = [];
+  for (const item of parsed.data) {
+    const exDate = parseIsoDate(item.date);
+    if (!exDate) {
+      return error('missing_timestamp', 'Finnhub dividend did not include a valid ex-dividend date');
+    }
+    const amountSource = parseFinitePositiveNumber(item.amount);
+    if (!amountSource) {
+      return error('missing_price', 'Finnhub dividend did not include a valid amount');
+    }
+    const sourceCurrency = normaliseCurrency(item.currency ?? 'USD');
+    const gbpConversionRate = gbpRateFor(sourceCurrency, context.gbpConversionRates);
+    if (!gbpConversionRate) {
+      return error(
+        'missing_conversion_rate',
+        `GBP conversion rate is required for ${sourceCurrency} dividends`,
+      );
+    }
+    const amountGbp = roundMoney(amountSource * gbpConversionRate);
+    const event: FinnhubDividendEvent = {
+      amountGbp,
+      amountMerits: gbpToMerits(amountGbp),
+      amountSource,
+      exDate,
+      providerEventId: `${context.symbol}:${item.date}:${amountKey(amountSource)}`,
+      sourceCurrency,
+      symbol: item.symbol.trim(),
+    };
+    const payDate = parseIsoDate(item.payDate);
+    if (payDate) event.payDate = payDate;
+    events.push(event);
+  }
+
+  return { ok: true, value: events };
+}
+
+export function normaliseYahooFinanceDividendResponse(
+  input: unknown,
+  context: YahooFinanceDividendContext,
+): MarketDataNormalisationResult<ProviderDividendEvent[]> {
+  const parsed = yahooDividendChartSchema.safeParse(input);
+  const result = parsed.success ? parsed.data.chart.result?.[0] : undefined;
+  if (!parsed.success || !result) {
+    return error('invalid_response', 'Yahoo Finance dividend response was not valid');
+  }
+
+  const sourceCurrencyValue = result.meta?.currency?.trim() || context.sourceCurrency?.trim();
+  if (!sourceCurrencyValue) {
+    return error('missing_currency', 'Yahoo Finance dividend response did not include a currency');
+  }
+  const sourceCurrency = normaliseCurrency(sourceCurrencyValue);
+  const gbpConversionRate = gbpRateFor(sourceCurrency, context.gbpConversionRates);
+  if (!gbpConversionRate) {
+    return error(
+      'missing_conversion_rate',
+      `GBP conversion rate is required for ${sourceCurrency} dividends`,
+    );
+  }
+
+  const dividends = result.events?.dividends ?? {};
+  const events: ProviderDividendEvent[] = [];
+  for (const item of Object.values(dividends)) {
+    const timestamp = parseTimestamp(item.date, undefined);
+    if (!timestamp) {
+      return error(
+        'missing_timestamp',
+        'Yahoo Finance dividend did not include a valid ex-dividend date',
+      );
+    }
+    const amountSource = parseFinitePositiveNumber(item.amount);
+    if (!amountSource) {
+      return error('missing_price', 'Yahoo Finance dividend did not include a valid amount');
+    }
+
+    const exDate = startOfUtcDate(timestamp);
+    const amountGbp = roundMoney(amountSource * gbpConversionRate);
+    events.push({
+      amountGbp,
+      amountMerits: gbpToMerits(amountGbp),
+      amountSource,
+      exDate,
+      providerEventId: `${context.symbol}:${isoDateKey(exDate)}:${amountKey(amountSource)}`,
+      sourceCurrency,
+      symbol: context.symbol,
+    });
+  }
+
+  return {
+    ok: true,
+    value: events.sort((left, right) => left.exDate.getTime() - right.exDate.getTime()),
+  };
+}
+
+export function forecastSimulatedDividendEvents(
+  history: readonly ProviderDividendEvent[],
+  context: SimulatedDividendForecastContext,
+): ProviderDividendEvent[] {
+  const sorted = history
+    .filter((event) => event.symbol === context.symbol)
+    .slice()
+    .sort((left, right) => left.exDate.getTime() - right.exDate.getTime());
+  if (sorted.length < 2) return [];
+
+  const gaps = sorted
+    .slice(1)
+    .map((event, index) => daysBetweenUtc(sorted[index]?.exDate ?? event.exDate, event.exDate))
+    .filter((gap) => gap >= 25 && gap <= 370)
+    .sort((left, right) => left - right);
+  if (gaps.length === 0) return [];
+
+  const intervalDays = gaps[Math.floor((gaps.length - 1) / 2)];
+  if (!intervalDays) return [];
+
+  const last = sorted[sorted.length - 1];
+  if (!last) return [];
+
+  const gbpConversionRate = gbpRateFor(last.sourceCurrency, context.gbpConversionRates);
+  if (!gbpConversionRate) return [];
+
+  const amountSource = last.amountSource;
+  const amountGbp = roundMoney(amountSource * gbpConversionRate);
+  const start = startOfUtcDate(context.now);
+  const end = addUtcDays(start, context.horizonDays);
+  const events: ProviderDividendEvent[] = [];
+  let nextExDate = addUtcDays(startOfUtcDate(last.exDate), intervalDays);
+
+  while (nextExDate <= start) {
+    nextExDate = addUtcDays(nextExDate, intervalDays);
+  }
+
+  while (nextExDate <= end) {
+    const exDate = startOfUtcDate(nextExDate);
+    events.push({
+      amountGbp,
+      amountMerits: gbpToMerits(amountGbp),
+      amountSource,
+      exDate,
+      providerEventId: `${context.symbol}:simulated:${isoDateKey(exDate)}:${amountKey(amountSource)}`,
+      sourceCurrency: last.sourceCurrency,
+      symbol: context.symbol,
+    });
+    nextExDate = addUtcDays(exDate, intervalDays);
+  }
+
+  return events;
+}
+
 export function normaliseTwelveDataHistoryResponse(
   input: unknown,
   context: TwelveDataHistoryContext,
@@ -510,6 +921,7 @@ function normaliseInstrumentKind(type: string): InvestmentMarketInstrumentKind |
   const normalised = type.trim().toLowerCase();
   if (normalised === 'stock' || normalised === 'common stock') return 'stock';
   if (normalised === 'etf' || normalised === 'exchange traded fund') return 'etf';
+  if (normalised === 'cryptocurrency' || normalised === 'digital currency') return 'crypto';
   return null;
 }
 

@@ -5,13 +5,19 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { BriefcaseBusiness, History, LineChart, Store, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/trpc';
+import { api, type RouterOutputs } from '@/lib/trpc';
 import {
+  buildSyntheticDailySeries,
+  buildSyntheticIntradaySeries,
   formatMerits,
   instruments,
+  instrumentsByTicker,
   meritGbp,
   navHistoryToChartSeries,
   type Instrument,
+  type InstrumentType,
+  type MarketDividendEvent,
+  type MarketNewsItem,
   type RangeId,
 } from './student-invest-data';
 import { InvestmentActivity } from './student-invest-extras';
@@ -36,6 +42,10 @@ interface StudentInvestClientProps {
   initialScreen?: Exclude<Screen, 'stock'>;
 }
 
+type MarketDataInstrument = RouterOutputs['investment']['marketData']['instruments'][number];
+type MarketDataSnapshot = RouterOutputs['investment']['marketData']['snapshots'][number];
+type InstrumentDetail = RouterOutputs['investment']['instrumentDetail'];
+
 const defaultRange: RangeId = '1M';
 
 const navItems: readonly {
@@ -54,6 +64,94 @@ const navItems: readonly {
   { icon: Store, label: 'Market', screen: 'market' },
   { icon: History, label: 'Activity', screen: 'activity' },
 ];
+
+function instrumentType(kind: MarketDataInstrument['kind']): InstrumentType {
+  if (kind === 'crypto') return 'crypto';
+  if (kind === 'etf') return 'etf';
+  return 'stock';
+}
+
+function fallbackColor(type: InstrumentType): string {
+  if (type === 'crypto') return '#475569';
+  if (type === 'etf') return '#2e5e8c';
+  return '#555b61';
+}
+
+function volatilityFromRisk(riskBand: string, type: InstrumentType): number {
+  if (type === 'crypto') return riskBand === 'medium' ? 0.012 : 0.035;
+  if (riskBand === 'low') return 0.007;
+  if (riskBand === 'high') return 0.024;
+  return 0.014;
+}
+
+function defaultInstrumentSummary(instrument: MarketDataInstrument): string {
+  if (instrument.kind === 'crypto') {
+    return `${instrument.displayName} is a crypto asset. Prices can move sharply at any time, so it should be treated as a high-risk learning option.`;
+  }
+  if (instrument.kind === 'etf') {
+    return `${instrument.displayName} is an exchange-traded fund. It can spread merits across a basket of assets, but it can still fall.`;
+  }
+  return `${instrument.displayName} is a listed company in Merit Markets. Single stocks can move more than broad funds.`;
+}
+
+function mapLiveInstrument(
+  instrument: MarketDataInstrument,
+  snapshot: MarketDataSnapshot | undefined,
+): Instrument {
+  const fallback = instrumentsByTicker.get(instrument.symbol);
+  const type = instrumentType(instrument.kind);
+  const price = snapshot ? snapshot.priceMerits * meritGbp : 0;
+  const prevClose = snapshot ? snapshot.previousCloseMerits * meritGbp : 0;
+  const volatility = fallback?.volatility ?? volatilityFromRisk(instrument.riskBand, type);
+  const seriesPrice = snapshot ? price : fallback?.price ?? 1;
+  const seriesPrevClose = snapshot ? prevClose : fallback?.prevClose ?? seriesPrice;
+  const mapped: Instrument = {
+    about: instrument.summary ?? fallback?.about ?? defaultInstrumentSummary(instrument),
+    color: instrument.themeColor ?? fallback?.color ?? fallbackColor(type),
+    daily: fallback?.daily ?? buildSyntheticDailySeries(instrument.symbol, seriesPrice, volatility),
+    dayChange: price - prevClose,
+    dayChangePct: snapshot?.dayChangePct ?? 0,
+    instrumentId: instrument.id,
+    intraday:
+      fallback?.intraday ??
+      buildSyntheticIntradaySeries(instrument.symbol, seriesPrevClose, seriesPrice),
+    name: instrument.displayName,
+    prevClose,
+    price,
+    sector: instrument.category ?? fallback?.sector ?? instrument.exchangeMic,
+    ticker: instrument.symbol,
+    type,
+    volatility,
+  };
+  if (snapshot) {
+    mapped.learningDayChangePct = snapshot.learningDayChangePct;
+    mapped.priceMerits = snapshot.priceMerits;
+  }
+  return mapped;
+}
+
+function mapNewsItem(item: InstrumentDetail['news'][number]): MarketNewsItem {
+  return {
+    headline: item.headline,
+    id: item.id,
+    imageUrl: item.imageUrl,
+    publishedAt: new Date(item.publishedAt),
+    source: item.source,
+    summary: item.summary,
+    url: item.url,
+  };
+}
+
+function mapDividendEvent(item: InstrumentDetail['dividends'][number]): MarketDividendEvent {
+  return {
+    amountMerits: item.amountMerits,
+    amountSource: item.amountSource,
+    exDate: new Date(item.exDate),
+    id: item.id,
+    payDate: item.payDate ? new Date(item.payDate) : null,
+    sourceCurrency: item.sourceCurrency,
+  };
+}
 
 export function StudentInvestClient({ initialScreen = 'overview' }: StudentInvestClientProps) {
   const [view, setView] = useState<ViewState>({ screen: initialScreen, ticker: null });
@@ -130,29 +228,68 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
   });
 
   const liveInstruments = useMemo<readonly Instrument[]>(() => {
+    const marketInstruments = marketQuery.data?.instruments;
+    if (marketInstruments?.length) {
+      const byInstrumentId = new Map(
+        (marketQuery.data?.snapshots ?? []).map((snapshot) => [snapshot.instrumentId, snapshot]),
+      );
+      return marketInstruments.map((instrument) =>
+        mapLiveInstrument(instrument, byInstrumentId.get(instrument.id)),
+      );
+    }
+
     const snapshots = marketQuery.data?.snapshots;
     if (!snapshots?.length) return instruments;
-    const bySymbol = new Map(snapshots.map((s) => [s.symbol, s]));
-    return instruments.map((inst) => {
-      const s = bySymbol.get(inst.ticker);
-      if (!s) return inst;
-      const price = s.priceMerits * meritGbp;
-      const prevClose = s.previousCloseMerits * meritGbp;
-      return {
-        ...inst,
-        instrumentId: s.instrumentId,
-        price,
-        priceMerits: s.priceMerits,
-        prevClose,
-        dayChange: price - prevClose,
-        dayChangePct: s.dayChangePct,
-        learningDayChangePct: s.learningDayChangePct,
-      };
+    const bySymbol = new Map(snapshots.map((snapshot) => [snapshot.symbol, snapshot]));
+    return instruments.map((instrument) => {
+      const snapshot = bySymbol.get(instrument.ticker);
+      return snapshot
+        ? mapLiveInstrument(
+            {
+              category: instrument.sector,
+              displayName: instrument.name,
+              dividendSymbol: null,
+              exchangeMic: 'LOCAL',
+              id: snapshot.instrumentId,
+              kind: instrument.type,
+              newsSymbol: null,
+              provider: snapshot.provider,
+              providerSymbol: instrument.ticker,
+              riskBand: 'medium',
+              sortOrder: 0,
+              sourceCurrency: snapshot.sourceCurrency,
+              summary: instrument.about,
+              symbol: instrument.ticker,
+              themeColor: instrument.color,
+            },
+            snapshot,
+          )
+        : instrument;
     });
   }, [marketQuery.data]);
 
   const marketFreshness = marketQuery.data?.freshness;
   const marketLoading = marketQuery.isLoading && !marketQuery.data;
+  const selectedInstrument =
+    view.ticker ? liveInstruments.find((instrument) => instrument.ticker === view.ticker) : null;
+
+  const instrumentDetailQuery = api.investment.instrumentDetail.useQuery(
+    { instrumentId: selectedInstrument?.instrumentId ?? '' },
+    {
+      enabled: view.screen === 'stock' && Boolean(selectedInstrument?.instrumentId),
+      retry: false,
+    },
+  );
+
+  const selectedNews = useMemo<readonly MarketNewsItem[]>(
+    () => instrumentDetailQuery.data?.news.map(mapNewsItem) ?? [],
+    [instrumentDetailQuery.data?.news],
+  );
+
+  const selectedDividends = useMemo<readonly MarketDividendEvent[]>(
+    () => instrumentDetailQuery.data?.dividends.map(mapDividendEvent) ?? [],
+    [instrumentDetailQuery.data?.dividends],
+  );
 
   const units = accountQuery.data?.units ?? 0;
   const currentValueMerits = accountQuery.data?.currentValueMerits ?? 0;
@@ -333,10 +470,14 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
       {view.screen === 'stock' && view.ticker ? (
         <InvestmentStockDetail
           cashBalanceMerits={investmentCashMerits}
+          detailLoading={instrumentDetailQuery.isLoading}
+          dividends={selectedDividends}
           holding={holdings.find((holding) => holding.symbol === view.ticker) ?? null}
           isBuying={buyHoldingMutation.isPending}
           isSelling={sellHoldingMutation.isPending}
           liveInstruments={liveInstruments}
+          marketFreshness={marketFreshness}
+          news={selectedNews}
           onBuyHolding={buyHolding}
           onBack={() => {
             navigate('market');

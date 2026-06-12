@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/investment-market-refresh",
-      "schedule": "*/5 7-16 * * 1-5"
+      "schedule": "*/15 * * * *"
     }
   ],
   "git": {

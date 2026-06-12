@@ -626,6 +626,12 @@ function makeFakeDb(
           ) ?? null,
         ),
       ),
+      update: vi.fn((args: { data: { enabled: false }; where: { id: string } }) => {
+        const instrument = instruments.find((candidate) => candidate.id === args.where.id);
+        if (!instrument) throw new Error('missing fake instrument');
+        instrument.enabled = args.data.enabled;
+        return Promise.resolve({ id: instrument.id });
+      }),
     },
     marketDataSnapshot: {
       count: vi.fn((args: FakeMarketDataSnapshotCountArgs) =>
@@ -664,6 +670,18 @@ function makeFakeDb(
             .map(mapSnapshot),
         ),
       ),
+    },
+    investmentNewsItem: {
+      findMany: vi.fn(() => Promise.resolve([])),
+      upsert: vi.fn((args: { create: unknown }) => Promise.resolve(args.create)),
+    },
+    investmentDividendEvent: {
+      findMany: vi.fn(() => Promise.resolve([])),
+      upsert: vi.fn((args: { create: unknown }) => Promise.resolve(args.create)),
+    },
+    investmentDividendPayment: {
+      findUnique: vi.fn(() => Promise.resolve(null)),
+      create: vi.fn((args: unknown) => Promise.resolve(args)),
     },
     students,
     guardians,
@@ -714,6 +732,9 @@ afterEach(() => {
   delete process.env['INVESTMENT_NAV_SEED'];
   delete process.env['TWELVE_DATA_API_KEY'];
   delete process.env['TWELVE_DATA_BASE_URL'];
+  delete process.env['FINNHUB_API_KEY'];
+  delete process.env['FINNHUB_BASE_URL'];
+  delete process.env['YAHOO_FINANCE_BASE_URL'];
 });
 
 describe('investment.marketData', () => {
@@ -775,24 +796,32 @@ describe('investment.refreshMarketData', () => {
   it('lets full admins refresh cached market snapshots server-side', async () => {
     process.env['TWELVE_DATA_API_KEY'] = 'test-key';
     process.env['TWELVE_DATA_BASE_URL'] = 'https://example.test';
-    const instrument = makeInstrument({ id: 'instrument-vusa', symbol: 'VUSA' });
+    const instrument = makeInstrument({
+      id: 'instrument-vusa',
+      provider: 'yahoo-finance',
+      providerSymbol: 'VUSA.L',
+      sourceCurrency: 'GBP',
+      symbol: 'VUSA',
+    });
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
-          close: '75.00',
-          currency: 'GBP',
-          mic_code: 'XLON',
-          name: 'Vanguard S&P 500 UCITS ETF',
-          percent_change: '1.25',
-          previous_close: '74.00',
-          symbol: 'VUSA',
-          timestamp: '1778846100',
+          chart: {
+            result: [
+              {
+                meta: {
+                  chartPreviousClose: 74,
+                  currency: 'GBP',
+                  regularMarketPrice: 75,
+                  regularMarketTime: 1778846100,
+                  shortName: 'Vanguard S&P 500 UCITS ETF',
+                  symbol: 'VUSA.L',
+                },
+              },
+            ],
+          },
         }),
         {
-          headers: {
-            'api-credits-left': '792',
-            'api-credits-used': '8',
-          },
           status: 200,
         },
       ),
@@ -815,8 +844,7 @@ describe('investment.refreshMarketData', () => {
       expect.objectContaining({
         gbpPrice: 75,
         instrumentId: 'instrument-vusa',
-        providerCreditsLeft: 792,
-        providerCreditsUsed: 8,
+        provider: 'yahoo-finance',
       }),
     ]);
   });
