@@ -107,7 +107,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
                       ? '/admin/shop'
                       : '/admin/profile';
   const adminNavProps = {
-    canManageCalendar: canManageCalendarDates,
     canManageClubs: canManageClubModule,
     canManageInvoices: canManageInvoiceModule,
     canManagePermissionSlips: canManagePermissionSlipModule,

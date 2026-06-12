@@ -66,6 +66,26 @@ async function getRequiredSessionUser(
   return user;
 }
 
+function canUseAdminShell(user: SessionUser): boolean {
+  return (
+    canUseAdminOperations(user) ||
+    canViewBehaviourReports(user) ||
+    canViewAnyStudentDrillThrough(user) ||
+    canUseFullPaceAccess(user) ||
+    canManageUserAccounts(user) ||
+    canExportAttendance(user) ||
+    canManageCalendar(user) ||
+    canManagePermissionSlips(user) ||
+    canViewAuditLog(user) ||
+    canRespondToParentMessages(user) ||
+    canUseStaffMessaging(user) ||
+    canManageClubs(user) ||
+    canManageInvoices(user) ||
+    canManageShop(user) ||
+    canSellInShop(user)
+  );
+}
+
 export async function getFullAdminUser(): Promise<SessionUser> {
   const user = await getRequiredSessionUser();
 
@@ -93,23 +113,7 @@ export async function getAdminOperationsUser(): Promise<SessionUser> {
 export async function getAdminShellUser(): Promise<SessionUser> {
   const user = await getRequiredSessionUser();
 
-  if (
-    !canUseAdminOperations(user) &&
-    !canViewBehaviourReports(user) &&
-    !canViewAnyStudentDrillThrough(user) &&
-    !canUseFullPaceAccess(user) &&
-    !canManageUserAccounts(user) &&
-    !canExportAttendance(user) &&
-    !canManageCalendar(user) &&
-    !canManagePermissionSlips(user) &&
-    !canViewAuditLog(user) &&
-    !canRespondToParentMessages(user) &&
-    !canUseStaffMessaging(user) &&
-    !canManageClubs(user) &&
-    !canManageInvoices(user) &&
-    !canManageShop(user) &&
-    !canSellInShop(user)
-  ) {
+  if (!canUseAdminShell(user)) {
     notFound();
   }
 

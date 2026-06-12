@@ -20,21 +20,21 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/supervisor', label: 'Dashboard', icon: Home, enabled: true },
-  { href: '/admin/clubs', label: 'Club Admin', icon: Club, enabled: true },
-  { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText, enabled: true },
-  { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck, enabled: true },
-  { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star, enabled: true },
-  { href: '/supervisor/leaderboard', label: 'Leaderboard', icon: Medal, enabled: true },
-  { href: '/supervisor/incidents', label: 'Incidents', icon: ShieldAlert, enabled: true },
-  { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck, enabled: true },
-  { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays, enabled: true },
-  { href: '/supervisor/calendar', label: 'Calendar', icon: CalendarDays, enabled: true },
-  { href: '/supervisor/shop', label: 'Merit Shop', icon: ShoppingBag, enabled: true },
-  { href: '/supervisor/messages', label: 'Messages', icon: MessageSquare, enabled: true },
-  { href: '/supervisor/noticeboard', label: 'Noticeboard', icon: Bell, enabled: true },
-  { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList, enabled: true },
-  { href: '/supervisor/notes-history', label: 'Notes History', icon: FileText, enabled: true },
+  { href: '/supervisor', label: 'Dashboard', icon: Home },
+  { href: '/admin/clubs', label: 'Club Admin', icon: Club },
+  { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText },
+  { href: '/supervisor/attendance', label: 'Attendance', icon: CalendarCheck },
+  { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star },
+  { href: '/supervisor/leaderboard', label: 'Leaderboard', icon: Medal },
+  { href: '/supervisor/incidents', label: 'Incidents', icon: ShieldAlert },
+  { href: '/supervisor/pace', label: 'PACE', icon: BookOpenCheck },
+  { href: '/supervisor/rota', label: 'Rota', icon: CalendarDays },
+  { href: '/supervisor/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/supervisor/shop', label: 'Merit Shop', icon: ShoppingBag },
+  { href: '/supervisor/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/supervisor/noticeboard', label: 'Noticeboard', icon: Bell },
+  { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList },
+  { href: '/supervisor/notes-history', label: 'Notes History', icon: FileText },
 ] as const;
 
 const preferredMobileLabels = [
@@ -54,6 +54,11 @@ type SupervisorNavProps = {
   unreadMessageCount: number;
   unreadNoticeCount: number;
 };
+
+type SupervisorNavAccess = Pick<
+  SupervisorNavProps,
+  'canManageClubs' | 'canManageInvoices' | 'canUseShop'
+>;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
   return label === 'Dashboard'
@@ -80,6 +85,15 @@ function badgeForItem(
   return null;
 }
 
+function visibleNavItemsFor(access: SupervisorNavAccess) {
+  return navItems.filter(
+    (item) =>
+      (item.label !== 'Club Admin' || access.canManageClubs) &&
+      (item.label !== 'Invoices' || access.canManageInvoices) &&
+      (item.label !== 'Merit Shop' || access.canUseShop),
+  );
+}
+
 export function SupervisorSidebarNav({
   canManageClubs,
   canManageInvoices,
@@ -88,12 +102,7 @@ export function SupervisorSidebarNav({
   unreadNoticeCount,
 }: SupervisorNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleNavItems = navItems.filter(
-    (item) =>
-      (item.label !== 'Club Admin' || canManageClubs) &&
-      (item.label !== 'Invoices' || canManageInvoices) &&
-      (item.label !== 'Merit Shop' || canUseShop),
-  );
+  const visibleNavItems = visibleNavItemsFor({ canManageClubs, canManageInvoices, canUseShop });
 
   return (
     <nav className="admin-shell__nav">
@@ -130,12 +139,7 @@ export function SupervisorBottomNav({
   unreadNoticeCount,
 }: SupervisorNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleNavItems = navItems.filter(
-    (item) =>
-      (item.label !== 'Club Admin' || canManageClubs) &&
-      (item.label !== 'Invoices' || canManageInvoices) &&
-      (item.label !== 'Merit Shop' || canUseShop),
-  );
+  const visibleNavItems = visibleNavItemsFor({ canManageClubs, canManageInvoices, canUseShop });
 
   return (
     <nav aria-label="Mobile supervisor sections" className="admin-shell__bottom-nav">
@@ -157,7 +161,6 @@ export function SupervisorBottomNav({
           return (
             <Link
               aria-current={active ? 'page' : undefined}
-              aria-disabled={!item.enabled}
               className={className}
               href={{ pathname: item.href }}
               key={item.label}

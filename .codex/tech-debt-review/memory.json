@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-11",
+  "lastRunDate": "2026-06-12",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1236,9 +1236,152 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized special attendance UI; attendance status and reset semantics were preserved."
+    },
+    "apps/web/src/components/pace/pace-score-modal.tsx": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 301,
+      "lineCountAfter": 292,
+      "issuesFixed": [
+        "Parsed the PACE number once and reused a single save-disabled guard for submit and button state."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as the only remaining oversized production React file over the current threshold."
+    },
+    "apps/web/src/components/admin/admin-nav.tsx": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 287,
+      "lineCountAfter": 202,
+      "issuesFixed": [
+        "Consolidated repeated admin nav visibility filtering into a local helper.",
+        "Removed the unused admin nav canManageCalendar prop while preserving the layout permission check."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn admin navigation component; route ordering and permission decisions were preserved."
+    },
+    "apps/web/src/components/admin/require-full-admin.tsx": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 282,
+      "lineCountAfter": 286,
+      "issuesFixed": [
+        "Extracted the admin shell access predicate into a named local helper without changing permission checks."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn auth/access helper; route, 2FA, and not-found semantics were preserved."
+    },
+    "apps/web/src/app/(admin)/admin/layout.tsx": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 199,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Stopped passing the now-removed unused canManageCalendar prop into admin nav props."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn admin shell layout; calendar permission is still used for home route fallback."
+    },
+    "apps/api/src/index.ts": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 124,
+      "lineCountAfter": 124,
+      "issuesFixed": [
+        "Reviewed exports, imports, lint, typecheck, and formatting; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn API entrypoint reviewed unchanged to avoid public export contract churn."
+    },
+    "apps/web/src/components/supervisor/supervisor-nav.tsx": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 174,
+      "lineCountAfter": 177,
+      "issuesFixed": [
+        "Consolidated supervisor nav visibility filtering into a local helper.",
+        "Removed the always-true enabled flag and no-op aria-disabled=false output."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn supervisor navigation component; visible routes and badges were preserved."
+    },
+    "packages/db/src/index.ts": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 57,
+      "lineCountAfter": 57,
+      "issuesFixed": [
+        "Reviewed Prisma client export surface, lint, typecheck, and formatting; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn DB package entrypoint reviewed unchanged to avoid public export contract churn."
+    },
+    "apps/api/src/router.ts": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 73,
+      "lineCountAfter": 73,
+      "issuesFixed": [
+        "Reviewed root tRPC router composition, lint, typecheck, and formatting; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn API router composition reviewed unchanged to avoid API contract changes."
+    },
+    "apps/web/src/app/(supervisor)/supervisor/layout.tsx": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 151,
+      "lineCountAfter": 151,
+      "issuesFixed": [
+        "Reviewed supervisor shell data loading, lint, typecheck, and formatting; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn supervisor shell layout reviewed unchanged to avoid permission or route changes."
+    },
+    "packages/domain/src/index.ts": {
+      "lastReviewedAt": "2026-06-12",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 22,
+      "lineCountAfter": 22,
+      "issuesFixed": [
+        "Reviewed domain barrel exports, lint, typecheck, and formatting; no source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "High-churn domain entrypoint reviewed unchanged to avoid public export contract churn."
     }
   },
-  "deferredFiles": {},
+  "deferredFiles": {
+    "apps/api/src/__tests__/admin.router.test.ts": {
+      "deferredAt": "2026-06-12",
+      "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
+    },
+    "apps/api/src/__tests__/club.router.test.ts": {
+      "deferredAt": "2026-06-12",
+      "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
+    },
+    "apps/api/src/__tests__/pace.router.test.ts": {
+      "deferredAt": "2026-06-12",
+      "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
+    },
+    "apps/api/src/__tests__/attendance.router.test.ts": {
+      "deferredAt": "2026-06-12",
+      "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
+    },
+    "apps/api/src/__tests__/behaviour.router.test.ts": {
+      "deferredAt": "2026-06-12",
+      "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
+    }
+  },
   "fullPassHistory": [
     {
       "pass": 1,
