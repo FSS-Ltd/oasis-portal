@@ -3,6 +3,10 @@ export const OASIS_REALTIME_EVENTS = {
   messageChanged: 'oasis.message_changed',
   messageReadChanged: 'oasis.message_read_changed',
   messageThreadChanged: 'oasis.message_thread_changed',
+  communityGroupChanged: 'oasis.community_group_changed',
+  communityMessageChanged: 'oasis.community_message_changed',
+  communityReadChanged: 'oasis.community_read_changed',
+  communityMemberChanged: 'oasis.community_member_changed',
 } as const;
 
 type RealtimeEventName = (typeof OASIS_REALTIME_EVENTS)[keyof typeof OASIS_REALTIME_EVENTS];
@@ -26,7 +30,19 @@ export interface ChildNotesRealtimeEvent extends RealtimeEventBase {
   event: typeof OASIS_REALTIME_EVENTS.childNotesChanged;
 }
 
-export type OasisRealtimeEvent = ChildNotesRealtimeEvent | MessageRealtimeEvent;
+export interface CommunityRealtimeEvent extends RealtimeEventBase {
+  event:
+    | typeof OASIS_REALTIME_EVENTS.communityGroupChanged
+    | typeof OASIS_REALTIME_EVENTS.communityMessageChanged
+    | typeof OASIS_REALTIME_EVENTS.communityReadChanged
+    | typeof OASIS_REALTIME_EVENTS.communityMemberChanged;
+  groupId: string;
+}
+
+export type OasisRealtimeEvent =
+  | ChildNotesRealtimeEvent
+  | MessageRealtimeEvent
+  | CommunityRealtimeEvent;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -58,6 +74,18 @@ export function parseOasisRealtimeEvent(
 
   if (eventName === OASIS_REALTIME_EVENTS.childNotesChanged) {
     return { event: eventName, occurredAt, operation };
+  }
+
+  if (
+    eventName === OASIS_REALTIME_EVENTS.communityGroupChanged ||
+    eventName === OASIS_REALTIME_EVENTS.communityMessageChanged ||
+    eventName === OASIS_REALTIME_EVENTS.communityReadChanged ||
+    eventName === OASIS_REALTIME_EVENTS.communityMemberChanged
+  ) {
+    const groupId = stringField(payload, 'groupId');
+    if (!groupId) return null;
+
+    return { event: eventName, occurredAt, operation, groupId };
   }
 
   const threadId = stringField(payload, 'threadId');

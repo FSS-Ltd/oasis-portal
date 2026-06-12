@@ -21,6 +21,7 @@ import { clubRouter } from './routers/club.js';
 import { calendarRouter } from './routers/calendar.js';
 import { noticeRouter } from './routers/notice.js';
 import { messageRouter } from './routers/message.js';
+import { communityRouter } from './routers/community.js';
 import { profileRouter } from './routers/profile.js';
 import { reportRouter } from './routers/report.js';
 import { rotaRouter } from './routers/rota.js';
@@ -53,6 +54,7 @@ export const appRouter = router({
   calendar: calendarRouter,
   notice: noticeRouter,
   message: messageRouter,
+  community: communityRouter,
   profile: profileRouter,
   report: reportRouter,
   rota: rotaRouter,

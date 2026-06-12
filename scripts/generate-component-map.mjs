@@ -199,6 +199,25 @@ const PRODUCT_MODULES = [
     ],
   },
   {
+    name: 'Student community messaging and moderation',
+    owns: 'Student community groups, central all-student chat, text-only messages, read receipts, group membership, and full-admin moderation controls.',
+    apiRouters: ['community'],
+    domainFiles: ['packages/domain/src/rbac.ts'],
+    webSurfaces: [
+      'apps/web/src/app/(admin)/admin/community/',
+      'apps/web/src/app/(student)/student/community/',
+      'apps/web/src/components/community/',
+      'apps/web/src/components/admin/admin-nav.tsx',
+      'apps/web/src/components/student/student-nav.tsx',
+    ],
+    mobileSurfaces: [],
+    sharedSurfaces: [
+      'apps/web/src/components/providers/realtime-provider.tsx',
+      'apps/web/src/lib/realtime/events.ts',
+      'packages/db/prisma/migrations/20260612180000_student_community/',
+    ],
+  },
+  {
     name: 'Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email',
     owns: 'Commercial, wallet, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
     apiRouters: [

@@ -131,6 +131,10 @@ model User {
   threadsAsParent                  MessageThread[]                  @relation("ThreadParent")
   threadsAsSupervisor              MessageThread[]                  @relation("ThreadSupervisor")
   threadsAsAdmin                   MessageThread[]                  @relation("ThreadAdmin")
+  communityGroupsCreated           CommunityGroup[]                 @relation("CommunityGroupsCreated")
+  communityGroupsUpdated           CommunityGroup[]                 @relation("CommunityGroupsUpdated")
+  communityMembershipsUpdated      CommunityGroupMember[]           @relation("CommunityGroupMembershipsUpdated")
+  communityMessagesDeleted         CommunityMessage[]               @relation("CommunityMessagesDeleted")
   shopPurchases                    ShopPurchase[]                   @relation("Shopkeeper")
   shopItemsCreated                 ShopItem[]                       @relation("ShopItemsCreated")
   shopReservationsMade             ShopReservation[]                @relation("ShopReservationCreator")
@@ -164,6 +168,7 @@ model User {
   studentPortalHeadLocksUpdated    StudentPortalSettings[]          @relation("StudentPortalHeadLocksUpdated")
   studentPortalShopBlocksUpdated   StudentPortalSettings[]          @relation("StudentPortalShopBlocksUpdated")
   studentPortalIconPhotosUpdated   StudentPortalSettings[]          @relation("StudentPortalIconPhotosUpdated")
+  studentCommunityBlocksUpdated    StudentPortalSettings[]          @relation("StudentCommunityMessagingBlocksUpdated")
   faithCornerCreated               FaithCornerContent[]             @relation("FaithCornerCreated")
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
   faithCornerCommentsReviewed      FaithCornerComment[]             @relation("FaithCornerCommentsReviewed")
@@ -271,6 +276,9 @@ model Student {
   faithCornerLikes         FaithCornerContentLike[]
   faithCornerComments      FaithCornerComment[]
   faithCornerCommentLikes  FaithCornerCommentLike[]
+  communityMemberships   CommunityGroupMember[]
+  communityMessages      CommunityMessage[]      @relation("CommunityMessagesSent")
+  communityMessageReads  CommunityMessageRead[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
@@ -388,6 +396,8 @@ model StudentPortalSettings {
   headAcademicLocked        Boolean   @default(false)
   headAcademicLockReasonEnc String?
   parentMeritShopBlocked    Boolean   @default(false)
+  communityMessagingBlocked Boolean   @default(false)
+  communityMessagingBlockedReasonEnc String?
   settingsUpdatedById       String?
   settingsUpdatedAt         DateTime?
   parentLockUpdatedById     String?
@@ -403,6 +413,8 @@ model StudentPortalSettings {
   childIconPhotoSizeBytes   Int?
   childIconPhotoUpdatedById String?
   childIconPhotoUpdatedAt   DateTime?
+  communityMessagingBlockedById String?
+  communityMessagingBlockedAt   DateTime?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -412,12 +424,14 @@ model StudentPortalSettings {
   headLockUpdatedBy   User?   @relation("StudentPortalHeadLocksUpdated", fields: [headLockUpdatedById], references: [id], onDelete: SetNull)
   shopBlockUpdatedBy  User?   @relation("StudentPortalShopBlocksUpdated", fields: [shopBlockUpdatedById], references: [id], onDelete: SetNull)
   iconPhotoUpdatedBy  User?   @relation("StudentPortalIconPhotosUpdated", fields: [childIconPhotoUpdatedById], references: [id], onDelete: SetNull)
+  communityMessagingBlockedBy User? @relation("StudentCommunityMessagingBlocksUpdated", fields: [communityMessagingBlockedById], references: [id], onDelete: SetNull)
 
   @@index([settingsUpdatedById, settingsUpdatedAt])
   @@index([parentLockUpdatedById, parentLockUpdatedAt])
   @@index([headLockUpdatedById, headLockUpdatedAt])
   @@index([shopBlockUpdatedById, shopBlockUpdatedAt])
   @@index([childIconPhotoUpdatedById, childIconPhotoUpdatedAt])
+  @@index([communityMessagingBlockedById, communityMessagingBlockedAt])
 }
 
 model StudentPortalUsageMinute {
@@ -2243,6 +2257,78 @@ model MessageRead {
 
   @@id([messageId, userId])
   @@index([userId, readAt])
+}
+
+model CommunityGroup {
+  id             String   @id @default(cuid())
+  title          String
+  descriptionEnc String?
+  isCentral      Boolean  @default(false)
+  isPublic       Boolean  @default(true)
+  active         Boolean  @default(true)
+  createdById    String?
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdBy User?                  @relation("CommunityGroupsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy User?                  @relation("CommunityGroupsUpdated", fields: [updatedById], references: [id], onDelete: SetNull)
+  members   CommunityGroupMember[]
+  messages  CommunityMessage[]
+
+  @@index([active, isCentral])
+  @@index([updatedAt])
+  @@index([createdById, createdAt])
+  @@index([updatedById, updatedAt])
+}
+
+model CommunityGroupMember {
+  groupId     String
+  studentId   String
+  active      Boolean   @default(true)
+  joinedAt    DateTime  @default(now())
+  updatedById String?
+  updatedAt   DateTime?
+
+  group     CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  updatedBy User?          @relation("CommunityGroupMembershipsUpdated", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@id([groupId, studentId])
+  @@index([studentId, active])
+  @@index([groupId, active])
+  @@index([updatedById, updatedAt])
+}
+
+model CommunityMessage {
+  id              String    @id @default(cuid())
+  groupId         String
+  senderStudentId String
+  bodyEnc         String
+  deletedAt       DateTime?
+  deletedById     String?
+  createdAt       DateTime  @default(now())
+
+  group         CommunityGroup         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  senderStudent Student                @relation("CommunityMessagesSent", fields: [senderStudentId], references: [id])
+  deletedBy     User?                  @relation("CommunityMessagesDeleted", fields: [deletedById], references: [id], onDelete: SetNull)
+  reads         CommunityMessageRead[]
+
+  @@index([groupId, createdAt])
+  @@index([senderStudentId, createdAt])
+  @@index([deletedById, deletedAt])
+}
+
+model CommunityMessageRead {
+  messageId String
+  studentId String
+  readAt    DateTime @default(now())
+
+  message CommunityMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  student Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, studentId])
+  @@index([studentId, readAt])
 }
 
 // ---------------------------------------------------------------------------
