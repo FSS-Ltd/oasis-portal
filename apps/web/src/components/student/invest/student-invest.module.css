@@ -325,6 +325,11 @@
   color: #6b5310;
 }
 
+.noticeCard p,
+.noticeCard strong {
+  margin: 0;
+}
+
 .dashboardGrid,
 .marketGrid,
 .withdrawGrid,
@@ -818,6 +823,11 @@
   display: grid;
 }
 
+.detailStack {
+  display: grid;
+  gap: 18px;
+}
+
 .stockDetailGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.72fr);
@@ -936,6 +946,35 @@
   padding: 13px;
   border-radius: 8px;
   background: #f6f8fc;
+}
+
+.infoList {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 12px 0 0;
+  list-style: none;
+}
+
+.infoItem {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f6f8fc;
+}
+
+.infoLink {
+  color: var(--oasis-navy);
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.infoMeta {
+  color: var(--oasis-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .tradeSummaryRow,

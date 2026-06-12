@@ -84,16 +84,20 @@ export {
   type SavingsInterestRunResultDto,
 } from './services/savings-interest.js';
 export {
-  createTwelveDataMarketDataProvider,
-  isLondonStockMarketOpen,
   readCachedInvestmentMarketData,
-  refreshTwelveDataQuotes,
+  readInvestmentInstrumentDetail,
+  refreshInvestmentMarketData,
   type CachedMarketDataResult,
+  type InstrumentDetailResult,
+  type InvestmentMarketRefreshDb,
   type MarketDataRefreshResult,
   type MarketDataSnapshotValuationDto,
-  type TwelveDataRefreshDb,
+} from './services/market-data/investment-market-refresh.js';
+export {
+  createTwelveDataMarketDataProvider,
   type TwelveDataQuoteProvider,
-} from './services/market-data/twelve-data-refresh.js';
+} from './services/market-data/twelve-data-provider.js';
+export { isLondonStockMarketOpen } from './services/market-data/london-market-hours.js';
 export {
   behaviourRouter,
   createBehaviourRouter,

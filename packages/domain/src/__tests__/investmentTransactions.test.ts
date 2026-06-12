@@ -5,6 +5,7 @@ import {
   planInvestmentHoldingCashBuy,
   planInvestmentHoldingCashSell,
   planInvestmentHoldingBuy,
+  planInvestmentDividendPayment,
   planInvestmentPortfolioWithdrawal,
   planInvestmentSell,
 } from '../investmentTransactions.js';
@@ -253,6 +254,48 @@ describe('planInvestmentHoldingCashSell', () => {
       },
     ]);
     expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+});
+
+describe('planInvestmentDividendPayment', () => {
+  it('credits rounded dividend merits into Investment and balances InvestmentReturn', () => {
+    const plan = planInvestmentDividendPayment({
+      amountMeritsPerUnit: 0.06,
+      studentId: 'student_1',
+      units: 12.5,
+    });
+
+    expect(plan).toEqual({
+      payoutMerits: 1,
+      ledgerRows: [
+        {
+          studentId: 'student_1',
+          account: 'Investment',
+          delta: 1,
+          reason: 'investment:dividend',
+        },
+        {
+          studentId: 'student_1',
+          account: 'InvestmentReturn',
+          delta: -1,
+          reason: 'investment:dividend',
+        },
+      ],
+    });
+    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+  });
+
+  it('returns no ledger rows when the rounded dividend is zero', () => {
+    const plan = planInvestmentDividendPayment({
+      amountMeritsPerUnit: 0.004,
+      studentId: 'student_1',
+      units: 0.5,
+    });
+
+    expect(plan).toEqual({
+      payoutMerits: 0,
+      ledgerRows: [],
+    });
   });
 });
 

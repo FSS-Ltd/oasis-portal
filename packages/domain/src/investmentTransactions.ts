@@ -64,6 +64,11 @@ export interface InvestmentPortfolioWithdrawalPlan {
   ledgerRows: LedgerRow[];
 }
 
+export interface InvestmentDividendPaymentPlan {
+  payoutMerits: number;
+  ledgerRows: LedgerRow[];
+}
+
 function requirePositiveFinite(value: number, label: string): void {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${label} must be positive`);
@@ -238,6 +243,38 @@ export function planInvestmentHoldingCashSell(params: {
     ledgerRows: ledgerRows.filter((row) => row.delta !== 0),
     remainingUnits,
     unitsSold: params.units,
+  };
+}
+
+export function planInvestmentDividendPayment(params: {
+  studentId: string;
+  units: number;
+  amountMeritsPerUnit: number;
+}): InvestmentDividendPaymentPlan {
+  requirePositiveFinite(params.units, 'units');
+  requirePositiveFinite(params.amountMeritsPerUnit, 'amountMeritsPerUnit');
+
+  const payoutMerits = Math.round(params.units * params.amountMeritsPerUnit);
+  if (payoutMerits <= 0) {
+    return { ledgerRows: [], payoutMerits: 0 };
+  }
+
+  return {
+    payoutMerits,
+    ledgerRows: [
+      {
+        studentId: params.studentId,
+        account: 'Investment',
+        delta: payoutMerits,
+        reason: 'investment:dividend',
+      },
+      {
+        studentId: params.studentId,
+        account: 'InvestmentReturn',
+        delta: -payoutMerits,
+        reason: 'investment:dividend',
+      },
+    ],
   };
 }
 

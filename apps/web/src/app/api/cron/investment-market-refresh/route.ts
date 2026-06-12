@@ -1,4 +1,4 @@
-import { refreshTwelveDataQuotes, type TwelveDataRefreshDb } from '@oasis/api';
+import { refreshInvestmentMarketData, type InvestmentMarketRefreshDb } from '@oasis/api';
 import { prisma } from '@oasis/db';
 
 export const dynamic = 'force-dynamic';
@@ -12,9 +12,9 @@ export async function GET(request: Request): Promise<Response> {
     return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const summary = await refreshTwelveDataQuotes({
+  const summary = await refreshInvestmentMarketData({
     auditUserId: null,
-    db: prisma as unknown as TwelveDataRefreshDb,
+    db: prisma as unknown as InvestmentMarketRefreshDb,
     mode: 'scheduled',
   });
 

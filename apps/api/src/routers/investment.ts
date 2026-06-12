@@ -19,10 +19,11 @@ import type { AppContext } from '../context.js';
 import { assertStudentPortalAccess } from '../lib/student-portal-access.js';
 import {
   readCachedInvestmentMarketData,
-  refreshTwelveDataQuotes,
+  readInvestmentInstrumentDetail,
+  refreshInvestmentMarketData,
   type MarketDataSnapshotValuationDto,
-  type TwelveDataRefreshDb,
-} from '../services/market-data/twelve-data-refresh.js';
+  type InvestmentMarketRefreshDb,
+} from '../services/market-data/investment-market-refresh.js';
 import type { InvestmentMarketDataStorageDb } from '../services/market-data/investment-market-data-storage.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -79,6 +80,10 @@ const withdrawPortfolioInput = z.object({
   grossMerits: z.number().int().positive(),
 });
 
+const instrumentDetailInput = z.object({
+  instrumentId: z.string().min(1),
+});
+
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -107,8 +112,8 @@ function marketDataStorageDb(db: AppContext['db']): InvestmentMarketDataStorageD
   return db as unknown as InvestmentMarketDataStorageDb;
 }
 
-function twelveDataRefreshDb(db: AppContext['db']): TwelveDataRefreshDb {
-  return db as unknown as TwelveDataRefreshDb;
+function investmentMarketRefreshDb(db: AppContext['db']): InvestmentMarketRefreshDb {
+  return db as unknown as InvestmentMarketRefreshDb;
 }
 
 function mapNav(row: { date: Date; nav: Prisma.Decimal; dailyReturn: Prisma.Decimal }): NavDto {
@@ -431,6 +436,17 @@ export const investmentRouter = router({
   marketData: authedProcedure.query(async ({ ctx }) =>
     readCachedInvestmentMarketData({ db: marketDataStorageDb(ctx.db) }),
   ),
+
+  instrumentDetail: authedProcedure.input(instrumentDetailInput).query(async ({ ctx, input }) => {
+    const detail = await readInvestmentInstrumentDetail({
+      db: investmentMarketRefreshDb(ctx.db),
+      instrumentId: input.instrumentId,
+    });
+    if (!detail) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'investment instrument not found' });
+    }
+    return detail;
+  }),
 
   account: authedProcedure.input(studentInput).query(async ({ ctx, input }) => {
     const student = await loadActiveStudent(ctx, input.studentId);
@@ -1247,9 +1263,9 @@ export const investmentRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'full-admin access required' });
     }
 
-    return refreshTwelveDataQuotes({
+    return refreshInvestmentMarketData({
       auditUserId: ctx.user.id,
-      db: twelveDataRefreshDb(ctx.db),
+      db: investmentMarketRefreshDb(ctx.db),
       mode: 'manual',
     });
   }),

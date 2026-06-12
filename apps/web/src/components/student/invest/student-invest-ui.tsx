@@ -135,14 +135,16 @@ export function InvestmentBadge({
 
 export function TickerMark({ instrument, size = 42 }: { instrument: Instrument; size?: number }) {
   const letters =
-    instrument.type === 'etf' ? instrument.ticker.slice(0, 2) : instrument.ticker.slice(0, 1);
+    instrument.type === 'stock'
+      ? instrument.ticker.slice(0, 1)
+      : instrument.ticker.replace('/USD', '').slice(0, 3);
   return (
     <span
       aria-hidden="true"
       className={styles.tickerMark}
       style={{
         backgroundColor: instrument.color,
-        fontSize: size * (instrument.type === 'etf' ? 0.32 : 0.42),
+        fontSize: size * (instrument.type === 'stock' ? 0.42 : 0.3),
         height: size,
         width: size,
       }}

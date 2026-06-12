@@ -517,6 +517,12 @@ export function makeFakeDb(
           ) ?? null,
         ),
       ),
+      update: vi.fn((args: { data: { enabled: false }; where: { id: string } }) => {
+        const instrument = instruments.find((candidate) => candidate.id === args.where.id);
+        if (!instrument) throw new Error('missing fake instrument');
+        instrument.enabled = args.data.enabled;
+        return Promise.resolve({ id: instrument.id });
+      }),
     },
     marketDataSnapshot: {
       count: vi.fn((args: FakeMarketDataSnapshotCountArgs) =>
@@ -555,6 +561,18 @@ export function makeFakeDb(
             .map(mapSnapshot),
         ),
       ),
+    },
+    investmentNewsItem: {
+      findMany: vi.fn(() => Promise.resolve([])),
+      upsert: vi.fn((args: { create: unknown }) => Promise.resolve(args.create)),
+    },
+    investmentDividendEvent: {
+      findMany: vi.fn(() => Promise.resolve([])),
+      upsert: vi.fn((args: { create: unknown }) => Promise.resolve(args.create)),
+    },
+    investmentDividendPayment: {
+      findUnique: vi.fn(() => Promise.resolve(null)),
+      create: vi.fn((args: unknown) => Promise.resolve(args)),
     },
     students,
     guardians,
@@ -604,5 +622,8 @@ export function installInvestmentTestHooks() {
     delete process.env['INVESTMENT_NAV_SEED'];
     delete process.env['TWELVE_DATA_API_KEY'];
     delete process.env['TWELVE_DATA_BASE_URL'];
+    delete process.env['FINNHUB_API_KEY'];
+    delete process.env['FINNHUB_BASE_URL'];
+    delete process.env['YAHOO_FINANCE_BASE_URL'];
   });
 }
