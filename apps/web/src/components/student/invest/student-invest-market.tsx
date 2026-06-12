@@ -70,6 +70,8 @@ interface StockDetailProps {
 type MarketFilter = 'All' | 'Crypto' | 'ETFs' | 'Stocks';
 type MarketSort = 'largest' | 'gainers' | 'losers';
 
+const MARKET_PAGE_SIZE = 8;
+
 function instrumentLabel(type: InstrumentType): string {
   if (type === 'crypto') return 'Crypto';
   if (type === 'etf') return 'ETF';
@@ -106,6 +108,7 @@ export function InvestmentMarket({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MarketFilter>('All');
   const [sort, setSort] = useState<MarketSort>('largest');
+  const [page, setPage] = useState(1);
   const sourceInstruments = liveInstruments ?? instruments;
 
   const filteredInstruments = useMemo(() => {
@@ -122,6 +125,15 @@ export function InvestmentMarket({
         return right.price - left.price;
       });
   }, [filter, query, sort, sourceInstruments]);
+  const pageCount = Math.max(1, Math.ceil(filteredInstruments.length / MARKET_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * MARKET_PAGE_SIZE;
+  const pageEnd = Math.min(pageStart + MARKET_PAGE_SIZE, filteredInstruments.length);
+  const paginatedInstruments = filteredInstruments.slice(pageStart, pageEnd);
+
+  function resetPage(): void {
+    setPage(1);
+  }
 
   return (
     <>
@@ -144,6 +156,7 @@ export function InvestmentMarket({
           className={styles.searchInput}
           onChange={(event) => {
             setQuery(event.target.value);
+            resetPage();
           }}
           placeholder="Search Apple, Bitcoin, S&P 500..."
           type="search"
@@ -156,6 +169,7 @@ export function InvestmentMarket({
               key={item}
               onClick={() => {
                 setFilter(item);
+                resetPage();
               }}
               type="button"
             >
@@ -167,6 +181,7 @@ export function InvestmentMarket({
           className={styles.selectInput}
           onChange={(event) => {
             setSort(event.target.value as MarketSort);
+            resetPage();
           }}
           value={sort}
         >
@@ -211,7 +226,7 @@ export function InvestmentMarket({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInstruments.map((instrument) => (
+                  {paginatedInstruments.map((instrument) => (
                     <tr
                       key={instrument.ticker}
                       onClick={() => {
@@ -274,7 +289,7 @@ export function InvestmentMarket({
               </table>
             </div>
             <div className={styles.marketMobile}>
-              {filteredInstruments.map((instrument) => (
+              {paginatedInstruments.map((instrument) => (
                 <button
                   className={styles.marketMobileRow}
                   key={instrument.ticker}
@@ -303,6 +318,15 @@ export function InvestmentMarket({
                 </button>
               ))}
             </div>
+            <MarketPagination
+              currentPage={currentPage}
+              onPageChange={setPage}
+              pageCount={pageCount}
+              pageEnd={pageEnd}
+              pageStart={pageStart}
+              pageSize={MARKET_PAGE_SIZE}
+              total={filteredInstruments.length}
+            />
             {filteredInstruments.length === 0 ? (
               <p className={styles.emptyState}>{emptyMarketText(filter, query)}</p>
             ) : null}
@@ -310,6 +334,59 @@ export function InvestmentMarket({
         )}
       </InvestmentCard>
     </>
+  );
+}
+
+function MarketPagination({
+  currentPage,
+  onPageChange,
+  pageCount,
+  pageEnd,
+  pageStart,
+  pageSize,
+  total,
+}: {
+  currentPage: number;
+  onPageChange: (page: number) => void;
+  pageCount: number;
+  pageEnd: number;
+  pageStart: number;
+  pageSize: number;
+  total: number;
+}) {
+  if (total <= pageSize) return null;
+
+  return (
+    <div className={styles.paginationBar}>
+      <span className={styles.smallText}>
+        Showing {pageStart + 1}-{pageEnd} of {total}
+      </span>
+      <div className={styles.paginationControls}>
+        <button
+          className={styles.secondaryButton}
+          disabled={currentPage === 1}
+          onClick={() => {
+            onPageChange(Math.max(1, currentPage - 1));
+          }}
+          type="button"
+        >
+          Previous
+        </button>
+        <span className={styles.paginationCount}>
+          Page {currentPage} of {pageCount}
+        </span>
+        <button
+          className={styles.secondaryButton}
+          disabled={currentPage === pageCount}
+          onClick={() => {
+            onPageChange(Math.min(pageCount, currentPage + 1));
+          }}
+          type="button"
+        >
+          Next
+        </button>
+      </div>
+    </div>
   );
 }
 
