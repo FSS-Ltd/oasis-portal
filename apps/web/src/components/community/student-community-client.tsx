@@ -28,6 +28,12 @@ interface TypingPayload {
   occurredAt: string;
 }
 
+const MAX_MESSAGE_LENGTH = 2000;
+const MESSAGE_PENDING_SENT_DELAY_MS = 250;
+const TYPING_BROADCAST_THROTTLE_MS = 1000;
+const TYPING_CLEAR_DELAY_MS = 3200;
+const TYPING_VISIBLE_MS = 3000;
+
 function isTypingPayload(value: unknown): value is TypingPayload {
   if (typeof value !== 'object' || value === null) return false;
   const payload = value as Record<string, unknown>;
@@ -199,11 +205,11 @@ export function StudentCommunityClient() {
 
     channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
       if (!isTypingPayload(payload) || payload.studentId === currentStudentId) return;
-      const nextTypingUntil = Date.now() + 3000;
+      const nextTypingUntil = Date.now() + TYPING_VISIBLE_MS;
       setTypingUntil(nextTypingUntil);
       window.setTimeout(() => {
         setTypingUntil((current) => (current <= Date.now() ? 0 : current));
-      }, 3200);
+      }, TYPING_CLEAR_DELAY_MS);
     });
 
     channel.subscribe();
@@ -217,7 +223,7 @@ export function StudentCommunityClient() {
   function sendTypingEvent() {
     if (!currentStudentId) return;
     const now = Date.now();
-    if (now - lastTypingSentAtRef.current < 1000) return;
+    if (now - lastTypingSentAtRef.current < TYPING_BROADCAST_THROTTLE_MS) return;
     lastTypingSentAtRef.current = now;
     void channelRef.current?.send({
       type: 'broadcast',
@@ -253,7 +259,7 @@ export function StudentCommunityClient() {
           message.id === pendingId ? { ...message, status: 'Sent' } : message,
         ),
       );
-    }, 250);
+    }, MESSAGE_PENDING_SENT_DELAY_MS);
     setBody('');
 
     try {
@@ -403,7 +409,7 @@ export function StudentCommunityClient() {
                   aria-label="Community message"
                   className="input textarea"
                   disabled={composerDisabled}
-                  maxLength={2000}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   onChange={handleBodyChange}
                   placeholder={blocked ? 'Messaging disabled' : 'Message'}
                   rows={2}

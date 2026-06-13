@@ -1,5 +1,9 @@
-import type { ProviderDividendEvent, ProviderQuoteSnapshot } from '@oasis/domain/investmentMarketData';
-import type { FinnhubDividendEvent, FinnhubNewsItem } from '@oasis/domain/investmentMarketData';
+import type {
+  FinnhubDividendEvent,
+  FinnhubNewsItem,
+  ProviderDividendEvent,
+  ProviderQuoteSnapshot,
+} from '@oasis/domain/investmentMarketData';
 
 type DecimalLike = { toString(): string } | number | string;
 
