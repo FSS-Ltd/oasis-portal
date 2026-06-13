@@ -103,8 +103,8 @@ function mapLiveInstrument(
   const price = snapshot ? snapshot.priceMerits * meritGbp : 0;
   const prevClose = snapshot ? snapshot.previousCloseMerits * meritGbp : 0;
   const volatility = fallback?.volatility ?? volatilityFromRisk(instrument.riskBand, type);
-  const seriesPrice = snapshot ? price : fallback?.price ?? 1;
-  const seriesPrevClose = snapshot ? prevClose : fallback?.prevClose ?? seriesPrice;
+  const seriesPrice = snapshot ? price : (fallback?.price ?? 1);
+  const seriesPrevClose = snapshot ? prevClose : (fallback?.prevClose ?? seriesPrice);
   const mapped: Instrument = {
     about: instrument.summary ?? fallback?.about ?? defaultInstrumentSummary(instrument),
     color: instrument.themeColor ?? fallback?.color ?? fallbackColor(type),
@@ -270,8 +270,9 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
 
   const marketFreshness = marketQuery.data?.freshness;
   const marketLoading = marketQuery.isLoading && !marketQuery.data;
-  const selectedInstrument =
-    view.ticker ? liveInstruments.find((instrument) => instrument.ticker === view.ticker) : null;
+  const selectedInstrument = view.ticker
+    ? liveInstruments.find((instrument) => instrument.ticker === view.ticker)
+    : null;
 
   const instrumentDetailQuery = api.investment.instrumentDetail.useQuery(
     { instrumentId: selectedInstrument?.instrumentId ?? '' },

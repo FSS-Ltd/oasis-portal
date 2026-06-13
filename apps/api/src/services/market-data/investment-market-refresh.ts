@@ -332,10 +332,7 @@ function mapSnapshotValuation(snapshot: MarketDataSnapshotDto): MarketDataSnapsh
     gbpPrice: snapshot.gbpPrice,
     previousCloseGbp: snapshot.previousCloseGbp,
   });
-  const learningDayReturnRate = applyLearningReturnMultiplier(
-    snapshot.dayChangePct / 100,
-    'daily',
-  );
+  const learningDayReturnRate = applyLearningReturnMultiplier(snapshot.dayChangePct / 100, 'daily');
 
   return {
     createdAt: snapshot.createdAt,
@@ -374,9 +371,13 @@ async function readCachedMarketDataSnapshots(input: {
     listEnabledInvestmentInstruments(input.db),
     loadLatestMarketDataSnapshots(input.db),
   ]);
-  const tradableInstruments = instruments.map(mapInstrument).filter((item): item is MarketDataInstrumentDto => Boolean(item));
+  const tradableInstruments = instruments
+    .map(mapInstrument)
+    .filter((item): item is MarketDataInstrumentDto => Boolean(item));
   const instrumentIds = new Set(tradableInstruments.map((instrument) => instrument.id));
-  const tradableSnapshots = snapshots.filter((snapshot) => instrumentIds.has(snapshot.instrumentId));
+  const tradableSnapshots = snapshots.filter((snapshot) =>
+    instrumentIds.has(snapshot.instrumentId),
+  );
   return {
     freshness: marketDataFreshness(
       tradableSnapshots,
@@ -556,7 +557,11 @@ async function refreshQuotes(input: {
 
   if (
     cryptoInstruments.length > 0 &&
-    !(await quotaAvailable({ creditsNeeded: cryptoInstruments.length, db: input.db, now: input.now }))
+    !(await quotaAvailable({
+      creditsNeeded: cryptoInstruments.length,
+      db: input.db,
+      now: input.now,
+    }))
   ) {
     return {
       attemptedSymbols,
@@ -741,7 +746,9 @@ async function refreshMarketEnrichment(input: {
   let dividendEventsRefreshedCount = 0;
   const newsFrom = dateKey(addDays(input.now, -NEWS_LOOKBACK_DAYS));
 
-  for (const instrument of input.instruments.filter((item) => item.newsSymbol || item.dividendSymbol)) {
+  for (const instrument of input.instruments.filter(
+    (item) => item.newsSymbol || item.dividendSymbol,
+  )) {
     if (instrument.newsSymbol) {
       try {
         const response = await input.finnhubProvider.getCompanyNews(
@@ -804,7 +811,9 @@ async function refreshMarketEnrichment(input: {
         }
       } catch (err) {
         failed.push({
-          error: { message: err instanceof Error ? err.message : 'Yahoo Finance dividend request failed' },
+          error: {
+            message: err instanceof Error ? err.message : 'Yahoo Finance dividend request failed',
+          },
           symbol: instrument.symbol,
         });
       }

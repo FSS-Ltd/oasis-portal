@@ -33,6 +33,7 @@ const emptyGroupForm: GroupFormState = {
   isPublic: true,
   active: true,
 };
+const emptyBlockForm: BlockFormState = { studentId: '', reason: '' };
 
 function groupMeta(group: AdminCommunityGroup): string {
   return [
@@ -173,7 +174,7 @@ export function AdminCommunityClient() {
   const students = studentsQuery.data ?? [];
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupForm, setGroupForm] = useState<GroupFormState>(emptyGroupForm);
-  const [blockForm, setBlockForm] = useState<BlockFormState>({ studentId: '', reason: '' });
+  const [blockForm, setBlockForm] = useState<BlockFormState>(emptyBlockForm);
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === selectedGroupId) ?? groups[0] ?? null,
     [groups, selectedGroupId],
@@ -219,7 +220,7 @@ export function AdminCommunityClient() {
       showErrorToast(error, 'Student messaging setting could not be updated.');
     },
     async onSuccess() {
-      setBlockForm({ studentId: '', reason: '' });
+      setBlockForm(emptyBlockForm);
       await utils.community.listStudentModeration.invalidate();
       showSuccessToast('Student messaging setting updated.');
     },

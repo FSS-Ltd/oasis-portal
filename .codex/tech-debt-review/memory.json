@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-12",
+  "lastRunDate": "2026-06-13",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1358,6 +1358,126 @@
       ],
       "validationStatus": "pass",
       "notes": "High-churn domain entrypoint reviewed unchanged to avoid public export contract churn."
+    },
+    "packages/db/scripts/seed-parent-portal-demo.ts": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1255,
+      "lineCountAfter": 1256,
+      "issuesFixed": [
+        "Reviewed oversized demo seed script; no safe local cleanup was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/api/src/services/market-data/investment-market-refresh.ts": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1059,
+      "lineCountAfter": 1069,
+      "issuesFixed": [
+        "Formatted selected market refresh service to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/api/src/routers/community.ts": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 685,
+      "lineCountAfter": 687,
+      "issuesFixed": [
+        "Named the repeated community group not-found message."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "packages/db/scripts/backfill-talia-pace-scores.ts": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 661,
+      "lineCountAfter": 668,
+      "issuesFixed": [
+        "Reviewed oversized PACE backfill script; formatting now passes and no safe local cleanup was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/api/src/services/market-data/investment-market-data-storage.ts": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 576,
+      "lineCountAfter": 581,
+      "issuesFixed": [
+        "Formatted selected storage service and consolidated duplicate type imports."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/web/src/components/student/invest/student-invest-pages.tsx": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 499,
+      "lineCountAfter": 505,
+      "issuesFixed": [
+        "Extracted whole-merit parsing and quick-amount constants from repeated inline UI logic."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/web/src/components/student/invest/student-invest-client.tsx": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 498,
+      "lineCountAfter": 500,
+      "issuesFixed": [
+        "Formatted selected investment client to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/web/src/components/community/admin-community-client.tsx": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 479,
+      "lineCountAfter": 481,
+      "issuesFixed": [
+        "Extracted the empty messaging block form state constant."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "packages/domain/src/investmentTransactions.ts": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 457,
+      "lineCountAfter": 479,
+      "issuesFixed": [
+        "Extracted shared full-exit cost-basis and non-zero ledger row helpers."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/web/src/components/community/student-community-client.tsx": {
+      "lastReviewedAt": "2026-06-13",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 426,
+      "lineCountAfter": 433,
+      "issuesFixed": [
+        "Named community message length and typing/pending timing constants."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
     }
   },
   "deferredFiles": {

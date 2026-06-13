@@ -2,6 +2,7 @@ import { computeWithdrawalFee } from './investmentSim.js';
 import type { LedgerRow } from './meritLedger.js';
 
 const UNIT_SCALE = 1_000_000;
+const FULL_EXIT_UNIT_EPSILON = 1 / UNIT_SCALE;
 export const DEFAULT_INVESTMENT_WITHDRAWAL_FEE_PCT = 5;
 export const DEFAULT_INVESTMENT_CAPITAL_GAINS_TAX_PCT = 15;
 
@@ -77,6 +78,24 @@ function requirePositiveFinite(value: number, label: string): void {
 
 function unitsToSixDecimals(value: number): number {
   return Math.floor(value * UNIT_SCALE) / UNIT_SCALE;
+}
+
+function isFullUnitExit(currentUnits: number, units: number): boolean {
+  return Math.abs(currentUnits - units) < FULL_EXIT_UNIT_EPSILON;
+}
+
+function allocatedCostBasisMerits(params: {
+  currentUnits: number;
+  totalCostBasisMerits: number;
+  units: number;
+}): number {
+  return isFullUnitExit(params.currentUnits, params.units)
+    ? params.totalCostBasisMerits
+    : Math.floor(params.totalCostBasisMerits * (params.units / params.currentUnits));
+}
+
+function nonZeroLedgerRows(rows: LedgerRow[]): LedgerRow[] {
+  return rows.filter((row) => row.delta !== 0);
 }
 
 export function planInvestmentBuy(params: {
@@ -212,10 +231,11 @@ export function planInvestmentHoldingCashSell(params: {
     throw new Error('cannot sell more units than currently held');
   }
 
-  const isFullExit = Math.abs(params.currentUnits - params.units) < 1 / UNIT_SCALE;
-  const costBasisMerits = isFullExit
-    ? params.totalCostBasisMerits
-    : Math.floor(params.totalCostBasisMerits * (params.units / params.currentUnits));
+  const costBasisMerits = allocatedCostBasisMerits({
+    currentUnits: params.currentUnits,
+    totalCostBasisMerits: params.totalCostBasisMerits,
+    units: params.units,
+  });
   const grossMerits = Math.floor(params.units * params.currentPriceMerits);
   const investmentGainMerits = grossMerits - costBasisMerits;
   const investmentReturnDelta = -investmentGainMerits;
@@ -240,7 +260,7 @@ export function planInvestmentHoldingCashSell(params: {
     costBasisMerits,
     grossMerits,
     investmentReturnDelta,
-    ledgerRows: ledgerRows.filter((row) => row.delta !== 0),
+    ledgerRows: nonZeroLedgerRows(ledgerRows),
     remainingUnits,
     unitsSold: params.units,
   };
@@ -296,10 +316,11 @@ export function planInvestmentSell(params: {
     throw new Error('cannot sell more units than currently held');
   }
 
-  const isFullExit = Math.abs(params.currentUnits - params.units) < 1 / UNIT_SCALE;
-  const costBasisMerits = isFullExit
-    ? params.totalCostBasisMerits
-    : Math.floor(params.totalCostBasisMerits * (params.units / params.currentUnits));
+  const costBasisMerits = allocatedCostBasisMerits({
+    currentUnits: params.currentUnits,
+    totalCostBasisMerits: params.totalCostBasisMerits,
+    units: params.units,
+  });
   const proceedsMerits = Math.floor(params.units * params.nav);
   const feeMerits = computeWithdrawalFee({
     proceedsMerits,
@@ -341,7 +362,7 @@ export function planInvestmentSell(params: {
     netMerits,
     costBasisMerits,
     investmentReturnDelta,
-    ledgerRows: ledgerRows.filter((row) => row.delta !== 0),
+    ledgerRows: nonZeroLedgerRows(ledgerRows),
   };
 }
 
@@ -449,7 +470,7 @@ export function planInvestmentPortfolioWithdrawal(params: {
     feeMerits,
     grossMerits: params.grossMerits,
     investmentReturnDelta,
-    ledgerRows: ledgerRows.filter((row) => row.delta !== 0),
+    ledgerRows: nonZeroLedgerRows(ledgerRows),
     netMerits,
     sales: sales.filter((sale) => sale.grossMerits > 0 && sale.unitsSold > 0),
     taxMerits,

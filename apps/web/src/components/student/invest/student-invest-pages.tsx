@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowRight, Info } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   capitalGainsTaxPct,
@@ -15,6 +15,8 @@ import {
 } from './student-invest-data';
 import { AreaChart, InvestmentCard, MeritIcon, RangeTabs } from './student-invest-ui';
 import styles from './student-invest.module.css';
+
+const QUICK_AMOUNTS = [5, 10, 25] as const;
 
 interface PortfolioPageProps {
   holdings: readonly AccountHolding[];
@@ -40,6 +42,10 @@ interface WithdrawPageProps {
   portfolioCostBasisMerits: number;
   portfolioValueMerits: number;
   spendBalance: number;
+}
+
+function parseWholeMerits(value: string): number {
+  return Math.floor(Number.parseFloat(value) || 0);
 }
 
 export function InvestmentPortfolioPage({
@@ -114,7 +120,7 @@ export function InvestmentInvestPage({
   spendBalance,
 }: InvestPageProps) {
   const [amount, setAmount] = useState('');
-  const merits = Math.floor(Number.parseFloat(amount) || 0);
+  const merits = parseWholeMerits(amount);
   const cashAfter = investmentCashMerits + merits;
   const spendAfter = spendBalance - merits;
   const valid = merits > 0 && merits <= Math.floor(spendBalance);
@@ -188,7 +194,7 @@ export function InvestmentWithdrawPage({
   spendBalance,
 }: WithdrawPageProps) {
   const [amount, setAmount] = useState('');
-  const grossMerits = Math.floor(Number.parseFloat(amount) || 0);
+  const grossMerits = parseWholeMerits(amount);
   const fee = Math.floor((grossMerits * withdrawFeePct) / 100);
   const estimatedCostBasis =
     portfolioValueMerits > 0
@@ -430,7 +436,6 @@ function AmountInput({
   max: number;
   onAmount: (value: string) => void;
 }) {
-  const quick = useMemo(() => [5, 10, 25], []);
   return (
     <>
       <label className={styles.fieldLabel} htmlFor={id}>
@@ -448,7 +453,7 @@ function AmountInput({
         value={amount}
       />
       <div className={styles.quickAmounts}>
-        {quick.map((value) => (
+        {QUICK_AMOUNTS.map((value) => (
           <button
             className={styles.chipButton}
             disabled={value > max}

@@ -581,3 +581,49 @@
 
 ### Follow-Ups Deferred
 - Oversized router test files remain candidates for a dedicated test-suite cleanup pass; deferred today to avoid mixing production-source maintenance with larger test restructuring.
+
+## 2026-06-13 - Pass 1
+
+### Selected Files
+1. `packages/db/scripts/seed-parent-portal-demo.ts`
+2. `apps/api/src/services/market-data/investment-market-refresh.ts`
+3. `apps/api/src/routers/community.ts`
+4. `packages/db/scripts/backfill-talia-pace-scores.ts`
+5. `apps/api/src/services/market-data/investment-market-data-storage.ts`
+6. `apps/web/src/components/student/invest/student-invest-pages.tsx`
+7. `apps/web/src/components/student/invest/student-invest-client.tsx`
+8. `apps/web/src/components/community/admin-community-client.tsx`
+9. `packages/domain/src/investmentTransactions.ts`
+10. `apps/web/src/components/community/student-community-client.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: API, web, domain, and DB typechecks passed before edits.
+- Tests: focused tests were run after helper refactors; no baseline test failures were observed.
+
+### Changes Made
+- `packages/db/scripts/seed-parent-portal-demo.ts`: reviewed oversized seed script and left unchanged; no safe local cleanup was justified.
+- `apps/api/src/services/market-data/investment-market-refresh.ts`: formatted selected service to satisfy Prettier.
+- `apps/api/src/routers/community.ts`: named the repeated community group not-found message.
+- `packages/db/scripts/backfill-talia-pace-scores.ts`: reviewed oversized backfill script and confirmed formatting passes; no safe local cleanup was justified.
+- `apps/api/src/services/market-data/investment-market-data-storage.ts`: consolidated duplicate type imports and formatted the selected file.
+- `apps/web/src/components/student/invest/student-invest-pages.tsx`: extracted whole-merit parsing and quick-amount constants.
+- `apps/web/src/components/student/invest/student-invest-client.tsx`: formatted selected investment client to satisfy Prettier.
+- `apps/web/src/components/community/admin-community-client.tsx`: extracted the empty messaging block form state constant.
+- `packages/domain/src/investmentTransactions.ts`: extracted shared full-exit cost-basis and non-zero ledger row helpers.
+- `apps/web/src/components/community/student-community-client.tsx`: named message length and typing/pending timing constants.
+
+### Validation
+- lint command: pass - `pnpm exec eslint -- <selected files>`; `pnpm --filter @oasis/api lint`; `pnpm --filter @oasis/web lint`; `pnpm --filter @oasis/domain lint`; `pnpm --filter @oasis/db lint`
+- typecheck command: pass - `pnpm --filter @oasis/api typecheck`; `pnpm --filter @oasis/web typecheck`; `pnpm --filter @oasis/domain typecheck`; `pnpm --filter @oasis/db typecheck`
+- relevant tests: pass - `pnpm --filter @oasis/domain test -- investmentTransactions.test.ts`; `pnpm --filter @oasis/api test -- community.router.test.ts investment-market-refresh.test.ts`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Large DB seed and backfill scripts remain oversized; deeper extraction was deferred because it would increase review risk without a local lint/type bug to fix.

@@ -10,6 +10,7 @@ type AuthedContext = AppContext & { user: SessionUser };
 const CENTRAL_GROUP_TITLE = 'Central Community';
 const CENTRAL_GROUP_DESCRIPTION = 'A place for all students to interact safely.';
 const MAX_MESSAGE_LENGTH = 2000;
+const COMMUNITY_GROUP_NOT_FOUND_MESSAGE = 'community group not found';
 
 const communitySettingsSelect = Prisma.validator<Prisma.StudentPortalSettingsSelect>()({
   communityMessagingBlocked: true,
@@ -223,7 +224,7 @@ async function assertStudentGroupAccess(
   });
 
   if (!group || !group.active || !isActiveMember(group, studentId)) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'community group not found' });
+    throw new TRPCError({ code: 'NOT_FOUND', message: COMMUNITY_GROUP_NOT_FOUND_MESSAGE });
   }
 
   return group;
@@ -407,7 +408,7 @@ export function createCommunityRouter() {
       });
 
       if (!group || !group.active || (!group.isPublic && !isActiveMember(group, student.id))) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'community group not found' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: COMMUNITY_GROUP_NOT_FOUND_MESSAGE });
       }
 
       await ctx.db.communityGroupMember.upsert({
@@ -454,7 +455,7 @@ export function createCommunityRouter() {
         include: groupAccessInclude,
       });
       if (!group) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'community group not found' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: COMMUNITY_GROUP_NOT_FOUND_MESSAGE });
       }
 
       const messages = await listMessages(ctx, input.groupId);
@@ -568,7 +569,7 @@ export function createCommunityRouter() {
         include: groupAccessInclude,
       });
       if (!group) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'community group not found' });
+        throw new TRPCError({ code: 'NOT_FOUND', message: COMMUNITY_GROUP_NOT_FOUND_MESSAGE });
       }
 
       const member = await ctx.db.communityGroupMember.upsert({
