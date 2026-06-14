@@ -1,8 +1,8 @@
 # Student Community Messaging Design
 
-Status: Approved for implementation  
-Owner: Technical Agent  
-Date: 2026-06-12  
+Status: Approved for implementation
+Owner: Technical Agent
+Date: 2026-06-12
 Branch: `feat/student-community`
 
 ## Problem
