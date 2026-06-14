@@ -627,3 +627,52 @@
 
 ### Follow-Ups Deferred
 - Large DB seed and backfill scripts remain oversized; deeper extraction was deferred because it would increase review risk without a local lint/type bug to fix.
+
+## 2026-06-14 - Pass 1
+
+### Selected Files
+1. `apps/api/src/services/tithe-run.ts`
+2. `apps/web/src/components/student/student-home-client.tsx`
+3. `apps/web/src/components/clubs/linked-child-club-detail-client.tsx`
+4. `apps/mobile/src/components/smoke/parent-message-inbox.tsx`
+5. `apps/web/src/components/incidents/incident-staff-workflow-state.ts`
+6. `apps/web/src/components/faith-corner/faith-corner-admin-client.tsx`
+7. `apps/web/src/app/(admin)/admin/attendance/attendance-export-centre.tsx`
+8. `apps/mobile/src/components/smoke/smoke-ui.tsx`
+9. `apps/mobile/src/components/smoke/parent-smoke-clubs.tsx`
+10. `apps/web/src/app/(admin)/admin/page.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed after rerunning with quoted route-group paths.
+- Typecheck: `pnpm --filter @oasis/api typecheck`, `pnpm --filter @oasis/web typecheck`, and `pnpm --filter @oasis/mobile typecheck` passed before edits.
+- Tests: not run before edits; focused API test discovery found tithe router coverage.
+- Format: selected-file Prettier check failed for `apps/api/src/services/tithe-run.ts`, `apps/web/src/components/clubs/linked-child-club-detail-client.tsx`, and `apps/web/src/components/faith-corner/faith-corner-admin-client.tsx`.
+
+### Changes Made
+- `apps/api/src/services/tithe-run.ts`: Formatted selected service file to satisfy Prettier.
+- `apps/web/src/components/student/student-home-client.tsx`: Cached repeated date formatters used by the student dashboard hero.
+- `apps/web/src/components/clubs/linked-child-club-detail-client.tsx`: Cached repeated club detail date and date-time formatters. Formatted selected component to satisfy Prettier.
+- `apps/mobile/src/components/smoke/parent-message-inbox.tsx`: Extracted the thread count label into a small local helper.
+- `apps/web/src/components/incidents/incident-staff-workflow-state.ts`: Extracted duplicated incident staff-kind filtering into a typed local helper.
+- `apps/web/src/components/faith-corner/faith-corner-admin-client.tsx`: Formatted selected admin Faith Corner component to satisfy Prettier.
+- `apps/web/src/app/(admin)/admin/attendance/attendance-export-centre.tsx`: Extracted attendance status breakdown point creation into a local helper.
+- `apps/mobile/src/components/smoke/smoke-ui.tsx`: Reviewed lint, format, type surface, and component structure; no safe source change needed.
+- `apps/mobile/src/components/smoke/parent-smoke-clubs.tsx`: Extracted selected linked-child fallback lookup into a local helper.
+- `apps/web/src/app/(admin)/admin/page.tsx`: Replaced repeated attendance status filtering with a single local counting helper.
+
+### Validation
+- lint command: pass, `pnpm exec eslint <selected files>`, `pnpm --filter @oasis/api lint`, `pnpm --filter @oasis/web lint`, `pnpm --filter @oasis/mobile lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`, `pnpm --filter @oasis/web typecheck`, `pnpm --filter @oasis/mobile typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api test -- src/__tests__/tithe.router.test.ts` completed 39 API test files / 821 tests
+- graph update: pass, `graphify update .`
+- diff hygiene: pass, `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- None.

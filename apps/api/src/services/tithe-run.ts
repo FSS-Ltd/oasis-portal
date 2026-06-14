@@ -67,12 +67,9 @@ export interface ManualTithePaymentDto extends ManualTitheStatusDto {
 }
 
 function mapConfig(input: TitheConfigRow): ManualTitheConfigDto {
-  const cadence = input.cadence && isValidTitheCadence(input.cadence)
-    ? input.cadence
-    : DEFAULT_TITHE_CADENCE;
-  const mode = input.mode && isValidTithePaymentMode(input.mode)
-    ? input.mode
-    : DEFAULT_TITHE_MODE;
+  const cadence =
+    input.cadence && isValidTitheCadence(input.cadence) ? input.cadence : DEFAULT_TITHE_CADENCE;
+  const mode = input.mode && isValidTithePaymentMode(input.mode) ? input.mode : DEFAULT_TITHE_MODE;
 
   return {
     studentId: input.studentId,

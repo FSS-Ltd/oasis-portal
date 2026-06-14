@@ -33,7 +33,9 @@ function formatDate(value: Date | null): string {
 export function FaithCornerAdminClient() {
   const utils = api.useUtils();
   const current = api.faithCorner.currentForAdmin.useQuery(undefined, { retry: false });
-  const pendingComments = api.faithCorner.pendingCommentsForAdmin.useQuery(undefined, { retry: false });
+  const pendingComments = api.faithCorner.pendingCommentsForAdmin.useQuery(undefined, {
+    retry: false,
+  });
   const [form, setForm] = useState<FaithCornerForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -104,7 +106,10 @@ export function FaithCornerAdminClient() {
       </section>
 
       <div className="faith-corner-admin-layout">
-        <section className="panel panel__body faith-corner-admin-form" aria-labelledby="faith-corner-form-title">
+        <section
+          className="panel panel__body faith-corner-admin-form"
+          aria-labelledby="faith-corner-form-title"
+        >
           <div className="panel__header">
             <div>
               <p className="eyebrow">Managed content</p>
@@ -189,7 +194,10 @@ export function FaithCornerAdminClient() {
           </form>
         </section>
 
-        <section className="panel panel__body faith-corner-preview" aria-labelledby="faith-corner-preview-title">
+        <section
+          className="panel panel__body faith-corner-preview"
+          aria-labelledby="faith-corner-preview-title"
+        >
           <div className="panel__header">
             <div>
               <p className="eyebrow">Current student view</p>
@@ -219,7 +227,10 @@ export function FaithCornerAdminClient() {
             </article>
           ) : null}
           {current.data && !current.data.ready ? (
-            <EmptyState detail="Publish content before students see Faith Corner." title="No content" />
+            <EmptyState
+              detail="Publish content before students see Faith Corner."
+              title="No content"
+            />
           ) : null}
         </section>
 
@@ -235,12 +246,20 @@ export function FaithCornerAdminClient() {
             <MessageCircle aria-hidden="true" size={20} />
           </div>
 
-          {pendingComments.isLoading ? <div className="empty-state">Loading comments...</div> : null}
+          {pendingComments.isLoading ? (
+            <div className="empty-state">Loading comments...</div>
+          ) : null}
           {pendingComments.error ? (
-            <EmptyState detail={friendlyErrorMessage(pendingComments.error)} title="Comments unavailable" />
+            <EmptyState
+              detail={friendlyErrorMessage(pendingComments.error)}
+              title="Comments unavailable"
+            />
           ) : null}
           {pendingComments.data?.length === 0 ? (
-            <EmptyState detail="New student comments will appear here before they are visible to children." title="No pending comments" />
+            <EmptyState
+              detail="New student comments will appear here before they are visible to children."
+              title="No pending comments"
+            />
           ) : null}
           {pendingComments.data && pendingComments.data.length > 0 ? (
             <div className="faith-corner-comment-review-list">
@@ -249,7 +268,9 @@ export function FaithCornerAdminClient() {
                   <div>
                     <small>{comment.weeklyTheme}</small>
                     <h3>{comment.authorFirstName}</h3>
-                    <time dateTime={comment.createdAt.toISOString()}>{formatDate(comment.createdAt)}</time>
+                    <time dateTime={comment.createdAt.toISOString()}>
+                      {formatDate(comment.createdAt)}
+                    </time>
                   </div>
                   <p>{comment.body}</p>
                   <div className="faith-corner-comment-review__actions">

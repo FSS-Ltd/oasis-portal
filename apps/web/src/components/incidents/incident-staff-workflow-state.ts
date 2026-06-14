@@ -188,6 +188,15 @@ function timeInputValue(value: Date | string | null): string {
   return date.toISOString().slice(11, 16);
 }
 
+function staffIdsForKind(
+  staff: StaffIncident['staff'],
+  kind: StaffIncident['staff'][number]['kind'],
+): string[] {
+  return staff
+    .filter((staffMember) => staffMember.kind === kind)
+    .map((staffMember) => staffMember.userId);
+}
+
 export function incidentFormFromReport(report: StaffIncident): IncidentFormState {
   return {
     activity: report.activity ?? '',
@@ -216,15 +225,11 @@ export function incidentFormFromReport(report: StaffIncident): IncidentFormState
     riddorCheck: report.riddorCheck,
     severity: report.severity as IncidentSeverity,
     socialCarePoliceReferral: report.socialCarePoliceReferral,
-    staffIds: report.staff
-      .filter((staffMember) => staffMember.kind === 'StaffInvolved')
-      .map((staffMember) => staffMember.userId),
+    staffIds: staffIdsForKind(report.staff, 'StaffInvolved'),
     studentIds: report.students.map((student) => student.studentId),
     type: report.type as IncidentType,
     witnesses: report.witnesses ?? '',
-    witnessStaffIds: report.staff
-      .filter((staffMember) => staffMember.kind === 'Witness')
-      .map((staffMember) => staffMember.userId),
+    witnessStaffIds: staffIdsForKind(report.staff, 'Witness'),
   };
 }
 

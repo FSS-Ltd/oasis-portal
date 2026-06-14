@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-13",
+  "lastRunDate": "2026-06-14",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1478,6 +1478,127 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
+    },
+    "apps/api/src/services/tithe-run.ts": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 313,
+      "lineCountAfter": 310,
+      "issuesFixed": [
+        "Formatted selected service file to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as the largest unreviewed source file; formatting-only change preserved tithe behaviour."
+    },
+    "apps/web/src/components/student/student-home-client.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 296,
+      "lineCountAfter": 297,
+      "issuesFixed": [
+        "Cached repeated date formatters used by the student dashboard hero."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed student dashboard UI; cached formatters only."
+    },
+    "apps/web/src/components/clubs/linked-child-club-detail-client.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 293,
+      "lineCountAfter": 293,
+      "issuesFixed": [
+        "Cached repeated club detail date and date-time formatters.",
+        "Formatted selected component to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed clubs UI; no route or data contract changes."
+    },
+    "apps/mobile/src/components/smoke/parent-message-inbox.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 292,
+      "lineCountAfter": 294,
+      "issuesFixed": [
+        "Extracted the thread count label into a small local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed mobile parent messaging UI; label logic preserved."
+    },
+    "apps/web/src/components/incidents/incident-staff-workflow-state.ts": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 291,
+      "lineCountAfter": 296,
+      "issuesFixed": [
+        "Extracted duplicated incident staff-kind filtering into a typed local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed incident form state helper; safeguarding semantics preserved."
+    },
+    "apps/web/src/components/faith-corner/faith-corner-admin-client.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 287,
+      "lineCountAfter": 308,
+      "issuesFixed": [
+        "Formatted selected admin Faith Corner component to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed Faith Corner admin UI; formatting-only change."
+    },
+    "apps/web/src/app/(admin)/admin/attendance/attendance-export-centre.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 286,
+      "lineCountAfter": 288,
+      "issuesFixed": [
+        "Extracted attendance status breakdown point creation into a local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed attendance reporting UI; status values preserved."
+    },
+    "apps/mobile/src/components/smoke/smoke-ui.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 285,
+      "lineCountAfter": 285,
+      "issuesFixed": [
+        "Reviewed lint, format, type surface, and component structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed shared mobile smoke UI; left unchanged after review."
+    },
+    "apps/mobile/src/components/smoke/parent-smoke-clubs.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 284,
+      "lineCountAfter": 290,
+      "issuesFixed": [
+        "Extracted selected linked-child fallback lookup into a local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed mobile parent clubs UI; selected-child fallback preserved."
+    },
+    "apps/web/src/app/(admin)/admin/page.tsx": {
+      "lastReviewedAt": "2026-06-14",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 282,
+      "lineCountAfter": 296,
+      "issuesFixed": [
+        "Replaced repeated attendance status filtering with a single local counting helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as unreviewed admin dashboard page; attendance counts preserved."
     }
   },
   "deferredFiles": {
