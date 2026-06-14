@@ -13,6 +13,10 @@ interface InboxViewProps {
   unreadTotal: number;
 }
 
+function threadCountLabel(count: number): string {
+  return count === 1 ? '1 thread' : `${String(count)} threads`;
+}
+
 export function InboxView({
   onCompose,
   onOpenThread,
@@ -39,9 +43,7 @@ export function InboxView({
       </View>
 
       <View style={styles.inboxMetaRow}>
-        <Text style={styles.inboxMetaText}>
-          {threads.length === 1 ? '1 thread' : `${String(threads.length)} threads`}
-        </Text>
+        <Text style={styles.inboxMetaText}>{threadCountLabel(threads.length)}</Text>
         {unreadTotal > 0 ? (
           <View style={styles.unreadSummary}>
             <Text style={styles.unreadSummaryText}>{String(unreadTotal)} unread</Text>

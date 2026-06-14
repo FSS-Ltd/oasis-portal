@@ -49,6 +49,22 @@ function decrypt(value: string | null | undefined): string {
   return prisma.$enc.decrypt(value) ?? 'Unknown';
 }
 
+function countAttendanceStatuses(rows: readonly { status: string }[]): {
+  absent: number;
+  late: number;
+  onTime: number;
+} {
+  return rows.reduce(
+    (counts, row) => {
+      if (row.status === 'Present') counts.onTime += 1;
+      else if (row.status === 'Absent') counts.absent += 1;
+      else if (row.status === 'Late') counts.late += 1;
+      return counts;
+    },
+    { absent: 0, late: 0, onTime: 0 },
+  );
+}
+
 export default async function AdminIndexPage() {
   const user = await getAdminOperationsUser();
   const { start, end } = todayBounds();
@@ -93,9 +109,7 @@ export default async function AdminIndexPage() {
     prisma.termReport.count({ where: { status: { in: ['Draft', 'UnderReview'] } } }),
   ]);
 
-  const onTime = attendanceRows.filter((row) => row.status === 'Present').length;
-  const absent = attendanceRows.filter((row) => row.status === 'Absent').length;
-  const late = attendanceRows.filter((row) => row.status === 'Late').length;
+  const { absent, late, onTime } = countAttendanceStatuses(attendanceRows);
   const attendingToday = onTime + late;
   const attendanceBreakdown = `${String(absent)} absent · ${String(late)} late · ${String(
     onTime,

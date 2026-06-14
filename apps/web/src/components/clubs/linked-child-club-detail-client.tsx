@@ -25,22 +25,25 @@ const DETAIL_TABS = [
   ['work', 'Completed Work'],
 ] as const satisfies readonly [LinkedClubDetailTab, string][];
 
+const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+const dateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+
 function formatDate(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+  return dateFormatter.format(new Date(value));
 }
 
 function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
+  return dateTimeFormatter.format(new Date(value));
 }
 
 function capacityText(club: LinkedClub): string {
@@ -280,10 +283,7 @@ export function LinkedChildClubDetailClient({
       </div>
 
       {activeTab === 'attendance' ? (
-        <AttendanceTab
-          attendance={detail.attendance}
-          signedUpChildren={detail.signedUpChildren}
-        />
+        <AttendanceTab attendance={detail.attendance} signedUpChildren={detail.signedUpChildren} />
       ) : null}
       {activeTab === 'notices' ? <NoticesTab notices={detail.notices} /> : null}
       {activeTab === 'work' ? <CompletedWorkTab /> : null}

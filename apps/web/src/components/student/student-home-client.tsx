@@ -17,11 +17,14 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 type StudentDashboard = RouterOutputs['student']['dashboard'];
 type UsageStatus = RouterOutputs['student']['portalUsage']['usage'];
 
+const resetTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const fullDateFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' });
+
 function formatResetTime(value: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(value);
+  return resetTimeFormatter.format(value);
 }
 
 function nearestUsageWindow(usage: UsageStatus | undefined) {
@@ -67,9 +70,7 @@ function StudentHero({
       </div>
       <div className="student-hero__meta">
         <span>Today</span>
-        <strong>
-          {new Intl.DateTimeFormat('en-GB', { dateStyle: 'full' }).format(new Date())}
-        </strong>
+        <strong>{fullDateFormatter.format(new Date())}</strong>
         {limitedWindow ? (
           <small>
             {limitedWindow.label} limit resets at {formatResetTime(limitedWindow.status.resetAt)}

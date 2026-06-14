@@ -43,6 +43,14 @@ function maxCount(points: readonly { count: number }[]): number {
   return Math.max(1, ...points.map((point) => point.count));
 }
 
+function statusBreakdownPoints(data: AttendanceInsights): BreakdownPoint[] {
+  return [
+    { label: 'Present', count: data.summary.present },
+    { label: 'Late', count: data.summary.late },
+    { label: 'Absent', count: data.summary.absent },
+  ];
+}
+
 function TrendChart({ points }: { points: readonly TrendPoint[] }) {
   const maxTotal = Math.max(1, ...points.map((point) => point.total));
   if (points.length === 0) {
@@ -122,13 +130,7 @@ export function AttendanceExportCentre() {
   );
 
   const data = insightsQuery.data;
-  const statusPoints = data
-    ? [
-        { label: 'Present', count: data.summary.present },
-        { label: 'Late', count: data.summary.late },
-        { label: 'Absent', count: data.summary.absent },
-      ]
-    : [];
+  const statusPoints = data ? statusBreakdownPoints(data) : [];
   const reasonPoints =
     data?.absenceReasons
       .filter((reason) => reason.count > 0 || reason.reason !== 'Unknown')

@@ -30,6 +30,13 @@ function isClubFull(club: SignupClub): boolean {
   return club.capacity !== null && club.activeSignupCount >= club.capacity;
 }
 
+function selectedSignupChild(
+  rows: readonly SignupChild[],
+  selectedChildId: string,
+): SignupChild | null {
+  return rows.find((child) => child.id === selectedChildId) ?? rows[0] ?? null;
+}
+
 function ChildSelector({
   rows,
   selectedChildId,
@@ -134,8 +141,7 @@ export function ParentClubsPanel({
   onSignUp,
   onWithdraw,
 }: ParentClubsPanelProps) {
-  const selectedChild =
-    childrenRows.find((child) => child.id === selectedChildId) ?? childrenRows[0] ?? null;
+  const selectedChild = selectedSignupChild(childrenRows, selectedChildId);
   const activeSelectedChildId = selectedChild?.id ?? '';
 
   return (
