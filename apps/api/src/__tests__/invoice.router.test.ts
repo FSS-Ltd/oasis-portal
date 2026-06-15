@@ -10,6 +10,10 @@ import type { AppContext, RlsTx } from '../context.js';
 import { INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
 import { createInvoiceRouter } from '../routers/invoice.js';
 import { router } from '../trpc.js';
+import {
+  decryptTestValue as decrypt,
+  encryptTestValue as encrypt,
+} from './helpers/test-encryption.js';
 
 type InvoiceStatus = 'Draft' | 'Unpaid' | 'PaymentPending' | 'Paid';
 type BillingCadence = 'Annual' | 'Term' | 'Monthly';
@@ -317,15 +321,6 @@ const thirdStudentId = 'cstudent000000000003';
 const fourthStudentId = 'cstudent000000000004';
 const invoiceId = 'cinvoice00000000001';
 const discountId = 'cdiscount0000000001';
-
-function encrypt(value: string): string {
-  return `enc:${value}`;
-}
-
-function decrypt(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return value.replace(/^enc:/u, '');
-}
 
 function makeStudent(input: Pick<StoredStudent, 'id'> & Partial<StoredStudent>): StoredStudent {
   const names: Record<string, string> = {

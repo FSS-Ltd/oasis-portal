@@ -5,6 +5,10 @@ import type { AppContext, RlsTx } from '../context.js';
 import type { EmailClient } from '../lib/email.js';
 import { createClubRouter } from '../routers/club.js';
 import { router } from '../trpc.js';
+import {
+  decryptTestValue as decrypt,
+  encryptTestValue as encrypt,
+} from './helpers/test-encryption.js';
 
 const headUser: SessionUser = {
   id: 'chead000000000000000001',
@@ -416,15 +420,6 @@ interface FakeDb {
   leadAssignments: StoredLeadAssignment[];
   attendance: StoredClubAttendance[];
   notifications: StoredClubNotification[];
-}
-
-function encrypt(value: string): string {
-  return `enc:${value}`;
-}
-
-function decrypt(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return value.replace(/^enc:/u, '');
 }
 
 function makeClub(input: Partial<StoredClub> & Pick<StoredClub, 'id' | 'name'>): StoredClub {

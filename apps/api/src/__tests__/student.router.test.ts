@@ -4,6 +4,10 @@ import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { createStudentRouter } from '../routers/student.js';
 import { router } from '../trpc.js';
+import {
+  decryptTestValue as decrypt,
+  encryptTestValue as encrypt,
+} from './helpers/test-encryption.js';
 
 const headUser: SessionUser = {
   id: 'ckuserhead00000000000001',
@@ -220,15 +224,6 @@ interface CallerOptions {
   onWithRls?: () => void;
 }
 
-function encrypt(value: string | null | undefined): string | null {
-  return value === null || value === undefined ? null : `enc:${value}`;
-}
-
-function decrypt(value: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null;
-  return value.replace(/^enc:/u, '');
-}
-
 function blindIndex(value: string): string {
   return `bidx:${value.trim().toLowerCase()}`;
 }
@@ -310,8 +305,8 @@ function makeFaithCornerContent(
 ): StoredFaithCornerContent {
   return {
     memoryVerseReference: 'John 3:16',
-    memoryVerseTextEnc: encrypt('Memory verse') ?? '',
-    reflectionPromptEnc: encrypt('Reflection prompt') ?? '',
+    memoryVerseTextEnc: encrypt('Memory verse'),
+    reflectionPromptEnc: encrypt('Reflection prompt'),
     verseOfDayReference: null,
     verseOfDayTextEnc: null,
     active: true,
@@ -1230,8 +1225,8 @@ describe('student.dashboard', () => {
             id: 'faithdashboard000001',
             weeklyTheme: 'Walk in wisdom',
             memoryVerseReference: 'Proverbs 3:5',
-            memoryVerseTextEnc: encrypt('Trust in the Lord.') ?? '',
-            reflectionPromptEnc: encrypt('What does trust look like today?') ?? '',
+            memoryVerseTextEnc: encrypt('Trust in the Lord.'),
+            reflectionPromptEnc: encrypt('What does trust look like today?'),
           }),
         ],
         meritLedger: [

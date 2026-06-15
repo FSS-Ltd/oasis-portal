@@ -676,3 +676,54 @@
 
 ### Follow-Ups Deferred
 - None.
+
+## 2026-06-15 - Pass 1
+
+### Selected Files
+1. `apps/api/src/__tests__/admin.router.test.ts`
+2. `apps/api/src/__tests__/club.router.test.ts`
+3. `apps/api/src/__tests__/pace.router.test.ts`
+4. `apps/api/src/__tests__/attendance.router.test.ts`
+5. `apps/api/src/__tests__/behaviour.router.test.ts`
+6. `apps/api/src/__tests__/invoice.router.test.ts`
+7. `apps/api/src/__tests__/shop.router.test.ts`
+8. `apps/api/src/__tests__/childNotes.router.test.ts`
+9. `apps/api/src/__tests__/student.router.test.ts`
+10. `apps/api/src/__tests__/investment.router.test.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: `pnpm --filter @oasis/api typecheck` passed before edits.
+- Tests: focused selected router tests were reserved for post-change validation.
+- Formatting: selected-file Prettier check passed before edits.
+
+### Changes Made
+- `apps/api/src/__tests__/admin.router.test.ts`: Reused the shared fake encryption/decryption test helper.
+- `apps/api/src/__tests__/club.router.test.ts`: Replaced duplicate local fake encryption helpers with the shared API test helper.
+- `apps/api/src/__tests__/pace.router.test.ts`: Reviewed lint, type, formatting, and fixture structure; no safe source change was needed.
+- `apps/api/src/__tests__/attendance.router.test.ts`: Replaced duplicate local fake encryption helpers with the shared API test helper.
+- `apps/api/src/__tests__/behaviour.router.test.ts`: Replaced duplicate local fake encryption helpers and removed now-unnecessary string fallbacks.
+- `apps/api/src/__tests__/invoice.router.test.ts`: Replaced duplicate local fake encryption helpers with the shared API test helper.
+- `apps/api/src/__tests__/shop.router.test.ts`: Reviewed lint, type, formatting, and fixture structure; no safe source change was needed.
+- `apps/api/src/__tests__/childNotes.router.test.ts`: Reused the shared fake decryption test helper.
+- `apps/api/src/__tests__/student.router.test.ts`: Replaced duplicate local fake encryption helpers and removed now-unnecessary string fallbacks.
+- `apps/api/src/__tests__/investment.router.test.ts`: Reviewed lint, type, formatting, and fixture structure; no safe source change was needed.
+- `apps/api/src/__tests__/helpers/test-encryption.ts`: Added a shared helper for the selected API router tests' fake `enc:` convention.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/api lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api test -- admin.router.test.ts club.router.test.ts pace.router.test.ts attendance.router.test.ts behaviour.router.test.ts invoice.router.test.ts shop.router.test.ts childNotes.router.test.ts student.router.test.ts investment.router.test.ts` (Vitest ran the API suite: 39 files, 821 tests)
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff hygiene: pass, `git diff --check`
+- graph update: pass, `graphify update .` completed with the existing lower-node-count warning and refreshed graph output.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Broader splits of the oversized router test fixtures remain deferred; extracting fake DB builders would be higher risk and better handled in dedicated test-suite cleanup branches.

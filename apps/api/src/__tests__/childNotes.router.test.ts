@@ -4,6 +4,7 @@ import type { AppContext, RlsTx } from '../context.js';
 import { childLogRouter } from '../routers/childLog.js';
 import { childNotesRouter } from '../routers/childNotes.js';
 import { router } from '../trpc.js';
+import { decryptTestValue as decrypt } from './helpers/test-encryption.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
 const hodUser: SessionUser = {
@@ -222,11 +223,6 @@ const today = day('2026-04-30');
 
 function day(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
-}
-
-function decrypt(value: string | null | undefined): string | null {
-  if (!value) return null;
-  return value.replace(/^enc:/u, '');
 }
 
 function matchesStudentId(where: string | { in: string[] }, studentId: string): boolean {

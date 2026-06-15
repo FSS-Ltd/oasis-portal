@@ -3,6 +3,10 @@ import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { attendanceRouter } from '../routers/attendance.js';
 import { router } from '../trpc.js';
+import {
+  decryptTestValue as decrypt,
+  encryptTestValue as encrypt,
+} from './helpers/test-encryption.js';
 
 const headUser: SessionUser = {
   id: 'ckuserhead00000000000001',
@@ -191,15 +195,6 @@ function day(value: string): Date {
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function decrypt(value: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null;
-  return value.replace(/^enc:/u, '');
-}
-
-function encrypt(value: string): string {
-  return `enc:${value}`;
 }
 
 function makeFakeDb() {

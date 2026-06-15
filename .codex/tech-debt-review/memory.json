@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-14",
+  "lastRunDate": "2026-06-15",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1599,6 +1599,128 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as unreviewed admin dashboard page; attendance counts preserved."
+    },
+    "apps/api/src/__tests__/admin.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2974,
+      "lineCountAfter": 2971,
+      "issuesFixed": [
+        "Reused the shared test encryption/decryption helper for the fake encryption client."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; fake encryption behaviour preserved."
+    },
+    "apps/api/src/__tests__/club.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2906,
+      "lineCountAfter": 2901,
+      "issuesFixed": [
+        "Replaced duplicate local fake encryption helpers with the shared API test helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; no club router behaviour or assertions changed."
+    },
+    "apps/api/src/__tests__/pace.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2692,
+      "lineCountAfter": 2692,
+      "issuesFixed": [
+        "Reviewed oversized PACE router test for lint, type, formatting, and safe extraction opportunities."
+      ],
+      "validationStatus": "pass",
+      "notes": "No source change was justified; local helpers are tied to the PACE in-memory model."
+    },
+    "apps/api/src/__tests__/attendance.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2649,
+      "lineCountAfter": 2644,
+      "issuesFixed": [
+        "Replaced duplicate local fake encryption helpers with the shared API test helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; attendance fake DB behaviour preserved."
+    },
+    "apps/api/src/__tests__/behaviour.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2623,
+      "lineCountAfter": 2618,
+      "issuesFixed": [
+        "Replaced duplicate local fake encryption helpers with the shared API test helper.",
+        "Removed now-unnecessary string fallbacks identified by ESLint after the typed helper extraction."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; behaviour and safeguarding assertions unchanged."
+    },
+    "apps/api/src/__tests__/invoice.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2339,
+      "lineCountAfter": 2334,
+      "issuesFixed": [
+        "Replaced duplicate local fake encryption helpers with the shared API test helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; invoice PDF and payment assertions unchanged."
+    },
+    "apps/api/src/__tests__/shop.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 2249,
+      "lineCountAfter": 2249,
+      "issuesFixed": [
+        "Reviewed oversized shop router test for lint, type, formatting, and safe extraction opportunities."
+      ],
+      "validationStatus": "pass",
+      "notes": "No source change was justified; helper extraction would have increased shop fixture coupling."
+    },
+    "apps/api/src/__tests__/childNotes.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1972,
+      "lineCountAfter": 1968,
+      "issuesFixed": [
+        "Reused the shared test decryption helper for child note and drillthrough fake rows."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; sensitive note visibility assertions unchanged."
+    },
+    "apps/api/src/__tests__/student.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1787,
+      "lineCountAfter": 1782,
+      "issuesFixed": [
+        "Replaced duplicate local fake encryption helpers with the shared API test helper.",
+        "Removed now-unnecessary string fallbacks identified by ESLint after the typed helper extraction."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized API router test; student portal and invitation assertions unchanged."
+    },
+    "apps/api/src/__tests__/investment.router.test.ts": {
+      "lastReviewedAt": "2026-06-15",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1706,
+      "lineCountAfter": 1706,
+      "issuesFixed": [
+        "Reviewed oversized investment router test for lint, type, formatting, and safe extraction opportunities."
+      ],
+      "validationStatus": "pass",
+      "notes": "No source change was justified; investment accounting fixtures already rely on domain-specific setup."
     }
   },
   "deferredFiles": {
