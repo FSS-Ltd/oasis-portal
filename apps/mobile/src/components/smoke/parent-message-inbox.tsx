@@ -1,28 +1,36 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { C } from './mobile-theme';
-import type { ThreadSummary } from './parent-message-types';
+import type { ConversationSummary } from './parent-message-types';
 import { formatThreadTime, latestSenderLabel, unreadLabel } from './parent-message-utils';
 import { MutedText } from './smoke-ui';
 
 interface InboxViewProps {
+  emptyDetail: string;
+  hasMore: boolean;
+  loadingMore: boolean;
   onCompose: () => void;
-  onOpenThread: (threadId: string) => void;
+  onLoadMore: () => void;
+  onOpenConversation: (conversationId: string) => void;
   onRefresh: () => void;
   refreshing: boolean;
-  threads: ThreadSummary[];
+  conversations: ConversationSummary[];
   unreadTotal: number;
 }
 
-function threadCountLabel(count: number): string {
-  return count === 1 ? '1 thread' : `${String(count)} threads`;
+function conversationCountLabel(count: number): string {
+  return count === 1 ? '1 message' : `${String(count)} messages`;
 }
 
 export function InboxView({
+  conversations,
+  emptyDetail,
+  hasMore,
+  loadingMore,
   onCompose,
-  onOpenThread,
+  onLoadMore,
+  onOpenConversation,
   onRefresh,
   refreshing,
-  threads,
   unreadTotal,
 }: InboxViewProps) {
   return (
@@ -33,7 +41,7 @@ export function InboxView({
           <Text style={styles.largeTitle}>Messages</Text>
         </View>
         <Pressable
-          accessibilityLabel="Start a new message thread"
+          accessibilityLabel="Start a new message"
           accessibilityRole="button"
           onPress={onCompose}
           style={styles.composeButton}
@@ -43,7 +51,7 @@ export function InboxView({
       </View>
 
       <View style={styles.inboxMetaRow}>
-        <Text style={styles.inboxMetaText}>{threadCountLabel(threads.length)}</Text>
+        <Text style={styles.inboxMetaText}>{conversationCountLabel(conversations.length)}</Text>
         {unreadTotal > 0 ? (
           <View style={styles.unreadSummary}>
             <Text style={styles.unreadSummaryText}>{String(unreadTotal)} unread</Text>
@@ -57,29 +65,39 @@ export function InboxView({
         refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={refreshing} />}
         showsVerticalScrollIndicator={false}
       >
-        {threads.length === 0 ? (
-          <EmptyInbox onCompose={onCompose} />
+        {conversations.length === 0 ? (
+          <EmptyInbox detail={emptyDetail} onCompose={onCompose} />
         ) : (
-          threads.map((thread) => (
-            <ThreadRow
-              key={thread.id}
+          conversations.map((conversation) => (
+            <ConversationRow
+              conversation={conversation}
+              key={conversation.id}
               onPress={() => {
-                onOpenThread(thread.id);
+                onOpenConversation(conversation.id);
               }}
-              thread={thread}
             />
           ))
         )}
+        {hasMore ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={loadingMore}
+            onPress={onLoadMore}
+            style={[styles.primaryButton, styles.loadMoreButton]}
+          >
+            <Text style={styles.primaryButtonText}>{loadingMore ? 'Loading' : 'Load more'}</Text>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </View>
   );
 }
 
-function EmptyInbox({ onCompose }: { onCompose: () => void }) {
+function EmptyInbox({ detail, onCompose }: { detail: string; onCompose: () => void }) {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyTitle}>No messages yet</Text>
-      <MutedText>Start a message thread with the centre team.</MutedText>
+      <MutedText>{detail}</MutedText>
       <Pressable accessibilityRole="button" onPress={onCompose} style={styles.primaryButton}>
         <Text style={styles.primaryButtonText}>New Message</Text>
       </Pressable>
@@ -87,39 +105,51 @@ function EmptyInbox({ onCompose }: { onCompose: () => void }) {
   );
 }
 
-function ThreadRow({ onPress, thread }: { onPress: () => void; thread: ThreadSummary }) {
-  const latestTime = thread.latestMessage?.createdAt ?? thread.updatedAt;
-  const unread = thread.unreadCount > 0;
-  const adminName = thread.admin?.fullName ?? 'Centre team';
+function ConversationRow({
+  conversation,
+  onPress,
+}: {
+  conversation: ConversationSummary;
+  onPress: () => void;
+}) {
+  const latestTime = conversation.latestMessage?.createdAt ?? conversation.updatedAt;
+  const unread = conversation.unreadCount > 0;
+  const contact =
+    conversation.participants.find((participant) => participant.id !== conversation.currentUserId)
+      ?.fullName ??
+    conversation.admin?.fullName ??
+    'Centre team';
 
   return (
     <Pressable
-      accessibilityLabel={`${thread.subject}, ${adminName}`}
+      accessibilityLabel={`Message with ${contact}`}
       accessibilityRole="button"
       onPress={onPress}
       style={[styles.threadRow, unread ? styles.threadRowUnread : null]}
     >
       <View style={styles.threadAvatar}>
-        <Text style={styles.threadAvatarText}>{adminName.slice(0, 1)}</Text>
+        <Text style={styles.threadAvatarText}>{contact.slice(0, 1)}</Text>
       </View>
       <View style={styles.threadBody}>
         <View style={styles.threadTopLine}>
           <Text numberOfLines={1} style={styles.threadName}>
-            {adminName}
+            {contact}
           </Text>
           <Text style={styles.threadTime}>{formatThreadTime(latestTime)}</Text>
         </View>
         <Text numberOfLines={1} style={styles.threadSubject}>
-          {thread.subject}
+          {conversation.kind === 'Staffroom' ? 'Group chat' : 'Private message'}
         </Text>
         <Text numberOfLines={1} style={styles.threadLatest}>
-          {latestSenderLabel(thread)} -{' '}
-          {thread.messageCount === 1 ? '1 message' : `${String(thread.messageCount)} messages`}
+          {latestSenderLabel(conversation)} -{' '}
+          {conversation.messageCount === 1
+            ? '1 message'
+            : `${String(conversation.messageCount)} messages`}
         </Text>
       </View>
       {unread ? (
         <View style={styles.unreadBadge}>
-          <Text style={styles.unreadBadgeText}>{unreadLabel(thread.unreadCount)}</Text>
+          <Text style={styles.unreadBadgeText}>{unreadLabel(conversation.unreadCount)}</Text>
         </View>
       ) : null}
     </Pressable>
@@ -187,6 +217,11 @@ const styles = StyleSheet.create({
     color: C.navy,
     fontSize: 22,
     fontWeight: '800',
+  },
+  loadMoreButton: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginTop: 4,
   },
   primaryButton: {
     backgroundColor: C.crimson,

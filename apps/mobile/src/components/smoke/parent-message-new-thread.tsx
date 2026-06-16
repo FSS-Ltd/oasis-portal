@@ -9,14 +9,12 @@ interface NewThreadViewProps {
   formError: string | null;
   onBack: () => void;
   onSend: () => void;
-  openThreadError: string | undefined;
+  openConversationError: string | undefined;
   pending: boolean;
   recipients: Recipient[];
   sendError: string | undefined;
   setBody: (value: string) => void;
   setRecipientId: (value: string) => void;
-  setSubject: (value: string) => void;
-  subject: string;
 }
 
 export function NewThreadView({
@@ -25,16 +23,14 @@ export function NewThreadView({
   formError,
   onBack,
   onSend,
-  openThreadError,
+  openConversationError,
   pending,
   recipients,
   sendError,
   setBody,
   setRecipientId,
-  setSubject,
-  subject,
 }: NewThreadViewProps) {
-  const canSend = Boolean(activeRecipientId && subject.trim() && body.trim() && !pending);
+  const canSend = Boolean(activeRecipientId && body.trim() && !pending);
 
   return (
     <View style={styles.screen}>
@@ -97,19 +93,6 @@ export function NewThreadView({
         </View>
 
         <View style={styles.formSection}>
-          <Text style={styles.fieldLabel}>Subject</Text>
-          <TextInput
-            accessibilityLabel="Message subject"
-            maxLength={160}
-            onChangeText={setSubject}
-            placeholder="What is this about?"
-            placeholderTextColor={C.textMuted}
-            style={styles.subjectInput}
-            value={subject}
-          />
-        </View>
-
-        <View style={styles.formSection}>
           <Text style={styles.fieldLabel}>Message</Text>
           <TextInput
             accessibilityLabel="Message body"
@@ -125,7 +108,7 @@ export function NewThreadView({
         </View>
 
         {formError ? <ErrorText>{formError}</ErrorText> : null}
-        {openThreadError ? <ErrorText>{openThreadError}</ErrorText> : null}
+        {openConversationError ? <ErrorText>{openConversationError}</ErrorText> : null}
         {sendError ? <ErrorText>{sendError}</ErrorText> : null}
       </ScrollView>
     </View>
@@ -240,16 +223,5 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.45,
-  },
-  subjectInput: {
-    backgroundColor: C.surface,
-    borderColor: C.border,
-    borderRadius: 12,
-    borderWidth: 1,
-    color: C.textPrimary,
-    fontSize: 15,
-    minHeight: 46,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
   },
 });

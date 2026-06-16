@@ -7,6 +7,7 @@ import { C } from './mobile-theme';
 import { displaySchoolYearLabel } from './parent-smoke-children';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
 import { StudentLeaderboardPanel } from './student-smoke-leaderboard';
+import { ParentMessagesPanel } from './parent-smoke-messages';
 import { StudentPacePanel } from './student-smoke-pace';
 import { StudentShopPanel } from './student-smoke-shop';
 import { StudentWalletPanel } from './student-smoke-wallet';
@@ -20,16 +21,20 @@ type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StudentProfile = RouterOutputs['student']['me'];
 type MeritBalances = RouterOutputs['meritLedger']['balances'];
 type PaceDetail = RouterOutputs['pace']['forStudent'];
+type MessagePage = RouterOutputs['message']['listConversations'];
+type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type LeaderboardInput = NonNullable<Exclude<RouterInputs['leaderboard']['get'], void>>;
 type LeaderboardKind = Exclude<NonNullable<LeaderboardInput['kind']>, 'HighestDemerits'>;
-type StudentMobileTab = 'home' | 'wallet' | 'pace' | 'leaderboard' | 'shop';
+type StudentMobileTab = 'home' | 'wallet' | 'pace' | 'leaderboard' | 'shop' | 'messages';
 type TransferAccount = 'Spend' | 'Saving';
+const MESSAGE_PAGE_SIZE = 20;
 
 const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
   { id: 'home', label: 'Home', icon: 'dashboard' },
   { id: 'wallet', label: 'Wallet', icon: 'wallet' },
   { id: 'pace', label: 'PACE', icon: 'pace' },
   { id: 'leaderboard', label: 'Ranks', icon: 'leaderboard' },
+  { id: 'messages', label: 'Messages', icon: 'messages' },
   { id: 'shop', label: 'Shop', icon: 'shop' },
 ];
 
@@ -203,6 +208,8 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [usageLimitNotice, setUsageLimitNotice] = useState<string | null>(null);
+  const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
+  const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
 
   const student = api.student.me.useQuery(undefined, { retry: false });
   const studentId = student.data?.id ?? '';
@@ -236,6 +243,14 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     { retry: false },
   );
   const shopItems = api.shop.listItems.useQuery(undefined, { retry: false });
+  const conversationsQuery = api.message.listConversations.useQuery(
+    { limit: MESSAGE_PAGE_SIZE, cursor: messageCursor },
+    { retry: false },
+  );
+  const messageRecipients = api.message.listRecipients.useQuery(
+    { kind: 'StudentDirect' },
+    { retry: false },
+  );
   const transfer = api.meritLedger.transfer.useMutation();
   const heartbeat = api.student.heartbeat.useMutation({
     onError(error) {
@@ -258,7 +273,14 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     investment.isFetching ||
     (academicScreensEnabled && pace.isFetching) ||
     leaderboard.isFetching ||
-    shopItems.isFetching;
+    shopItems.isFetching ||
+    conversationsQuery.isFetching ||
+    messageRecipients.isFetching;
+  const conversations = useMemo(
+    () => messagePages.flatMap(({ page }) => page.items),
+    [messagePages],
+  );
+  const nextMessageCursor = messagePages[messagePages.length - 1]?.page.nextCursor ?? null;
   const queryError = firstError(
     usageLimitNotice ?? undefined,
     studentFriendlyErrorMessage(student.error?.message) ?? undefined,
@@ -271,6 +293,8 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
       : undefined,
     studentFriendlyErrorMessage(leaderboard.error?.message) ?? undefined,
     studentFriendlyErrorMessage(shopItems.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(conversationsQuery.error?.message) ?? undefined,
+    studentFriendlyErrorMessage(messageRecipients.error?.message) ?? undefined,
   );
   const rawUsageLimitMessage = firstUsageLimitMessage([
     student.error?.message,
@@ -282,6 +306,8 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     academicScreensEnabled ? pace.error?.message : undefined,
     leaderboard.error?.message,
     shopItems.error?.message,
+    conversationsQuery.error?.message,
+    messageRecipients.error?.message,
   ]);
   const usageLimitMessage = usageLimitNotice ?? studentFriendlyErrorMessage(rawUsageLimitMessage);
 
@@ -304,7 +330,20 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
     }
   }, [academicScreensEnabled, activeTab]);
 
+  useEffect(() => {
+    if (!conversationsQuery.data) return;
+    setMessagePages((currentPages) => {
+      const nextPage = { cursor: messageCursor, page: conversationsQuery.data };
+      if (!messageCursor) return [nextPage];
+      const existingIndex = currentPages.findIndex((page) => page.cursor === messageCursor);
+      if (existingIndex === -1) return [...currentPages, nextPage];
+      return currentPages.map((page, index) => (index === existingIndex ? nextPage : page));
+    });
+  }, [conversationsQuery.data, messageCursor]);
+
   async function refresh() {
+    setMessageCursor(undefined);
+    setMessagePages([]);
     await student.refetch();
     if (studentId) {
       await Promise.all([
@@ -315,7 +354,12 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
         ...(academicScreensEnabled ? [pace.refetch()] : []),
       ]);
     }
-    await Promise.all([leaderboard.refetch(), shopItems.refetch()]);
+    await Promise.all([
+      leaderboard.refetch(),
+      shopItems.refetch(),
+      utils.message.listConversations.invalidate(),
+      messageRecipients.refetch(),
+    ]);
   }
 
   async function moveMerits(from: TransferAccount, to: TransferAccount, amount: number) {
@@ -350,6 +394,36 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
       variant="dark"
     />
   );
+
+  if (!usageLimitMessage && activeTab === 'messages') {
+    return (
+      <SafeAreaView style={styles.shell}>
+        {header}
+        <View style={styles.messagesContent}>
+          {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+          <ParentMessagesPanel
+            conversationKind="StudentDirect"
+            conversations={conversations}
+            hasMore={Boolean(nextMessageCursor)}
+            loadingMore={conversationsQuery.isFetching && Boolean(messageCursor)}
+            onLoadMore={() => {
+              if (nextMessageCursor) setMessageCursor(nextMessageCursor);
+            }}
+            onRefresh={refresh}
+            recipients={messageRecipients.data ?? []}
+            refreshing={loading}
+          />
+        </View>
+        <PortalMobileBottomNav
+          activeId={activeTab}
+          items={visibleStudentTabs}
+          primaryItemLimit={5}
+          variant="dark"
+          onSelect={setActiveTab}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.shell}>
@@ -469,6 +543,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: 12,
+  },
+  messagesContent: {
+    backgroundColor: C.bg,
+    flex: 1,
+    padding: 14,
   },
   heroName: {
     color: C.surface,

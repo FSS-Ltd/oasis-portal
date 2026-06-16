@@ -250,9 +250,11 @@ const PRODUCT_MODULES = [
       'apps/web/src/app/(clubs-lead)/',
       'apps/web/src/app/(supervisor)/supervisor/shop/',
       'apps/web/src/app/(parent)/',
+      'apps/web/src/app/(student)/student/messages/',
       'apps/web/src/components/calendar/',
       'apps/web/src/components/clubs/',
       'apps/web/src/components/invoices/',
+      'apps/web/src/components/messages/',
       'apps/web/src/components/permission-slips/',
       'apps/web/src/components/noticeboard/',
       'apps/web/src/components/reports/',
@@ -263,6 +265,7 @@ const PRODUCT_MODULES = [
       'apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-messages.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
+      'apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx',
     ],
     sharedSurfaces: [
       'apps/api/src/emails/',
@@ -270,6 +273,7 @@ const PRODUCT_MODULES = [
       'apps/api/src/services/savings-interest.ts',
       'packages/db/prisma/migrations/20260606160000_investment_market_snapshots/',
       'packages/db/prisma/migrations/20260606163000_add_requested_lse_etfs/',
+      'packages/db/prisma/migrations/20260616120000_student_direct_messages/',
     ],
   },
   {

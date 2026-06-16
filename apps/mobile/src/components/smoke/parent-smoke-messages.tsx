@@ -5,52 +5,66 @@ import { C } from './mobile-theme';
 import { ConversationView } from './parent-message-conversation';
 import { InboxView } from './parent-message-inbox';
 import { NewThreadView } from './parent-message-new-thread';
-import type { Recipient, ThreadSummary } from './parent-message-types';
+import type { ConversationSummary, Recipient } from './parent-message-types';
 
 type MessageScreen = 'inbox' | 'conversation' | 'new';
+type ConversationKind = 'ParentStaff' | 'StudentDirect';
 
 interface ParentMessagesPanelProps {
+  conversationKind?: ConversationKind;
+  conversations: ConversationSummary[];
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
   recipients: Recipient[];
-  threads: ThreadSummary[];
   refreshing?: boolean;
   onRefresh?: () => Promise<void> | void;
 }
 
 export function ParentMessagesPanel({
+  conversationKind = 'ParentStaff',
+  conversations,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
   recipients,
-  threads,
   refreshing = false,
   onRefresh,
 }: ParentMessagesPanelProps) {
   const utils = api.useUtils();
   const [screen, setScreen] = useState<MessageScreen>('inbox');
-  const [selectedThreadId, setSelectedThreadId] = useState('');
+  const [selectedConversationId, setSelectedConversationId] = useState('');
   const [recipientId, setRecipientId] = useState('');
-  const [subject, setSubject] = useState('');
   const [newBody, setNewBody] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
-  const selectedSummary = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const selectedSummary =
+    conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
   const activeRecipient =
     recipients.find((recipient) => recipient.id === recipientId) ?? recipients[0];
   const activeRecipientId = activeRecipient?.id ?? '';
-  const messages = api.message.listInThread.useQuery(
-    { threadId: selectedThreadId },
-    { enabled: screen === 'conversation' && Boolean(selectedThreadId), retry: false },
+  const messages = api.message.listConversationMessages.useQuery(
+    { conversationId: selectedConversationId },
+    { enabled: screen === 'conversation' && Boolean(selectedConversationId), retry: false },
   );
-  const openThread = api.message.openThread.useMutation();
-  const sendMessage = api.message.send.useMutation();
-  const pending = openThread.isPending || sendMessage.isPending;
-  const unreadTotal = threads.reduce((count, thread) => count + thread.unreadCount, 0);
+  const openConversation = api.message.openConversation.useMutation();
+  const sendMessage = api.message.sendInConversation.useMutation();
+  const pending = openConversation.isPending || sendMessage.isPending;
+  const unreadTotal = conversations.reduce(
+    (count, conversation) => count + conversation.unreadCount,
+    0,
+  );
 
-  async function refreshMessages(threadId?: string) {
-    const tasks = [utils.message.listThreads.invalidate()];
-    if (threadId) tasks.push(utils.message.listInThread.invalidate({ threadId }));
+  async function refreshMessages(conversationId?: string) {
+    const tasks = [utils.message.listConversations.invalidate()];
+    if (conversationId) {
+      tasks.push(utils.message.listConversationMessages.invalidate({ conversationId }));
+    }
     await Promise.all(tasks);
   }
 
   async function refreshPanel() {
-    await Promise.all([onRefresh?.(), refreshMessages(selectedThreadId || undefined)]);
+    await Promise.all([onRefresh?.(), refreshMessages(selectedConversationId || undefined)]);
   }
 
   function openInbox() {
@@ -58,8 +72,8 @@ export function ParentMessagesPanel({
     setFormError(null);
   }
 
-  function openConversation(threadId: string) {
-    setSelectedThreadId(threadId);
+  function openConversationScreen(conversationId: string) {
+    setSelectedConversationId(conversationId);
     setScreen('conversation');
     setFormError(null);
   }
@@ -70,25 +84,23 @@ export function ParentMessagesPanel({
   }
 
   async function startThread() {
-    const trimmedSubject = subject.trim();
     const trimmedBody = newBody.trim();
-    if (!activeRecipientId || !trimmedSubject || !trimmedBody) {
-      setFormError('Recipient, subject, and message are required.');
+    if (!activeRecipientId || !trimmedBody) {
+      setFormError('Recipient and message are required.');
       return;
     }
 
     setFormError(null);
     try {
-      const thread = await openThread.mutateAsync({
-        adminId: activeRecipientId,
-        subject: trimmedSubject,
+      const conversation = await openConversation.mutateAsync({
+        kind: conversationKind,
+        recipientId: activeRecipientId,
       });
-      await sendMessage.mutateAsync({ threadId: thread.id, body: trimmedBody });
-      setSelectedThreadId(thread.id);
-      setSubject('');
+      await sendMessage.mutateAsync({ conversationId: conversation.id, body: trimmedBody });
+      setSelectedConversationId(conversation.id);
       setNewBody('');
       setScreen('conversation');
-      await refreshMessages(thread.id);
+      await refreshMessages(conversation.id);
     } catch {
       // Mutation errors are rendered in the active view.
     }
@@ -96,16 +108,16 @@ export function ParentMessagesPanel({
 
   async function sendReply() {
     const trimmedBody = replyBody.trim();
-    if (!selectedThreadId || !trimmedBody) {
-      setFormError('Choose a thread and enter a reply.');
+    if (!selectedConversationId || !trimmedBody) {
+      setFormError('Choose a message and enter a reply.');
       return;
     }
 
     setFormError(null);
     try {
-      await sendMessage.mutateAsync({ threadId: selectedThreadId, body: trimmedBody });
+      await sendMessage.mutateAsync({ conversationId: selectedConversationId, body: trimmedBody });
       setReplyBody('');
-      await refreshMessages(selectedThreadId);
+      await refreshMessages(selectedConversationId);
     } catch {
       // Mutation errors are rendered in the active view.
     }
@@ -118,13 +130,21 @@ export function ParentMessagesPanel({
     >
       {screen === 'inbox' ? (
         <InboxView
+          conversations={conversations}
+          emptyDetail={
+            conversationKind === 'StudentDirect'
+              ? 'Choose a student, the Head, or the Pastor to start a message.'
+              : 'Start a message with the centre team.'
+          }
+          hasMore={hasMore}
+          loadingMore={loadingMore}
           onCompose={openComposer}
-          onOpenThread={openConversation}
+          onLoadMore={onLoadMore ?? (() => undefined)}
+          onOpenConversation={openConversationScreen}
           onRefresh={() => {
             void refreshPanel();
           }}
           refreshing={refreshing}
-          threads={threads}
           unreadTotal={unreadTotal}
         />
       ) : null}
@@ -134,7 +154,7 @@ export function ParentMessagesPanel({
           detail={messages.data}
           error={messages.error?.message}
           formError={formError}
-          loading={messages.isLoading && Boolean(selectedThreadId)}
+          loading={messages.isLoading && Boolean(selectedConversationId)}
           onBack={openInbox}
           onRefresh={() => {
             void refreshPanel();
@@ -161,14 +181,12 @@ export function ParentMessagesPanel({
           onSend={() => {
             void startThread();
           }}
-          openThreadError={openThread.error?.message}
+          openConversationError={openConversation.error?.message}
           pending={pending}
           recipients={recipients}
           sendError={sendMessage.error?.message}
           setBody={setNewBody}
           setRecipientId={setRecipientId}
-          setSubject={setSubject}
-          subject={subject}
         />
       ) : null}
     </KeyboardAvoidingView>

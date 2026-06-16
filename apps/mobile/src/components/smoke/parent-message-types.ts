@@ -1,5 +1,5 @@
 import type { RouterOutputs } from '../../lib/trpc';
 
-export type ThreadSummary = RouterOutputs['message']['listThreads'][number];
-export type ThreadDetail = RouterOutputs['message']['listInThread'];
+export type ConversationSummary = RouterOutputs['message']['listConversations']['items'][number];
+export type ConversationDetail = RouterOutputs['message']['listConversationMessages'];
 export type Recipient = RouterOutputs['message']['listRecipients'][number];

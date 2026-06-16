@@ -22,6 +22,8 @@ function invalidateForRealtimeEvent(
     case OASIS_REALTIME_EVENTS.messageChanged:
     case OASIS_REALTIME_EVENTS.messageReadChanged:
     case OASIS_REALTIME_EVENTS.messageThreadChanged:
+      void utils.message.listConversations.invalidate();
+      void utils.message.listConversationMessages.invalidate();
       void utils.message.listThreads.invalidate();
       void utils.message.listInThread.invalidate({ threadId: event.threadId });
       return;

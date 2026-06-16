@@ -1,4 +1,4 @@
-import type { ThreadSummary } from './parent-message-types';
+import type { ConversationSummary } from './parent-message-types';
 
 export function formatDateTime(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -30,12 +30,15 @@ export function formatThreadTime(value: Date | string): string {
   }).format(date);
 }
 
-export function latestSenderLabel(thread: ThreadSummary): string {
-  const latest = thread.latestMessage;
+export function latestSenderLabel(conversation: ConversationSummary): string {
+  const latest = conversation.latestMessage;
   if (!latest) return 'No messages yet';
-  return latest.senderId === thread.parentId
+  const otherParticipant = conversation.participants.find(
+    (participant) => participant.id !== conversation.currentUserId,
+  );
+  return latest.senderId === conversation.currentUserId
     ? 'You sent the latest message'
-    : `${thread.admin?.fullName ?? 'Centre team'} replied`;
+    : `${otherParticipant?.fullName ?? conversation.admin?.fullName ?? 'Contact'} replied`;
 }
 
 export function unreadLabel(count: number): string {
