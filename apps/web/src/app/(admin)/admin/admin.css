@@ -2867,6 +2867,12 @@
   display: grid;
 }
 
+.message-list-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px 16px;
+}
+
 .message-thread-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

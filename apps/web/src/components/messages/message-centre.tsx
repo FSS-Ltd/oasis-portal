@@ -7,12 +7,14 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Field, SelectInput, TextInput } from '@/components/ui/field';
+import { Field, SelectInput } from '@/components/ui/field';
 
-type MessageMode = 'admin' | 'parent' | 'supervisor';
-type ThreadKind = 'ParentStaff' | 'SupervisorHead' | 'StaffDirect';
-type ThreadSummary = RouterOutputs['message']['listThreads'][number];
-type ThreadDetail = RouterOutputs['message']['listInThread'];
+type MessageMode = 'admin' | 'parent' | 'supervisor' | 'student';
+type ConversationKind = 'ParentStaff' | 'SupervisorHead' | 'StaffDirect' | 'StudentDirect';
+type ConversationPage = RouterOutputs['message']['listConversations'];
+type LoadedConversationPage = { cursor: string | undefined; page: ConversationPage };
+type ConversationSummary = ConversationPage['items'][number];
+type ConversationDetail = RouterOutputs['message']['listConversationMessages'];
 type Recipient = RouterOutputs['message']['listRecipients'][number];
 
 interface MessageCentreProps {
@@ -25,35 +27,47 @@ const copy = {
     heading: 'Messages',
     sub: 'Private staff conversations and staffroom updates.',
     emptyTitle: 'No staff messages',
-    emptyDetail: 'Start a staff thread or open the staffroom.',
+    emptyDetail: 'Start a staff message or open the staffroom.',
     replyPlaceholder: 'Type your reply...',
-    threadListLabel: 'Staff message threads',
+    conversationListLabel: 'Staff messages',
   },
   parent: {
     eyebrow: 'Centre communications',
     heading: 'Messages',
     sub: 'Message the centre team from your parent portal.',
     emptyTitle: 'No messages yet',
-    emptyDetail: 'Start a message thread with the centre team.',
+    emptyDetail: 'Start a message with the centre team.',
     replyPlaceholder: 'Type your message...',
-    threadListLabel: 'Your message threads',
+    conversationListLabel: 'Your messages',
   },
   supervisor: {
     eyebrow: 'Staff communications',
     heading: 'Messages',
     sub: 'Message colleagues privately or use the staffroom.',
     emptyTitle: 'No messages yet',
-    emptyDetail: 'Start a staff thread or open the staffroom.',
+    emptyDetail: 'Start a staff message or open the staffroom.',
     replyPlaceholder: 'Type your message...',
-    threadListLabel: 'Your message threads',
+    conversationListLabel: 'Your messages',
+  },
+  student: {
+    eyebrow: 'Student communications',
+    heading: 'Messages',
+    sub: 'Message other students, the Head, or the Pastor.',
+    emptyTitle: 'No messages yet',
+    emptyDetail: 'Choose a contact and send your first message.',
+    replyPlaceholder: 'Type your message...',
+    conversationListLabel: 'Your messages',
   },
 } as const;
 
-const threadKindByMode: Record<MessageMode, ThreadKind | null> = {
+const conversationKindByMode: Record<MessageMode, ConversationKind | null> = {
   admin: 'StaffDirect',
   parent: 'ParentStaff',
   supervisor: 'StaffDirect',
+  student: 'StudentDirect',
 };
+
+const CONVERSATION_PAGE_SIZE = 20;
 
 const messageDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
@@ -66,28 +80,38 @@ function formatDateTime(value: Date | string): string {
   return messageDateTimeFormatter.format(new Date(value));
 }
 
-function otherStaffParticipant(thread: ThreadSummary | ThreadDetail) {
-  return thread.participants.find((participant) => participant.id !== thread.currentUserId);
+function otherDirectParticipant(conversation: ConversationSummary | ConversationDetail) {
+  return conversation.participants.find(
+    (participant) => participant.id !== conversation.currentUserId,
+  );
 }
 
-function counterpartLabel(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
-  if (thread.kind === 'Staffroom') return 'Staffroom';
-  if (thread.kind === 'StaffDirect') {
-    return otherStaffParticipant(thread)?.fullName ?? 'Staff member';
+function counterpartLabel(
+  mode: MessageMode,
+  conversation: ConversationSummary | ConversationDetail,
+): string {
+  if (conversation.kind === 'Staffroom') return 'Staffroom';
+  if (conversation.kind === 'StaffDirect' || conversation.kind === 'StudentDirect') {
+    return otherDirectParticipant(conversation)?.fullName ?? 'Contact';
   }
-  if (mode === 'parent' || mode === 'supervisor') return thread.admin?.fullName ?? 'Staff member';
-  return thread.kind === 'SupervisorHead'
-    ? (thread.supervisor?.fullName ?? 'Supervisor')
-    : (thread.parent?.fullName ?? 'Parent');
+  if (mode === 'parent' || mode === 'supervisor') {
+    return conversation.admin?.fullName ?? 'Staff member';
+  }
+  return conversation.kind === 'SupervisorHead'
+    ? (conversation.supervisor?.fullName ?? 'Supervisor')
+    : (conversation.parent?.fullName ?? 'Parent');
 }
 
-function counterpartRole(mode: MessageMode, thread: ThreadSummary | ThreadDetail): string {
-  if (thread.kind === 'Staffroom') return 'Group chat';
-  if (thread.kind === 'StaffDirect') {
-    return otherStaffParticipant(thread)?.role ?? 'Staff';
+function counterpartRole(
+  mode: MessageMode,
+  conversation: ConversationSummary | ConversationDetail,
+): string {
+  if (conversation.kind === 'Staffroom') return 'Group chat';
+  if (conversation.kind === 'StaffDirect' || conversation.kind === 'StudentDirect') {
+    return otherDirectParticipant(conversation)?.role ?? 'Contact';
   }
-  if (mode === 'parent' || mode === 'supervisor') return thread.admin?.role ?? 'Staff';
-  return thread.kind === 'SupervisorHead' ? 'Supervisor' : 'Parent';
+  if (mode === 'parent' || mode === 'supervisor') return conversation.admin?.role ?? 'Staff';
+  return conversation.kind === 'SupervisorHead' ? 'Supervisor' : 'Parent';
 }
 
 function submitFormOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -97,43 +121,45 @@ function submitFormOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   event.currentTarget.form?.requestSubmit();
 }
 
-function ThreadRow({
+function ConversationRow({
   active,
+  conversation,
   mode,
   onSelect,
-  thread,
 }: {
   active: boolean;
+  conversation: ConversationSummary;
   mode: MessageMode;
-  onSelect: (threadId: string) => void;
-  thread: ThreadSummary;
+  onSelect: (conversationId: string) => void;
 }) {
-  const latest = thread.latestMessage;
+  const latest = conversation.latestMessage;
 
   return (
     <button
       aria-pressed={active}
       className={active ? 'message-thread-row is-active' : 'message-thread-row'}
       onClick={() => {
-        onSelect(thread.id);
+        onSelect(conversation.id);
       }}
       type="button"
     >
       <span>
-        <strong>{counterpartLabel(mode, thread)}</strong>
-        <small>{counterpartRole(mode, thread)}</small>
+        <strong>{counterpartLabel(mode, conversation)}</strong>
+        <small>{counterpartRole(mode, conversation)}</small>
       </span>
       <span className="message-thread-row__meta">
-        {latest ? formatDateTime(latest.createdAt) : formatDateTime(thread.createdAt)}
+        {latest ? formatDateTime(latest.createdAt) : formatDateTime(conversation.createdAt)}
       </span>
-      <em>{thread.subject}</em>
+      <em>
+        {conversation.messageCount === 1
+          ? '1 message'
+          : `${String(conversation.messageCount)} messages`}
+      </em>
       <span className="message-thread-row__footer">
-        <small>
-          {thread.messageCount === 1 ? '1 message' : `${String(thread.messageCount)} messages`}
-        </small>
-        {thread.unreadCount > 0 ? (
-          <b aria-label={`${String(thread.unreadCount)} unread messages`}>
-            {thread.unreadCount > 99 ? '99+' : String(thread.unreadCount)}
+        <small>{conversation.kind === 'Staffroom' ? 'Group chat' : 'Private message'}</small>
+        {conversation.unreadCount > 0 ? (
+          <b aria-label={`${String(conversation.unreadCount)} unread messages`}>
+            {conversation.unreadCount > 99 ? '99+' : String(conversation.unreadCount)}
           </b>
         ) : null}
       </span>
@@ -146,7 +172,7 @@ function MessageBubble({
   message,
 }: {
   currentUserId: string | null;
-  message: ThreadDetail['messages'][number];
+  message: ConversationDetail['messages'][number];
 }) {
   const mine = currentUserId === message.senderId;
 
@@ -162,28 +188,27 @@ function MessageBubble({
   );
 }
 
-function NewThreadComposer({
+function NewConversationComposer({
   kind,
   onCreated,
   recipients,
   recipientsLoading,
 }: {
-  kind: ThreadKind;
-  onCreated: (threadId: string) => void;
+  kind: ConversationKind;
+  onCreated: (conversationId: string) => void;
   recipients: Recipient[];
   recipientsLoading: boolean;
 }) {
   const utils = api.useUtils();
   const [adminId, setAdminId] = useState('');
-  const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const openThread = api.message.openThread.useMutation({
+  const openConversation = api.message.openConversation.useMutation({
     onError(error) {
-      showErrorToast(error, 'Message thread could not be started.');
+      showErrorToast(error, 'Message could not be started.');
     },
   });
-  const sendMessage = api.message.send.useMutation({
+  const sendMessage = api.message.sendInConversation.useMutation({
     onError(error) {
       showErrorToast(error, 'Message could not be sent.');
     },
@@ -195,28 +220,26 @@ function NewThreadComposer({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmedSubject = subject.trim();
     const trimmedBody = body.trim();
-    if (!adminId || !trimmedSubject || !trimmedBody) {
-      setError('Recipient, subject, and message are required.');
+    if (!adminId || !trimmedBody) {
+      setError('Recipient and message are required.');
       return;
     }
 
     setError(null);
     try {
-      const thread = await openThread.mutateAsync({ adminId, kind, subject: trimmedSubject });
-      await sendMessage.mutateAsync({ threadId: thread.id, body: trimmedBody });
-      setSubject('');
+      const conversation = await openConversation.mutateAsync({ recipientId: adminId, kind });
+      await sendMessage.mutateAsync({ conversationId: conversation.id, body: trimmedBody });
       setBody('');
-      await utils.message.listThreads.invalidate();
-      onCreated(thread.id);
+      await utils.message.listConversations.invalidate();
+      onCreated(conversation.id);
       showSuccessToast('Message sent.');
     } catch {
       // The mutation error is shown in a toast and inline below the form.
     }
   }
 
-  const pending = openThread.isPending || sendMessage.isPending;
+  const pending = openConversation.isPending || sendMessage.isPending;
 
   return (
     <section className="panel panel__body message-new-thread" aria-labelledby="new-message-title">
@@ -224,12 +247,14 @@ function NewThreadComposer({
         <div>
           <h2 id="new-message-title">New Message</h2>
           <p className="muted">
-            Start a private thread with{' '}
+            Start a private message with{' '}
             {kind === 'ParentStaff'
               ? 'the centre team'
-              : kind === 'SupervisorHead'
-                ? 'the Head team'
-                : 'another staff member'}
+              : kind === 'StudentDirect'
+                ? 'a student, the Head, or the Pastor'
+                : kind === 'SupervisorHead'
+                  ? 'the Head team'
+                  : 'another staff member'}
           </p>
         </div>
       </div>
@@ -256,17 +281,6 @@ function NewThreadComposer({
             ))}
           </SelectInput>
         </Field>
-        <Field label="Subject" required>
-          <TextInput
-            maxLength={160}
-            onChange={(event) => {
-              setSubject(event.target.value);
-            }}
-            placeholder="What is this about?"
-            required
-            value={subject}
-          />
-        </Field>
         <Field label="Message" required>
           <textarea
             className="input textarea"
@@ -283,14 +297,14 @@ function NewThreadComposer({
         </Field>
         <Button disabled={recipients.length === 0} pending={pending} type="submit">
           <MessageSquarePlus aria-hidden="true" size={16} />
-          Start Thread
+          Send Message
         </Button>
         {recipients.length === 0 && !recipientsLoading ? (
           <p className="status--error">No message recipients are currently available.</p>
         ) : null}
         {error ? <p className="status--error">{error}</p> : null}
-        {openThread.error ? (
-          <p className="status--error">{friendlyErrorMessage(openThread.error)}</p>
+        {openConversation.error ? (
+          <p className="status--error">{friendlyErrorMessage(openConversation.error)}</p>
         ) : null}
         {sendMessage.error ? (
           <p className="status--error">{friendlyErrorMessage(sendMessage.error)}</p>
@@ -301,18 +315,18 @@ function NewThreadComposer({
 }
 
 function ReplyComposer({
+  conversationId,
   disabled,
   onSent,
   placeholder,
-  threadId,
 }: {
+  conversationId: string;
   disabled: boolean;
   onSent: () => void;
   placeholder: string;
-  threadId: string;
 }) {
   const [body, setBody] = useState('');
-  const sendMessage = api.message.send.useMutation({
+  const sendMessage = api.message.sendInConversation.useMutation({
     onError(error) {
       showErrorToast(error, 'Message could not be sent.');
     },
@@ -324,7 +338,7 @@ function ReplyComposer({
     if (!trimmedBody) return;
 
     try {
-      await sendMessage.mutateAsync({ threadId, body: trimmedBody });
+      await sendMessage.mutateAsync({ conversationId, body: trimmedBody });
       setBody('');
       onSent();
       showSuccessToast('Message sent.');
@@ -372,100 +386,168 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const utils = api.useUtils();
-  const threadKind = threadKindByMode[mode];
+  const conversationKind = conversationKindByMode[mode];
   const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
   const [staffroomRequested, setStaffroomRequested] = useState(false);
-  const threadsQuery = api.message.listThreads.useQuery(undefined, { retry: false });
+  const [conversationCursor, setConversationCursor] = useState<string | undefined>(undefined);
+  const [conversationPages, setConversationPages] = useState<LoadedConversationPage[]>([]);
+  const conversationsQuery = api.message.listConversations.useQuery(
+    { limit: CONVERSATION_PAGE_SIZE, cursor: conversationCursor },
+    { retry: false },
+  );
   const openStaffroom = api.message.openStaffroom.useMutation();
   const recipientsQuery = api.message.listRecipients.useQuery(
-    threadKind ? { kind: threadKind } : undefined,
+    conversationKind ? { kind: conversationKind } : undefined,
     {
-      enabled: Boolean(threadKind),
+      enabled: Boolean(conversationKind),
       retry: false,
     },
   );
-  const threads = threadsQuery.data ?? [];
+  const conversations = useMemo(
+    () => conversationPages.flatMap(({ page }) => page.items),
+    [conversationPages],
+  );
+  const nextConversationCursor =
+    conversationPages[conversationPages.length - 1]?.page.nextCursor ?? null;
+  const queryConversationId = searchParams?.get('conversationId') ?? null;
   const queryThreadId = searchParams?.get('threadId') ?? null;
-  const selectedThreadId = useMemo(() => {
-    if (selectedOverrideId && threads.some((thread) => thread.id === selectedOverrideId)) {
+  const selectedConversationId = useMemo(() => {
+    if (
+      selectedOverrideId &&
+      conversations.some((conversation) => conversation.id === selectedOverrideId)
+    ) {
       return selectedOverrideId;
     }
-    if (queryThreadId && threads.some((thread) => thread.id === queryThreadId)) {
-      return queryThreadId;
+    if (
+      queryConversationId &&
+      conversations.some((conversation) => conversation.id === queryConversationId)
+    ) {
+      return queryConversationId;
     }
-    return threads[0]?.id ?? null;
-  }, [queryThreadId, selectedOverrideId, threads]);
-  const selectedSummary = threads.find((thread) => thread.id === selectedThreadId) ?? null;
-  const threadQuery = api.message.listInThread.useQuery(
-    { threadId: selectedThreadId ?? '' },
-    { enabled: Boolean(selectedThreadId), retry: false },
+    if (queryThreadId) {
+      return (
+        conversations.find((conversation) => conversation.threadIds.includes(queryThreadId))?.id ??
+        null
+      );
+    }
+    return conversations[0]?.id ?? null;
+  }, [conversations, queryConversationId, queryThreadId, selectedOverrideId]);
+  const selectedSummary =
+    conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
+  const conversationQuery = api.message.listConversationMessages.useQuery(
+    { conversationId: selectedConversationId ?? '' },
+    { enabled: Boolean(selectedConversationId), retry: false },
   );
-  const selectedThread = threadQuery.data ?? null;
-  const currentUserId = selectedThread?.currentUserId ?? null;
+  const selectedConversation = conversationQuery.data ?? null;
+  const currentUserId = selectedConversation?.currentUserId ?? null;
   const pageCopy = copy[mode];
-  const unreadTotal = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+  const unreadTotal = conversations.reduce(
+    (sum, conversation) => sum + conversation.unreadCount,
+    0,
+  );
 
   useEffect(() => {
-    if (mode === 'parent' || staffroomRequested || threadsQuery.isLoading) return;
-    if (threads.some((thread) => thread.kind === 'Staffroom')) return;
+    if (!conversationsQuery.data) return;
+    setConversationPages((currentPages) => {
+      const nextPage = { cursor: conversationCursor, page: conversationsQuery.data };
+      if (!conversationCursor) return [nextPage];
+      const existingIndex = currentPages.findIndex((page) => page.cursor === conversationCursor);
+      if (existingIndex === -1) return [...currentPages, nextPage];
+      return currentPages.map((page, index) => (index === existingIndex ? nextPage : page));
+    });
+  }, [conversationCursor, conversationsQuery.data]);
+
+  useEffect(() => {
+    if (
+      mode === 'parent' ||
+      mode === 'student' ||
+      staffroomRequested ||
+      conversationsQuery.isLoading
+    ) {
+      return;
+    }
+    if (conversations.some((conversation) => conversation.kind === 'Staffroom')) return;
 
     setStaffroomRequested(true);
     openStaffroom.mutate(undefined, {
       onSuccess: () => {
-        void utils.message.listThreads.invalidate();
+        setConversationCursor(undefined);
+        setConversationPages([]);
+        void utils.message.listConversations.invalidate();
       },
     });
   }, [
     mode,
     openStaffroom,
     staffroomRequested,
-    threads,
-    threadsQuery.isLoading,
-    utils.message.listThreads,
+    conversations,
+    conversationsQuery.isLoading,
+    utils.message.listConversations,
   ]);
 
   useEffect(() => {
-    if (!selectedThread) return;
-    const selectedThreadUnreadCount = selectedThread.messages.filter(
-      (message) => message.senderId !== selectedThread.currentUserId && !message.readByCurrentUser,
+    if (!selectedConversation) return;
+    const selectedConversationUnreadCount = selectedConversation.messages.filter(
+      (message) =>
+        message.senderId !== selectedConversation.currentUserId && !message.readByCurrentUser,
     ).length;
-    if (selectedSummary?.unreadCount && selectedThreadUnreadCount === 0) {
-      utils.message.listThreads.setData(undefined, (currentThreads) =>
-        currentThreads?.map((thread) =>
-          thread.id === selectedThread.id
-            ? {
-                ...thread,
-                latestMessage: thread.latestMessage
-                  ? { ...thread.latestMessage, readByCurrentUser: true }
-                  : null,
-                unreadCount: 0,
-              }
-            : thread,
-        ),
+    if (selectedSummary?.unreadCount && selectedConversationUnreadCount === 0) {
+      setConversationPages((pages) =>
+        pages.map((loadedPage) => ({
+          ...loadedPage,
+          page: {
+            ...loadedPage.page,
+            items: loadedPage.page.items.map((conversation) =>
+              conversation.id === selectedConversation.id
+                ? {
+                    ...conversation,
+                    latestMessage: conversation.latestMessage
+                      ? { ...conversation.latestMessage, readByCurrentUser: true }
+                      : null,
+                    unreadCount: 0,
+                  }
+                : conversation,
+            ),
+          },
+        })),
       );
       router.refresh();
     }
-    void utils.message.listThreads.invalidate();
-  }, [router, selectedSummary?.unreadCount, selectedThread, utils.message.listThreads]);
+    void utils.message.listConversations.invalidate();
+  }, [router, selectedConversation, selectedSummary?.unreadCount, utils.message.listConversations]);
 
-  function selectThread(threadId: string) {
-    setSelectedOverrideId(threadId);
-    const encodedThreadId = encodeURIComponent(threadId);
-    const href =
-      mode === 'parent'
-        ? `/parent/messages?threadId=${encodedThreadId}`
-        : mode === 'supervisor'
-          ? `/supervisor/messages?threadId=${encodedThreadId}`
-          : `/admin/messages?threadId=${encodedThreadId}`;
-    window.history.replaceState(null, '', href);
+  function conversationHref(conversationId: string) {
+    const encodedConversationId = encodeURIComponent(conversationId);
+    if (mode === 'parent') return `/parent/messages?conversationId=${encodedConversationId}`;
+    if (mode === 'supervisor') {
+      return `/supervisor/messages?conversationId=${encodedConversationId}`;
+    }
+    if (mode === 'student') return `/student/messages?conversationId=${encodedConversationId}`;
+    return `/admin/messages?conversationId=${encodedConversationId}`;
   }
 
-  async function refreshSelectedThread() {
-    await utils.message.listThreads.invalidate();
-    if (selectedThreadId) {
-      await utils.message.listInThread.invalidate({ threadId: selectedThreadId });
+  function selectConversation(conversationId: string) {
+    setSelectedOverrideId(conversationId);
+    window.history.replaceState(null, '', conversationHref(conversationId));
+  }
+
+  async function refreshSelectedConversation() {
+    setConversationCursor(undefined);
+    setConversationPages([]);
+    await utils.message.listConversations.invalidate();
+    if (selectedConversationId) {
+      await utils.message.listConversationMessages.invalidate({
+        conversationId: selectedConversationId,
+      });
     }
   }
+
+  function loadMoreConversations() {
+    if (!nextConversationCursor) return;
+    setConversationCursor(nextConversationCursor);
+  }
+
+  const conversationListLoading = conversationsQuery.isLoading && conversations.length === 0;
 
   return (
     <div className="messages-page">
@@ -475,10 +557,10 @@ export function MessageCentre({ mode }: MessageCentreProps) {
         <span>{pageCopy.sub}</span>
       </div>
 
-      {threadKind ? (
-        <NewThreadComposer
-          kind={threadKind}
-          onCreated={selectThread}
+      {conversationKind ? (
+        <NewConversationComposer
+          kind={conversationKind}
+          onCreated={selectConversation}
           recipients={recipientsQuery.data ?? []}
           recipientsLoading={recipientsQuery.isLoading}
         />
@@ -490,29 +572,41 @@ export function MessageCentre({ mode }: MessageCentreProps) {
       <div className="messages-layout">
         <section className="panel message-thread-list-panel" aria-labelledby="message-list-title">
           <div className="message-panel-header">
-            <h2 id="message-list-title">{pageCopy.threadListLabel}</h2>
+            <h2 id="message-list-title">{pageCopy.conversationListLabel}</h2>
             <span>
-              {unreadTotal > 0 ? `${String(unreadTotal)} unread` : String(threads.length)}
+              {unreadTotal > 0 ? `${String(unreadTotal)} unread` : String(conversations.length)}
             </span>
           </div>
-          {threadsQuery.isLoading ? <EmptyState>Loading messages...</EmptyState> : null}
-          {threadsQuery.error ? (
-            <p className="status--error">{friendlyErrorMessage(threadsQuery.error)}</p>
+          {conversationListLoading ? <EmptyState>Loading messages...</EmptyState> : null}
+          {conversationsQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(conversationsQuery.error)}</p>
           ) : null}
-          {!threadsQuery.isLoading && threads.length === 0 ? (
+          {!conversationListLoading && conversations.length === 0 ? (
             <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
           ) : null}
-          <div className="message-thread-list" aria-label={pageCopy.threadListLabel}>
-            {threads.map((thread) => (
-              <ThreadRow
-                active={thread.id === selectedThreadId}
-                key={thread.id}
+          <div className="message-thread-list" aria-label={pageCopy.conversationListLabel}>
+            {conversations.map((conversation) => (
+              <ConversationRow
+                active={conversation.id === selectedConversationId}
+                conversation={conversation}
+                key={conversation.id}
                 mode={mode}
-                onSelect={selectThread}
-                thread={thread}
+                onSelect={selectConversation}
               />
             ))}
           </div>
+          {nextConversationCursor ? (
+            <div className="message-list-pagination">
+              <Button
+                disabled={conversationsQuery.isFetching}
+                onClick={loadMoreConversations}
+                type="button"
+                variant="secondary"
+              >
+                Load more
+              </Button>
+            </div>
+          ) : null}
         </section>
 
         <section className="panel panel__body message-detail-panel">
@@ -521,35 +615,42 @@ export function MessageCentre({ mode }: MessageCentreProps) {
               <div>
                 <p>{counterpartRole(mode, selectedSummary)}</p>
                 <h2>{counterpartLabel(mode, selectedSummary)}</h2>
-                <span>{selectedSummary.subject}</span>
+                <span>
+                  {selectedSummary.messageCount === 1
+                    ? '1 message'
+                    : `${String(selectedSummary.messageCount)} messages`}
+                </span>
               </div>
             </div>
           ) : null}
 
-          {threadQuery.isLoading ? <EmptyState>Loading thread...</EmptyState> : null}
-          {threadQuery.error ? (
-            <p className="status--error">{friendlyErrorMessage(threadQuery.error)}</p>
+          {conversationQuery.isLoading ? <EmptyState>Loading messages...</EmptyState> : null}
+          {conversationQuery.error ? (
+            <p className="status--error">{friendlyErrorMessage(conversationQuery.error)}</p>
           ) : null}
-          {!selectedThreadId && !threadsQuery.isLoading ? (
+          {!selectedConversationId && !conversationListLoading ? (
             <EmptyState detail={pageCopy.emptyDetail} title={pageCopy.emptyTitle} />
           ) : null}
-          {selectedThread && selectedThread.messages.length === 0 ? (
-            <EmptyState detail="Messages in this thread will appear here." title="No replies yet" />
+          {selectedConversation && selectedConversation.messages.length === 0 ? (
+            <EmptyState
+              detail="Messages in this conversation will appear here."
+              title="No messages yet"
+            />
           ) : null}
-          {selectedThread ? (
+          {selectedConversation ? (
             <>
-              <div className="message-bubble-list" aria-label="Message thread">
-                {selectedThread.messages.map((message) => (
+              <div className="message-bubble-list" aria-label="Conversation messages">
+                {selectedConversation.messages.map((message) => (
                   <MessageBubble currentUserId={currentUserId} key={message.id} message={message} />
                 ))}
               </div>
               <ReplyComposer
-                disabled={threadQuery.isLoading}
+                conversationId={selectedConversation.id}
+                disabled={conversationQuery.isLoading}
                 onSent={() => {
-                  void refreshSelectedThread();
+                  void refreshSelectedConversation();
                 }}
                 placeholder={pageCopy.replyPlaceholder}
-                threadId={selectedThread.id}
               />
             </>
           ) : null}

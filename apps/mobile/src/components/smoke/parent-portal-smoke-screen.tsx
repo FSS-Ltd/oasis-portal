@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -20,7 +20,10 @@ type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type SignupClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
 type SignupChild = RouterOutputs['club']['linkedChildSignupContext']['children'][number];
+type MessagePage = RouterOutputs['message']['listConversations'];
+type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type ParentMobileTab = 'home' | 'notices' | 'messages' | 'clubs' | 'shop';
+const MESSAGE_PAGE_SIZE = 20;
 
 const tabs: Array<PortalMobileNavItem<ParentMobileTab>> = [
   { id: 'home', label: 'Home', icon: 'dashboard' },
@@ -56,10 +59,15 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const [pendingClubId, setPendingClubId] = useState<string | null>(null);
   const [clubStatus, setClubStatus] = useState<string | null>(null);
   const [clubOperationError, setClubOperationError] = useState<string | null>(null);
+  const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
+  const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
 
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
   const notices = api.notice.listForParents.useQuery(undefined, { retry: false });
-  const threads = api.message.listThreads.useQuery(undefined, { retry: false });
+  const conversationsQuery = api.message.listConversations.useQuery(
+    { limit: MESSAGE_PAGE_SIZE, cursor: messageCursor },
+    { retry: false },
+  );
   const recipients = api.message.listRecipients.useQuery(undefined, { retry: false });
   const clubSignupContext = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
 
@@ -78,19 +86,35 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const shopItems = api.shop.listItems.useQuery(undefined, { retry: false });
   const signUpForClub = api.club.signUp.useMutation();
   const withdrawFromClub = api.club.withdraw.useMutation();
+  const conversations = useMemo(
+    () => messagePages.flatMap(({ page }) => page.items),
+    [messagePages],
+  );
+  const nextMessageCursor = messagePages[messagePages.length - 1]?.page.nextCursor ?? null;
+
+  useEffect(() => {
+    if (!conversationsQuery.data) return;
+    setMessagePages((currentPages) => {
+      const nextPage = { cursor: messageCursor, page: conversationsQuery.data };
+      if (!messageCursor) return [nextPage];
+      const existingIndex = currentPages.findIndex((page) => page.cursor === messageCursor);
+      if (existingIndex === -1) return [...currentPages, nextPage];
+      return currentPages.map((page, index) => (index === existingIndex ? nextPage : page));
+    });
+  }, [conversationsQuery.data, messageCursor]);
 
   const loading =
     dashboard.isFetching ||
     notices.isFetching ||
-    threads.isFetching ||
+    conversationsQuery.isFetching ||
     recipients.isFetching ||
     childDetail.isFetching ||
     balances.isFetching ||
     shopItems.isFetching ||
     clubSignupContext.isFetching;
   const unreadNoticeCount = (notices.data ?? []).filter((notice) => !notice.read).length;
-  const unreadMessageCount = (threads.data ?? []).reduce(
-    (count, thread) => count + thread.unreadCount,
+  const unreadMessageCount = conversations.reduce(
+    (count, conversation) => count + conversation.unreadCount,
     0,
   );
   const clubChildren = clubSignupContext.data?.children ?? [];
@@ -98,7 +122,7 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   const queryError = firstError(
     dashboard.error?.message,
     notices.error?.message,
-    threads.error?.message,
+    conversationsQuery.error?.message,
     recipients.error?.message,
     childDetail.error?.message,
     balances.error?.message,
@@ -107,10 +131,12 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
   );
 
   async function refresh() {
+    setMessageCursor(undefined);
+    setMessagePages([]);
     await Promise.all([
       dashboard.refetch(),
       notices.refetch(),
-      threads.refetch(),
+      utils.message.listConversations.invalidate(),
       recipients.refetch(),
       clubSignupContext.refetch(),
       shopItems.refetch(),
@@ -186,10 +212,15 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
         <View style={styles.messagesContent}>
           {queryError ? <ErrorText>{queryError}</ErrorText> : null}
           <ParentMessagesPanel
+            conversations={conversations}
+            hasMore={Boolean(nextMessageCursor)}
+            loadingMore={conversationsQuery.isFetching && Boolean(messageCursor)}
+            onLoadMore={() => {
+              if (nextMessageCursor) setMessageCursor(nextMessageCursor);
+            }}
             onRefresh={refresh}
             recipients={recipients.data ?? []}
             refreshing={loading}
-            threads={threads.data ?? []}
           />
         </View>
         {bottomNav}

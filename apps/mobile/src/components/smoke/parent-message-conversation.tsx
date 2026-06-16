@@ -8,12 +8,12 @@ import {
   View,
 } from 'react-native';
 import { C } from './mobile-theme';
-import type { ThreadDetail, ThreadSummary } from './parent-message-types';
+import type { ConversationDetail, ConversationSummary } from './parent-message-types';
 import { formatDateTime, formatThreadTime, unreadLabel } from './parent-message-utils';
 import { ErrorText, InlineSpinner, MutedText } from './smoke-ui';
 
 interface ConversationViewProps {
-  detail: ThreadDetail | undefined;
+  detail: ConversationDetail | undefined;
   error: string | undefined;
   formError: string | null;
   loading: boolean;
@@ -22,7 +22,7 @@ interface ConversationViewProps {
   onSend: () => void;
   refreshing: boolean;
   replyBody: string;
-  selectedSummary: ThreadSummary | null;
+  selectedSummary: ConversationSummary | null;
   sendError: string | undefined;
   sending: boolean;
   setReplyBody: (value: string) => void;
@@ -46,12 +46,19 @@ export function ConversationView({
   unreadTotal,
 }: ConversationViewProps) {
   const title = detail?.admin?.fullName ?? selectedSummary?.admin?.fullName ?? 'Centre team';
-  const subject = detail?.subject ?? selectedSummary?.subject ?? 'Message thread';
+  const otherParticipant =
+    detail?.participants.find((participant) => participant.id !== detail.currentUserId) ??
+    selectedSummary?.participants.find(
+      (participant) => participant.id !== selectedSummary.currentUserId,
+    );
+  const displayTitle = otherParticipant?.fullName ?? title;
+  const subject =
+    detail?.kind === 'Staffroom' || selectedSummary?.kind === 'Staffroom'
+      ? 'Group chat'
+      : 'Private message';
   const currentUserId = detail?.currentUserId ?? null;
   const unreadBackLabel =
-    unreadTotal > 0
-      ? `Back to message threads, ${String(unreadTotal)} unread`
-      : 'Back to message threads';
+    unreadTotal > 0 ? `Back to messages, ${String(unreadTotal)} unread` : 'Back to messages';
 
   return (
     <View style={styles.conversationScreen}>
@@ -73,7 +80,7 @@ export function ConversationView({
         </Pressable>
         <View style={styles.conversationTitleGroup}>
           <Text numberOfLines={1} style={styles.conversationName}>
-            {title}
+            {displayTitle}
           </Text>
           <Text numberOfLines={2} style={styles.conversationSubject}>
             {subject}
@@ -81,12 +88,12 @@ export function ConversationView({
         </View>
       </View>
 
-      {loading ? <InlineSpinner label="Loading thread" /> : null}
+      {loading ? <InlineSpinner label="Loading messages" /> : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       {!loading && !error && !detail ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Thread unavailable</Text>
-          <MutedText>Select a thread from your inbox.</MutedText>
+          <Text style={styles.emptyTitle}>Message unavailable</Text>
+          <MutedText>Select a message from your inbox.</MutedText>
         </View>
       ) : null}
 
@@ -101,8 +108,8 @@ export function ConversationView({
           >
             {detail.messages.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>No replies yet</Text>
-                <MutedText>Messages in this thread will appear here.</MutedText>
+                <Text style={styles.emptyTitle}>No messages yet</Text>
+                <MutedText>Messages in this conversation will appear here.</MutedText>
               </View>
             ) : (
               detail.messages.map((message) => (
@@ -130,7 +137,7 @@ function MessageBubble({
   message,
 }: {
   currentUserId: string | null;
-  message: ThreadDetail['messages'][number];
+  message: ConversationDetail['messages'][number];
 }) {
   const mine = currentUserId === message.senderId;
   const metaLabel = messageMetaLabel(message, mine);
@@ -154,7 +161,7 @@ function MessageBubble({
   );
 }
 
-function messageMetaLabel(message: ThreadDetail['messages'][number], mine: boolean): string {
+function messageMetaLabel(message: ConversationDetail['messages'][number], mine: boolean): string {
   if (!mine) return formatDateTime(message.createdAt);
 
   const status = message.readByOtherParticipant ? 'Read' : 'Sent';

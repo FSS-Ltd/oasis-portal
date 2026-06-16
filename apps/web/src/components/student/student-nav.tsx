@@ -26,6 +26,7 @@ const studentNavItems = [
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
   { href: '/student/homework', label: 'Homework', icon: ClipboardList, bottomNav: true },
   { href: '/student/community', label: 'Community', icon: MessageCircle, bottomNav: true },
+  { href: '/student/messages', label: 'Messages', icon: MessageCircle, bottomNav: true },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/student/clubs', label: 'Clubs', icon: UsersRound },
   { href: '/student/faith', label: 'Faith', icon: BookOpenText, bottomNav: true },
