@@ -10,6 +10,7 @@ import type {
   ClerkUserEmailClient,
 } from '../lib/clerk.js';
 import type { EmailClient } from '../lib/email.js';
+import { decryptTestValue, encryptTestValue } from './helpers/test-encryption.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
 const principalUser: SessionUser = {
@@ -157,12 +158,8 @@ function makeFakeDb(): FakeDb {
     auditLog: { create: vi.fn().mockResolvedValue(undefined) },
     $enc: {
       blindIndex: vi.fn((value: string) => `bidx:${value.toLowerCase()}`),
-      decrypt: vi.fn((value: string | null | undefined) =>
-        value ? value.replace(/^enc:/, '') : null,
-      ),
-      encrypt: vi.fn((value: string | null | undefined) =>
-        value === null || value === undefined ? null : `enc:${value}`,
-      ),
+      decrypt: vi.fn(decryptTestValue),
+      encrypt: vi.fn(encryptTestValue),
     },
     yearGroupBand: {
       findMany: vi.fn(() => Promise.resolve([...yearGroupBands])),

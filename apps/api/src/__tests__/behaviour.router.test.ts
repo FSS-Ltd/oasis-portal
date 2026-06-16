@@ -4,6 +4,10 @@ import type { AppContext, RlsTx } from '../context.js';
 import type { EmailClient } from '../lib/email.js';
 import { createBehaviourRouter } from '../routers/behaviour.js';
 import { router } from '../trpc.js';
+import {
+  decryptTestValue as decrypt,
+  encryptTestValue as encrypt,
+} from './helpers/test-encryption.js';
 
 const headUser: SessionUser = {
   id: 'ckuserhead00000000000001',
@@ -186,15 +190,6 @@ interface FakeDb {
   staffShift: { findMany: ReturnType<typeof vi.fn> };
 }
 
-function encrypt(value: string | null | undefined): string | null {
-  return value === null || value === undefined ? null : `enc:${value}`;
-}
-
-function decrypt(value: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null;
-  return value.replace(/^enc:/u, '');
-}
-
 function matchesStudentId(where: string | { in: string[] }, studentId: string): boolean {
   if (typeof where === 'string') return where === studentId;
   return where.in.includes(studentId);
@@ -203,8 +198,8 @@ function matchesStudentId(where: string | { in: string[] }, studentId: string): 
 function makeStoredUser(input: Pick<StoredUser, 'id' | 'role'> & Partial<StoredUser>): StoredUser {
   return {
     active: true,
-    emailEnc: encrypt(`${input.id}@example.com`) ?? '',
-    fullNameEnc: encrypt(`${input.role} User`) ?? '',
+    emailEnc: encrypt(`${input.id}@example.com`),
+    fullNameEnc: encrypt(`${input.role} User`),
     ...input,
   };
 }
