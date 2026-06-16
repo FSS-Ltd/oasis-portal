@@ -1369,6 +1369,34 @@ describe('message conversation endpoints', () => {
     expect(email.send).not.toHaveBeenCalled();
   });
 
+  it('opens an empty direct conversation and reuses it before the first message', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    const conversation = await caller.message.openConversation({
+      kind: 'StaffDirect',
+      recipientId: supervisorUser.id,
+    });
+    const detail = await caller.message.listConversationMessages({
+      conversationId: conversation.id,
+    });
+    const reopened = await caller.message.openConversation({
+      kind: 'StaffDirect',
+      recipientId: supervisorUser.id,
+    });
+
+    expect(conversation).toMatchObject({
+      id: `StaffDirect:${headUser.id}:${supervisorUser.id}`,
+      kind: 'StaffDirect',
+      messageCount: 0,
+    });
+    expect(detail).toMatchObject({
+      id: conversation.id,
+      messages: [],
+    });
+    expect(reopened.id).toBe(conversation.id);
+    expect(db.threads).toHaveLength(1);
+  });
+
   it('rejects blocked student direct send attempts', async () => {
     const blockedStudents: StoredStudent[] = [
       {

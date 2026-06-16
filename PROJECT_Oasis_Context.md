@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-06-16
 **Agent:** Technical Agent (Codex)
-**Phase:** Phase 8 Twelve Data merit valuation.
+**Phase:** Messaging contact-list layout.
 
 ---
 
@@ -28,6 +28,47 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-16 messaging contact-list layout
+
+Working branch: `feat/message-platform-conversations`.
+
+**PR scope:** Replace the separate new-message composer with a contact list
+that opens existing or empty conversations, keeping all message composition in
+the right-hand chat panel.
+
+Completed:
+
+- Removed the full-width `New Message` form from the web message centre.
+- Split the message UI into focused contact-list, conversation-panel, display
+  helper, and type modules under `apps/web/src/components/messages`.
+- Added contact rows for available recipients without history; selecting one
+  calls `message.openConversation`, refreshes conversations, updates the URL,
+  and opens the chat panel.
+- Kept Staffroom first for staff-facing message centres and preserved existing
+  conversation rows with unread counts.
+- Updated the message layout CSS so the contact list and chat history scroll
+  internally within a bounded two-column surface, with stacked bounded panels
+  on smaller screens.
+- Added API regression coverage for opening and reusing an empty direct
+  conversation before the first message is sent.
+
+Verification:
+
+- `pnpm --filter @oasis/api test -- message.router.test.ts` - pass; Vitest ran
+  all API tests because of repository argument handling: 39 files / 827 tests.
+- `pnpm --filter @oasis/web typecheck` - pass.
+- `pnpm --filter @oasis/web lint` - pass.
+- `pnpm --filter @oasis/web build` - pass.
+- `graphify update .` - pass.
+
+Notes:
+
+- No public API, database schema, migration, permission, navigation, or product
+  module ownership changes were required.
+- The API suite still emits existing PDF `standardFontDataUrl` warnings in
+  unrelated invoice/incident tests. The web build still emits existing Prisma
+  config and Next ESLint-plugin warnings, but the commands pass.
 
 ## Current session - 2026-06-07 Twelve Data merit valuation
 
