@@ -1079,7 +1079,8 @@ describe('invoiceRouter', () => {
       id: invoiceId,
       status: 'Paid',
       dueOn: new Date('2026-12-31T00:00:00.000Z'),
-      totalAmountPence: 24500,
+      discountAmountPence: 2450,
+      totalAmountPence: 22050,
       subtotalAmountPence: 24500,
       paidAt: new Date('2026-05-15T08:00:00.000Z'),
       paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
@@ -1100,7 +1101,21 @@ describe('invoiceRouter', () => {
       totalAmountPence: 98000,
       subtotalAmountPence: 98000,
     });
-    const fakeDb = makeFakeDb({ initialInvoices: [paidInvoice, pendingInvoice, unpaidInvoice] });
+    const fakeDb = makeFakeDb({
+      initialInvoices: [paidInvoice, pendingInvoice, unpaidInvoice],
+      initialDiscounts: [
+        makeDiscount({
+          invoiceId: paidInvoice.id,
+          labelEnc: encrypt('Fountain Church Member'),
+          kind: 'Preset',
+          presetCode: 'church-member',
+          percentBps: 1000,
+          amountPence: null,
+          baseAmountPence: 2450,
+          appliedAmountPence: 2450,
+        }),
+      ],
+    });
     const { caller } = createCaller(financeUser, fakeDb);
 
     const families = await caller.invoice.listBillableFamilies();
@@ -1111,12 +1126,17 @@ describe('invoiceRouter', () => {
     expect(parentFamily?.yearSummary).toMatchObject({
       schoolYear: 2026,
       cycleLabel: 'Sep 2025 - Aug 2026',
-      adjustedAnnualAmountPence: 171500,
-      issuedAmountPence: 147000,
-      paidAmountPence: 24500,
+      annualAmountPence: 171500,
+      adjustedAnnualAmountPence: 154350,
+      issuedAmountPence: 144550,
+      paidAmountPence: 22050,
       paymentPendingAmountPence: 24500,
-      remainingAmountPence: 147000,
-      leftToInvoiceAmountPence: 24500,
+      remainingAmountPence: 132300,
+      leftToInvoiceAmountPence: 9800,
+      grossIssuedAmountPence: 147000,
+      grossPaidAmountPence: 24500,
+      grossRemainingAmountPence: 147000,
+      grossLeftToInvoiceAmountPence: 24500,
       invoiceCount: 3,
     });
     expect(parentFamily?.yearSummary.children).toEqual([
@@ -1124,8 +1144,11 @@ describe('invoiceRouter', () => {
         studentId: linkedStudentId,
         chargeableStartsOn: '2026-02-01',
         chargeableMonths: 7,
-        adjustedAnnualAmountPence: 171500,
-        leftToInvoiceAmountPence: 24500,
+        adjustedAnnualAmountPence: 154350,
+        remainingAmountPence: 132300,
+        leftToInvoiceAmountPence: 9800,
+        grossRemainingAmountPence: 147000,
+        grossLeftToInvoiceAmountPence: 24500,
       }),
     ]);
   });
