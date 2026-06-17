@@ -10,7 +10,14 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
+import {
+  buildNoticeNotificationEmail,
+  createResendEmailClient,
+  NOTICE_NOTIFICATION_EMAIL_SUBJECT,
+  type EmailClient,
+} from '../lib/email.js';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
+import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
 import { assertUploadedNoticeAttachments } from '../services/notice-attachment-storage.js';
 import { authedProcedure, router } from '../trpc.js';
 
@@ -46,9 +53,23 @@ type NoticeAudience = z.infer<typeof noticeAudienceSchema>;
 type NoticeRecipientRole = 'Supervisor' | 'ClubsAdmin' | 'Parent';
 
 interface NoticeRecipient {
+  canReceiveParentNotices: boolean;
+  emailEnc: string | null;
   id: string;
   role: NoticeRecipientRole;
   fullNameEnc: string;
+}
+
+type NoticeEmailRecipient = NoticeRecipient & { emailEnc: string };
+
+export interface NoticeRouterDeps {
+  emailClient?: EmailClient;
+}
+
+export interface NoticeEmailSummary {
+  failedCount: number;
+  recipientCount: number;
+  sentCount: number;
 }
 
 const MAX_NOTICE_ATTACHMENTS = 5;
@@ -289,9 +310,7 @@ async function canReadParentNotice(ctx: AuthedContext): Promise<boolean> {
 
 async function requireParentNoticeReader(ctx: AuthedContext): Promise<void> {
   if (await canReadParentNotice(ctx)) return;
-  throw toForbidden(
-    new AccessDeniedError('parent notices require Parent or linked-child access'),
-  );
+  throw toForbidden(new AccessDeniedError('parent notices require Parent or linked-child access'));
 }
 
 async function canReadNoticeAudience(
@@ -304,10 +323,19 @@ async function canReadNoticeAudience(
   return isStaff(ctx.user) || ctx.user.role === 'Parent' || hasLinkedActiveChild(ctx);
 }
 
-function recipientRolesForAudience(audience: NoticeAudience): NoticeRecipientRole[] {
-  if (audience === 'Both') return ['Supervisor', 'ClubsAdmin', 'Parent'];
-  if (audience === 'Parents') return ['Parent'];
-  return ['Supervisor', 'ClubsAdmin'];
+function isSupervisorAudienceRecipient(recipient: NoticeRecipient): boolean {
+  return recipient.role === 'Supervisor' || recipient.role === 'ClubsAdmin';
+}
+
+function noticeRecipientsForAudience(
+  audience: NoticeAudience,
+  recipients: readonly NoticeRecipient[],
+): NoticeRecipient[] {
+  return recipients.filter((recipient) => {
+    if (audience === 'Supervisors') return isSupervisorAudienceRecipient(recipient);
+    if (audience === 'Parents') return recipient.canReceiveParentNotices;
+    return isSupervisorAudienceRecipient(recipient) || recipient.canReceiveParentNotices;
+  });
 }
 
 function audienceWhere(audiences: readonly NoticeAudience[]) {
@@ -327,13 +355,36 @@ async function loadNoticeRecipients(ctx: AuthedContext): Promise<NoticeRecipient
     select: {
       id: true,
       role: true,
+      emailEnc: true,
       fullNameEnc: true,
     },
   });
+  const supervisorIds = users.filter((user) => user.role === 'Supervisor').map((user) => user.id);
+  const linkedSupervisorIds =
+    supervisorIds.length > 0
+      ? new Set(
+          (
+            await ctx.db.guardian.findMany({
+              where: { userId: { in: supervisorIds }, student: { active: true } },
+              select: { userId: true },
+            })
+          ).map((guardian) => guardian.userId),
+        )
+      : new Set<string>();
 
   return users.flatMap((user) =>
     user.role === 'Supervisor' || user.role === 'ClubsAdmin' || user.role === 'Parent'
-      ? [{ id: user.id, role: user.role, fullNameEnc: user.fullNameEnc }]
+      ? [
+          {
+            canReceiveParentNotices:
+              user.role === 'Parent' ||
+              (user.role === 'Supervisor' && linkedSupervisorIds.has(user.id)),
+            emailEnc: user.emailEnc,
+            id: user.id,
+            role: user.role,
+            fullNameEnc: user.fullNameEnc,
+          },
+        ]
       : [],
   );
 }
@@ -348,9 +399,7 @@ function mapNotice(
     notice.reads.find((read) => read.userId === ctx.user.id)?.readAt ??
     notice.reads[0]?.readAt ??
     null;
-  const recipientRoles = new Set(recipientRolesForAudience(notice.audience));
-  const noticeRecipients = recipients
-    .filter((recipient) => recipientRoles.has(recipient.role))
+  const noticeRecipients = noticeRecipientsForAudience(notice.audience, recipients)
     .map((recipient) => {
       const recipientReadAt =
         notice.reads.find((read) => read.userId === recipient.id)?.readAt ?? null;
@@ -385,6 +434,182 @@ function mapNotice(
           }
         : null,
   };
+}
+
+function noticePathForRecipient(audience: NoticeAudience, recipient: NoticeRecipient): string {
+  if (recipient.role === 'Parent' || audience === 'Parents') return '/parent/noticeboard';
+  return '/supervisor/noticeboard';
+}
+
+function hasNoticeEmail(recipient: NoticeRecipient): recipient is NoticeEmailRecipient {
+  return Boolean(recipient.emailEnc);
+}
+
+async function auditNoticeEmailFailure(
+  ctx: AuthedContext,
+  input: {
+    audience: NoticeAudience;
+    noticeId: string;
+    reason?: string;
+    recipient?: NoticeRecipient;
+  },
+): Promise<void> {
+  try {
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'StaffNotice',
+        entityId: input.noticeId,
+        meta: {
+          source: 'notice.post.email',
+          emailStatus: 'Failed',
+          noticeId: input.noticeId,
+          audience: input.audience,
+          ...(input.reason ? { reason: input.reason } : {}),
+          ...(input.recipient
+            ? { toUserId: input.recipient.id, toRole: input.recipient.role }
+            : {}),
+        },
+      },
+    });
+  } catch (auditErr) {
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Notice email failure audit failed',
+      meta: {
+        error: operationalErrorMessage(auditErr),
+        noticeId: input.noticeId,
+        toUserId: input.recipient?.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+  }
+}
+
+async function auditNoticeEmailSent(
+  ctx: AuthedContext,
+  input: {
+    audience: NoticeAudience;
+    emailId: string | null;
+    noticeId: string;
+    recipient: NoticeRecipient;
+  },
+): Promise<void> {
+  try {
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Create',
+        entity: 'Email',
+        entityId: input.emailId,
+        meta: {
+          source: 'notice.post.email',
+          emailStatus: 'Sent',
+          noticeId: input.noticeId,
+          audience: input.audience,
+          subject: NOTICE_NOTIFICATION_EMAIL_SUBJECT,
+          toUserId: input.recipient.id,
+          toRole: input.recipient.role,
+        },
+      },
+    });
+  } catch (auditErr) {
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Notice email sent audit failed',
+      meta: {
+        error: operationalErrorMessage(auditErr),
+        noticeId: input.noticeId,
+        toUserId: input.recipient.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+  }
+}
+
+async function sendNoticeNotificationEmails({
+  audience,
+  body,
+  ctx,
+  getEmailClient,
+  noticeId,
+  title,
+}: {
+  audience: NoticeAudience;
+  body: string;
+  ctx: AuthedContext;
+  getEmailClient: () => EmailClient;
+  noticeId: string;
+  title: string;
+}): Promise<NoticeEmailSummary> {
+  let recipients: NoticeEmailRecipient[];
+  try {
+    recipients = noticeRecipientsForAudience(audience, await loadNoticeRecipients(ctx)).filter(
+      hasNoticeEmail,
+    );
+  } catch (err) {
+    logOperationalEvent({
+      event: 'email.recipient_resolution_failed',
+      level: 'error',
+      message: 'Notice email recipient resolution failed',
+      meta: {
+        error: operationalErrorMessage(err),
+        noticeId,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+    await auditNoticeEmailFailure(ctx, { audience, noticeId, reason: 'recipient-resolution' });
+    return { failedCount: 0, recipientCount: 0, sentCount: 0 };
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+  for (const recipient of recipients) {
+    try {
+      const recipientName = decryptRequired(ctx.db.$enc.decrypt, recipient.fullNameEnc);
+      const recipientEmail = decryptRequired(ctx.db.$enc.decrypt, recipient.emailEnc);
+      const result = await getEmailClient().send(
+        buildNoticeNotificationEmail({
+          audience,
+          body,
+          noticePath: noticePathForRecipient(audience, recipient),
+          recipientName,
+          title,
+          to: recipientEmail,
+        }),
+      );
+      sentCount += 1;
+      await auditNoticeEmailSent(ctx, {
+        audience,
+        emailId: result.id,
+        noticeId,
+        recipient,
+      });
+    } catch (err) {
+      failedCount += 1;
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Notice email delivery failed',
+        meta: {
+          error: operationalErrorMessage(err),
+          noticeId,
+          toUserId: recipient.id,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
+      });
+      await auditNoticeEmailFailure(ctx, { audience, noticeId, recipient });
+    }
+  }
+
+  return { failedCount, recipientCount: recipients.length, sentCount };
 }
 
 async function createNoticeReadReceipt(
@@ -441,16 +666,55 @@ async function createNoticeReadReceipt(
   };
 }
 
-export const noticeRouter = router({
-  listForAdmin: authedProcedure.query(async ({ ctx }) => {
-    requireNoticePoster(ctx.user);
+export function createNoticeRouter(deps: NoticeRouterDeps = {}) {
+  let cachedEmailClient: EmailClient | null = deps.emailClient ?? null;
+  const getEmailClient = (): EmailClient => {
+    if (cachedEmailClient) return cachedEmailClient;
+    cachedEmailClient = createResendEmailClient();
+    return cachedEmailClient;
+  };
 
-    const [notices, recipients] = await Promise.all([
-      ctx.db.staffNotice.findMany({
-        where: audienceWhere(['Supervisors', 'Parents', 'Both']),
+  return router({
+    listForAdmin: authedProcedure.query(async ({ ctx }) => {
+      requireNoticePoster(ctx.user);
+
+      const [notices, recipients] = await Promise.all([
+        ctx.db.staffNotice.findMany({
+          where: audienceWhere(['Supervisors', 'Parents', 'Both']),
+          include: {
+            reads: {
+              select: { userId: true, readAt: true },
+            },
+            attachments: {
+              orderBy: { position: 'asc' },
+              select: {
+                id: true,
+                originalFileNameEnc: true,
+                mimeType: true,
+                sizeBytes: true,
+                storageBucket: true,
+                storagePathEnc: true,
+                position: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        loadNoticeRecipients(ctx),
+      ]);
+
+      return notices.map((notice) => mapNotice(ctx, notice, recipients));
+    }),
+    listForStaff: authedProcedure.query(async ({ ctx }) => {
+      requireStaffNoticeReader(ctx.user);
+
+      const notices = await ctx.db.staffNotice.findMany({
+        where: audienceWhere(['Supervisors', 'Both']),
         include: {
           reads: {
-            select: { userId: true, readAt: true },
+            where: { userId: ctx.user.id },
+            select: { readAt: true },
+            take: 1,
           },
           attachments: {
             orderBy: { position: 'asc' },
@@ -466,234 +730,217 @@ export const noticeRouter = router({
           },
         },
         orderBy: { createdAt: 'desc' },
-      }),
-      loadNoticeRecipients(ctx),
-    ]);
+      });
 
-    return notices.map((notice) => mapNotice(ctx, notice, recipients));
-  }),
-  listForStaff: authedProcedure.query(async ({ ctx }) => {
-    requireStaffNoticeReader(ctx.user);
+      return notices.map((notice) => mapNotice(ctx, notice));
+    }),
+    listForParents: authedProcedure.query(async ({ ctx }) => {
+      await requireParentNoticeReader(ctx);
 
-    const notices = await ctx.db.staffNotice.findMany({
-      where: audienceWhere(['Supervisors', 'Both']),
-      include: {
-        reads: {
-          where: { userId: ctx.user.id },
-          select: { readAt: true },
-          take: 1,
-        },
-        attachments: {
-          orderBy: { position: 'asc' },
-          select: {
-            id: true,
-            originalFileNameEnc: true,
-            mimeType: true,
-            sizeBytes: true,
-            storageBucket: true,
-            storagePathEnc: true,
-            position: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return notices.map((notice) => mapNotice(ctx, notice));
-  }),
-  listForParents: authedProcedure.query(async ({ ctx }) => {
-    await requireParentNoticeReader(ctx);
-
-    const notices = await ctx.db.staffNotice.findMany({
-      where: audienceWhere(['Parents', 'Both']),
-      include: {
-        reads: {
-          where: { userId: ctx.user.id },
-          select: { readAt: true },
-          take: 1,
-        },
-        attachments: {
-          orderBy: { position: 'asc' },
-          select: {
-            id: true,
-            originalFileNameEnc: true,
-            mimeType: true,
-            sizeBytes: true,
-            storageBucket: true,
-            storagePathEnc: true,
-            position: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return notices.map((notice) => mapNotice(ctx, notice));
-  }),
-  post: authedProcedure.input(postNoticeInput).mutation(async ({ ctx, input }) => {
-    requireNoticePoster(ctx.user);
-
-    const now = new Date();
-    assertFutureExpiry(input.expiresAt, now);
-    const { attachments, totalSizeBytes } = validateAttachments(input.attachments, ctx.user.id);
-    await assertUploadedNoticeAttachments(attachments);
-
-    const notice = await ctx.db.staffNotice.create({
-      data: {
-        title: input.title,
-        bodyEnc: ctx.db.$enc.encrypt(input.body),
-        audience: input.audience,
-        postedById: ctx.user.id,
-        active: true,
-        expiresAt: input.expiresAt ?? null,
-        ...(attachments.length > 0
-          ? {
-              attachments: {
-                create: attachments.map((attachment) => ({
-                  originalFileNameEnc: ctx.db.$enc.encrypt(attachment.originalFileName),
-                  mimeType: attachment.mimeType,
-                  sizeBytes: attachment.sizeBytes,
-                  storageBucket: attachment.storageBucket,
-                  storagePathEnc: ctx.db.$enc.encrypt(attachment.storagePath),
-                  position: attachment.position,
-                })),
-              },
-            }
-          : {}),
-      },
-      include: {
-        reads: {
-          where: { userId: ctx.user.id },
-          select: { readAt: true },
-          take: 1,
-        },
-        attachments: {
-          orderBy: { position: 'asc' },
-          select: {
-            id: true,
-            originalFileNameEnc: true,
-            mimeType: true,
-            sizeBytes: true,
-            storageBucket: true,
-            storagePathEnc: true,
-            position: true,
-          },
-        },
-      },
-    });
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'Create',
-        entity: 'StaffNotice',
-        entityId: notice.id,
-        meta: {
-          source: 'notice.post',
-          audience: input.audience,
-          expiresAt: input.expiresAt?.toISOString() ?? null,
-          attachmentCount: attachments.length,
-          totalAttachmentSizeBytes: totalSizeBytes,
-        },
-      },
-    });
-
-    return mapNotice(ctx, notice);
-  }),
-  prepareAttachments: authedProcedure.input(prepareAttachmentsInput).mutation(({ ctx, input }) => {
-    requireNoticePoster(ctx.user);
-    const attachments = prepareStorageAttachments(input.attachments, ctx.user.id);
-    return {
-      attachments: attachments.map((attachment) => ({
-        fileName: attachment.originalFileName,
-        mimeType: attachment.mimeType,
-        sizeBytes: attachment.sizeBytes,
-        storageBucket: attachment.storageBucket,
-        storagePath: attachment.storagePath,
-      })),
-    };
-  }),
-  downloadAttachment: authedProcedure
-    .input(downloadAttachmentInput)
-    .query(async ({ ctx, input }) => {
-      const attachment = await ctx.db.staffNoticeAttachment.findUnique({
-        where: { id: input.attachmentId },
+      const notices = await ctx.db.staffNotice.findMany({
+        where: audienceWhere(['Parents', 'Both']),
         include: {
-          notice: {
+          reads: {
+            where: { userId: ctx.user.id },
+            select: { readAt: true },
+            take: 1,
+          },
+          attachments: {
+            orderBy: { position: 'asc' },
             select: {
               id: true,
-              active: true,
-              audience: true,
-              expiresAt: true,
+              originalFileNameEnc: true,
+              mimeType: true,
+              sizeBytes: true,
+              storageBucket: true,
+              storagePathEnc: true,
+              position: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return notices.map((notice) => mapNotice(ctx, notice));
+    }),
+    post: authedProcedure.input(postNoticeInput).mutation(async ({ ctx, input }) => {
+      requireNoticePoster(ctx.user);
+
+      const now = new Date();
+      assertFutureExpiry(input.expiresAt, now);
+      const { attachments, totalSizeBytes } = validateAttachments(input.attachments, ctx.user.id);
+      await assertUploadedNoticeAttachments(attachments);
+
+      const notice = await ctx.db.staffNotice.create({
+        data: {
+          title: input.title,
+          bodyEnc: ctx.db.$enc.encrypt(input.body),
+          audience: input.audience,
+          postedById: ctx.user.id,
+          active: true,
+          expiresAt: input.expiresAt ?? null,
+          ...(attachments.length > 0
+            ? {
+                attachments: {
+                  create: attachments.map((attachment) => ({
+                    originalFileNameEnc: ctx.db.$enc.encrypt(attachment.originalFileName),
+                    mimeType: attachment.mimeType,
+                    sizeBytes: attachment.sizeBytes,
+                    storageBucket: attachment.storageBucket,
+                    storagePathEnc: ctx.db.$enc.encrypt(attachment.storagePath),
+                    position: attachment.position,
+                  })),
+                },
+              }
+            : {}),
+        },
+        include: {
+          reads: {
+            where: { userId: ctx.user.id },
+            select: { readAt: true },
+            take: 1,
+          },
+          attachments: {
+            orderBy: { position: 'asc' },
+            select: {
+              id: true,
+              originalFileNameEnc: true,
+              mimeType: true,
+              sizeBytes: true,
+              storageBucket: true,
+              storagePathEnc: true,
+              position: true,
             },
           },
         },
       });
 
-      if (
-        !attachment ||
-        !isAvailableNotice(attachment.notice, new Date()) ||
-        !(await canReadNoticeAudience(ctx, attachment.notice.audience))
-      ) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'notice attachment not found' });
-      }
-
-      const fileName = decryptRequired(ctx.db.$enc.decrypt, attachment.originalFileNameEnc);
-      const storagePath = decryptRequired(ctx.db.$enc.decrypt, attachment.storagePathEnc);
-      const kind = attachmentKind(attachment.mimeType);
-
       await ctx.db.auditLog.create({
         data: {
           userId: ctx.user.id,
-          action: 'ReadSensitive',
-          entity: 'StaffNoticeAttachment',
-          entityId: attachment.id,
+          action: 'Create',
+          entity: 'StaffNotice',
+          entityId: notice.id,
           meta: {
-            source: 'notice.downloadAttachment',
-            noticeId: attachment.noticeId,
-            mimeType: attachment.mimeType,
-            sizeBytes: attachment.sizeBytes,
+            source: 'notice.post',
+            audience: input.audience,
+            expiresAt: input.expiresAt?.toISOString() ?? null,
+            attachmentCount: attachments.length,
+            totalAttachmentSizeBytes: totalSizeBytes,
           },
         },
       });
 
-      if (input.markRead && ctx.user.role === 'Parent') {
-        await createNoticeReadReceipt(ctx, attachment.noticeId, 'notice.viewAttachment');
-      }
-
-      return {
-        attachmentId: attachment.id,
-        noticeId: attachment.noticeId,
-        fileName,
-        mimeType: attachment.mimeType,
-        sizeBytes: attachment.sizeBytes,
-        storageBucket: attachment.storageBucket,
-        storagePath,
-        kind,
-        canPreview: kind === 'image' || kind === 'pdf',
-      };
-    }),
-  markRead: authedProcedure
-    .input(z.object({ noticeId: z.string().cuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const notice = await ctx.db.staffNotice.findUnique({
-        where: { id: input.noticeId },
-        select: { id: true, active: true, audience: true, expiresAt: true, postedById: true },
+      const emailSummary = await sendNoticeNotificationEmails({
+        audience: input.audience,
+        body: input.body,
+        ctx,
+        getEmailClient,
+        noticeId: notice.id,
+        title: input.title,
       });
-      if (
-        !notice ||
-        !isAvailableNotice(notice, new Date()) ||
-        !(await canReadNoticeAudience(ctx, notice.audience))
-      ) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'notice not found' });
-      }
-      if (notice.postedById === ctx.user.id) {
-        throw new TRPCError({
-          code: 'BAD_REQUEST',
-          message: 'notice authors do not need to mark read',
-        });
-      }
 
-      return createNoticeReadReceipt(ctx, input.noticeId, 'notice.markRead');
+      return { ...mapNotice(ctx, notice), emailSummary };
     }),
-});
+    prepareAttachments: authedProcedure
+      .input(prepareAttachmentsInput)
+      .mutation(({ ctx, input }) => {
+        requireNoticePoster(ctx.user);
+        const attachments = prepareStorageAttachments(input.attachments, ctx.user.id);
+        return {
+          attachments: attachments.map((attachment) => ({
+            fileName: attachment.originalFileName,
+            mimeType: attachment.mimeType,
+            sizeBytes: attachment.sizeBytes,
+            storageBucket: attachment.storageBucket,
+            storagePath: attachment.storagePath,
+          })),
+        };
+      }),
+    downloadAttachment: authedProcedure
+      .input(downloadAttachmentInput)
+      .query(async ({ ctx, input }) => {
+        const attachment = await ctx.db.staffNoticeAttachment.findUnique({
+          where: { id: input.attachmentId },
+          include: {
+            notice: {
+              select: {
+                id: true,
+                active: true,
+                audience: true,
+                expiresAt: true,
+              },
+            },
+          },
+        });
+
+        if (
+          !attachment ||
+          !isAvailableNotice(attachment.notice, new Date()) ||
+          !(await canReadNoticeAudience(ctx, attachment.notice.audience))
+        ) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'notice attachment not found' });
+        }
+
+        const fileName = decryptRequired(ctx.db.$enc.decrypt, attachment.originalFileNameEnc);
+        const storagePath = decryptRequired(ctx.db.$enc.decrypt, attachment.storagePathEnc);
+        const kind = attachmentKind(attachment.mimeType);
+
+        await ctx.db.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'ReadSensitive',
+            entity: 'StaffNoticeAttachment',
+            entityId: attachment.id,
+            meta: {
+              source: 'notice.downloadAttachment',
+              noticeId: attachment.noticeId,
+              mimeType: attachment.mimeType,
+              sizeBytes: attachment.sizeBytes,
+            },
+          },
+        });
+
+        if (input.markRead && ctx.user.role === 'Parent') {
+          await createNoticeReadReceipt(ctx, attachment.noticeId, 'notice.viewAttachment');
+        }
+
+        return {
+          attachmentId: attachment.id,
+          noticeId: attachment.noticeId,
+          fileName,
+          mimeType: attachment.mimeType,
+          sizeBytes: attachment.sizeBytes,
+          storageBucket: attachment.storageBucket,
+          storagePath,
+          kind,
+          canPreview: kind === 'image' || kind === 'pdf',
+        };
+      }),
+    markRead: authedProcedure
+      .input(z.object({ noticeId: z.string().cuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const notice = await ctx.db.staffNotice.findUnique({
+          where: { id: input.noticeId },
+          select: { id: true, active: true, audience: true, expiresAt: true, postedById: true },
+        });
+        if (
+          !notice ||
+          !isAvailableNotice(notice, new Date()) ||
+          !(await canReadNoticeAudience(ctx, notice.audience))
+        ) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'notice not found' });
+        }
+        if (notice.postedById === ctx.user.id) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'notice authors do not need to mark read',
+          });
+        }
+
+        return createNoticeReadReceipt(ctx, input.noticeId, 'notice.markRead');
+      }),
+  });
+}
+
+export const noticeRouter = createNoticeRouter();
