@@ -1254,6 +1254,14 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     await expect(
       blocked.caller.admin.updateUserTags({
         userId: 'u_sup',
+        tags: ['supervisor-primary-students'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.user.update).not.toHaveBeenCalled();
+
+    await expect(
+      blocked.caller.admin.updateUserTags({
+        userId: 'u_sup',
         tags: ['calendar-manager'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -1275,17 +1283,29 @@ describe('admin.listUsers and admin.updateUserTags', () => {
 
     db.user.update.mockResolvedValue({
       id: 'u_sup',
-      tags: ['student-drillthrough-viewer', 'supervisor-all-students'],
+      tags: [
+        'student-drillthrough-viewer',
+        'supervisor-primary-students',
+        'supervisor-all-students',
+      ],
     });
     const allowed = makeCaller(headUser, { db });
     await expect(
       allowed.caller.admin.updateUserTags({
         userId: 'u_sup',
-        tags: ['student-drillthrough-viewer', 'supervisor-all-students'],
+        tags: [
+          'student-drillthrough-viewer',
+          'supervisor-primary-students',
+          'supervisor-all-students',
+        ],
       }),
     ).resolves.toEqual({
       id: 'u_sup',
-      tags: ['student-drillthrough-viewer', 'supervisor-all-students'],
+      tags: [
+        'student-drillthrough-viewer',
+        'supervisor-primary-students',
+        'supervisor-all-students',
+      ],
     });
   });
 
@@ -2063,12 +2083,12 @@ describe('admin.inviteUser', () => {
     const result = await caller.admin.inviteUser({
       email: 'JANE@example.com',
       role: 'Supervisor',
-      tags: ['shopkeeper'],
+      tags: ['shopkeeper', 'supervisor-primary-students'],
     });
 
     expect(createInvitation).toHaveBeenCalledWith({
       emailAddress: 'jane@example.com',
-      publicMetadata: { role: 'Supervisor', tags: ['shopkeeper'] },
+      publicMetadata: { role: 'Supervisor', tags: ['shopkeeper', 'supervisor-primary-students'] },
       redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
@@ -2077,7 +2097,7 @@ describe('admin.inviteUser', () => {
       data: {
         clerkInvitationId: 'inv_xyz',
         role: 'Supervisor',
-        tags: ['shopkeeper'],
+        tags: ['shopkeeper', 'supervisor-primary-students'],
         emailEnc: 'enc:jane@example.com',
         emailBidx: 'bidx:jane@example.com',
         status: 'Pending',
@@ -2118,7 +2138,7 @@ describe('admin.inviteUser', () => {
         entityId: 'inv_xyz',
         meta: {
           role: 'Supervisor',
-          tags: ['shopkeeper'],
+          tags: ['shopkeeper', 'supervisor-primary-students'],
           invitationStatus: 'pending',
           emailStatus: 'Sent',
           source: 'admin.inviteUser',
@@ -2164,6 +2184,15 @@ describe('admin.inviteUser', () => {
         email: 'all-students@example.com',
         role: 'Supervisor',
         tags: ['supervisor-all-students'],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(createInvitation).not.toHaveBeenCalled();
+
+    await expect(
+      caller.admin.inviteUser({
+        email: 'primary-students@example.com',
+        role: 'Supervisor',
+        tags: ['supervisor-primary-students'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(createInvitation).not.toHaveBeenCalled();

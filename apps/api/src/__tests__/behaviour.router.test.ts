@@ -39,6 +39,12 @@ const allStudentsSupervisorUser: SessionUser = {
   tags: ['supervisor-all-students'],
   requires2fa: false,
 };
+const primarySupervisorUser: SessionUser = {
+  id: 'ckusersupprimary0000001',
+  role: 'Supervisor',
+  tags: ['supervisor-primary-students'],
+  requires2fa: false,
+};
 const otherSupervisorUser: SessionUser = {
   id: 'ckusersupother000000001',
   role: 'Supervisor',
@@ -187,6 +193,7 @@ interface FakeDb {
     upsert: ReturnType<typeof vi.fn>;
   };
   meritLedger: { createMany: ReturnType<typeof vi.fn> };
+  yearGroupBand: { findMany: ReturnType<typeof vi.fn> };
   staffShift: { findMany: ReturnType<typeof vi.fn> };
 }
 
@@ -640,6 +647,20 @@ function makeFakeDb(
         ledger.push(...data);
         return Promise.resolve({ count: data.length });
       }),
+    },
+    yearGroupBand: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: { active?: boolean; name?: { in: string[] } };
+        } = {}) =>
+          Promise.resolve(
+            bands
+              .filter((band) => where?.active === undefined || band.active === where.active)
+              .filter((band) => where?.name?.in === undefined || where.name.in.includes(band.name)),
+          ),
+      ),
     },
     staffShift: {
       findMany: vi.fn(({ where }: { where: { staffUserId: string } }) =>
@@ -2373,6 +2394,33 @@ describe('behaviour.recentEntries', () => {
         visibility: 'General',
       }),
     ]);
+  });
+
+  it('allows primary-tagged Supervisors to log primary behaviour without exposing secondary students', async () => {
+    const { db } = makeFakeDb({ supervisorHasShift: false });
+    const caller = makeCaller(primarySupervisorUser, db);
+
+    await expect(
+      caller.behaviour.log({
+        studentId: activeStudentId,
+        type: 'Merit',
+        category: 'Kindness',
+        amount: 1,
+      }),
+    ).resolves.toMatchObject({
+      studentId: activeStudentId,
+      type: 'Merit',
+      meritDelta: 1,
+    });
+
+    await expect(
+      caller.behaviour.log({
+        studentId: secondaryStudentId,
+        type: 'Merit',
+        category: 'Service',
+        amount: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('allows ClubsAdmin users to log and read assigned-band behaviour like supervisors', async () => {

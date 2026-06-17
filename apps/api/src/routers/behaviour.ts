@@ -6,7 +6,6 @@ import {
   canUseAdminOperations,
   canUseClubLeadAccess,
   canUseClubsLeadPortal,
-  canUseAllStudentSupervisorWorkflow,
   canViewSensitiveBehaviour,
   canViewBehaviourReports,
   demeritMeritDeltaForCategory,
@@ -388,7 +387,7 @@ async function loadActiveScopedStudent(
     return student;
   }
   const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
-  if (!canUseAllStudentSupervisorWorkflow(ctx.user) && !studentMatchesDailyScope(scope, student)) {
+  if (!studentMatchesDailyScope(scope, student)) {
     await denyOutOfDailyScope(ctx, input.entity, {
       studentId: input.studentId,
       studentYearGroup: student.yearGroup,
@@ -574,7 +573,7 @@ async function assertDemeritStageNotes(
 
 function scopedStudentRelationWhere(scope: DailyYearBandScope, user: SessionUser, clubId?: string) {
   if (usesClubLeadScope(user, clubId)) return {};
-  if (canUseAllStudentSupervisorWorkflow(user) || scope.scopedYears === null) return {};
+  if (scope.scopedYears === null) return {};
   return { student: studentWhereForDailyScope(scope) };
 }
 
@@ -1319,10 +1318,7 @@ export function createBehaviourRouter(deps: BehaviourRouterDeps = {}) {
           });
         } else {
           const scope = await loadDailyYearBandScope(ctx, input.date ?? new Date());
-          if (
-            !canUseAllStudentSupervisorWorkflow(ctx.user) &&
-            !studentMatchesDailyScope(scope, student)
-          ) {
+          if (!studentMatchesDailyScope(scope, student)) {
             await denyOutOfDailyScope(ctx, 'behaviour.listForStudent', {
               studentId: input.studentId,
               studentYearGroup: student.yearGroup,

@@ -31,6 +31,12 @@ const allStudentsSupervisorUser: SessionUser = {
   tags: ['supervisor-all-students'],
   requires2fa: false,
 };
+const primarySupervisorUser: SessionUser = {
+  id: 'u_primary_sup',
+  role: 'Supervisor',
+  tags: ['supervisor-primary-students'],
+  requires2fa: false,
+};
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
 const studentUser: SessionUser = {
   id: 'u_student',
@@ -932,6 +938,53 @@ describe('pace.roster access scope', () => {
     expect(result.assignedBands).toEqual([]);
     expect(result.students).toHaveLength(0);
     expect(db.student.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns primary children for primary-tagged Supervisors without granting full PACE access', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([]);
+    const { caller } = makeCaller(primarySupervisorUser, db);
+
+    const result = await caller.pace.roster();
+
+    expect(result.fullAccess).toBe(false);
+    expect(result.canEditDate).toBe(true);
+    expect(result.assignedBands).toEqual([
+      expect.objectContaining({ id: 'band_lower', name: 'Lower Primary' }),
+    ]);
+    expect(result.students).toHaveLength(1);
+    expect(result.students[0]).toMatchObject({
+      studentId: STUDENT_ID,
+      yearGroup: 'Year 6',
+    });
+    expect(db.student.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { active: true, yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] } },
+      }),
+    );
+  });
+
+  it('combines primary access with assigned non-primary PACE bands', async () => {
+    const db = makeFakeDb();
+    db.staffShift.findMany.mockResolvedValue([{ yearGroupBand: defaultBands[1] }]);
+    const { caller } = makeCaller(primarySupervisorUser, db);
+
+    const result = await caller.pace.roster();
+
+    expect(result.fullAccess).toBe(false);
+    expect(result.assignedBands).toEqual([
+      expect.objectContaining({ id: 'band_secondary', name: 'Secondary' }),
+      expect.objectContaining({ id: 'band_lower', name: 'Lower Primary' }),
+    ]);
+    expect(result.students).toHaveLength(2);
+    expect(db.student.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          active: true,
+          yearGroup: { in: ['Year 7', 'Y7', 'Year 8', 'Y8', 'Year 5', 'Y5', 'Year 6', 'Y6'] },
+        },
+      }),
+    );
   });
 
   it('returns all active children for tagged all-student Supervisors', async () => {

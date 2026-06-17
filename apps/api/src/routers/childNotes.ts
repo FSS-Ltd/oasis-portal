@@ -3,7 +3,6 @@ import { z } from 'zod';
 import {
   AccessDeniedError,
   canUseAdminOperations,
-  canUseAllStudentSupervisorWorkflow,
   canViewSensitiveChildNotes,
   isStaff,
   type SessionUser,
@@ -80,7 +79,7 @@ async function requireStudentInChildNoteScope(
   student: { id: string; yearGroup: string },
 ): Promise<void> {
   const scope = await loadDailyYearBandScope(ctx, new Date());
-  if (canUseAllStudentSupervisorWorkflow(ctx.user) || studentMatchesDailyScope(scope, student)) {
+  if (studentMatchesDailyScope(scope, student)) {
     return;
   }
 

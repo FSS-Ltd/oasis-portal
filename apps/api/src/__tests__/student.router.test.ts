@@ -21,6 +21,12 @@ const supervisorUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const primarySupervisorUser: SessionUser = {
+  id: 'ckuserprimarysup000000001',
+  role: 'Supervisor',
+  tags: ['supervisor-primary-students'],
+  requires2fa: false,
+};
 const studentUser: SessionUser = {
   id: 'ckuserstudent00000000001',
   role: 'Student',
@@ -187,6 +193,7 @@ interface FakeDb {
     findUnique: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: {
+    findMany: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
   };
   studentPortalSettings: {
@@ -491,6 +498,25 @@ function makeFakeDb(
       ),
     },
     yearGroupBand: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: { active?: boolean; name?: { in: string[] } };
+        } = {}) =>
+          Promise.resolve(
+            bands
+              .filter((band) => where?.active === undefined || band.active === where.active)
+              .filter((band) => where?.name?.in === undefined || where.name.in.includes(band.name))
+              .map(({ id, name, standardYears, colour, active }) => ({
+                id,
+                name,
+                standardYears,
+                colour,
+                active,
+              })),
+          ),
+      ),
       findFirst: vi.fn(
         ({
           where,
@@ -1045,6 +1071,38 @@ describe('student router CRUD', () => {
     await expect(
       supervisorCaller.student.setCurrentPace({ studentId, subjectId, currentPaceNumber: 1002 }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lists primary children for primary-tagged Supervisors without exposing secondary children', async () => {
+    const { db, students } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    await createStudent(headCaller);
+    students.push({
+      id: 'ckstudentsecondary000001',
+      userId: null,
+      fullNameEnc: 'enc:Secondary Learner',
+      nameBidx: 'bidx:secondary learner',
+      dobEnc: 'enc:2012-02-03',
+      addressEnc: null,
+      yearGroup: 'Year 8',
+      enrolmentDate: new Date('2026-04-27T00:00:00.000Z'),
+      active: true,
+      createdAt: new Date('2026-04-28T00:00:00.000Z'),
+      updatedAt: new Date('2026-04-28T00:00:00.000Z'),
+    });
+    db.staffShift.findMany.mockResolvedValue([]);
+
+    const rows = await makeCaller(primarySupervisorUser, db).student.list();
+
+    expect(rows.map((row) => row.id)).toEqual([studentId]);
+    expect(db.student.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          active: true,
+          yearGroup: { in: ['Year 5', 'Y5', 'Year 6', 'Y6'] },
+        },
+      }),
+    );
   });
 
   it('keeps archived students visible to full-admin includeInactive and byId reads', async () => {
