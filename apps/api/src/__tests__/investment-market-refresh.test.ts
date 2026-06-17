@@ -114,7 +114,9 @@ function decimal(value: number): Prisma.Decimal {
   return new Prisma.Decimal(value.toFixed(6));
 }
 
-function makeInstrument(input: Partial<StoredInstrument> & Pick<StoredInstrument, 'id' | 'symbol'>) {
+function makeInstrument(
+  input: Partial<StoredInstrument> & Pick<StoredInstrument, 'id' | 'symbol'>,
+) {
   return {
     category: input.kind === 'crypto' ? 'Crypto' : 'Stock',
     displayName: input.symbol,
@@ -134,13 +136,16 @@ function makeInstrument(input: Partial<StoredInstrument> & Pick<StoredInstrument
   } satisfies StoredInstrument;
 }
 
-function makeDb(input: { instruments: StoredInstrument[]; transactions?: Array<{
-  studentId: string;
-  type: 'Buy' | 'Sell';
-  instrumentId: string;
-  units: number;
-  createdAt: Date;
-}> }) {
+function makeDb(input: {
+  instruments: StoredInstrument[];
+  transactions?: Array<{
+    studentId: string;
+    type: 'Buy' | 'Sell';
+    instrumentId: string;
+    units: number;
+    createdAt: Date;
+  }>;
+}) {
   const snapshots: StoredSnapshot[] = [];
   const newsItems: StoredNewsItem[] = [];
   const dividendEvents: Array<{
@@ -175,15 +180,16 @@ function makeDb(input: { instruments: StoredInstrument[]; transactions?: Array<{
             .sort((left, right) => left.sortOrder - right.sortOrder),
         ),
       ),
-      findFirst: vi.fn((args: { where: { provider: string; providerSymbol: string; enabled: true } }) =>
-        Promise.resolve(
-          input.instruments.find(
-            (instrument) =>
-              instrument.provider === args.where.provider &&
-              instrument.providerSymbol === args.where.providerSymbol &&
-              instrument.enabled,
-          ) ?? null,
-        ),
+      findFirst: vi.fn(
+        (args: { where: { provider: string; providerSymbol: string; enabled: true } }) =>
+          Promise.resolve(
+            input.instruments.find(
+              (instrument) =>
+                instrument.provider === args.where.provider &&
+                instrument.providerSymbol === args.where.providerSymbol &&
+                instrument.enabled,
+            ) ?? null,
+          ),
       ),
       update: vi.fn((args: { data: { enabled: false }; where: { id: string } }) => {
         const instrument = input.instruments.find((item) => item.id === args.where.id);
@@ -194,46 +200,48 @@ function makeDb(input: { instruments: StoredInstrument[]; transactions?: Array<{
     },
     marketDataSnapshot: {
       count: vi.fn(() => Promise.resolve(0)),
-      create: vi.fn((args: {
-        data: {
-          instrumentId: string;
-          provider: string;
-          providerTimestamp: Date;
-          serverFetchedAt: Date;
-          sourceCurrency: string;
-          sourcePrice: number;
-          gbpConversionRate: number;
-          gbpPrice: number;
-          previousCloseGbp: number;
-          dayChangePct: number;
-          rawPayloadHash: string;
-          providerCreditsUsed?: number;
-          providerCreditsLeft?: number;
-        };
-      }) => {
-        const instrument = input.instruments.find((item) => item.id === args.data.instrumentId);
-        if (!instrument) throw new Error('missing instrument');
-        const row: StoredSnapshot = {
-          createdAt: args.data.serverFetchedAt,
-          dayChangePct: decimal(args.data.dayChangePct),
-          gbpConversionRate: decimal(args.data.gbpConversionRate),
-          gbpPrice: decimal(args.data.gbpPrice),
-          id: `snapshot-${String(nextSnapshot++)}`,
-          instrument,
-          instrumentId: args.data.instrumentId,
-          previousCloseGbp: decimal(args.data.previousCloseGbp),
-          provider: args.data.provider,
-          providerCreditsLeft: args.data.providerCreditsLeft ?? null,
-          providerCreditsUsed: args.data.providerCreditsUsed ?? null,
-          providerTimestamp: args.data.providerTimestamp,
-          rawPayloadHash: args.data.rawPayloadHash,
-          serverFetchedAt: args.data.serverFetchedAt,
-          sourceCurrency: args.data.sourceCurrency,
-          sourcePrice: decimal(args.data.sourcePrice),
-        };
-        snapshots.push(row);
-        return Promise.resolve(row);
-      }),
+      create: vi.fn(
+        (args: {
+          data: {
+            instrumentId: string;
+            provider: string;
+            providerTimestamp: Date;
+            serverFetchedAt: Date;
+            sourceCurrency: string;
+            sourcePrice: number;
+            gbpConversionRate: number;
+            gbpPrice: number;
+            previousCloseGbp: number;
+            dayChangePct: number;
+            rawPayloadHash: string;
+            providerCreditsUsed?: number;
+            providerCreditsLeft?: number;
+          };
+        }) => {
+          const instrument = input.instruments.find((item) => item.id === args.data.instrumentId);
+          if (!instrument) throw new Error('missing instrument');
+          const row: StoredSnapshot = {
+            createdAt: args.data.serverFetchedAt,
+            dayChangePct: decimal(args.data.dayChangePct),
+            gbpConversionRate: decimal(args.data.gbpConversionRate),
+            gbpPrice: decimal(args.data.gbpPrice),
+            id: `snapshot-${String(nextSnapshot++)}`,
+            instrument,
+            instrumentId: args.data.instrumentId,
+            previousCloseGbp: decimal(args.data.previousCloseGbp),
+            provider: args.data.provider,
+            providerCreditsLeft: args.data.providerCreditsLeft ?? null,
+            providerCreditsUsed: args.data.providerCreditsUsed ?? null,
+            providerTimestamp: args.data.providerTimestamp,
+            rawPayloadHash: args.data.rawPayloadHash,
+            serverFetchedAt: args.data.serverFetchedAt,
+            sourceCurrency: args.data.sourceCurrency,
+            sourcePrice: decimal(args.data.sourcePrice),
+          };
+          snapshots.push(row);
+          return Promise.resolve(row);
+        },
+      ),
       findMany: vi.fn((args: { where?: { instrumentId?: { in: string[] } } }) =>
         Promise.resolve(
           snapshots.filter((snapshot) =>

@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-15",
+  "lastRunDate": "2026-06-17",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1721,6 +1721,246 @@
       ],
       "validationStatus": "pass",
       "notes": "No source change was justified; investment accounting fixtures already rely on domain-specific setup."
+    },
+    "apps/api/src/__tests__/studentSettings.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1617,
+      "lineCountAfter": 1617,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/message.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1582,
+      "lineCountAfter": 1582,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/rota.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1458,
+      "lineCountAfter": 1458,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/notice.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1296,
+      "lineCountAfter": 1296,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/registration.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1247,
+      "lineCountAfter": 1247,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/leaderboard.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1103,
+      "lineCountAfter": 1103,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/calendar.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1072,
+      "lineCountAfter": 1072,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/homework.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 1051,
+      "lineCountAfter": 1051,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/permissionSlip.router.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 933,
+      "lineCountAfter": 933,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "packages/domain/src/__tests__/investmentMarketData.test.ts": {
+      "lastReviewedAt": "2026-06-16",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 921,
+      "lineCountAfter": 921,
+      "issuesFixed": [
+        "Carried forward from 2026-06-16 automation memory to avoid repeating the prior test-file review."
+      ],
+      "validationStatus": "pass",
+      "notes": "Prior automation selected this as part of the oversized test-file cleanup run."
+    },
+    "apps/api/src/__tests__/incident.router.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 915,
+      "lineCountAfter": 915,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and router fixture structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/community.router.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 754,
+      "lineCountAfter": 754,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and community router fixture structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/report.router.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 746,
+      "lineCountAfter": 746,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and report router fixture structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/meritLedger.router.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 720,
+      "lineCountAfter": 720,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and merit-ledger router fixture structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/faithCorner.router.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 713,
+      "lineCountAfter": 717,
+      "issuesFixed": [
+        "Formatted selected Faith Corner router tests to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/clerkWebhook.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 675,
+      "lineCountAfter": 675,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and webhook fixture structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/investment-market-refresh.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 668,
+      "lineCountAfter": 676,
+      "issuesFixed": [
+        "Formatted selected investment market refresh tests to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "packages/domain/src/__tests__/rbac.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 655,
+      "lineCountAfter": 655,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and RBAC role-matrix coverage; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/helpers/investment-fixtures.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 630,
+      "lineCountAfter": 632,
+      "issuesFixed": [
+        "Formatted selected shared investment test fixtures to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "apps/api/src/__tests__/profile.router.test.ts": {
+      "lastReviewedAt": "2026-06-17",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 552,
+      "lineCountAfter": 552,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, and profile router fixture structure; no safe source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
     }
   },
   "deferredFiles": {
