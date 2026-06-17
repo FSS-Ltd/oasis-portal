@@ -14,6 +14,7 @@ import {
 } from './noticeboard-attachments';
 
 type Notice = RouterOutputs['notice']['listForAdmin'][number];
+type NoticePostResult = RouterOutputs['notice']['post'];
 type NoticeAudience = Notice['audience'];
 type NoticeboardMode = 'admin' | 'supervisor' | 'parent';
 
@@ -78,6 +79,18 @@ const noticeDateTimeFormatter = new Intl.DateTimeFormat('en-GB', {
 
 function formatDateTime(value: Date | string): string {
   return noticeDateTimeFormatter.format(new Date(value));
+}
+
+function emailCountLabel(count: number): string {
+  return count === 1 ? '1 email' : `${String(count)} emails`;
+}
+
+function noticePostSuccessMessage(summary: NoticePostResult['emailSummary']): string {
+  if (summary.recipientCount === 0) return 'Notice posted. No email recipients found.';
+  if (summary.failedCount > 0) {
+    return `Notice posted. ${emailCountLabel(summary.sentCount)} sent, ${emailCountLabel(summary.failedCount)} failed.`;
+  }
+  return `Notice posted. ${emailCountLabel(summary.sentCount)} sent.`;
 }
 
 function ReadSummaryBadge({ summary }: { summary: NonNullable<Notice['readSummary']> }) {
@@ -208,14 +221,14 @@ export function StaffNoticeboard({ mode }: StaffNoticeboardProps) {
         ? parentNoticesQuery
         : staffNoticesQuery;
   const postNotice = api.notice.post.useMutation({
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setTitle('');
       setBody('');
       setAudience('Supervisors');
       setExpiresAt('');
       setAttachments([]);
       setFormError(null);
-      showSuccessToast('Notice posted.');
+      showSuccessToast(noticePostSuccessMessage(result.emailSummary));
       await refreshNoticeState();
     },
     onError(error) {

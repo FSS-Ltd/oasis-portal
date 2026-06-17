@@ -18,6 +18,11 @@ import {
   MessageNotificationEmail,
 } from '../emails/message-notification-email.js';
 import {
+  buildNoticeNotificationEmailText,
+  NoticeNotificationEmail,
+  type NoticeNotificationAudience,
+} from '../emails/notice-notification-email.js';
+import {
   buildReportNotificationEmailText,
   ReportNotificationEmail,
 } from '../emails/report-notification-email.js';
@@ -38,6 +43,7 @@ export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour upda
 export const CLUB_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal club notification';
 export const INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT =
   'Oasis Portal invoice payment awaiting confirmation';
+export const NOTICE_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal noticeboard update';
 export const REPORT_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal term report ready';
 
 export interface EmailEnv {
@@ -354,6 +360,40 @@ export function buildInvoicePaymentNotificationEmail(
       ...logoProps(logoUrl),
     }),
     text: buildInvoicePaymentNotificationEmailText(commonProps),
+  };
+}
+
+export interface NoticeNotificationEmailInput {
+  audience: NoticeNotificationAudience;
+  body: string;
+  logoUrl?: string;
+  noticePath?: string;
+  recipientName?: string;
+  title: string;
+  to: string;
+}
+
+export function buildNoticeNotificationEmail(input: NoticeNotificationEmailInput): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const noticeUrl = buildPortalUrl(input.noticePath);
+  const noticeUrlProps = noticeUrl ? { noticeUrl } : {};
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    audience: input.audience,
+    body: input.body,
+    title: input.title,
+    ...noticeUrlProps,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: NOTICE_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(NoticeNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildNoticeNotificationEmailText(commonProps),
   };
 }
 

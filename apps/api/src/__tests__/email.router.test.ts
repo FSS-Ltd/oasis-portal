@@ -10,6 +10,7 @@ import {
   HELLO_WORLD_EMAIL_TO,
   INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
+  NOTICE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
   REPORT_NOTIFICATION_EMAIL_SUBJECT,
   SMOKE_TEST_EMAIL_SUBJECT,
@@ -21,6 +22,7 @@ import {
   buildHelloWorldEmail,
   buildInvoicePaymentNotificationEmail,
   buildMessageNotificationEmail,
+  buildNoticeNotificationEmail,
   buildReportNotificationEmail,
   buildSmokeTestEmail,
   buildUserInviteEmail,
@@ -207,6 +209,44 @@ describe('email builders', () => {
     expect(html).toContain('New portal message');
     expect(html).toContain('Attendance question');
     expect(html).not.toContain('Please call me back');
+  });
+
+  it('builds a notice notification email with notice contents and portal link', async () => {
+    const originalAppUrl = process.env.APP_URL;
+    process.env.APP_URL = 'https://portal.example.com';
+
+    try {
+      const email = buildNoticeNotificationEmail({
+        to: 'parent@example.com',
+        recipientName: 'Jane Parent',
+        title: 'Trip forms',
+        body: 'Please return the signed trip form tomorrow.',
+        audience: 'Parents',
+        noticePath: '/parent/noticeboard',
+      });
+
+      expect(email.to).toBe('parent@example.com');
+      expect(email.subject).toBe(NOTICE_NOTIFICATION_EMAIL_SUBJECT);
+      expect(email.text).toContain('Trip forms');
+      expect(email.text).toContain('Please return the signed trip form tomorrow.');
+      expect(email.text).toContain('Audience: Parents');
+      expect(email.text).toContain('https://portal.example.com/parent/noticeboard');
+      expect('react' in email).toBe(true);
+      expect('html' in email).toBe(false);
+
+      if (!('react' in email)) throw new Error('expected react email payload');
+      const html = await render(email.react);
+      expect(html).toContain('Noticeboard update');
+      expect(html).toContain('Trip forms');
+      expect(html).toContain('Please return the signed trip form tomorrow.');
+      expect(html).toContain('https://portal.example.com/parent/noticeboard');
+    } finally {
+      if (originalAppUrl === undefined) {
+        delete process.env.APP_URL;
+      } else {
+        process.env.APP_URL = originalAppUrl;
+      }
+    }
   });
 
   it('builds a behaviour notification email with category, type, and optional note', async () => {

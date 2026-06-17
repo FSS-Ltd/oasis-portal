@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@oasis/db';
 import type { SessionUser } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { noticeRouter } from '../routers/notice.js';
+import type { EmailClient } from '../lib/email.js';
+import { createNoticeRouter } from '../routers/notice.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
@@ -65,8 +66,9 @@ interface StoredRead {
 
 interface StoredUser {
   id: string;
-  role: 'Head' | 'Supervisor' | 'Parent';
+  role: 'Head' | 'Supervisor' | 'ClubsAdmin' | 'Parent';
   fullNameEnc: string;
+  emailEnc: string | null;
   active: boolean;
 }
 
@@ -126,6 +128,18 @@ interface FakeNoticeAttachmentFindUniqueArgs {
   include?: { notice?: true };
 }
 
+interface FakeAuditCreateArgs {
+  data: {
+    action: string;
+    entity: string;
+    entityId?: string | null;
+    meta?: Record<string, unknown>;
+    userId: string;
+  };
+}
+
+type FakeAuditCreate = (args: FakeAuditCreateArgs) => Promise<FakeAuditCreateArgs>;
+
 function encrypt(value: string): string {
   return `enc:${value}`;
 }
@@ -150,20 +164,41 @@ function makeNotice(
 }
 
 const defaultUsers: StoredUser[] = [
-  { id: headUser.id, role: 'Head', fullNameEnc: encrypt('Head User'), active: true },
+  {
+    id: headUser.id,
+    role: 'Head',
+    fullNameEnc: encrypt('Head User'),
+    emailEnc: encrypt('head@example.com'),
+    active: true,
+  },
   {
     id: supervisorUser.id,
     role: 'Supervisor',
     fullNameEnc: encrypt('Supervisor User'),
+    emailEnc: encrypt('supervisor@example.com'),
     active: true,
   },
   {
     id: 'u_supervisor_unread',
     role: 'Supervisor',
     fullNameEnc: encrypt('Unread Supervisor'),
+    emailEnc: encrypt('unread-supervisor@example.com'),
     active: true,
   },
-  { id: parentUser.id, role: 'Parent', fullNameEnc: encrypt('Parent User'), active: true },
+  {
+    id: clubsAdminUser.id,
+    role: 'ClubsAdmin',
+    fullNameEnc: encrypt('Clubs Admin'),
+    emailEnc: encrypt('clubs-admin@example.com'),
+    active: true,
+  },
+  {
+    id: parentUser.id,
+    role: 'Parent',
+    fullNameEnc: encrypt('Parent User'),
+    emailEnc: encrypt('parent@example.com'),
+    active: true,
+  },
 ];
 
 const pngBytes = Buffer.from([
@@ -257,7 +292,9 @@ function makeFakeDb(
 
   return {
     $enc: { encrypt, decrypt },
-    auditLog: { create: vi.fn().mockResolvedValue(undefined) },
+    auditLog: {
+      create: vi.fn<FakeAuditCreate>().mockImplementation((args) => Promise.resolve(args)),
+    },
     user: {
       findMany: vi.fn((args: { where: { role: { in: string[] }; active: boolean } }) =>
         Promise.resolve(
@@ -276,6 +313,16 @@ function makeFakeDb(
               guardian.student.active === args.where.student.active,
           ).length,
         ),
+      ),
+      findMany: vi.fn(
+        (args: { where: { userId?: { in: string[] }; student: { active: boolean } } }) =>
+          Promise.resolve(
+            guardians.filter((guardian) => {
+              const matchesUser =
+                !args.where.userId?.in || args.where.userId.in.includes(guardian.userId);
+              return matchesUser && guardian.student.active === args.where.student.active;
+            }),
+          ),
       ),
     },
     staffNotice: {
@@ -369,9 +416,19 @@ function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): A
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
-  const appRouter = router({ notice: noticeRouter });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db };
+function makeFakeEmailClient(result = { id: 'email_123' }) {
+  const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
+  const client: EmailClient = { send };
+  return { client, send };
+}
+
+function auditCreateArgs(db: ReturnType<typeof makeFakeDb>): FakeAuditCreateArgs[] {
+  return db.auditLog.create.mock.calls.map(([args]) => args);
+}
+
+function makeCaller(user: SessionUser | null, db = makeFakeDb(), email = makeFakeEmailClient()) {
+  const appRouter = router({ notice: createNoticeRouter({ emailClient: email.client }) });
+  return { caller: appRouter.createCaller(makeCtx(user, db)), db, email };
 }
 
 afterEach(() => {
@@ -425,6 +482,132 @@ describe('notice.post', () => {
         },
       },
     });
+  });
+
+  it('emails parent notices to parents and supervisors with linked active children', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const db = makeFakeDb(
+      [],
+      [],
+      defaultUsers,
+      [],
+      [
+        { userId: supervisorUser.id, student: { active: true } },
+        { userId: 'u_supervisor_unread', student: { active: false } },
+      ],
+    );
+    const { caller, email } = makeCaller(headUser, db);
+
+    const result = await caller.notice.post({
+      title: '  Parents update  ',
+      body: '  Bring forms tomorrow.  ',
+      audience: 'Parents',
+    });
+
+    expect(result.emailSummary).toEqual({ recipientCount: 2, sentCount: 2, failedCount: 0 });
+    expect(email.send).toHaveBeenCalledTimes(2);
+    expect(email.send.mock.calls.map(([input]) => input.to).sort()).toEqual([
+      'parent@example.com',
+      'supervisor@example.com',
+    ]);
+    expect(email.send.mock.calls[0]?.[0].text).toContain('Parents update');
+    expect(email.send.mock.calls[0]?.[0].text).toContain('Bring forms tomorrow.');
+  });
+
+  it('emails supervisor notices only to active supervisor-audience users', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const { caller, email } = makeCaller(headUser);
+
+    const result = await caller.notice.post({
+      title: 'Staff briefing',
+      body: 'Meet in the hall.',
+      audience: 'Supervisors',
+    });
+
+    expect(result.emailSummary).toEqual({ recipientCount: 3, sentCount: 3, failedCount: 0 });
+    expect(email.send.mock.calls.map(([input]) => input.to).sort()).toEqual([
+      'clubs-admin@example.com',
+      'supervisor@example.com',
+      'unread-supervisor@example.com',
+    ]);
+  });
+
+  it('dedupes both-audience notice emails across supervisor and parent recipient sets', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const db = makeFakeDb(
+      [],
+      [],
+      defaultUsers,
+      [],
+      [{ userId: supervisorUser.id, student: { active: true } }],
+    );
+    const { caller, email } = makeCaller(headUser, db);
+
+    const result = await caller.notice.post({
+      title: 'Shared update',
+      body: 'Everyone should read this.',
+      audience: 'Both',
+    });
+
+    expect(result.emailSummary).toEqual({ recipientCount: 4, sentCount: 4, failedCount: 0 });
+    expect(email.send.mock.calls.map(([input]) => input.to).sort()).toEqual([
+      'clubs-admin@example.com',
+      'parent@example.com',
+      'supervisor@example.com',
+      'unread-supervisor@example.com',
+    ]);
+  });
+
+  it('keeps the notice posted when one notice email fails and audits the failure', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const db = makeFakeDb(
+      [],
+      [],
+      defaultUsers,
+      [],
+      [{ userId: supervisorUser.id, student: { active: true } }],
+    );
+    const email = makeFakeEmailClient({ id: 'email_ok' });
+    email.send.mockRejectedValueOnce(new Error('Resend down'));
+    const { caller } = makeCaller(headUser, db, email);
+
+    const result = await caller.notice.post({
+      title: 'Parent update',
+      body: 'Sensitive body stays out of audit logs.',
+      audience: 'Parents',
+    });
+
+    expect(result.emailSummary).toEqual({ recipientCount: 2, sentCount: 1, failedCount: 1 });
+    expect(db.notices).toHaveLength(1);
+    const audits = auditCreateArgs(db);
+    const sentEmailAudit = audits.find(
+      (audit) => audit.data.entity === 'Email' && audit.data.meta?.['emailStatus'] === 'Sent',
+    );
+    const failedEmailAudit = audits.find(
+      (audit) =>
+        audit.data.entity === 'StaffNotice' && audit.data.meta?.['emailStatus'] === 'Failed',
+    );
+
+    expect(sentEmailAudit?.data).toMatchObject({
+      entity: 'Email',
+      meta: {
+        emailStatus: 'Sent',
+        noticeId: 'cmnotice00000000000000001',
+        source: 'notice.post.email',
+      },
+    });
+    expect(failedEmailAudit?.data).toMatchObject({
+      entity: 'StaffNotice',
+      entityId: 'cmnotice00000000000000001',
+      meta: {
+        emailStatus: 'Failed',
+        source: 'notice.post.email',
+      },
+    });
+    expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain(
+      'Sensitive body stays out of audit logs.',
+    );
+    expect(JSON.stringify(db.auditLog.create.mock.calls)).not.toContain('parent@example.com');
   });
 
   it('rejects Supervisor posting and past expiry values', async () => {
@@ -713,8 +896,15 @@ describe('notice.listForAdmin', () => {
         readAt: null,
         readSummary: {
           read: 1,
-          total: 2,
+          total: 3,
           recipients: [
+            expect.objectContaining({
+              userId: clubsAdminUser.id,
+              fullName: 'Clubs Admin',
+              role: 'ClubsAdmin',
+              read: false,
+              readAt: null,
+            }),
             expect.objectContaining({
               userId: supervisorUser.id,
               fullName: 'Supervisor User',
@@ -737,6 +927,54 @@ describe('notice.listForAdmin', () => {
         read: true,
         readAt,
         readSummary: null,
+      }),
+    ]);
+  });
+
+  it('includes linked-child supervisors in parent notice read summaries', async () => {
+    vi.setSystemTime(new Date('2026-05-08T12:00:00.000Z'));
+    const authoredNotice = makeNotice({
+      id: 'cmnotice00000000000000026',
+      title: 'Parent authored',
+      postedById: headUser.id,
+      audience: 'Parents',
+    });
+    const readAt = new Date('2026-05-08T11:00:00.000Z');
+
+    await expect(
+      makeCaller(
+        headUser,
+        makeFakeDb(
+          [authoredNotice],
+          [{ noticeId: authoredNotice.id, userId: supervisorUser.id, readAt }],
+          defaultUsers,
+          [],
+          [{ userId: supervisorUser.id, student: { active: true } }],
+        ),
+      ).caller.notice.listForAdmin(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: authoredNotice.id,
+        readSummary: {
+          read: 1,
+          total: 2,
+          recipients: [
+            expect.objectContaining({
+              userId: parentUser.id,
+              fullName: 'Parent User',
+              role: 'Parent',
+              read: false,
+              readAt: null,
+            }),
+            expect.objectContaining({
+              userId: supervisorUser.id,
+              fullName: 'Supervisor User',
+              role: 'Supervisor',
+              read: true,
+              readAt,
+            }),
+          ],
+        },
       }),
     ]);
   });
@@ -920,14 +1158,11 @@ describe('notice.listForParents', () => {
     ]);
   });
 
-  it.each([supervisorUser, studentUser, clubsAdminUser])(
-    'denies %s callers',
-    async (user) => {
-      await expect(makeCaller(user).caller.notice.listForParents()).rejects.toMatchObject({
-        code: 'FORBIDDEN',
-      });
-    },
-  );
+  it.each([supervisorUser, studentUser, clubsAdminUser])('denies %s callers', async (user) => {
+    await expect(makeCaller(user).caller.notice.listForParents()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+  });
 });
 
 describe('notice.prepareAttachments', () => {
