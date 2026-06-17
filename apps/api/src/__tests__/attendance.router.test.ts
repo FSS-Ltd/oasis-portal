@@ -32,6 +32,18 @@ const attendanceRecorderUser: SessionUser = {
   tags: ['attendance-recorder'],
   requires2fa: false,
 };
+const primarySupervisorUser: SessionUser = {
+  id: 'ckuserprimarysup000000001',
+  role: 'Supervisor',
+  tags: ['supervisor-primary-students'],
+  requires2fa: false,
+};
+const primaryAttendanceRecorderUser: SessionUser = {
+  id: 'ckuserprimaryrecord000001',
+  role: 'Supervisor',
+  tags: ['attendance-recorder', 'supervisor-primary-students'],
+  requires2fa: false,
+};
 const principalUser: SessionUser = {
   id: 'ckuserprincipal000000001',
   role: 'Principal',
@@ -737,15 +749,24 @@ function makeFakeDb() {
       ),
     },
     yearGroupBand: {
-      findMany: vi.fn(({ where }: { where?: { active?: boolean } } = {}) =>
+      findMany: vi.fn(
+        ({
+          where,
+          select,
+        }: {
+          where?: { active?: boolean; name?: { in: string[] } };
+          select?: { active?: boolean };
+        } = {}) =>
         Promise.resolve(
           yearGroupBands
             .filter((band) => where?.active === undefined || band.active === where.active)
+            .filter((band) => where?.name?.in === undefined || where.name.in.includes(band.name))
             .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-            .map(({ id, name, standardYears, colour, sortOrder }) => ({
+            .map(({ id, name, standardYears, active, colour, sortOrder }) => ({
               id,
               name,
               standardYears,
+              ...(select?.active ? { active } : {}),
               colour,
               sortOrder,
             })),
@@ -941,6 +962,17 @@ describe('attendance.forDate', () => {
       makeCaller(supervisorUser, db).attendance.forDate({ date: day('2026-04-30') }),
     ).resolves.toEqual([]);
   });
+
+  it('returns primary students for a primary-tagged Supervisor without a shift', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(primarySupervisorUser, db).attendance.forDate({ date: day('2026-04-30') }),
+    ).resolves.toEqual([
+      expect.objectContaining({ studentId: secondStudentId, yearGroup: 'Year 5' }),
+      expect.objectContaining({ studentId: activeStudentId, yearGroup: 'Year 6' }),
+    ]);
+  });
 });
 
 describe('attendance.mark', () => {
@@ -1069,6 +1101,30 @@ describe('attendance.mark', () => {
         absenceReason: 'Unexcused',
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets primary-tagged recorders mark primary students without replacing the recorder gate', async () => {
+    const { db } = makeFakeDb();
+
+    await expect(
+      makeCaller(primarySupervisorUser, db).attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-30'),
+        status: 'Present',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await expect(
+      makeCaller(primaryAttendanceRecorderUser, db).attendance.mark({
+        studentId: activeStudentId,
+        date: day('2026-04-30'),
+        status: 'Present',
+      }),
+    ).resolves.toMatchObject({
+      studentId: activeStudentId,
+      status: 'Present',
+      recordedById: primaryAttendanceRecorderUser.id,
+    });
   });
 
   it('denies Parent/Student and rejects missing or inactive students', async () => {

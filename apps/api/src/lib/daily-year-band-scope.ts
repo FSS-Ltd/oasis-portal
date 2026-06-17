@@ -1,5 +1,20 @@
 import type { Prisma } from '@oasis/db';
-import { canonicalSchoolYear, schoolYearStorageAliases, type SessionUser } from '@oasis/domain';
+import {
+  canUseAllStudentSupervisorWorkflow,
+  canUsePrimaryStudentSupervisorWorkflow,
+  canonicalSchoolYear,
+  schoolYearStorageAliases,
+  type SessionUser,
+} from '@oasis/domain';
+
+const PRIMARY_SUPERVISOR_YEAR_BAND_NAMES = ['Lower Primary', 'Upper Primary'];
+const YEAR_GROUP_BAND_SELECT = {
+  id: true,
+  name: true,
+  standardYears: true,
+  colour: true,
+  active: true,
+} as const;
 
 type YearBandRow = {
   id: string;
@@ -26,6 +41,13 @@ type StaffShiftScopeDb = {
         };
       };
     }) => Promise<Array<{ yearGroupBand: YearBandRow | null }>>;
+  };
+  yearGroupBand: {
+    findMany: (args: {
+      where: { active: true; name: { in: string[] } };
+      orderBy: Array<{ sortOrder: 'asc' } | { name: 'asc' }>;
+      select: typeof YEAR_GROUP_BAND_SELECT;
+    }) => Promise<YearBandRow[]>;
   };
 };
 
@@ -71,6 +93,15 @@ export async function loadDailyYearBandScope(
   date: Date,
 ): Promise<DailyYearBandScope> {
   const scopedDate = normalizeDate(date);
+  if (canUseAllStudentSupervisorWorkflow(ctx.user)) {
+    return {
+      assignedBands: [],
+      date: scopedDate,
+      dayKey: dateKey(scopedDate),
+      scopedYears: null,
+    };
+  }
+
   if (ctx.user.role !== 'Supervisor' && ctx.user.role !== 'ClubsAdmin') {
     return {
       assignedBands: [],
@@ -95,7 +126,20 @@ export async function loadDailyYearBandScope(
       },
     },
   });
-  const assignedBands = uniqueBands(shifts.map((shift) => shift.yearGroupBand));
+  const primaryBands = canUsePrimaryStudentSupervisorWorkflow(ctx.user)
+    ? await ctx.db.yearGroupBand.findMany({
+        where: {
+          active: true,
+          name: { in: PRIMARY_SUPERVISOR_YEAR_BAND_NAMES },
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: YEAR_GROUP_BAND_SELECT,
+      })
+    : [];
+  const assignedBands = uniqueBands([
+    ...shifts.map((shift) => shift.yearGroupBand),
+    ...primaryBands,
+  ]);
   const scopedYears = [
     ...new Set(
       assignedBands.flatMap((band) =>

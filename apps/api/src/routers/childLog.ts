@@ -6,7 +6,6 @@ import {
   academicYearStart,
   attendanceRate,
   canUseAdminOperations,
-  canUseAllStudentSupervisorWorkflow,
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
   canViewStudentDrillThrough,
@@ -391,9 +390,7 @@ export const childLogRouter = router({
   listSnapshotStudents: authedProcedure.query(async ({ ctx }) => {
     await requireSnapshotWorkflow(ctx);
     const scope = await loadDailyYearBandScope(ctx, new Date());
-    const scopeWhere = canUseAllStudentSupervisorWorkflow(ctx.user)
-      ? {}
-      : studentWhereForDailyScope(scope);
+    const scopeWhere = studentWhereForDailyScope(scope);
     const students = await ctx.db.student.findMany({
       where: { active: true, ...scopeWhere },
       include: studentListInclude,
@@ -1294,10 +1291,7 @@ export const childLogRouter = router({
     if (!student.active) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: 'student is inactive' });
     }
-    if (
-      !canUseAllStudentSupervisorWorkflow(ctx.user) &&
-      !studentMatchesDailyScope(scope, student)
-    ) {
+    if (!studentMatchesDailyScope(scope, student)) {
       await denyOutOfSnapshotScope(ctx, 'childLog.snapshot', {
         studentId: input.studentId,
         studentYearGroup: student.yearGroup,
@@ -1739,9 +1733,7 @@ export const childLogRouter = router({
       throw new TRPCError({ code: 'FORBIDDEN', message: 'notes history requires staff access' });
     }
     const scope = await loadDailyYearBandScope(ctx, new Date());
-    const scopeWhere = canUseAllStudentSupervisorWorkflow(ctx.user)
-      ? {}
-      : studentWhereForDailyScope(scope);
+    const scopeWhere = studentWhereForDailyScope(scope);
     const students = await ctx.db.student.findMany({
       where: { active: true, ...scopeWhere },
       select: { id: true, fullNameEnc: true, yearGroup: true },

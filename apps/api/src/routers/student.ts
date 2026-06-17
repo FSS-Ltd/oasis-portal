@@ -5,7 +5,6 @@ import {
   academicYearStart,
   attendanceRate as calculateAttendanceRate,
   canUseAdminOperations,
-  canUseAllStudentSupervisorWorkflow,
   deriveEnglandWalesSchoolYear,
   displaySchoolYearLabel,
   type PermissionTag,
@@ -602,9 +601,7 @@ export function createStudentRouter(deps: StudentRouterDeps = {}) {
         where.active = true;
       }
       if (input?.search) where.nameBidx = ctx.db.$enc.blindIndex(input.search);
-      if (!canUseAllStudentSupervisorWorkflow(ctx.user)) {
-        Object.assign(where, studentWhereForDailyScope(scope));
-      }
+      Object.assign(where, studentWhereForDailyScope(scope));
 
       const students = await ctx.db.student.findMany({
         where,

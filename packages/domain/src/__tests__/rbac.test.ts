@@ -13,6 +13,7 @@ import {
   canCreateSensitiveBehaviour,
   canUseAdminOperations,
   canUseAllStudentSupervisorWorkflow,
+  canUsePrimaryStudentSupervisorWorkflow,
   canUseFullPaceAccess,
   canUseStaffMessaging,
   canViewAnyStudentDrillThrough,
@@ -31,6 +32,7 @@ import {
   hasCompletedTwoFactor,
   isFullAdmin,
   isStaff,
+  PERMISSION_TAGS,
   requireClubsLead,
   requireCanViewSensitive,
   requireCanManageInvoices,
@@ -434,6 +436,7 @@ describe('workflow tags', () => {
         'student-drillthrough-viewer',
         'pace-full-access',
         'supervisor-all-students',
+        'supervisor-primary-students',
         'calendar-manager',
         'parent-message-responder',
       ],
@@ -449,6 +452,7 @@ describe('workflow tags', () => {
     expect(canViewAnyStudentDrillThrough(taggedClubsLead)).toBe(false);
     expect(canUseFullPaceAccess(taggedClubsLead)).toBe(false);
     expect(canUseAllStudentSupervisorWorkflow(taggedClubsLead)).toBe(false);
+    expect(canUsePrimaryStudentSupervisorWorkflow(taggedClubsLead)).toBe(false);
     expect(canManageCalendar(taggedClubsLead)).toBe(false);
     expect(canRespondToParentMessages(taggedClubsLead)).toBe(false);
     expect(() => {
@@ -566,6 +570,37 @@ describe('workflow tags', () => {
       }),
     ).toBe(false);
     expect(canUseAllStudentSupervisorWorkflow(technicalSupport)).toBe(true);
+  });
+
+  it('limits primary-student supervisor workflow access to tagged staff operators', () => {
+    expect(PERMISSION_TAGS).toContain('supervisor-primary-students');
+    expect(canUsePrimaryStudentSupervisorWorkflow(head)).toBe(false);
+    expect(canUsePrimaryStudentSupervisorWorkflow(supervisor)).toBe(false);
+    expect(
+      canUsePrimaryStudentSupervisorWorkflow({
+        ...supervisor,
+        tags: ['supervisor-primary-students'],
+      }),
+    ).toBe(true);
+    expect(
+      canUsePrimaryStudentSupervisorWorkflow({
+        ...clubsAdmin,
+        tags: ['supervisor-primary-students'],
+      }),
+    ).toBe(true);
+    expect(
+      canUsePrimaryStudentSupervisorWorkflow({
+        ...parent,
+        tags: ['supervisor-primary-students'],
+      }),
+    ).toBe(false);
+    expect(
+      canUsePrimaryStudentSupervisorWorkflow({
+        ...student,
+        tags: ['supervisor-primary-students'],
+      }),
+    ).toBe(false);
+    expect(canUsePrimaryStudentSupervisorWorkflow(technicalSupport)).toBe(false);
   });
 
   it('allows calendar management for operational admins or tagged staff', () => {

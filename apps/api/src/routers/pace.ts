@@ -4,6 +4,7 @@ import {
   AccessDeniedError,
   canUseAllStudentSupervisorWorkflow,
   canUseFullPaceAccess,
+  canUsePrimaryStudentSupervisorWorkflow,
   canonicalSchoolYear,
   displaySchoolYearLabel,
   isStaff,
@@ -28,6 +29,7 @@ const DEFAULT_POLICY = {
   passThreshold: 80,
 };
 const AUTOMATIC_PACE_MERIT_CATEGORY = 'Academic Excellence';
+const PRIMARY_SUPERVISOR_YEAR_BAND_NAMES = new Set(['Lower Primary', 'Upper Primary']);
 
 type AuthedContext = AppContext & { user: SessionUser };
 type PaceTestType = 'SelfTest' | 'FinalTest';
@@ -601,15 +603,21 @@ async function loadPaceScope(
   const assignedBands = uniqueBands(
     shifts.flatMap((shift) => (shift.yearGroupBand ? [shift.yearGroupBand] : [])),
   );
+  const scopedBands = canUsePrimaryStudentSupervisorWorkflow(ctx.user)
+    ? uniqueBands([
+        ...assignedBands,
+        ...rowBands.filter((band) => PRIMARY_SUPERVISOR_YEAR_BAND_NAMES.has(band.name)),
+      ])
+    : assignedBands;
 
   return {
-    assignedBands,
+    assignedBands: scopedBands,
     canEditDate,
     dayKey: dateKey(selectedDate),
     fullAccess,
     rowBands,
     scopedYears: new Set(
-      assignedBands.flatMap((band) =>
+      scopedBands.flatMap((band) =>
         band.standardYears.flatMap((year) => schoolYearStorageAliases(year)),
       ),
     ),

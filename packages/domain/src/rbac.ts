@@ -12,7 +12,7 @@
  * Permission tags layered on top: `shopkeeper`, `shopadmin`, `finance-admin`, `leaderboard-admin`,
  * `attendance-exporter`, `attendance-recorder`, `audit-viewer`,
  * `sensitive-note-viewer`, `behaviour-viewer`, `student-drillthrough-viewer`,
- * `pace-full-access`, `supervisor-all-students`, `calendar-manager`,
+ * `pace-full-access`, `supervisor-all-students`, `supervisor-primary-students`, `calendar-manager`,
  * `parent-message-responder`, `club-lead`.
  */
 
@@ -76,6 +76,7 @@ export const PERMISSION_TAGS = [
   'student-drillthrough-viewer',
   'pace-full-access',
   'supervisor-all-students',
+  'supervisor-primary-students',
   'calendar-manager',
   'parent-message-responder',
   'club-lead',
@@ -357,6 +358,15 @@ export function canUseAllStudentSupervisorWorkflow(user: SessionUser): boolean {
     canUseAdminOperations(user) ||
     ((user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
       hasTag(user, 'supervisor-all-students'))
+  );
+}
+
+export function canUsePrimaryStudentSupervisorWorkflow(
+  user: Pick<SessionUser, 'role' | 'tags'>,
+): boolean {
+  return (
+    (user.role === 'Supervisor' || user.role === 'ClubsAdmin') &&
+    hasTag(user, 'supervisor-primary-students')
   );
 }
 

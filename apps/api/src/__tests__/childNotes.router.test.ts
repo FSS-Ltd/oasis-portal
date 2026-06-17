@@ -43,6 +43,12 @@ const allStudentsSupervisorUser: SessionUser = {
   tags: ['supervisor-all-students'],
   requires2fa: false,
 };
+const primarySupervisorUser: SessionUser = {
+  id: 'u_primary_sup',
+  role: 'Supervisor',
+  tags: ['supervisor-primary-students'],
+  requires2fa: false,
+};
 const sensitiveViewerUser: SessionUser = {
   id: 'u_sensitive',
   role: 'Supervisor',
@@ -303,6 +309,13 @@ function makeFakeDb(options: FakeDbOptions = {}) {
     colour: '#0E7892',
     active: true,
   };
+  const upperPrimaryBand: StoredYearGroupBand = {
+    id: 'band_upper_primary',
+    name: 'Upper Primary',
+    standardYears: ['Year 6'],
+    colour: '#2F8F6B',
+    active: true,
+  };
   const staffShifts: StoredStaffShift[] = [
     {
       id: 'shift_supervisor',
@@ -508,6 +521,20 @@ function makeFakeDb(options: FakeDbOptions = {}) {
             (shift) => shift.staffUserId === where.staffUserId && sameDay(shift.date, where.date),
           ),
         ),
+      ),
+    },
+    yearGroupBand: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: { active?: boolean; name?: { in: string[] } };
+        } = {}) =>
+          Promise.resolve(
+            [lowerBand, upperPrimaryBand]
+              .filter((band) => where?.active === undefined || band.active === where.active)
+              .filter((band) => where?.name?.in === undefined || where.name.in.includes(band.name)),
+          ),
       ),
     },
     guardian: {
@@ -1248,6 +1275,26 @@ describe('childLog.snapshot', () => {
         }),
       ]),
     );
+  });
+
+  it('allows primary-tagged Supervisors to write primary notes without exposing secondary students', async () => {
+    const { db, staffShifts, students } = makeFakeDb();
+    staffShifts.length = 0;
+    students.push(makeOutOfBandStudent());
+
+    await expect(
+      makeCaller(primarySupervisorUser, db).childNotes.create({
+        studentId: 'student_1',
+        note: 'Primary note',
+      }),
+    ).resolves.toMatchObject({ studentId: 'student_1', createdById: primarySupervisorUser.id });
+
+    await expect(
+      makeCaller(primarySupervisorUser, db).childNotes.create({
+        studentId: 'student_2',
+        note: 'Secondary note',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('lists only accessible students for linked adult accounts', async () => {
