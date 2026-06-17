@@ -275,7 +275,9 @@ export function decimalNumber(value: Prisma.Decimal): number {
   return Number(value.toString());
 }
 
-export function makeStudent(input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>): StoredStudent {
+export function makeStudent(
+  input: Partial<StoredStudent> & Pick<StoredStudent, 'id'>,
+): StoredStudent {
   return {
     active: true,
     userId: null,

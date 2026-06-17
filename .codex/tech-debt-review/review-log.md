@@ -727,3 +727,48 @@
 
 ### Follow-Ups Deferred
 - Broader splits of the oversized router test fixtures remain deferred; extracting fake DB builders would be higher risk and better handled in dedicated test-suite cleanup branches.
+
+## 2026-06-17 - Pass 1
+
+### Selected Files
+1. `apps/api/src/__tests__/incident.router.test.ts`
+2. `apps/api/src/__tests__/community.router.test.ts`
+3. `apps/api/src/__tests__/report.router.test.ts`
+4. `apps/api/src/__tests__/meritLedger.router.test.ts`
+5. `apps/api/src/__tests__/faithCorner.router.test.ts`
+6. `apps/api/src/__tests__/clerkWebhook.test.ts`
+7. `apps/api/src/__tests__/investment-market-refresh.test.ts`
+8. `packages/domain/src/__tests__/rbac.test.ts`
+9. `apps/api/src/__tests__/helpers/investment-fixtures.ts`
+10. `apps/api/src/__tests__/profile.router.test.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint initially required isolated dependency setup and Prisma Client generation; after setup, selected-file ESLint passed before source edits.
+- Typecheck: API typecheck was blocked before Prisma Client generation; after generation, API and domain typecheck passed before source edits.
+- Tests: focused package tests were reserved for post-change validation.
+- Formatting: selected-file Prettier failed for `apps/api/src/__tests__/faithCorner.router.test.ts`, `apps/api/src/__tests__/investment-market-refresh.test.ts`, and `apps/api/src/__tests__/helpers/investment-fixtures.ts`.
+
+### Changes Made
+- `apps/api/src/__tests__/faithCorner.router.test.ts`: formatted selected router tests to satisfy Prettier.
+- `apps/api/src/__tests__/investment-market-refresh.test.ts`: formatted selected market refresh tests to satisfy Prettier.
+- `apps/api/src/__tests__/helpers/investment-fixtures.ts`: formatted selected shared investment test fixtures to satisfy Prettier.
+- Remaining selected files: reviewed lint, type, formatting, and fixture structure; no safe source change was needed.
+- Review memory: carried forward the 2026-06-16 automation-reviewed test files so pass 1 does not repeat them.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/api lint`; pass, `pnpm --filter @oasis/domain lint`
+- typecheck command: pass, `pnpm --filter @oasis/api typecheck`; pass, `pnpm --filter @oasis/domain typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api test -- incident.router.test.ts community.router.test.ts report.router.test.ts meritLedger.router.test.ts faithCorner.router.test.ts clerkWebhook.test.ts investment-market-refresh.test.ts profile.router.test.ts` ran the API suite: 39 files / 827 tests; pass, `pnpm --filter @oasis/domain test -- rbac.test.ts` ran the domain suite: 23 files / 340 tests
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff hygiene: pass, `git diff --check`
+- graph update: pass, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Broader extraction of the oversized router test fixtures remains deferred; there was no local lint/type failure after Prisma generation, and fixture-builder refactors would be higher-risk than today’s formatting cleanup.

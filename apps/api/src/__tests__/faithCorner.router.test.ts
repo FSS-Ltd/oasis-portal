@@ -171,8 +171,7 @@ function decrypt(value: string | null | undefined): string | null {
 }
 
 function makeContent(
-  input: Partial<StoredFaithCornerContent> &
-    Pick<StoredFaithCornerContent, 'id' | 'weeklyTheme'>,
+  input: Partial<StoredFaithCornerContent> & Pick<StoredFaithCornerContent, 'id' | 'weeklyTheme'>,
 ): StoredFaithCornerContent {
   return {
     memoryVerseReference: 'John 3:16',
@@ -327,14 +326,15 @@ function makeFakeDb(
       ),
     },
     faithCornerComment: {
-      count: vi.fn(({ where }: { where: { contentId: string; status?: StoredFaithCornerCommentStatus } }) =>
-        Promise.resolve(
-          comments.filter(
-            (comment) =>
-              comment.contentId === where.contentId &&
-              (where.status === undefined || comment.status === where.status),
-          ).length,
-        ),
+      count: vi.fn(
+        ({ where }: { where: { contentId: string; status?: StoredFaithCornerCommentStatus } }) =>
+          Promise.resolve(
+            comments.filter(
+              (comment) =>
+                comment.contentId === where.contentId &&
+                (where.status === undefined || comment.status === where.status),
+            ).length,
+          ),
       ),
       create: vi.fn(
         ({
@@ -423,17 +423,15 @@ function makeFakeDb(
         const [deleted] = index >= 0 ? commentLikes.splice(index, 1) : [];
         return Promise.resolve(deleted);
       }),
-      findMany: vi.fn(
-        ({ where }: { where: { commentId: { in: string[] }; studentId: string } }) =>
-          Promise.resolve(
-            commentLikes
-              .filter(
-                (like) =>
-                  where.commentId.in.includes(like.commentId) &&
-                  like.studentId === where.studentId,
-              )
-              .map((like) => ({ commentId: like.commentId })),
-          ),
+      findMany: vi.fn(({ where }: { where: { commentId: { in: string[] }; studentId: string } }) =>
+        Promise.resolve(
+          commentLikes
+            .filter(
+              (like) =>
+                where.commentId.in.includes(like.commentId) && like.studentId === where.studentId,
+            )
+            .map((like) => ({ commentId: like.commentId })),
+        ),
       ),
       findUnique: vi.fn(({ where }: { where: FakeCommentLikeWhere }) =>
         Promise.resolve(
@@ -447,10 +445,12 @@ function makeFakeDb(
     },
     student: {
       findUnique: vi.fn(({ where }: FakeStudentFindUniqueArgs) =>
-        Promise.resolve({
-          [studentUser.id]: { id: studentId, active: true },
-          [otherStudentUser.id]: { id: otherStudentId, active: true },
-        }[where.userId ?? ''] ?? null),
+        Promise.resolve(
+          {
+            [studentUser.id]: { id: studentId, active: true },
+            [otherStudentUser.id]: { id: otherStudentId, active: true },
+          }[where.userId ?? ''] ?? null,
+        ),
       ),
     },
     studentPortalSettings: {
@@ -657,18 +657,22 @@ describe('faithCorner router', () => {
       caller.faithCorner.toggleCommentLike({ commentId: pending.id }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
 
-    await expect(caller.faithCorner.toggleCommentLike({ commentId: approved.id })).resolves.toEqual({
-      likedByCurrentStudent: true,
-      likeCount: 1,
-    });
+    await expect(caller.faithCorner.toggleCommentLike({ commentId: approved.id })).resolves.toEqual(
+      {
+        likedByCurrentStudent: true,
+        likeCount: 1,
+      },
+    );
     expect(db.commentLikes).toEqual([
       expect.objectContaining({ commentId: approved.id, studentId: otherStudentId }),
     ]);
 
-    await expect(caller.faithCorner.toggleCommentLike({ commentId: approved.id })).resolves.toEqual({
-      likedByCurrentStudent: false,
-      likeCount: 0,
-    });
+    await expect(caller.faithCorner.toggleCommentLike({ commentId: approved.id })).resolves.toEqual(
+      {
+        likedByCurrentStudent: false,
+        likeCount: 0,
+      },
+    );
     expect(db.commentLikes).toHaveLength(0);
   });
 
