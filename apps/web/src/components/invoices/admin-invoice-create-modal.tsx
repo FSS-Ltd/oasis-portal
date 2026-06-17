@@ -96,9 +96,9 @@ function defaultAmountForStudent({
 }): number {
   const summary = studentYearSummary(family, student.id);
   if (!summary) return fallbackAmountPence;
-  if (cadence === 'Annual') return summary.leftToInvoiceAmountPence;
-  if (summary.leftToInvoiceAmountPence <= 0) return 0;
-  return Math.min(fallbackAmountPence, summary.leftToInvoiceAmountPence);
+  if (cadence === 'Annual') return summary.grossLeftToInvoiceAmountPence;
+  if (summary.grossLeftToInvoiceAmountPence <= 0) return 0;
+  return Math.min(fallbackAmountPence, summary.grossLeftToInvoiceAmountPence);
 }
 
 function defaultInvoiceNumber(): string {
@@ -394,7 +394,7 @@ function FamilyYearSummary({
 }) {
   const summary = family.yearSummary;
   const overInvoiceAmountPence = Math.max(
-    currentSubtotalPence - summary.leftToInvoiceAmountPence,
+    currentSubtotalPence - summary.grossLeftToInvoiceAmountPence,
     0,
   );
 
@@ -402,7 +402,7 @@ function FamilyYearSummary({
     <section aria-label={`${family.familyLabel} fee summary`} className="invoice-family-summary">
       <div>
         <span>{summary.cycleLabel}</span>
-        <strong>{formatPence(summary.adjustedAnnualAmountPence)}</strong>
+        <strong>{formatPence(summary.annualAmountPence)}</strong>
       </div>
       <div>
         <span>Confirmed paid</span>
@@ -410,15 +410,15 @@ function FamilyYearSummary({
       </div>
       <div>
         <span>Already invoiced</span>
-        <strong>{formatPence(summary.issuedAmountPence)}</strong>
+        <strong>{formatPence(summary.grossIssuedAmountPence)}</strong>
       </div>
       <div>
         <span>Left to pay</span>
-        <strong>{formatPence(summary.remainingAmountPence)}</strong>
+        <strong>{formatPence(summary.grossRemainingAmountPence)}</strong>
       </div>
       <div>
         <span>Left to invoice</span>
-        <strong>{formatPence(summary.leftToInvoiceAmountPence)}</strong>
+        <strong>{formatPence(summary.grossLeftToInvoiceAmountPence)}</strong>
       </div>
       {summary.paymentPendingAmountPence > 0 ? (
         <p>Payment pending confirmation: {formatPence(summary.paymentPendingAmountPence)}</p>
@@ -429,10 +429,9 @@ function FamilyYearSummary({
             <div className="invoice-family-summary__child" key={child.studentId}>
               <strong>{child.studentName}</strong>
               <small>
-                {child.chargeableMonths} months - {formatPence(child.remainingAmountPence)} left to
-                pay
+                {child.chargeableMonths} months - {formatPence(child.grossRemainingAmountPence)}{' '}
+                left to pay
               </small>
-              <small>{formatPence(child.leftToInvoiceAmountPence)} left to invoice</small>
             </div>
           ))}
         </div>
@@ -905,10 +904,8 @@ function AdminInvoiceFormModal({
                         {displaySchoolYearLabel(student.yearGroup)}
                         {summary
                           ? ` - ${String(summary.chargeableMonths)} months - ${formatPence(
-                              summary.remainingAmountPence,
-                            )} left to pay - ${formatPence(
-                              summary.leftToInvoiceAmountPence,
-                            )} left to invoice`
+                              summary.grossRemainingAmountPence,
+                            )} left to pay`
                           : ''}
                       </small>
                     </span>
