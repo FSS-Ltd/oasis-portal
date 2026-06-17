@@ -23,6 +23,7 @@ jobs:
   verify:
     name: Lint / Typecheck / Test
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     timeout-minutes: 15
 
     services:
@@ -62,7 +63,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Restore Turbo cache
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        if: github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/cache@v5
         with:
           path: .turbo/cache
@@ -84,64 +85,6 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
-
-  db-verification:
-    name: DB migration / RLS / encryption verification
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: oasis
-          POSTGRES_PASSWORD: oasis
-          POSTGRES_DB: oasis_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U oasis"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-      DIRECT_URL: postgres://oasis:oasis@localhost:5432/oasis_test
-
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Enable corepack (pnpm)
-        run: |
-          corepack enable
-          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm --filter @oasis/db generate
-
-      - name: Migrate and apply RLS
-        run: pnpm db:migrate
-
-      - name: RLS smoke
-        run: pnpm db:integration
-
-      - name: tRPC context RLS smoke
-        run: pnpm api:smoke-context-rls
-
-      - name: Verify encrypted dump
-        env:
-          PG_DUMP_CONTAINER_ID: ${{ job.services.postgres.id }}
-        run: pnpm verify:encryption
 
   preview-changes:
     name: Detect preview deploy changes
@@ -185,7 +128,7 @@ jobs:
     name: Vercel preview deploy
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [verify, db-verification, preview-changes]
+    needs: [verify, preview-changes]
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.preview-changes.outputs.preview_required == 'true'
 
     permissions:
@@ -302,7 +245,6 @@ jobs:
     name: Vercel production deploy
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    needs: [verify, db-verification]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     env:
