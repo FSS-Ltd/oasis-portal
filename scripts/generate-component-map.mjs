@@ -120,7 +120,7 @@ const PRODUCT_MODULES = [
   {
     name: 'Registration, parent, student, supervisor, and admin shells',
     owns: 'Portal shells, registration form flow, role-specific navigation, and cross-role dashboard entry points.',
-    apiRouters: ['registration', 'student', 'studentSettings', 'profile'],
+    apiRouters: ['registration', 'student', 'studentSettings', 'profile', 'staffHome'],
     domainFiles: [
       'packages/domain/src/registration.ts',
       'packages/domain/src/studentPortalSettings.ts',
@@ -138,7 +138,11 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/student/',
       'apps/web/src/components/supervisor/',
     ],
-    mobileSurfaces: ['apps/mobile/app/', 'apps/mobile/src/components/'],
+    mobileSurfaces: [
+      'apps/mobile/app/',
+      'apps/mobile/src/components/',
+      'apps/mobile/src/components/staff/',
+    ],
     sharedSurfaces: [
       'apps/api/src/lib/student-portal-access.ts',
       'apps/web/src/components/ui/',

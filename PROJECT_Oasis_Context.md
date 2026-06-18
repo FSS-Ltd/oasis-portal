@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile PWA readiness implementation.
+**Phase:** Mobile Staff Home implementation.
 
 ---
 
@@ -28,6 +28,44 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile Staff Home
+
+Working branch: `feat/mobile-staff-home`.
+
+**PR scope:** Build the first production Staff mobile home screen with a compact
+server-backed summary, without implementing attendance, behaviour, PACE, rota,
+shop, or club write workflows.
+
+Completed:
+
+- Refreshed from merged `origin/main` after the mobile PWA readiness PR merged.
+- Added `staffHome.summary`, a compact count-only staff dashboard read model for
+  attendance progress, rota, own behaviour/PACE activity, unread notices,
+  pending swaps, and role-aware shop/club shortcuts.
+- Added a production Staff Home component under `apps/mobile/src/components/staff`
+  and routed staff roles to it from the signed-in mobile entry point while
+  leaving Parent and Student smoke routes unchanged.
+- Added Staff Home model, mobile wiring, and API tests before implementation.
+- Updated the component ownership source for the new staff home API/mobile
+  surface and regenerated the architecture component map.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/staffHome.router.test.ts`
+- `pnpm --filter @oasis/api exec tsx --test ../../apps/mobile/tests/staff-home/*.test.mjs`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/api lint`
+- `pnpm --filter @oasis/mobile lint`
+
+Notes:
+
+- Staff Home intentionally shows read-only daily signals and disabled next-step
+  rows. Attendance marking, behaviour logging, PACE entry, rota self-service,
+  shop counter collection, and club operations remain separate screen PRs.
+- The summary endpoint avoids returning student names or roster rows on mobile
+  home load.
 
 ## Current session - 2026-06-18 mobile PWA readiness
 

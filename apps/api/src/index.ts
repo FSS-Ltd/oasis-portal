@@ -118,6 +118,7 @@ export {
 } from './routers/studentSettings.js';
 export { faithCornerRouter } from './routers/faithCorner.js';
 export { messageRouter, createMessageRouter, type MessageRouterDeps } from './routers/message.js';
+export { staffHomeRouter } from './routers/staffHome.js';
 export {
   handleClerkWebhookRequest,
   mapClerkUserToUpsertInput,

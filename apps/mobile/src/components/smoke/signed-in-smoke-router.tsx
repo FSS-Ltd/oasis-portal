@@ -3,7 +3,7 @@ import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { ParentPortalSmokeScreen } from './parent-portal-smoke-screen';
 import { StudentPortalSmokeScreen } from './student-portal-smoke-screen';
-import { SupervisorSmokeScreen } from './supervisor-smoke-screen';
+import { StaffHomeScreen } from '../staff/staff-home-screen';
 
 export function SignedInSmokeRouter() {
   const health = api.health.me.useQuery(undefined, { retry: false });
@@ -26,7 +26,22 @@ export function SignedInSmokeRouter() {
     return <StudentPortalSmokeScreen user={user} />;
   }
 
-  return <SupervisorSmokeScreen />;
+  if (
+    user?.role === 'Head' ||
+    user?.role === 'Principal' ||
+    user?.role === 'Pastor' ||
+    user?.role === 'HeadOfDiscipline' ||
+    user?.role === 'ClubsAdmin' ||
+    user?.role === 'Supervisor'
+  ) {
+    return <StaffHomeScreen user={user} />;
+  }
+
+  return (
+    <View style={styles.loading}>
+      <Text style={styles.loadingText}>This mobile role is not ready yet.</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
