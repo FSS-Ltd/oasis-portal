@@ -777,6 +777,7 @@
 
 .table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   font-size: 0.82rem;
 }
@@ -1171,11 +1172,13 @@
 
 .modal {
   width: min(100%, 430px);
-  max-height: 90vh;
+  max-height: min(680px, calc(100dvh - 40px));
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.34);
+  -webkit-overflow-scrolling: touch;
 }
 
 .modalBody {

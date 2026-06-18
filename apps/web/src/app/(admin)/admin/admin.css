@@ -27,6 +27,33 @@
   color: var(--oasis-text);
 }
 
+.table-responsive,
+.panel--scroll,
+.invoice-table-card,
+.shop-admin-table-panel,
+.snapshot-centre-table-wrap,
+.student-registration-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-scroll-region,
+.parent-sibling-modal__body,
+.calendar-detail-modal__body,
+.shop-editor-modal__body,
+.pace-modal__body,
+.admin-confirmation-dialog__copy,
+.permission-modal__body,
+.invoice-modal__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .faith-corner-admin-page,
 .student-notification-admin-page {
   display: grid;
@@ -2316,7 +2343,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(100%, 940px);
-  max-height: min(92vh, 900px);
+  max-height: min(900px, calc(100dvh - 40px));
   overflow: hidden;
   border: 1px solid var(--oasis-border);
   border-radius: 8px;
@@ -3947,7 +3974,10 @@
 }
 
 .calendar-detail-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   width: min(100%, 520px);
+  max-height: min(640px, calc(100dvh - 36px));
   overflow: hidden;
   border: 1px solid var(--oasis-border-light);
   border-radius: 12px;
@@ -5277,7 +5307,7 @@
   z-index: 1;
   display: flex;
   width: min(560px, 100%);
-  max-height: calc(100vh - 48px);
+  max-height: min(760px, calc(100dvh - 48px));
   flex-direction: column;
   overflow: hidden;
   border-radius: 18px;
@@ -7738,8 +7768,9 @@ button.club-assignment-row {
 
 .pace-modal {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(100%, 540px);
-  max-height: calc(100vh - 48px);
+  max-height: min(640px, calc(100dvh - 40px));
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -7895,7 +7926,9 @@ button.club-assignment-row {
 
 .admin-confirmation-dialog {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(100%, 520px);
+  max-height: min(560px, calc(100dvh - 40px));
   gap: 18px;
   padding: 22px;
   border: 1px solid var(--oasis-border);
@@ -12482,7 +12515,7 @@ button.club-assignment-row {
   }
 
   .parent-sibling-modal {
-    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
   }
 
   .pace-workflow-header__select .input,
@@ -15578,8 +15611,8 @@ button.club-assignment-row {
 
   .invoice-modal__panel {
     width: 100%;
-    max-height: 100vh;
-    min-height: 100vh;
+    max-height: 100dvh;
+    min-height: 100dvh;
     border-radius: 0;
   }
 }
