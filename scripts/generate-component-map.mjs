@@ -71,6 +71,10 @@ const PRODUCT_MODULES = [
     ],
     mobileSurfaces: [
       'apps/mobile/src/components/smoke/',
+      'apps/mobile/src/components/staff/staff-attendance-roster.tsx',
+      'apps/mobile/src/components/staff/staff-attendance-screen.tsx',
+      'apps/mobile/src/components/staff/staff-attendance-summary.tsx',
+      'apps/mobile/src/components/staff/staff-attendance-utils.ts',
       'apps/mobile/src/components/staff/staff-rota-availability-panel.tsx',
       'apps/mobile/src/components/staff/staff-rota-common.tsx',
       'apps/mobile/src/components/staff/staff-rota-rota-panel.tsx',

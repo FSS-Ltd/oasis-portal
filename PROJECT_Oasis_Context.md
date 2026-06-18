@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile Staff rota and availability implementation.
+**Phase:** Mobile Staff attendance implementation.
 
 ---
 
@@ -28,6 +28,47 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile Staff attendance
+
+Working branch: `feat/mobile-staff-attendance`.
+
+**PR scope:** Build the staff mobile student attendance capture screen, reusing
+the existing scoped attendance router and preserving backend attendance
+recording policy.
+
+Completed:
+
+- Started from `origin/main` after PR #303 (`feat: build mobile staff rota`)
+  merged.
+- Added `StaffAttendanceScreen` with date navigation, roster loading, pull to
+  refresh, progress summary, per-student status selection, per-row pending
+  state, success state, and visible save errors.
+- Reused `attendance.forDate` and `attendance.mark`; the mobile UI does not use
+  reset, staff-attendance, or admin-only attendance APIs.
+- Required an explicit absence reason before saving `Absent`, while
+  `Present`/`Late` clear the reason through the existing API behavior.
+- Wired the Staff Home Attendance quick action through `StaffPortalScreen`.
+- Added source-level mobile wiring tests for Staff attendance.
+- Updated component ownership metadata for the new Staff attendance mobile
+  surface.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec tsx --test '../../apps/mobile/tests/staff-attendance/*.test.mjs' '../../apps/mobile/tests/staff-home/*.test.mjs'`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check PROJECT_Oasis_Context.md apps/mobile/src/components/staff/staff-attendance-roster.tsx apps/mobile/src/components/staff/staff-attendance-screen.tsx apps/mobile/src/components/staff/staff-attendance-summary.tsx apps/mobile/src/components/staff/staff-attendance-utils.ts apps/mobile/src/components/staff/staff-home-screen.tsx apps/mobile/src/components/staff/staff-portal-screen.tsx apps/mobile/tests/staff-attendance/staff-attendance-wiring.test.mjs scripts/generate-component-map.mjs docs/architecture/component-relationships.md`
+- `git diff --check`
+- `graphify update .`
+- `graphify query "staff mobile attendance flow roster status save existing attendance router" --budget 1500`
+- `pnpm docs:component-map`
+- `pnpm --filter @oasis/mobile build:web`
+- `pnpm --filter @oasis/mobile pwa:check`
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-staff-attendance-ios-export`
+- `pnpm --filter @oasis/mobile exec expo export --platform android --output-dir /tmp/oasis-mobile-staff-attendance-android-export`
 
 ## Current session - 2026-06-18 mobile Staff rota and availability
 
