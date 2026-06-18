@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Messaging contact-list layout.
+**Phase:** Mobile production planning refresh.
 
 ---
 
@@ -28,6 +28,40 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile phase plan refresh
+
+Working branch: `docs/mobile-phase-plan-refresh`.
+
+**PR scope:** Update Phase 6 mobile planning from refreshed `origin/main` so the
+production mobile/PWA implementation accounts for current staff, parent, and
+student portal features before any app code work begins.
+
+Completed:
+
+- Refreshed from `origin/main` at `14e28c8`.
+- Updated the Phase 6 mobile production plan to include the temporary PWA
+  distribution path for the same Expo app, with installability, service worker,
+  offline shell, and native safety gates.
+- Expanded staff planning to include communications, rota/availability,
+  incident reporting, club lead/manager operations, and shop reservation
+  collection while marking heavy Head/admin operations as web-first unless
+  separately scoped.
+- Expanded parent planning to include profile/registration maintenance, student
+  settings/account controls, incidents, reports/ranks, and split shop,
+  permission-slip, fee, and calendar work into focused PRs.
+- Expanded student planning to include the access-policy gate, safe-data
+  requirements, notifications, homework/activity, clubs, Faith Corner, ranks,
+  shop, and an explicit student communications policy decision.
+
+Notes:
+
+- This branch is docs-only. No app code, schema, dependency, generated graph, or
+  product ownership map changes are intended.
+- Mobile/PWA implementation must not start until this planning PR is merged.
+- The isolated worktree did not include `graphify-out/graph.json`; the required
+  PR-start graphify query was run from the main checkout's current graph before
+  editing in this worktree.
 
 ## Current session - 2026-06-16 messaging contact-list layout
 
