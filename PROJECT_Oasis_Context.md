@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile production planning refresh.
+**Phase:** Mobile PWA readiness implementation.
 
 ---
 
@@ -28,6 +28,45 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile PWA readiness
+
+Working branch: `feat/mobile-pwa-readiness`.
+
+**PR scope:** Add installable Expo web/PWA support to the mobile app while
+preserving native iOS and Android Expo export behavior.
+
+Completed:
+
+- Refreshed from merged `origin/main` after the Phase 6 mobile plan PR merged.
+- Added Expo web static export configuration and a `build:web` script that uses
+  the repository env wrapper before preparing PWA artifacts.
+- Added public PWA manifest, offline fallback, stable square install icons, and
+  export preparation/check scripts.
+- Added a web-only install prompt panel to the mobile sign-in smoke screen.
+- Added PWA tests for package configuration, export preparation, artifact
+  verification, install icons, API cache exclusion, and UI wiring.
+- Kept the service worker registration in the prepared web HTML only, avoiding
+  duplicate registration from React runtime code.
+
+Verification:
+
+- `pnpm --filter @oasis/mobile test:pwa`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm exec prettier --check` on changed mobile PWA files.
+- `git diff --check`
+- `pnpm --filter @oasis/mobile build:web`
+- `pnpm --filter @oasis/mobile pwa:check`
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-ios-export`
+- `pnpm --filter @oasis/mobile exec expo export --platform android --output-dir /tmp/oasis-mobile-android-export`
+
+Notes:
+
+- No mobile production role journeys, schema changes, API routes, or native EAS
+  configuration were changed in this PR.
+- The web export still emits Expo's existing Node `punycode` deprecation warning,
+  but the command passes and the generated PWA artifact verifies successfully.
 
 ## Current session - 2026-06-18 mobile phase plan refresh
 
