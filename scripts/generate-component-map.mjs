@@ -99,7 +99,14 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/leaderboard/',
       'apps/web/src/components/student-drillthrough/notes-list.tsx',
     ],
-    mobileSurfaces: ['apps/mobile/src/components/smoke/'],
+    mobileSurfaces: [
+      'apps/mobile/src/components/smoke/',
+      'apps/mobile/src/components/staff/staff-behaviour-form.tsx',
+      'apps/mobile/src/components/staff/staff-behaviour-recent-panel.tsx',
+      'apps/mobile/src/components/staff/staff-behaviour-screen.tsx',
+      'apps/mobile/src/components/staff/staff-behaviour-student-picker.tsx',
+      'apps/mobile/src/components/staff/staff-behaviour-utils.ts',
+    ],
     sharedSurfaces: ['apps/web/src/components/ui/'],
   },
   {

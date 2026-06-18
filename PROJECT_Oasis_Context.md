@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile Staff attendance implementation.
+**Phase:** Mobile Staff behaviour implementation.
 
 ---
 
@@ -28,6 +28,48 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile Staff behaviour
+
+Working branch: `feat/mobile-staff-behaviour`.
+
+**PR scope:** Build the staff mobile Merit/Demerit capture screen, reusing the
+existing scoped behaviour router and preserving backend Sensitive visibility
+policy.
+
+Completed:
+
+- Started from `origin/main` after PR #304 (`feat: build mobile staff
+attendance`) merged.
+- Added `StaffBehaviourScreen` with date navigation, scoped student selection,
+  Merit/Demerit type selection, category chips, merit amount, note validation,
+  General/Sensitive display selection, pending state, success state, and visible
+  save errors.
+- Reused `attendance.forDate` for today scoped student options,
+  `behaviour.log` for writes, and `behaviour.recentEntries` for today feedback.
+- Kept Sensitive handling enforced by the existing backend policy; the UI
+  explains restricted saves rather than bypassing role checks.
+- Wired the Staff Home Behaviour quick action through `StaffPortalScreen`.
+- Added source-level mobile wiring tests for Staff behaviour.
+- Updated component ownership metadata for the new Staff behaviour mobile
+  surface.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec tsx --test '../../apps/mobile/tests/staff-behaviour/*.test.mjs' '../../apps/mobile/tests/staff-home/*.test.mjs'`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check PROJECT_Oasis_Context.md apps/mobile/src/components/staff/staff-behaviour-form.tsx apps/mobile/src/components/staff/staff-behaviour-recent-panel.tsx apps/mobile/src/components/staff/staff-behaviour-screen.tsx apps/mobile/src/components/staff/staff-behaviour-student-picker.tsx apps/mobile/src/components/staff/staff-behaviour-utils.ts apps/mobile/src/components/staff/staff-home-screen.tsx apps/mobile/src/components/staff/staff-portal-screen.tsx apps/mobile/tests/staff-behaviour/staff-behaviour-wiring.test.mjs scripts/generate-component-map.mjs docs/architecture/component-relationships.md`
+- `git diff --check`
+- `graphify update .`
+- `graphify query "staff mobile behaviour flow student selection merit demerit category note sensitive existing behaviour router" --budget 1500`
+- `pnpm docs:component-map`
+- `pnpm --filter @oasis/mobile build:web`
+- `pnpm --filter @oasis/mobile pwa:check`
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-staff-behaviour-ios-export`
+- `pnpm --filter @oasis/mobile exec expo export --platform android --output-dir /tmp/oasis-mobile-staff-behaviour-android-export`
 
 ## Current session - 2026-06-18 mobile Staff attendance
 
