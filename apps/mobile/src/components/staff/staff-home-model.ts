@@ -35,6 +35,7 @@ export type StaffHomeQuickActionId =
   | 'attendance'
   | 'behaviour'
   | 'clubs'
+  | 'communications'
   | 'pace'
   | 'rota'
   | 'shop';
@@ -70,6 +71,13 @@ export function buildStaffHomeViewModel(summary: StaffHomeSummary): StaffHomeVie
       meta: summary.attendance.unmarked
         ? `${String(summary.attendance.unmarked)} unmarked`
         : 'Register complete',
+    },
+    {
+      id: 'communications',
+      label: 'Staff communications',
+      meta: summary.notices.unread
+        ? `${String(summary.notices.unread)} unread`
+        : 'Noticeboard and messages',
     },
     {
       id: 'behaviour',

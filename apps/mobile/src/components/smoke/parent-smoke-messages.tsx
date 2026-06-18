@@ -8,7 +8,7 @@ import { NewThreadView } from './parent-message-new-thread';
 import type { ConversationSummary, Recipient } from './parent-message-types';
 
 type MessageScreen = 'inbox' | 'conversation' | 'new';
-type ConversationKind = 'ParentStaff' | 'StudentDirect';
+type ConversationKind = 'ParentStaff' | 'StudentDirect' | 'StaffDirect' | 'SupervisorHead';
 
 interface ParentMessagesPanelProps {
   conversationKind?: ConversationKind;
@@ -54,6 +54,14 @@ export function ParentMessagesPanel({
     (count, conversation) => count + conversation.unreadCount,
     0,
   );
+  const emptyDetail =
+    conversationKind === 'StudentDirect'
+      ? 'Choose a student, the Head, or the Pastor to start a message.'
+      : conversationKind === 'SupervisorHead'
+        ? 'Start a message with the Head team.'
+        : conversationKind === 'StaffDirect'
+          ? 'Start a staff-direct conversation or use the Staffroom for team updates.'
+          : 'Start a message with the centre team.';
 
   async function refreshMessages(conversationId?: string) {
     const tasks = [utils.message.listConversations.invalidate()];
@@ -131,11 +139,7 @@ export function ParentMessagesPanel({
       {screen === 'inbox' ? (
         <InboxView
           conversations={conversations}
-          emptyDetail={
-            conversationKind === 'StudentDirect'
-              ? 'Choose a student, the Head, or the Pastor to start a message.'
-              : 'Start a message with the centre team.'
-          }
+          emptyDetail={emptyDetail}
           hasMore={hasMore}
           loadingMore={loadingMore}
           onCompose={openComposer}

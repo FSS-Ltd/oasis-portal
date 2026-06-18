@@ -747,6 +747,18 @@ describe('message.openThread', () => {
     });
   });
 
+  it('denies supervisor-head thread creation for non-supervisor staff', async () => {
+    const { caller } = makeCaller(headOfDisciplineUser);
+
+    await expect(
+      caller.message.openThread({
+        adminId: headUser.id,
+        kind: 'SupervisorHead',
+        subject: 'Head team follow-up',
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
   it('allows any active staff user to open a private staff direct thread', async () => {
     const { caller, db } = makeCaller(headOfDisciplineUser);
 
@@ -1201,6 +1213,43 @@ describe('message.listThreads', () => {
 });
 
 describe('message conversation endpoints', () => {
+  it('filters conversation kinds before pagination', async () => {
+    const parentThread = makeThread({
+      id: 'cthread000000000000398',
+      updatedAt: new Date('2026-05-09T12:00:00.000Z'),
+    });
+    const staffThread = makeThread({
+      id: 'cthread000000000000399',
+      kind: 'StaffDirect',
+      parentId: null,
+      adminId: null,
+      subject: 'Staff direct note',
+      updatedAt: new Date('2026-05-09T10:00:00.000Z'),
+    });
+    const participants = [
+      { threadId: parentThread.id, userId: parentUser.id, createdAt: parentThread.createdAt },
+      { threadId: parentThread.id, userId: headUser.id, createdAt: parentThread.createdAt },
+      { threadId: staffThread.id, userId: headUser.id, createdAt: staffThread.createdAt },
+      { threadId: staffThread.id, userId: supervisorUser.id, createdAt: staffThread.createdAt },
+    ];
+    const { caller } = makeCaller(
+      headUser,
+      makeFakeDb([parentThread, staffThread], [], defaultUsers, [], participants),
+    );
+
+    const page = await caller.message.listConversations({
+      kinds: ['StaffDirect'],
+      limit: 1,
+    });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({
+      kind: 'StaffDirect',
+      id: `StaffDirect:${headUser.id}:${supervisorUser.id}`,
+    });
+    expect(page.nextCursor).toBeNull();
+  });
+
   it('merges duplicate parent-staff threads into one paginated conversation', async () => {
     const earlierThread = makeThread({
       id: 'cthread000000000000401',

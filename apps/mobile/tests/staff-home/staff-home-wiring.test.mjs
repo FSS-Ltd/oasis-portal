@@ -18,7 +18,9 @@ describe('staff home mobile wiring', () => {
     );
 
     const router = read('src/components/smoke/signed-in-smoke-router.tsx');
-    assert.match(router, /StaffHomeScreen/);
+    const staffPortal = read('src/components/staff/staff-portal-screen.tsx');
+    assert.match(router, /StaffPortalScreen/);
+    assert.match(staffPortal, /StaffHomeScreen/);
     assert.match(router, /ParentPortalSmokeScreen/);
     assert.match(router, /StudentPortalSmokeScreen/);
     assert.doesNotMatch(router, /return <SupervisorSmokeScreen \/>/);

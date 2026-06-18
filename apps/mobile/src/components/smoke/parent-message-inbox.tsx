@@ -115,10 +115,13 @@ function ConversationRow({
   const latestTime = conversation.latestMessage?.createdAt ?? conversation.updatedAt;
   const unread = conversation.unreadCount > 0;
   const contact =
-    conversation.participants.find((participant) => participant.id !== conversation.currentUserId)
-      ?.fullName ??
-    conversation.admin?.fullName ??
-    'Centre team';
+    conversation.kind === 'Staffroom'
+      ? 'Staffroom'
+      : (conversation.participants.find(
+          (participant) => participant.id !== conversation.currentUserId,
+        )?.fullName ??
+        conversation.admin?.fullName ??
+        'Centre team');
 
   return (
     <Pressable
@@ -138,7 +141,7 @@ function ConversationRow({
           <Text style={styles.threadTime}>{formatThreadTime(latestTime)}</Text>
         </View>
         <Text numberOfLines={1} style={styles.threadSubject}>
-          {conversation.kind === 'Staffroom' ? 'Group chat' : 'Private message'}
+          {conversation.kind === 'Staffroom' ? 'Staff group chat' : 'Private message'}
         </Text>
         <Text numberOfLines={1} style={styles.threadLatest}>
           {latestSenderLabel(conversation)} -{' '}

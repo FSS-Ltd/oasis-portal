@@ -3,7 +3,7 @@ import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
 import { ParentPortalSmokeScreen } from './parent-portal-smoke-screen';
 import { StudentPortalSmokeScreen } from './student-portal-smoke-screen';
-import { StaffHomeScreen } from '../staff/staff-home-screen';
+import { StaffPortalScreen } from '../staff/staff-portal-screen';
 
 export function SignedInSmokeRouter() {
   const health = api.health.me.useQuery(undefined, { retry: false });
@@ -34,7 +34,7 @@ export function SignedInSmokeRouter() {
     user?.role === 'ClubsAdmin' ||
     user?.role === 'Supervisor'
   ) {
-    return <StaffHomeScreen user={user} />;
+    return <StaffPortalScreen user={user} />;
   }
 
   return (

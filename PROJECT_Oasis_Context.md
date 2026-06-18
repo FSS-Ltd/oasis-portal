@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile Staff Home implementation.
+**Phase:** Mobile Staff communications implementation.
 
 ---
 
@@ -28,6 +28,39 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile Staff communications
+
+Working branch: `feat/mobile-staff-communications`.
+
+**PR scope:** Build the staff mobile communications screen for current staff
+notices and permitted staff message paths, without moving parent-facing
+messaging into this PR.
+
+Completed:
+
+- Started from `origin/main` after PR #301 (`feat: build mobile staff home`)
+  merged.
+- Added a thin `StaffPortalScreen` wrapper so Staff Home remains the default
+  staff route and can open the communications screen without dead navigation.
+- Added `StaffCommunicationsScreen` with Notices and Messages tabs, Staffroom
+  opening, staff-direct recipients, Head team recipients, staff conversation
+  filtering, and loading/empty/error/sending states through existing message
+  components.
+- Added `StaffNoticesPanel` for `notice.listForStaff` and `notice.markRead`,
+  including per-notice pending state and staff-safe invalidation.
+- Extended the reusable mobile message panel to support `StaffDirect` and
+  `SupervisorHead` conversation kinds with staff-neutral copy.
+- Added source-level mobile wiring tests for the new staff communications
+  surface.
+- Updated component ownership metadata for the new staff communication mobile
+  surface and regenerated the architecture component map.
+
+Verification in progress:
+
+- `pnpm --filter @oasis/api exec tsx --test ../../apps/mobile/tests/staff-communications/*.test.mjs`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/mobile lint`
 
 ## Current session - 2026-06-18 mobile Staff Home
 

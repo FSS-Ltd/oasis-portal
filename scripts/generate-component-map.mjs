@@ -270,6 +270,8 @@ const PRODUCT_MODULES = [
       'apps/mobile/src/components/smoke/parent-smoke-messages.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
       'apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx',
+      'apps/mobile/src/components/staff/staff-communications-screen.tsx',
+      'apps/mobile/src/components/staff/staff-notices-panel.tsx',
     ],
     sharedSurfaces: [
       'apps/api/src/emails/',

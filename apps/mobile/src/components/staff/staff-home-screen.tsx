@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
@@ -76,7 +76,13 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
   };
 }
 
-export function StaffHomeScreen({ user }: { user: SessionUser | undefined }) {
+export function StaffHomeScreen({
+  onOpenCommunications,
+  user,
+}: {
+  onOpenCommunications?: () => void;
+  user: SessionUser | undefined;
+}) {
   const { signOut } = useClerk();
   const summary = api.staffHome.summary.useQuery({ date: todayDate() }, { retry: false });
   const data = summary.data;
@@ -193,9 +199,13 @@ export function StaffHomeScreen({ user }: { user: SessionUser | undefined }) {
 
             <Card style={styles.compactCard}>
               <Text style={styles.cardTitle}>Quick actions</Text>
-              {view.quickActions.map((action) => (
-                <QuickActionRow action={action} key={action.id} />
-              ))}
+              {view.quickActions.map((action) =>
+                action.id === 'communications' && onOpenCommunications ? (
+                  <QuickActionRow action={action} key={action.id} onPress={onOpenCommunications} />
+                ) : (
+                  <QuickActionRow action={action} key={action.id} />
+                ),
+              )}
             </Card>
 
             <Card style={styles.compactCard}>
@@ -269,7 +279,31 @@ function AttendanceCell({
   );
 }
 
-function QuickActionRow({ action }: { action: StaffHomeQuickAction }) {
+function QuickActionRow({
+  action,
+  onPress,
+}: {
+  action: StaffHomeQuickAction;
+  onPress?: () => void;
+}) {
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityLabel={`Open ${action.label}`}
+        accessibilityRole="button"
+        onPress={onPress}
+        style={styles.actionRow}
+      >
+        <View style={styles.actionDot} />
+        <View style={styles.rowBody}>
+          <Text style={styles.actionTitle}>{action.label}</Text>
+          <Text style={styles.actionMeta}>{action.meta}</Text>
+        </View>
+        <Text style={styles.actionState}>Open</Text>
+      </Pressable>
+    );
+  }
+
   return (
     <View accessibilityRole="text" style={styles.actionRow}>
       <View style={styles.actionDot} />
