@@ -69,7 +69,15 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/rota/',
       'apps/web/src/components/student-drillthrough/attendance-calendar.tsx',
     ],
-    mobileSurfaces: ['apps/mobile/src/components/smoke/'],
+    mobileSurfaces: [
+      'apps/mobile/src/components/smoke/',
+      'apps/mobile/src/components/staff/staff-rota-availability-panel.tsx',
+      'apps/mobile/src/components/staff/staff-rota-common.tsx',
+      'apps/mobile/src/components/staff/staff-rota-rota-panel.tsx',
+      'apps/mobile/src/components/staff/staff-rota-screen.tsx',
+      'apps/mobile/src/components/staff/staff-rota-swap-panel.tsx',
+      'apps/mobile/src/components/staff/staff-rota-utils.ts',
+    ],
     sharedSurfaces: ['apps/web/src/components/ui/'],
   },
   {

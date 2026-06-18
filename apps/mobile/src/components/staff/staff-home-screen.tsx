@@ -78,9 +78,11 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
 
 export function StaffHomeScreen({
   onOpenCommunications,
+  onOpenRota,
   user,
 }: {
   onOpenCommunications?: () => void;
+  onOpenRota?: () => void;
   user: SessionUser | undefined;
 }) {
   const { signOut } = useClerk();
@@ -202,6 +204,8 @@ export function StaffHomeScreen({
               {view.quickActions.map((action) =>
                 action.id === 'communications' && onOpenCommunications ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenCommunications} />
+                ) : action.id === 'rota' && onOpenRota ? (
+                  <QuickActionRow action={action} key={action.id} onPress={onOpenRota} />
                 ) : (
                   <QuickActionRow action={action} key={action.id} />
                 ),

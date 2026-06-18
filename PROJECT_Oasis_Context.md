@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile Staff communications implementation.
+**Phase:** Mobile Staff rota and availability implementation.
 
 ---
 
@@ -28,6 +28,44 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile Staff rota and availability
+
+Working branch: `feat/mobile-staff-rota`.
+
+**PR scope:** Build the staff mobile rota and availability screen, reusing the
+existing rota router self-service APIs and keeping Head scheduling/approval
+administration web-first.
+
+Completed:
+
+- Started from `origin/main` after PR #302 (`feat: build mobile staff
+communications`) merged.
+- Added `StaffRotaScreen` with Rota, Availability, and Swaps tabs.
+- Reused staff self-service rota APIs only: `myRota`, `myAvailability`,
+  `setMyAvailability`, `myMonthlyAvailability`, `setMyMonthlyAvailability`,
+  `swapCandidates`, `mySwapRequests`, and `requestSwap`.
+- Added weekly availability editing, monthly unavailability editing with all-day
+  support, shift swap request selection, and pending swap status states.
+- Wired the Staff Home Rota quick action through `StaffPortalScreen`.
+- Added source-level mobile wiring tests for Staff rota.
+- Updated component ownership metadata for the new Staff rota mobile surface.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec tsx --test '../../apps/mobile/tests/staff-rota/*.test.mjs' '../../apps/mobile/tests/staff-home/*.test.mjs' '../../apps/mobile/tests/staff-communications/*.test.mjs'`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check PROJECT_Oasis_Context.md apps/mobile/src/components/staff/staff-home-screen.tsx apps/mobile/src/components/staff/staff-portal-screen.tsx apps/mobile/src/components/staff/staff-rota-screen.tsx apps/mobile/src/components/staff/staff-rota-utils.ts apps/mobile/src/components/staff/staff-rota-common.tsx apps/mobile/src/components/staff/staff-rota-rota-panel.tsx apps/mobile/src/components/staff/staff-rota-availability-panel.tsx apps/mobile/src/components/staff/staff-rota-swap-panel.tsx apps/mobile/tests/staff-rota/staff-rota-wiring.test.mjs scripts/generate-component-map.mjs docs/architecture/component-relationships.md`
+- `git diff --check`
+- `graphify update .`
+- `pnpm docs:component-map`
+- `pnpm --filter @oasis/mobile build:web`
+- `pnpm --filter @oasis/mobile pwa:check`
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-staff-rota-ios-export`
+- `pnpm --filter @oasis/mobile exec expo export --platform android --output-dir /tmp/oasis-mobile-staff-rota-android-export`
 
 ## Current session - 2026-06-18 mobile Staff communications
 
