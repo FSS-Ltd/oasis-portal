@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-06-18
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile Staff behaviour implementation.
+**Phase:** Mobile Staff PACE implementation.
 
 ---
 
@@ -28,6 +28,45 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-18 mobile Staff PACE
+
+Working branch: `feat/mobile-staff-pace`.
+
+**PR scope:** Build the staff mobile PACE score entry screen, reusing the
+existing scoped PACE router and preserving backend policy enforcement.
+
+Completed:
+
+- Started from `origin/main` after PR #305 (`feat: build mobile staff
+behaviour`) merged.
+- Added `StaffPaceScreen` with date navigation, scoped PACE roster selection,
+  subject selection, Self-Test/PACE Test selection, PACE number, score input,
+  policy warning/block display, pending state, success state, and visible save
+  errors.
+- Reused `pace.roster`, `pace.forStudent`, and `pace.record`; the mobile UI does
+  not use PACE correction, delete, failed-advance approval, admin subject, or
+  admin policy APIs.
+- Wired the Staff Home PACE quick action through `StaffPortalScreen`.
+- Added source-level mobile wiring tests for Staff PACE.
+- Updated component ownership metadata for the new Staff PACE mobile surface.
+
+Verification:
+
+- `pnpm --filter @oasis/api exec tsx --test '../../apps/mobile/tests/staff-pace/*.test.mjs' '../../apps/mobile/tests/staff-home/*.test.mjs'`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/api typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm --filter @oasis/api lint`
+- `pnpm exec prettier --check PROJECT_Oasis_Context.md apps/mobile/src/components/staff/staff-pace-form.tsx apps/mobile/src/components/staff/staff-pace-screen.tsx apps/mobile/src/components/staff/staff-pace-student-picker.tsx apps/mobile/src/components/staff/staff-pace-subject-panel.tsx apps/mobile/src/components/staff/staff-pace-utils.ts apps/mobile/src/components/staff/staff-home-screen.tsx apps/mobile/src/components/staff/staff-portal-screen.tsx apps/mobile/tests/staff-pace/staff-pace-wiring.test.mjs scripts/generate-component-map.mjs`
+- `git diff --check`
+- `graphify update .`
+- `graphify query "staff mobile PACE score entry student subject test type score policy warning existing pace router" --budget 1500`
+- `pnpm docs:component-map`
+- `pnpm --filter @oasis/mobile build:web`
+- `pnpm --filter @oasis/mobile pwa:check`
+- `pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oasis-mobile-staff-pace-ios-export`
+- `pnpm --filter @oasis/mobile exec expo export --platform android --output-dir /tmp/oasis-mobile-staff-pace-android-export`
 
 ## Current session - 2026-06-18 mobile Staff behaviour
 

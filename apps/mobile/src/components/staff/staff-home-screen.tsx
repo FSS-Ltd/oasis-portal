@@ -80,12 +80,14 @@ export function StaffHomeScreen({
   onOpenAttendance,
   onOpenBehaviour,
   onOpenCommunications,
+  onOpenPace,
   onOpenRota,
   user,
 }: {
   onOpenAttendance?: () => void;
   onOpenBehaviour?: () => void;
   onOpenCommunications?: () => void;
+  onOpenPace?: () => void;
   onOpenRota?: () => void;
   user: SessionUser | undefined;
 }) {
@@ -212,6 +214,8 @@ export function StaffHomeScreen({
                   <QuickActionRow action={action} key={action.id} onPress={onOpenBehaviour} />
                 ) : action.id === 'communications' && onOpenCommunications ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenCommunications} />
+                ) : action.id === 'pace' && onOpenPace ? (
+                  <QuickActionRow action={action} key={action.id} onPress={onOpenPace} />
                 ) : action.id === 'rota' && onOpenRota ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenRota} />
                 ) : (

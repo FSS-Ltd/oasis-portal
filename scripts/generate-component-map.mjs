@@ -133,7 +133,14 @@ const PRODUCT_MODULES = [
     apiRouters: ['pace'],
     domainFiles: ['packages/domain/src/schoolYears.ts', 'packages/domain/src/subjects.ts'],
     webSurfaces: ['apps/web/src/components/pace/'],
-    mobileSurfaces: ['apps/mobile/src/components/smoke/'],
+    mobileSurfaces: [
+      'apps/mobile/src/components/smoke/',
+      'apps/mobile/src/components/staff/staff-pace-form.tsx',
+      'apps/mobile/src/components/staff/staff-pace-screen.tsx',
+      'apps/mobile/src/components/staff/staff-pace-student-picker.tsx',
+      'apps/mobile/src/components/staff/staff-pace-subject-panel.tsx',
+      'apps/mobile/src/components/staff/staff-pace-utils.ts',
+    ],
     sharedSurfaces: ['apps/web/src/components/ui/'],
   },
   {
