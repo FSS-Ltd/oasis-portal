@@ -14,6 +14,15 @@
     "android": {
       "package": "uk.oasis.portal"
     },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/oasis-logo.png",
+      "name": "Oasis Portal",
+      "shortName": "Oasis",
+      "themeColor": "#1B2B5E",
+      "backgroundColor": "#EEF2F9"
+    },
     "plugins": ["expo-router", "expo-secure-store"],
     "experiments": {
       "typedRoutes": true
