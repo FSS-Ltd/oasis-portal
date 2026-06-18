@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { type RouterOutputs } from '../../lib/trpc';
 import { StaffAttendanceScreen } from './staff-attendance-screen';
+import { StaffBehaviourScreen } from './staff-behaviour-screen';
 import { StaffCommunicationsScreen } from './staff-communications-screen';
 import { StaffHomeScreen } from './staff-home-screen';
 import { StaffRotaScreen } from './staff-rota-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StaffPortalRoute = 'home' | 'attendance' | 'communications' | 'rota';
+type StaffPortalRoute = 'home' | 'attendance' | 'behaviour' | 'communications' | 'rota';
 
 export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
@@ -33,6 +34,17 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
     );
   }
 
+  if (route === 'behaviour') {
+    return (
+      <StaffBehaviourScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+        user={user}
+      />
+    );
+  }
+
   if (route === 'rota') {
     return (
       <StaffRotaScreen
@@ -48,6 +60,9 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
     <StaffHomeScreen
       onOpenAttendance={() => {
         setRoute('attendance');
+      }}
+      onOpenBehaviour={() => {
+        setRoute('behaviour');
       }}
       onOpenCommunications={() => {
         setRoute('communications');

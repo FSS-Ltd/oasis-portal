@@ -78,11 +78,13 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
 
 export function StaffHomeScreen({
   onOpenAttendance,
+  onOpenBehaviour,
   onOpenCommunications,
   onOpenRota,
   user,
 }: {
   onOpenAttendance?: () => void;
+  onOpenBehaviour?: () => void;
   onOpenCommunications?: () => void;
   onOpenRota?: () => void;
   user: SessionUser | undefined;
@@ -206,6 +208,8 @@ export function StaffHomeScreen({
               {view.quickActions.map((action) =>
                 action.id === 'attendance' && onOpenAttendance ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenAttendance} />
+                ) : action.id === 'behaviour' && onOpenBehaviour ? (
+                  <QuickActionRow action={action} key={action.id} onPress={onOpenBehaviour} />
                 ) : action.id === 'communications' && onOpenCommunications ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenCommunications} />
                 ) : action.id === 'rota' && onOpenRota ? (
