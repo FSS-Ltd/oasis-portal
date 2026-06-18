@@ -51,11 +51,9 @@ export function ConversationView({
     selectedSummary?.participants.find(
       (participant) => participant.id !== selectedSummary.currentUserId,
     );
-  const displayTitle = otherParticipant?.fullName ?? title;
-  const subject =
-    detail?.kind === 'Staffroom' || selectedSummary?.kind === 'Staffroom'
-      ? 'Group chat'
-      : 'Private message';
+  const isStaffroom = detail?.kind === 'Staffroom' || selectedSummary?.kind === 'Staffroom';
+  const displayTitle = isStaffroom ? 'Staffroom' : (otherParticipant?.fullName ?? title);
+  const subject = isStaffroom ? 'Staff group chat' : 'Private message';
   const currentUserId = detail?.currentUserId ?? null;
   const unreadBackLabel =
     unreadTotal > 0 ? `Back to messages, ${String(unreadTotal)} unread` : 'Back to messages';

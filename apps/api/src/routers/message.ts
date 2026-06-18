@@ -156,6 +156,11 @@ const listConversationsInput = z
   .object({
     limit: z.number().int().min(1).max(50).default(20),
     cursor: z.string().min(1).optional(),
+    kinds: z
+      .array(z.enum(['ParentStaff', 'SupervisorHead', 'StaffDirect', 'Staffroom', 'StudentDirect']))
+      .min(1)
+      .max(5)
+      .optional(),
   })
   .optional();
 
@@ -241,7 +246,7 @@ async function requireStudentMessageAuthor(ctx: AuthedContext): Promise<void> {
 }
 
 function requireSupervisorMessageAuthor(user: SessionUser): void {
-  if (canUseStaffMessaging(user)) return;
+  if (user.role === 'Supervisor') return;
   throw toForbidden(new AccessDeniedError('supervisor messaging requires staff access'));
 }
 
@@ -1051,8 +1056,10 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       .query(async ({ ctx, input }) => {
         const limit = input?.limit ?? 20;
         const threads = await loadVisibleThreadSummaries(ctx);
+        const kindFilter = input?.kinds ? new Set(input.kinds) : null;
         const conversations = groupThreadsByConversation(threads)
           .map((group) => mapConversationSummary(ctx, group))
+          .filter((conversation) => !kindFilter || kindFilter.has(conversation.kind))
           .sort((a, b) => {
             const aLatest = a.latestMessage?.createdAt ?? a.updatedAt;
             const bLatest = b.latestMessage?.createdAt ?? b.updatedAt;
