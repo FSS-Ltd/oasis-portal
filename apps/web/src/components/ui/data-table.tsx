@@ -74,7 +74,10 @@ export function DataTable<T>({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const rowClassName = cn(getRowClassName?.(row), onRowClick ? 'is-clickable' : undefined);
+            const rowClassName = cn(
+              getRowClassName?.(row),
+              onRowClick ? 'is-clickable' : undefined,
+            );
             const rowProps = onRowClick
               ? {
                   className: rowClassName,
@@ -117,5 +120,5 @@ export function DataTable<T>({
     content = animateRows ? <MotionList>{table}</MotionList> : table;
   }
 
-  return className ? <div className={className}>{content}</div> : content;
+  return <div className={cn('table-responsive', className)}>{content}</div>;
 }
