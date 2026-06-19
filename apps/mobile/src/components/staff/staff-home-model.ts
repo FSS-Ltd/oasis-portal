@@ -36,6 +36,7 @@ export type StaffHomeQuickActionId =
   | 'behaviour'
   | 'clubs'
   | 'communications'
+  | 'incidents'
   | 'pace'
   | 'rota'
   | 'shop';
@@ -83,6 +84,11 @@ export function buildStaffHomeViewModel(summary: StaffHomeSummary): StaffHomeVie
       id: 'behaviour',
       label: 'Log behaviour',
       meta: `${String(summary.behaviour.entriesRecordedToday)} today`,
+    },
+    {
+      id: 'incidents',
+      label: 'Record incident',
+      meta: 'Draft for Head review',
     },
     {
       id: 'pace',

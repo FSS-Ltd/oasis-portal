@@ -38,7 +38,7 @@ describe('staff home model', () => {
     assert.equal(view.nextTask.metric, '2 unmarked');
     assert.deepEqual(
       view.quickActions.map((action) => action.id),
-      ['attendance', 'communications', 'behaviour', 'pace', 'rota', 'shop', 'clubs'],
+      ['attendance', 'communications', 'behaviour', 'incidents', 'pace', 'rota', 'shop', 'clubs'],
     );
   });
 

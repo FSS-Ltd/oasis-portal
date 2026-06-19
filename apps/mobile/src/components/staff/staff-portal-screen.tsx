@@ -4,11 +4,19 @@ import { StaffAttendanceScreen } from './staff-attendance-screen';
 import { StaffBehaviourScreen } from './staff-behaviour-screen';
 import { StaffCommunicationsScreen } from './staff-communications-screen';
 import { StaffHomeScreen } from './staff-home-screen';
+import { StaffIncidentScreen } from './staff-incident-screen';
 import { StaffPaceScreen } from './staff-pace-screen';
 import { StaffRotaScreen } from './staff-rota-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StaffPortalRoute = 'home' | 'attendance' | 'behaviour' | 'communications' | 'pace' | 'rota';
+type StaffPortalRoute =
+  | 'home'
+  | 'attendance'
+  | 'behaviour'
+  | 'communications'
+  | 'incidents'
+  | 'pace'
+  | 'rota';
 
 export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
@@ -57,6 +65,17 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
     );
   }
 
+  if (route === 'incidents') {
+    return (
+      <StaffIncidentScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+        user={user}
+      />
+    );
+  }
+
   if (route === 'rota') {
     return (
       <StaffRotaScreen
@@ -78,6 +97,9 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
       }}
       onOpenCommunications={() => {
         setRoute('communications');
+      }}
+      onOpenIncidents={() => {
+        setRoute('incidents');
       }}
       onOpenPace={() => {
         setRoute('pace');

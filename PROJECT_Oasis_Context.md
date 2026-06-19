@@ -5232,6 +5232,13 @@ typecheck` now passes locally.
   lifecycle `PaceProgress` rows that may be missing for imported history.
   Verification: focused domain/API tests, typechecks, lint, Prettier check, and
   `graphify update .` pass.
+- 2026-06-19 mobile staff incident reporting: branch
+  `feat/mobile-staff-incidents` adds the mobile Staff Portal incident screen
+  for PR-6.8A. Staff can choose scoped students, save an incident draft, see
+  validation/pending/error/submitted states, record attachment notes, and submit
+  the saved draft to the existing Head review workflow. Head sign-off,
+  escalation, parent-copy generation/release, and PDF administration remain
+  web-first under the existing incident API policy.
 
 ## Design decisions made (see ADRs for full rationale)
 
