@@ -5239,6 +5239,12 @@ typecheck` now passes locally.
   the saved draft to the existing Head review workflow. Head sign-off,
   escalation, parent-copy generation/release, and PDF administration remain
   web-first under the existing incident API policy.
+- 2026-06-19 mobile club lead operations: branch `feat/mobile-club-lead`
+  adds the mobile Staff Portal club lead screen for PR-6.9. Assigned club
+  leads can switch between their active clubs, view roster/overview context,
+  mark club session attendance, log club-scoped behaviour, and post club
+  notices through existing scoped APIs. Club CRUD, lead assignment, rota setup,
+  membership management, and parent/student club flows remain web-first.
 
 ## Design decisions made (see ADRs for full rationale)
 

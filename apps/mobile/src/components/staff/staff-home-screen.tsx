@@ -79,6 +79,7 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
 export function StaffHomeScreen({
   onOpenAttendance,
   onOpenBehaviour,
+  onOpenClubs,
   onOpenCommunications,
   onOpenIncidents,
   onOpenPace,
@@ -87,6 +88,7 @@ export function StaffHomeScreen({
 }: {
   onOpenAttendance?: () => void;
   onOpenBehaviour?: () => void;
+  onOpenClubs?: () => void;
   onOpenCommunications?: () => void;
   onOpenIncidents?: () => void;
   onOpenPace?: () => void;
@@ -214,6 +216,8 @@ export function StaffHomeScreen({
                   <QuickActionRow action={action} key={action.id} onPress={onOpenAttendance} />
                 ) : action.id === 'behaviour' && onOpenBehaviour ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenBehaviour} />
+                ) : action.id === 'clubs' && onOpenClubs ? (
+                  <QuickActionRow action={action} key={action.id} onPress={onOpenClubs} />
                 ) : action.id === 'communications' && onOpenCommunications ? (
                   <QuickActionRow action={action} key={action.id} onPress={onOpenCommunications} />
                 ) : action.id === 'incidents' && onOpenIncidents ? (

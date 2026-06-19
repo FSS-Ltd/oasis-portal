@@ -45,7 +45,7 @@ Before PR completion:
 
 ## Generated Module Relationship Map
 
-Generated from `graphify-out/graph.json` with 3593 graph nodes and 5786 graph links.
+Generated from `graphify-out/graph.json` with 3627 graph nodes and 5825 graph links.
 
 Graph confidence labels are preserved so agents can distinguish extracted code relationships from inferred relationships.
 
@@ -73,7 +73,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/api/src/context.ts`
   - `apps/api/src/lib/`
   - `apps/web/src/components/providers/`
-- Graphify evidence: 201 nodes, 794 links, communities 0, 2, 5, 6, 8, 9, 10, 11.
+- Graphify evidence: 201 nodes, 794 links, communities 1, 2, 5, 6, 7, 8, 9, 10.
 - Relationship types: calls: 464, contains: 166, imports_from: 163, method: 1.
 - Confidence mix: EXTRACTED: 496, INFERRED: 298.
 - Connected modules:
@@ -99,7 +99,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/context.ts`
   - `docs/adr/0003-sensitive-visibility-rbac-plus-rls.md`
-- Graphify evidence: 113 nodes, 560 links, communities 0, 2, 7, 8, 10, 19, 27.
+- Graphify evidence: 113 nodes, 560 links, communities 1, 2, 5, 7, 8, 9, 22, 28.
 - Relationship types: calls: 359, contains: 106, imports_from: 94, method: 1.
 - Confidence mix: EXTRACTED: 302, INFERRED: 258.
 - Connected modules:
@@ -128,7 +128,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - _None configured_
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 399 nodes, 776 links, communities 0, 1, 2, 3, 6, 7, 8, 10.
+- Graphify evidence: 399 nodes, 776 links, communities 0, 1, 2, 3, 5, 7, 8, 9.
 - Relationship types: calls: 423, contains: 305, imports_from: 47, method: 1.
 - Confidence mix: EXTRACTED: 486, INFERRED: 290.
 - Connected modules:
@@ -164,7 +164,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/staff/staff-rota-utils.ts`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 317 nodes, 613 links, communities 0, 1, 3, 8, 9, 10, 12, 22.
+- Graphify evidence: 317 nodes, 613 links, communities 0, 2, 3, 5, 7, 8, 9, 10.
 - Relationship types: calls: 321, contains: 264, imports_from: 27, method: 1.
 - Confidence mix: EXTRACTED: 393, INFERRED: 220.
 - Connected modules:
@@ -201,11 +201,11 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/staff/staff-behaviour-utils.ts`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 404 nodes, 783 links, communities 0, 1, 2, 3, 5, 6, 7, 8.
-- Relationship types: calls: 385, contains: 344, imports_from: 53, method: 1.
-- Confidence mix: EXTRACTED: 536, INFERRED: 247.
+- Graphify evidence: 404 nodes, 784 links, communities 0, 1, 2, 3, 5, 6, 7, 8.
+- Relationship types: calls: 386, contains: 344, imports_from: 53, method: 1.
+- Confidence mix: EXTRACTED: 536, INFERRED: 248.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (464)
+  - Registration, parent, student, supervisor, and admin shells (465)
   - Attendance and rota workflows (424)
   - Identity, Clerk sync, sessions, and post-sign-in routing (319)
   - Admin access, users, invitations, audit, and profiles (305)
@@ -234,7 +234,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/incidents/`
   - `packages/db/prisma/migrations/20260528160000_incident_reports/`
-- Graphify evidence: 116 nodes, 199 links, communities 0, 6, 17, 22, 28, 54, 101, 122.
+- Graphify evidence: 116 nodes, 199 links, communities 2, 7, 18, 25, 31, 57, 103, 124.
 - Relationship types: contains: 106, calls: 85, imports_from: 8.
 - Confidence mix: EXTRACTED: 172, INFERRED: 27.
 - Connected modules:
@@ -263,7 +263,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/staff/staff-pace-utils.ts`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/ui/`
-- Graphify evidence: 231 nodes, 301 links, communities 0, 1, 3, 9, 15, 34, 38, 43.
+- Graphify evidence: 231 nodes, 301 links, communities 0, 2, 3, 5, 14, 37, 42, 47.
 - Relationship types: contains: 185, calls: 105, imports_from: 11.
 - Confidence mix: EXTRACTED: 244, INFERRED: 57.
 - Connected modules:
@@ -305,15 +305,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/api/src/lib/student-portal-access.ts`
   - `apps/web/src/components/ui/`
   - `packages/db/prisma/migrations/20260603211500_student_portal_usage_minutes/`
-- Graphify evidence: 1043 nodes, 1670 links, communities 0, 1, 2, 3, 6, 7, 8, 9.
-- Relationship types: contains: 805, calls: 796, imports_from: 68, method: 1.
-- Confidence mix: EXTRACTED: 1207, INFERRED: 463.
+- Graphify evidence: 1075 nodes, 1708 links, communities 0, 1, 2, 3, 5, 7, 8, 9.
+- Relationship types: contains: 830, calls: 809, imports_from: 68, method: 1.
+- Confidence mix: EXTRACTED: 1240, INFERRED: 468.
 - Connected modules:
   - Admin access, users, invitations, audit, and profiles (643)
   - Attendance and rota workflows (490)
-  - Behaviour, merits, demerits, leaderboard, and child notes (464)
-  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (447)
-  - Shared UI primitives and cross-app tRPC clients (436)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (485)
+  - Shared UI primitives and cross-app tRPC clients (474)
+  - Behaviour, merits, demerits, leaderboard, and child notes (465)
 
 ### Faith Corner managed student content
 
@@ -332,7 +332,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/services/faith-corner.ts`
   - `packages/db/prisma/migrations/20260604034500_faith_corner_content/`
-- Graphify evidence: 148 nodes, 176 links, communities 0, 1, 2, 18, 48, 51, 52, 80.
+- Graphify evidence: 148 nodes, 176 links, communities 0, 1, 2, 17, 51, 55, 56, 82.
 - Relationship types: contains: 120, calls: 48, imports_from: 8.
 - Confidence mix: EXTRACTED: 163, INFERRED: 13.
 - Connected modules:
@@ -359,7 +359,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/services/student-notifications.ts`
   - `packages/db/prisma/migrations/20260604052000_student_notifications/`
-- Graphify evidence: 145 nodes, 175 links, communities 0, 1, 2, 11, 18, 48, 51, 52.
+- Graphify evidence: 145 nodes, 175 links, communities 0, 1, 2, 17, 19, 51, 55, 56.
 - Relationship types: contains: 117, calls: 46, imports_from: 12.
 - Confidence mix: EXTRACTED: 160, INFERRED: 15.
 - Connected modules:
@@ -389,7 +389,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/services/homework-submission-storage.ts`
   - `packages/db/prisma/migrations/20260609111500_homework_portal/`
-- Graphify evidence: 99 nodes, 169 links, communities 0, 1, 6, 11, 41, 75, 76, 142.
+- Graphify evidence: 99 nodes, 169 links, communities 0, 2, 7, 19, 20, 45, 77, 78.
 - Relationship types: contains: 88, calls: 64, imports_from: 17.
 - Confidence mix: EXTRACTED: 139, INFERRED: 30.
 - Connected modules:
@@ -418,7 +418,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/web/src/components/providers/realtime-provider.tsx`
   - `apps/web/src/lib/realtime/events.ts`
   - `packages/db/prisma/migrations/20260612180000_student_community/`
-- Graphify evidence: 111 nodes, 380 links, communities 0, 1, 3, 8, 10, 20, 42, 77.
+- Graphify evidence: 111 nodes, 380 links, communities 0, 2, 3, 7, 8, 9, 23, 46.
 - Relationship types: calls: 261, contains: 99, imports_from: 19, method: 1.
 - Confidence mix: EXTRACTED: 200, INFERRED: 180.
 - Connected modules:
@@ -474,6 +474,13 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/smoke/parent-smoke-messages.tsx`
   - `apps/mobile/src/components/smoke/parent-smoke-notices.tsx`
   - `apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-behaviour.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-noticeboard.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-overview.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-screen.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-switcher.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-utils.ts`
   - `apps/mobile/src/components/staff/staff-communications-screen.tsx`
   - `apps/mobile/src/components/staff/staff-notices-panel.tsx`
 - Shared or infrastructure surfaces:
@@ -483,13 +490,13 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `packages/db/prisma/migrations/20260606160000_investment_market_snapshots/`
   - `packages/db/prisma/migrations/20260606163000_add_requested_lse_etfs/`
   - `packages/db/prisma/migrations/20260616120000_student_direct_messages/`
-- Graphify evidence: 1307 nodes, 2272 links, communities 0, 1, 2, 3, 4, 5, 6, 8.
-- Relationship types: contains: 1110, calls: 1042, imports_from: 120.
-- Confidence mix: EXTRACTED: 1813, INFERRED: 459.
+- Graphify evidence: 1339 nodes, 2310 links, communities 0, 1, 2, 3, 4, 5, 6, 7.
+- Relationship types: contains: 1135, calls: 1055, imports_from: 120.
+- Confidence mix: EXTRACTED: 1846, INFERRED: 464.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (447)
+  - Registration, parent, student, supervisor, and admin shells (485)
   - Admin access, users, invitations, audit, and profiles (335)
-  - Shared UI primitives and cross-app tRPC clients (173)
+  - Shared UI primitives and cross-app tRPC clients (211)
   - Identity, Clerk sync, sessions, and post-sign-in routing (171)
   - RBAC, permission tags, and access boundaries (143)
 
@@ -511,15 +518,15 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
 - Shared or infrastructure surfaces:
   - `apps/api/src/router.ts`
   - `apps/api/src/trpc.ts`
-- Graphify evidence: 351 nodes, 684 links, communities 0, 1, 2, 3, 6, 12, 22, 28.
-- Relationship types: calls: 325, contains: 261, imports_from: 98.
-- Confidence mix: EXTRACTED: 427, INFERRED: 257.
+- Graphify evidence: 383 nodes, 722 links, communities 0, 1, 3, 7, 10, 25, 31, 33.
+- Relationship types: calls: 338, contains: 286, imports_from: 98.
+- Confidence mix: EXTRACTED: 460, INFERRED: 262.
 - Connected modules:
-  - Registration, parent, student, supervisor, and admin shells (436)
+  - Registration, parent, student, supervisor, and admin shells (474)
   - Attendance and rota workflows (215)
-  - Behaviour, merits, demerits, leaderboard, and child notes (183)
+  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (211)
+  - Behaviour, merits, demerits, leaderboard, and child notes (184)
   - PACE, subjects, school years, and academic progress (180)
-  - Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email (173)
 
 ### Database, RLS, encryption, and Supabase/Postgres support
 
@@ -537,7 +544,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `packages/db/prisma/`
   - `packages/db/scripts/`
   - `packages/db/src/`
-- Graphify evidence: 53 nodes, 82 links, communities 1, 6, 19, 217, 262.
+- Graphify evidence: 53 nodes, 82 links, communities 0, 7, 22, 221, 266.
 - Relationship types: calls: 39, contains: 35, imports_from: 8.
 - Confidence mix: EXTRACTED: 64, INFERRED: 18.
 - Connected modules:
