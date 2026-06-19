@@ -121,7 +121,14 @@ const PRODUCT_MODULES = [
       'apps/web/src/app/api/incidents/',
       'apps/web/src/components/incidents/',
     ],
-    mobileSurfaces: [],
+    mobileSurfaces: [
+      'apps/mobile/src/components/staff/staff-incident-form-controls.tsx',
+      'apps/mobile/src/components/staff/staff-incident-form.tsx',
+      'apps/mobile/src/components/staff/staff-incident-review-panel.tsx',
+      'apps/mobile/src/components/staff/staff-incident-screen.tsx',
+      'apps/mobile/src/components/staff/staff-incident-student-picker.tsx',
+      'apps/mobile/src/components/staff/staff-incident-utils.ts',
+    ],
     sharedSurfaces: [
       'apps/api/src/incidents/',
       'packages/db/prisma/migrations/20260528160000_incident_reports/',
