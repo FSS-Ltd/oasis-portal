@@ -4,6 +4,8 @@ import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { StyleSheet, Text, View } from 'react-native';
 import { MobileTrpcProvider } from '../src/lib/trpc-provider';
 import { C } from '../src/components/smoke/mobile-theme';
+import { PwaServiceWorkerRegistration } from '../src/components/pwa/pwa-service-worker-registration';
+import { InstallAppButton } from '../src/components/pwa/install-app-button';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -13,6 +15,7 @@ export default function RootLayout() {
   if (!tokenCache) {
     return (
       <ClerkProvider publishableKey={publishableKey}>
+        <PwaServiceWorkerRegistration />
         <MobileTrpcProvider>
           <Stack screenOptions={{ headerShown: false }} />
         </MobileTrpcProvider>
@@ -22,6 +25,7 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      <PwaServiceWorkerRegistration />
       <MobileTrpcProvider>
         <Stack screenOptions={{ headerShown: false }} />
       </MobileTrpcProvider>
@@ -32,10 +36,12 @@ export default function RootLayout() {
 function MissingClerkConfig() {
   return (
     <View style={styles.configShell}>
+      <PwaServiceWorkerRegistration />
       <Text style={styles.configTitle}>Missing Clerk configuration</Text>
       <Text style={styles.configText}>
         Set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY before starting Expo.
       </Text>
+      <InstallAppButton />
     </View>
   );
 }
