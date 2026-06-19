@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-17",
+  "lastRunDate": "2026-06-19",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -1961,6 +1961,126 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an oversized unreviewed test/helper file in pass 1."
+    },
+    "packages/domain/src/__tests__/invoice.test.ts": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 528,
+      "lineCountAfter": 528,
+      "issuesFixed": [
+        "Reviewed oversized domain invoice test coverage; no safe local cleanup was justified without reducing scenario clarity."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as the largest unreviewed pass 1 file; left unchanged after lint/type/test inspection."
+    },
+    "apps/mobile/src/components/staff/staff-home-screen.tsx": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 518,
+      "lineCountAfter": 517,
+      "issuesFixed": [
+        "Replaced repeated quick-action conditional JSX with a typed action-handler map."
+      ],
+      "validationStatus": "pass",
+      "notes": "Preserved existing action availability and queued-state behaviour, including shop actions without a handler."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-screen.tsx": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 462,
+      "lineCountAfter": 462,
+      "issuesFixed": [
+        "Reviewed club lead screen state, mutations, and tab rendering; no behaviour-preserving extraction was clearly beneficial in this pass."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged to avoid unnecessary churn across club attendance, behaviour, and notice workflows."
+    },
+    "apps/api/src/__tests__/email.router.test.ts": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 457,
+      "lineCountAfter": 454,
+      "issuesFixed": [
+        "Extracted repeated APP_URL save/restore test setup into a typed withAppUrl helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Preserved email builder assertions and environment restoration semantics."
+    },
+    "apps/api/src/__tests__/twelve-data-refresh.test.ts": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 452,
+      "lineCountAfter": 452,
+      "issuesFixed": [
+        "Reviewed Twelve Data refresh fake provider and quota tests; no safe local cleanup was justified without obscuring provider scenarios."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged after lint/type/test inspection."
+    },
+    "apps/api/src/__tests__/tithe.router.test.ts": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 427,
+      "lineCountAfter": 427,
+      "issuesFixed": [
+        "Reviewed tithe router fake database and payment tests; no safe local cleanup was justified without touching financial semantics."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged to avoid risk around tithe calculation and ledger behaviour."
+    },
+    "apps/api/src/__tests__/investment-market-data-storage.test.ts": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 422,
+      "lineCountAfter": 422,
+      "issuesFixed": [
+        "Reviewed investment market data storage tests; no safe local cleanup was justified without weakening explicit snapshot expectations."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged after lint/type/test inspection."
+    },
+    "apps/mobile/src/components/staff/staff-pace-screen.tsx": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 417,
+      "lineCountAfter": 417,
+      "issuesFixed": [
+        "Reviewed staff PACE screen date, form-default, and mutation flow; no safe local cleanup was justified in this pass."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged to preserve PACE validation and mutation flow."
+    },
+    "packages/domain/src/__tests__/investmentTransactions.test.ts": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 409,
+      "lineCountAfter": 413,
+      "issuesFixed": [
+        "Centralized repeated balanced-ledger assertions in a local test helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Preserved all investment transaction test scenarios and expected ledger rows."
+    },
+    "apps/mobile/src/components/staff/staff-rota-screen.tsx": {
+      "lastReviewedAt": "2026-06-19",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 394,
+      "lineCountAfter": 394,
+      "issuesFixed": [
+        "Reviewed staff rota tab/query composition; no safe local cleanup was justified without adding indirection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged after lint/type inspection."
     }
   },
   "deferredFiles": {

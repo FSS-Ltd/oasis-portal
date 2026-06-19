@@ -772,3 +772,44 @@
 
 ### Follow-Ups Deferred
 - Broader extraction of the oversized router test fixtures remains deferred; there was no local lint/type failure after Prisma generation, and fixture-builder refactors would be higher-risk than today’s formatting cleanup.
+
+## 2026-06-19 - Pass 1
+
+### Selected Files
+1. `packages/domain/src/__tests__/invoice.test.ts`
+2. `apps/mobile/src/components/staff/staff-home-screen.tsx`
+3. `apps/mobile/src/components/staff/staff-club-lead-screen.tsx`
+4. `apps/api/src/__tests__/email.router.test.ts`
+5. `apps/api/src/__tests__/twelve-data-refresh.test.ts`
+6. `apps/api/src/__tests__/tithe.router.test.ts`
+7. `apps/api/src/__tests__/investment-market-data-storage.test.ts`
+8. `apps/mobile/src/components/staff/staff-pace-screen.tsx`
+9. `packages/domain/src/__tests__/investmentTransactions.test.ts`
+10. `apps/mobile/src/components/staff/staff-rota-screen.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: @oasis/mobile, @oasis/api, and @oasis/domain typechecks passed before edits.
+- Tests: focused API and domain Vitest files passed before edits.
+
+### Changes Made
+- `apps/mobile/src/components/staff/staff-home-screen.tsx`: replaced repeated quick-action conditional rendering with a typed handler map.
+- `apps/api/src/__tests__/email.router.test.ts`: extracted repeated APP_URL setup/restore into `withAppUrl`.
+- `packages/domain/src/__tests__/investmentTransactions.test.ts`: extracted repeated ledger-balance assertions into `expectBalancedLedgerRows`.
+- Remaining selected files were reviewed and left unchanged because no safe local cleanup was justified.
+
+### Validation
+- lint command: pass, `pnpm exec eslint packages/domain/src/__tests__/invoice.test.ts apps/mobile/src/components/staff/staff-home-screen.tsx apps/mobile/src/components/staff/staff-club-lead-screen.tsx apps/api/src/__tests__/email.router.test.ts apps/api/src/__tests__/twelve-data-refresh.test.ts apps/api/src/__tests__/tithe.router.test.ts apps/api/src/__tests__/investment-market-data-storage.test.ts apps/mobile/src/components/staff/staff-pace-screen.tsx packages/domain/src/__tests__/investmentTransactions.test.ts apps/mobile/src/components/staff/staff-rota-screen.tsx`; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/api lint`; pass, `pnpm --filter @oasis/domain lint`
+- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/api typecheck`; pass, `pnpm --filter @oasis/domain typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/email.router.test.ts src/__tests__/twelve-data-refresh.test.ts src/__tests__/tithe.router.test.ts src/__tests__/investment-market-data-storage.test.ts`; pass, `pnpm --filter @oasis/domain exec vitest run src/__tests__/invoice.test.ts src/__tests__/investmentTransactions.test.ts`
+- other checks: pass, `pnpm exec prettier --check packages/domain/src/__tests__/investmentTransactions.test.ts apps/api/src/__tests__/email.router.test.ts apps/mobile/src/components/staff/staff-home-screen.tsx`; pass, `git diff --check`; pass, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Broader decomposition of the remaining oversized mobile staff screens is deferred to future passes; no obvious low-risk extraction was available in this 10-file scope.
