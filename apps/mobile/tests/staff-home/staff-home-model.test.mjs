@@ -36,6 +36,8 @@ describe('staff home model', () => {
       notices: { unread: 3 },
       pace: { testsRecordedToday: 4 },
       permissions: {
+        canManageClubs: false,
+        canUseClubLeadAccess: true,
         canUseClubs: true,
         canUseShopCounter: true,
       },
@@ -74,6 +76,8 @@ describe('staff home model', () => {
       notices: { unread: 0 },
       pace: { testsRecordedToday: 0 },
       permissions: {
+        canManageClubs: false,
+        canUseClubLeadAccess: false,
         canUseClubs: false,
         canUseShopCounter: true,
       },

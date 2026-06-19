@@ -41,7 +41,7 @@ describe('staff rota mobile wiring', () => {
     assert.match(portal, /StaffRotaScreen/);
     assert.match(portal, /'rota'/);
     assert.match(home, /onOpenRota/);
-    assert.match(home, /action\.id === 'rota'/);
+    assert.match(home, /rota: onOpenRota/);
     assert.match(model, /id: 'rota'/);
   });
 

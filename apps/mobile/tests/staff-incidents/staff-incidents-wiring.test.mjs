@@ -51,7 +51,7 @@ describe('staff incident mobile wiring', () => {
     assert.match(portal, /StaffIncidentScreen/);
     assert.match(portal, /'incidents'/);
     assert.match(home, /onOpenIncidents/);
-    assert.match(home, /action\.id === 'incidents'/);
+    assert.match(home, /incidents: onOpenIncidents/);
     assert.match(model, /id: 'incidents'/);
   });
 

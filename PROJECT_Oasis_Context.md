@@ -5268,6 +5268,12 @@ typecheck` now passes locally.
   mark club session attendance, log club-scoped behaviour, and post club
   notices through existing scoped APIs. Club CRUD, lead assignment, rota setup,
   membership management, and parent/student club flows remain web-first.
+- 2026-06-19 mobile club manager operations: branch `feat/mobile-club-manager`
+  adds the separate ClubsAdmin/full-admin mobile club manager screen for
+  PR-6.9A. Club managers can review all active clubs, inspect rosters,
+  mark/reset attendance, post club notices, and inspect weekly club rota
+  shifts through existing manager APIs. Club creation/editing, student and lead
+  assignment, and rota administration remain web-first.
 
 ## Design decisions made (see ADRs for full rationale)
 

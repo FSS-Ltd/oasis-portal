@@ -81,6 +81,7 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
 export function StaffHomeScreen({
   onOpenAttendance,
   onOpenBehaviour,
+  onOpenClubManager,
   onOpenClubs,
   onOpenCommunications,
   onOpenIncidents,
@@ -90,6 +91,7 @@ export function StaffHomeScreen({
 }: {
   onOpenAttendance?: () => void;
   onOpenBehaviour?: () => void;
+  onOpenClubManager?: () => void;
   onOpenClubs?: () => void;
   onOpenCommunications?: () => void;
   onOpenIncidents?: () => void;
@@ -107,6 +109,7 @@ export function StaffHomeScreen({
   const quickActionHandlers: QuickActionHandlers = {
     attendance: onOpenAttendance,
     behaviour: onOpenBehaviour,
+    'club-manager': onOpenClubManager,
     clubs: onOpenClubs,
     communications: onOpenCommunications,
     incidents: onOpenIncidents,

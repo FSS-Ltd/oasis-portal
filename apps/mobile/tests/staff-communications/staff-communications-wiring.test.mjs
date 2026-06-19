@@ -51,7 +51,7 @@ describe('staff communications mobile wiring', () => {
     const model = read('src/components/staff/staff-home-model.ts');
 
     assert.match(home, /onOpenCommunications/);
-    assert.match(home, /action\.id === 'communications'/);
+    assert.match(home, /communications: onOpenCommunications/);
     assert.match(model, /id: 'communications'/);
   });
 

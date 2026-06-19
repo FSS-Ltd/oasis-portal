@@ -13,6 +13,8 @@ export interface StaffHomeSummary {
   notices: { unread: number };
   pace: { testsRecordedToday: number };
   permissions: {
+    canManageClubs: boolean;
+    canUseClubLeadAccess: boolean;
     canUseClubs: boolean;
     canUseShopCounter: boolean;
   };
@@ -34,6 +36,7 @@ export interface StaffHomeSummary {
 export type StaffHomeQuickActionId =
   | 'attendance'
   | 'behaviour'
+  | 'club-manager'
   | 'clubs'
   | 'communications'
   | 'incidents'
@@ -110,7 +113,15 @@ export function buildStaffHomeViewModel(summary: StaffHomeSummary): StaffHomeVie
     });
   }
 
-  if (summary.permissions.canUseClubs) {
+  if (summary.permissions.canManageClubs) {
+    quickActions.push({
+      id: 'club-manager',
+      label: 'Club manager',
+      meta: `${String(summary.clubs.assignedClubCount)} active clubs`,
+    });
+  }
+
+  if (summary.permissions.canUseClubLeadAccess) {
     quickActions.push({
       id: 'clubs',
       label: 'Club roster',
