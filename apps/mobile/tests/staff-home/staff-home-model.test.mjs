@@ -1,7 +1,24 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
+import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
+import ts from 'typescript';
 
-const model = await import('../../src/components/staff/staff-home-model.ts');
+async function importTypeScriptModule(relativePath) {
+  const sourceUrl = new URL(relativePath, import.meta.url);
+  const source = await readFile(sourceUrl, 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  const encoded = Buffer.from(`${outputText}\n//# sourceURL=${sourceUrl.href}`).toString('base64');
+
+  return import(`data:text/javascript;base64,${encoded}`);
+}
+
+const model = await importTypeScriptModule('../../src/components/staff/staff-home-model.ts');
 
 describe('staff home model', () => {
   it('derives the attendance progress and next task from staff summary counts', () => {

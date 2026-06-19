@@ -10,7 +10,7 @@
     "build:web": "node ../../scripts/with-env.mjs expo export --platform web --output-dir dist && node scripts/generate-service-worker.mjs dist && node scripts/check-pwa-readiness.mjs dist",
     "serve:web": "node scripts/serve-web-export.mjs dist",
     "pwa:check": "node scripts/check-pwa-readiness.mjs",
-    "test": "vitest run",
+    "test": "vitest run && node --test tests/**/*.test.mjs",
     "test:pwa": "playwright test --config playwright.pwa.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app src"
