@@ -16,13 +16,14 @@ import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
 import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
+import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type SignupClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
 type SignupChild = RouterOutputs['club']['linkedChildSignupContext']['children'][number];
 type MessagePage = RouterOutputs['message']['listConversations'];
 type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
-type ParentPortalRoute = 'home' | 'notices' | 'messages' | 'clubs' | 'shop';
+type ParentPortalRoute = 'home' | 'notices' | 'messages' | 'clubs' | 'shop' | 'profile';
 const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
@@ -31,6 +32,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'messages', icon: 'messages', label: 'Messages' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
+  { id: 'profile', icon: 'students', label: 'Profile' },
 ];
 
 export function ParentPortalScreen({ user }: { user: SessionUser }) {
@@ -182,7 +184,9 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           onActionPress={() => {
             void signOut();
           }}
-          subtitle={selectedChild ? `Parent of ${selectedChild.student.fullName}` : 'Family account'}
+          subtitle={
+            selectedChild ? `Parent of ${selectedChild.student.fullName}` : 'Family account'
+          }
           title="Oasis Learning Centre"
         />
         <View style={styles.messagesContent}>
@@ -231,6 +235,8 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           registrationStatus={registrationStatus.data}
           selectedChild={selectedChild}
         />
+      ) : route === 'profile' ? (
+        <ParentProfileRegistrationScreen onRefresh={refresh} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
