@@ -75,6 +75,21 @@ function makeCaller(
   return { caller: appRouter.createCaller(makeCtx(user, db)), db };
 }
 
+async function withAppUrl<T>(appUrl: string, fn: () => Promise<T>): Promise<T> {
+  const originalAppUrl = process.env.APP_URL;
+  process.env.APP_URL = appUrl;
+
+  try {
+    return await fn();
+  } finally {
+    if (originalAppUrl === undefined) {
+      delete process.env.APP_URL;
+    } else {
+      process.env.APP_URL = originalAppUrl;
+    }
+  }
+}
+
 describe('email config', () => {
   it('reads the Resend API key from the environment', () => {
     expect(
@@ -212,10 +227,7 @@ describe('email builders', () => {
   });
 
   it('builds a notice notification email with notice contents and portal link', async () => {
-    const originalAppUrl = process.env.APP_URL;
-    process.env.APP_URL = 'https://portal.example.com';
-
-    try {
+    await withAppUrl('https://portal.example.com', async () => {
       const email = buildNoticeNotificationEmail({
         to: 'parent@example.com',
         recipientName: 'Jane Parent',
@@ -240,13 +252,7 @@ describe('email builders', () => {
       expect(html).toContain('Trip forms');
       expect(html).toContain('Please return the signed trip form tomorrow.');
       expect(html).toContain('https://portal.example.com/parent/noticeboard');
-    } finally {
-      if (originalAppUrl === undefined) {
-        delete process.env.APP_URL;
-      } else {
-        process.env.APP_URL = originalAppUrl;
-      }
-    }
+    });
   });
 
   it('builds a behaviour notification email with category, type, and optional note', async () => {
@@ -333,10 +339,7 @@ describe('email builders', () => {
   });
 
   it('builds an invoice payment notification email without embedding invoice contents', async () => {
-    const originalAppUrl = process.env.APP_URL;
-    process.env.APP_URL = 'https://portal.example.com';
-
-    try {
+    await withAppUrl('https://portal.example.com', async () => {
       const email = buildInvoicePaymentNotificationEmail({
         to: 'pastor@example.com',
         recipientName: 'Pastor User',
@@ -364,13 +367,7 @@ describe('email builders', () => {
       expect(html).toContain('https://portal.example.com/admin/invoices');
       expect(html).not.toContain('Talia Parent');
       expect(html).not.toContain('Tuition');
-    } finally {
-      if (originalAppUrl === undefined) {
-        delete process.env.APP_URL;
-      } else {
-        process.env.APP_URL = originalAppUrl;
-      }
-    }
+    });
   });
 });
 

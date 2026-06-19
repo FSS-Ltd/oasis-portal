@@ -10,6 +10,10 @@ import {
   planInvestmentSell,
 } from '../investmentTransactions.js';
 
+function expectBalancedLedgerRows(rows: { delta: number }[]): void {
+  expect(rows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+}
+
 describe('planInvestmentBuy', () => {
   it('converts Spend merits into six-decimal investment units and balanced ledger rows', () => {
     const plan = planInvestmentBuy({ studentId: 'student_1', merits: 250, nav: 125 });
@@ -29,7 +33,7 @@ describe('planInvestmentBuy', () => {
         reason: 'investment:buy',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 });
 
@@ -51,7 +55,7 @@ describe('planInvestmentCashFunding', () => {
         reason: 'investment:cash:fund',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 });
 
@@ -98,7 +102,7 @@ describe('planInvestmentSell', () => {
         reason: 'investment:sell',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 
   it('debits losses through InvestmentReturn and uses all remaining cost basis on full exit', () => {
@@ -117,7 +121,7 @@ describe('planInvestmentSell', () => {
       costBasisMerits: 200,
       investmentReturnDelta: 80,
     });
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 
   it('balances a partial sell after multiple buys and consumes cost basis in proportion', () => {
@@ -131,8 +135,8 @@ describe('planInvestmentSell', () => {
       nav: 125,
     });
 
-    expect(firstBuy.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
-    expect(secondBuy.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(firstBuy.ledgerRows);
+    expectBalancedLedgerRows(secondBuy.ledgerRows);
     expect(sell).toMatchObject({
       proceedsMerits: 125,
       feeMerits: 6,
@@ -140,7 +144,7 @@ describe('planInvestmentSell', () => {
       costBasisMerits: 125,
       investmentReturnDelta: 0,
     });
-    expect(sell.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(sell.ledgerRows);
   });
 });
 
@@ -170,7 +174,7 @@ describe('planInvestmentHoldingBuy', () => {
         reason: 'investment:holding:buy',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 });
 
@@ -220,7 +224,7 @@ describe('planInvestmentHoldingCashSell', () => {
         reason: 'investment:holding:sell',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 
   it('returns a loss-making stock sale to investment cash with no fee or tax', () => {
@@ -253,7 +257,7 @@ describe('planInvestmentHoldingCashSell', () => {
         reason: 'investment:holding:sell',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 });
 
@@ -282,7 +286,7 @@ describe('planInvestmentDividendPayment', () => {
         },
       ],
     });
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 
   it('returns no ledger rows when the rounded dividend is zero', () => {
@@ -375,7 +379,7 @@ describe('planInvestmentPortfolioWithdrawal', () => {
         reason: 'investment:portfolio:withdraw',
       },
     ]);
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 
   it('does not charge capital-gains tax when the sale realizes a loss', () => {
@@ -404,6 +408,6 @@ describe('planInvestmentPortfolioWithdrawal', () => {
         account: 'TaxSink',
       }),
     );
-    expect(plan.ledgerRows.reduce((sum, row) => sum + row.delta, 0)).toBe(0);
+    expectBalancedLedgerRows(plan.ledgerRows);
   });
 });

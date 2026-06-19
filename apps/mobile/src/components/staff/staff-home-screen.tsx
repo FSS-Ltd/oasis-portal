@@ -9,11 +9,13 @@ import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
 import {
   buildStaffHomeViewModel,
   type StaffHomeQuickAction,
+  type StaffHomeQuickActionId,
   type StaffHomeSummary,
 } from './staff-home-model';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StaffHomeSummaryOutput = RouterOutputs['staffHome']['summary'];
+type QuickActionHandlers = Partial<Record<StaffHomeQuickActionId, (() => void) | undefined>>;
 const schoolTimeZone = 'Europe/London';
 
 function datePartsInSchoolTimeZone(value: Date): { day: string; month: string; year: string } {
@@ -102,6 +104,15 @@ export function StaffHomeScreen({
     () => (data ? buildStaffHomeViewModel(toViewModelInput(data)) : null),
     [data],
   );
+  const quickActionHandlers: QuickActionHandlers = {
+    attendance: onOpenAttendance,
+    behaviour: onOpenBehaviour,
+    clubs: onOpenClubs,
+    communications: onOpenCommunications,
+    incidents: onOpenIncidents,
+    pace: onOpenPace,
+    rota: onOpenRota,
+  };
 
   async function refresh() {
     await summary.refetch();
@@ -211,25 +222,13 @@ export function StaffHomeScreen({
 
             <Card style={styles.compactCard}>
               <Text style={styles.cardTitle}>Quick actions</Text>
-              {view.quickActions.map((action) =>
-                action.id === 'attendance' && onOpenAttendance ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenAttendance} />
-                ) : action.id === 'behaviour' && onOpenBehaviour ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenBehaviour} />
-                ) : action.id === 'clubs' && onOpenClubs ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenClubs} />
-                ) : action.id === 'communications' && onOpenCommunications ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenCommunications} />
-                ) : action.id === 'incidents' && onOpenIncidents ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenIncidents} />
-                ) : action.id === 'pace' && onOpenPace ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenPace} />
-                ) : action.id === 'rota' && onOpenRota ? (
-                  <QuickActionRow action={action} key={action.id} onPress={onOpenRota} />
-                ) : (
-                  <QuickActionRow action={action} key={action.id} />
-                ),
-              )}
+              {view.quickActions.map((action) => (
+                <QuickActionRow
+                  action={action}
+                  key={action.id}
+                  onPress={quickActionHandlers[action.id]}
+                />
+              ))}
             </Card>
 
             <Card style={styles.compactCard}>
@@ -308,7 +307,7 @@ function QuickActionRow({
   onPress,
 }: {
   action: StaffHomeQuickAction;
-  onPress?: () => void;
+  onPress?: (() => void) | undefined;
 }) {
   if (onPress) {
     return (
