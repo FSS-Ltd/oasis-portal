@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-18
+**Last updated:** 2026-06-19
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile Staff PACE implementation.
+**Phase:** Mobile PWA readiness rebase.
 
 ---
 
@@ -28,6 +28,29 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-19 mobile PWA readiness rebase
+
+Working branch: `feat/pwa-readiness`.
+
+**PR scope:** Re-anchor the local mobile PWA readiness branch on refreshed
+`origin/main`, preserving the newer PWA implementation while keeping native Expo
+iOS and Android exports viable.
+
+Completed:
+
+- Created a safety branch pointer at
+  `chore/pwa-readiness-pre-rebase-20260619`.
+- Rebased the local branch onto `origin/main` at `f8998b3`.
+- Reapplied the local PWA work over the older PWA readiness implementation that
+  had already merged through PR #300.
+- Kept the newer single-output Expo web export, Workbox service-worker
+  generation, PWA readiness checker, Playwright PWA checks, install-state unit
+  tests, and web-only service-worker registration.
+
+Verification:
+
+- Pending in this session after conflict resolution.
 
 ## Current session - 2026-06-18 mobile Staff PACE
 
