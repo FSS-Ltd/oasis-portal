@@ -87,6 +87,7 @@ export function StaffHomeScreen({
   onOpenIncidents,
   onOpenPace,
   onOpenRota,
+  onOpenShop,
   user,
 }: {
   onOpenAttendance?: () => void;
@@ -97,6 +98,7 @@ export function StaffHomeScreen({
   onOpenIncidents?: () => void;
   onOpenPace?: () => void;
   onOpenRota?: () => void;
+  onOpenShop?: () => void;
   user: SessionUser | undefined;
 }) {
   const { signOut } = useClerk();
@@ -115,6 +117,7 @@ export function StaffHomeScreen({
     incidents: onOpenIncidents,
     pace: onOpenPace,
     rota: onOpenRota,
+    shop: onOpenShop,
   };
 
   async function refresh() {

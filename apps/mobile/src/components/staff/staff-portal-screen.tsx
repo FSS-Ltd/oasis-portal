@@ -9,6 +9,7 @@ import { StaffHomeScreen } from './staff-home-screen';
 import { StaffIncidentScreen } from './staff-incident-screen';
 import { StaffPaceScreen } from './staff-pace-screen';
 import { StaffRotaScreen } from './staff-rota-screen';
+import { StaffShopCounterScreen } from './staff-shop-counter-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StaffPortalRoute =
@@ -20,7 +21,8 @@ type StaffPortalRoute =
   | 'communications'
   | 'incidents'
   | 'pace'
-  | 'rota';
+  | 'rota'
+  | 'shop';
 
 export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
@@ -113,6 +115,17 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
     );
   }
 
+  if (route === 'shop') {
+    return (
+      <StaffShopCounterScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+        user={user}
+      />
+    );
+  }
+
   return (
     <StaffHomeScreen
       onOpenAttendance={() => {
@@ -138,6 +151,9 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
       }}
       onOpenRota={() => {
         setRoute('rota');
+      }}
+      onOpenShop={() => {
+        setRoute('shop');
       }}
       user={user}
     />
