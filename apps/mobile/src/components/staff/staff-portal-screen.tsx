@@ -3,6 +3,7 @@ import { type RouterOutputs } from '../../lib/trpc';
 import { StaffAttendanceScreen } from './staff-attendance-screen';
 import { StaffBehaviourScreen } from './staff-behaviour-screen';
 import { StaffClubLeadScreen } from './staff-club-lead-screen';
+import { StaffClubManagerScreen } from './staff-club-manager-screen';
 import { StaffCommunicationsScreen } from './staff-communications-screen';
 import { StaffHomeScreen } from './staff-home-screen';
 import { StaffIncidentScreen } from './staff-incident-screen';
@@ -14,6 +15,7 @@ type StaffPortalRoute =
   | 'home'
   | 'attendance'
   | 'behaviour'
+  | 'club-manager'
   | 'clubs'
   | 'communications'
   | 'incidents'
@@ -67,6 +69,17 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
     );
   }
 
+  if (route === 'club-manager') {
+    return (
+      <StaffClubManagerScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+        user={user}
+      />
+    );
+  }
+
   if (route === 'pace') {
     return (
       <StaffPaceScreen
@@ -110,6 +123,9 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
       }}
       onOpenCommunications={() => {
         setRoute('communications');
+      }}
+      onOpenClubManager={() => {
+        setRoute('club-manager');
       }}
       onOpenClubs={() => {
         setRoute('clubs');

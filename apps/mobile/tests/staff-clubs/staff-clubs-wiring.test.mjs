@@ -38,7 +38,7 @@ describe('staff club lead mobile wiring', () => {
     assert.match(portal, /StaffClubLeadScreen/);
     assert.match(portal, /'clubs'/);
     assert.match(home, /onOpenClubs/);
-    assert.match(home, /action\.id === 'clubs'/);
+    assert.match(home, /clubs: onOpenClubs/);
     assert.match(model, /id: 'clubs'/);
   });
 

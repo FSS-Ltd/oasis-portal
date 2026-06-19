@@ -109,7 +109,9 @@ export const staffHomeRouter = router({
     const weekEnd = addDays(weekStart, 6);
     const scope = await loadDailyYearBandScope(ctx, today);
     const canUseShopCounter = canSellInShop(ctx.user);
-    const canUseClubs = canManageClubs(ctx.user) || canUseClubLeadAccess(ctx.user);
+    const canManageClubsAccess = canManageClubs(ctx.user);
+    const canUseClubLead = canUseClubLeadAccess(ctx.user);
+    const canUseClubs = canManageClubsAccess || canUseClubLead;
 
     const [
       students,
@@ -205,6 +207,8 @@ export const staffHomeRouter = router({
       },
       pace: { testsRecordedToday: paceCount },
       permissions: {
+        canManageClubs: canManageClubsAccess,
+        canUseClubLeadAccess: canUseClubLead,
         canUseClubs,
         canUseShopCounter,
       },

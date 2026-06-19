@@ -46,7 +46,7 @@ describe('staff PACE mobile wiring', () => {
     assert.match(portal, /StaffPaceScreen/);
     assert.match(portal, /'pace'/);
     assert.match(home, /onOpenPace/);
-    assert.match(home, /action\.id === 'pace'/);
+    assert.match(home, /pace: onOpenPace/);
     assert.match(model, /id: 'pace'/);
   });
 

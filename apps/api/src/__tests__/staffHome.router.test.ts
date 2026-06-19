@@ -148,6 +148,8 @@ describe('staffHome.summary', () => {
       pace: { testsRecordedToday: 4 },
       notices: { unread: 1 },
       permissions: {
+        canManageClubs: false,
+        canUseClubLeadAccess: true,
         canUseClubs: true,
         canUseShopCounter: true,
       },
