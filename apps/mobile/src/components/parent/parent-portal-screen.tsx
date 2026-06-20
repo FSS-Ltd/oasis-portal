@@ -4,8 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../smoke/mobile-theme';
-import { ParentClubsPanel } from '../smoke/parent-smoke-clubs';
-import { ParentNoticesPanel } from '../smoke/parent-smoke-notices';
 import {
   PortalMobileBottomNav,
   PortalMobileHeader,
@@ -14,17 +12,17 @@ import {
 import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
 import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
 import { ParentChildDetailScreen } from './parent-child-detail-screen';
+import { ParentClubsScreen } from './parent-clubs-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
 import { ParentMessagesScreen } from './parent-messages-screen';
+import { ParentNoticesScreen } from './parent-notices-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type SignupClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
-type SignupChild = RouterOutputs['club']['linkedChildSignupContext']['children'][number];
 type MessagePage = RouterOutputs['message']['listConversations'];
 type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type ParentPortalRoute =
@@ -57,9 +55,6 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
   const [route, setRoute] = useState<ParentPortalRoute>('home');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
-  const [pendingClubId, setPendingClubId] = useState<string | null>(null);
-  const [clubStatus, setClubStatus] = useState<string | null>(null);
-  const [clubOperationError, setClubOperationError] = useState<string | null>(null);
   const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
   const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
   const profile = api.profile.me.useQuery(undefined, { retry: false });
@@ -72,6 +67,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
   );
   const recipients = api.message.listRecipients.useQuery({ kind: 'ParentStaff' }, { retry: false });
   const clubSignupContext = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
+  const clubNotices = api.club.myClubNotices.useQuery(undefined, { retry: false });
   const children = useMemo(() => dashboard.data?.children ?? [], [dashboard.data?.children]);
   const selectedChild = selectedParentChild(children, selectedChildId);
   const selectedStudentId = selectedChild?.student.id ?? '';
@@ -83,8 +79,6 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     enabled: route === 'shop',
     retry: false,
   });
-  const signUpForClub = api.club.signUp.useMutation();
-  const withdrawFromClub = api.club.withdraw.useMutation();
   const utils = api.useUtils();
   const conversations = useMemo(
     () => messagePages.flatMap(({ page }) => page.items),
@@ -119,39 +113,10 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       utils.message.listConversations.invalidate(),
       recipients.refetch(),
       clubSignupContext.refetch(),
+      clubNotices.refetch(),
       selectedStudentId ? balances.refetch() : Promise.resolve(),
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
     ]);
-  }
-
-  async function signChildUp(club: SignupClub, child: SignupChild) {
-    setClubStatus(null);
-    setClubOperationError(null);
-    setPendingClubId(club.id);
-    try {
-      await signUpForClub.mutateAsync({ clubId: club.id, studentId: child.id });
-      setClubStatus(`${child.fullName} signed up for ${club.name}.`);
-      await utils.club.linkedChildSignupContext.invalidate();
-    } catch (error) {
-      setClubOperationError(error instanceof Error ? error.message : 'Club signup failed.');
-    } finally {
-      setPendingClubId(null);
-    }
-  }
-
-  async function withdrawChild(club: SignupClub, child: SignupChild) {
-    setClubStatus(null);
-    setClubOperationError(null);
-    setPendingClubId(club.id);
-    try {
-      await withdrawFromClub.mutateAsync({ clubId: club.id, studentId: child.id });
-      setClubStatus(`${child.fullName} withdrawn from ${club.name}.`);
-      await utils.club.linkedChildSignupContext.invalidate();
-    } catch (error) {
-      setClubOperationError(error instanceof Error ? error.message : 'Club withdrawal failed.');
-    } finally {
-      setPendingClubId(null);
-    }
   }
 
   const refreshing =
@@ -162,6 +127,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     conversationsQuery.isFetching ||
     recipients.isFetching ||
     clubSignupContext.isFetching ||
+    clubNotices.isFetching ||
     balances.isFetching ||
     shopItems.isFetching;
   const queryError =
@@ -304,23 +270,17 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           style={styles.scroller}
         >
           {queryError ? <ErrorText>{queryError}</ErrorText> : null}
-          {route === 'notices' ? <ParentNoticesPanel notices={notices.data ?? []} /> : null}
+          {route === 'notices' ? <ParentNoticesScreen notices={notices.data ?? []} /> : null}
           {route === 'clubs' ? (
-            <ParentClubsPanel
+            <ParentClubsScreen
               childrenRows={clubSignupContext.data?.children ?? []}
+              clubNotices={clubNotices.data ?? []}
+              clubNoticesError={clubNotices.error?.message ?? null}
               clubs={clubSignupContext.data?.clubs ?? []}
               loading={clubSignupContext.isLoading}
-              operationError={clubOperationError}
-              pendingClubId={pendingClubId}
+              loadingClubNotices={clubNotices.isLoading}
               selectedChildId={selectedStudentId}
-              status={clubStatus}
               onSelectChild={setSelectedChildId}
-              onSignUp={(club, child) => {
-                void signChildUp(club, child);
-              }}
-              onWithdraw={(club, child) => {
-                void withdrawChild(club, child);
-              }}
             />
           ) : null}
           {route === 'shop' ? (

@@ -36,9 +36,9 @@ describe('parent home mobile wiring', () => {
       expect(portal).toMatch(new RegExp(route));
     }
     expect(portal).toMatch(/useState<ParentPortalRoute>\('home'\)/);
-    expect(portal).toMatch(/ParentNoticesPanel/);
+    expect(portal).toMatch(/ParentNoticesScreen/);
     expect(portal).toMatch(/ParentMessagesScreen/);
-    expect(portal).toMatch(/ParentClubsPanel/);
+    expect(portal).toMatch(/ParentClubsScreen/);
     expect(portal).toMatch(/MobileShopReservationPanel/);
   });
 

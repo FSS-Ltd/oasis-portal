@@ -473,8 +473,11 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/web/src/components/ui/`
 - Mobile surfaces:
   - `apps/mobile/src/components/messages/`
+  - `apps/mobile/src/components/parent/parent-clubs-notices-wiring.test.ts`
+  - `apps/mobile/src/components/parent/parent-clubs-screen.tsx`
   - `apps/mobile/src/components/parent/parent-messages-screen.tsx`
   - `apps/mobile/src/components/parent/parent-messages-wiring.test.ts`
+  - `apps/mobile/src/components/parent/parent-notices-screen.tsx`
   - `apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx`
   - `apps/mobile/src/components/smoke/parent-smoke-notices.tsx`
   - `apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx`
