@@ -17,6 +17,7 @@ import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
 import { ParentMessagesScreen } from './parent-messages-screen';
 import { ParentNoticesScreen } from './parent-notices-screen';
+import { ParentPermissionSlipsScreen } from './parent-permission-slips-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentShopReservationsScreen } from './parent-shop-reservations-screen';
@@ -34,6 +35,7 @@ type ParentPortalRoute =
   | 'messages'
   | 'clubs'
   | 'shop'
+  | 'slips'
   | 'profile'
   | 'settings';
 const messagePageSize = 20;
@@ -47,6 +49,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'incidents', icon: 'notices', label: 'Incidents' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
+  { id: 'slips', icon: 'attendance', label: 'Permission Slips' },
   { id: 'profile', icon: 'students', label: 'Profile' },
   { id: 'settings', icon: 'students', label: 'Settings' },
 ];
@@ -81,6 +84,10 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
   });
   const shopReservations = api.shop.listReservations.useQuery(undefined, {
     enabled: route === 'shop',
+    retry: false,
+  });
+  const permissionSlips = api.permissionSlip.listParent.useQuery(undefined, {
+    enabled: route === 'slips',
     retry: false,
   });
   const utils = api.useUtils();
@@ -121,6 +128,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       selectedStudentId ? balances.refetch() : Promise.resolve(),
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
+      route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
 
@@ -135,7 +143,8 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     clubNotices.isFetching ||
     balances.isFetching ||
     shopItems.isFetching ||
-    shopReservations.isFetching;
+    shopReservations.isFetching ||
+    permissionSlips.isFetching;
   const queryError =
     dashboard.error?.message ??
     profile.error?.message ??
@@ -146,6 +155,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     balances.error?.message ??
     shopItems.error?.message ??
     shopReservations.error?.message ??
+    permissionSlips.error?.message ??
     null;
   const bottomNav = (
     <PortalMobileBottomNav
@@ -313,6 +323,13 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
                 <MutedText>Link a child before reserving shop items.</MutedText>
               </Card>
             )
+          ) : null}
+          {route === 'slips' ? (
+            <ParentPermissionSlipsScreen
+              error={permissionSlips.error?.message ?? null}
+              loading={permissionSlips.isFetching}
+              slips={permissionSlips.data?.slips ?? []}
+            />
           ) : null}
         </ScrollView>
       )}
