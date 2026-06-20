@@ -11,6 +11,7 @@
     "serve:web": "node scripts/serve-web-export.mjs dist",
     "pwa:check": "node scripts/check-pwa-readiness.mjs",
     "test": "vitest run && node --test tests/**/*.test.mjs",
+    "test:e2e": "node ../../scripts/with-env.mjs node scripts/run-maestro-e2e.mjs",
     "test:pwa": "playwright test --config playwright.pwa.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app src"

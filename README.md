@@ -39,9 +39,9 @@ pnpm dev:watch                       # nodemon wrapper for backend/shared restar
 Mobile:
 
 ```
-pnpm --filter mobile start           # Expo dev server
-pnpm --filter mobile ios             # iOS simulator
-pnpm --filter mobile android         # Android emulator
+pnpm --filter @oasis/mobile start    # Expo dev server
+pnpm --filter @oasis/mobile ios      # iOS simulator
+pnpm --filter @oasis/mobile android  # Android emulator
 ```
 
 ## Running tests
@@ -49,8 +49,9 @@ pnpm --filter mobile android         # Android emulator
 ```
 pnpm test                            # unit (vitest) across all packages
 pnpm test:integration                # Prisma + pg test-containers
-pnpm test:e2e                        # Playwright (web)
-pnpm --filter mobile test:e2e        # Maestro (mobile)
+pnpm test:e2e                        # all package e2e targets via Turbo
+pnpm --filter @oasis/web test:e2e    # Playwright (web)
+pnpm --filter @oasis/mobile test:e2e # Maestro (mobile)
 ```
 
 Quality gate (must pass before merge to `main`, per AGENTS.md §8.1):
