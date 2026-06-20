@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 
 export const parentStudentSettingsStyles = StyleSheet.create({
   actionRow: {

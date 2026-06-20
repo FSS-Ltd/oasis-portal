@@ -3,8 +3,8 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
+import { C } from '../core/mobile-theme';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { BehaviourFormCard } from './staff-behaviour-form';
 import { BehaviourRecentPanel } from './staff-behaviour-recent-panel';
 import { BehaviourStudentPicker } from './staff-behaviour-student-picker';

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, Field, MutedText, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, Field, MutedText, MobileButton } from '../core/mobile-ui';
 import {
   behaviourCategories,
   clubBehaviourTypes,
@@ -126,7 +126,7 @@ export function StaffClubLeadBehaviour({
           value={draft.note}
         />
         {validation ? <Text style={styles.validationText}>{validation}</Text> : null}
-        <SmokeButton
+        <MobileButton
           disabled={saving || roster.length === 0}
           label={saving ? 'Saving behaviour...' : 'Save behaviour'}
           onPress={() => {

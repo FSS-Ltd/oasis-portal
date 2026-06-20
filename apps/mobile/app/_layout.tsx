@@ -3,7 +3,7 @@ import { ClerkProvider } from '@clerk/clerk-expo';
 import { tokenCache } from '@clerk/clerk-expo/token-cache';
 import { StyleSheet, Text, View } from 'react-native';
 import { MobileTrpcProvider } from '../src/lib/trpc-provider';
-import { C } from '../src/components/smoke/mobile-theme';
+import { C } from '../src/components/core/mobile-theme';
 import { PwaServiceWorkerRegistration } from '../src/components/pwa/pwa-service-worker-registration';
 import { InstallAppButton } from '../src/components/pwa/install-app-button';
 

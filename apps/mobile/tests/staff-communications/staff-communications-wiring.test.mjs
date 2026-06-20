@@ -17,7 +17,7 @@ describe('staff communications mobile wiring', () => {
       'StaffPortalScreen should coordinate production staff screens',
     );
 
-    const router = read('src/components/smoke/signed-in-smoke-router.tsx');
+    const router = read('src/components/core/signed-in-router.tsx');
     assert.match(router, /StaffPortalScreen/);
     assert.doesNotMatch(router, /<StaffHomeScreen user=\{user\}/);
   });

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Card, Field, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, Field, MobileButton } from '../core/mobile-ui';
 import {
   behaviourTypes,
   behaviourVisibilities,
@@ -115,7 +115,7 @@ export function BehaviourFormCard({
         ) : null}
       </View>
 
-      <SmokeButton
+      <MobileButton
         disabled={saving}
         label={saving ? 'Saving behaviour...' : 'Save behaviour'}
         onPress={onSubmit}

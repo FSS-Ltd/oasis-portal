@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -9,8 +9,8 @@ import {
   Field,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import {
   formatParentSlipDate,
   parentPermissionSlipCategoryLabels,
@@ -132,14 +132,14 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
             ? `Your e-signature has been recorded for ${recipient.student.fullName}.`
             : `${recipient.student.fullName} will not take part.`}
         </MutedText>
-        <SmokeButton label="Back to permission slips" onPress={onBack} variant="primary" />
+        <MobileButton label="Back to permission slips" onPress={onBack} variant="primary" />
       </Card>
     );
   }
 
   return (
     <View style={styles.stack}>
-      <SmokeButton compact label="Back to permission slips" onPress={onBack} variant="secondary" />
+      <MobileButton compact label="Back to permission slips" onPress={onBack} variant="secondary" />
       <Card style={styles.heroCard}>
         <View style={styles.badges}>
           <Badge variant="blue">{parentPermissionSlipCategoryLabels[slip.category]}</Badge>
@@ -203,7 +203,7 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
         <Card style={styles.formCard}>
           <SectionTitle>Your decision</SectionTitle>
           <View style={styles.decisionGrid}>
-            <SmokeButton
+            <MobileButton
               compact
               label="Give permission"
               onPress={() => {
@@ -211,7 +211,7 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
               }}
               variant={form.decision === 'Signed' ? 'success' : 'secondary'}
             />
-            <SmokeButton
+            <MobileButton
               compact
               label="Decline permission"
               onPress={() => {
@@ -302,7 +302,7 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
               </Text>
             </Pressable>
           ) : null}
-          <SmokeButton
+          <MobileButton
             disabled={!canSubmit || submitResponse.isPending}
             label={
               submitResponse.isPending
@@ -322,7 +322,7 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
         <Card style={styles.paymentCard}>
           <SectionTitle>Payment required</SectionTitle>
           <MutedText>The slip is signed. Mark payment once you have paid the office.</MutedText>
-          <SmokeButton
+          <MobileButton
             disabled={parentMarkPaid.isPending}
             label={parentMarkPaid.isPending ? 'Saving...' : 'Mark as paid'}
             onPress={() => {

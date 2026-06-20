@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { ErrorText, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { ErrorText, MutedText } from '../core/mobile-ui';
 import type { Recipient } from './mobile-message-types';
 
 interface NewThreadViewProps {

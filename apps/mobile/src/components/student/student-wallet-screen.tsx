@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -9,8 +9,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import {
   formatMerits,
   formatSignedMerits,
@@ -195,7 +195,7 @@ function TransferCard({
         value={amountText}
       />
       <View style={styles.transferActions}>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={transferPending}
           label="Move to Saving"
@@ -204,7 +204,7 @@ function TransferCard({
           }}
           variant="navy"
         />
-        <SmokeButton
+        <MobileButton
           compact
           disabled={transferPending}
           label="Move to Spend"

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -10,8 +10,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from './smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 
 type MeritBalances = RouterOutputs['meritLedger']['balances'];
 type MeritActivity = RouterOutputs['meritLedger']['activity'];
@@ -175,7 +175,7 @@ function TransferCard({
       {transferError ? <ErrorText>{transferError}</ErrorText> : null}
       {transferStatus ? <Badge variant="success">{transferStatus}</Badge> : null}
       <View style={styles.transferButtons}>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={!canMoveToSaving}
           label="Move to Saving"
@@ -184,7 +184,7 @@ function TransferCard({
           }}
           variant="blue"
         />
-        <SmokeButton
+        <MobileButton
           compact
           disabled={!canMoveToSpend}
           label="Move to Spend"

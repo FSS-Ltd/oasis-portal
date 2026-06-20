@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { Badge, Card, ErrorText, MutedText, SmokeButton } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, MutedText, MobileButton } from '../core/mobile-ui';
 
 type Notice = RouterOutputs['notice']['listForParents'][number];
 
@@ -55,7 +55,7 @@ export function ParentNoticesPanel({ notices }: { notices: Notice[] }) {
           <Text style={styles.noticeTitle}>{notice.title}</Text>
           <MutedText>{notice.body}</MutedText>
           {!notice.read ? (
-            <SmokeButton
+            <MobileButton
               compact
               disabled={pendingNoticeId === notice.id && markRead.isPending}
               label={

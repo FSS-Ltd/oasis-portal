@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
-import { Badge, MutedText } from '../smoke/smoke-ui';
-import { C } from '../smoke/mobile-theme';
+import { Badge, MutedText } from '../core/mobile-ui';
+import { C } from '../core/mobile-theme';
 import { formatDate, formatTime } from './staff-rota-utils';
 
 export type RotaShift = RouterOutputs['rota']['myRota'][number];

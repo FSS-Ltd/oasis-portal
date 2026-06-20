@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, MutedText, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, MutedText, MobileButton } from '../core/mobile-ui';
 import { formatParentDateTime } from './parent-home-utils';
 
 type Notice = RouterOutputs['notice']['listForParents'][number];
@@ -34,7 +34,7 @@ function ParentNoticeCard({
         </View>
       ) : null}
       {!notice.read ? (
-        <SmokeButton
+        <MobileButton
           compact
           disabled={pending}
           label={pending ? 'Marking...' : 'Mark read'}

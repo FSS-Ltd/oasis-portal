@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 import { ParentChildSwitcher } from './parent-child-switcher';
 import {
   ParentShopCategoryFilters,

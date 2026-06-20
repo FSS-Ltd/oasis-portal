@@ -5,7 +5,7 @@ import { ParentPortalScreen } from '../parent/parent-portal-screen';
 import { StaffPortalScreen } from '../staff/staff-portal-screen';
 import { StudentPortalScreen } from '../student/student-portal-screen';
 
-export function SignedInSmokeRouter() {
+export function SignedInRouter() {
   const health = api.health.me.useQuery(undefined, { retry: false });
   const user = health.data?.user;
 

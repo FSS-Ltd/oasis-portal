@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Card, ErrorText, Field, InlineSpinner, MutedText, SmokeButton } from '../smoke/smoke-ui';
-import { C } from '../smoke/mobile-theme';
+import { Card, ErrorText, Field, InlineSpinner, MutedText, MobileButton } from '../core/mobile-ui';
+import { C } from '../core/mobile-theme';
 import {
   availabilityLabel,
   firstDateForMonth,
@@ -56,7 +56,7 @@ export function AvailabilityPanel({
             <Text style={styles.cardTitle}>Weekly availability</Text>
             <MutedText>Set repeat windows when you can be scheduled.</MutedText>
           </View>
-          <SmokeButton compact label="Add" onPress={onAddWeekly} variant="blue" />
+          <MobileButton compact label="Add" onPress={onAddWeekly} variant="blue" />
         </View>
         {weeklyLoading ? <InlineSpinner label="Loading weekly availability" /> : null}
         {weeklyError ? <ErrorText>{weeklyError}</ErrorText> : null}
@@ -73,7 +73,7 @@ export function AvailabilityPanel({
             window={window}
           />
         ))}
-        <SmokeButton
+        <MobileButton
           disabled={savingWeekly}
           label={savingWeekly ? 'Saving...' : 'Save weekly availability'}
           onPress={onSaveWeekly}
@@ -87,7 +87,7 @@ export function AvailabilityPanel({
             <Text style={styles.cardTitle}>Monthly unavailability</Text>
             <MutedText>Block dates or times when you cannot be scheduled.</MutedText>
           </View>
-          <SmokeButton compact label="Add" onPress={onAddMonthly} variant="blue" />
+          <MobileButton compact label="Add" onPress={onAddMonthly} variant="blue" />
         </View>
         <Field label="Month" onChangeText={onChangeMonth} placeholder="YYYY-MM" value={month} />
         {monthlyLoading ? <InlineSpinner label="Loading monthly unavailability" /> : null}
@@ -108,7 +108,7 @@ export function AvailabilityPanel({
             window={window}
           />
         ))}
-        <SmokeButton
+        <MobileButton
           disabled={savingMonthly}
           label={savingMonthly ? 'Saving...' : 'Save monthly unavailability'}
           onPress={onSaveMonthly}
@@ -172,7 +172,7 @@ function WeeklyAvailabilityRow({
           value={toTimeValue(window.endMinute)}
         />
       </View>
-      <SmokeButton compact label="Remove" onPress={onRemove} variant="danger" />
+      <MobileButton compact label="Remove" onPress={onRemove} variant="danger" />
     </View>
   );
 }
@@ -199,7 +199,7 @@ function MonthlyAvailabilityRow({
         }}
         value={window.date}
       />
-      <SmokeButton
+      <MobileButton
         compact
         label={allDay ? 'Set times' : 'All day'}
         onPress={() => {
@@ -229,7 +229,7 @@ function MonthlyAvailabilityRow({
           />
         </View>
       ) : null}
-      <SmokeButton compact label="Remove" onPress={onRemove} variant="danger" />
+      <MobileButton compact label="Remove" onPress={onRemove} variant="danger" />
     </View>
   );
 }

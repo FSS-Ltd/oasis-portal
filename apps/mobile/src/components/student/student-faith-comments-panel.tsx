@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   ErrorText,
@@ -9,8 +9,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import {
   trimComment,
   type FaithCornerComment,
@@ -85,7 +85,7 @@ export function StudentFaithCommentsPanel({
   return (
     <>
       <View style={styles.actionRow}>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={toggleCurrentLike.isPending}
           label={faith.likedByCurrentStudent ? 'Liked' : 'Like'}
@@ -109,7 +109,7 @@ export function StudentFaithCommentsPanel({
           placeholder="Share a short response to this devotion..."
           value={commentBody}
         />
-        <SmokeButton
+        <MobileButton
           disabled={submitComment.isPending || commentBody.trim().length === 0}
           label={submitComment.isPending ? 'Sending...' : 'Send for approval'}
           onPress={() => {
@@ -160,7 +160,7 @@ function FaithCommentRow({
       </View>
       <Text style={styles.description}>{comment.body}</Text>
       <View style={styles.actionRow}>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={!canLike || pending}
           label={comment.likedByCurrentStudent ? 'Liked' : 'Like'}

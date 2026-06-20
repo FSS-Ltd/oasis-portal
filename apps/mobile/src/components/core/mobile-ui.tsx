@@ -15,7 +15,7 @@ import { C } from './mobile-theme';
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'navy' | 'blue';
 type BadgeVariant = 'neutral' | 'success' | 'warning' | 'danger' | 'blue' | 'crimson';
 
-interface SmokeButtonProps {
+interface MobileButtonProps {
   label: string;
   onPress: () => void;
   variant?: ButtonVariant;
@@ -98,13 +98,13 @@ export function StatCard({ label, value, accent = C.blue }: StatCardProps) {
   );
 }
 
-export function SmokeButton({
+export function MobileButton({
   label,
   onPress,
   variant = 'primary',
   disabled = false,
   compact = false,
-}: SmokeButtonProps) {
+}: MobileButtonProps) {
   const palette = buttonPalette[variant];
   return (
     <Pressable

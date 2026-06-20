@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import { ConversationView } from './mobile-message-conversation';
 import { InboxView } from './mobile-message-inbox';
 import { NewThreadView } from './mobile-message-new-thread';

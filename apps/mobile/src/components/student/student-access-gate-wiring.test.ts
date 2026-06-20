@@ -59,7 +59,7 @@ describe('student mobile access gate wiring', () => {
 
   it('keeps the gate student-only and does not expose parent or staff route boundaries', () => {
     const gate = readMobile('src/components/student/student-mobile-access-gate.tsx');
-    const router = readMobile('src/components/smoke/signed-in-smoke-router.tsx');
+    const router = readMobile('src/components/core/signed-in-router.tsx');
 
     expect(router).toMatch(/user\?\.role === 'Student'/);
     expect(router).toMatch(/<StudentPortalScreen user=\{user\} \/>/);

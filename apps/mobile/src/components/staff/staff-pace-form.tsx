@@ -8,8 +8,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Card, Field, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, Field, MobileButton } from '../core/mobile-ui';
 import {
   paceNumberValue,
   paceTestTypeLabel,
@@ -149,7 +149,7 @@ export function StaffPaceFormCard({
         </View>
       ) : null}
 
-      <SmokeButton
+      <MobileButton
         disabled={saving || blockedReason !== null || paceNumberValue(form.paceNumber) === null}
         label={saving ? 'Saving score...' : 'Save PACE score'}
         onPress={onSubmit}

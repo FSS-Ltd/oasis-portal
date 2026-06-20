@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View, type StyleProp, type TextStyle } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText } from '../core/mobile-ui';
 import { paceTestTypeLabel, scoreLabel, scoreTone } from './staff-pace-utils';
 
 type PaceSubject = RouterOutputs['pace']['forStudent']['subjects'][number];

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, MutedText, SectionTitle, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 import {
   formatStudentNotificationDate,
   studentNotificationKindLabel,
@@ -47,7 +47,7 @@ export function StudentNotificationDetail({
       <Text style={styles.body}>{notification.body}</Text>
 
       {!notification.read ? (
-        <SmokeButton
+        <MobileButton
           disabled={pending}
           label={pending ? 'Marking...' : 'Mark read'}
           onPress={() => {

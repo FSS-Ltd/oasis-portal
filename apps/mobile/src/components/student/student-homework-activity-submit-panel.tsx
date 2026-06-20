@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, ErrorText, Field, MutedText, SectionTitle, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, ErrorText, Field, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 import {
   parsePositiveByteSize,
   type PreparedHomeworkUpload,
@@ -120,7 +120,7 @@ export function StudentHomeworkActivitySubmitPanel({
         onChangeText={setSizeBytes}
         value={sizeBytes}
       />
-      <SmokeButton
+      <MobileButton
         disabled={busy}
         label={prepareUpload.isPending ? 'Submitting work' : 'Prepare image upload'}
         onPress={() => {
@@ -132,7 +132,7 @@ export function StudentHomeworkActivitySubmitPanel({
         <View style={styles.statusPanel}>
           <Text style={styles.smallStrong}>Upload prepared</Text>
           <MutedText>Upload the selected file, then confirm the submitted homework image.</MutedText>
-          <SmokeButton
+          <MobileButton
             disabled={busy}
             label={submitUpload.isPending ? 'Submitting work' : 'Confirm submitted work'}
             onPress={() => {

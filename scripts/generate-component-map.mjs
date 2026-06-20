@@ -70,7 +70,6 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/student-drillthrough/attendance-calendar.tsx',
     ],
     mobileSurfaces: [
-      'apps/mobile/src/components/smoke/',
       'apps/mobile/src/components/staff/staff-attendance-roster.tsx',
       'apps/mobile/src/components/staff/staff-attendance-screen.tsx',
       'apps/mobile/src/components/staff/staff-attendance-summary.tsx',
@@ -100,7 +99,6 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/student-drillthrough/notes-list.tsx',
     ],
     mobileSurfaces: [
-      'apps/mobile/src/components/smoke/',
       'apps/mobile/src/components/staff/staff-behaviour-form.tsx',
       'apps/mobile/src/components/staff/staff-behaviour-recent-panel.tsx',
       'apps/mobile/src/components/staff/staff-behaviour-screen.tsx',
@@ -143,7 +141,6 @@ const PRODUCT_MODULES = [
     domainFiles: ['packages/domain/src/schoolYears.ts', 'packages/domain/src/subjects.ts'],
     webSurfaces: ['apps/web/src/components/pace/'],
     mobileSurfaces: [
-      'apps/mobile/src/components/smoke/',
       'apps/mobile/src/components/staff/staff-pace-form.tsx',
       'apps/mobile/src/components/staff/staff-pace-screen.tsx',
       'apps/mobile/src/components/staff/staff-pace-student-picker.tsx',
@@ -392,7 +389,7 @@ const PRODUCT_MODULES = [
   },
   {
     name: 'Shared UI primitives and cross-app tRPC clients',
-    owns: 'Reusable UI primitives, tRPC providers, typed clients, mobile smoke primitives, and cross-app client plumbing.',
+    owns: 'Reusable UI primitives, tRPC providers, typed clients, mobile core primitives, and cross-app client plumbing.',
     apiRouters: [],
     domainFiles: ['packages/ui/src/index.ts'],
     webSurfaces: [
@@ -402,6 +399,7 @@ const PRODUCT_MODULES = [
     ],
     mobileSurfaces: [
       'apps/mobile/src/components/',
+      'apps/mobile/src/components/core/',
       'apps/mobile/src/lib/',
       'apps/mobile/src/types/',
     ],

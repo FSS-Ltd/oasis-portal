@@ -1,5 +1,5 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import { type ParentShopItem } from './parent-shop-reservations-utils';
 
 export function ParentShopTile({ item, size = 72 }: { item: ParentShopItem; size?: number }) {

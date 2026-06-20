@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 
 type ClubListItem = RouterOutputs['club']['list'][number];
 type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
@@ -74,7 +74,7 @@ export function StaffClubsPanel({
         ) : null}
         <View style={styles.buttonColumn}>
           {clubs.map((club) => (
-            <SmokeButton
+            <MobileButton
               compact
               key={club.id}
               label={`${club.name} · ${capacityLabel(club)}`}

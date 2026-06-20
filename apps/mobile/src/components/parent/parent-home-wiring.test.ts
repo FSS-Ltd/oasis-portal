@@ -25,7 +25,7 @@ describe('parent home mobile wiring', () => {
   });
 
   it('routes Parent users into the production parent portal home route', () => {
-    const router = readMobile('src/components/smoke/signed-in-smoke-router.tsx');
+    const router = readMobile('src/components/core/signed-in-router.tsx');
     const portal = readMobile('src/components/parent/parent-portal-screen.tsx');
 
     expect(router).toMatch(/ParentPortalScreen/);

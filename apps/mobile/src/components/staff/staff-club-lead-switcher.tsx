@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import { type StaffLeadClub } from './staff-club-lead-utils';
 
 export function StaffClubLeadSwitcher({

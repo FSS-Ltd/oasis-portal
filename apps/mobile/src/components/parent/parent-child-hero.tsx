@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge } from '../core/mobile-ui';
 import {
   attendanceTone,
   displaySchoolYearLabel,
