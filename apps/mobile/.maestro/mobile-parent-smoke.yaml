@@ -1,0 +1,17 @@
+appId: uk.oasis.portal
+name: Parent mobile login and navigation smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible: Oasis Learning Centre
+- assertVisible: Staff and family mobile portal
+- tapOn: Email
+- inputText: ${E2E_PARENT_EMAIL}
+- tapOn: Password
+- inputText: ${E2E_PARENT_PASSWORD}
+- tapOn: Sign in
+- assertVisible: Parent Portal
+- assertVisible: Home
+- assertVisible: Messages
+- tapOn: Messages
+- assertVisible: Messages
