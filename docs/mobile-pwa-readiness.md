@@ -21,6 +21,11 @@ metadata required by Expo's single-output HTML, generates `service-worker.js`
 with Workbox, and validates the exported manifest, service worker, offline
 fallback, and iOS Home Screen tags.
 
+`test:pwa` rebuilds the static export and serves it on a dedicated local test
+port, `8091` by default, so it does not accidentally reuse an Expo development
+server. Override it with `MOBILE_PWA_TEST_PORT` only when that port is already
+in use.
+
 For a local static check after building:
 
 ```bash
