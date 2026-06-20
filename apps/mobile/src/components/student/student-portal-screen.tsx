@@ -10,6 +10,7 @@ import {
   type PortalMobileNavItem,
 } from '../smoke/portal-mobile-shell';
 import { ErrorText } from '../smoke/smoke-ui';
+import { StudentHomeworkActivityScreen } from './student-homework-activity-screen';
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
 import type { PublicLeaderboardKind } from './student-learning-utils';
@@ -18,12 +19,13 @@ import { StudentWalletScreen } from './student-wallet-screen';
 import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StudentMobileTab = 'home' | 'wallet' | 'learning';
+type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity';
 
 const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
   { id: 'wallet', icon: 'wallet', label: 'Wallet' },
   { id: 'learning', icon: 'pace', label: 'Learning' },
+  { id: 'activity', icon: 'clubs', label: 'Activity' },
 ];
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
@@ -79,7 +81,13 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     },
     { retry: false },
   );
+  const studentHomeworkDue = api.homework.studentDue.useQuery(undefined, { retry: false });
+  const studentHomeworkGraded = api.homework.studentGraded.useQuery(undefined, { retry: false });
   const transfer = api.meritLedger.transfer.useMutation();
+
+  async function refreshHomework() {
+    await Promise.all([studentHomeworkDue.refetch(), studentHomeworkGraded.refetch()]);
+  }
 
   async function refresh() {
     await Promise.all([
@@ -88,6 +96,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
       academicScreensEnabled && studentId.length > 0 ? studentPace.refetch() : Promise.resolve(),
       academicScreensEnabled ? studentAttendance.refetch() : Promise.resolve(),
       studentLeaderboard.refetch(),
+      studentHomeworkDue.refetch(),
+      studentHomeworkGraded.refetch(),
     ]);
   }
 
@@ -123,7 +133,9 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     studentWallet.isFetching ||
     studentPace.isFetching ||
     studentAttendance.isFetching ||
-    studentLeaderboard.isFetching;
+    studentLeaderboard.isFetching ||
+    studentHomeworkDue.isFetching ||
+    studentHomeworkGraded.isFetching;
   const queryError = studentDashboard.error?.message ?? studentWallet.error?.message ?? null;
 
   return (
@@ -192,6 +204,17 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             onSelectLeaderboardKind={setLeaderboardKind}
             pace={studentPace.data}
             paceError={studentPace.error?.message ?? null}
+          />
+        ) : null}
+
+        {activeTab === 'activity' ? (
+          <StudentHomeworkActivityScreen
+            due={studentHomeworkDue.data}
+            dueError={studentHomeworkDue.error?.message ?? null}
+            graded={studentHomeworkGraded.data}
+            gradedError={studentHomeworkGraded.error?.message ?? null}
+            loading={studentHomeworkDue.isLoading || studentHomeworkGraded.isLoading}
+            onRefreshHomework={refreshHomework}
           />
         ) : null}
       </ScrollView>
