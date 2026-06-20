@@ -10,7 +10,6 @@ import {
   type PortalMobileNavItem,
 } from '../smoke/portal-mobile-shell';
 import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
-import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
 import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { ParentClubsScreen } from './parent-clubs-screen';
 import { selectedParentChild } from './parent-home-utils';
@@ -20,6 +19,7 @@ import { ParentMessagesScreen } from './parent-messages-screen';
 import { ParentNoticesScreen } from './parent-notices-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
+import { ParentShopReservationsScreen } from './parent-shop-reservations-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
@@ -79,6 +79,10 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     enabled: route === 'shop',
     retry: false,
   });
+  const shopReservations = api.shop.listReservations.useQuery(undefined, {
+    enabled: route === 'shop',
+    retry: false,
+  });
   const utils = api.useUtils();
   const conversations = useMemo(
     () => messagePages.flatMap(({ page }) => page.items),
@@ -116,6 +120,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       clubNotices.refetch(),
       selectedStudentId ? balances.refetch() : Promise.resolve(),
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
+      route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
     ]);
   }
 
@@ -129,7 +134,8 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     clubSignupContext.isFetching ||
     clubNotices.isFetching ||
     balances.isFetching ||
-    shopItems.isFetching;
+    shopItems.isFetching ||
+    shopReservations.isFetching;
   const queryError =
     dashboard.error?.message ??
     profile.error?.message ??
@@ -139,6 +145,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     clubSignupContext.error?.message ??
     balances.error?.message ??
     shopItems.error?.message ??
+    shopReservations.error?.message ??
     null;
   const bottomNav = (
     <PortalMobileBottomNav
@@ -285,15 +292,20 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           ) : null}
           {route === 'shop' ? (
             selectedChild ? (
-              <MobileShopReservationPanel
+              <ParentShopReservationsScreen
+                children={children}
                 heldMerits={balances.data?.balances.ShopReserved ?? 0}
                 items={shopItems.data ?? []}
                 loading={shopItems.isFetching || balances.isFetching}
-                ownerName={selectedChild.student.fullName}
+                reservations={shopReservations.data ?? []}
+                reservationsError={shopReservations.error?.message ?? null}
+                reservationsLoading={shopReservations.isFetching}
+                selectedChild={selectedChild}
+                shopError={shopItems.error?.message ?? balances.error?.message ?? null}
                 spendBalance={
                   balances.data?.balances.Spend ?? selectedChild.metrics.meritBalances.Spend
                 }
-                studentId={selectedChild.student.id}
+                onSelectChild={setSelectedChildId}
               />
             ) : (
               <Card>
