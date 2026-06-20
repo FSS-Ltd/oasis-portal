@@ -5,7 +5,6 @@ import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../smoke/mobile-theme';
 import { ParentClubsPanel } from '../smoke/parent-smoke-clubs';
-import { ParentMessagesPanel } from '../smoke/parent-smoke-messages';
 import { ParentNoticesPanel } from '../smoke/parent-smoke-notices';
 import {
   PortalMobileBottomNav,
@@ -18,6 +17,7 @@ import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
+import { ParentMessagesScreen } from './parent-messages-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
@@ -209,7 +209,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
         />
         <View style={styles.messagesContent}>
           {queryError ? <ErrorText>{queryError}</ErrorText> : null}
-          <ParentMessagesPanel
+          <ParentMessagesScreen
             conversations={conversations}
             hasMore={Boolean(nextMessageCursor)}
             loadingMore={conversationsQuery.isFetching && Boolean(messageCursor)}

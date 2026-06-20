@@ -3,8 +3,8 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
+import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
 import { C } from '../smoke/mobile-theme';
-import { ParentMessagesPanel } from '../smoke/parent-smoke-messages';
 import { Card, ErrorText, InlineSpinner, MutedText, SmokeButton } from '../smoke/smoke-ui';
 import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
 import { StaffNoticesPanel, type StaffNotice } from './staff-notices-panel';
@@ -173,7 +173,7 @@ export function StaffCommunicationsScreen({
             {recipients.error ? <ErrorText>{recipients.error.message}</ErrorText> : null}
             {headRecipients.error ? <ErrorText>{headRecipients.error.message}</ErrorText> : null}
             {!conversations.isLoading && !conversations.error && !recipients.error ? (
-              <ParentMessagesPanel
+              <MobileMessagesPanel
                 conversationKind="StaffDirect"
                 conversations={(conversations.data?.items ?? []).filter(isStaffInboxConversation)}
                 hasMore={Boolean(conversations.data?.nextCursor)}
@@ -193,7 +193,7 @@ export function StaffCommunicationsScreen({
                 <MutedText>
                   Supervisor-to-Head conversations use the same secure message flow.
                 </MutedText>
-                <ParentMessagesPanel
+                <MobileMessagesPanel
                   conversationKind="SupervisorHead"
                   conversations={(supervisorHeadConversations.data?.items ?? []).filter(
                     isSupervisorHeadConversation,

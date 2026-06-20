@@ -1,8 +1,8 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { C } from './mobile-theme';
-import type { ConversationSummary } from './parent-message-types';
-import { formatThreadTime, latestSenderLabel, unreadLabel } from './parent-message-utils';
-import { MutedText } from './smoke-ui';
+import { C } from '../smoke/mobile-theme';
+import { MutedText } from '../smoke/smoke-ui';
+import type { ConversationSummary } from './mobile-message-types';
+import { formatThreadTime, latestSenderLabel, unreadLabel } from './mobile-message-utils';
 
 interface InboxViewProps {
   emptyDetail: string;

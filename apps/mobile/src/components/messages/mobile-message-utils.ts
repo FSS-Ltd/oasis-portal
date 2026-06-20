@@ -1,4 +1,4 @@
-import type { ConversationSummary } from './parent-message-types';
+import type { ConversationSummary } from './mobile-message-types';
 
 export function formatDateTime(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {

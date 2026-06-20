@@ -3,11 +3,11 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
+import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
 import { C } from './mobile-theme';
 import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
 import { ParentChildOverview, ParentChildPicker } from './parent-smoke-children';
 import { ParentClubsPanel } from './parent-smoke-clubs';
-import { ParentMessagesPanel } from './parent-smoke-messages';
 import { ParentNoticesPanel } from './parent-smoke-notices';
 import { MobileShopReservationPanel } from './student-smoke-shop';
 import {
@@ -211,7 +211,7 @@ export function ParentPortalSmokeScreen({ user }: { user: SessionUser }) {
         {header}
         <View style={styles.messagesContent}>
           {queryError ? <ErrorText>{queryError}</ErrorText> : null}
-          <ParentMessagesPanel
+          <MobileMessagesPanel
             conversations={conversations}
             hasMore={Boolean(nextMessageCursor)}
             loadingMore={conversationsQuery.isFetching && Boolean(messageCursor)}

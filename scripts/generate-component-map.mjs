@@ -301,8 +301,10 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/ui/',
     ],
     mobileSurfaces: [
+      'apps/mobile/src/components/messages/',
+      'apps/mobile/src/components/parent/parent-messages-screen.tsx',
+      'apps/mobile/src/components/parent/parent-messages-wiring.test.ts',
       'apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx',
-      'apps/mobile/src/components/smoke/parent-smoke-messages.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
       'apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx',
       'apps/mobile/src/components/staff/staff-club-lead-attendance.tsx',

@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { ConversationView } from './parent-message-conversation';
-import { InboxView } from './parent-message-inbox';
-import { NewThreadView } from './parent-message-new-thread';
-import type { ConversationSummary, Recipient } from './parent-message-types';
+import { C } from '../smoke/mobile-theme';
+import { ConversationView } from './mobile-message-conversation';
+import { InboxView } from './mobile-message-inbox';
+import { NewThreadView } from './mobile-message-new-thread';
+import type { ConversationSummary, Recipient } from './mobile-message-types';
 
 type MessageScreen = 'inbox' | 'conversation' | 'new';
 type ConversationKind = 'ParentStaff' | 'StudentDirect' | 'StaffDirect' | 'SupervisorHead';
 
-interface ParentMessagesPanelProps {
+interface MobileMessagesPanelProps {
   conversationKind?: ConversationKind;
   conversations: ConversationSummary[];
   hasMore?: boolean;
@@ -21,7 +21,7 @@ interface ParentMessagesPanelProps {
   onRefresh?: () => Promise<void> | void;
 }
 
-export function ParentMessagesPanel({
+export function MobileMessagesPanel({
   conversationKind = 'ParentStaff',
   conversations,
   hasMore = false,
@@ -30,7 +30,7 @@ export function ParentMessagesPanel({
   recipients,
   refreshing = false,
   onRefresh,
-}: ParentMessagesPanelProps) {
+}: MobileMessagesPanelProps) {
   const utils = api.useUtils();
   const [screen, setScreen] = useState<MessageScreen>('inbox');
   const [selectedConversationId, setSelectedConversationId] = useState('');
