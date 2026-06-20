@@ -17,6 +17,7 @@ import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
 import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
+import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
@@ -30,6 +31,7 @@ type ParentPortalRoute =
   | 'home'
   | 'child'
   | 'reports'
+  | 'incidents'
   | 'notices'
   | 'messages'
   | 'clubs'
@@ -44,6 +46,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'notices', icon: 'notices', label: 'Notices' },
   { id: 'messages', icon: 'messages', label: 'Messages' },
   { id: 'reports', icon: 'leaderboard', label: 'Reports' },
+  { id: 'incidents', icon: 'notices', label: 'Incidents' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
   { id: 'profile', icon: 'students', label: 'Profile' },
@@ -265,6 +268,19 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           children={children}
           dashboardError={dashboard.error?.message ?? profile.error?.message ?? null}
           loadingDashboard={dashboard.isLoading || profile.isLoading}
+          onRefresh={refresh}
+          onSelectChild={setSelectedChildId}
+          refreshing={refreshing}
+          selectedChild={selectedChild}
+        />
+      ) : route === 'incidents' ? (
+        <ParentIncidentReportsScreen
+          children={children}
+          dashboardError={dashboard.error?.message ?? profile.error?.message ?? null}
+          loadingDashboard={dashboard.isLoading || profile.isLoading}
+          onOpenMessages={() => {
+            setRoute('messages');
+          }}
           onRefresh={refresh}
           onSelectChild={setSelectedChildId}
           refreshing={refreshing}
