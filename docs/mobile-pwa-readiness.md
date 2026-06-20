@@ -52,8 +52,38 @@ Required deployment settings:
 - Runtime API target: existing `apps/web` `/api/trpc`
 - HTTPS only, because installability and service workers require a secure
   context outside localhost.
-- Add the PWA origin to Clerk allowed origins, redirect URLs, and Google OAuth
-  redirect settings before user testing.
+- PWA deployment must not replace the `apps/web` Vercel project. `apps/web`
+  remains the production web portal and API deployment.
+- Set `EXPO_PUBLIC_TRPC_URL` to the deployed `apps/web` `/api/trpc` endpoint,
+  not to the static PWA origin.
+
+Before user testing, configure auth for the deployed PWA origin:
+
+- Add the PWA origin to Clerk allowed origins.
+- Add the PWA sign-in and callback routes to Clerk redirect URLs.
+- Add the PWA callback route to Google OAuth redirect URIs.
+- Confirm email/password and Google SSO both return to the PWA origin.
+
+Deployment checklist:
+
+1. Build the static export with `pnpm --filter @oasis/mobile build:web`.
+2. Deploy the generated `apps/mobile/dist` directory to the dedicated HTTPS PWA
+   site.
+3. Set `EXPO_PUBLIC_TRPC_URL=https://<web-domain>/api/trpc` in the PWA hosting
+   environment and rebuild after changing it.
+4. Run `pnpm --filter @oasis/mobile test:pwa` against the build before user
+   testing.
+5. Install the PWA on at least one Chromium/Android device and one iOS Safari
+   device.
+6. Verify sign-in, standalone launch, refresh, offline shell, and sign-out.
+
+Rollback path:
+
+- Redeploy the previous static artifact for the dedicated PWA site.
+- If the hosting provider cannot redeploy a previous artifact, rebuild the last
+  known-good commit and redeploy its `apps/mobile/dist` output.
+- Remove the PWA test origin from Clerk allowed origins, Clerk redirect URLs,
+  and Google OAuth redirect URIs if the deployment is withdrawn.
 
 ## Install And Offline Behaviour
 
@@ -81,5 +111,6 @@ pnpm --filter @oasis/mobile exec expo export --platform ios --output-dir /tmp/oa
 pnpm --filter @oasis/mobile exec expo export --platform android --output-dir /tmp/oasis-mobile-android-export
 ```
 
-EAS internal builds and store submission remain Phase 6 work. Do not add
+Native EAS release remains the app-store path. EAS internal builds and store
+submission remain separate from the temporary PWA deployment. Do not add
 Capacitor, TWA wrappers, or a separate mobile-web codebase in this PWA phase.
