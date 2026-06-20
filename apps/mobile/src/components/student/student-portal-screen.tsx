@@ -13,6 +13,7 @@ import { ErrorText } from '../smoke/smoke-ui';
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentWalletScreen } from './student-wallet-screen';
+import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StudentMobileTab = 'home' | 'wallet';
@@ -50,11 +51,42 @@ export function StudentPortalScreen({ user }: { user: SessionUser }) {
 
 function StudentPortalContent({ user }: { user: SessionUser }) {
   const [activeTab, setActiveTab] = useState<StudentMobileTab>('home');
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferPending, setTransferPending] = useState(false);
+  const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
+  const transfer = api.meritLedger.transfer.useMutation();
 
   async function refresh() {
     await Promise.all([studentDashboard.refetch(), studentWallet.refetch()]);
+  }
+
+  async function handleWalletTransfer(
+    from: TransferAccount,
+    to: TransferAccount,
+    amount: number,
+  ) {
+    if (!studentWallet.data) {
+      setTransferError('Transfer failed: wallet is not ready yet.');
+      setTransferStatus(null);
+      return;
+    }
+
+    const studentId = studentWallet.data.studentId;
+    setTransferError(null);
+    setTransferPending(true);
+    setTransferStatus(null);
+
+    try {
+      await transfer.mutateAsync({ amount, from, studentId, to });
+      await Promise.all([studentWallet.refetch(), studentDashboard.refetch()]);
+      setTransferStatus('Transfer complete');
+    } catch (error) {
+      setTransferError(`Transfer failed: ${messageFromUnknown(error)}`);
+    } finally {
+      setTransferPending(false);
+    }
   }
 
   const refreshing = studentDashboard.isFetching || studentWallet.isFetching;
@@ -98,6 +130,12 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
           <StudentWalletScreen
             error={studentWallet.error?.message ?? studentDashboard.error?.message ?? null}
             loading={studentWallet.isLoading || studentDashboard.isLoading}
+            onTransfer={(from, to, amount) => {
+              void handleWalletTransfer(from, to, amount);
+            }}
+            transferError={transferError}
+            transferPending={transferPending}
+            transferStatus={transferStatus}
             wallet={studentWallet.data}
           />
         ) : null}
@@ -112,6 +150,15 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
       />
     </>
   );
+}
+
+function messageFromUnknown(error: unknown): string {
+  if (error instanceof Error) {
+    if (error.message === 'insufficient source balance') return 'insufficient source balance';
+    return error.message;
+  }
+  if (typeof error === 'string') return error;
+  return 'The wallet action could not be completed.';
 }
 
 const styles = StyleSheet.create({

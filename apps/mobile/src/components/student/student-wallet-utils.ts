@@ -4,6 +4,7 @@ export type StudentDashboard = RouterOutputs['student']['dashboard'];
 export type StudentWallet = RouterOutputs['student']['wallet'];
 export type StudentWalletHistoryEntry = StudentWallet['history'][number];
 export type StudentWalletAccount = 'Spend' | 'Saving' | 'Investment' | 'ShopReserved' | 'TithePaid';
+export type TransferAccount = 'Spend' | 'Saving';
 
 export interface WalletAccountRow {
   account: StudentWalletAccount;
@@ -15,6 +16,12 @@ export interface WalletActivitySummary {
   earned: number;
   spent: number;
   net: number;
+}
+
+export interface WalletTransferValidationInput {
+  amount: number | null;
+  balances: Pick<StudentWallet['balances'], TransferAccount>;
+  from: TransferAccount;
 }
 
 export const walletAccountRows: readonly WalletAccountRow[] = [
@@ -43,6 +50,23 @@ export function formatSignedMerits(value: number): string {
 
 export function formatWalletDate(value: Date | string): string {
   return shortDateFormatter.format(new Date(value));
+}
+
+export function parseTransferAmount(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) return null;
+  return Number(trimmed);
+}
+
+export function walletTransferValidation({
+  amount,
+  balances,
+  from,
+}: WalletTransferValidationInput): string | null {
+  if (amount === null) return 'Enter a positive whole number of merits.';
+  if (from === 'Spend' && amount > balances[from]) return 'Not enough Spend merits.';
+  if (from === 'Saving' && amount > balances[from]) return 'Not enough Saving merits.';
+  return null;
 }
 
 export function summarizeWalletActivity(

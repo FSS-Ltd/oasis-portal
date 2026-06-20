@@ -338,6 +338,7 @@ const PRODUCT_MODULES = [
       'apps/mobile/src/components/student/student-home-wallet-wiring.test.ts',
       'apps/mobile/src/components/student/student-mobile-access-gate.tsx',
       'apps/mobile/src/components/student/student-portal-screen.tsx',
+      'apps/mobile/src/components/student/student-wallet-actions-wiring.test.ts',
       'apps/mobile/src/components/student/student-wallet-screen.tsx',
       'apps/mobile/src/components/student/student-wallet-utils.ts',
       'apps/mobile/src/components/staff/staff-club-lead-attendance.tsx',

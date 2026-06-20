@@ -526,6 +526,7 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/student/student-home-wallet-wiring.test.ts`
   - `apps/mobile/src/components/student/student-mobile-access-gate.tsx`
   - `apps/mobile/src/components/student/student-portal-screen.tsx`
+  - `apps/mobile/src/components/student/student-wallet-actions-wiring.test.ts`
   - `apps/mobile/src/components/student/student-wallet-screen.tsx`
   - `apps/mobile/src/components/student/student-wallet-utils.ts`
 - Shared or infrastructure surfaces:
