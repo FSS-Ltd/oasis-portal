@@ -10,6 +10,7 @@ import {
   type PortalMobileNavItem,
 } from '../smoke/portal-mobile-shell';
 import { ErrorText } from '../smoke/smoke-ui';
+import { StudentClubsFaithScreen } from './student-clubs-faith-screen';
 import { StudentHomeworkActivityScreen } from './student-homework-activity-screen';
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
@@ -19,13 +20,14 @@ import { StudentWalletScreen } from './student-wallet-screen';
 import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity';
+type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity' | 'clubs';
 
 const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
   { id: 'wallet', icon: 'wallet', label: 'Wallet' },
   { id: 'learning', icon: 'pace', label: 'Learning' },
   { id: 'activity', icon: 'clubs', label: 'Activity' },
+  { id: 'clubs', icon: 'clubs', label: 'Clubs' },
 ];
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
@@ -217,6 +219,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             onRefreshHomework={refreshHomework}
           />
         ) : null}
+
+        {activeTab === 'clubs' ? <StudentClubsFaithScreen /> : null}
       </ScrollView>
 
       <PortalMobileBottomNav
