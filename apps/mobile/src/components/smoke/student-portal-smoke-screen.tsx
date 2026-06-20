@@ -3,11 +3,11 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterInputs, type RouterOutputs } from '../../lib/trpc';
+import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
 import { C } from './mobile-theme';
 import { displaySchoolYearLabel } from './parent-smoke-children';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
 import { StudentLeaderboardPanel } from './student-smoke-leaderboard';
-import { ParentMessagesPanel } from './parent-smoke-messages';
 import { StudentPacePanel } from './student-smoke-pace';
 import { StudentShopPanel } from './student-smoke-shop';
 import { StudentWalletPanel } from './student-smoke-wallet';
@@ -401,7 +401,7 @@ export function StudentPortalSmokeScreen({ user }: { user: SessionUser }) {
         {header}
         <View style={styles.messagesContent}>
           {queryError ? <ErrorText>{queryError}</ErrorText> : null}
-          <ParentMessagesPanel
+          <MobileMessagesPanel
             conversationKind="StudentDirect"
             conversations={conversations}
             hasMore={Boolean(nextMessageCursor)}

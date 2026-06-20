@@ -55,8 +55,8 @@ describe('staff communications mobile wiring', () => {
     assert.match(model, /id: 'communications'/);
   });
 
-  it('reuses the message panel with staff-direct copy instead of parent-specific copy', () => {
-    const panel = read('src/components/smoke/parent-smoke-messages.tsx');
+  it('reuses the shared mobile message panel with staff-direct copy', () => {
+    const panel = read('src/components/messages/mobile-messages-panel.tsx');
 
     assert.match(
       panel,

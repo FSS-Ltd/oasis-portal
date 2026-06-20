@@ -7,10 +7,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { C } from './mobile-theme';
-import type { ConversationDetail, ConversationSummary } from './parent-message-types';
-import { formatDateTime, formatThreadTime, unreadLabel } from './parent-message-utils';
-import { ErrorText, InlineSpinner, MutedText } from './smoke-ui';
+import { C } from '../smoke/mobile-theme';
+import { ErrorText, InlineSpinner, MutedText } from '../smoke/smoke-ui';
+import type { ConversationDetail, ConversationSummary } from './mobile-message-types';
+import { formatDateTime, formatThreadTime, unreadLabel } from './mobile-message-utils';
 
 interface ConversationViewProps {
   detail: ConversationDetail | undefined;
