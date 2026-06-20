@@ -1,0 +1,54 @@
+{
+  "cli": {
+    "appVersionSource": "remote",
+    "version": ">= 13.0.0"
+  },
+  "build": {
+    "internal-ios": {
+      "channel": "internal",
+      "distribution": "internal",
+      "env": {
+        "OASIS_BUILD_PROFILE": "internal-ios"
+      },
+      "environment": "preview",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "internal-android": {
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "internal",
+      "distribution": "internal",
+      "env": {
+        "OASIS_BUILD_PROFILE": "internal-android"
+      },
+      "environment": "preview"
+    },
+    "release-candidate-ios": {
+      "autoIncrement": true,
+      "channel": "release-candidate",
+      "distribution": "store",
+      "env": {
+        "OASIS_BUILD_PROFILE": "release-candidate-ios"
+      },
+      "environment": "production",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "release-candidate-android": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "autoIncrement": true,
+      "channel": "release-candidate",
+      "distribution": "store",
+      "env": {
+        "OASIS_BUILD_PROFILE": "release-candidate-android"
+      },
+      "environment": "production"
+    }
+  }
+}
