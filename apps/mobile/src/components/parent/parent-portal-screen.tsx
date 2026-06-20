@@ -12,6 +12,7 @@ import {
 import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
 import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { ParentClubsScreen } from './parent-clubs-screen';
+import { ParentFeesInvoicesScreen } from './parent-fees-invoices-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
@@ -35,6 +36,7 @@ type ParentPortalRoute =
   | 'messages'
   | 'clubs'
   | 'shop'
+  | 'fees'
   | 'slips'
   | 'profile'
   | 'settings';
@@ -49,6 +51,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'incidents', icon: 'notices', label: 'Incidents' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
+  { id: 'fees', icon: 'wallet', label: 'Fees/Invoices' },
   { id: 'slips', icon: 'attendance', label: 'Permission Slips' },
   { id: 'profile', icon: 'students', label: 'Profile' },
   { id: 'settings', icon: 'students', label: 'Settings' },
@@ -90,6 +93,13 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     enabled: route === 'slips',
     retry: false,
   });
+  const parentInvoices = api.invoice.listParent.useQuery(
+    { status: 'All' },
+    {
+      enabled: route === 'fees',
+      retry: false,
+    },
+  );
   const utils = api.useUtils();
   const conversations = useMemo(
     () => messagePages.flatMap(({ page }) => page.items),
@@ -128,6 +138,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       selectedStudentId ? balances.refetch() : Promise.resolve(),
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
+      route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
@@ -144,6 +155,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     balances.isFetching ||
     shopItems.isFetching ||
     shopReservations.isFetching ||
+    parentInvoices.isFetching ||
     permissionSlips.isFetching;
   const queryError =
     dashboard.error?.message ??
@@ -155,6 +167,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     balances.error?.message ??
     shopItems.error?.message ??
     shopReservations.error?.message ??
+    parentInvoices.error?.message ??
     permissionSlips.error?.message ??
     null;
   const bottomNav = (
@@ -329,6 +342,13 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
               error={permissionSlips.error?.message ?? null}
               loading={permissionSlips.isFetching}
               slips={permissionSlips.data?.slips ?? []}
+            />
+          ) : null}
+          {route === 'fees' ? (
+            <ParentFeesInvoicesScreen
+              data={parentInvoices.data}
+              error={parentInvoices.error?.message ?? null}
+              loading={parentInvoices.isFetching}
             />
           ) : null}
         </ScrollView>
