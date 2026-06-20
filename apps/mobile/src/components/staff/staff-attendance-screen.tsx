@@ -3,9 +3,9 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { ErrorText, InlineSpinner } from '../smoke/smoke-ui';
-import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
+import { C } from '../core/mobile-theme';
+import { ErrorText, InlineSpinner } from '../core/mobile-ui';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { AttendanceRoster, type AttendanceRowData } from './staff-attendance-roster';
 import { AttendanceSummaryCard } from './staff-attendance-summary';
 import {

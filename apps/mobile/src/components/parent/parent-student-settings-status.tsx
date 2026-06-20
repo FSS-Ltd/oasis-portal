@@ -1,5 +1,5 @@
 import { Image, Pressable, Text, View } from 'react-native';
-import { Badge, Card, MutedText } from '../smoke/smoke-ui';
+import { Badge, Card, MutedText } from '../core/mobile-ui';
 import { displaySchoolYearLabel, initials } from './parent-home-utils';
 import { parentStudentSettingsStyles as styles } from './parent-student-settings-styles';
 import type { LinkedChildSettings } from './parent-student-settings-types';

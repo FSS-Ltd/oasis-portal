@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText, SmokeButton } from '../smoke/smoke-ui';
-import { C } from '../smoke/mobile-theme';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText, MobileButton } from '../core/mobile-ui';
+import { C } from '../core/mobile-theme';
 import {
   SelectableList,
   selectedShiftLabel,
@@ -69,7 +69,7 @@ export function SwapPanel({
           <MutedText>Your shift: {selectedShiftLabel(selectedFrom)}</MutedText>
           <MutedText>Requested: {selectedShiftLabel(selectedTo)}</MutedText>
         </View>
-        <SmokeButton
+        <MobileButton
           disabled={!fromShiftId || !toShiftId || saving}
           label={saving ? 'Sending...' : 'Send swap request'}
           onPress={onSubmit}

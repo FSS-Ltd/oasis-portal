@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, MutedText, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, MutedText, MobileButton } from '../core/mobile-ui';
 
 export type StaffNotice = RouterOutputs['notice']['listForStaff'][number];
 
@@ -56,7 +56,7 @@ export function StaffNoticesPanel({ notices }: { notices: StaffNotice[] }) {
           <Text style={styles.noticeTitle}>{notice.title}</Text>
           <MutedText>{notice.body}</MutedText>
           {!notice.read ? (
-            <SmokeButton
+            <MobileButton
               compact
               disabled={pendingNoticeId === notice.id && markRead.isPending}
               label={

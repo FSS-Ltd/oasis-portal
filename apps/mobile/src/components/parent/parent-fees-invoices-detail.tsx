@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
   ErrorText,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import {
   formatFileSize,
   formatInvoiceDate,
@@ -55,7 +55,7 @@ export function ParentFeesInvoicesDetail({ invoice, onBack }: ParentFeesInvoices
 
   return (
     <View style={styles.stack}>
-      <SmokeButton compact label="Back to fees" onPress={onBack} variant="secondary" />
+      <MobileButton compact label="Back to fees" onPress={onBack} variant="secondary" />
 
       <Card style={styles.heroCard}>
         <View style={styles.cardHeader}>
@@ -162,7 +162,7 @@ export function ParentFeesInvoicesDetail({ invoice, onBack }: ParentFeesInvoices
         {isUnpaid ? (
           <>
             <Badge variant="warning">Payment required</Badge>
-            <SmokeButton
+            <MobileButton
               disabled={parentMarkPaid.isPending}
               label={parentMarkPaid.isPending ? 'Marking paid' : 'Mark as paid'}
               onPress={() => {
@@ -182,7 +182,7 @@ export function ParentFeesInvoicesDetail({ invoice, onBack }: ParentFeesInvoices
 
       <Card style={styles.metaCard}>
         <SectionTitle>Invoice PDF</SectionTitle>
-        <SmokeButton
+        <MobileButton
           label="Download PDF"
           onPress={() => {
             setPdfInvoiceId(invoice.id);

@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
 import type { ConversationSummary } from '../messages/mobile-message-types';
-import { C } from '../smoke/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 import {
   isPastoralStudentMessageRecipient,
   isStudentMessagingDisabledMessage,

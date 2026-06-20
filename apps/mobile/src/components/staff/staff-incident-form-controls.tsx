@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import { type IncidentSeverity } from './staff-incident-utils';
 
 export function IncidentOptionButton({

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, Field, MutedText, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, Field, MutedText, MobileButton } from '../core/mobile-ui';
 import {
   formatClubDateTime,
   validateNoticeDraft,
@@ -57,7 +57,7 @@ export function StaffClubLeadNoticeboard({
           value={draft.body}
         />
         {validation ? <Text style={styles.validationText}>{validation}</Text> : null}
-        <SmokeButton
+        <MobileButton
           disabled={posting}
           label={posting ? 'Posting notice...' : 'Post notice'}
           onPress={() => {

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Badge, Card, ErrorText, Field, InlineSpinner, MutedText } from '../smoke/smoke-ui';
-import { C } from '../smoke/mobile-theme';
+import { Badge, Card, ErrorText, Field, InlineSpinner, MutedText } from '../core/mobile-ui';
+import { C } from '../core/mobile-theme';
 import { formatMonth, type RotaMode } from './staff-rota-utils';
 import { ShiftRow, TabButton, type RotaShift } from './staff-rota-common';
 

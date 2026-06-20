@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
 import { api } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 
 type ShopItem = RouterOutputs['shop']['listItems'][number];
 type ShopCategory = ShopItem['category'];
@@ -166,7 +166,7 @@ function ShopItemCard({
           </Text>
           <View style={styles.itemFooter}>
             <Text style={styles.itemPrice}>{formatMerits(item.priceIncVat)} merits</Text>
-            <SmokeButton
+            <MobileButton
               compact
               disabled={disabled}
               label="Add"
@@ -212,8 +212,8 @@ function ItemDetailCard({
         </View>
       </View>
       <View style={styles.detailActions}>
-        <SmokeButton compact label="Close" onPress={onClose} variant="secondary" />
-        <SmokeButton
+        <MobileButton compact label="Close" onPress={onClose} variant="secondary" />
+        <MobileButton
           compact
           disabled={disabled}
           label={disabled ? 'Out of stock' : 'Add to cart'}
@@ -271,7 +271,7 @@ function QuantityRow({
           <Text style={styles.qtyButtonText}>+</Text>
         </Pressable>
       </View>
-      <SmokeButton
+      <MobileButton
         compact
         label="Remove"
         onPress={() => {
@@ -442,7 +442,7 @@ export function MobileShopReservationPanel({
             </Text>
           </View>
         </View>
-        <SmokeButton
+        <MobileButton
           disabled={!canReserve || reserve.isPending}
           label={balanceAfter < 0 ? `Need ${formatMerits(Math.abs(balanceAfter))} more` : 'Reserve'}
           onPress={() => {

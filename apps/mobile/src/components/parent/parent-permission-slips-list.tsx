@@ -1,13 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import {
   formatParentSlipDate,
   parentPermissionSlipCategoryLabels,
@@ -42,7 +42,7 @@ export function ParentPermissionSlipsList({
   return (
     <View style={styles.stack}>
       <View style={styles.segmented}>
-        <SmokeButton
+        <MobileButton
           compact
           label={`Outstanding · ${String(outstandingCount)}`}
           onPress={() => {
@@ -50,7 +50,7 @@ export function ParentPermissionSlipsList({
           }}
           variant={tab === 'outstanding' ? 'primary' : 'secondary'}
         />
-        <SmokeButton
+        <MobileButton
           compact
           label={`Completed · ${String(completedCount)}`}
           onPress={() => {

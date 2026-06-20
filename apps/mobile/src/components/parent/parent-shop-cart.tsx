@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, MutedText, SectionTitle, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 import { ParentShopTile } from './parent-shop-tile';
 import {
   formatParentShopMerits,
@@ -59,7 +59,7 @@ function QuantityRow({
           <Text style={styles.qtyButtonText}>+</Text>
         </Pressable>
       </View>
-      <SmokeButton
+      <MobileButton
         compact
         label="Remove"
         onPress={() => {
@@ -123,7 +123,7 @@ export function ParentShopCart({
           </Text>
         </View>
       </View>
-      <SmokeButton
+      <MobileButton
         disabled={!canReserve || pending}
         label={
           balanceAfter < 0

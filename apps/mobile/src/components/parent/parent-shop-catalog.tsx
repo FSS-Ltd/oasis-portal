@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, MutedText, SectionTitle, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 import { ParentShopTile } from './parent-shop-tile';
 import {
   formatParentShopMerits,
@@ -95,7 +95,7 @@ export function ParentShopItemCard({
           </Text>
           <View style={styles.itemFooter}>
             <Text style={styles.itemPrice}>{formatParentShopMerits(item.priceIncVat)} merits</Text>
-            <SmokeButton
+            <MobileButton
               compact
               disabled={disabled}
               label="Add"
@@ -144,8 +144,8 @@ export function ParentShopItemDetailCard({
         </View>
       </View>
       <View style={styles.detailActions}>
-        <SmokeButton compact label="Close" onPress={onClose} variant="secondary" />
-        <SmokeButton
+        <MobileButton compact label="Close" onPress={onClose} variant="secondary" />
+        <MobileButton
           compact
           disabled={disabled}
           label={disabled ? 'Out of Stock' : 'Add to cart'}

@@ -3,13 +3,13 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   PortalMobileBottomNav,
   PortalMobileHeader,
   type PortalMobileNavItem,
-} from '../smoke/portal-mobile-shell';
-import { ErrorText } from '../smoke/smoke-ui';
+} from '../core/portal-mobile-shell';
+import { ErrorText } from '../core/mobile-ui';
 import { StudentClubsFaithScreen } from './student-clubs-faith-screen';
 import { StudentHomeworkActivityScreen } from './student-homework-activity-screen';
 import { StudentHomeScreen } from './student-home-screen';

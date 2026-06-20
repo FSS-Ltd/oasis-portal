@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Card } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card } from '../core/mobile-ui';
 import { type AttendanceCounts } from './staff-attendance-utils';
 
 export function AttendanceSummaryCard({ counts }: { counts: AttendanceCounts }) {

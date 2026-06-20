@@ -4,7 +4,7 @@ import { useSignIn, useSSO } from '@clerk/clerk-expo';
 import { WebBrowserResultType } from 'expo-web-browser';
 import oasisLogo from '../../../assets/oasis-logo.png';
 import { InstallAppButton } from '../pwa/install-app-button';
-import { Card, ErrorText, Field, MutedText, SmokeButton } from './smoke-ui';
+import { Card, ErrorText, Field, MutedText, MobileButton } from './mobile-ui';
 import { C } from './mobile-theme';
 
 type SecondFactor =
@@ -241,7 +241,7 @@ export function SignInPanel() {
           </>
         ) : (
           <>
-            <SmokeButton
+            <MobileButton
               disabled={!isLoaded || authPending}
               label={ssoPending ? 'Opening Google SSO...' : 'Continue with Google SSO'}
               onPress={() => {
@@ -271,7 +271,7 @@ export function SignInPanel() {
           </>
         )}
         {error ? <ErrorText>{error}</ErrorText> : null}
-        <SmokeButton
+        <MobileButton
           disabled={
             !isLoaded ||
             authPending ||
@@ -283,7 +283,7 @@ export function SignInPanel() {
           }}
         />
         {secondFactor ? (
-          <SmokeButton
+          <MobileButton
             compact
             label="Use another account"
             onPress={resetSecondFactor}

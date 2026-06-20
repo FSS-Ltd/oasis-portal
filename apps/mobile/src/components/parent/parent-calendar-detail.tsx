@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, MutedText, SectionTitle, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 import {
   formatEventSchedule,
   parentCalendarAudienceLabels,
@@ -16,7 +16,7 @@ interface ParentCalendarDetailProps {
 export function ParentCalendarDetail({ event, onBack }: ParentCalendarDetailProps) {
   return (
     <View style={styles.stack}>
-      <SmokeButton compact label="Back to calendar" onPress={onBack} variant="secondary" />
+      <MobileButton compact label="Back to calendar" onPress={onBack} variant="secondary" />
       <Card style={styles.heroCard}>
         <Text style={styles.eyebrow}>Event details</Text>
         <SectionTitle>{event.title}</SectionTitle>

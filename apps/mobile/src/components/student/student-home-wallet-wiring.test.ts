@@ -21,7 +21,7 @@ describe('student home and wallet mobile wiring', () => {
   });
 
   it('routes student users to the production mobile student portal', () => {
-    const router = readMobile('src/components/smoke/signed-in-smoke-router.tsx');
+    const router = readMobile('src/components/core/signed-in-router.tsx');
 
     expect(router).toMatch(/StudentPortalScreen/);
     expect(router).toMatch(/from '..\/student\/student-portal-screen'/);

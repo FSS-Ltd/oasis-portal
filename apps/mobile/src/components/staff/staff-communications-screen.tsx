@@ -4,9 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
-import { C } from '../smoke/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText, SmokeButton } from '../smoke/smoke-ui';
-import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
+import { C } from '../core/mobile-theme';
+import { Card, ErrorText, InlineSpinner, MutedText, MobileButton } from '../core/mobile-ui';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { StaffNoticesPanel, type StaffNotice } from './staff-notices-panel';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
@@ -152,7 +152,7 @@ export function StaffCommunicationsScreen({
                 <Text style={styles.staffroomTitle}>Staffroom</Text>
                 <MutedText>Open the shared staff conversation for daily team updates.</MutedText>
               </View>
-              <SmokeButton
+              <MobileButton
                 compact
                 disabled={openStaffroom.isPending}
                 label={openStaffroom.isPending ? 'Opening...' : 'Open'}

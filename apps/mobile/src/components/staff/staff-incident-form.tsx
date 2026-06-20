@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Card, Field, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, Field, MobileButton } from '../core/mobile-ui';
 import {
   IncidentOptionButton,
   IncidentSeverityButton,
@@ -250,7 +250,7 @@ export function StaffIncidentFormCard({
         value={form.evidenceNotes}
       />
 
-      <SmokeButton
+      <MobileButton
         disabled={saving}
         label={saving ? 'Saving draft...' : 'Save incident draft'}
         onPress={onSaveDraft}

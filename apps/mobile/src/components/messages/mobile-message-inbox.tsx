@@ -1,6 +1,6 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { MutedText } from '../core/mobile-ui';
 import type { ConversationSummary } from './mobile-message-types';
 import { formatThreadTime, latestSenderLabel, unreadLabel } from './mobile-message-utils';
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { MutedText, SmokeButton } from '../smoke/smoke-ui';
-import { C } from '../smoke/mobile-theme';
+import { MutedText, MobileButton } from '../core/mobile-ui';
+import { C } from '../core/mobile-theme';
 import {
   detectPwaInstallSurface,
   getInstallAppCopy,
@@ -108,7 +108,7 @@ export function InstallAppButton() {
           </MutedText>
         ) : null}
       </View>
-      <SmokeButton
+      <MobileButton
         compact
         label={copy.label}
         onPress={() => {

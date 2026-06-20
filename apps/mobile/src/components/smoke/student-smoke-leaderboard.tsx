@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterInputs, RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 
 type LeaderboardInput = NonNullable<Exclude<RouterInputs['leaderboard']['get'], void>>;
 type LeaderboardKind = Exclude<NonNullable<LeaderboardInput['kind']>, 'HighestDemerits'>;
@@ -65,7 +65,7 @@ export function StudentLeaderboardPanel({
         </View>
         <View style={styles.filterRow}>
           {leaderboardKinds.map((option) => (
-            <SmokeButton
+            <MobileButton
               compact
               key={option.kind}
               label={option.label}

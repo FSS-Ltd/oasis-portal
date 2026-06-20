@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -9,8 +9,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import { StudentClubDetailPanel } from './student-club-detail-panel';
 import {
   clubsFaithBlockedCopy,
@@ -142,7 +142,7 @@ function ClubRow({
         {error ? <ErrorText>{error}</ErrorText> : null}
       </View>
       <View style={styles.actions}>
-        <SmokeButton
+        <MobileButton
           compact
           label={selected ? 'Open' : 'View'}
           onPress={() => {
@@ -151,7 +151,7 @@ function ClubRow({
           variant={selected ? 'navy' : 'secondary'}
         />
         {club.status === 'Available' ? (
-          <SmokeButton
+          <MobileButton
             compact
             disabled={!canSendInterest}
             label={expressInterest.isPending ? 'Sending...' : 'Send interest'}

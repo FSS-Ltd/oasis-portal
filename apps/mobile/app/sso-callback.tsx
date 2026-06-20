@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { C } from '../src/components/smoke/mobile-theme';
+import { C } from '../src/components/core/mobile-theme';
 
 export default function SsoCallback() {
   return (

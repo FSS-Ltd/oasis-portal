@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -8,7 +8,7 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-} from '../smoke/smoke-ui';
+} from '../core/mobile-ui';
 import { StudentFaithCommentsPanel } from './student-faith-comments-panel';
 import {
   clubsFaithBlockedCopy,

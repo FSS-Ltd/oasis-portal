@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 
 type StudentPortalUsage = RouterOutputs['student']['portalUsage']['usage'];
 type StudentAccessState =

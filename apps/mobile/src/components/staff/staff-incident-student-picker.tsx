@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Card, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, MutedText } from '../core/mobile-ui';
 
 export type IncidentStudentRow = Pick<
   RouterOutputs['attendance']['forDate'][number],

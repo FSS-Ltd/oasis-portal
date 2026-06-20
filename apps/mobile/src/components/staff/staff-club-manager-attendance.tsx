@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, MutedText, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText, MobileButton } from '../core/mobile-ui';
 import {
   attendanceCounts,
   clubAttendanceStatuses,
@@ -70,7 +70,7 @@ export function StaffClubManagerAttendance({
           <CountCell label="Absent" tone="danger" value={counts.absent} />
           <CountCell label="Unmarked" tone="neutral" value={counts.unmarked} />
         </View>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={resetting || rows.length === 0}
           label={resetting ? 'Resetting...' : 'Reset session'}
