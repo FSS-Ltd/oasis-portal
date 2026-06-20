@@ -17,13 +17,21 @@ import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
+import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type SignupClub = RouterOutputs['club']['linkedChildSignupContext']['clubs'][number];
 type SignupChild = RouterOutputs['club']['linkedChildSignupContext']['children'][number];
 type MessagePage = RouterOutputs['message']['listConversations'];
 type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
-type ParentPortalRoute = 'home' | 'notices' | 'messages' | 'clubs' | 'shop' | 'profile';
+type ParentPortalRoute =
+  | 'home'
+  | 'notices'
+  | 'messages'
+  | 'clubs'
+  | 'shop'
+  | 'profile'
+  | 'settings';
 const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
@@ -33,6 +41,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
   { id: 'profile', icon: 'students', label: 'Profile' },
+  { id: 'settings', icon: 'students', label: 'Settings' },
 ];
 
 export function ParentPortalScreen({ user }: { user: SessionUser }) {
@@ -237,6 +246,8 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
         />
       ) : route === 'profile' ? (
         <ParentProfileRegistrationScreen onRefresh={refresh} />
+      ) : route === 'settings' ? (
+        <ParentStudentSettingsScreen onRefresh={refresh} />
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
