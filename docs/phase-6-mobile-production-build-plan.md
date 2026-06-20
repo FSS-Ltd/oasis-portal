@@ -982,3 +982,5 @@ Phase closeout:
 - PWA installability and offline-shell checks.
 - Internal EAS install on target devices.
 - Parent, Student, Supervisor, shopkeeper, ClubsAdmin, club lead, and PWA UAT.
+- Closeout evidence and remaining external signoff blockers are tracked in
+  [`/docs/mobile-phase-6-closeout.md`](/docs/mobile-phase-6-closeout.md).
