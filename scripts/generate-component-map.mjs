@@ -176,6 +176,7 @@ const PRODUCT_MODULES = [
     mobileSurfaces: [
       'apps/mobile/app/',
       'apps/mobile/src/components/',
+      'apps/mobile/src/components/student/',
       'apps/mobile/src/components/staff/',
     ],
     sharedSurfaces: [
@@ -332,6 +333,9 @@ const PRODUCT_MODULES = [
       'apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
       'apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx',
+      'apps/mobile/src/components/student/student-home-wallet-wiring.test.ts',
+      'apps/mobile/src/components/student/student-wallet-screen.tsx',
+      'apps/mobile/src/components/student/student-wallet-utils.ts',
       'apps/mobile/src/components/staff/staff-club-lead-attendance.tsx',
       'apps/mobile/src/components/staff/staff-club-lead-behaviour.tsx',
       'apps/mobile/src/components/staff/staff-club-lead-noticeboard.tsx',

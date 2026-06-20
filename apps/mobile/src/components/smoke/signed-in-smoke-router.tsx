@@ -1,9 +1,9 @@
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
-import { StudentPortalSmokeScreen } from './student-portal-smoke-screen';
 import { ParentPortalScreen } from '../parent/parent-portal-screen';
 import { StaffPortalScreen } from '../staff/staff-portal-screen';
+import { StudentPortalScreen } from '../student/student-portal-screen';
 
 export function SignedInSmokeRouter() {
   const health = api.health.me.useQuery(undefined, { retry: false });
@@ -23,7 +23,7 @@ export function SignedInSmokeRouter() {
   }
 
   if (user?.role === 'Student') {
-    return <StudentPortalSmokeScreen user={user} />;
+    return <StudentPortalScreen user={user} />;
   }
 
   if (
