@@ -18,6 +18,7 @@ import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
+import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
@@ -28,6 +29,7 @@ type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type ParentPortalRoute =
   | 'home'
   | 'child'
+  | 'reports'
   | 'notices'
   | 'messages'
   | 'clubs'
@@ -41,6 +43,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'child', icon: 'students', label: 'Child' },
   { id: 'notices', icon: 'notices', label: 'Notices' },
   { id: 'messages', icon: 'messages', label: 'Messages' },
+  { id: 'reports', icon: 'leaderboard', label: 'Reports' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
   { id: 'profile', icon: 'students', label: 'Profile' },
@@ -249,6 +252,16 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
         />
       ) : route === 'child' ? (
         <ParentChildDetailScreen
+          children={children}
+          dashboardError={dashboard.error?.message ?? profile.error?.message ?? null}
+          loadingDashboard={dashboard.isLoading || profile.isLoading}
+          onRefresh={refresh}
+          onSelectChild={setSelectedChildId}
+          refreshing={refreshing}
+          selectedChild={selectedChild}
+        />
+      ) : route === 'reports' ? (
+        <ParentReportsRanksScreen
           children={children}
           dashboardError={dashboard.error?.message ?? profile.error?.message ?? null}
           loadingDashboard={dashboard.isLoading || profile.isLoading}
