@@ -16,19 +16,12 @@ import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
 import type { PublicLeaderboardKind } from './student-learning-utils';
 import { StudentMobileAccessGate } from './student-mobile-access-gate';
+import { StudentNotificationsScreen } from './student-notifications-screen';
 import { StudentWalletScreen } from './student-wallet-screen';
 import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity' | 'clubs';
-
-const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
-  { id: 'home', icon: 'dashboard', label: 'Home' },
-  { id: 'wallet', icon: 'wallet', label: 'Wallet' },
-  { id: 'learning', icon: 'pace', label: 'Learning' },
-  { id: 'activity', icon: 'clubs', label: 'Activity' },
-  { id: 'clubs', icon: 'clubs', label: 'Clubs' },
-];
+type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity' | 'clubs' | 'updates';
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
@@ -57,11 +50,14 @@ export function StudentPortalScreen({ user }: { user: SessionUser }) {
 }
 
 function StudentPortalContent({ user }: { user: SessionUser }) {
+  const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<StudentMobileTab>('home');
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferPending, setTransferPending] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
+  const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
+  const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
   const academicScreensEnabled = studentDashboard.data?.profile.academicScreensEnabled === true;
@@ -85,22 +81,59 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   );
   const studentHomeworkDue = api.homework.studentDue.useQuery(undefined, { retry: false });
   const studentHomeworkGraded = api.homework.studentGraded.useQuery(undefined, { retry: false });
+  const studentNotifications = api.studentNotification.list.useQuery(undefined, { retry: false });
+  const studentNotificationUnread = api.studentNotification.unreadCount.useQuery(undefined, {
+    retry: false,
+  });
   const transfer = api.meritLedger.transfer.useMutation();
+  const markNotificationRead = api.studentNotification.markRead.useMutation({
+    onSettled: () => {
+      setPendingNotificationId(null);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        utils.studentNotification.list.invalidate(),
+        utils.studentNotification.unreadCount.invalidate(),
+        utils.student.dashboard.invalidate(),
+      ]);
+    },
+  });
+
+  const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
+    { id: 'home', icon: 'dashboard', label: 'Home' },
+    { id: 'wallet', icon: 'wallet', label: 'Wallet' },
+    { id: 'learning', icon: 'pace', label: 'Learning' },
+    { id: 'activity', icon: 'clubs', label: 'Activity' },
+    { id: 'clubs', icon: 'clubs', label: 'Clubs' },
+    {
+      id: 'updates',
+      icon: 'notices',
+      label: 'Updates',
+      badge: studentNotificationUnread.data?.count,
+    },
+  ];
 
   async function refreshHomework() {
     await Promise.all([studentHomeworkDue.refetch(), studentHomeworkGraded.refetch()]);
   }
 
   async function refresh() {
-    await Promise.all([
-      studentDashboard.refetch(),
-      studentWallet.refetch(),
-      academicScreensEnabled && studentId.length > 0 ? studentPace.refetch() : Promise.resolve(),
-      academicScreensEnabled ? studentAttendance.refetch() : Promise.resolve(),
-      studentLeaderboard.refetch(),
-      studentHomeworkDue.refetch(),
-      studentHomeworkGraded.refetch(),
-    ]);
+    setNotificationRefreshFailed(false);
+    try {
+      await Promise.all([
+        studentDashboard.refetch(),
+        studentWallet.refetch(),
+        academicScreensEnabled && studentId.length > 0 ? studentPace.refetch() : Promise.resolve(),
+        academicScreensEnabled ? studentAttendance.refetch() : Promise.resolve(),
+        studentLeaderboard.refetch(),
+        studentHomeworkDue.refetch(),
+        studentHomeworkGraded.refetch(),
+        studentNotifications.refetch(),
+        studentNotificationUnread.refetch(),
+      ]);
+    } catch {
+      setNotificationRefreshFailed(true);
+    }
   }
 
   async function handleWalletTransfer(
@@ -130,6 +163,11 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     }
   }
 
+  function handleMarkNotificationRead(notificationId: string) {
+    setPendingNotificationId(notificationId);
+    markNotificationRead.mutate({ notificationId });
+  }
+
   const refreshing =
     studentDashboard.isFetching ||
     studentWallet.isFetching ||
@@ -137,7 +175,9 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     studentAttendance.isFetching ||
     studentLeaderboard.isFetching ||
     studentHomeworkDue.isFetching ||
-    studentHomeworkGraded.isFetching;
+    studentHomeworkGraded.isFetching ||
+    studentNotifications.isFetching ||
+    studentNotificationUnread.isFetching;
   const queryError = studentDashboard.error?.message ?? studentWallet.error?.message ?? null;
 
   return (
@@ -221,6 +261,26 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         ) : null}
 
         {activeTab === 'clubs' ? <StudentClubsFaithScreen /> : null}
+
+        {activeTab === 'updates' ? (
+          <StudentNotificationsScreen
+            error={studentNotifications.error?.message ?? null}
+            loading={studentNotifications.isLoading || studentNotificationUnread.isLoading}
+            markReadError={markNotificationRead.error?.message ?? null}
+            notifications={studentNotifications.data}
+            onMarkRead={handleMarkNotificationRead}
+            pendingNotificationId={pendingNotificationId}
+            refreshFailed={
+              notificationRefreshFailed ||
+              Boolean(studentNotifications.error && studentNotifications.data)
+            }
+            unreadCount={
+              studentNotificationUnread.data?.count ??
+              studentDashboard.data?.notifications.unreadCount ??
+              0
+            }
+          />
+        ) : null}
       </ScrollView>
 
       <PortalMobileBottomNav

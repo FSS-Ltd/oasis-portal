@@ -213,7 +213,7 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/student-notifications/',
       'apps/web/src/components/student/',
     ],
-    mobileSurfaces: [],
+    mobileSurfaces: ['apps/mobile/src/components/student/student-notifications-*.tsx'],
     sharedSurfaces: [
       'apps/api/src/services/student-notifications.ts',
       'packages/db/prisma/migrations/20260604052000_student_notifications/',
