@@ -10,6 +10,7 @@ import {
   type PortalMobileNavItem,
 } from '../smoke/portal-mobile-shell';
 import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
+import { ParentCalendarScreen } from './parent-calendar-screen';
 import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { ParentClubsScreen } from './parent-clubs-screen';
 import { ParentFeesInvoicesScreen } from './parent-fees-invoices-screen';
@@ -37,6 +38,7 @@ type ParentPortalRoute =
   | 'clubs'
   | 'shop'
   | 'fees'
+  | 'calendar'
   | 'slips'
   | 'profile'
   | 'settings';
@@ -52,6 +54,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
   { id: 'fees', icon: 'wallet', label: 'Fees/Invoices' },
+  { id: 'calendar', icon: 'calendar', label: 'Calendar' },
   { id: 'slips', icon: 'attendance', label: 'Permission Slips' },
   { id: 'profile', icon: 'students', label: 'Profile' },
   { id: 'settings', icon: 'students', label: 'Settings' },
@@ -100,6 +103,10 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       retry: false,
     },
   );
+  const parentCalendar = api.calendar.listForParents.useQuery(undefined, {
+    enabled: route === 'calendar',
+    retry: false,
+  });
   const utils = api.useUtils();
   const conversations = useMemo(
     () => messagePages.flatMap(({ page }) => page.items),
@@ -139,6 +146,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
       route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
+      route === 'calendar' ? parentCalendar.refetch() : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
@@ -156,6 +164,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     shopItems.isFetching ||
     shopReservations.isFetching ||
     parentInvoices.isFetching ||
+    parentCalendar.isFetching ||
     permissionSlips.isFetching;
   const queryError =
     dashboard.error?.message ??
@@ -168,6 +177,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     shopItems.error?.message ??
     shopReservations.error?.message ??
     parentInvoices.error?.message ??
+    parentCalendar.error?.message ??
     permissionSlips.error?.message ??
     null;
   const bottomNav = (
@@ -349,6 +359,13 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
               data={parentInvoices.data}
               error={parentInvoices.error?.message ?? null}
               loading={parentInvoices.isFetching}
+            />
+          ) : null}
+          {route === 'calendar' ? (
+            <ParentCalendarScreen
+              error={parentCalendar.error?.message ?? null}
+              events={parentCalendar.data ?? []}
+              loading={parentCalendar.isFetching}
             />
           ) : null}
         </ScrollView>

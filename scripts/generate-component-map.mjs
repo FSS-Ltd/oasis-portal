@@ -302,6 +302,11 @@ const PRODUCT_MODULES = [
     ],
     mobileSurfaces: [
       'apps/mobile/src/components/messages/',
+      'apps/mobile/src/components/parent/parent-calendar-detail.tsx',
+      'apps/mobile/src/components/parent/parent-calendar-list.tsx',
+      'apps/mobile/src/components/parent/parent-calendar-screen.tsx',
+      'apps/mobile/src/components/parent/parent-calendar-utils.ts',
+      'apps/mobile/src/components/parent/parent-calendar-wiring.test.ts',
       'apps/mobile/src/components/parent/parent-clubs-notices-wiring.test.ts',
       'apps/mobile/src/components/parent/parent-clubs-screen.tsx',
       'apps/mobile/src/components/parent/parent-messages-screen.tsx',
