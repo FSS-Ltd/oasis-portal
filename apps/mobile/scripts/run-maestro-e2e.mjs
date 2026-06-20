@@ -16,19 +16,44 @@ const flows = [
     name: 'parent',
   },
   {
+    credentials: ['E2E_PARENT_EMAIL', 'E2E_PARENT_PASSWORD'],
+    file: '.maestro/mobile-parent-production-journeys.yaml',
+    name: 'parent production journeys',
+    requiredEnv: ['E2E_ALLOW_MOBILE_PRODUCTION_JOURNEYS'],
+  },
+  {
     credentials: ['E2E_STUDENT_EMAIL', 'E2E_STUDENT_PASSWORD'],
     file: '.maestro/mobile-student-smoke.yaml',
     name: 'student',
+  },
+  {
+    credentials: ['E2E_STUDENT_EMAIL', 'E2E_STUDENT_PASSWORD'],
+    file: '.maestro/mobile-student-production-journeys.yaml',
+    name: 'student production journeys',
+    requiredEnv: ['E2E_ALLOW_MOBILE_PRODUCTION_JOURNEYS'],
   },
   {
     credentials: ['E2E_SUPERVISOR_EMAIL', 'E2E_SUPERVISOR_PASSWORD'],
     file: '.maestro/mobile-staff-smoke.yaml',
     name: 'staff',
   },
+  {
+    credentials: ['E2E_SUPERVISOR_EMAIL', 'E2E_SUPERVISOR_PASSWORD'],
+    file: '.maestro/mobile-staff-production-journeys.yaml',
+    name: 'staff production journeys',
+    requiredEnv: [
+      'E2E_ALLOW_MOBILE_PRODUCTION_JOURNEYS',
+      'E2E_ALLOW_MOBILE_STAFF_PERMISSION_JOURNEYS',
+    ],
+  },
 ];
 
 function missingEnvironment(names) {
   return names.filter((name) => !process.env[name]);
+}
+
+function disabledFlags(names) {
+  return names.filter((name) => process.env[name] !== '1');
 }
 
 function hasMaestroCli() {
@@ -61,6 +86,16 @@ for (const flow of flows) {
   if (credentialMissing.length > 0) {
     console.log(
       `Skipping ${flow.name} mobile e2e because credentials are missing: ${credentialMissing.join(
+        ', ',
+      )}`,
+    );
+    continue;
+  }
+
+  const requiredEnvDisabled = disabledFlags(flow.requiredEnv ?? []);
+  if (requiredEnvDisabled.length > 0) {
+    console.log(
+      `Skipping ${flow.name} mobile e2e because required env is missing or not set to 1: ${requiredEnvDisabled.join(
         ', ',
       )}`,
     );
