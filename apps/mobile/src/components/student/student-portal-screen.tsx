@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -15,13 +15,22 @@ import { StudentHomeworkActivityScreen } from './student-homework-activity-scree
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
 import type { PublicLeaderboardKind } from './student-learning-utils';
+import { StudentMessagesScreen } from './student-messages-screen';
+import {
+  conversationHasPastoralParticipant,
+  studentDirectUnreadCount as countStudentDirectUnread,
+} from './student-messages-utils';
 import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentNotificationsScreen } from './student-notifications-screen';
 import { StudentWalletScreen } from './student-wallet-screen';
 import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity' | 'clubs' | 'updates';
+type MessagePage = RouterOutputs['message']['listConversations'];
+type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
+type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity' | 'clubs' | 'updates' | 'messages';
+
+const messagePageSize = 20;
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
@@ -58,6 +67,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
   const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
+  const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
+  const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
   const academicScreensEnabled = studentDashboard.data?.profile.academicScreensEnabled === true;
@@ -85,6 +96,10 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const studentNotificationUnread = api.studentNotification.unreadCount.useQuery(undefined, {
     retry: false,
   });
+  const studentDirectConversations = api.message.listConversations.useQuery(
+    { cursor: messageCursor, kinds: ['StudentDirect'], limit: messagePageSize },
+    { retry: false },
+  );
   const transfer = api.meritLedger.transfer.useMutation();
   const markNotificationRead = api.studentNotification.markRead.useMutation({
     onSettled: () => {
@@ -99,6 +114,18 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     },
   });
 
+  const studentDirectConversationRows = useMemo(
+    () =>
+      messagePages
+        .flatMap(({ page }) => page.items)
+        .filter(conversationHasPastoralParticipant),
+    [messagePages],
+  );
+  const nextMessageCursor = messagePages[messagePages.length - 1]?.page.nextCursor ?? null;
+  const studentDirectUnreadCount = useMemo(
+    () => countStudentDirectUnread(studentDirectConversationRows),
+    [studentDirectConversationRows],
+  );
   const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
     { id: 'home', icon: 'dashboard', label: 'Home' },
     { id: 'wallet', icon: 'wallet', label: 'Wallet' },
@@ -111,14 +138,39 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
       label: 'Updates',
       badge: studentNotificationUnread.data?.count,
     },
+    {
+      id: 'messages',
+      icon: 'messages',
+      label: 'Messages',
+      badge: studentDirectUnreadCount,
+    },
   ];
+
+  useEffect(() => {
+    if (!studentDirectConversations.data) return;
+    setMessagePages((currentPages) => {
+      const nextPage = { cursor: messageCursor, page: studentDirectConversations.data };
+      if (!messageCursor) return [nextPage];
+      const existingIndex = currentPages.findIndex((page) => page.cursor === messageCursor);
+      if (existingIndex === -1) return [...currentPages, nextPage];
+      return currentPages.map((page, index) => (index === existingIndex ? nextPage : page));
+    });
+  }, [studentDirectConversations.data, messageCursor]);
 
   async function refreshHomework() {
     await Promise.all([studentHomeworkDue.refetch(), studentHomeworkGraded.refetch()]);
   }
 
+  async function refreshMessages() {
+    setMessageCursor(undefined);
+    setMessagePages([]);
+    await utils.message.listConversations.invalidate();
+  }
+
   async function refresh() {
     setNotificationRefreshFailed(false);
+    setMessageCursor(undefined);
+    setMessagePages([]);
     try {
       await Promise.all([
         studentDashboard.refetch(),
@@ -130,6 +182,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         studentHomeworkGraded.refetch(),
         studentNotifications.refetch(),
         studentNotificationUnread.refetch(),
+        utils.message.listConversations.invalidate(),
       ]);
     } catch {
       setNotificationRefreshFailed(true);
@@ -177,7 +230,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     studentHomeworkDue.isFetching ||
     studentHomeworkGraded.isFetching ||
     studentNotifications.isFetching ||
-    studentNotificationUnread.isFetching;
+    studentNotificationUnread.isFetching ||
+    studentDirectConversations.isFetching;
   const queryError = studentDashboard.error?.message ?? studentWallet.error?.message ?? null;
 
   return (
@@ -279,6 +333,21 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
               studentDashboard.data?.notifications.unreadCount ??
               0
             }
+          />
+        ) : null}
+
+        {activeTab === 'messages' ? (
+          <StudentMessagesScreen
+            conversations={studentDirectConversationRows}
+            conversationsError={studentDirectConversations.error?.message ?? null}
+            hasMore={Boolean(nextMessageCursor)}
+            loading={studentDirectConversations.isLoading}
+            loadingMore={studentDirectConversations.isFetching && Boolean(messageCursor)}
+            onLoadMore={() => {
+              if (nextMessageCursor) setMessageCursor(nextMessageCursor);
+            }}
+            onRefresh={refreshMessages}
+            refreshing={refreshing}
           />
         ) : null}
       </ScrollView>
