@@ -11,6 +11,7 @@ import {
 } from '../smoke/portal-mobile-shell';
 import { ErrorText } from '../smoke/smoke-ui';
 import { StudentHomeScreen } from './student-home-screen';
+import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentWalletScreen } from './student-wallet-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
@@ -23,6 +24,31 @@ const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
+  const signOutStudent = () => {
+    void signOut();
+  };
+
+  return (
+    <SafeAreaView style={styles.shell}>
+      <PortalMobileHeader
+        actionAccessibilityLabel={`Sign out of student account ${user.id}`}
+        actionLabel="Out"
+        avatarLabel="ST"
+        eyebrow="Student Portal"
+        onActionPress={signOutStudent}
+        subtitle="Student account"
+        title="Oasis Learning Centre"
+        variant="dark"
+      />
+
+      <StudentMobileAccessGate onSignOut={signOutStudent}>
+        <StudentPortalContent user={user} />
+      </StudentMobileAccessGate>
+    </SafeAreaView>
+  );
+}
+
+function StudentPortalContent({ user }: { user: SessionUser }) {
   const [activeTab, setActiveTab] = useState<StudentMobileTab>('home');
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
@@ -33,25 +59,11 @@ export function StudentPortalScreen({ user }: { user: SessionUser }) {
 
   const refreshing = studentDashboard.isFetching || studentWallet.isFetching;
   const queryError = studentDashboard.error?.message ?? studentWallet.error?.message ?? null;
-  const firstName = studentDashboard.data?.profile.firstName ?? 'Student';
-  const avatarLabel = studentDashboard.data?.profile.iconInitials ?? 'ST';
 
   return (
-    <SafeAreaView style={styles.shell}>
-      <PortalMobileHeader
-        actionAccessibilityLabel={`Sign out of student account ${user.id}`}
-        actionLabel="Out"
-        avatarLabel={avatarLabel}
-        eyebrow="Student Portal"
-        onActionPress={() => {
-          void signOut();
-        }}
-        subtitle={`Hi, ${firstName}`}
-        title="Oasis Learning Centre"
-        variant="dark"
-      />
-
+    <>
       <ScrollView
+        accessibilityLabel={`Student portal content for ${user.id}`}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -98,7 +110,7 @@ export function StudentPortalScreen({ user }: { user: SessionUser }) {
         primaryItemLimit={2}
         variant="dark"
       />
-    </SafeAreaView>
+    </>
   );
 }
 
