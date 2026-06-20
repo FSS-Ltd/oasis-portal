@@ -1,22 +1,47 @@
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../smoke/smoke-ui';
+import {
+  Badge,
+  Card,
+  ErrorText,
+  Field,
+  InlineSpinner,
+  MutedText,
+  SectionTitle,
+  SmokeButton,
+} from '../smoke/smoke-ui';
 import {
   formatMerits,
   formatSignedMerits,
   formatWalletDate,
+  parseTransferAmount,
   summarizeWalletActivity,
+  walletTransferValidation,
   walletAccountRows,
   type StudentWallet,
+  type TransferAccount,
 } from './student-wallet-utils';
 
 interface StudentWalletScreenProps {
   error: string | null;
   loading: boolean;
+  onTransfer: (from: TransferAccount, to: TransferAccount, amount: number) => void;
+  transferError: string | null;
+  transferPending: boolean;
+  transferStatus: string | null;
   wallet: StudentWallet | undefined;
 }
 
-export function StudentWalletScreen({ error, loading, wallet }: StudentWalletScreenProps) {
+export function StudentWalletScreen({
+  error,
+  loading,
+  onTransfer,
+  transferError,
+  transferPending,
+  transferStatus,
+  wallet,
+}: StudentWalletScreenProps) {
   if (loading && !wallet) {
     return (
       <Card style={styles.stateCard}>
@@ -71,7 +96,16 @@ export function StudentWalletScreen({ error, loading, wallet }: StudentWalletScr
             <Text style={styles.accountValue}>{formatMerits(wallet.balances[row.account])}</Text>
           </View>
         ))}
+        <MutedText>Investment remains read-only until server-backed buy and sell actions open.</MutedText>
       </Card>
+
+      <TransferCard
+        onTransfer={onTransfer}
+        transferError={transferError}
+        transferPending={transferPending}
+        transferStatus={transferStatus}
+        wallet={wallet}
+      />
 
       <Card style={styles.historyCard}>
         <View style={styles.rowBetween}>
@@ -105,6 +139,83 @@ export function StudentWalletScreen({ error, loading, wallet }: StudentWalletScr
         )}
       </Card>
     </View>
+  );
+}
+
+function TransferCard({
+  onTransfer,
+  transferError,
+  transferPending,
+  transferStatus,
+  wallet,
+}: {
+  onTransfer: (from: TransferAccount, to: TransferAccount, amount: number) => void;
+  transferError: string | null;
+  transferPending: boolean;
+  transferStatus: string | null;
+  wallet: StudentWallet;
+}) {
+  const [amountText, setAmountText] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const parsedAmount = useMemo(() => parseTransferAmount(amountText), [amountText]);
+
+  function submitTransfer(from: TransferAccount, to: TransferAccount) {
+    const validation = walletTransferValidation({
+      amount: parsedAmount,
+      balances: wallet.balances,
+      from,
+    });
+
+    setLocalError(validation);
+    if (validation !== null || parsedAmount === null) return;
+    onTransfer(from, to, parsedAmount);
+  }
+
+  const visibleError = localError ?? transferError;
+
+  return (
+    <Card style={styles.transferCard}>
+      <View style={styles.rowBetween}>
+        <View style={styles.transferCopy}>
+          <Text style={styles.eyebrow}>Wallet actions</Text>
+          <SectionTitle>Move merits</SectionTitle>
+        </View>
+        {transferPending ? <Badge variant="blue">Transfer pending</Badge> : null}
+        {!transferPending && transferStatus ? <Badge variant="success">{transferStatus}</Badge> : null}
+      </View>
+      <MutedText>Move merits between Spend and Saving. Investment remains read-only.</MutedText>
+      <Field
+        keyboardType="numeric"
+        label="Amount"
+        onChangeText={(value) => {
+          setAmountText(value);
+          setLocalError(null);
+        }}
+        placeholder="0"
+        value={amountText}
+      />
+      <View style={styles.transferActions}>
+        <SmokeButton
+          compact
+          disabled={transferPending}
+          label="Move to Saving"
+          onPress={() => {
+            submitTransfer('Spend', 'Saving');
+          }}
+          variant="navy"
+        />
+        <SmokeButton
+          compact
+          disabled={transferPending}
+          label="Move to Spend"
+          onPress={() => {
+            submitTransfer('Saving', 'Spend');
+          }}
+          variant="secondary"
+        />
+      </View>
+      {visibleError ? <ErrorText>{visibleError}</ErrorText> : null}
+    </Card>
   );
 }
 
@@ -246,5 +357,18 @@ const styles = StyleSheet.create({
     color: C.navy,
     fontSize: 28,
     fontWeight: '900',
+  },
+  transferActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  transferCard: {
+    gap: 12,
+    padding: 16,
+  },
+  transferCopy: {
+    flex: 1,
+    gap: 3,
   },
 });

@@ -52,7 +52,6 @@ describe('student home and wallet mobile wiring', () => {
       /api\.student\.heartbeat\.useMutation/,
       /api\.meritLedger\.balances\.useQuery/,
       /api\.meritLedger\.activity\.useQuery/,
-      /api\.meritLedger\.transfer\.useMutation/,
       /api\.meritLedger\.giveToCharity\.useMutation/,
       /api\.investment\.(buy|sell|fundCash|buyHolding|sellHolding)/,
       /api\.shop\.(reserve|reserveItem|purchase|collectReservation|cancelReservation)/,
@@ -61,8 +60,6 @@ describe('student home and wallet mobile wiring', () => {
       /api\.staffHome\.summary/,
       /api\.invoice\.listAdmin/,
       /api\.permissionSlip\.listAdmin/,
-      /Move to Saving/,
-      /Move to Spend/,
       /Give to charity/,
       /Reserve item/,
     ]) {
