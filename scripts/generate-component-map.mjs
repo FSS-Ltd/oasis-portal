@@ -302,8 +302,11 @@ const PRODUCT_MODULES = [
     ],
     mobileSurfaces: [
       'apps/mobile/src/components/messages/',
+      'apps/mobile/src/components/parent/parent-clubs-notices-wiring.test.ts',
+      'apps/mobile/src/components/parent/parent-clubs-screen.tsx',
       'apps/mobile/src/components/parent/parent-messages-screen.tsx',
       'apps/mobile/src/components/parent/parent-messages-wiring.test.ts',
+      'apps/mobile/src/components/parent/parent-notices-screen.tsx',
       'apps/mobile/src/components/smoke/parent-portal-smoke-screen.tsx',
       'apps/mobile/src/components/smoke/parent-smoke-notices.tsx',
       'apps/mobile/src/components/smoke/student-portal-smoke-screen.tsx',
