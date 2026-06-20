@@ -11,16 +11,19 @@ import {
 } from '../smoke/portal-mobile-shell';
 import { ErrorText } from '../smoke/smoke-ui';
 import { StudentHomeScreen } from './student-home-screen';
+import { StudentLearningScreen } from './student-learning-screen';
+import type { PublicLeaderboardKind } from './student-learning-utils';
 import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentWalletScreen } from './student-wallet-screen';
 import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type StudentMobileTab = 'home' | 'wallet';
+type StudentMobileTab = 'home' | 'wallet' | 'learning';
 
 const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
   { id: 'wallet', icon: 'wallet', label: 'Wallet' },
+  { id: 'learning', icon: 'pace', label: 'Learning' },
 ];
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
@@ -54,12 +57,38 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferPending, setTransferPending] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
+  const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
+  const academicScreensEnabled = studentDashboard.data?.profile.academicScreensEnabled === true;
+  const studentId = studentWallet.data?.studentId ?? '';
+  const studentPace = api.pace.forStudent.useQuery(
+    { studentId },
+    { enabled: academicScreensEnabled && studentId.length > 0, retry: false },
+  );
+  const studentAttendance = api.attendance.studentSummary.useQuery(undefined, {
+    enabled: academicScreensEnabled,
+    retry: false,
+  });
+  const studentLeaderboard = api.leaderboard.get.useQuery(
+    {
+      includeViewerRows: true,
+      kind: leaderboardKind,
+      limit: 10,
+      scope: 'public',
+    },
+    { retry: false },
+  );
   const transfer = api.meritLedger.transfer.useMutation();
 
   async function refresh() {
-    await Promise.all([studentDashboard.refetch(), studentWallet.refetch()]);
+    await Promise.all([
+      studentDashboard.refetch(),
+      studentWallet.refetch(),
+      academicScreensEnabled && studentId.length > 0 ? studentPace.refetch() : Promise.resolve(),
+      academicScreensEnabled ? studentAttendance.refetch() : Promise.resolve(),
+      studentLeaderboard.refetch(),
+    ]);
   }
 
   async function handleWalletTransfer(
@@ -89,7 +118,12 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     }
   }
 
-  const refreshing = studentDashboard.isFetching || studentWallet.isFetching;
+  const refreshing =
+    studentDashboard.isFetching ||
+    studentWallet.isFetching ||
+    studentPace.isFetching ||
+    studentAttendance.isFetching ||
+    studentLeaderboard.isFetching;
   const queryError = studentDashboard.error?.message ?? studentWallet.error?.message ?? null;
 
   return (
@@ -139,13 +173,34 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             wallet={studentWallet.data}
           />
         ) : null}
+
+        {activeTab === 'learning' ? (
+          <StudentLearningScreen
+            attendance={studentAttendance.data}
+            attendanceError={studentAttendance.error?.message ?? null}
+            dashboard={studentDashboard.data}
+            leaderboard={studentLeaderboard.data}
+            leaderboardError={studentLeaderboard.error?.message ?? null}
+            leaderboardKind={leaderboardKind}
+            loading={
+              studentDashboard.isLoading ||
+              studentWallet.isLoading ||
+              studentPace.isLoading ||
+              studentAttendance.isLoading ||
+              studentLeaderboard.isLoading
+            }
+            onSelectLeaderboardKind={setLeaderboardKind}
+            pace={studentPace.data}
+            paceError={studentPace.error?.message ?? null}
+          />
+        ) : null}
       </ScrollView>
 
       <PortalMobileBottomNav
         activeId={activeTab}
         items={studentTabs}
         onSelect={setActiveTab}
-        primaryItemLimit={2}
+        primaryItemLimit={3}
         variant="dark"
       />
     </>
