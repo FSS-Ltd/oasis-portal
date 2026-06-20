@@ -56,7 +56,7 @@ export function MobileMessagesPanel({
   );
   const emptyDetail =
     conversationKind === 'StudentDirect'
-      ? 'Choose a student, the Head, or the Pastor to start a message.'
+      ? 'Choose the Head or Pastor to start a message.'
       : conversationKind === 'SupervisorHead'
         ? 'Start a message with the Head team.'
         : conversationKind === 'StaffDirect'
