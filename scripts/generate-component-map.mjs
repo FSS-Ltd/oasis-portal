@@ -122,6 +122,8 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/incidents/',
     ],
     mobileSurfaces: [
+      'apps/mobile/src/components/parent/parent-incident-reports-screen.tsx',
+      'apps/mobile/src/components/parent/parent-incident-reports-wiring.test.ts',
       'apps/mobile/src/components/staff/staff-incident-form-controls.tsx',
       'apps/mobile/src/components/staff/staff-incident-form.tsx',
       'apps/mobile/src/components/staff/staff-incident-review-panel.tsx',
