@@ -17,6 +17,7 @@ type NavVariant = 'light' | 'dark';
 export type PortalMobileNavIconName =
   | 'attendance'
   | 'behaviour'
+  | 'calendar'
   | 'clubs'
   | 'dashboard'
   | 'leaderboard'
@@ -374,6 +375,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
   switch (id) {
     case 'attendance':
     case 'behaviour':
+    case 'calendar':
     case 'clubs':
     case 'dashboard':
     case 'messages':
@@ -400,6 +402,8 @@ function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobil
       return <AttendanceNavIcon color={color} />;
     case 'behaviour':
       return <BehaviourNavIcon color={color} />;
+    case 'calendar':
+      return <CalendarNavIcon color={color} />;
     case 'clubs':
       return <ClubsNavIcon color={color} />;
     case 'messages':
@@ -451,6 +455,22 @@ function AttendanceNavIcon({ color }: { color: string }) {
       <View style={[styles.clipboard, { borderColor: color }]}>
         <View style={[styles.clipboardClip, { borderColor: color }]} />
         <View style={[styles.clipboardCheck, { borderColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function CalendarNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={[styles.calendarIconBody, { borderColor: color }]}>
+        <View style={[styles.calendarIconHeader, { backgroundColor: color }]} />
+        <View style={styles.calendarIconGrid}>
+          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
+          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
+          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
+          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
+        </View>
       </View>
     </View>
   );
@@ -718,6 +738,29 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 4,
     top: 5,
+  },
+  calendarIconBody: {
+    borderRadius: 5,
+    borderWidth: 2.2,
+    height: 23,
+    overflow: 'hidden',
+    width: 24,
+  },
+  calendarIconDot: {
+    borderRadius: 1.5,
+    height: 3,
+    width: 3,
+  },
+  calendarIconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    paddingHorizontal: 5,
+    paddingTop: 5,
+  },
+  calendarIconHeader: {
+    height: 6,
+    width: '100%',
   },
   clipboard: {
     alignItems: 'center',
