@@ -14,6 +14,7 @@ import {
 } from '../smoke/portal-mobile-shell';
 import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
 import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
+import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
@@ -26,6 +27,7 @@ type MessagePage = RouterOutputs['message']['listConversations'];
 type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type ParentPortalRoute =
   | 'home'
+  | 'child'
   | 'notices'
   | 'messages'
   | 'clubs'
@@ -36,6 +38,7 @@ const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
+  { id: 'child', icon: 'students', label: 'Child' },
   { id: 'notices', icon: 'notices', label: 'Notices' },
   { id: 'messages', icon: 'messages', label: 'Messages' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
@@ -242,6 +245,16 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           profile={profile.data}
           refreshing={dashboard.isFetching || profile.isFetching || registrationStatus.isFetching}
           registrationStatus={registrationStatus.data}
+          selectedChild={selectedChild}
+        />
+      ) : route === 'child' ? (
+        <ParentChildDetailScreen
+          children={children}
+          dashboardError={dashboard.error?.message ?? profile.error?.message ?? null}
+          loadingDashboard={dashboard.isLoading || profile.isLoading}
+          onRefresh={refresh}
+          onSelectChild={setSelectedChildId}
+          refreshing={refreshing}
           selectedChild={selectedChild}
         />
       ) : route === 'profile' ? (
