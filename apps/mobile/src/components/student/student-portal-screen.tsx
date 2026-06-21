@@ -24,7 +24,7 @@ import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentNotificationsScreen } from './student-notifications-screen';
 import { StudentShopScreen } from './student-shop-screen';
 import { StudentWalletScreen } from './student-wallet-screen';
-import type { TransferAccount } from './student-wallet-utils';
+import type { TithePreferenceInput, TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type MessagePage = RouterOutputs['message']['listConversations'];
@@ -73,6 +73,12 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferPending, setTransferPending] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
+  const [titheSaveError, setTitheSaveError] = useState<string | null>(null);
+  const [titheSaveStatus, setTitheSaveStatus] = useState<string | null>(null);
+  const [tithePayError, setTithePayError] = useState<string | null>(null);
+  const [tithePayStatus, setTithePayStatus] = useState<string | null>(null);
+  const [charityError, setCharityError] = useState<string | null>(null);
+  const [charityStatus, setCharityStatus] = useState<string | null>(null);
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
   const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
@@ -80,6 +86,10 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
+  const titheStatus = api.tithe.getStatus.useQuery(undefined, {
+    enabled: activeTab === 'wallet',
+    retry: false,
+  });
   const academicScreensEnabled = studentDashboard.data?.profile.academicScreensEnabled === true;
   const studentId = studentWallet.data?.studentId ?? '';
   const studentPace = api.pace.forStudent.useQuery(
@@ -118,6 +128,9 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     { retry: false },
   );
   const transfer = api.meritLedger.transfer.useMutation();
+  const updateTithePreference = api.tithe.updatePreference.useMutation();
+  const payTitheDue = api.tithe.payDue.useMutation();
+  const giveToCharity = api.meritLedger.giveToCharity.useMutation();
   const markNotificationRead = api.studentNotification.markRead.useMutation({
     onSettled: () => {
       setPendingNotificationId(null);
@@ -197,6 +210,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         studentHomeworkGraded.refetch(),
         studentNotifications.refetch(),
         studentNotificationUnread.refetch(),
+        activeTab === 'wallet' ? titheStatus.refetch() : Promise.resolve(),
         activeTab === 'shop' ? shopItems.refetch() : Promise.resolve(),
         activeTab === 'shop' ? shopHistory.refetch() : Promise.resolve(),
         utils.message.listConversations.invalidate(),
@@ -229,6 +243,57 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     }
   }
 
+  async function handleSaveTithePreference(input: TithePreferenceInput) {
+    setTitheSaveError(null);
+    setTitheSaveStatus(null);
+    setTithePayError(null);
+    setTithePayStatus(null);
+
+    try {
+      await updateTithePreference.mutateAsync(input);
+      await titheStatus.refetch();
+      setTitheSaveStatus('Tithe preference saved');
+    } catch (error) {
+      setTitheSaveError(`Tithe preference failed: ${messageFromUnknown(error)}`);
+    }
+  }
+
+  async function handlePayTitheDue() {
+    setTithePayError(null);
+    setTithePayStatus(null);
+
+    try {
+      await payTitheDue.mutateAsync();
+      await Promise.all([
+        titheStatus.refetch(),
+        studentWallet.refetch(),
+        studentDashboard.refetch(),
+      ]);
+      setTithePayStatus('Tithe paid');
+    } catch (error) {
+      setTithePayError(`Tithe payment failed: ${messageFromUnknown(error)}`);
+    }
+  }
+
+  async function handleGiveToCharity(amount: number) {
+    if (!studentWallet.data) {
+      setCharityError('Charity gift failed: wallet is not ready yet.');
+      setCharityStatus(null);
+      return;
+    }
+
+    setCharityError(null);
+    setCharityStatus(null);
+
+    try {
+      await giveToCharity.mutateAsync({ amount, studentId: studentWallet.data.studentId });
+      await Promise.all([studentWallet.refetch(), studentDashboard.refetch()]);
+      setCharityStatus('Charity gift added');
+    } catch (error) {
+      setCharityError(`Charity gift failed: ${messageFromUnknown(error)}`);
+    }
+  }
+
   function handleMarkNotificationRead(notificationId: string) {
     setPendingNotificationId(notificationId);
     markNotificationRead.mutate({ notificationId });
@@ -242,6 +307,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     studentLeaderboard.isFetching ||
     studentHomeworkDue.isFetching ||
     studentHomeworkGraded.isFetching ||
+    titheStatus.isFetching ||
     studentNotifications.isFetching ||
     studentNotificationUnread.isFetching ||
     shopItems.isFetching ||
@@ -250,6 +316,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const queryError =
     studentDashboard.error?.message ??
     studentWallet.error?.message ??
+    (activeTab === 'wallet' ? titheStatus.error?.message : null) ??
     (activeTab === 'shop' ? (shopItems.error?.message ?? shopHistory.error?.message) : null) ??
     null;
 
@@ -292,11 +359,32 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
 
         {activeTab === 'wallet' ? (
           <StudentWalletScreen
+            charityError={charityError}
+            charityPending={giveToCharity.isPending}
+            charityStatus={charityStatus}
             error={studentWallet.error?.message ?? studentDashboard.error?.message ?? null}
             loading={studentWallet.isLoading || studentDashboard.isLoading}
+            onGiveToCharity={(amount) => {
+              void handleGiveToCharity(amount);
+            }}
+            onPayTitheDue={() => {
+              void handlePayTitheDue();
+            }}
+            onSaveTithePreference={(input) => {
+              void handleSaveTithePreference(input);
+            }}
             onTransfer={(from, to, amount) => {
               void handleWalletTransfer(from, to, amount);
             }}
+            titheError={titheStatus.error?.message ?? null}
+            titheLoading={titheStatus.isLoading}
+            tithePayError={tithePayError}
+            tithePayPending={payTitheDue.isPending}
+            tithePayStatus={tithePayStatus}
+            titheSaveError={titheSaveError}
+            titheSavePending={updateTithePreference.isPending}
+            titheSaveStatus={titheSaveStatus}
+            titheStatus={titheStatus.data}
             transferError={transferError}
             transferPending={transferPending}
             transferStatus={transferStatus}
@@ -402,6 +490,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
 function messageFromUnknown(error: unknown): string {
   if (error instanceof Error) {
     if (error.message === 'insufficient source balance') return 'insufficient source balance';
+    if (error.message === 'insufficient Spend balance') return 'insufficient Spend balance';
     return error.message;
   }
   if (typeof error === 'string') return error;

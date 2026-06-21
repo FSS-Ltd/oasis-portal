@@ -20,13 +20,32 @@ import {
   walletTransferValidation,
   walletAccountRows,
   type StudentWallet,
+  type TithePreferenceInput,
+  type TitheStatus,
   type TransferAccount,
 } from './student-wallet-utils';
+import { StudentWalletCharityPanel } from './student-wallet-charity-panel';
+import { StudentWalletTithePanel } from './student-wallet-tithe-panel';
 
 interface StudentWalletScreenProps {
+  charityError: string | null;
+  charityPending: boolean;
+  charityStatus: string | null;
   error: string | null;
   loading: boolean;
+  onGiveToCharity: (amount: number) => void;
+  onPayTitheDue: () => void;
+  onSaveTithePreference: (input: TithePreferenceInput) => void;
   onTransfer: (from: TransferAccount, to: TransferAccount, amount: number) => void;
+  titheError: string | null;
+  titheLoading: boolean;
+  tithePayError: string | null;
+  tithePayPending: boolean;
+  tithePayStatus: string | null;
+  titheSaveError: string | null;
+  titheSavePending: boolean;
+  titheSaveStatus: string | null;
+  titheStatus: TitheStatus | undefined;
   transferError: string | null;
   transferPending: boolean;
   transferStatus: string | null;
@@ -34,9 +53,24 @@ interface StudentWalletScreenProps {
 }
 
 export function StudentWalletScreen({
+  charityError,
+  charityPending,
+  charityStatus,
   error,
   loading,
+  onGiveToCharity,
+  onPayTitheDue,
+  onSaveTithePreference,
   onTransfer,
+  titheError,
+  titheLoading,
+  tithePayError,
+  tithePayPending,
+  tithePayStatus,
+  titheSaveError,
+  titheSavePending,
+  titheSaveStatus,
+  titheStatus,
   transferError,
   transferPending,
   transferStatus,
@@ -96,7 +130,9 @@ export function StudentWalletScreen({
             <Text style={styles.accountValue}>{formatMerits(wallet.balances[row.account])}</Text>
           </View>
         ))}
-        <MutedText>Investment remains read-only until server-backed buy and sell actions open.</MutedText>
+        <MutedText>
+          Investment remains read-only until server-backed buy and sell actions open.
+        </MutedText>
       </Card>
 
       <TransferCard
@@ -104,6 +140,28 @@ export function StudentWalletScreen({
         transferError={transferError}
         transferPending={transferPending}
         transferStatus={transferStatus}
+        wallet={wallet}
+      />
+
+      <StudentWalletTithePanel
+        error={titheError}
+        loading={titheLoading}
+        onPayDue={onPayTitheDue}
+        onSavePreference={onSaveTithePreference}
+        payError={tithePayError}
+        payPending={tithePayPending}
+        payStatus={tithePayStatus}
+        saveError={titheSaveError}
+        savePending={titheSavePending}
+        saveStatus={titheSaveStatus}
+        status={titheStatus}
+      />
+
+      <StudentWalletCharityPanel
+        error={charityError}
+        onGiveToCharity={onGiveToCharity}
+        pending={charityPending}
+        status={charityStatus}
         wallet={wallet}
       />
 
@@ -181,7 +239,9 @@ function TransferCard({
           <SectionTitle>Move merits</SectionTitle>
         </View>
         {transferPending ? <Badge variant="blue">Transfer pending</Badge> : null}
-        {!transferPending && transferStatus ? <Badge variant="success">{transferStatus}</Badge> : null}
+        {!transferPending && transferStatus ? (
+          <Badge variant="success">{transferStatus}</Badge>
+        ) : null}
       </View>
       <MutedText>Move merits between Spend and Saving. Investment remains read-only.</MutedText>
       <Field

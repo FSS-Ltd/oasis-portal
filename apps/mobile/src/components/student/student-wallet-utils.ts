@@ -1,10 +1,20 @@
-import type { RouterOutputs } from '../../lib/trpc';
+import type { RouterInputs, RouterOutputs } from '../../lib/trpc';
 
 export type StudentDashboard = RouterOutputs['student']['dashboard'];
 export type StudentWallet = RouterOutputs['student']['wallet'];
 export type StudentWalletHistoryEntry = StudentWallet['history'][number];
-export type StudentWalletAccount = 'Spend' | 'Saving' | 'Investment' | 'ShopReserved' | 'TithePaid';
+export type StudentWalletAccount =
+  | 'Spend'
+  | 'Saving'
+  | 'Investment'
+  | 'ShopReserved'
+  | 'TithePaid'
+  | 'Given';
 export type TransferAccount = 'Spend' | 'Saving';
+export type TitheStatus = RouterOutputs['tithe']['getStatus'];
+export type TithePreferenceInput = RouterInputs['tithe']['updatePreference'];
+export type TitheCadence = TitheStatus['config']['cadence'];
+export type TithePaymentMode = TitheStatus['config']['mode'];
 
 export interface WalletAccountRow {
   account: StudentWalletAccount;
@@ -30,6 +40,17 @@ export const walletAccountRows: readonly WalletAccountRow[] = [
   { account: 'Investment', detail: 'Longer-term growth', label: 'Investment' },
   { account: 'ShopReserved', detail: 'Held for shop orders', label: 'Shop holds' },
   { account: 'TithePaid', detail: 'Given as tithe', label: 'TithePaid' },
+  { account: 'Given', detail: 'Given to charity', label: 'Charity' },
+];
+
+export const weeklyDayOptions: readonly { label: string; value: number }[] = [
+  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
 ];
 
 const shortDateFormatter = new Intl.DateTimeFormat('en-GB', {
@@ -56,6 +77,10 @@ export function parseTransferAmount(value: string): number | null {
   const trimmed = value.trim();
   if (!/^[1-9]\d*$/.test(trimmed)) return null;
   return Number(trimmed);
+}
+
+export function parsePositiveMeritAmount(value: string): number | null {
+  return parseTransferAmount(value);
 }
 
 export function walletTransferValidation({
