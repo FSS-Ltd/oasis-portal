@@ -28,14 +28,14 @@ import type { TithePreferenceInput, TransferAccount } from './student-wallet-uti
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StudentMobileTab =
   | 'home'
+  | 'community'
+  | 'faith'
   | 'wallet'
   | 'learning'
   | 'activity'
   | 'clubs'
-  | 'faith'
   | 'shop'
   | 'markets'
-  | 'community'
   | 'updates';
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
@@ -152,14 +152,14 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
 
   const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
     { id: 'home', icon: 'dashboard', label: 'Home' },
+    { id: 'community', icon: 'community', label: 'Community' },
+    { id: 'faith', icon: 'faith', label: 'Faith' },
     { id: 'wallet', icon: 'wallet', label: 'Wallet' },
     { id: 'learning', icon: 'pace', label: 'Learning' },
-    { id: 'activity', icon: 'clubs', label: 'Activity' },
+    { id: 'activity', icon: 'activity', label: 'Activity' },
     { id: 'clubs', icon: 'clubs', label: 'Clubs' },
-    { id: 'faith', icon: 'faith', label: 'Faith' },
     { id: 'shop', icon: 'shop', label: 'Shop' },
-    { id: 'markets', icon: 'wallet', label: 'Markets' },
-    { id: 'community', icon: 'messages', label: 'Community' },
+    { id: 'markets', icon: 'markets', label: 'Markets' },
     {
       id: 'updates',
       icon: 'notices',
@@ -558,7 +558,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         activeId={activeTab}
         items={studentTabs}
         onSelect={setActiveTab}
-        primaryItemLimit={3}
+        primaryItemLimit={5}
         variant="dark"
       />
     </>

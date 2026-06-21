@@ -24,7 +24,16 @@ describe('student notifications mobile wiring', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
 
     expect(portal).toMatch(/StudentNotificationsScreen/);
-    for (const tab of ["'home'", "'wallet'", "'learning'", "'activity'", "'clubs'", "'updates'"]) {
+    for (const tab of [
+      "'home'",
+      "'community'",
+      "'faith'",
+      "'clubs'",
+      "'wallet'",
+      "'learning'",
+      "'activity'",
+      "'updates'",
+    ]) {
       expect(portal).toContain(tab);
     }
     expect(portal).toMatch(/label: 'Updates'/);

@@ -28,7 +28,8 @@ describe('parent permission slips mobile wiring', () => {
     expect(portal).toMatch(/route === 'slips'/);
     expect(portal).toMatch(/api\.permissionSlip\.listParent\.useQuery/);
     expect(portal).toMatch(/permissionSlips\.refetch/);
-    expect(portal).toMatch(/Permission Slips/);
+    expect(portal).toMatch(/label: 'Slips'/);
+    expect(portal).toMatch(/icon: 'slips'/);
   });
 
   it('uses parent-safe permission slip APIs and excludes staff administration', () => {

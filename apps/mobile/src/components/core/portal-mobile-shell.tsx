@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { type ComponentProps, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -10,23 +10,33 @@ import {
   Text,
   View,
 } from 'react-native';
+import Feather from '@expo/vector-icons/Feather';
 import oasisLogo from '../../../assets/oasis-logo.png';
 import { C } from './mobile-theme';
 
 type NavVariant = 'light' | 'dark';
 export type PortalMobileNavIconName =
+  | 'activity'
   | 'attendance'
   | 'behaviour'
   | 'calendar'
   | 'clubs'
+  | 'community'
   | 'dashboard'
   | 'faith'
+  | 'fees'
+  | 'incidents'
   | 'leaderboard'
+  | 'markets'
   | 'messages'
   | 'more'
   | 'notices'
   | 'pace'
+  | 'profile'
+  | 'reports'
+  | 'settings'
   | 'shop'
+  | 'slips'
   | 'students'
   | 'wallet';
 
@@ -375,17 +385,26 @@ export function PortalMobileBottomNav<T extends string>({
 function navIconFromId(id: string): PortalMobileNavIconName {
   switch (id) {
     case 'attendance':
+    case 'activity':
     case 'behaviour':
     case 'calendar':
     case 'clubs':
+    case 'community':
     case 'dashboard':
     case 'faith':
+    case 'fees':
+    case 'incidents':
     case 'messages':
+    case 'markets':
     case 'more':
     case 'notices':
     case 'pace':
+    case 'profile':
+    case 'reports':
+    case 'settings':
     case 'leaderboard':
     case 'shop':
+    case 'slips':
     case 'students':
     case 'wallet':
       return id;
@@ -397,213 +416,55 @@ function navIconFromId(id: string): PortalMobileNavIconName {
 }
 
 function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobileNavIconName }) {
+  return <Feather color={color} name={featherIconName(name)} size={24} />;
+}
+
+function featherIconName(name: PortalMobileNavIconName): ComponentProps<typeof Feather>['name'] {
   switch (name) {
-    case 'students':
-      return <StudentsNavIcon color={color} />;
+    case 'activity':
+      return 'clipboard';
     case 'attendance':
-      return <AttendanceNavIcon color={color} />;
+      return 'check-square';
     case 'behaviour':
-      return <BehaviourNavIcon color={color} />;
+      return 'star';
     case 'calendar':
-      return <CalendarNavIcon color={color} />;
+      return 'calendar';
     case 'clubs':
-      return <ClubsNavIcon color={color} />;
-    case 'faith':
-      return <FaithNavIcon color={color} />;
-    case 'messages':
-      return <MessagesNavIcon color={color} />;
-    case 'leaderboard':
-      return <LeaderboardNavIcon color={color} />;
-    case 'more':
-      return <MoreNavIcon color={color} />;
-    case 'notices':
-      return <NoticesNavIcon color={color} />;
-    case 'pace':
-      return <PaceNavIcon color={color} />;
-    case 'shop':
-      return <ShopNavIcon color={color} />;
-    case 'wallet':
-      return <WalletNavIcon color={color} />;
+    case 'students':
+      return 'users';
+    case 'community':
+      return 'message-circle';
     case 'dashboard':
-      return <DashboardNavIcon color={color} />;
+      return 'home';
+    case 'faith':
+    case 'pace':
+      return 'book-open';
+    case 'fees':
+      return 'credit-card';
+    case 'incidents':
+      return 'shield';
+    case 'leaderboard':
+      return 'award';
+    case 'markets':
+      return 'trending-up';
+    case 'messages':
+      return 'message-square';
+    case 'more':
+      return 'more-horizontal';
+    case 'notices':
+      return 'bell';
+    case 'profile':
+      return 'user';
+    case 'reports':
+    case 'slips':
+      return 'file-text';
+    case 'settings':
+      return 'settings';
+    case 'shop':
+      return 'shopping-bag';
+    case 'wallet':
+      return 'dollar-sign';
   }
-}
-
-function DashboardNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.dashboardRoof, { borderColor: color }]} />
-      <View style={[styles.dashboardBody, { borderColor: color }]}>
-        <View style={[styles.dashboardDoor, { borderColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function StudentsNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.studentHead, styles.studentHeadLeft, { borderColor: color }]} />
-      <View style={[styles.studentHead, styles.studentHeadRight, { borderColor: color }]} />
-      <View style={[styles.studentHeadPrimary, { borderColor: color }]} />
-      <View style={[styles.studentShoulder, styles.studentShoulderLeft, { borderColor: color }]} />
-      <View style={[styles.studentShoulder, styles.studentShoulderRight, { borderColor: color }]} />
-      <View style={[styles.studentShoulderPrimary, { borderColor: color }]} />
-    </View>
-  );
-}
-
-function AttendanceNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.clipboard, { borderColor: color }]}>
-        <View style={[styles.clipboardClip, { borderColor: color }]} />
-        <View style={[styles.clipboardCheck, { borderColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function CalendarNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.calendarIconBody, { borderColor: color }]}>
-        <View style={[styles.calendarIconHeader, { backgroundColor: color }]} />
-        <View style={styles.calendarIconGrid}>
-          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
-          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
-          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
-          <View style={[styles.calendarIconDot, { backgroundColor: color }]} />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function BehaviourNavIcon({ color }: { color: string }) {
-  return (
-    <Text allowFontScaling={false} style={[styles.starIcon, { color }]}>
-      ☆
-    </Text>
-  );
-}
-
-function ClubsNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.clubHead, styles.clubHeadLeft, { borderColor: color }]} />
-      <View style={[styles.clubHead, styles.clubHeadRight, { borderColor: color }]} />
-      <View style={[styles.clubHeadPrimary, { borderColor: color }]} />
-      <View style={[styles.clubBase, styles.clubBaseLeft, { borderColor: color }]} />
-      <View style={[styles.clubBase, styles.clubBaseRight, { borderColor: color }]} />
-      <View style={[styles.clubBasePrimary, { borderColor: color }]} />
-    </View>
-  );
-}
-
-function MessagesNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.messageBubble, { borderColor: color }]}>
-        <View style={styles.messageDotRow}>
-          <View style={[styles.messageDot, { backgroundColor: color }]} />
-          <View style={[styles.messageDot, { backgroundColor: color }]} />
-          <View style={[styles.messageDot, { backgroundColor: color }]} />
-        </View>
-        <View style={[styles.messageTail, { borderColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function NoticesNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.noticeDocument, { borderColor: color }]}>
-        <View style={[styles.noticeLine, { backgroundColor: color, width: 11 }]} />
-        <View style={[styles.noticeLine, { backgroundColor: color, width: 15 }]} />
-        <View style={[styles.noticeLine, { backgroundColor: color, width: 9 }]} />
-      </View>
-    </View>
-  );
-}
-
-function PaceNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={styles.paceBook}>
-        <View style={[styles.pacePage, styles.pacePageLeft, { borderColor: color }]} />
-        <View style={[styles.paceSpine, { backgroundColor: color }]} />
-        <View style={[styles.pacePage, styles.pacePageRight, { borderColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function FaithNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={styles.paceBook}>
-        <View style={[styles.pacePage, styles.pacePageLeft, { borderColor: color }]}>
-          <View style={[styles.faithCrossVertical, { backgroundColor: color }]} />
-          <View style={[styles.faithCrossHorizontal, { backgroundColor: color }]} />
-        </View>
-        <View style={[styles.paceSpine, { backgroundColor: color }]} />
-        <View style={[styles.pacePage, styles.pacePageRight, { borderColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function WalletNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.walletIconBody, { borderColor: color }]}>
-        <View style={[styles.walletIconFlap, { borderColor: color }]} />
-        <View style={[styles.walletIconDot, { backgroundColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function LeaderboardNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={styles.leaderboardBars}>
-        <View
-          style={[styles.leaderboardBar, styles.leaderboardBarShort, { backgroundColor: color }]}
-        />
-        <View
-          style={[styles.leaderboardBar, styles.leaderboardBarTall, { backgroundColor: color }]}
-        />
-        <View
-          style={[styles.leaderboardBar, styles.leaderboardBarMid, { backgroundColor: color }]}
-        />
-      </View>
-    </View>
-  );
-}
-
-function ShopNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={[styles.shopBag, { borderColor: color }]}>
-        <View style={[styles.shopHandle, { borderColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function MoreNavIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.navIconBox}>
-      <View style={styles.moreDotRow}>
-        <View style={[styles.moreDot, { backgroundColor: color }]} />
-        <View style={[styles.moreDot, { backgroundColor: color }]} />
-        <View style={[styles.moreDot, { backgroundColor: color }]} />
-      </View>
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -690,233 +551,6 @@ const styles = StyleSheet.create({
     gap: 10,
     minWidth: 0,
   },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 12,
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerDark: {
-    backgroundColor: C.navy,
-  },
-  headerEyebrow: {
-    color: 'rgba(255,255,255,0.72)',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  headerLight: {
-    backgroundColor: C.crimson,
-  },
-  headerSubtitle: {
-    color: 'rgba(255,255,255,0.74)',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  headerText: {
-    flex: 1,
-    gap: 1,
-    minWidth: 0,
-  },
-  headerTitle: {
-    color: C.surface,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  faithCrossHorizontal: {
-    borderRadius: 1,
-    height: 2,
-    left: 3,
-    position: 'absolute',
-    top: 8,
-    width: 7,
-  },
-  faithCrossVertical: {
-    borderRadius: 1,
-    height: 11,
-    left: 5.5,
-    position: 'absolute',
-    top: 5,
-    width: 2,
-  },
-  logo: {
-    height: 28,
-    resizeMode: 'contain',
-    width: 28,
-  },
-  logoFrame: {
-    alignItems: 'center',
-    backgroundColor: C.surface,
-    borderRadius: 8,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  walletIconBody: {
-    borderRadius: 5,
-    borderWidth: 2.2,
-    height: 20,
-    justifyContent: 'center',
-    width: 27,
-  },
-  walletIconDot: {
-    borderRadius: 2,
-    height: 4,
-    position: 'absolute',
-    right: 5,
-    width: 4,
-  },
-  walletIconFlap: {
-    borderTopWidth: 2.2,
-    left: 4,
-    position: 'absolute',
-    right: 4,
-    top: 5,
-  },
-  calendarIconBody: {
-    borderRadius: 5,
-    borderWidth: 2.2,
-    height: 23,
-    overflow: 'hidden',
-    width: 24,
-  },
-  calendarIconDot: {
-    borderRadius: 1.5,
-    height: 3,
-    width: 3,
-  },
-  calendarIconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    paddingHorizontal: 5,
-    paddingTop: 5,
-  },
-  calendarIconHeader: {
-    height: 6,
-    width: '100%',
-  },
-  clipboard: {
-    alignItems: 'center',
-    borderRadius: 5,
-    borderWidth: 2.2,
-    height: 26,
-    justifyContent: 'center',
-    width: 20,
-  },
-  clipboardCheck: {
-    borderBottomWidth: 2.2,
-    borderLeftWidth: 2.2,
-    height: 6,
-    marginTop: 2,
-    transform: [{ rotate: '-45deg' }],
-    width: 11,
-  },
-  clipboardClip: {
-    borderRadius: 4,
-    borderWidth: 2.2,
-    height: 7,
-    position: 'absolute',
-    top: -5,
-    width: 9,
-  },
-  clubBase: {
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-    borderTopWidth: 2.1,
-    height: 9,
-    position: 'absolute',
-    top: 18,
-    width: 13,
-  },
-  clubBaseLeft: {
-    left: 3,
-  },
-  clubBasePrimary: {
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderTopWidth: 2.1,
-    height: 10,
-    position: 'absolute',
-    top: 17,
-    width: 18,
-    zIndex: 1,
-  },
-  clubBaseRight: {
-    right: 3,
-  },
-  clubHead: {
-    borderRadius: 5,
-    borderWidth: 2.1,
-    height: 10,
-    position: 'absolute',
-    top: 6,
-    width: 10,
-  },
-  clubHeadLeft: {
-    left: 4,
-  },
-  clubHeadPrimary: {
-    borderRadius: 6,
-    borderWidth: 2.1,
-    height: 12,
-    position: 'absolute',
-    top: 3,
-    width: 12,
-    zIndex: 1,
-  },
-  clubHeadRight: {
-    right: 4,
-  },
-  dashboardBody: {
-    alignItems: 'center',
-    borderBottomLeftRadius: 2,
-    borderBottomRightRadius: 2,
-    borderBottomWidth: 2.3,
-    borderLeftWidth: 2.3,
-    borderRightWidth: 2.3,
-    height: 16,
-    justifyContent: 'flex-end',
-    marginTop: 10,
-    width: 21,
-  },
-  dashboardDoor: {
-    borderLeftWidth: 2,
-    borderRightWidth: 2,
-    borderTopWidth: 2,
-    height: 9,
-    width: 7,
-  },
-  dashboardRoof: {
-    borderLeftWidth: 2.3,
-    borderTopLeftRadius: 2,
-    borderTopWidth: 2.3,
-    height: 17,
-    position: 'absolute',
-    top: 3,
-    transform: [{ rotate: '45deg' }],
-    width: 17,
-  },
-  leaderboardBar: {
-    borderRadius: 2,
-    width: 5,
-  },
-  leaderboardBarMid: {
-    height: 17,
-  },
-  leaderboardBarShort: {
-    height: 12,
-  },
-  leaderboardBarTall: {
-    height: 24,
-  },
-  leaderboardBars: {
-    alignItems: 'flex-end',
-    flexDirection: 'row',
-    gap: 4,
-    height: 26,
-  },
   drawerBackdrop: {
     flex: 1,
   },
@@ -995,159 +629,51 @@ const styles = StyleSheet.create({
   drawerTitleLight: {
     color: C.navy,
   },
-  messageBubble: {
-    alignItems: 'center',
-    borderRadius: 5,
-    borderWidth: 2.2,
-    height: 21,
-    justifyContent: 'center',
-    width: 29,
-  },
-  messageDot: {
-    borderRadius: 2,
-    height: 4,
-    width: 4,
-  },
-  messageDotRow: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  messageTail: {
-    borderBottomWidth: 2.2,
-    borderRightWidth: 2.2,
-    bottom: -5,
-    height: 8,
-    position: 'absolute',
-    right: 6,
-    transform: [{ rotate: '45deg' }],
-    width: 8,
-  },
-  moreDot: {
-    borderRadius: 3,
-    height: 6,
-    width: 6,
-  },
-  moreDotRow: {
-    flexDirection: 'row',
-    gap: 5,
-  },
-  navIconBox: {
-    alignItems: 'center',
-    height: 27,
-    justifyContent: 'center',
-    transform: [{ scale: 0.92 }],
-    width: 31,
-  },
-  noticeDocument: {
-    borderRadius: 5,
-    borderWidth: 2.2,
-    gap: 4,
-    height: 26,
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    width: 22,
-  },
-  noticeLine: {
-    borderRadius: 1,
-    height: 2,
-  },
-  paceBook: {
+  header: {
     alignItems: 'center',
     flexDirection: 'row',
-    height: 25,
+    gap: 12,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerDark: {
+    backgroundColor: C.navy,
+  },
+  headerEyebrow: {
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  headerLight: {
+    backgroundColor: C.crimson,
+  },
+  headerSubtitle: {
+    color: 'rgba(255,255,255,0.74)',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  headerText: {
+    flex: 1,
+    gap: 1,
+    minWidth: 0,
+  },
+  headerTitle: {
+    color: C.surface,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  logo: {
+    height: 28,
+    resizeMode: 'contain',
+    width: 28,
+  },
+  logoFrame: {
+    alignItems: 'center',
+    backgroundColor: C.surface,
+    borderRadius: 8,
+    height: 36,
     justifyContent: 'center',
-    width: 30,
-  },
-  pacePage: {
-    borderWidth: 2.2,
-    height: 23,
-    width: 13,
-  },
-  pacePageLeft: {
-    borderBottomLeftRadius: 5,
-    borderRightWidth: 0,
-    borderTopLeftRadius: 5,
-  },
-  pacePageRight: {
-    borderBottomRightRadius: 5,
-    borderLeftWidth: 0,
-    borderTopRightRadius: 5,
-  },
-  paceSpine: {
-    borderRadius: 1,
-    height: 23,
-    width: 2,
-  },
-  shopBag: {
-    borderRadius: 5,
-    borderWidth: 2.2,
-    height: 22,
-    marginTop: 4,
-    width: 24,
-  },
-  shopHandle: {
-    borderRadius: 7,
-    borderTopWidth: 2.2,
-    height: 9,
-    left: 5,
-    position: 'absolute',
-    top: -7,
-    width: 10,
-  },
-  starIcon: {
-    fontSize: 29,
-    fontWeight: '500',
-    height: 27,
-    lineHeight: 28,
-    textAlign: 'center',
-    width: 31,
-  },
-  studentHead: {
-    borderRadius: 5,
-    borderWidth: 2.1,
-    height: 10,
-    position: 'absolute',
-    top: 5,
-    width: 10,
-  },
-  studentHeadLeft: {
-    left: 4,
-  },
-  studentHeadPrimary: {
-    borderRadius: 6,
-    borderWidth: 2.1,
-    height: 12,
-    position: 'absolute',
-    top: 3,
-    width: 12,
-    zIndex: 1,
-  },
-  studentHeadRight: {
-    right: 4,
-  },
-  studentShoulder: {
-    borderTopLeftRadius: 7,
-    borderTopRightRadius: 7,
-    borderTopWidth: 2.1,
-    height: 9,
-    position: 'absolute',
-    top: 17,
-    width: 13,
-  },
-  studentShoulderLeft: {
-    left: 3,
-  },
-  studentShoulderPrimary: {
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderTopWidth: 2.1,
-    height: 10,
-    position: 'absolute',
-    top: 17,
-    width: 18,
-    zIndex: 1,
-  },
-  studentShoulderRight: {
-    right: 3,
+    width: 36,
   },
 });

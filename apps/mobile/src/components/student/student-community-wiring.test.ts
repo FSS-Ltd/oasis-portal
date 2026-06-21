@@ -26,7 +26,7 @@ describe('student community mobile wiring', () => {
     expect(portal).toMatch(/\|\s*'community'/);
     expect(portal).toMatch(/id: 'community'/);
     expect(portal).toMatch(/label: 'Community'/);
-    expect(portal).toMatch(/icon: 'messages'/);
+    expect(portal).toMatch(/icon: 'community'/);
     expect(portal).toMatch(/activeTab === 'community'/);
     expect(portal).toMatch(/<StudentCommunityScreen/);
   });

@@ -26,7 +26,7 @@ describe('student learning status mobile wiring', () => {
 
     expect(portal).toMatch(/StudentLearningScreen/);
     expect(portal).toMatch(
-      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'\s*\|\s*'learning'/,
+      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'community'\s*\|\s*'faith'\s*\|\s*'wallet'\s*\|\s*'learning'/,
     );
     expect(portal).toMatch(/label: 'Learning'/);
     expect(portal).toMatch(/icon: 'pace'/);

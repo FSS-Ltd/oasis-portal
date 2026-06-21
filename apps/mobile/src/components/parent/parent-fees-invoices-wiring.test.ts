@@ -28,7 +28,8 @@ describe('parent fees and invoices mobile wiring', () => {
     expect(portal).toMatch(/route === 'fees'/);
     expect(portal).toMatch(/api\.invoice\.listParent\.useQuery/);
     expect(portal).toMatch(/parentInvoices\.refetch/);
-    expect(portal).toMatch(/Fees\/Invoices/);
+    expect(portal).toMatch(/label: 'Fees'/);
+    expect(portal).toMatch(/icon: 'fees'/);
   });
 
   it('uses parent-safe invoice APIs and excludes staff finance administration', () => {

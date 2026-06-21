@@ -18,8 +18,11 @@ describe('student direct messages removal wiring', () => {
   it('keeps student mobile navigation on Community without a Messages tab', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
 
+    expect(portal).toMatch(/id: 'home'[\s\S]*id: 'community'[\s\S]*id: 'faith'[\s\S]*id: 'wallet'/);
     expect(portal).toMatch(/id: 'community'/);
     expect(portal).toMatch(/label: 'Community'/);
+    expect(portal).toMatch(/label: 'Faith'/);
+    expect(portal).toMatch(/primaryItemLimit=\{5\}/);
     expect(portal).toMatch(/activeTab === 'community'/);
     expect(portal).toMatch(/<StudentCommunityScreen/);
     expect(portal).not.toMatch(/StudentMessagesScreen/);
