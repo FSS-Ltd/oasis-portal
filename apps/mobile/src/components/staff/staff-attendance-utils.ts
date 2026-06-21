@@ -1,8 +1,15 @@
 export const attendanceStatuses = ['Present', 'Late', 'Absent'] as const;
 export const absenceReasons = ['Sick', 'Holiday', 'NotScheduled', 'Excused', 'Unexcused'] as const;
+export const specialAttendanceRegisters = [
+  { id: 'FieldTrip', label: 'Field trip' },
+  { id: 'MinibusInbound', label: 'Minibus inbound' },
+  { id: 'MinibusOutbound', label: 'Minibus outbound' },
+  { id: 'TheCedars', label: 'The Cedars' },
+] as const;
 
 export type AttendanceStatus = (typeof attendanceStatuses)[number];
 export type AbsenceReason = (typeof absenceReasons)[number];
+export type SpecialAttendanceRegister = (typeof specialAttendanceRegisters)[number]['id'];
 
 export type AttendanceDraft = {
   status: AttendanceStatus;
@@ -59,6 +66,14 @@ export function formatAttendanceDate(value: string): string {
 
 export function reasonLabel(reason: AbsenceReason): string {
   return reasonLabels[reason];
+}
+
+export function specialRegisterLabel(register: SpecialAttendanceRegister): string {
+  return specialAttendanceRegisters.find((option) => option.id === register)?.label ?? register;
+}
+
+export function isMinibusRegister(register: SpecialAttendanceRegister): boolean {
+  return register === 'MinibusInbound' || register === 'MinibusOutbound';
 }
 
 export function buildDraft(

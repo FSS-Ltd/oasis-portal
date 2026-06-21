@@ -27,6 +27,11 @@ describe('staff attendance mobile wiring', () => {
       'Staff attendance summary should be split out of the screen container',
     );
     assert.equal(
+      existsSync(path.join(mobileRoot, 'src/components/staff/staff-special-attendance-roster.tsx')),
+      true,
+      'Special attendance roster should be split out of the screen container',
+    );
+    assert.equal(
       existsSync(path.join(mobileRoot, 'src/components/staff/staff-attendance-utils.ts')),
       true,
       'Staff attendance helpers should be colocated with staff components',
@@ -74,5 +79,29 @@ describe('staff attendance mobile wiring', () => {
     assert.match(screen, /statusMessage/);
     assert.match(screen, /markAttendance\.error/);
     assert.match(summary, /Register progress/);
+  });
+
+  it('matches the web special attendance workflow for trip and location registers', () => {
+    const screen = read('src/components/staff/staff-attendance-screen.tsx');
+    const specialRoster = read('src/components/staff/staff-special-attendance-roster.tsx');
+    const utils = read('src/components/staff/staff-attendance-utils.ts');
+
+    assert.match(screen, /api\.attendance\.specialForDate\.useQuery/);
+    assert.match(screen, /api\.attendance\.saveSpecialSession\.useMutation/);
+    assert.match(screen, /api\.attendance\.markSpecial\.useMutation/);
+    assert.match(screen, /utils\.attendance\.specialForDate\.invalidate/);
+    assert.match(screen, /setSpecialRegister/);
+    assert.match(screen, /setSpecialDestination/);
+
+    for (const register of ['FieldTrip', 'MinibusInbound', 'MinibusOutbound', 'TheCedars']) {
+      assert.match(utils, new RegExp(register));
+    }
+
+    assert.match(specialRoster, /Special attendance/);
+    assert.match(specialRoster, /Minibus destination/);
+    assert.match(specialRoster, /Save destination/);
+    assert.match(specialRoster, /Choose a register/);
+    assert.match(specialRoster, /save the minibus destination/i);
+    assert.match(specialRoster, /attendanceStatuses/);
   });
 });
