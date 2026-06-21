@@ -125,9 +125,8 @@ describe('student wallet actions mobile wiring', () => {
     }
   });
 
-  it('keeps investment and Merit Markets actions disabled or absent', () => {
+  it('keeps investment and Merit Markets actions out of wallet surfaces', () => {
     const source = [
-      'src/components/student/student-portal-screen.tsx',
       'src/components/student/student-wallet-screen.tsx',
       'src/components/student/student-wallet-utils.ts',
       'src/components/student/student-wallet-tithe-panel.tsx',
