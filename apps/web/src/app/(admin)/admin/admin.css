@@ -3250,6 +3250,16 @@
   padding: 4px 4px 18px;
 }
 
+.community-contact-panel {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
 .community-message {
   max-width: min(640px, 82%);
   padding: 10px 13px;

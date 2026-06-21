@@ -111,6 +111,38 @@ function MessageBubble({
   );
 }
 
+function ContactList({
+  currentStudentId,
+  group,
+}: {
+  currentStudentId: string | null;
+  group: CommunityGroup;
+}) {
+  return (
+    <section className="community-contact-panel" aria-labelledby="community-contacts-title">
+      <div className="message-panel-header">
+        <h3 id="community-contacts-title">Student contacts</h3>
+        <span>{String(group.members.length)}</span>
+      </div>
+      <div className="community-membership-list">
+        {group.members.length === 0 ? <p className="muted">No contacts yet.</p> : null}
+        {group.members.map((member) => (
+          <article className="community-membership-row" key={member.studentId}>
+            <span>
+              <strong>
+                {member.studentId === currentStudentId ? 'You' : member.student.fullName}
+              </strong>
+              <small>
+                {member.student.yearGroup ? `Year ${member.student.yearGroup}` : 'Student'}
+              </small>
+            </span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function PendingBubble({ message }: { message: PendingMessage }) {
   return (
     <article className="community-message is-mine is-pending">
@@ -356,6 +388,10 @@ export function StudentCommunityClient() {
                 </Button>
               ) : null}
             </div>
+          ) : null}
+
+          {selectedGroup ? (
+            <ContactList currentStudentId={currentStudentId} group={selectedGroup} />
           ) : null}
 
           {!selectedGroup ? (

@@ -1,6 +1,6 @@
 import type { RouterOutputs } from '@/lib/trpc';
 
-export type MessageMode = 'admin' | 'parent' | 'supervisor' | 'student';
+export type MessageMode = 'admin' | 'parent' | 'supervisor';
 export type ConversationKind = 'ParentStaff' | 'SupervisorHead' | 'StaffDirect' | 'StudentDirect';
 export type ConversationPage = RouterOutputs['message']['listConversations'];
 export type LoadedConversationPage = { cursor: string | undefined; page: ConversationPage };
