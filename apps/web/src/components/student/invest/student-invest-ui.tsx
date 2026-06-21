@@ -80,13 +80,7 @@ export function GbpEquivalent({
   );
 }
 
-export function MeritValueStack({
-  digits = 1,
-  value,
-}: {
-  digits?: number;
-  value: number;
-}) {
+export function MeritValueStack({ digits = 1, value }: { digits?: number; value: number }) {
   return (
     <span className={styles.valueStack}>
       <MeritValue digits={digits} value={value} />
@@ -218,16 +212,20 @@ export function RangeTabs({
   customActive = false,
   onCustom,
   onRange,
+  ranges = rangeOptions,
+  showCustom = true,
   value,
 }: {
   customActive?: boolean;
   onCustom: () => void;
   onRange: (range: RangeId) => void;
+  ranges?: readonly { id: RangeId; label: string }[];
+  showCustom?: boolean;
   value: RangeId;
 }) {
   return (
     <div aria-label="Chart date range" className={styles.rangeTabs} role="group">
-      {rangeOptions.map((range) => {
+      {ranges.map((range) => {
         const active = value === range.id && !customActive;
         return (
           <button
@@ -242,13 +240,15 @@ export function RangeTabs({
           </button>
         );
       })}
-      <button
-        className={cn(styles.rangeButton, customActive ? styles.rangeButtonActive : undefined)}
-        onClick={onCustom}
-        type="button"
-      >
-        <CalendarDays aria-hidden="true" size={13} /> Custom
-      </button>
+      {showCustom ? (
+        <button
+          className={cn(styles.rangeButton, customActive ? styles.rangeButtonActive : undefined)}
+          onClick={onCustom}
+          type="button"
+        >
+          <CalendarDays aria-hidden="true" size={13} /> Custom
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -485,13 +485,7 @@ export function RiskDots({ instrument }: { instrument: Instrument }) {
   );
 }
 
-export function LearningBadge({
-  rawPct,
-  learningPct,
-}: {
-  rawPct: number;
-  learningPct: number;
-}) {
+export function LearningBadge({ rawPct, learningPct }: { rawPct: number; learningPct: number }) {
   const rawPositive = rawPct >= 0;
   const learningPositive = learningPct >= 0;
   return (

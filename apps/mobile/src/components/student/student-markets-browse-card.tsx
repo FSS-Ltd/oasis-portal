@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, MutedText, SectionTitle } from '../core/mobile-ui';
+import { Badge, Card, MobileButton, MutedText, SectionTitle } from '../core/mobile-ui';
 import {
   formatInvestmentMerits,
   formatInvestmentPercent,
@@ -14,11 +14,13 @@ const marketFilters: readonly MarketFilter[] = ['All', 'Stocks', 'ETFs', 'Crypto
 export function MarketBrowseCard({
   filter,
   marketData,
+  onSelectBuy,
   rows,
   setFilter,
 }: {
   filter: MarketFilter;
   marketData: InvestmentMarketData | undefined;
+  onSelectBuy: (row: MarketInstrumentRow) => void;
   rows: readonly MarketInstrumentRow[];
   setFilter: (filter: MarketFilter) => void;
 }) {
@@ -53,16 +55,20 @@ export function MarketBrowseCard({
       ) : null}
       {rows.length === 0 ? <MutedText>No market instruments match this filter.</MutedText> : null}
       {rows.map((row) => (
-        <MarketInstrumentRowView key={row.instrument.id} row={row} />
+        <MarketInstrumentRowView key={row.instrument.id} onSelectBuy={onSelectBuy} row={row} />
       ))}
-      <MutedText>
-        Buy and sell confirmations are intentionally held for the next mobile slice.
-      </MutedText>
+      <MutedText>Buy opens a review ticket before the trade is placed.</MutedText>
     </Card>
   );
 }
 
-function MarketInstrumentRowView({ row }: { row: MarketInstrumentRow }) {
+function MarketInstrumentRowView({
+  onSelectBuy,
+  row,
+}: {
+  onSelectBuy: (row: MarketInstrumentRow) => void;
+  row: MarketInstrumentRow;
+}) {
   const priceMerits = row.snapshot?.priceMerits ?? 0;
   const change = row.snapshot?.dayChangePct ?? 0;
 
@@ -82,6 +88,15 @@ function MarketInstrumentRowView({ row }: { row: MarketInstrumentRow }) {
         <Text style={[styles.rowMeta, change >= 0 ? styles.positive : styles.negative]}>
           {formatInvestmentPercent(change)}
         </Text>
+        <MobileButton
+          compact
+          disabled={!row.snapshot}
+          label="Buy"
+          onPress={() => {
+            onSelectBuy(row);
+          }}
+          variant="success"
+        />
       </View>
     </View>
   );

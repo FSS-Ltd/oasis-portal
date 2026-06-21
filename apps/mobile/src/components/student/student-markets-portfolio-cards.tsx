@@ -1,8 +1,16 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
+import {
+  Badge,
+  Card,
+  InlineSpinner,
+  MobileButton,
+  MutedText,
+  SectionTitle,
+} from '../core/mobile-ui';
 import {
   formatInvestmentMerits,
+  formatInvestmentPercent,
   formatSignedInvestmentMerits,
   transactionLabel,
   type InvestmentHolding,
@@ -12,9 +20,11 @@ import {
 export function HoldingsCard({
   holdings,
   loading,
+  onSelectSell,
 }: {
   holdings: readonly InvestmentHolding[];
   loading: boolean;
+  onSelectSell: (holding: InvestmentHolding) => void;
 }) {
   return (
     <Card style={styles.card}>
@@ -47,8 +57,26 @@ export function HoldingsCard({
                 holding.returnMerits >= 0 ? styles.positive : styles.negative,
               ]}
             >
-              {formatSignedInvestmentMerits(holding.returnMerits)}
+              Today {formatSignedInvestmentMerits(holding.dayChangeMerits)} (
+              {formatInvestmentPercent(holding.dayChangePct)})
             </Text>
+            <Text
+              style={[
+                styles.rowMeta,
+                holding.returnMerits >= 0 ? styles.positive : styles.negative,
+              ]}
+            >
+              Total {formatSignedInvestmentMerits(holding.returnMerits)}
+            </Text>
+            <MobileButton
+              compact
+              disabled={holding.units <= 0}
+              label="Sell"
+              onPress={() => {
+                onSelectSell(holding);
+              }}
+              variant="danger"
+            />
           </View>
         </View>
       ))}

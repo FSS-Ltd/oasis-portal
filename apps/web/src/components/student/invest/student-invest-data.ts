@@ -112,6 +112,8 @@ export interface AccountHolding {
   costBasisMerits: number;
   currentPriceMerits: number;
   currentValueMerits: number;
+  dayChangeMerits: number;
+  dayChangePct: number;
   returnMerits: number;
   weightPct: number;
 }
@@ -143,6 +145,13 @@ export const rangeOptions: readonly RangeOption[] = [
   { id: '3M', label: '3M', days: 90 },
   { id: '1Y', label: '1Y', days: 365 },
   { id: 'ALL', label: 'All', days: historyDays },
+];
+
+export const portfolioRangeOptions: readonly RangeOption[] = [
+  { id: '1D', label: 'Daily', days: 1 },
+  { id: '1W', label: 'Weekly', days: 7 },
+  { id: '1M', label: 'Month', days: 30 },
+  { id: '3M', label: '3 months', days: 90 },
 ];
 
 const rawInstruments: readonly RawInstrument[] = [
@@ -331,7 +340,6 @@ const rawInstruments: readonly RawInstrument[] = [
   },
 ];
 
-
 function hashString(value: string): number {
   let hash = 1_779_033_703 ^ value.length;
   for (let index = 0; index < value.length; index += 1) {
@@ -483,7 +491,6 @@ export function sliceInstrumentSeries(
   };
 }
 
-
 export function navHistoryToChartSeries(history: readonly NavDto[]): ChartSeries {
   if (history.length === 0) return { points: [], first: 0, last: 0 };
   const points = history.map((entry, index) => ({
@@ -495,6 +502,68 @@ export function navHistoryToChartSeries(history: readonly NavDto[]): ChartSeries
     points,
     first: points[0]?.value ?? 0,
     last: points[points.length - 1]?.value ?? 0,
+  };
+}
+
+export function portfolioHoldingsToChartSeries({
+  cashMerits,
+  holdings,
+  instruments: liveInstruments,
+}: {
+  cashMerits: number;
+  holdings: readonly AccountHolding[];
+  instruments: readonly Instrument[];
+}): ChartSeries {
+  if (holdings.length === 0) {
+    const point = { date: today, value: cashMerits, x: 0 };
+    return { first: cashMerits, last: cashMerits, points: cashMerits > 0 ? [point] : [] };
+  }
+
+  const instrumentsBySymbol = new Map(
+    liveInstruments.map((instrument) => [instrument.ticker, instrument]),
+  );
+  const pointCount = holdings.reduce((max, holding) => {
+    const instrument = instrumentsBySymbol.get(holding.symbol);
+    return Math.max(max, instrument?.daily.length ?? 0);
+  }, 0);
+  if (pointCount === 0) return { first: 0, last: 0, points: [] };
+
+  const points = Array.from({ length: pointCount }, (_, index) => {
+    const value = holdings.reduce((sum, holding) => {
+      const instrument = instrumentsBySymbol.get(holding.symbol);
+      if (!instrument?.daily.length) return sum + holding.currentValueMerits;
+      const offset = index - (pointCount - instrument.daily.length);
+      const gbpPrice = instrument.daily[Math.max(0, offset)] ?? instrument.price;
+      return sum + Math.floor(holding.units * toMerits(gbpPrice));
+    }, cashMerits);
+    return {
+      date: dayDate(index, pointCount),
+      value,
+      x: index / (pointCount - 1 || 1),
+    };
+  });
+
+  return {
+    first: points[0]?.value ?? 0,
+    last: points[points.length - 1]?.value ?? 0,
+    points,
+  };
+}
+
+export function chartSeriesForRange(series: ChartSeries, rangeId: RangeId): ChartSeries {
+  if (series.points.length === 0) return series;
+  const days = rangeOptions.find((option) => option.id === rangeId)?.days ?? historyDays;
+  const cutoff = series.points.length - days;
+  const sliced = series.points.slice(Math.max(0, cutoff));
+  if (sliced.length === 0) return series;
+  const points = sliced.map((point, index) => ({
+    ...point,
+    x: index / (sliced.length - 1 || 1),
+  }));
+  return {
+    first: points[0]?.value ?? 0,
+    last: points[points.length - 1]?.value ?? 0,
+    points,
   };
 }
 

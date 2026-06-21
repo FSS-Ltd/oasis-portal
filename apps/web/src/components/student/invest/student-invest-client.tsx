@@ -13,7 +13,7 @@ import {
   instruments,
   instrumentsByTicker,
   meritGbp,
-  navHistoryToChartSeries,
+  portfolioHoldingsToChartSeries,
   type Instrument,
   type InstrumentType,
   type MarketDividendEvent,
@@ -108,13 +108,17 @@ function mapLiveInstrument(
   const mapped: Instrument = {
     about: instrument.summary ?? fallback?.about ?? defaultInstrumentSummary(instrument),
     color: instrument.themeColor ?? fallback?.color ?? fallbackColor(type),
-    daily: fallback?.daily ?? buildSyntheticDailySeries(instrument.symbol, seriesPrice, volatility),
+    daily:
+      snapshot || !fallback
+        ? buildSyntheticDailySeries(instrument.symbol, seriesPrice, volatility)
+        : fallback.daily,
     dayChange: price - prevClose,
     dayChangePct: snapshot?.dayChangePct ?? 0,
     instrumentId: instrument.id,
     intraday:
-      fallback?.intraday ??
-      buildSyntheticIntradaySeries(instrument.symbol, seriesPrevClose, seriesPrice),
+      snapshot || !fallback
+        ? buildSyntheticIntradaySeries(instrument.symbol, seriesPrevClose, seriesPrice)
+        : fallback.intraday,
     name: instrument.displayName,
     prevClose,
     price,
@@ -165,11 +169,6 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
   const accountQuery = api.investment.account.useQuery(
     { studentId: studentId ?? '' },
     { enabled: !!studentId, refetchInterval: 60_000 },
-  );
-
-  const navHistoryQuery = api.investment.navHistory.useQuery(
-    { days: 365 },
-    { enabled: !!studentId },
   );
 
   const marketQuery = api.investment.marketData.useQuery(undefined, {
@@ -293,7 +292,6 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
   );
 
   const units = accountQuery.data?.units ?? 0;
-  const currentValueMerits = accountQuery.data?.currentValueMerits ?? 0;
   const costBasisMerits = accountQuery.data?.costBasisMerits ?? 0;
   const investmentCashMerits = accountQuery.data?.investmentCashMerits ?? costBasisMerits;
   const holdings = accountQuery.data?.holdings ?? [];
@@ -303,8 +301,15 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
   const totalNetWorthMerits = investmentCashMerits + portfolioValueMerits;
   const latestNav = accountQuery.data?.latestNav ?? null;
   const transactions = accountQuery.data?.transactions ?? [];
-  const navHistory = navHistoryQuery.data ?? [];
-  const navSeries = useMemo(() => navHistoryToChartSeries(navHistory), [navHistory]);
+  const portfolioSeries = useMemo(
+    () =>
+      portfolioHoldingsToChartSeries({
+        cashMerits: investmentCashMerits,
+        holdings,
+        instruments: liveInstruments,
+      }),
+    [holdings, investmentCashMerits, liveInstruments],
+  );
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -411,17 +416,16 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
 
       {view.screen === 'overview' ? (
         <InvestmentOverview
-          currentValueMerits={currentValueMerits}
           defaultRange={defaultRange}
           holdings={holdings}
           investmentCashMerits={investmentCashMerits}
           latestNav={latestNav}
           loading={accountQuery.isLoading}
-          navHistory={navHistory}
           onNavigate={(screen) => {
             navigate(screen);
           }}
           portfolioReturnMerits={portfolioReturnMerits}
+          portfolioSeries={portfolioSeries}
           portfolioValueMerits={portfolioValueMerits}
           spendBalance={spendBalance}
           studentFirstName={studentFirstName}
@@ -433,7 +437,7 @@ export function StudentInvestClient({ initialScreen = 'overview' }: StudentInves
         <InvestmentPortfolioPage
           holdings={holdings}
           loading={accountQuery.isLoading}
-          navSeries={navSeries}
+          portfolioSeries={portfolioSeries}
           portfolioCostBasisMerits={portfolioCostBasisMerits}
           portfolioReturnMerits={portfolioReturnMerits}
           portfolioValueMerits={portfolioValueMerits}
