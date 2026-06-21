@@ -15,6 +15,7 @@ import {
   type CommunityGroup,
   type CommunityMessage,
 } from './community-types';
+import { StudentCommunityContacts } from './student-community-contacts';
 
 interface PendingMessage {
   id: string;
@@ -108,38 +109,6 @@ function MessageBubble({
       <p>{message.body}</p>
       {mine ? <footer>{messageStatus(message)}</footer> : null}
     </article>
-  );
-}
-
-function ContactList({
-  currentStudentId,
-  group,
-}: {
-  currentStudentId: string | null;
-  group: CommunityGroup;
-}) {
-  return (
-    <section className="community-contact-panel" aria-labelledby="community-contacts-title">
-      <div className="message-panel-header">
-        <h3 id="community-contacts-title">Student contacts</h3>
-        <span>{String(group.members.length)}</span>
-      </div>
-      <div className="community-membership-list">
-        {group.members.length === 0 ? <p className="muted">No contacts yet.</p> : null}
-        {group.members.map((member) => (
-          <article className="community-membership-row" key={member.studentId}>
-            <span>
-              <strong>
-                {member.studentId === currentStudentId ? 'You' : member.student.fullName}
-              </strong>
-              <small>
-                {member.student.yearGroup ? `Year ${member.student.yearGroup}` : 'Student'}
-              </small>
-            </span>
-          </article>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -391,7 +360,7 @@ export function StudentCommunityClient() {
           ) : null}
 
           {selectedGroup ? (
-            <ContactList currentStudentId={currentStudentId} group={selectedGroup} />
+            <StudentCommunityContacts currentStudentId={currentStudentId} group={selectedGroup} />
           ) : null}
 
           {!selectedGroup ? (

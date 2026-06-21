@@ -4,6 +4,12 @@ import test from 'node:test';
 
 const dataTableSource = readFileSync('apps/web/src/components/ui/data-table.tsx', 'utf8');
 const adminCss = readFileSync('apps/web/src/app/(admin)/admin/admin.css', 'utf8');
+const nextConfig = readFileSync('apps/web/next.config.mjs', 'utf8');
+const studentCommunityContacts = readFileSync(
+  'apps/web/src/components/community/student-community-contacts.tsx',
+  'utf8',
+);
+const studentNavSource = readFileSync('apps/web/src/components/student/student-nav.tsx', 'utf8');
 const investCss = readFileSync(
   'apps/web/src/components/student/invest/student-invest.module.css',
   'utf8',
@@ -26,4 +32,23 @@ test('web modal panels use bounded dynamic viewport scrolling', () => {
   assert.match(adminCss, /100dvh/);
   assert.match(investCss, /100dvh/);
   assert.match(investCss, /overscroll-behavior: contain/);
+});
+
+test('student mobile web bottom nav is fixed to five approved destinations', () => {
+  assert.match(
+    studentNavSource,
+    /const studentBottomNavHrefs = \[[\s\S]*'\/student'[\s\S]*'\/student\/community'[\s\S]*'\/student\/faith'[\s\S]*'\/student\/wallet'[\s\S]*'\/student\/shop'[\s\S]*\] as const/,
+  );
+  assert.doesNotMatch(studentNavSource, /bottomNav: true/);
+  assert.doesNotMatch(studentNavSource, /studentBottomNavHrefs[\s\S]*\/student\/messages/);
+  assert.doesNotMatch(studentNavSource, /studentBottomNavHrefs[\s\S]*\/student\/homework/);
+});
+
+test('student messages route redirects to Community and contacts open direct messages', () => {
+  assert.match(nextConfig, /source: '\/student\/messages'/);
+  assert.match(nextConfig, /destination: '\/student\/community'/);
+  assert.match(studentCommunityContacts, /api\.message\.openConversation\.useMutation/);
+  assert.match(studentCommunityContacts, /kind: 'StudentDirect'/);
+  assert.match(studentCommunityContacts, /api\.message\.sendInConversation\.useMutation/);
+  assert.match(studentCommunityContacts, /Individual message/);
 });

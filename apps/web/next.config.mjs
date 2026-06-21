@@ -13,6 +13,20 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_VERCEL_ENV: process.env.VERCEL_ENV ?? '',
   },
+  async redirects() {
+    return [
+      {
+        source: '/student/messages',
+        destination: '/student/community',
+        permanent: false,
+      },
+      {
+        source: '/student/messages/:path*',
+        destination: '/student/community',
+        permanent: false,
+      },
+    ];
+  },
   webpack(config, { isServer }) {
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,

@@ -3260,6 +3260,43 @@
   background: #f8fbff;
 }
 
+.community-contact-row {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.community-contact-row:hover,
+.community-contact-row:focus-visible,
+.community-contact-row.is-active {
+  border-color: rgba(48, 126, 205, 0.34);
+  background: #eef6ff;
+}
+
+.community-contact-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.community-contact-row b {
+  color: var(--oasis-blue);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.community-direct-panel {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.community-direct-panel .message-bubble-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
 .community-message {
   max-width: min(640px, 82%);
   padding: 10px 13px;
