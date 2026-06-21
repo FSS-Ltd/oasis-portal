@@ -16,6 +16,8 @@ describe('student Merit Markets mobile wiring', () => {
       'student-markets-portfolio-cards.tsx',
       'student-markets-screen.tsx',
       'student-markets-summary.tsx',
+      'student-markets-trade-ticket.tsx',
+      'student-markets-trend-card.tsx',
       'student-markets-utils.ts',
       'student-markets-wiring.test.ts',
     ]) {
@@ -33,7 +35,7 @@ describe('student Merit Markets mobile wiring', () => {
     expect(portal).toMatch(/<StudentMarketsScreen/);
   });
 
-  it('uses self-scoped investment APIs for account, market data, and cash funding only', () => {
+  it('uses self-scoped investment APIs for account, market data, cash funding, and reviewed trades', () => {
     const source = [
       'src/components/student/student-portal-screen.tsx',
       'src/components/student/student-markets-browse-card.tsx',
@@ -41,6 +43,8 @@ describe('student Merit Markets mobile wiring', () => {
       'src/components/student/student-markets-portfolio-cards.tsx',
       'src/components/student/student-markets-screen.tsx',
       'src/components/student/student-markets-summary.tsx',
+      'src/components/student/student-markets-trade-ticket.tsx',
+      'src/components/student/student-markets-trend-card.tsx',
       'src/components/student/student-markets-utils.ts',
     ]
       .map(readMobile)
@@ -50,31 +54,37 @@ describe('student Merit Markets mobile wiring', () => {
       /api\.investment\.account\.useQuery/,
       /api\.investment\.marketData\.useQuery/,
       /api\.investment\.fundCash\.useMutation/,
+      /api\.investment\.buyHolding\.useMutation/,
+      /api\.investment\.sellHolding\.useMutation/,
       /handleFundMarketCash/,
+      /handleBuyMarketHolding/,
+      /handleSellMarketHolding/,
       /investmentAccount\.refetch/,
+      /investmentMarket\.refetch/,
       /studentDashboard\.refetch/,
+      /onBuyHolding/,
+      /onSellHolding/,
     ]) {
       expect(source).toMatch(required);
     }
 
     for (const forbidden of [
-      /api\.investment\.(buyHolding|sellHolding|withdrawPortfolio|refreshMarketData)/,
-      /onBuyHolding/,
-      /onSellHolding/,
-      /Buy investment/,
-      /Sell investment/,
+      /api\.investment\.(withdrawPortfolio|refreshMarketData)/,
+      /api\.investment\.(buy|sell)\.useMutation/,
     ]) {
       expect(source).not.toMatch(forbidden);
     }
   });
 
-  it('keeps market overview, funding, browse, portfolio, and activity states visible', () => {
+  it('keeps market overview, funding, trade review, portfolio, and activity states visible', () => {
     const source = [
       'src/components/student/student-markets-browse-card.tsx',
       'src/components/student/student-markets-fund-cash-card.tsx',
       'src/components/student/student-markets-portfolio-cards.tsx',
       'src/components/student/student-markets-screen.tsx',
       'src/components/student/student-markets-summary.tsx',
+      'src/components/student/student-markets-trade-ticket.tsx',
+      'src/components/student/student-markets-trend-card.tsx',
       'src/components/student/student-markets-utils.ts',
     ]
       .map(readMobile)
@@ -83,6 +93,11 @@ describe('student Merit Markets mobile wiring', () => {
     for (const text of [
       'Merit Markets',
       'Investment account',
+      'Portfolio trend',
+      'Daily',
+      'Weekly',
+      'Month',
+      '3 months',
       'Loading Merit Markets',
       'Markets unavailable',
       'Fund Markets cash',
@@ -92,10 +107,20 @@ describe('student Merit Markets mobile wiring', () => {
       'Browse market',
       'Prices delayed',
       'No market instruments match this filter.',
+      'Trade ticket',
+      'Review buy',
+      'Confirm buy',
+      'Review sell',
+      'Confirm sell',
+      'Trading paused until fresh prices are available.',
+      'Not enough Markets cash.',
+      'Not enough units.',
       'Your holdings',
+      'Today',
+      'Total return',
       'No holdings yet.',
       'Recent activity',
-      'Buy and sell confirmations are intentionally held for the next mobile slice.',
+      'Buy opens a review ticket before the trade is placed.',
     ]) {
       expect(source).toContain(text);
     }

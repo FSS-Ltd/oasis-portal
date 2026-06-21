@@ -3,7 +3,10 @@ import { C } from '../core/mobile-theme';
 import { Card } from '../core/mobile-ui';
 import {
   formatInvestmentMerits,
+  formatInvestmentPercent,
   formatSignedInvestmentMerits,
+  totalHoldingDayChange,
+  totalHoldingDayChangePct,
   type InvestmentAccount,
 } from './student-markets-utils';
 
@@ -14,6 +17,9 @@ export function MarketSummary({
   account: InvestmentAccount | undefined;
   spendBalance: number;
 }) {
+  const todayChange = totalHoldingDayChange(account);
+  const todayChangePct = totalHoldingDayChangePct(account);
+
   return (
     <View style={styles.summaryGrid}>
       <SummaryCell label="Spend" value={formatInvestmentMerits(spendBalance)} />
@@ -26,7 +32,12 @@ export function MarketSummary({
         value={formatInvestmentMerits(account?.portfolioValueMerits ?? 0)}
       />
       <SummaryCell
-        label="Return"
+        label="Today"
+        tone={todayChange >= 0 ? 'success' : 'danger'}
+        value={`${formatSignedInvestmentMerits(todayChange)} (${formatInvestmentPercent(todayChangePct)})`}
+      />
+      <SummaryCell
+        label="Total return"
         tone={(account?.portfolioReturnMerits ?? 0) >= 0 ? 'success' : 'danger'}
         value={formatSignedInvestmentMerits(account?.portfolioReturnMerits ?? 0)}
       />

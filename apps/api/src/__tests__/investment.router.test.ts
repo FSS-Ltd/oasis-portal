@@ -377,6 +377,7 @@ function makeMarketSnapshot(input: {
   id: string;
   instrument: StoredInvestmentInstrument;
   serverFetchedAt: Date;
+  dayChangePct?: number;
   gbpPrice?: number;
   previousCloseGbp?: number;
 }): StoredMarketDataSnapshot {
@@ -384,7 +385,7 @@ function makeMarketSnapshot(input: {
   const previousCloseGbp = input.previousCloseGbp ?? 74;
   return {
     createdAt: input.serverFetchedAt,
-    dayChangePct: 1.25,
+    dayChangePct: input.dayChangePct ?? 1.25,
     gbpConversionRate: 1,
     gbpPrice,
     id: input.id,
@@ -989,15 +990,19 @@ describe('investment.account', () => {
       instruments: [vusa, eqqq],
       snapshots: [
         makeMarketSnapshot({
+          dayChangePct: 4.16,
           gbpPrice: 250,
           id: 'snapshot-vusa',
           instrument: vusa,
+          previousCloseGbp: 240,
           serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
         }),
         makeMarketSnapshot({
+          dayChangePct: 2.04,
           gbpPrice: 500,
           id: 'snapshot-eqqq',
           instrument: eqqq,
+          previousCloseGbp: 490,
           serverFetchedAt: new Date('2026-05-15T11:59:00.000Z'),
         }),
       ],
@@ -1011,6 +1016,8 @@ describe('investment.account', () => {
           costBasisMerits: 100,
           currentPriceMerits: 2.5,
           currentValueMerits: 100,
+          dayChangeMerits: 4,
+          dayChangePct: 4.16,
           instrumentId: 'instrument-vusa',
           symbol: 'VUSA',
           units: 40,
@@ -1019,6 +1026,8 @@ describe('investment.account', () => {
           costBasisMerits: 200,
           currentPriceMerits: 5,
           currentValueMerits: 300,
+          dayChangeMerits: 6,
+          dayChangePct: 2.04,
           instrumentId: 'instrument-eqqq',
           symbol: 'EQQQ',
           units: 60,

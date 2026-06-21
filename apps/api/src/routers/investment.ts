@@ -341,6 +341,8 @@ export interface AccountHoldingDto {
   costBasisMerits: number;
   currentPriceMerits: number;
   currentValueMerits: number;
+  dayChangeMerits: number;
+  dayChangePct: number;
   returnMerits: number;
   weightPct: number;
 }
@@ -358,11 +360,15 @@ function mapHoldingForAccount(
 ): AccountHoldingDto {
   const units = toNumber(holding.units);
   const currentPriceMerits = snapshot?.priceMerits ?? 0;
+  const previousCloseMerits = snapshot?.previousCloseMerits ?? currentPriceMerits;
   const currentValueMerits = Math.floor(units * currentPriceMerits);
+  const previousValueMerits = Math.floor(units * previousCloseMerits);
   return {
     costBasisMerits: holding.costBasisMerits,
     currentPriceMerits,
     currentValueMerits,
+    dayChangeMerits: currentValueMerits - previousValueMerits,
+    dayChangePct: snapshot?.dayChangePct ?? 0,
     displayName: holding.instrument.displayName,
     id: holding.id,
     instrumentId: holding.instrumentId,

@@ -35,7 +35,7 @@ describe('student home and wallet mobile wiring', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
     const wallet = readMobile('src/components/student/student-wallet-screen.tsx');
     const home = readMobile('src/components/student/student-home-screen.tsx');
-    const source = [portal, wallet, home].join('\n');
+    const homeAndWallet = [wallet, home].join('\n');
 
     expect(portal).toMatch(/api\.student\.dashboard\.useQuery/);
     expect(portal).toMatch(/api\.student\.wallet\.useQuery/);
@@ -61,7 +61,7 @@ describe('student home and wallet mobile wiring', () => {
       /api\.permissionSlip\.listAdmin/,
       /Reserve item/,
     ]) {
-      expect(source).not.toMatch(forbidden);
+      expect(homeAndWallet).not.toMatch(forbidden);
     }
   });
 

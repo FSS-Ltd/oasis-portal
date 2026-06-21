@@ -6,13 +6,18 @@ import { MarketBrowseCard } from './student-markets-browse-card';
 import { FundCashCard } from './student-markets-fund-cash-card';
 import { ActivityCard, HoldingsCard } from './student-markets-portfolio-cards';
 import { MarketSummary } from './student-markets-summary';
+import { MarketTradeTicket, type MarketTradeDraft } from './student-markets-trade-ticket';
+import { MarketTrendCard } from './student-markets-trend-card';
 import {
   formatInvestmentMerits,
   marketInstrumentRows,
   totalMarketNetWorth,
   type InvestmentAccount,
   type InvestmentMarketData,
+  type MarketBuyInput,
   type MarketFilter,
+  type MarketSellInput,
+  type MarketTradeSide,
 } from './student-markets-utils';
 
 interface StudentMarketsScreenProps {
@@ -25,9 +30,14 @@ interface StudentMarketsScreenProps {
   marketData: InvestmentMarketData | undefined;
   marketError: string | null;
   marketLoading: boolean;
+  onBuyHolding: (input: MarketBuyInput) => void;
   onFundCash: (merits: number) => void;
+  onSellHolding: (input: MarketSellInput) => void;
   spendBalance: number;
   studentId: string | undefined;
+  tradeError: string | null;
+  tradePendingSide: MarketTradeSide | null;
+  tradeStatus: string | null;
 }
 
 export function StudentMarketsScreen({
@@ -40,15 +50,41 @@ export function StudentMarketsScreen({
   marketData,
   marketError,
   marketLoading,
+  onBuyHolding,
   onFundCash,
+  onSellHolding,
   spendBalance,
   studentId,
+  tradeError,
+  tradePendingSide,
+  tradeStatus,
 }: StudentMarketsScreenProps) {
   const [filter, setFilter] = useState<MarketFilter>('All');
+  const [selectedTrade, setSelectedTrade] = useState<{
+    instrumentId: string;
+    side: MarketTradeSide;
+  } | null>(null);
   const instrumentRows = useMemo(
     () => marketInstrumentRows(marketData, filter).slice(0, 12),
     [filter, marketData],
   );
+  const selectedTradeDraft = useMemo<MarketTradeDraft | null>(() => {
+    if (!selectedTrade) return null;
+    if (selectedTrade.side === 'buy') {
+      const row = instrumentRows.find(
+        (candidate) => candidate.instrument.id === selectedTrade.instrumentId,
+      );
+      return row ? { instrument: row.instrument, side: 'buy', snapshot: row.snapshot } : null;
+    }
+
+    const holding = account?.holdings.find(
+      (candidate) => candidate.instrumentId === selectedTrade.instrumentId,
+    );
+    const snapshot = marketData?.snapshots.find(
+      (candidate) => candidate.instrumentId === selectedTrade.instrumentId,
+    );
+    return holding ? { holding, side: 'sell', snapshot } : null;
+  }, [account?.holdings, instrumentRows, marketData?.snapshots, selectedTrade]);
   const loading = accountLoading || marketLoading;
   const error = accountError ?? marketError;
 
@@ -82,11 +118,12 @@ export function StudentMarketsScreen({
           <Badge variant="blue">{formatInvestmentMerits(totalMarketNetWorth(account))}</Badge>
         </View>
         <MutedText>
-          Browse the educational market, fund cash from Spend, and review holdings. Buying and
-          selling open in the next mobile slice.
+          Browse the educational market, fund cash from Spend, and place reviewed buy or sell
+          trades.
         </MutedText>
       </Card>
 
+      <MarketTrendCard account={account} />
       <MarketSummary account={account} spendBalance={spendBalance} />
 
       <FundCashCard
@@ -101,11 +138,35 @@ export function StudentMarketsScreen({
       <MarketBrowseCard
         filter={filter}
         marketData={marketData}
+        onSelectBuy={(row) => {
+          setSelectedTrade({ instrumentId: row.instrument.id, side: 'buy' });
+        }}
         rows={instrumentRows}
         setFilter={setFilter}
       />
 
-      <HoldingsCard holdings={account?.holdings ?? []} loading={accountLoading} />
+      <MarketTradeTicket
+        cashBalanceMerits={account?.investmentCashMerits ?? 0}
+        draft={selectedTradeDraft}
+        error={tradeError}
+        freshness={marketData?.freshness}
+        onBuyHolding={onBuyHolding}
+        onClear={() => {
+          setSelectedTrade(null);
+        }}
+        onSellHolding={onSellHolding}
+        pendingSide={tradePendingSide}
+        status={tradeStatus}
+        studentId={studentId}
+      />
+
+      <HoldingsCard
+        holdings={account?.holdings ?? []}
+        loading={accountLoading}
+        onSelectSell={(holding) => {
+          setSelectedTrade({ instrumentId: holding.instrumentId, side: 'sell' });
+        }}
+      />
       <ActivityCard transactions={account?.transactions ?? []} />
     </View>
   );

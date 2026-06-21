@@ -16,6 +16,7 @@ import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
 import type { PublicLeaderboardKind } from './student-learning-utils';
 import { StudentMarketsScreen } from './student-markets-screen';
+import type { MarketBuyInput, MarketSellInput, MarketTradeSide } from './student-markets-utils';
 import { StudentMessagesScreen } from './student-messages-screen';
 import {
   conversationHasPastoralParticipant,
@@ -83,6 +84,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [charityStatus, setCharityStatus] = useState<string | null>(null);
   const [marketCashError, setMarketCashError] = useState<string | null>(null);
   const [marketCashStatus, setMarketCashStatus] = useState<string | null>(null);
+  const [marketTradeError, setMarketTradeError] = useState<string | null>(null);
+  const [marketTradeStatus, setMarketTradeStatus] = useState<string | null>(null);
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
   const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
@@ -144,6 +147,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const payTitheDue = api.tithe.payDue.useMutation();
   const giveToCharity = api.meritLedger.giveToCharity.useMutation();
   const fundMarketCash = api.investment.fundCash.useMutation();
+  const buyMarketHolding = api.investment.buyHolding.useMutation();
+  const sellMarketHolding = api.investment.sellHolding.useMutation();
   const markNotificationRead = api.studentNotification.markRead.useMutation({
     onSettled: () => {
       setPendingNotificationId(null);
@@ -335,6 +340,59 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     }
   }
 
+  async function refreshMarketsAfterTrade() {
+    await Promise.all([
+      investmentAccount.refetch(),
+      investmentMarket.refetch(),
+      studentWallet.refetch(),
+      studentDashboard.refetch(),
+    ]);
+  }
+
+  async function handleBuyMarketHolding(input: MarketBuyInput) {
+    if (!studentWallet.data) {
+      setMarketTradeError('Buy failed: wallet is not ready yet.');
+      setMarketTradeStatus(null);
+      return;
+    }
+
+    setMarketTradeError(null);
+    setMarketTradeStatus(null);
+
+    try {
+      const result = await buyMarketHolding.mutateAsync({
+        ...input,
+        studentId: studentWallet.data.studentId,
+      });
+      await refreshMarketsAfterTrade();
+      setMarketTradeStatus(`Buy complete: ${result.unitsBought.toFixed(4)} units`);
+    } catch (error) {
+      setMarketTradeError(`Buy failed: ${messageFromUnknown(error)}`);
+    }
+  }
+
+  async function handleSellMarketHolding(input: MarketSellInput) {
+    if (!studentWallet.data) {
+      setMarketTradeError('Sell failed: wallet is not ready yet.');
+      setMarketTradeStatus(null);
+      return;
+    }
+
+    setMarketTradeError(null);
+    setMarketTradeStatus(null);
+
+    try {
+      const result = await sellMarketHolding.mutateAsync({
+        ...input,
+        studentId: studentWallet.data.studentId,
+      });
+      await refreshMarketsAfterTrade();
+      setMarketTradeStatus(`Sell complete: ${result.unitsSold.toFixed(4)} units`);
+    } catch (error) {
+      setMarketTradeError(`Sell failed: ${messageFromUnknown(error)}`);
+    }
+  }
+
   function handleMarkNotificationRead(notificationId: string) {
     setPendingNotificationId(notificationId);
     markNotificationRead.mutate({ notificationId });
@@ -497,11 +555,23 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             marketData={investmentMarket.data}
             marketError={investmentMarket.error?.message ?? null}
             marketLoading={investmentMarket.isLoading}
+            onBuyHolding={(input) => {
+              void handleBuyMarketHolding(input);
+            }}
             onFundCash={(merits) => {
               void handleFundMarketCash(merits);
             }}
+            onSellHolding={(input) => {
+              void handleSellMarketHolding(input);
+            }}
             spendBalance={studentWallet.data?.balances.Spend ?? 0}
             studentId={studentWallet.data?.studentId}
+            tradeError={marketTradeError}
+            tradePendingSide={marketTradePendingSide(
+              buyMarketHolding.isPending,
+              sellMarketHolding.isPending,
+            )}
+            tradeStatus={marketTradeStatus}
           />
         ) : null}
 
@@ -552,10 +622,26 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   );
 }
 
+function marketTradePendingSide(buyPending: boolean, sellPending: boolean): MarketTradeSide | null {
+  if (buyPending) return 'buy';
+  if (sellPending) return 'sell';
+  return null;
+}
+
 function messageFromUnknown(error: unknown): string {
   if (error instanceof Error) {
     if (error.message === 'insufficient source balance') return 'insufficient source balance';
     if (error.message === 'insufficient Spend balance') return 'insufficient Spend balance';
+    if (error.message === 'insufficient Merit Markets cash balance') {
+      return 'insufficient Merit Markets cash balance';
+    }
+    if (error.message === 'insufficient holding units') return 'insufficient holding units';
+    if (error.message === 'investment instrument is unavailable') {
+      return 'investment instrument is unavailable';
+    }
+    if (error.message === 'investment holding is unavailable') {
+      return 'investment holding is unavailable';
+    }
     return error.message;
   }
   if (typeof error === 'string') return error;
