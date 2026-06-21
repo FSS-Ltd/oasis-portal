@@ -413,7 +413,10 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/web/src/components/community/`
   - `apps/web/src/components/student/student-nav.tsx`
 - Mobile surfaces:
-  - _None configured_
+  - `apps/mobile/src/components/student/student-community-contacts.tsx`
+  - `apps/mobile/src/components/student/student-community-screen.tsx`
+  - `apps/mobile/src/components/student/student-community-utils.ts`
+  - `apps/mobile/src/components/student/student-community-wiring.test.ts`
 - Shared or infrastructure surfaces:
   - `apps/web/src/components/providers/realtime-provider.tsx`
   - `apps/web/src/lib/realtime/events.ts`
@@ -458,7 +461,6 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/web/src/app/(admin)/`
   - `apps/web/src/app/(clubs-lead)/`
   - `apps/web/src/app/(parent)/`
-  - `apps/web/src/app/(student)/student/messages/`
   - `apps/web/src/app/(supervisor)/supervisor/shop/`
   - `apps/web/src/components/calendar/`
   - `apps/web/src/components/clubs/`
@@ -540,13 +542,24 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/mobile/src/components/student/student-learning-screen.tsx`
   - `apps/mobile/src/components/student/student-learning-status-wiring.test.ts`
   - `apps/mobile/src/components/student/student-learning-utils.ts`
-  - `apps/mobile/src/components/student/student-messages-screen.tsx`
-  - `apps/mobile/src/components/student/student-messages-utils.ts`
-  - `apps/mobile/src/components/student/student-messages-wiring.test.ts`
+  - `apps/mobile/src/components/student/student-markets-browse-card.tsx`
+  - `apps/mobile/src/components/student/student-markets-fund-cash-card.tsx`
+  - `apps/mobile/src/components/student/student-markets-portfolio-cards.tsx`
+  - `apps/mobile/src/components/student/student-markets-screen.tsx`
+  - `apps/mobile/src/components/student/student-markets-summary.tsx`
+  - `apps/mobile/src/components/student/student-markets-trade-ticket.tsx`
+  - `apps/mobile/src/components/student/student-markets-trend-card.tsx`
+  - `apps/mobile/src/components/student/student-markets-utils.ts`
+  - `apps/mobile/src/components/student/student-markets-wiring.test.ts`
+  - `apps/mobile/src/components/student/student-messages-removal-wiring.test.ts`
   - `apps/mobile/src/components/student/student-mobile-access-gate.tsx`
   - `apps/mobile/src/components/student/student-portal-screen.tsx`
+  - `apps/mobile/src/components/student/student-shop-screen.tsx`
+  - `apps/mobile/src/components/student/student-shop-wiring.test.ts`
   - `apps/mobile/src/components/student/student-wallet-actions-wiring.test.ts`
+  - `apps/mobile/src/components/student/student-wallet-charity-panel.tsx`
   - `apps/mobile/src/components/student/student-wallet-screen.tsx`
+  - `apps/mobile/src/components/student/student-wallet-tithe-panel.tsx`
   - `apps/mobile/src/components/student/student-wallet-utils.ts`
 - Shared or infrastructure surfaces:
   - `apps/api/src/emails/`
