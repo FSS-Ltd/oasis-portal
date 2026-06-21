@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
@@ -11,17 +11,13 @@ import {
 } from '../core/portal-mobile-shell';
 import { ErrorText } from '../core/mobile-ui';
 import { StudentClubsFaithScreen } from './student-clubs-faith-screen';
+import { StudentCommunityScreen } from './student-community-screen';
 import { StudentHomeworkActivityScreen } from './student-homework-activity-screen';
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
 import type { PublicLeaderboardKind } from './student-learning-utils';
 import { StudentMarketsScreen } from './student-markets-screen';
 import type { MarketBuyInput, MarketSellInput, MarketTradeSide } from './student-markets-utils';
-import { StudentMessagesScreen } from './student-messages-screen';
-import {
-  conversationHasPastoralParticipant,
-  studentDirectUnreadCount as countStudentDirectUnread,
-} from './student-messages-utils';
 import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentNotificationsScreen } from './student-notifications-screen';
 import { StudentShopScreen } from './student-shop-screen';
@@ -29,8 +25,6 @@ import { StudentWalletScreen } from './student-wallet-screen';
 import type { TithePreferenceInput, TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
-type MessagePage = RouterOutputs['message']['listConversations'];
-type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
 type StudentMobileTab =
   | 'home'
   | 'wallet'
@@ -39,10 +33,8 @@ type StudentMobileTab =
   | 'clubs'
   | 'shop'
   | 'markets'
-  | 'updates'
-  | 'messages';
-
-const messagePageSize = 20;
+  | 'community'
+  | 'updates';
 
 export function StudentPortalScreen({ user }: { user: SessionUser }) {
   const { signOut } = useClerk();
@@ -89,8 +81,6 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
   const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
-  const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
-  const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
   const studentDashboard = api.student.dashboard.useQuery(undefined, { retry: false });
   const studentWallet = api.student.wallet.useQuery(undefined, { retry: false });
   const titheStatus = api.tithe.getStatus.useQuery(undefined, {
@@ -138,10 +128,6 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     enabled: activeTab === 'markets',
     retry: false,
   });
-  const studentDirectConversations = api.message.listConversations.useQuery(
-    { cursor: messageCursor, kinds: ['StudentDirect'], limit: messagePageSize },
-    { retry: false },
-  );
   const transfer = api.meritLedger.transfer.useMutation();
   const updateTithePreference = api.tithe.updatePreference.useMutation();
   const payTitheDue = api.tithe.payDue.useMutation();
@@ -162,15 +148,6 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     },
   });
 
-  const studentDirectConversationRows = useMemo(
-    () => messagePages.flatMap(({ page }) => page.items).filter(conversationHasPastoralParticipant),
-    [messagePages],
-  );
-  const nextMessageCursor = messagePages[messagePages.length - 1]?.page.nextCursor ?? null;
-  const studentDirectUnreadCount = useMemo(
-    () => countStudentDirectUnread(studentDirectConversationRows),
-    [studentDirectConversationRows],
-  );
   const studentTabs: Array<PortalMobileNavItem<StudentMobileTab>> = [
     { id: 'home', icon: 'dashboard', label: 'Home' },
     { id: 'wallet', icon: 'wallet', label: 'Wallet' },
@@ -179,45 +156,21 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     { id: 'clubs', icon: 'clubs', label: 'Clubs' },
     { id: 'shop', icon: 'shop', label: 'Shop' },
     { id: 'markets', icon: 'wallet', label: 'Markets' },
+    { id: 'community', icon: 'messages', label: 'Community' },
     {
       id: 'updates',
       icon: 'notices',
       label: 'Updates',
       badge: studentNotificationUnread.data?.count,
     },
-    {
-      id: 'messages',
-      icon: 'messages',
-      label: 'Messages',
-      badge: studentDirectUnreadCount,
-    },
   ];
-
-  useEffect(() => {
-    if (!studentDirectConversations.data) return;
-    setMessagePages((currentPages) => {
-      const nextPage = { cursor: messageCursor, page: studentDirectConversations.data };
-      if (!messageCursor) return [nextPage];
-      const existingIndex = currentPages.findIndex((page) => page.cursor === messageCursor);
-      if (existingIndex === -1) return [...currentPages, nextPage];
-      return currentPages.map((page, index) => (index === existingIndex ? nextPage : page));
-    });
-  }, [studentDirectConversations.data, messageCursor]);
 
   async function refreshHomework() {
     await Promise.all([studentHomeworkDue.refetch(), studentHomeworkGraded.refetch()]);
   }
 
-  async function refreshMessages() {
-    setMessageCursor(undefined);
-    setMessagePages([]);
-    await utils.message.listConversations.invalidate();
-  }
-
   async function refresh() {
     setNotificationRefreshFailed(false);
-    setMessageCursor(undefined);
-    setMessagePages([]);
     try {
       await Promise.all([
         studentDashboard.refetch(),
@@ -236,7 +189,6 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
           ? investmentAccount.refetch()
           : Promise.resolve(),
         activeTab === 'markets' ? investmentMarket.refetch() : Promise.resolve(),
-        utils.message.listConversations.invalidate(),
       ]);
     } catch {
       setNotificationRefreshFailed(true);
@@ -412,8 +364,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     shopItems.isFetching ||
     shopHistory.isFetching ||
     investmentAccount.isFetching ||
-    investmentMarket.isFetching ||
-    studentDirectConversations.isFetching;
+    investmentMarket.isFetching;
   const queryError =
     studentDashboard.error?.message ??
     studentWallet.error?.message ??
@@ -575,6 +526,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
           />
         ) : null}
 
+        {activeTab === 'community' ? <StudentCommunityScreen /> : null}
+
         {activeTab === 'updates' ? (
           <StudentNotificationsScreen
             error={studentNotifications.error?.message ?? null}
@@ -595,20 +548,6 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
           />
         ) : null}
 
-        {activeTab === 'messages' ? (
-          <StudentMessagesScreen
-            conversations={studentDirectConversationRows}
-            conversationsError={studentDirectConversations.error?.message ?? null}
-            hasMore={Boolean(nextMessageCursor)}
-            loading={studentDirectConversations.isLoading}
-            loadingMore={studentDirectConversations.isFetching && Boolean(messageCursor)}
-            onLoadMore={() => {
-              if (nextMessageCursor) setMessageCursor(nextMessageCursor);
-            }}
-            onRefresh={refreshMessages}
-            refreshing={refreshing}
-          />
-        ) : null}
       </ScrollView>
 
       <PortalMobileBottomNav

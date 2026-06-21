@@ -40,22 +40,12 @@ const copy = {
     replyPlaceholder: 'Type your message...',
     conversationListLabel: 'Your contacts',
   },
-  student: {
-    eyebrow: 'Student communications',
-    heading: 'Messages',
-    sub: 'Message other students, the Head, or the Pastor.',
-    emptyTitle: 'No messages yet',
-    emptyDetail: 'Choose a contact and send your first message.',
-    replyPlaceholder: 'Type your message...',
-    conversationListLabel: 'Your contacts',
-  },
 } as const;
 
 const conversationKindByMode: Record<MessageMode, ConversationKind | null> = {
   admin: 'StaffDirect',
   parent: 'ParentStaff',
   supervisor: 'StaffDirect',
-  student: 'StudentDirect',
 };
 
 const CONVERSATION_PAGE_SIZE = 50;
@@ -139,12 +129,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   }, [conversationCursor, conversationsQuery.data]);
 
   useEffect(() => {
-    if (
-      mode === 'parent' ||
-      mode === 'student' ||
-      staffroomRequested ||
-      conversationsQuery.isLoading
-    ) {
+    if (mode === 'parent' || staffroomRequested || conversationsQuery.isLoading) {
       return;
     }
     if (conversations.some((conversation) => conversation.kind === 'Staffroom')) return;
@@ -207,7 +192,6 @@ export function MessageCentre({ mode }: MessageCentreProps) {
     if (mode === 'supervisor') {
       return `/supervisor/messages?conversationId=${encodedConversationId}`;
     }
-    if (mode === 'student') return `/student/messages?conversationId=${encodedConversationId}`;
     return `/admin/messages?conversationId=${encodedConversationId}`;
   }
 
