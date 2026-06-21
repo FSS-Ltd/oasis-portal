@@ -31,7 +31,7 @@ describe('student home and wallet mobile wiring', () => {
     expect(router).not.toMatch(/student-portal-smoke-screen/);
   });
 
-  it('uses self-scoped student read APIs and keeps shop and investment writes out of scope', () => {
+  it('uses self-scoped student read APIs and keeps shop and trading writes out of scope', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
     const wallet = readMobile('src/components/student/student-wallet-screen.tsx');
     const home = readMobile('src/components/student/student-home-screen.tsx');
@@ -52,7 +52,7 @@ describe('student home and wallet mobile wiring', () => {
       /api\.student\.heartbeat\.useMutation/,
       /api\.meritLedger\.balances\.useQuery/,
       /api\.meritLedger\.activity\.useQuery/,
-      /api\.investment\.(buy|sell|fundCash|buyHolding|sellHolding)/,
+      /api\.investment\.(buy|sell|buyHolding|sellHolding)/,
       /api\.shop\.(reserve|reserveItem|purchase|collectReservation|cancelReservation)/,
       /api\.profile\.me\.useQuery/,
       /api\.childLog\.parentDashboard/,

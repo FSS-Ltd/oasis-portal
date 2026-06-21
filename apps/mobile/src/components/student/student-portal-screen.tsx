@@ -15,6 +15,7 @@ import { StudentHomeworkActivityScreen } from './student-homework-activity-scree
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
 import type { PublicLeaderboardKind } from './student-learning-utils';
+import { StudentMarketsScreen } from './student-markets-screen';
 import { StudentMessagesScreen } from './student-messages-screen';
 import {
   conversationHasPastoralParticipant,
@@ -36,6 +37,7 @@ type StudentMobileTab =
   | 'activity'
   | 'clubs'
   | 'shop'
+  | 'markets'
   | 'updates'
   | 'messages';
 
@@ -79,6 +81,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const [tithePayStatus, setTithePayStatus] = useState<string | null>(null);
   const [charityError, setCharityError] = useState<string | null>(null);
   const [charityStatus, setCharityStatus] = useState<string | null>(null);
+  const [marketCashError, setMarketCashError] = useState<string | null>(null);
+  const [marketCashStatus, setMarketCashStatus] = useState<string | null>(null);
   const [leaderboardKind, setLeaderboardKind] = useState<PublicLeaderboardKind>('TopTithers');
   const [pendingNotificationId, setPendingNotificationId] = useState<string | null>(null);
   const [notificationRefreshFailed, setNotificationRefreshFailed] = useState(false);
@@ -123,6 +127,14 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     enabled: activeTab === 'shop',
     retry: false,
   });
+  const investmentAccount = api.investment.account.useQuery(
+    { studentId },
+    { enabled: activeTab === 'markets' && studentId.length > 0, retry: false },
+  );
+  const investmentMarket = api.investment.marketData.useQuery(undefined, {
+    enabled: activeTab === 'markets',
+    retry: false,
+  });
   const studentDirectConversations = api.message.listConversations.useQuery(
     { cursor: messageCursor, kinds: ['StudentDirect'], limit: messagePageSize },
     { retry: false },
@@ -131,6 +143,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const updateTithePreference = api.tithe.updatePreference.useMutation();
   const payTitheDue = api.tithe.payDue.useMutation();
   const giveToCharity = api.meritLedger.giveToCharity.useMutation();
+  const fundMarketCash = api.investment.fundCash.useMutation();
   const markNotificationRead = api.studentNotification.markRead.useMutation({
     onSettled: () => {
       setPendingNotificationId(null);
@@ -160,6 +173,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     { id: 'activity', icon: 'clubs', label: 'Activity' },
     { id: 'clubs', icon: 'clubs', label: 'Clubs' },
     { id: 'shop', icon: 'shop', label: 'Shop' },
+    { id: 'markets', icon: 'wallet', label: 'Markets' },
     {
       id: 'updates',
       icon: 'notices',
@@ -213,6 +227,10 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         activeTab === 'wallet' ? titheStatus.refetch() : Promise.resolve(),
         activeTab === 'shop' ? shopItems.refetch() : Promise.resolve(),
         activeTab === 'shop' ? shopHistory.refetch() : Promise.resolve(),
+        activeTab === 'markets' && studentId.length > 0
+          ? investmentAccount.refetch()
+          : Promise.resolve(),
+        activeTab === 'markets' ? investmentMarket.refetch() : Promise.resolve(),
         utils.message.listConversations.invalidate(),
       ]);
     } catch {
@@ -294,6 +312,29 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     }
   }
 
+  async function handleFundMarketCash(merits: number) {
+    if (!studentWallet.data) {
+      setMarketCashError('Funding failed: wallet is not ready yet.');
+      setMarketCashStatus(null);
+      return;
+    }
+
+    setMarketCashError(null);
+    setMarketCashStatus(null);
+
+    try {
+      await fundMarketCash.mutateAsync({ merits, studentId: studentWallet.data.studentId });
+      await Promise.all([
+        investmentAccount.refetch(),
+        studentWallet.refetch(),
+        studentDashboard.refetch(),
+      ]);
+      setMarketCashStatus('Markets cash funded');
+    } catch (error) {
+      setMarketCashError(`Funding failed: ${messageFromUnknown(error)}`);
+    }
+  }
+
   function handleMarkNotificationRead(notificationId: string) {
     setPendingNotificationId(notificationId);
     markNotificationRead.mutate({ notificationId });
@@ -312,12 +353,17 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     studentNotificationUnread.isFetching ||
     shopItems.isFetching ||
     shopHistory.isFetching ||
+    investmentAccount.isFetching ||
+    investmentMarket.isFetching ||
     studentDirectConversations.isFetching;
   const queryError =
     studentDashboard.error?.message ??
     studentWallet.error?.message ??
     (activeTab === 'wallet' ? titheStatus.error?.message : null) ??
     (activeTab === 'shop' ? (shopItems.error?.message ?? shopHistory.error?.message) : null) ??
+    (activeTab === 'markets'
+      ? (investmentAccount.error?.message ?? investmentMarket.error?.message)
+      : null) ??
     null;
 
   return (
@@ -435,6 +481,25 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             items={shopItems.data ?? []}
             loading={shopItems.isFetching || studentWallet.isFetching}
             shopError={shopItems.error?.message ?? studentWallet.error?.message ?? null}
+            spendBalance={studentWallet.data?.balances.Spend ?? 0}
+            studentId={studentWallet.data?.studentId}
+          />
+        ) : null}
+
+        {activeTab === 'markets' ? (
+          <StudentMarketsScreen
+            account={investmentAccount.data}
+            accountError={investmentAccount.error?.message ?? null}
+            accountLoading={investmentAccount.isLoading}
+            fundCashError={marketCashError}
+            fundCashPending={fundMarketCash.isPending}
+            fundCashStatus={marketCashStatus}
+            marketData={investmentMarket.data}
+            marketError={investmentMarket.error?.message ?? null}
+            marketLoading={investmentMarket.isLoading}
+            onFundCash={(merits) => {
+              void handleFundMarketCash(merits);
+            }}
             spendBalance={studentWallet.data?.balances.Spend ?? 0}
             studentId={studentWallet.data?.studentId}
           />
