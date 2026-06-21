@@ -20,6 +20,7 @@ export type PortalMobileNavIconName =
   | 'calendar'
   | 'clubs'
   | 'dashboard'
+  | 'faith'
   | 'leaderboard'
   | 'messages'
   | 'more'
@@ -378,6 +379,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
     case 'calendar':
     case 'clubs':
     case 'dashboard':
+    case 'faith':
     case 'messages':
     case 'more':
     case 'notices':
@@ -406,6 +408,8 @@ function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobil
       return <CalendarNavIcon color={color} />;
     case 'clubs':
       return <ClubsNavIcon color={color} />;
+    case 'faith':
+      return <FaithNavIcon color={color} />;
     case 'messages':
       return <MessagesNavIcon color={color} />;
     case 'leaderboard':
@@ -529,6 +533,21 @@ function PaceNavIcon({ color }: { color: string }) {
     <View style={styles.navIconBox}>
       <View style={styles.paceBook}>
         <View style={[styles.pacePage, styles.pacePageLeft, { borderColor: color }]} />
+        <View style={[styles.paceSpine, { backgroundColor: color }]} />
+        <View style={[styles.pacePage, styles.pacePageRight, { borderColor: color }]} />
+      </View>
+    </View>
+  );
+}
+
+function FaithNavIcon({ color }: { color: string }) {
+  return (
+    <View style={styles.navIconBox}>
+      <View style={styles.paceBook}>
+        <View style={[styles.pacePage, styles.pacePageLeft, { borderColor: color }]}>
+          <View style={[styles.faithCrossVertical, { backgroundColor: color }]} />
+          <View style={[styles.faithCrossHorizontal, { backgroundColor: color }]} />
+        </View>
         <View style={[styles.paceSpine, { backgroundColor: color }]} />
         <View style={[styles.pacePage, styles.pacePageRight, { borderColor: color }]} />
       </View>
@@ -704,6 +723,22 @@ const styles = StyleSheet.create({
     color: C.surface,
     fontSize: 14,
     fontWeight: '800',
+  },
+  faithCrossHorizontal: {
+    borderRadius: 1,
+    height: 2,
+    left: 3,
+    position: 'absolute',
+    top: 8,
+    width: 7,
+  },
+  faithCrossVertical: {
+    borderRadius: 1,
+    height: 11,
+    left: 5.5,
+    position: 'absolute',
+    top: 5,
+    width: 2,
   },
   logo: {
     height: 28,

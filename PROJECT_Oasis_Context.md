@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-19
+**Last updated:** 2026-06-21
 **Agent:** Technical Agent (Codex)
 **Phase:** Mobile PWA readiness rebase.
 
@@ -28,6 +28,38 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-21 mobile Faith Corner
+
+Working branch: `feat/mobile-faithcorner`.
+
+**PR scope:** Adapt the existing student web Faith Corner into a standalone
+mobile-first Faith Corner screen, reusing the current Faith Corner router and
+preserving student-safe interaction boundaries.
+
+Completed:
+
+- Added a dedicated `StudentFaithCornerScreen` for mobile students with a
+  compact hero, weekly publication state, and the existing memory verse,
+  reflection, verse-of-day, likes, and comments panels.
+- Wired a new `Faith` student mobile tab through `StudentPortalScreen`.
+- Added a local Faith mobile nav icon using the existing book icon geometry with
+  a cross detail.
+- Added source-level mobile wiring tests for the standalone Faith Corner screen
+  and student-safe API boundaries.
+- Updated component ownership metadata so Faith Corner lists the mobile surface.
+
+Verification:
+
+- `pnpm --dir apps/mobile exec vitest run src/components/student/student-faith-corner-wiring.test.ts src/components/student/student-clubs-faith-wiring.test.ts src/components/student/student-community-wiring.test.ts src/components/student/student-notifications-wiring.test.ts`
+- `pnpm --filter @oasis/mobile test`
+- `pnpm --filter @oasis/mobile typecheck`
+- `pnpm --filter @oasis/mobile lint`
+- `pnpm exec prettier --check apps/mobile/src/components/core/portal-mobile-shell.tsx apps/mobile/src/components/student/student-portal-screen.tsx apps/mobile/src/components/student/student-faith-corner-screen.tsx apps/mobile/src/components/student/student-faith-corner-wiring.test.ts scripts/generate-component-map.mjs docs/architecture/component-relationships.md`
+- `git diff --check`
+- `graphify update .`
+- `pnpm docs:component-map`
+- `pnpm --filter @oasis/mobile build:web`
 
 ## Current session - 2026-06-19 mobile PWA readiness rebase
 
