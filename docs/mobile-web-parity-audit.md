@@ -12,15 +12,18 @@ Date: 2026-06-21
 
 ### Student Portal
 
-- Web has: Home, Updates, Wallet, Merit Markets, PACE, Homework, Community, Messages, Attendance, Clubs, Faith, Ranks, Shop.
-- Mobile now has: Home, Wallet, Learning, Activity, Clubs/Faith, Shop, Updates, Messages.
+- Web has: Home, Updates, Wallet, Merit Markets, PACE, Homework, Community, Attendance, Clubs, Faith, Ranks, Shop.
+- Mobile now has: Home, Wallet, Learning, Activity, Clubs/Faith, Shop, Markets, Community, Updates.
 - Remaining differences:
-  - Merit Markets is not yet a mobile-native screen.
-  - Wallet is still behind the web wallet for tithe preference, manual tithe payment, and charity giving.
-  - Community does not have a mobile-native equivalent.
   - PACE, Attendance, and Ranks are grouped into Learning rather than separate bottom-nav entries.
   - Homework is grouped into Activity rather than a separate bottom-nav entry.
   - Clubs and Faith are grouped into one mobile flow.
+- Completed parity slices:
+  - Shop is reachable from student mobile More and the Home reward-shop card.
+  - Wallet supports tithe preferences, manual tithe payment, charity giving, and Spend/Saving transfers.
+  - Merit Markets supports portfolio overview, cash funding, browse, buy/sell trading, and Daily/Weekly/Month/3 months trend toggles.
+  - Community supports groups, student contacts, join/send/refresh states, and blocked messaging states.
+  - Student direct Messages were removed from the production student portal on web and mobile; student interaction now happens through Community groups.
 
 ### Staff, Supervisor, Admin
 
@@ -40,20 +43,13 @@ Date: 2026-06-21
    - Verify student-only access still relies on `shop.listItems`, `shop.studentHistory`, and `shop.reserve`.
 
 3. Wallet and tithe parity
-   - Add `api.tithe.getStatus` to mobile wallet.
-   - Add mobile tithe preference controls for cadence, mode, percentage/fixed amount, weekly day/monthly date.
-   - Add manual `payDue` action with disabled and error states matching web rules.
-   - Add charity giving via `api.meritLedger.giveToCharity`.
-   - Update wallet tests so tithe and charity actions are required instead of explicitly forbidden.
+   - Completed with `api.tithe.getStatus`, tithe preference controls, manual `payDue`, charity giving, and updated wallet wiring tests.
 
 4. Merit Markets parity
-   - Add a mobile `Markets` route under `More`.
-   - Start with portfolio summary, cash funding, and market browsing.
-   - Add buy/sell flows only after the mobile UI has clear confirmation, balance, stale-market, and error states.
+   - Completed with mobile `Markets` under More, portfolio summary, cash funding, market browsing, buy/sell review flows, and range trend toggles.
 
 5. Community parity
-   - Decide whether mobile needs a standalone Community route or whether existing Messages/Updates cover the first mobile use case.
-   - If needed, add it under `More` after the financial flows are complete.
+   - Completed with mobile `Community` under More, student contacts, group join/send/refresh states, and removal of ambiguous student direct Messages.
 
 6. Verification
    - Run mobile typecheck/test gates after each slice.
