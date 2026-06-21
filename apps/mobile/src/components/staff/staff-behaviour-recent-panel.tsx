@@ -30,12 +30,21 @@ export function BehaviourRecentPanel({
           <View style={styles.rowBody}>
             <View style={styles.entryHeader}>
               <Text style={styles.studentName}>{entry.studentName}</Text>
-              <Badge variant={entry.type === 'Merit' ? 'success' : 'danger'}>
-                {entry.meritDelta > 0 ? `+${String(entry.meritDelta)}` : String(entry.meritDelta)}
+              <Badge
+                variant={
+                  entry.type === 'Merit' ? 'success' : entry.type === 'General' ? 'blue' : 'danger'
+                }
+              >
+                {entry.type === 'General'
+                  ? 'General mark'
+                  : entry.meritDelta > 0
+                    ? `+${String(entry.meritDelta)}`
+                    : String(entry.meritDelta)}
               </Badge>
               {entry.visibility === 'Sensitive' ? <Badge variant="warning">Sensitive</Badge> : null}
             </View>
             <Text style={styles.entryMeta}>{entry.category}</Text>
+            {entry.type === 'General' ? <Text style={styles.entryMeta}>No merit value</Text> : null}
             {entry.note ? <Text style={styles.note}>{entry.note}</Text> : null}
           </View>
         </View>
