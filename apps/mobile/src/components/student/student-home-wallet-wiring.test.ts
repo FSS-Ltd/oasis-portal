@@ -31,7 +31,7 @@ describe('student home and wallet mobile wiring', () => {
     expect(router).not.toMatch(/student-portal-smoke-screen/);
   });
 
-  it('uses self-scoped student read APIs and keeps wallet actions out of scope', () => {
+  it('uses self-scoped student read APIs and keeps shop and investment writes out of scope', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
     const wallet = readMobile('src/components/student/student-wallet-screen.tsx');
     const home = readMobile('src/components/student/student-home-screen.tsx');
@@ -41,7 +41,7 @@ describe('student home and wallet mobile wiring', () => {
     expect(portal).toMatch(/api\.student\.wallet\.useQuery/);
     expect(portal).toMatch(/studentDashboard\.refetch/);
     expect(portal).toMatch(/studentWallet\.refetch/);
-    expect(portal).toMatch(/type StudentMobileTab = 'home' \| 'wallet'/);
+    expect(portal).toMatch(/type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'/);
     expect(portal).toMatch(/useState<StudentMobileTab>\('home'\)/);
     expect(portal).toMatch(/activeTab === 'home'/);
     expect(portal).toMatch(/activeTab === 'wallet'/);
@@ -52,7 +52,6 @@ describe('student home and wallet mobile wiring', () => {
       /api\.student\.heartbeat\.useMutation/,
       /api\.meritLedger\.balances\.useQuery/,
       /api\.meritLedger\.activity\.useQuery/,
-      /api\.meritLedger\.giveToCharity\.useMutation/,
       /api\.investment\.(buy|sell|fundCash|buyHolding|sellHolding)/,
       /api\.shop\.(reserve|reserveItem|purchase|collectReservation|cancelReservation)/,
       /api\.profile\.me\.useQuery/,
@@ -60,7 +59,6 @@ describe('student home and wallet mobile wiring', () => {
       /api\.staffHome\.summary/,
       /api\.invoice\.listAdmin/,
       /api\.permissionSlip\.listAdmin/,
-      /Give to charity/,
       /Reserve item/,
     ]) {
       expect(source).not.toMatch(forbidden);

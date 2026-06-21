@@ -22,13 +22,22 @@ import {
 } from './student-messages-utils';
 import { StudentMobileAccessGate } from './student-mobile-access-gate';
 import { StudentNotificationsScreen } from './student-notifications-screen';
+import { StudentShopScreen } from './student-shop-screen';
 import { StudentWalletScreen } from './student-wallet-screen';
 import type { TransferAccount } from './student-wallet-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type MessagePage = RouterOutputs['message']['listConversations'];
 type LoadedMessagePage = { cursor: string | undefined; page: MessagePage };
-type StudentMobileTab = 'home' | 'wallet' | 'learning' | 'activity' | 'clubs' | 'updates' | 'messages';
+type StudentMobileTab =
+  | 'home'
+  | 'wallet'
+  | 'learning'
+  | 'activity'
+  | 'clubs'
+  | 'shop'
+  | 'updates'
+  | 'messages';
 
 const messagePageSize = 20;
 
@@ -96,6 +105,14 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   const studentNotificationUnread = api.studentNotification.unreadCount.useQuery(undefined, {
     retry: false,
   });
+  const shopItems = api.shop.listItems.useQuery(undefined, {
+    enabled: activeTab === 'shop',
+    retry: false,
+  });
+  const shopHistory = api.shop.studentHistory.useQuery(undefined, {
+    enabled: activeTab === 'shop',
+    retry: false,
+  });
   const studentDirectConversations = api.message.listConversations.useQuery(
     { cursor: messageCursor, kinds: ['StudentDirect'], limit: messagePageSize },
     { retry: false },
@@ -115,10 +132,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
   });
 
   const studentDirectConversationRows = useMemo(
-    () =>
-      messagePages
-        .flatMap(({ page }) => page.items)
-        .filter(conversationHasPastoralParticipant),
+    () => messagePages.flatMap(({ page }) => page.items).filter(conversationHasPastoralParticipant),
     [messagePages],
   );
   const nextMessageCursor = messagePages[messagePages.length - 1]?.page.nextCursor ?? null;
@@ -132,6 +146,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     { id: 'learning', icon: 'pace', label: 'Learning' },
     { id: 'activity', icon: 'clubs', label: 'Activity' },
     { id: 'clubs', icon: 'clubs', label: 'Clubs' },
+    { id: 'shop', icon: 'shop', label: 'Shop' },
     {
       id: 'updates',
       icon: 'notices',
@@ -182,6 +197,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         studentHomeworkGraded.refetch(),
         studentNotifications.refetch(),
         studentNotificationUnread.refetch(),
+        activeTab === 'shop' ? shopItems.refetch() : Promise.resolve(),
+        activeTab === 'shop' ? shopHistory.refetch() : Promise.resolve(),
         utils.message.listConversations.invalidate(),
       ]);
     } catch {
@@ -189,11 +206,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     }
   }
 
-  async function handleWalletTransfer(
-    from: TransferAccount,
-    to: TransferAccount,
-    amount: number,
-  ) {
+  async function handleWalletTransfer(from: TransferAccount, to: TransferAccount, amount: number) {
     if (!studentWallet.data) {
       setTransferError('Transfer failed: wallet is not ready yet.');
       setTransferStatus(null);
@@ -231,8 +244,14 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     studentHomeworkGraded.isFetching ||
     studentNotifications.isFetching ||
     studentNotificationUnread.isFetching ||
+    shopItems.isFetching ||
+    shopHistory.isFetching ||
     studentDirectConversations.isFetching;
-  const queryError = studentDashboard.error?.message ?? studentWallet.error?.message ?? null;
+  const queryError =
+    studentDashboard.error?.message ??
+    studentWallet.error?.message ??
+    (activeTab === 'shop' ? (shopItems.error?.message ?? shopHistory.error?.message) : null) ??
+    null;
 
   return (
     <>
@@ -263,6 +282,9 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             loading={studentDashboard.isLoading}
             onOpenWallet={() => {
               setActiveTab('wallet');
+            }}
+            onOpenShop={() => {
+              setActiveTab('shop');
             }}
             wallet={studentWallet.data}
           />
@@ -315,6 +337,20 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
         ) : null}
 
         {activeTab === 'clubs' ? <StudentClubsFaithScreen /> : null}
+
+        {activeTab === 'shop' ? (
+          <StudentShopScreen
+            heldMerits={studentWallet.data?.balances.ShopReserved ?? 0}
+            history={shopHistory.data}
+            historyError={shopHistory.error?.message ?? null}
+            historyLoading={shopHistory.isFetching}
+            items={shopItems.data ?? []}
+            loading={shopItems.isFetching || studentWallet.isFetching}
+            shopError={shopItems.error?.message ?? studentWallet.error?.message ?? null}
+            spendBalance={studentWallet.data?.balances.Spend ?? 0}
+            studentId={studentWallet.data?.studentId}
+          />
+        ) : null}
 
         {activeTab === 'updates' ? (
           <StudentNotificationsScreen
