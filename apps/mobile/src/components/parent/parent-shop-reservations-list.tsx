@@ -10,18 +10,22 @@ import {
 } from './parent-shop-reservations-utils';
 
 export function ParentShopReservationsList({
+  emptyLabel = 'No current reservations for this child.',
   loading,
   reservations,
+  subtitle = 'Pickup status for this child.',
 }: {
+  emptyLabel?: string | undefined;
   loading: boolean;
   reservations: readonly ParentShopReservation[];
+  subtitle?: string | undefined;
 }) {
   return (
     <Card style={styles.compactCard}>
       <View style={styles.header}>
         <View>
           <SectionTitle>Ready reservations</SectionTitle>
-          <MutedText>Pickup status for this child.</MutedText>
+          <MutedText>{subtitle}</MutedText>
         </View>
         <Badge variant={reservations.length > 0 ? 'warning' : 'neutral'}>
           {String(reservations.length)}
@@ -35,9 +39,7 @@ export function ParentShopReservationsList({
         ))}
       </View>
       {loading ? <InlineSpinner label="Loading reservations" /> : null}
-      {reservations.length === 0 && !loading ? (
-        <MutedText>No current reservations for this child.</MutedText>
-      ) : null}
+      {reservations.length === 0 && !loading ? <MutedText>{emptyLabel}</MutedText> : null}
       {reservations.map((reservation) => (
         <View key={reservation.id} style={styles.reservationCard}>
           <View style={styles.reservationHeader}>

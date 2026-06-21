@@ -13,6 +13,7 @@ interface StudentHomeScreenProps {
   dashboard: StudentDashboard | undefined;
   error: string | null;
   loading: boolean;
+  onOpenShop: () => void;
   onOpenWallet: () => void;
   wallet: StudentWallet | undefined;
 }
@@ -21,6 +22,7 @@ export function StudentHomeScreen({
   dashboard,
   error,
   loading,
+  onOpenShop,
   onOpenWallet,
   wallet,
 }: StudentHomeScreenProps) {
@@ -113,8 +115,15 @@ export function StudentHomeScreen({
       </Card>
 
       <Card style={styles.shopCard}>
-        <Text style={styles.eyebrow}>Shop</Text>
-        <SectionTitle>Reward shop</SectionTitle>
+        <View style={styles.rowBetween}>
+          <View style={styles.shopCopy}>
+            <Text style={styles.eyebrow}>Shop</Text>
+            <SectionTitle>Reward shop</SectionTitle>
+          </View>
+          <Pressable accessibilityRole="button" onPress={onOpenShop} style={styles.walletButton}>
+            <Text style={styles.walletButtonText}>Shop</Text>
+          </Pressable>
+        </View>
         <MutedText>
           {dashboard.shortcuts.activeShopItemCount > 0
             ? `${String(dashboard.shortcuts.activeShopItemCount)} rewards are available to browse.`
@@ -245,6 +254,11 @@ const styles = StyleSheet.create({
   shopCard: {
     gap: 8,
     padding: 16,
+  },
+  shopCopy: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
   },
   signalCard: {
     gap: 10,

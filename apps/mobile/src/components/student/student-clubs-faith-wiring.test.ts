@@ -27,7 +27,7 @@ describe('student clubs and faith mobile wiring', () => {
 
     expect(portal).toMatch(/StudentClubsFaithScreen/);
     expect(portal).toMatch(
-      /type StudentMobileTab = 'home' \| 'wallet' \| 'learning' \| 'activity' \| 'clubs'/,
+      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'\s*\|\s*'learning'\s*\|\s*'activity'\s*\|\s*'clubs'/,
     );
     expect(portal).toMatch(/label: 'Clubs'/);
     expect(portal).toMatch(/icon: 'clubs'/);

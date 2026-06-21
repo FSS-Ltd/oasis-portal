@@ -25,7 +25,9 @@ describe('student learning status mobile wiring', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
 
     expect(portal).toMatch(/StudentLearningScreen/);
-    expect(portal).toMatch(/type StudentMobileTab = 'home' \| 'wallet' \| 'learning'/);
+    expect(portal).toMatch(
+      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'\s*\|\s*'learning'/,
+    );
     expect(portal).toMatch(/label: 'Learning'/);
     expect(portal).toMatch(/icon: 'pace'/);
     expect(portal).toMatch(/activeTab === 'learning'/);
