@@ -328,7 +328,10 @@ Graph confidence labels are preserved so agents can distinguish extracted code r
   - `apps/web/src/components/faith-corner/`
   - `apps/web/src/components/student/`
 - Mobile surfaces:
-  - _None configured_
+  - `apps/mobile/src/components/student/student-faith-comments-panel.tsx`
+  - `apps/mobile/src/components/student/student-faith-corner-panel.tsx`
+  - `apps/mobile/src/components/student/student-faith-corner-screen.tsx`
+  - `apps/mobile/src/components/student/student-faith-corner-wiring.test.ts`
 - Shared or infrastructure surfaces:
   - `apps/api/src/services/faith-corner.ts`
   - `packages/db/prisma/migrations/20260604034500_faith_corner_content/`

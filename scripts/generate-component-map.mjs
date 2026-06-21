@@ -193,7 +193,12 @@ const PRODUCT_MODULES = [
       'apps/web/src/components/faith-corner/',
       'apps/web/src/components/student/',
     ],
-    mobileSurfaces: [],
+    mobileSurfaces: [
+      'apps/mobile/src/components/student/student-faith-corner-screen.tsx',
+      'apps/mobile/src/components/student/student-faith-corner-panel.tsx',
+      'apps/mobile/src/components/student/student-faith-comments-panel.tsx',
+      'apps/mobile/src/components/student/student-faith-corner-wiring.test.ts',
+    ],
     sharedSurfaces: [
       'apps/api/src/services/faith-corner.ts',
       'packages/db/prisma/migrations/20260604034500_faith_corner_content/',

@@ -12,6 +12,7 @@ import {
 import { ErrorText } from '../core/mobile-ui';
 import { StudentClubsFaithScreen } from './student-clubs-faith-screen';
 import { StudentCommunityScreen } from './student-community-screen';
+import { StudentFaithCornerScreen } from './student-faith-corner-screen';
 import { StudentHomeworkActivityScreen } from './student-homework-activity-screen';
 import { StudentHomeScreen } from './student-home-screen';
 import { StudentLearningScreen } from './student-learning-screen';
@@ -31,6 +32,7 @@ type StudentMobileTab =
   | 'learning'
   | 'activity'
   | 'clubs'
+  | 'faith'
   | 'shop'
   | 'markets'
   | 'community'
@@ -154,6 +156,7 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
     { id: 'learning', icon: 'pace', label: 'Learning' },
     { id: 'activity', icon: 'clubs', label: 'Activity' },
     { id: 'clubs', icon: 'clubs', label: 'Clubs' },
+    { id: 'faith', icon: 'faith', label: 'Faith' },
     { id: 'shop', icon: 'shop', label: 'Shop' },
     { id: 'markets', icon: 'wallet', label: 'Markets' },
     { id: 'community', icon: 'messages', label: 'Community' },
@@ -481,6 +484,8 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
 
         {activeTab === 'clubs' ? <StudentClubsFaithScreen /> : null}
 
+        {activeTab === 'faith' ? <StudentFaithCornerScreen /> : null}
+
         {activeTab === 'shop' ? (
           <StudentShopScreen
             heldMerits={studentWallet.data?.balances.ShopReserved ?? 0}
@@ -547,7 +552,6 @@ function StudentPortalContent({ user }: { user: SessionUser }) {
             }
           />
         ) : null}
-
       </ScrollView>
 
       <PortalMobileBottomNav
