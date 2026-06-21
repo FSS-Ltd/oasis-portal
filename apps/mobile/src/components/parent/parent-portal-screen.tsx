@@ -46,18 +46,18 @@ const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
+  { id: 'calendar', icon: 'calendar', label: 'Calendar' },
+  { id: 'slips', icon: 'slips', label: 'Slips' },
+  { id: 'fees', icon: 'fees', label: 'Fees' },
+  { id: 'messages', icon: 'messages', label: 'Messages' },
   { id: 'child', icon: 'students', label: 'Child' },
   { id: 'notices', icon: 'notices', label: 'Notices' },
-  { id: 'messages', icon: 'messages', label: 'Messages' },
-  { id: 'reports', icon: 'leaderboard', label: 'Reports' },
-  { id: 'incidents', icon: 'notices', label: 'Incidents' },
+  { id: 'reports', icon: 'reports', label: 'Reports' },
+  { id: 'incidents', icon: 'incidents', label: 'Incidents' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
-  { id: 'fees', icon: 'wallet', label: 'Fees/Invoices' },
-  { id: 'calendar', icon: 'calendar', label: 'Calendar' },
-  { id: 'slips', icon: 'attendance', label: 'Permission Slips' },
-  { id: 'profile', icon: 'students', label: 'Profile' },
-  { id: 'settings', icon: 'students', label: 'Settings' },
+  { id: 'profile', icon: 'profile', label: 'Profile' },
+  { id: 'settings', icon: 'settings', label: 'Settings' },
 ];
 
 export function ParentPortalScreen({ user }: { user: SessionUser }) {
@@ -193,7 +193,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
               : undefined,
       }))}
       onSelect={setRoute}
-      primaryItemLimit={5}
+      primaryItemLimit={6}
     />
   );
 

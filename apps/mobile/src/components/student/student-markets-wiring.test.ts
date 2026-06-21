@@ -31,6 +31,7 @@ describe('student Merit Markets mobile wiring', () => {
     expect(portal).toMatch(/\|\s*'markets'/);
     expect(portal).toMatch(/id: 'markets'/);
     expect(portal).toMatch(/label: 'Markets'/);
+    expect(portal).toMatch(/icon: 'markets'/);
     expect(portal).toMatch(/activeTab === 'markets'/);
     expect(portal).toMatch(/<StudentMarketsScreen/);
   });

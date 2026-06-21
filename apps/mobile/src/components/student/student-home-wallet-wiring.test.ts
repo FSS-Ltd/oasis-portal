@@ -41,7 +41,9 @@ describe('student home and wallet mobile wiring', () => {
     expect(portal).toMatch(/api\.student\.wallet\.useQuery/);
     expect(portal).toMatch(/studentDashboard\.refetch/);
     expect(portal).toMatch(/studentWallet\.refetch/);
-    expect(portal).toMatch(/type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'/);
+    expect(portal).toMatch(
+      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'community'\s*\|\s*'faith'\s*\|\s*'wallet'/,
+    );
     expect(portal).toMatch(/useState<StudentMobileTab>\('home'\)/);
     expect(portal).toMatch(/activeTab === 'home'/);
     expect(portal).toMatch(/activeTab === 'wallet'/);

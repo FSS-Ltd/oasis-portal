@@ -108,6 +108,9 @@ importers:
       '@clerk/clerk-expo':
         specifier: ^2.6.0
         version: 2.19.31(40eacd6e40d043200ca54ae46fc8ea76)
+      '@expo/vector-icons':
+        specifier: 14.0.4
+        version: 14.0.4
       '@oasis/api':
         specifier: workspace:*
         version: link:../api

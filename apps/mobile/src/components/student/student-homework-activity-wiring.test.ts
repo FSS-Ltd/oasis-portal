@@ -26,10 +26,10 @@ describe('student homework activity mobile wiring', () => {
 
     expect(portal).toMatch(/StudentHomeworkActivityScreen/);
     expect(portal).toMatch(
-      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'\s*\|\s*'learning'\s*\|\s*'activity'/,
+      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'community'\s*\|\s*'faith'\s*\|\s*'wallet'\s*\|\s*'learning'\s*\|\s*'activity'/,
     );
     expect(portal).toMatch(/label: 'Activity'/);
-    expect(portal).toMatch(/icon: 'clubs'/);
+    expect(portal).toMatch(/icon: 'activity'/);
     expect(portal).toMatch(/activeTab === 'activity'/);
   });
 

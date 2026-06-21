@@ -20,12 +20,14 @@ describe('student Faith Corner mobile wiring', () => {
     const shell = readMobile('src/components/core/portal-mobile-shell.tsx');
 
     expect(portal).toMatch(/StudentFaithCornerScreen/);
-    expect(portal).toMatch(/type StudentMobileTab =[\s\S]*'clubs'[\s\S]*'faith'[\s\S]*'shop'/);
+    expect(portal).toMatch(
+      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'community'\s*\|\s*'faith'\s*\|\s*'wallet'/,
+    );
     expect(portal).toMatch(/id: 'faith', icon: 'faith', label: 'Faith'/);
     expect(portal).toMatch(/activeTab === 'faith'/);
     expect(shell).toMatch(/\|\s*'faith'/);
     expect(shell).toMatch(/case 'faith':/);
-    expect(shell).toMatch(/FaithNavIcon/);
+    expect(shell).toMatch(/return 'book-open'/);
   });
 
   it('uses student-safe Faith Corner APIs without admin publishing or moderation procedures', () => {

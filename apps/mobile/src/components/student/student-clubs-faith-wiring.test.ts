@@ -26,9 +26,7 @@ describe('student clubs and faith mobile wiring', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
 
     expect(portal).toMatch(/StudentClubsFaithScreen/);
-    expect(portal).toMatch(
-      /type StudentMobileTab =\s*\|?\s*'home'\s*\|\s*'wallet'\s*\|\s*'learning'\s*\|\s*'activity'\s*\|\s*'clubs'/,
-    );
+    expect(portal).toMatch(/type StudentMobileTab =[\s\S]*'activity'[\s\S]*'clubs'[\s\S]*'shop'/);
     expect(portal).toMatch(/label: 'Clubs'/);
     expect(portal).toMatch(/icon: 'clubs'/);
     expect(portal).toMatch(/activeTab === 'clubs'/);

@@ -21,6 +21,7 @@
   "dependencies": {
     "@babel/runtime": "7.29.2",
     "@clerk/clerk-expo": "^2.6.0",
+    "@expo/vector-icons": "14.0.4",
     "@oasis/api": "workspace:*",
     "@oasis/domain": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
