@@ -81,7 +81,7 @@ export function InstallAppButton() {
   if (Platform.OS !== 'web' || surface === 'hidden') return null;
 
   async function handlePress() {
-    if (surface === 'iosInstructions') {
+    if (surface === 'androidInstructions' || surface === 'iosInstructions') {
       setShowIosSteps((current) => !current);
       return;
     }
@@ -104,7 +104,9 @@ export function InstallAppButton() {
         <MutedText>{copy.detail}</MutedText>
         {showIosSteps ? (
           <MutedText>
-            Use Safari Share, select Add to Home Screen, then open Oasis from Home.
+            {surface === 'androidInstructions'
+              ? 'Open the browser menu, select Install app or Add to Home screen, then open Oasis from Home.'
+              : 'Use Safari Share, select Add to Home Screen, then open Oasis from Home.'}
           </MutedText>
         ) : null}
       </View>

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
+import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import {
   formatMerits,
   nextLearningSignal,
@@ -148,6 +149,8 @@ export function StudentHomeScreen({
           ))
         )}
       </Card>
+
+      <PwaHomeActions />
     </View>
   );
 }

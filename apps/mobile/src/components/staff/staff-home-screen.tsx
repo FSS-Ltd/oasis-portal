@@ -6,6 +6,7 @@ import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
+import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import {
   buildStaffHomeViewModel,
   type StaffHomeQuickAction,
@@ -255,6 +256,8 @@ export function StaffHomeScreen({
                 />
               ) : null}
             </Card>
+
+            <PwaHomeActions />
           </>
         ) : null}
       </ScrollView>

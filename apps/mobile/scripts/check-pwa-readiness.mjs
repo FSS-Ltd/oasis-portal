@@ -117,6 +117,19 @@ function checkServiceWorkerOutput(filePath) {
   if (!hasApiNavigationDenylist || !excludesApiRuntimeCaching || explicitlyCachesApiRoute) {
     fail('Generated service worker must not cache API or tRPC routes.');
   }
+
+  const notificationHandlerSnippets = [
+    ["addEventListener('push'", 'listen for Web Push events'],
+    ['showNotification', 'show browser notifications from push events'],
+    ["addEventListener('notificationclick'", 'handle notification clicks'],
+    ['clients.openWindow', 'open Oasis when a notification is clicked'],
+  ];
+
+  for (const [snippet, message] of notificationHandlerSnippets) {
+    if (!serviceWorker.includes(snippet)) {
+      fail(`Generated service worker must ${message}.`);
+    }
+  }
 }
 
 function checkOfflineFallback(filePath) {

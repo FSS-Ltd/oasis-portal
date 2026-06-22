@@ -33,7 +33,7 @@ describe('PWA install state', () => {
     expect(surface).toBe('browserPrompt');
     expect(getInstallAppCopy(surface)).toEqual({
       detail: 'Install Oasis on this device for a full-screen app experience.',
-      label: 'Install app',
+      label: 'Download app',
       title: 'Install Oasis',
     });
   });
@@ -50,7 +50,24 @@ describe('PWA install state', () => {
     expect(surface).toBe('iosInstructions');
     expect(getInstallAppCopy(surface)).toEqual({
       detail: 'Open Share in Safari, then choose Add to Home Screen.',
-      label: 'How to install',
+      label: 'Download app',
+      title: 'Add Oasis to Home Screen',
+    });
+  });
+
+  it('uses Android Add to Home Screen instructions before Chromium exposes an install prompt', () => {
+    const surface = detectPwaInstallSurface({
+      hasBeforeInstallPrompt: false,
+      isStandalone: false,
+      maxTouchPoints: 5,
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile Safari/537.36',
+    });
+
+    expect(surface).toBe('androidInstructions');
+    expect(getInstallAppCopy(surface)).toEqual({
+      detail: 'Open the browser menu, then choose Install app or Add to Home screen.',
+      label: 'Download app',
       title: 'Add Oasis to Home Screen',
     });
   });
