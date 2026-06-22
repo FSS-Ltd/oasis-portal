@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-19",
+  "lastRunDate": "2026-06-20",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -2081,6 +2081,128 @@
       ],
       "validationStatus": "pass",
       "notes": "Left unchanged after lint/type inspection."
+    },
+    "apps/mobile/src/components/parent/parent-profile-registration-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 829,
+      "lineCountAfter": 670,
+      "issuesFixed": [
+        "Extracted parent profile registration form/DTO mapping helpers into a colocated utility module.",
+        "Preserved existing query, mutation, render, and API input semantics."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1."
+    },
+    "apps/mobile/src/components/staff/staff-club-manager-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 486,
+      "lineCountAfter": 486,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/staff/staff-pace-form.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 393,
+      "lineCountAfter": 393,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/staff/staff-communications-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 372,
+      "lineCountAfter": 372,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "packages/domain/src/__tests__/shop.test.ts": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 370,
+      "lineCountAfter": 374,
+      "issuesFixed": [
+        "Named the duplicated zero-sum ledger assertion with a typed test helper.",
+        "Preserved existing shop financial expectations and scenarios."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file in pass 1."
+    },
+    "apps/mobile/src/components/staff/staff-shop-counter-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 361,
+      "lineCountAfter": 361,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/staff/staff-incident-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 355,
+      "lineCountAfter": 355,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/staff/staff-behaviour-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 346,
+      "lineCountAfter": 346,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-behaviour.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 338,
+      "lineCountAfter": 338,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/staff/staff-incident-form.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 324,
+      "lineCountAfter": 324,
+      "issuesFixed": [
+        "Reviewed for lint, type, oversized structure, imports, and safe local cleanup; no behaviour-preserving edit was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
     }
   },
   "deferredFiles": {

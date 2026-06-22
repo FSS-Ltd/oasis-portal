@@ -28,7 +28,9 @@ describe('signed-in mobile routing', () => {
     const supportPortalIndex = router.indexOf('return <TechnicalSupportPortalScreen user={user} />;');
 
     expect(
-      existsSync(path.join(mobileRoot, 'src/components/support/technical-support-portal-screen.tsx')),
+      existsSync(
+        path.join(mobileRoot, 'src/components/support/technical-support-portal-screen.tsx'),
+      ),
     ).toBe(true);
     expect(router).toContain("user?.role === 'Supervisor'");
     expect(router).toContain('TechnicalSupportPortalScreen');

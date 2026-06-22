@@ -4,10 +4,7 @@ import { httpBatchLink } from '@trpc/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import superjson from 'superjson';
 import { api } from './trpc';
-
-function trpcUrl(): string {
-  return process.env.EXPO_PUBLIC_TRPC_URL ?? 'http://localhost:3000/api/trpc';
-}
+import { trpcUrl } from './trpc-url';
 
 export function MobileTrpcProvider({ children }: { children: ReactNode }) {
   const { getToken } = useAuth();
