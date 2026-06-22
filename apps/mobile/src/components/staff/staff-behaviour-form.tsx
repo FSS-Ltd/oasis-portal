@@ -1,27 +1,35 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Card, Field, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, Field, MobileButton } from '../core/mobile-ui';
 import {
   behaviourTypes,
-  behaviourVisibilities,
+  behaviourVisibilitiesForType,
   categoryOptions,
+  formatDemeritStage,
+  generalMarkPolicyText,
   type BehaviourFormErrors,
   type BehaviourFormState,
+  type BehaviourType,
+  type DemeritStagePreview,
 } from './staff-behaviour-utils';
 
 export function BehaviourFormCard({
+  demeritPreview,
   errors,
   form,
   onChange,
   onSubmit,
+  onTypeChange,
   saving,
   selectedStudentName,
   submitted,
 }: {
+  demeritPreview: DemeritStagePreview | null;
   errors: BehaviourFormErrors;
   form: BehaviourFormState;
   onChange: (next: BehaviourFormState) => void;
   onSubmit: () => void;
+  onTypeChange: (type: BehaviourType) => void;
   saving: boolean;
   selectedStudentName: string;
   submitted: boolean;
@@ -38,11 +46,11 @@ export function BehaviourFormCard({
           <SegmentButton
             active={form.type === type}
             key={type}
-            label={type}
+            label={type === 'General' ? 'General mark' : type}
             onPress={() => {
-              onChange({ ...form, category: categoryOptions(type)[0] ?? '', type });
+              onTypeChange(type);
             }}
-            tone={type === 'Merit' ? 'success' : 'danger'}
+            tone={type === 'Merit' ? 'success' : type === 'General' ? 'default' : 'danger'}
           />
         ))}
       </View>
@@ -66,19 +74,26 @@ export function BehaviourFormCard({
         ) : null}
       </View>
 
-      {form.type === 'Merit' ? (
+      {form.type === 'Merit' || form.type === 'Demerit' ? (
         <Field
           keyboardType="numeric"
-          label="Merit amount"
+          label={form.type === 'Merit' ? 'Merit amount' : 'Demerit value'}
           onChangeText={(amount) => {
             onChange({ ...form, amount });
           }}
           value={form.amount}
         />
       ) : null}
+      {form.type === 'General' ? (
+        <View style={styles.generalNotice}>
+          <Text style={styles.generalNoticeTitle}>No merit value</Text>
+          <Text style={styles.generalNoticeText}>{generalMarkPolicyText}</Text>
+        </View>
+      ) : null}
       {submitted && errors.amount ? (
         <Text style={styles.validationText}>{errors.amount}</Text>
       ) : null}
+      {form.type === 'Demerit' ? <DemeritStagePreviewPanel preview={demeritPreview} /> : null}
 
       <Field
         label="Note"
@@ -94,7 +109,7 @@ export function BehaviourFormCard({
       <View style={styles.optionGroup}>
         <Text style={styles.fieldLabel}>Display</Text>
         <View style={styles.segmentedRow}>
-          {behaviourVisibilities.map((visibility) => (
+          {behaviourVisibilitiesForType(form.type).map((visibility) => (
             <SegmentButton
               active={form.visibility === visibility}
               key={visibility}
@@ -106,6 +121,13 @@ export function BehaviourFormCard({
             />
           ))}
         </View>
+        {form.type === 'Merit' ? (
+          <View style={styles.generalNotice}>
+            <Text style={styles.generalNoticeText}>
+              Merit entries are saved as General visibility.
+            </Text>
+          </View>
+        ) : null}
         {form.visibility === 'Sensitive' ? (
           <View style={styles.sensitiveNotice}>
             <Text style={styles.sensitiveNoticeText}>
@@ -115,13 +137,38 @@ export function BehaviourFormCard({
         ) : null}
       </View>
 
-      <SmokeButton
+      <MobileButton
         disabled={saving}
-        label={saving ? 'Saving behaviour...' : 'Save behaviour'}
+        label={
+          saving
+            ? 'Saving behaviour...'
+            : form.type === 'Demerit'
+              ? 'Save demerit'
+              : form.type === 'General'
+                ? 'Save general mark'
+                : 'Save behaviour'
+        }
         onPress={onSubmit}
         variant={form.type === 'Merit' ? 'navy' : 'primary'}
       />
     </Card>
+  );
+}
+
+function DemeritStagePreviewPanel({ preview }: { preview: DemeritStagePreview | null }) {
+  if (!preview) return null;
+
+  return (
+    <View style={[styles.stagePreview, preview.escalates ? styles.stagePreviewEscalates : null]}>
+      <Text style={styles.stagePreviewLabel}>Demerit stage preview</Text>
+      <Text style={styles.stagePreviewTitle}>
+        {formatDemeritStage(preview.previousStage)} to {formatDemeritStage(preview.nextStage)}
+      </Text>
+      {preview.escalates ? <Text style={styles.stagePreviewFlag}>Stage change</Text> : null}
+      {preview.noteRequired ? (
+        <Text style={styles.stagePreviewHint}>Note required from Stage 3.</Text>
+      ) : null}
+    </View>
   );
 }
 
@@ -195,6 +242,24 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 16,
   },
+  generalNotice: {
+    backgroundColor: C.blueLight,
+    borderColor: C.blueMid,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 10,
+  },
+  generalNoticeText: {
+    color: C.navy,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  generalNoticeTitle: {
+    color: C.navy,
+    fontSize: 12,
+    fontWeight: '900',
+  },
   optionButton: {
     backgroundColor: C.surface,
     borderColor: C.border,
@@ -267,6 +332,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 17,
+  },
+  stagePreview: {
+    backgroundColor: C.blueLight,
+    borderColor: C.blueMid,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 4,
+    padding: 10,
+  },
+  stagePreviewEscalates: {
+    backgroundColor: C.warningBg,
+    borderColor: C.warningBg,
+  },
+  stagePreviewFlag: {
+    color: C.warning,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  stagePreviewHint: {
+    color: C.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  stagePreviewLabel: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  stagePreviewTitle: {
+    color: C.navy,
+    fontSize: 13,
+    fontWeight: '900',
   },
   validationText: {
     color: C.danger,

@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
+import { C } from '../core/mobile-theme';
 import { StaffClubsPanel } from './staff-smoke-clubs';
 import {
   Badge,
@@ -13,13 +13,13 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from './smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import {
   PortalMobileBottomNav,
   PortalMobileHeader,
   type PortalMobileNavItem,
-} from './portal-mobile-shell';
+} from '../core/portal-mobile-shell';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit';
@@ -364,7 +364,7 @@ export function SupervisorSmokeScreen() {
                   </View>
                   <Badge variant={clubList.error ? 'danger' : 'blue'}>{clubDashboardCount}</Badge>
                 </View>
-                <SmokeButton
+                <MobileButton
                   compact
                   disabled={clubList.isLoading}
                   label="Open Clubs"
@@ -493,7 +493,7 @@ export function SupervisorSmokeScreen() {
               </View>
               <View style={styles.buttonRow}>
                 {behaviourTypes.map((type) => (
-                  <SmokeButton
+                  <MobileButton
                     compact
                     key={type}
                     label={type}
@@ -518,7 +518,7 @@ export function SupervisorSmokeScreen() {
                 />
               ) : null}
               <Field label="Note" multiline onChangeText={setBehaviourNote} value={behaviourNote} />
-              <SmokeButton
+              <MobileButton
                 disabled={!activeStudentId || !behaviourCategory.trim() || logBehaviour.isPending}
                 label={logBehaviour.isPending ? 'Saving behaviour...' : 'Log behaviour'}
                 onPress={() => {
@@ -568,7 +568,7 @@ export function SupervisorSmokeScreen() {
               ) : null}
               <View style={styles.buttonColumn}>
                 {(paceDetail.data?.subjects ?? []).map((subject) => (
-                  <SmokeButton
+                  <MobileButton
                     compact
                     key={subject.subjectId}
                     label={`${subject.code} #${String(subject.currentPaceNumber)}`}
@@ -582,7 +582,7 @@ export function SupervisorSmokeScreen() {
               </View>
               <View style={styles.buttonRow}>
                 {paceTestTypes.map((type) => (
-                  <SmokeButton
+                  <MobileButton
                     compact
                     disabled={type === 'FinalTest' && !selfTestExistsForPace}
                     key={type}
@@ -609,7 +609,7 @@ export function SupervisorSmokeScreen() {
                 onChangeText={setPaceScore}
                 value={paceScore}
               />
-              <SmokeButton
+              <MobileButton
                 disabled={
                   !activePaceStudentId ||
                   !activePaceSubjectId ||
@@ -886,7 +886,7 @@ function StudentPicker({
       {rows.length === 0 ? <MutedText>Load attendance to select a student.</MutedText> : null}
       <View style={styles.buttonColumn}>
         {rows.slice(0, 8).map((row) => (
-          <SmokeButton
+          <MobileButton
             compact
             key={row.studentId}
             label={`${row.studentName} · ${row.yearGroup}`}
@@ -915,7 +915,7 @@ function PaceStudentPicker({
   return (
     <View style={styles.buttonColumn}>
       {rows.slice(0, 8).map((row) => (
-        <SmokeButton
+        <MobileButton
           compact
           key={row.studentId}
           label={`${row.studentName} · ${row.yearGroupLabel}`}

@@ -13,6 +13,7 @@ import {
   instruments,
   msDay,
   percentChange,
+  portfolioRangeOptions,
   riskBand,
   sliceInstrumentSeries,
   today,
@@ -614,6 +615,8 @@ export function InvestmentStockDetail({
                   setCustomRange(null);
                   setShowCustom(false);
                 }}
+                ranges={portfolioRangeOptions}
+                showCustom={false}
                 value={range}
               />
             </div>

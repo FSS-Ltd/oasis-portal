@@ -7,8 +7,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { ErrorText, InlineSpinner, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
 import type { ConversationDetail, ConversationSummary } from './mobile-message-types';
 import { formatDateTime, formatThreadTime, unreadLabel } from './mobile-message-utils';
 

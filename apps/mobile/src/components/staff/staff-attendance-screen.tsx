@@ -1,13 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { ErrorText, InlineSpinner } from '../smoke/smoke-ui';
-import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
+import { C } from '../core/mobile-theme';
+import { ErrorText, InlineSpinner } from '../core/mobile-ui';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { AttendanceRoster, type AttendanceRowData } from './staff-attendance-roster';
 import { AttendanceSummaryCard } from './staff-attendance-summary';
+import {
+  StaffSpecialAttendanceRoster,
+  type SpecialAttendanceRowData,
+} from './staff-special-attendance-roster';
 import {
   addDays,
   countAttendanceRows,
@@ -15,9 +19,12 @@ import {
   dateKeyInSchoolTimeZone,
   formatAttendanceDate,
   type AttendanceDraft,
+  type AttendanceStatus,
+  type SpecialAttendanceRegister,
 } from './staff-attendance-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
+type AttendanceMode = 'daily' | 'special';
 
 export function StaffAttendanceScreen({
   onBack,
@@ -29,12 +36,27 @@ export function StaffAttendanceScreen({
   const { signOut } = useClerk();
   const utils = api.useUtils();
   const [dateKey, setDateKey] = useState(() => dateKeyInSchoolTimeZone(new Date()));
+  const [attendanceMode, setAttendanceMode] = useState<AttendanceMode>('daily');
   const [drafts, setDrafts] = useState<Record<string, AttendanceDraft | undefined>>({});
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
+  const [pendingSpecialStudentId, setPendingSpecialStudentId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const roster = api.attendance.forDate.useQuery({ date: dateFromKey(dateKey) }, { retry: false });
+  const [specialRegister, setSpecialRegister] = useState<SpecialAttendanceRegister>('FieldTrip');
+  const [specialDestination, setSpecialDestination] = useState('');
+  const selectedDate = useMemo(() => dateFromKey(dateKey), [dateKey]);
+  const roster = api.attendance.forDate.useQuery({ date: selectedDate }, { retry: false });
+  const specialRoster = api.attendance.specialForDate.useQuery(
+    { date: selectedDate, register: specialRegister },
+    { enabled: attendanceMode === 'special', retry: false },
+  );
   const rows = roster.data ?? [];
+  const specialRows = specialRoster.data?.rows ?? [];
+  const sessionDestination = specialRoster.data?.session.destination ?? '';
   const counts = useMemo(() => countAttendanceRows(rows), [rows]);
+
+  useEffect(() => {
+    setSpecialDestination(sessionDestination);
+  }, [dateKey, sessionDestination, specialRegister]);
 
   const markAttendance = api.attendance.mark.useMutation({
     onError: (error) => {
@@ -51,14 +73,53 @@ export function StaffAttendanceScreen({
       ]);
     },
   });
+  const saveSpecialSession = api.attendance.saveSpecialSession.useMutation({
+    onError: (error) => {
+      setStatusMessage(error.message);
+    },
+    onSuccess: async (saved) => {
+      setSpecialDestination(saved.destination ?? '');
+      setStatusMessage('Special attendance destination saved.');
+      await utils.attendance.specialForDate.invalidate({
+        date: dateFromKey(saved.date),
+        register: saved.register,
+      });
+    },
+  });
+  const markSpecialAttendance = api.attendance.markSpecial.useMutation({
+    onError: (error) => {
+      setStatusMessage(error.message);
+      setPendingSpecialStudentId(null);
+    },
+    onSuccess: async (saved) => {
+      setStatusMessage(`Special attendance saved: ${saved.status}`);
+      setPendingSpecialStudentId(null);
+      await Promise.all([
+        utils.attendance.specialForDate.invalidate({
+          date: dateFromKey(saved.date),
+          register: saved.register,
+        }),
+        utils.staffHome.summary.invalidate(),
+      ]);
+    },
+  });
 
   async function refresh() {
+    if (attendanceMode === 'special') {
+      await specialRoster.refetch();
+      return;
+    }
     await roster.refetch();
   }
 
   function changeDate(nextDate: string) {
     setDateKey(nextDate);
     setDrafts({});
+    setStatusMessage(null);
+  }
+
+  function changeMode(nextMode: AttendanceMode) {
+    setAttendanceMode(nextMode);
     setStatusMessage(null);
   }
 
@@ -69,6 +130,26 @@ export function StaffAttendanceScreen({
       absenceReason: draft.status === 'Absent' ? draft.absenceReason : null,
       date: dateFromKey(dateKey),
       status: draft.status,
+      studentId: row.studentId,
+    });
+  }
+
+  function saveSpecialDestination() {
+    setStatusMessage(null);
+    saveSpecialSession.mutate({
+      date: selectedDate,
+      destination: specialDestination,
+      register: specialRegister,
+    });
+  }
+
+  function saveSpecialRow(row: SpecialAttendanceRowData, status: AttendanceStatus) {
+    setPendingSpecialStudentId(row.studentId);
+    setStatusMessage(null);
+    markSpecialAttendance.mutate({
+      date: selectedDate,
+      register: specialRegister,
+      status,
       studentId: row.studentId,
     });
   }
@@ -127,6 +208,26 @@ export function StaffAttendanceScreen({
           </View>
         </View>
 
+        <View style={styles.modeCard}>
+          <Text style={styles.modeLabel}>Attendance type</Text>
+          <View style={styles.modeActions}>
+            <ModeButton
+              active={attendanceMode === 'daily'}
+              label="Student register"
+              onPress={() => {
+                changeMode('daily');
+              }}
+            />
+            <ModeButton
+              active={attendanceMode === 'special'}
+              label="Trips & locations"
+              onPress={() => {
+                changeMode('special');
+              }}
+            />
+          </View>
+        </View>
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           refreshControl={
@@ -134,7 +235,12 @@ export function StaffAttendanceScreen({
               onRefresh={() => {
                 void refresh();
               }}
-              refreshing={roster.isFetching || markAttendance.isPending}
+              refreshing={
+                roster.isFetching ||
+                markAttendance.isPending ||
+                specialRoster.isFetching ||
+                markSpecialAttendance.isPending
+              }
             />
           }
           showsVerticalScrollIndicator={false}
@@ -143,13 +249,17 @@ export function StaffAttendanceScreen({
             <View
               style={[
                 styles.statusMessage,
-                markAttendance.error ? styles.errorMessage : styles.successMessage,
+                markAttendance.error || markSpecialAttendance.error || saveSpecialSession.error
+                  ? styles.errorMessage
+                  : styles.successMessage,
               ]}
             >
               <Text
                 style={[
                   styles.statusMessageText,
-                  markAttendance.error ? styles.errorMessageText : styles.successMessageText,
+                  markAttendance.error || markSpecialAttendance.error || saveSpecialSession.error
+                    ? styles.errorMessageText
+                    : styles.successMessageText,
                 ]}
               >
                 {statusMessage}
@@ -157,10 +267,14 @@ export function StaffAttendanceScreen({
             </View>
           ) : null}
 
-          {roster.isLoading ? <InlineSpinner label="Loading attendance roster" /> : null}
-          {roster.error ? <ErrorText>{roster.error.message}</ErrorText> : null}
+          {attendanceMode === 'daily' && roster.isLoading ? (
+            <InlineSpinner label="Loading attendance roster" />
+          ) : null}
+          {attendanceMode === 'daily' && roster.error ? (
+            <ErrorText>{roster.error.message}</ErrorText>
+          ) : null}
 
-          {!roster.isLoading && !roster.error ? (
+          {attendanceMode === 'daily' && !roster.isLoading && !roster.error ? (
             <>
               <AttendanceSummaryCard counts={counts} />
               <AttendanceRoster
@@ -175,9 +289,52 @@ export function StaffAttendanceScreen({
               />
             </>
           ) : null}
+          {attendanceMode === 'special' ? (
+            <StaffSpecialAttendanceRoster
+              destination={specialDestination}
+              error={specialRoster.error?.message ?? null}
+              loading={specialRoster.isLoading}
+              onChangeDestination={setSpecialDestination}
+              onChangeRegister={(nextRegister) => {
+                setSpecialRegister(nextRegister);
+                setStatusMessage(null);
+              }}
+              onSaveDestination={saveSpecialDestination}
+              onSaveRow={saveSpecialRow}
+              pendingStudentId={pendingSpecialStudentId}
+              register={specialRegister}
+              rows={specialRows}
+              saving={markSpecialAttendance.isPending}
+              savingDestination={saveSpecialSession.isPending}
+              sessionDestination={sessionDestination}
+            />
+          ) : null}
         </ScrollView>
       </View>
     </SafeAreaView>
+  );
+}
+
+function ModeButton({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={[styles.modeButton, active ? styles.modeButtonActive : null]}
+    >
+      <Text style={[styles.modeButtonText, active ? styles.modeButtonTextActive : null]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -250,6 +407,48 @@ const styles = StyleSheet.create({
     color: C.danger,
   },
   eyebrow: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  modeActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeButton: {
+    alignItems: 'center',
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    flex: 1,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  modeButtonActive: {
+    backgroundColor: C.blueLight,
+    borderColor: C.blueMid,
+  },
+  modeButtonText: {
+    color: C.textSecondary,
+    fontSize: 12,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  modeButtonTextActive: {
+    color: C.navy,
+  },
+  modeCard: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+    padding: 12,
+  },
+  modeLabel: {
     color: C.textMuted,
     fontSize: 11,
     fontWeight: '900',

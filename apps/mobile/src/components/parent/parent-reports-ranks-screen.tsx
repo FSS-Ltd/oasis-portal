@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -9,8 +9,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import { ParentChildHero } from './parent-child-hero';
 import { ParentChildSwitcher } from './parent-child-switcher';
 import {
@@ -198,7 +198,7 @@ function ReportListCard({
             </MutedText>
           </View>
           <Badge variant="success">{report.status}</Badge>
-          <SmokeButton
+          <MobileButton
             compact
             label={report.id === selectedReportId ? 'Selected' : 'View'}
             onPress={() => {
@@ -358,7 +358,7 @@ function RanksCard({
         ))}
         <View style={styles.buttonGrid}>
           {leaderboardOptions.map((option) => (
-            <SmokeButton
+            <MobileButton
               compact
               key={option.kind}
               label={option.label}

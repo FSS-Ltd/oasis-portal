@@ -55,8 +55,10 @@ describe('staff behaviour mobile wiring', () => {
 
     assert.match(screen, /api\.attendance\.forDate\.useQuery/);
     assert.match(screen, /api\.behaviour\.recentEntries\.useQuery/);
+    assert.match(screen, /api\.behaviour\.dailyDemeritStatuses\.useQuery/);
     assert.match(screen, /api\.behaviour\.log\.useMutation/);
     assert.match(screen, /utils\.behaviour\.recentEntries\.invalidate/);
+    assert.match(screen, /utils\.behaviour\.dailyDemeritStatuses\.invalidate/);
     assert.match(screen, /utils\.staffHome\.summary\.invalidate/);
     assert.doesNotMatch(screen, /api\.behaviour\.dailyMerits/);
     assert.doesNotMatch(screen, /api\.behaviour\.trends/);
@@ -80,5 +82,36 @@ describe('staff behaviour mobile wiring', () => {
     assert.match(utils, /Enter a positive merit amount/);
     assert.match(utils, /Choose a student/);
     assert.match(recent, /No behaviour entries have been logged today/);
+  });
+
+  it('matches web Merit, Demerit, General, Sensitive, and escalation behaviour', () => {
+    const screen = read('src/components/staff/staff-behaviour-screen.tsx');
+    const form = read('src/components/staff/staff-behaviour-form.tsx');
+    const recent = read('src/components/staff/staff-behaviour-recent-panel.tsx');
+    const utils = read('src/components/staff/staff-behaviour-utils.ts');
+
+    assert.match(utils, /'General'/);
+    assert.match(utils, /generalCategories/);
+    assert.match(utils, /behaviourVisibilitiesForType/);
+    assert.match(utils, /previewSingleDemeritStage/);
+    assert.match(utils, /demeritPolicyStageLabel/);
+    assert.match(utils, /General marks have no merit value/);
+    assert.match(utils, /Enter a positive demerit value/);
+
+    assert.match(form, /General mark/);
+    assert.match(form, /Demerit value/);
+    assert.match(form, /No merit value/);
+    assert.match(form, /Demerit stage preview/);
+    assert.match(form, /Stage change/);
+    assert.match(form, /Note required from Stage 3/);
+    assert.match(form, /behaviourVisibilitiesForType/);
+
+    assert.match(screen, /defaultVisibilityForType/);
+    assert.match(screen, /case 'Merit':[\s\S]*return 'General'/);
+    assert.match(screen, /case 'Demerit':[\s\S]*case 'General':[\s\S]*return 'Sensitive'/);
+    assert.match(screen, /previewSingleDemeritStage/);
+
+    assert.match(recent, /General mark/);
+    assert.match(recent, /No merit value/);
   });
 });

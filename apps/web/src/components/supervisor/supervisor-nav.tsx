@@ -16,6 +16,7 @@ import {
   ReceiptText,
   ShieldAlert,
   ShoppingBag,
+  Smartphone,
   Star,
 } from 'lucide-react';
 
@@ -35,6 +36,7 @@ const navItems = [
   { href: '/supervisor/noticeboard', label: 'Noticeboard', icon: Bell },
   { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList },
   { href: '/supervisor/notes-history', label: 'Notes History', icon: FileText },
+  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
 
 const preferredMobileLabels = [

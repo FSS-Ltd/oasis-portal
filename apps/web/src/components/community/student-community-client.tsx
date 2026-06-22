@@ -15,6 +15,7 @@ import {
   type CommunityGroup,
   type CommunityMessage,
 } from './community-types';
+import { StudentCommunityContacts } from './student-community-contacts';
 
 interface PendingMessage {
   id: string;
@@ -356,6 +357,10 @@ export function StudentCommunityClient() {
                 </Button>
               ) : null}
             </div>
+          ) : null}
+
+          {selectedGroup ? (
+            <StudentCommunityContacts currentStudentId={currentStudentId} group={selectedGroup} />
           ) : null}
 
           {!selectedGroup ? (

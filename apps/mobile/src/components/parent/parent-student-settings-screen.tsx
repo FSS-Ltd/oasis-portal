@@ -14,8 +14,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import { parentStudentSettingsStyles as styles } from './parent-student-settings-styles';
 import {
   ChildIcon,
@@ -304,7 +304,7 @@ function CredentialsCard({
             secureTextEntry
             value={createPasswordValue}
           />
-          <SmokeButton
+          <MobileButton
             disabled={disabled || busy}
             label="Create login"
             onPress={() => {
@@ -316,7 +316,7 @@ function CredentialsCard({
         <>
           <MutedText>Login handle display and reset controls for the linked student account.</MutedText>
           <Field label="Login handle" onChangeText={setLoginHandle} value={loginHandle} />
-          <SmokeButton
+          <MobileButton
             disabled={disabled || busy}
             label="Save handle"
             onPress={() => {
@@ -330,7 +330,7 @@ function CredentialsCard({
             secureTextEntry
             value={resetPasswordValue}
           />
-          <SmokeButton
+          <MobileButton
             disabled={disabled || busy || resetPasswordValue.length === 0}
             label="Reset password"
             onPress={() => {
@@ -435,7 +435,7 @@ function UsageLimitsCard({
           );
         })}
       </View>
-      <SmokeButton
+      <MobileButton
         disabled={disabled || setUsageLimits.isPending}
         label="Save limits"
         onPress={() => {
@@ -534,7 +534,7 @@ function ChildIconCard({
         onChangeText={setSizeBytes}
         value={sizeBytes}
       />
-      <SmokeButton
+      <MobileButton
         disabled={disabled || busy}
         label="Prepare icon upload"
         onPress={() => {
@@ -549,7 +549,7 @@ function ChildIconCard({
             Upload the selected file to Oasis storage, then confirm it here so the child icon
             record is updated.
           </MutedText>
-          <SmokeButton
+          <MobileButton
             disabled={disabled || busy}
             label="Confirm uploaded icon"
             onPress={() => {
@@ -623,7 +623,7 @@ function AccessControlsCard({
         value={lockReason}
       />
       <View style={styles.actionRow}>
-        <SmokeButton
+        <MobileButton
           disabled={disabled || busy}
           label={child.parentAccountLocked ? 'Clear lock' : 'Apply lock'}
           onPress={() => {

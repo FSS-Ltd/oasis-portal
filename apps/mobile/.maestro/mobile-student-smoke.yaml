@@ -1,0 +1,17 @@
+appId: uk.oasis.portal
+name: Student mobile login and navigation smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible: Oasis Learning Centre
+- assertVisible: Staff and family mobile portal
+- tapOn: Email
+- inputText: ${E2E_STUDENT_EMAIL}
+- tapOn: Password
+- inputText: ${E2E_STUDENT_PASSWORD}
+- tapOn: Sign in
+- assertVisible: Student Portal
+- assertVisible: Home
+- assertVisible: Wallet
+- tapOn: Wallet
+- assertVisible: Wallet

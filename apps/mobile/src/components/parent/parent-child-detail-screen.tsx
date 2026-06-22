@@ -1,7 +1,7 @@
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 import { ParentChildHero } from './parent-child-hero';
 import { ParentChildSwitcher } from './parent-child-switcher';
 import { ParentMeritWalletPreview } from './parent-home-summary-cards';

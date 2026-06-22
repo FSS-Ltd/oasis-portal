@@ -3,23 +3,26 @@ import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   PortalMobileBottomNav,
   PortalMobileHeader,
   type PortalMobileNavItem,
-} from '../smoke/portal-mobile-shell';
-import { Card, ErrorText, MutedText, SectionTitle } from '../smoke/smoke-ui';
-import { MobileShopReservationPanel } from '../smoke/student-smoke-shop';
+} from '../core/portal-mobile-shell';
+import { Card, ErrorText, MutedText, SectionTitle } from '../core/mobile-ui';
+import { ParentCalendarScreen } from './parent-calendar-screen';
 import { ParentChildDetailScreen } from './parent-child-detail-screen';
 import { ParentClubsScreen } from './parent-clubs-screen';
+import { ParentFeesInvoicesScreen } from './parent-fees-invoices-screen';
 import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
 import { ParentMessagesScreen } from './parent-messages-screen';
 import { ParentNoticesScreen } from './parent-notices-screen';
+import { ParentPermissionSlipsScreen } from './parent-permission-slips-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
+import { ParentShopReservationsScreen } from './parent-shop-reservations-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
@@ -34,21 +37,27 @@ type ParentPortalRoute =
   | 'messages'
   | 'clubs'
   | 'shop'
+  | 'fees'
+  | 'calendar'
+  | 'slips'
   | 'profile'
   | 'settings';
 const messagePageSize = 20;
 
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
+  { id: 'calendar', icon: 'calendar', label: 'Calendar' },
+  { id: 'slips', icon: 'slips', label: 'Slips' },
+  { id: 'fees', icon: 'fees', label: 'Fees' },
+  { id: 'messages', icon: 'messages', label: 'Messages' },
   { id: 'child', icon: 'students', label: 'Child' },
   { id: 'notices', icon: 'notices', label: 'Notices' },
-  { id: 'messages', icon: 'messages', label: 'Messages' },
-  { id: 'reports', icon: 'leaderboard', label: 'Reports' },
-  { id: 'incidents', icon: 'notices', label: 'Incidents' },
+  { id: 'reports', icon: 'reports', label: 'Reports' },
+  { id: 'incidents', icon: 'incidents', label: 'Incidents' },
   { id: 'clubs', icon: 'clubs', label: 'Clubs' },
   { id: 'shop', icon: 'shop', label: 'Shop' },
-  { id: 'profile', icon: 'students', label: 'Profile' },
-  { id: 'settings', icon: 'students', label: 'Settings' },
+  { id: 'profile', icon: 'profile', label: 'Profile' },
+  { id: 'settings', icon: 'settings', label: 'Settings' },
 ];
 
 export function ParentPortalScreen({ user }: { user: SessionUser }) {
@@ -77,6 +86,25 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
   );
   const shopItems = api.shop.listItems.useQuery(undefined, {
     enabled: route === 'shop',
+    retry: false,
+  });
+  const shopReservations = api.shop.listReservations.useQuery(undefined, {
+    enabled: route === 'shop',
+    retry: false,
+  });
+  const permissionSlips = api.permissionSlip.listParent.useQuery(undefined, {
+    enabled: route === 'slips',
+    retry: false,
+  });
+  const parentInvoices = api.invoice.listParent.useQuery(
+    { status: 'All' },
+    {
+      enabled: route === 'fees',
+      retry: false,
+    },
+  );
+  const parentCalendar = api.calendar.listForParents.useQuery(undefined, {
+    enabled: route === 'calendar',
     retry: false,
   });
   const utils = api.useUtils();
@@ -116,6 +144,10 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
       clubNotices.refetch(),
       selectedStudentId ? balances.refetch() : Promise.resolve(),
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
+      route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
+      route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
+      route === 'calendar' ? parentCalendar.refetch() : Promise.resolve(),
+      route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
 
@@ -129,7 +161,11 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     clubSignupContext.isFetching ||
     clubNotices.isFetching ||
     balances.isFetching ||
-    shopItems.isFetching;
+    shopItems.isFetching ||
+    shopReservations.isFetching ||
+    parentInvoices.isFetching ||
+    parentCalendar.isFetching ||
+    permissionSlips.isFetching;
   const queryError =
     dashboard.error?.message ??
     profile.error?.message ??
@@ -139,6 +175,10 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     clubSignupContext.error?.message ??
     balances.error?.message ??
     shopItems.error?.message ??
+    shopReservations.error?.message ??
+    parentInvoices.error?.message ??
+    parentCalendar.error?.message ??
+    permissionSlips.error?.message ??
     null;
   const bottomNav = (
     <PortalMobileBottomNav
@@ -153,7 +193,7 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
               : undefined,
       }))}
       onSelect={setRoute}
-      primaryItemLimit={5}
+      primaryItemLimit={6}
     />
   );
 
@@ -285,15 +325,20 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
           ) : null}
           {route === 'shop' ? (
             selectedChild ? (
-              <MobileShopReservationPanel
+              <ParentShopReservationsScreen
+                children={children}
                 heldMerits={balances.data?.balances.ShopReserved ?? 0}
                 items={shopItems.data ?? []}
                 loading={shopItems.isFetching || balances.isFetching}
-                ownerName={selectedChild.student.fullName}
+                reservations={shopReservations.data ?? []}
+                reservationsError={shopReservations.error?.message ?? null}
+                reservationsLoading={shopReservations.isFetching}
+                selectedChild={selectedChild}
+                shopError={shopItems.error?.message ?? balances.error?.message ?? null}
                 spendBalance={
                   balances.data?.balances.Spend ?? selectedChild.metrics.meritBalances.Spend
                 }
-                studentId={selectedChild.student.id}
+                onSelectChild={setSelectedChildId}
               />
             ) : (
               <Card>
@@ -301,6 +346,27 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
                 <MutedText>Link a child before reserving shop items.</MutedText>
               </Card>
             )
+          ) : null}
+          {route === 'slips' ? (
+            <ParentPermissionSlipsScreen
+              error={permissionSlips.error?.message ?? null}
+              loading={permissionSlips.isFetching}
+              slips={permissionSlips.data?.slips ?? []}
+            />
+          ) : null}
+          {route === 'fees' ? (
+            <ParentFeesInvoicesScreen
+              data={parentInvoices.data}
+              error={parentInvoices.error?.message ?? null}
+              loading={parentInvoices.isFetching}
+            />
+          ) : null}
+          {route === 'calendar' ? (
+            <ParentCalendarScreen
+              error={parentCalendar.error?.message ?? null}
+              events={parentCalendar.data ?? []}
+              loading={parentCalendar.isFetching}
+            />
           ) : null}
         </ScrollView>
       )}

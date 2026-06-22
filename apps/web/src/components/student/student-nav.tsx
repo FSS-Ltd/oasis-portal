@@ -12,6 +12,7 @@ import {
   Medal,
   MessageCircle,
   ShoppingBag,
+  Smartphone,
   TrendingUp,
   UsersRound,
   Wallet,
@@ -19,19 +20,29 @@ import {
 import { api } from '@/lib/trpc';
 
 const studentNavItems = [
-  { href: '/student', label: 'Home', icon: Home, bottomNav: true },
+  { href: '/student', label: 'Home', icon: Home },
   { href: '/student/notifications', label: 'Updates', icon: Bell, badge: true },
-  { href: '/student/wallet', label: 'Wallet', icon: Wallet, bottomNav: true },
+  { href: '/student/wallet', label: 'Wallet', icon: Wallet },
   { href: '/student/invest', label: 'Merit Markets', icon: TrendingUp },
   { href: '/student/pace', label: 'PACE', icon: BookOpenCheck },
-  { href: '/student/homework', label: 'Homework', icon: ClipboardList, bottomNav: true },
-  { href: '/student/community', label: 'Community', icon: MessageCircle, bottomNav: true },
-  { href: '/student/messages', label: 'Messages', icon: MessageCircle, bottomNav: true },
+  { href: '/student/homework', label: 'Homework', icon: ClipboardList },
+  { href: '/student/community', label: 'Community', icon: MessageCircle },
   { href: '/student/attendance', label: 'Attendance', icon: CalendarCheck },
   { href: '/student/clubs', label: 'Clubs', icon: UsersRound },
-  { href: '/student/faith', label: 'Faith', icon: BookOpenText, bottomNav: true },
+  { href: '/student/faith', label: 'Faith', icon: BookOpenText },
   { href: '/student/ranks', label: 'Ranks', icon: Medal },
-  { href: '/student/shop', label: 'Shop', icon: ShoppingBag, bottomNav: true },
+  { href: '/student/shop', label: 'Shop', icon: ShoppingBag },
+  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
+] as const;
+
+type StudentNavItem = (typeof studentNavItems)[number];
+
+const studentBottomNavHrefs = [
+  '/student',
+  '/student/community',
+  '/student/faith',
+  '/student/wallet',
+  '/student/shop',
 ] as const;
 
 const navIconSize = 16;
@@ -130,15 +141,16 @@ export function StudentSidebarNav() {
 
 export function StudentBottomNav() {
   const pathname = usePathname() ?? '';
-  const unreadBadge = useStudentNotificationBadge();
-  const navItems = useVisibleStudentNavItems().filter((item) => 'bottomNav' in item);
+  const visibleItems = useVisibleStudentNavItems();
+  const navItems = studentBottomNavHrefs
+    .map((href) => visibleItems.find((item) => item.href === href))
+    .filter((item): item is StudentNavItem => Boolean(item));
 
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
       {navItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
-        const badge = badgeForItem(item, unreadBadge);
         const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -152,7 +164,6 @@ export function StudentBottomNav() {
           >
             <Icon aria-hidden="true" size={navIconSize} />
             <span>{item.label}</span>
-            {badge ? <b>{badge}</b> : null}
           </Link>
         );
       })}

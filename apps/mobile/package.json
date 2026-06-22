@@ -8,9 +8,12 @@
     "ios": "node ../../scripts/with-env.mjs expo start --ios",
     "android": "node ../../scripts/with-env.mjs expo start --android",
     "build:web": "node ../../scripts/with-env.mjs expo export --platform web --output-dir dist && node scripts/generate-service-worker.mjs dist && node scripts/check-pwa-readiness.mjs dist",
+    "eas": "pnpm dlx eas-cli@^13.0.0",
+    "eas:check": "node scripts/check-eas-build-config.mjs",
     "serve:web": "node scripts/serve-web-export.mjs dist",
     "pwa:check": "node scripts/check-pwa-readiness.mjs",
     "test": "vitest run && node --test tests/**/*.test.mjs",
+    "test:e2e": "node ../../scripts/with-env.mjs node scripts/run-maestro-e2e.mjs",
     "test:pwa": "playwright test --config playwright.pwa.config.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app src"
@@ -18,6 +21,7 @@
   "dependencies": {
     "@babel/runtime": "7.29.2",
     "@clerk/clerk-expo": "^2.6.0",
+    "@expo/vector-icons": "14.0.4",
     "@oasis/api": "workspace:*",
     "@oasis/domain": "workspace:*",
     "@tanstack/react-query": "^5.62.0",

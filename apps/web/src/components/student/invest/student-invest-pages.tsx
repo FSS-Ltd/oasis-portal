@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { ArrowRight, Info } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
   capitalGainsTaxPct,
+  chartSeriesForRange,
   formatMerits,
   formatSignedMerits,
+  portfolioRangeOptions,
   withdrawFeePct,
   type AccountHolding,
   type ChartSeries,
@@ -21,7 +23,7 @@ const QUICK_AMOUNTS = [5, 10, 25] as const;
 interface PortfolioPageProps {
   holdings: readonly AccountHolding[];
   loading: boolean;
-  navSeries: ChartSeries;
+  portfolioSeries: ChartSeries;
   portfolioCostBasisMerits: number;
   portfolioReturnMerits: number;
   portfolioValueMerits: number;
@@ -51,12 +53,16 @@ function parseWholeMerits(value: string): number {
 export function InvestmentPortfolioPage({
   holdings,
   loading,
-  navSeries,
+  portfolioSeries,
   portfolioCostBasisMerits,
   portfolioReturnMerits,
   portfolioValueMerits,
 }: PortfolioPageProps) {
   const [range, setRange] = useState<RangeId>('1M');
+  const series = useMemo(
+    () => chartSeriesForRange(portfolioSeries, range),
+    [portfolioSeries, range],
+  );
 
   return (
     <>
@@ -89,10 +95,16 @@ export function InvestmentPortfolioPage({
               <span className={styles.smallText}>all time</span>
             </div>
           </div>
-          <RangeTabs onCustom={() => {}} onRange={setRange} value={range} />
+          <RangeTabs
+            onCustom={() => {}}
+            onRange={setRange}
+            ranges={portfolioRangeOptions}
+            showCustom={false}
+            value={range}
+          />
         </div>
-        {navSeries.points.length > 0 ? (
-          <AreaChart height={300} series={navSeries} />
+        {series.points.length > 0 ? (
+          <AreaChart height={300} series={series} />
         ) : (
           <p className={styles.emptyState}>Portfolio growth appears after market history loads.</p>
         )}
@@ -314,11 +326,13 @@ function HoldingsTable({ holdings }: { holdings: readonly AccountHolding[] }) {
       <table className={styles.table}>
         <thead>
           <tr>
-            {['Holding', 'Price', 'Units', 'Value', 'Total return', 'Weight'].map((label) => (
-              <th className={styles.tableHead} key={label}>
-                {label}
-              </th>
-            ))}
+            {['Holding', 'Price', 'Units', 'Value', 'Today', 'Total return', 'Weight'].map(
+              (label) => (
+                <th className={styles.tableHead} key={label}>
+                  {label}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
@@ -337,6 +351,17 @@ function HoldingsTable({ holdings }: { holdings: readonly AccountHolding[] }) {
               <td>{holding.units.toFixed(2)}</td>
               <td>
                 <strong>{formatMerits(holding.currentValueMerits, 1)}</strong>
+              </td>
+              <td>
+                <span
+                  className={
+                    holding.dayChangeMerits >= 0 ? styles.positiveText : styles.negativeText
+                  }
+                >
+                  {formatSignedMerits(holding.dayChangeMerits, 1)} (
+                  {holding.dayChangePct >= 0 ? '+' : ''}
+                  {holding.dayChangePct.toFixed(2)}%)
+                </span>
               </td>
               <td>
                 <span

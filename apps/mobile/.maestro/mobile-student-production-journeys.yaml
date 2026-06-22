@@ -1,0 +1,32 @@
+appId: uk.oasis.portal
+name: Student mobile production journeys
+---
+- launchApp:
+    clearState: true
+- assertVisible: Oasis Learning Centre
+- assertVisible: Staff and family mobile portal
+- tapOn: Email
+- inputText: ${E2E_STUDENT_EMAIL}
+- tapOn: Password
+- inputText: ${E2E_STUDENT_PASSWORD}
+- tapOn: Sign in
+- assertVisible: Student Portal
+- assertVisible: Home
+- tapOn: Wallet
+- assertVisible: Wallet
+- assertVisible: Move to Saving
+- tapOn: Learning
+- assertVisible: Learning
+- assertVisible: Attendance
+- tapOn: More navigation options
+- tapOn: Updates
+- assertVisible: Updates
+- tapOn: More navigation options
+- tapOn: Activity
+- assertVisible: Activity
+- tapOn: More navigation options
+- tapOn: Clubs
+- assertVisible: Clubs
+- tapOn: More navigation options
+- tapOn: Messages
+- assertVisible: Messages

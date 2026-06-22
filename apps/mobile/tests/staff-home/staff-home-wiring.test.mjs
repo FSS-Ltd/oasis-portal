@@ -17,11 +17,13 @@ describe('staff home mobile wiring', () => {
       'StaffHomeScreen should exist outside the smoke component folder',
     );
 
-    const router = read('src/components/smoke/signed-in-smoke-router.tsx');
+    const router = read('src/components/core/signed-in-router.tsx');
     const staffPortal = read('src/components/staff/staff-portal-screen.tsx');
     assert.match(router, /StaffPortalScreen/);
     assert.match(staffPortal, /StaffHomeScreen/);
-    assert.match(router, /StudentPortalSmokeScreen/);
+    assert.match(router, /StudentPortalScreen/);
+    assert.match(router, /student-portal-screen/);
+    assert.doesNotMatch(router, /StudentPortalSmokeScreen/);
     assert.doesNotMatch(router, /return <SupervisorSmokeScreen \/>/);
   });
 

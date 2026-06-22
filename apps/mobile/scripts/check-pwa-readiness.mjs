@@ -7,15 +7,20 @@ const manifestPath = path.join(projectRoot, 'public', 'manifest.json');
 const appConfigPath = path.join(projectRoot, 'app.json');
 const serviceWorkerScriptPath = path.join(projectRoot, 'scripts', 'generate-service-worker.mjs');
 const htmlShellPath = path.join(projectRoot, 'app', '+html.tsx');
-const installButtonPath = path.join(
-  projectRoot,
-  'src',
-  'components',
-  'pwa',
-  'install-app-button.tsx',
-);
 
 const failures = [];
+const expectedManifest = {
+  background_color: '#EEF2F9',
+  description: 'Staff, parent, and student mobile portal for Oasis Learning Centre.',
+  display: 'standalone',
+  id: '/',
+  name: 'Oasis Learning Centre',
+  orientation: 'portrait',
+  scope: '/',
+  short_name: 'Oasis',
+  start_url: '/',
+  theme_color: '#1B2B5E',
+};
 
 function fail(message) {
   failures.push(message);
@@ -56,25 +61,15 @@ function checkManifest() {
   const manifest = readJson(manifestPath);
   if (!manifest) return;
 
-  const requiredStringFields = [
-    'name',
-    'short_name',
-    'start_url',
-    'scope',
-    'display',
-    'background_color',
-    'theme_color',
-    'orientation',
-  ];
+  checkManifestMetadata(manifest, 'manifest.json');
+}
 
-  for (const field of requiredStringFields) {
-    if (typeof manifest[field] !== 'string' || manifest[field].trim().length === 0) {
-      fail(`manifest.json ${field} must be a non-empty string.`);
+function checkManifestMetadata(manifest, description) {
+  for (const [field, expected] of Object.entries(expectedManifest)) {
+    if (manifest[field] !== expected) {
+      fail(`${description} ${field} must be "${expected}".`);
     }
   }
-
-  if (manifest.display !== 'standalone') fail('manifest.json display must be "standalone".');
-  if (manifest.orientation !== 'portrait') fail('manifest.json orientation must be "portrait".');
 
   const icons = Array.isArray(manifest.icons) ? manifest.icons : [];
   const hasIconSize = (size) => icons.some((icon) => icon.sizes === size && icon.src);
@@ -82,15 +77,66 @@ function checkManifest() {
     (icon) => typeof icon.purpose === 'string' && icon.purpose.includes('maskable'),
   );
 
-  if (!hasIconSize('192x192')) fail('manifest.json must include a 192x192 icon.');
-  if (!hasIconSize('512x512')) fail('manifest.json must include a 512x512 icon.');
-  if (!hasMaskable) fail('manifest.json must include at least one maskable icon.');
+  if (!hasIconSize('192x192')) fail(`${description} must include a 192x192 icon.`);
+  if (!hasIconSize('512x512')) fail(`${description} must include a 512x512 icon.`);
+  if (!hasMaskable) fail(`${description} must include at least one maskable icon.`);
 }
 
 function checkSourceFiles() {
   fileExists(serviceWorkerScriptPath, 'Workbox service-worker generation script');
   fileExists(htmlShellPath, 'Expo Router web HTML shell');
-  fileExists(installButtonPath, 'Install app button component');
+}
+
+function checkServiceWorkerOutput(filePath) {
+  const serviceWorker = fs.readFileSync(filePath, 'utf8');
+  const hasOfflineNavigationFallback =
+    serviceWorker.includes('NavigationRoute') &&
+    serviceWorker.includes('createHandlerBoundToURL("/offline.html")');
+  const hasApiNavigationDenylist =
+    serviceWorker.includes('denylist') &&
+    (/\/\^\\\/api\\\//.test(serviceWorker) || /\/api/.test(serviceWorker));
+  const excludesApiRuntimeCaching =
+    /!\w+\.pathname\.startsWith\(["']\/api\/["']\)/.test(serviceWorker) ||
+    /!url\.pathname\.startsWith\(["']\/api\/["']\)/.test(serviceWorker);
+  const explicitlyCachesApiRoute =
+    /pathname\.startsWith\(["']\/api(?:\/trpc)?["']\)/.test(serviceWorker) &&
+    !excludesApiRuntimeCaching;
+
+  if (!hasOfflineNavigationFallback) {
+    fail('Generated service worker must serve /offline.html as the navigation fallback.');
+  }
+
+  if (!hasApiNavigationDenylist || !excludesApiRuntimeCaching || explicitlyCachesApiRoute) {
+    fail('Generated service worker must not cache API or tRPC routes.');
+  }
+
+  const notificationHandlerSnippets = [
+    ["addEventListener('push'", 'listen for Web Push events'],
+    ['showNotification', 'show browser notifications from push events'],
+    ["addEventListener('notificationclick'", 'handle notification clicks'],
+    ['clients.openWindow', 'open Oasis when a notification is clicked'],
+  ];
+
+  for (const [snippet, message] of notificationHandlerSnippets) {
+    if (!serviceWorker.includes(snippet)) {
+      fail(`Generated service worker must ${message}.`);
+    }
+  }
+}
+
+function checkOfflineFallback(filePath) {
+  const html = fs.readFileSync(filePath, 'utf8');
+  const privateOrRoleTerms = [
+    'Parent Portal',
+    'Student Portal',
+    'Staff Portal',
+    'Merit Wallet',
+    'Joshua',
+  ];
+
+  if (privateOrRoleTerms.some((term) => html.includes(term))) {
+    fail('Offline fallback must not include private or role-specific data.');
+  }
 }
 
 function checkExportOutput() {
@@ -105,15 +151,32 @@ function checkExportOutput() {
 
   if (fileExists(outputIndexPath, 'Exported web index')) {
     const html = fs.readFileSync(outputIndexPath, 'utf8');
-    if (!html.includes('rel="manifest"')) fail('Exported index.html must link the manifest.');
-    if (!html.includes('apple-mobile-web-app-capable')) {
-      fail('Exported index.html must include iOS Home Screen meta tags.');
+    const expectedHtmlSnippets = [
+      ['rel="manifest"', 'link the manifest'],
+      ['href="/apple-touch-icon.png"', 'link the Apple touch icon'],
+      ['href="/favicon.png"', 'link the favicon'],
+      ['name="theme-color"', 'include theme-color'],
+      ['content="#1B2B5E"', 'include the Oasis theme color'],
+      ['name="apple-mobile-web-app-capable"', 'include iOS Home Screen capability tags'],
+      ['name="apple-mobile-web-app-status-bar-style"', 'include iOS status bar metadata'],
+      ['name="apple-mobile-web-app-title"', 'include iOS app title metadata'],
+      [expectedManifest.description, 'include the app description'],
+    ];
+
+    for (const [snippet, message] of expectedHtmlSnippets) {
+      if (!html.includes(snippet)) fail(`Exported index.html must ${message}.`);
     }
-    if (!html.includes('theme-color')) fail('Exported index.html must include theme-color.');
   }
-  fileExists(outputManifestPath, 'Exported PWA manifest');
-  fileExists(outputServiceWorkerPath, 'Generated service worker');
-  fileExists(outputOfflinePath, 'Offline fallback page');
+  if (fileExists(outputManifestPath, 'Exported PWA manifest')) {
+    const outputManifest = readJson(outputManifestPath);
+    if (outputManifest) checkManifestMetadata(outputManifest, 'Exported manifest.json');
+  }
+  if (fileExists(outputServiceWorkerPath, 'Generated service worker')) {
+    checkServiceWorkerOutput(outputServiceWorkerPath);
+  }
+  if (fileExists(outputOfflinePath, 'Offline fallback page')) {
+    checkOfflineFallback(outputOfflinePath);
+  }
 }
 
 checkAppConfig();

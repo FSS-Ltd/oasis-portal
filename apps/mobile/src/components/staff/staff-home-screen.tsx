@@ -3,9 +3,10 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../smoke/smoke-ui';
-import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
+import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import {
   buildStaffHomeViewModel,
   type StaffHomeQuickAction,
@@ -255,6 +256,8 @@ export function StaffHomeScreen({
                 />
               ) : null}
             </Card>
+
+            <PwaHomeActions />
           </>
         ) : null}
       </ScrollView>

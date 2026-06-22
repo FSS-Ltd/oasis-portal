@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, MutedText, SmokeButton } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText, MobileButton } from '../core/mobile-ui';
 import {
   absenceReasons,
   attendanceStatuses,
@@ -137,7 +137,7 @@ function AttendanceRosterRow({
 
       <View style={styles.footerRow}>
         <MutedText>{row.recordedAt ? 'Saved' : 'Not saved yet'}</MutedText>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={!canSave}
           label={pending ? 'Saving...' : 'Save'}

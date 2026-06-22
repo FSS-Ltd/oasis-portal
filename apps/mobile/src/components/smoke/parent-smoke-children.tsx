@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { Badge, Card, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];
 type ChildDetail = RouterOutputs['childLog']['drillThrough'];
@@ -71,7 +71,7 @@ export function ParentChildPicker({
       <SectionTitle>Switch child</SectionTitle>
       <View style={styles.buttonColumn}>
         {rows.map((child) => (
-          <SmokeButton
+          <MobileButton
             compact
             key={child.student.id}
             label={`${child.student.fullName} - ${displaySchoolYearLabel(child.student.yearGroup)}`}

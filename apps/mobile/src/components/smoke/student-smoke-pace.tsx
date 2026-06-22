@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 
 type PaceDetail = RouterOutputs['pace']['forStudent'];
 type PaceSubject = PaceDetail['subjects'][number];

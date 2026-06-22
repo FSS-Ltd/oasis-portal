@@ -25,7 +25,7 @@ describe('parent home mobile wiring', () => {
   });
 
   it('routes Parent users into the production parent portal home route', () => {
-    const router = readMobile('src/components/smoke/signed-in-smoke-router.tsx');
+    const router = readMobile('src/components/core/signed-in-router.tsx');
     const portal = readMobile('src/components/parent/parent-portal-screen.tsx');
 
     expect(router).toMatch(/ParentPortalScreen/);
@@ -39,7 +39,7 @@ describe('parent home mobile wiring', () => {
     expect(portal).toMatch(/ParentNoticesScreen/);
     expect(portal).toMatch(/ParentMessagesScreen/);
     expect(portal).toMatch(/ParentClubsScreen/);
-    expect(portal).toMatch(/MobileShopReservationPanel/);
+    expect(portal).toMatch(/ParentShopReservationsScreen/);
   });
 
   it('uses linked-child parent APIs and avoids staff or admin APIs', () => {

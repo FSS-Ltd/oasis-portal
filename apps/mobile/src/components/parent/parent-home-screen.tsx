@@ -1,7 +1,8 @@
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
+import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import { ParentChildHero } from './parent-child-hero';
 import { ParentChildSwitcher } from './parent-child-switcher';
 import {
@@ -133,6 +134,8 @@ export function ParentHomeScreen({
           </View>
         </>
       ) : null}
+
+      <PwaHomeActions />
     </ScrollView>
   );
 }

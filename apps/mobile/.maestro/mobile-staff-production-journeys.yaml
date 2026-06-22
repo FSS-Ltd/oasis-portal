@@ -1,0 +1,38 @@
+appId: uk.oasis.portal
+name: Staff mobile production journeys
+---
+- launchApp:
+    clearState: true
+- assertVisible: Oasis Learning Centre
+- assertVisible: Staff and family mobile portal
+- tapOn: Email
+- inputText: ${E2E_SUPERVISOR_EMAIL}
+- tapOn: Password
+- inputText: ${E2E_SUPERVISOR_PASSWORD}
+- tapOn: Sign in
+- assertVisible: Staff Portal
+- assertVisible: Quick actions
+- tapOn: Staff communications
+- assertVisible: Noticeboard and staff messages
+- tapOn: Back to staff home
+- assertVisible: Quick actions
+- tapOn: Open rota
+- assertVisible: Today, weeks, leave blocks and swaps
+- tapOn: Back to staff home
+- tapOn: Mark attendance
+- assertVisible: Mark student attendance
+- tapOn: Back to staff home
+- tapOn: Log behaviour
+- assertVisible: Record merit and demerit entries
+- tapOn: Back to staff home
+- tapOn: Record incident
+- assertVisible: Draft and submit safeguarding records
+- tapOn: Back to staff home
+- tapOn: Record PACE score
+- assertVisible: Record student test scores
+- tapOn: Back to staff home
+- tapOn: Club roster
+- assertVisible: Roster, attendance, behaviour and notices
+- tapOn: Back to staff home
+- tapOn: Shop pickups
+- assertVisible: Pickups, counter sales and live stock

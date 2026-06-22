@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
 import {
   formatMerits,
   formatShopDate,

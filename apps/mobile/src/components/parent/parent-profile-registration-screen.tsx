@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -9,8 +9,8 @@ import {
   Field,
   InlineSpinner,
   MutedText,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import { displaySchoolYearLabel, formatParentDate } from './parent-home-utils';
 import {
   blankSibling,
@@ -264,7 +264,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
           }}
           value={profileFields.address}
         />
-        <SmokeButton
+        <MobileButton
           disabled={mutationPending}
           label={updateProfile.isPending ? 'Saving profile...' : 'Save profile'}
           onPress={() => {
@@ -307,7 +307,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
               onChangeText={setSpouseEmail}
               value={spouseEmail}
             />
-            <SmokeButton
+            <MobileButton
               disabled={mutationPending}
               label={inviteSpouse.isPending ? 'Sending invite...' : 'Send invite'}
               onPress={() => {
@@ -377,7 +377,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
                 </View>
               ))}
             </View>
-            <SmokeButton
+            <MobileButton
               disabled={mutationPending}
               label={
                 updateRegistration.isPending
@@ -441,7 +441,7 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
               placeholder="Leave blank to derive"
               value={siblingFields.yearGroup}
             />
-            <SmokeButton
+            <MobileButton
               disabled={mutationPending}
               label={addSiblings.isPending ? 'Adding sibling...' : 'Add sibling'}
               onPress={() => {
@@ -511,7 +511,7 @@ function LinkRequestCard({
         <ReadTile label="Submitted" value={formatParentDate(request.createdAt)} />
       </View>
       <View style={styles.actionRow}>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={disabled}
           label="Confirm link"
@@ -520,7 +520,7 @@ function LinkRequestCard({
           }}
           variant="success"
         />
-        <SmokeButton
+        <MobileButton
           compact
           disabled={disabled}
           label="Reject"

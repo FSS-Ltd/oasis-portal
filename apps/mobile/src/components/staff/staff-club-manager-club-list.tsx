@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { C } from '../smoke/mobile-theme';
-import { Badge, MutedText } from '../smoke/smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Badge, MutedText } from '../core/mobile-ui';
 import { capacityLabel, leadLabel, type StaffManagedClub } from './staff-club-manager-utils';
 
 export function StaffClubManagerClubList({

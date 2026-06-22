@@ -6,10 +6,11 @@ import {
   formatMerits,
   formatPercent,
   formatSignedMerits,
-  navHistoryToChartSeries,
+  chartSeriesForRange,
   percentChange,
+  portfolioRangeOptions,
   type AccountHolding,
-  type NavDto,
+  type ChartSeries,
   type RangeId,
 } from './student-invest-data';
 import {
@@ -25,15 +26,14 @@ import {
 import styles from './student-invest.module.css';
 
 interface OverviewProps {
-  currentValueMerits: number;
   defaultRange: RangeId;
   holdings: readonly AccountHolding[];
   investmentCashMerits: number;
   latestNav: { nav: number; dailyReturn: number } | null;
   loading: boolean;
-  navHistory: readonly NavDto[];
   onNavigate: (screen: 'market') => void;
   portfolioReturnMerits: number;
+  portfolioSeries: ChartSeries;
   portfolioValueMerits: number;
   spendBalance: number;
   studentFirstName: string;
@@ -42,15 +42,14 @@ interface OverviewProps {
 }
 
 export function InvestmentOverview({
-  currentValueMerits,
   defaultRange,
   holdings,
   investmentCashMerits,
   latestNav,
   loading,
-  navHistory,
   onNavigate,
   portfolioReturnMerits,
+  portfolioSeries,
   portfolioValueMerits,
   spendBalance,
   studentFirstName,
@@ -62,35 +61,15 @@ export function InvestmentOverview({
   const totalReturn = portfolioReturnMerits;
   const stockCostBasis = holdings.reduce((sum, holding) => sum + holding.costBasisMerits, 0);
   const totalReturnPct = stockCostBasis > 0 ? (totalReturn / stockCostBasis) * 100 : 0;
-  const dailyReturnPct = latestNav?.dailyReturn ?? 0;
-  const dailyReturnMerits = currentValueMerits * (dailyReturnPct / (1 + dailyReturnPct));
+  const dailyReturnMerits = holdings.reduce((sum, holding) => sum + holding.dayChangeMerits, 0);
+  const previousPortfolioValue = portfolioValueMerits - dailyReturnMerits;
+  const dailyReturnPct =
+    previousPortfolioValue > 0 ? (dailyReturnMerits / previousPortfolioValue) * 100 : 0;
 
-  const fullSeries = useMemo(() => navHistoryToChartSeries(navHistory), [navHistory]);
-
-  const series = useMemo(() => {
-    if (fullSeries.points.length === 0) return fullSeries;
-    const daysForRange = (r: RangeId): number => {
-      if (r === '1D') return 1;
-      if (r === '1W') return 7;
-      if (r === '1M') return 30;
-      if (r === '3M') return 90;
-      if (r === '1Y') return 365;
-      return 9999;
-    };
-    const days = daysForRange(range);
-    const cutoff = fullSeries.points.length - days;
-    const sliced = fullSeries.points.slice(Math.max(0, cutoff));
-    if (sliced.length === 0) return fullSeries;
-    const scaled = sliced.map((p, i) => ({
-      ...p,
-      x: i / (sliced.length - 1 || 1),
-    }));
-    return {
-      points: scaled,
-      first: scaled[0]?.value ?? 0,
-      last: scaled[scaled.length - 1]?.value ?? 0,
-    };
-  }, [fullSeries, range]);
+  const series = useMemo(
+    () => chartSeriesForRange(portfolioSeries, range),
+    [portfolioSeries, range],
+  );
 
   const rangePct = percentChange(series.first, series.last);
 
@@ -138,24 +117,30 @@ export function InvestmentOverview({
                   <span className={dailyReturnPct >= 0 ? styles.positiveText : styles.negativeText}>
                     {formatSignedMerits(dailyReturnMerits, 1)}
                   </span>
-                  <DeltaPill value={dailyReturnPct * 100} />
+                  <DeltaPill value={dailyReturnPct} />
                   <span className={styles.smallText}>today</span>
                   {totalNetWorthMerits > 0 ? <GbpEquivalent value={totalNetWorthMerits} /> : null}
                 </div>
               </div>
               <div className={styles.titleBlock}>
-                <RangeTabs onCustom={() => {}} onRange={setRange} value={range} />
+                <RangeTabs
+                  onCustom={() => {}}
+                  onRange={setRange}
+                  ranges={portfolioRangeOptions}
+                  showCustom={false}
+                  value={range}
+                />
                 <span className={rangePct >= 0 ? styles.positiveText : styles.negativeText}>
-                  {formatPercent(rangePct)} NAV change
+                  {formatPercent(rangePct)} portfolio change
                 </span>
               </div>
             </div>
-            {navHistory.length > 0 ? (
+            {portfolioSeries.points.length > 0 ? (
               <AreaChart series={series} />
             ) : loading ? (
               <div style={{ height: 180 }} />
             ) : (
-              <p className={styles.emptyState}>No NAV history available yet.</p>
+              <p className={styles.emptyState}>No portfolio history available yet.</p>
             )}
             <div className={styles.metricGrid}>
               <MiniStat label="Fund units" value={<strong>{units.toFixed(4)}</strong>} />

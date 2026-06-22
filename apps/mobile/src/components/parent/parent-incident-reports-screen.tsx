@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
+import { C } from '../core/mobile-theme';
 import {
   Badge,
   Card,
@@ -9,8 +9,8 @@ import {
   InlineSpinner,
   MutedText,
   SectionTitle,
-  SmokeButton,
-} from '../smoke/smoke-ui';
+  MobileButton,
+} from '../core/mobile-ui';
 import { ParentChildHero } from './parent-child-hero';
 import { ParentChildSwitcher } from './parent-child-switcher';
 import {
@@ -245,7 +245,7 @@ function IncidentListCard({
             {report.requiresAcknowledgement ? 'Acknowledgement due' : 'Acknowledged'}
           </Badge>
           <View style={styles.rowActions}>
-            <SmokeButton
+            <MobileButton
               compact
               label={report.id === selectedCopyId ? 'Selected' : 'View'}
               onPress={() => {
@@ -253,7 +253,7 @@ function IncidentListCard({
               }}
               variant={report.id === selectedCopyId ? 'primary' : 'secondary'}
             />
-            <SmokeButton
+            <MobileButton
               compact
               label="View PDF"
               onPress={() => {
@@ -350,21 +350,21 @@ function IncidentDetailCard({
           label="Follow-up requested"
         />
         <View style={styles.buttonGrid}>
-          <SmokeButton
+          <MobileButton
             label="View PDF"
             onPress={() => {
               onPdfAction(report.id);
             }}
             variant="primary"
           />
-          <SmokeButton
+          <MobileButton
             label="Download PDF"
             onPress={() => {
               onPdfAction(report.id);
             }}
             variant="secondary"
           />
-          <SmokeButton
+          <MobileButton
             disabled={!report.requiresAcknowledgement || acknowledging}
             label={acknowledging ? 'Acknowledging' : 'Acknowledge receipt'}
             onPress={() => {
@@ -386,7 +386,7 @@ function IncidentDetailCard({
             <SectionTitle>Need to discuss this?</SectionTitle>
             <MutedText>Message the centre team if you have questions about this report.</MutedText>
           </View>
-          <SmokeButton
+          <MobileButton
             compact
             label="Message supervisor"
             onPress={onOpenMessages}

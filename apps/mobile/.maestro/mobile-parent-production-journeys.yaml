@@ -1,0 +1,39 @@
+appId: uk.oasis.portal
+name: Parent mobile production journeys
+---
+- launchApp:
+    clearState: true
+- assertVisible: Oasis Learning Centre
+- assertVisible: Staff and family mobile portal
+- tapOn: Email
+- inputText: ${E2E_PARENT_EMAIL}
+- tapOn: Password
+- inputText: ${E2E_PARENT_PASSWORD}
+- tapOn: Sign in
+- assertVisible: Parent Portal
+- assertVisible: Home
+- tapOn: Child
+- assertVisible: Child
+- tapOn: Messages
+- assertVisible: Messages
+- tapOn: More navigation options
+- tapOn: Settings
+- assertVisible: Settings
+- tapOn: More navigation options
+- tapOn: Clubs
+- assertVisible: Clubs
+- tapOn: More navigation options
+- tapOn: Incidents
+- assertVisible: Incidents
+- tapOn: More navigation options
+- tapOn: Permission Slips
+- assertVisible: Permission Slips
+- tapOn: More navigation options
+- tapOn: Fees/Invoices
+- assertVisible: Fees/Invoices
+- tapOn: More navigation options
+- tapOn: Calendar
+- assertVisible: Calendar
+- tapOn: More navigation options
+- tapOn: Shop
+- assertVisible: Shop

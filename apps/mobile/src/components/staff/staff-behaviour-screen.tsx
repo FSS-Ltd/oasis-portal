@@ -3,8 +3,8 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
-import { C } from '../smoke/mobile-theme';
-import { PortalMobileHeader } from '../smoke/portal-mobile-shell';
+import { C } from '../core/mobile-theme';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { BehaviourFormCard } from './staff-behaviour-form';
 import { BehaviourRecentPanel } from './staff-behaviour-recent-panel';
 import { BehaviourStudentPicker } from './staff-behaviour-student-picker';
@@ -14,8 +14,9 @@ import {
   dateKeyInSchoolTimeZone,
   defaultCategory,
   formatBehaviourDate,
+  behaviourAmountValue,
   hasBehaviourFormErrors,
-  meritAmountValue,
+  previewSingleDemeritStage,
   validateBehaviourForm,
   type BehaviourFormState,
   type BehaviourType,
@@ -24,6 +25,22 @@ import {
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 
 const initialType: BehaviourType = 'Merit';
+
+function defaultAmountForType(nextType: BehaviourType, current: BehaviourFormState) {
+  if (nextType === 'Demerit') return '1';
+  if (nextType === 'Merit' && current.type !== 'Merit') return '1';
+  return current.amount;
+}
+
+function defaultVisibilityForType(nextType: BehaviourType): BehaviourFormState['visibility'] {
+  switch (nextType) {
+    case 'Merit':
+      return 'General';
+    case 'Demerit':
+    case 'General':
+      return 'Sensitive';
+  }
+}
 
 function newBehaviourForm(): BehaviourFormState {
   return {
@@ -49,14 +66,18 @@ export function StaffBehaviourScreen({
   const [form, setForm] = useState<BehaviourFormState>(() => newBehaviourForm());
   const [submitted, setSubmitted] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const roster = api.attendance.forDate.useQuery({ date: dateFromKey(dateKey) }, { retry: false });
-  const recent = api.behaviour.recentEntries.useQuery(
-    { date: dateFromKey(dateKey) },
+  const selectedDate = useMemo(() => dateFromKey(dateKey), [dateKey]);
+  const roster = api.attendance.forDate.useQuery({ date: selectedDate }, { retry: false });
+  const recent = api.behaviour.recentEntries.useQuery({ date: selectedDate }, { retry: false });
+  const demeritStatuses = api.behaviour.dailyDemeritStatuses.useQuery(
+    { date: selectedDate },
     { retry: false },
   );
   const studentRows = roster.data ?? [];
   const selectedStudentId = form.selectedStudentId || studentRows[0]?.studentId || '';
   const selectedStudent = studentRows.find((row) => row.studentId === selectedStudentId) ?? null;
+  const selectedDemeritStatus =
+    demeritStatuses.data?.statuses.find((status) => status.studentId === selectedStudentId) ?? null;
   const formWithSelectedStudent = useMemo(
     () => ({ ...form, selectedStudentId }),
     [form, selectedStudentId],
@@ -64,6 +85,18 @@ export function StaffBehaviourScreen({
   const errors = useMemo(
     () => validateBehaviourForm(formWithSelectedStudent),
     [formWithSelectedStudent],
+  );
+  const demeritPreview = useMemo(
+    () =>
+      formWithSelectedStudent.type === 'Demerit' && selectedStudentId
+        ? previewSingleDemeritStage(
+            selectedStudentId,
+            selectedDemeritStatus,
+            formWithSelectedStudent.category,
+            formWithSelectedStudent.amount,
+          )
+        : null,
+    [formWithSelectedStudent, selectedDemeritStatus, selectedStudentId],
   );
 
   const logBehaviour = api.behaviour.log.useMutation({
@@ -76,13 +109,14 @@ export function StaffBehaviourScreen({
       setSubmitted(false);
       await Promise.all([
         utils.behaviour.recentEntries.invalidate({ date: dateFromKey(dateKey) }),
+        utils.behaviour.dailyDemeritStatuses.invalidate({ date: dateFromKey(dateKey) }),
         utils.staffHome.summary.invalidate(),
       ]);
     },
   });
 
   async function refresh() {
-    await Promise.all([roster.refetch(), recent.refetch()]);
+    await Promise.all([roster.refetch(), recent.refetch(), demeritStatuses.refetch()]);
   }
 
   function changeDate(nextDate: string) {
@@ -97,13 +131,26 @@ export function StaffBehaviourScreen({
     setStatusMessage(null);
     if (hasBehaviourFormErrors(errors)) return;
     logBehaviour.mutate({
-      amount: formWithSelectedStudent.type === 'Merit' ? meritAmountValue(form.amount) : undefined,
+      amount:
+        formWithSelectedStudent.type === 'Merit' || formWithSelectedStudent.type === 'Demerit'
+          ? behaviourAmountValue(form.amount)
+          : undefined,
       category: formWithSelectedStudent.category.trim(),
       note: formWithSelectedStudent.note.trim(),
       studentId: formWithSelectedStudent.selectedStudentId,
       type: formWithSelectedStudent.type,
       visibility: formWithSelectedStudent.visibility,
     });
+  }
+
+  function changeBehaviourType(nextType: BehaviourType) {
+    setForm((current) => ({
+      ...current,
+      amount: defaultAmountForType(nextType, current),
+      category: defaultCategory(nextType),
+      type: nextType,
+      visibility: defaultVisibilityForType(nextType),
+    }));
   }
 
   return (
@@ -167,7 +214,12 @@ export function StaffBehaviourScreen({
               onRefresh={() => {
                 void refresh();
               }}
-              refreshing={roster.isFetching || recent.isFetching || logBehaviour.isPending}
+              refreshing={
+                roster.isFetching ||
+                recent.isFetching ||
+                demeritStatuses.isFetching ||
+                logBehaviour.isPending
+              }
             />
           }
           showsVerticalScrollIndicator={false}
@@ -205,9 +257,11 @@ export function StaffBehaviourScreen({
 
           <BehaviourFormCard
             errors={errors}
+            demeritPreview={demeritPreview}
             form={form}
             onChange={setForm}
             onSubmit={submit}
+            onTypeChange={changeBehaviourType}
             saving={logBehaviour.isPending}
             selectedStudentName={selectedStudent ? selectedStudent.studentName : 'None selected'}
             submitted={submitted}

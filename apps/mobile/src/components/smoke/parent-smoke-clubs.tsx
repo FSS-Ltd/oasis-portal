@@ -1,8 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
-import { C } from './mobile-theme';
+import { C } from '../core/mobile-theme';
 import { displaySchoolYearLabel } from './parent-smoke-children';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle, SmokeButton } from './smoke-ui';
+import { Badge, Card, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupChild = SignupContext['children'][number];
@@ -60,7 +60,7 @@ function ChildSelector({
       <SectionTitle>Child</SectionTitle>
       <View style={styles.buttonColumn}>
         {rows.map((child) => (
-          <SmokeButton
+          <MobileButton
             compact
             key={child.id}
             label={`${child.fullName} · ${displaySchoolYearLabel(child.yearGroup)}`}
@@ -110,7 +110,7 @@ function ClubSignupCard({
       {club.description ? <Text style={styles.clubDescription}>{club.description}</Text> : null}
       <View style={styles.clubFooter}>
         <Text style={styles.capacityText}>{capacityLabel(club)}</Text>
-        <SmokeButton
+        <MobileButton
           compact
           disabled={buttonDisabled}
           label={buttonLabel}

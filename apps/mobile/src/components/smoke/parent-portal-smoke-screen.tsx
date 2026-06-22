@@ -4,8 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
-import { C } from './mobile-theme';
-import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from './smoke-ui';
+import { C } from '../core/mobile-theme';
+import { Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 import { ParentChildOverview, ParentChildPicker } from './parent-smoke-children';
 import { ParentClubsPanel } from './parent-smoke-clubs';
 import { ParentNoticesPanel } from './parent-smoke-notices';
@@ -14,7 +14,7 @@ import {
   PortalMobileBottomNav,
   PortalMobileHeader,
   type PortalMobileNavItem,
-} from './portal-mobile-shell';
+} from '../core/portal-mobile-shell';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type DashboardChild = RouterOutputs['childLog']['parentDashboard']['children'][number];

@@ -22,6 +22,7 @@ import {
   MonitorCheck,
   ReceiptText,
   ShoppingBag,
+  Smartphone,
   Star,
   UserCog,
   UsersRound,
@@ -56,6 +57,7 @@ const navItems = [
   { href: '/admin/reports', label: 'Reports', icon: FileText },
   { href: '/admin/messages', label: 'Messages', icon: MessageSquare },
   { href: '/admin/noticeboard', label: 'Noticeboard', icon: Bell },
+  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
 
 const preferredMobileLabels = [
@@ -116,6 +118,7 @@ function visibleForUser(item: (typeof navItems)[number], access: AdminNavAccess)
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;
   if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;
   if (item.label === 'Calendar') return true;
+  if (item.label === 'Mobile App') return true;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
