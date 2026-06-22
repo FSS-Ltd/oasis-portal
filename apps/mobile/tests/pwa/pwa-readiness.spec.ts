@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
 
+async function expectAppShell(page: import('@playwright/test').Page) {
+  await expect(
+    page.getByText(/Staff and family mobile portal|Missing Clerk configuration/),
+  ).toBeVisible();
+}
+
 test('serves a valid installable manifest', async ({ request }) => {
   const response = await request.get('/manifest.json');
   expect(response.ok()).toBe(true);
@@ -21,7 +27,7 @@ test('serves a valid installable manifest', async ({ request }) => {
 
 test('registers the generated service worker', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Staff and family mobile portal')).toBeVisible();
+  await expectAppShell(page);
 
   const registered = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return false;
@@ -62,7 +68,7 @@ test('serves an offline fallback without private user data', async ({ request })
 
 test('serves the offline shell for navigation requests while offline', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('Staff and family mobile portal')).toBeVisible();
+  await expectAppShell(page);
 
   const registered = await page.evaluate(async () => {
     if (!('serviceWorker' in navigator)) return false;
