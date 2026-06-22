@@ -22,6 +22,9 @@ export function SignedInRouter() {
     return (
       <View style={styles.loading}>
         <Text style={styles.loadingText}>Could not load session. Please sign out and sign in again.</Text>
+        {health.error.message ? (
+          <Text style={styles.errorDetail}>{health.error.message}</Text>
+        ) : null}
       </View>
     );
   }
@@ -65,5 +68,12 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  errorDetail: {
+    color: C.textMuted,
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+    paddingHorizontal: 24,
   },
 });
