@@ -40,6 +40,10 @@ const clubsLeadWithShopTags: SessionUser = {
   requires2fa: false,
 };
 
+function expectLedgerBalances(rows: readonly { delta: number }[]): void {
+  expect(rows.reduce((total, row) => total + row.delta, 0)).toBe(0);
+}
+
 describe('computePriceIncVat', () => {
   it('adds VAT and rounds half-up', () => {
     expect(computePriceIncVat(100, 20)).toBe(120);
@@ -200,7 +204,7 @@ describe('prepareShopReservation', () => {
       { studentId: 's1', account: 'Spend', delta: -55, reason: 'shop-reservation:hold' },
       { studentId: 's1', account: 'ShopReserved', delta: 55, reason: 'shop-reservation:hold' },
     ]);
-    expect(r.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
+    expectLedgerBalances(r.ledger);
   });
 
   it('rejects invalid reservation lines', () => {
@@ -316,7 +320,7 @@ describe('prepareShopPurchase', () => {
         reason: 'shop:i1:x2',
       },
     ]);
-    expect(r.ledger.reduce((total, row) => total + row.delta, 0)).toBe(0);
+    expectLedgerBalances(r.ledger);
   });
 
   it('rejects when stock is insufficient', () => {

@@ -813,3 +813,44 @@
 
 ### Follow-Ups Deferred
 - Broader decomposition of the remaining oversized mobile staff screens is deferred to future passes; no obvious low-risk extraction was available in this 10-file scope.
+
+## 2026-06-20 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/parent/parent-profile-registration-screen.tsx`
+2. `apps/mobile/src/components/staff/staff-club-manager-screen.tsx`
+3. `apps/mobile/src/components/staff/staff-pace-form.tsx`
+4. `apps/mobile/src/components/staff/staff-communications-screen.tsx`
+5. `packages/domain/src/__tests__/shop.test.ts`
+6. `apps/mobile/src/components/staff/staff-shop-counter-screen.tsx`
+7. `apps/mobile/src/components/staff/staff-incident-screen.tsx`
+8. `apps/mobile/src/components/staff/staff-behaviour-screen.tsx`
+9. `apps/mobile/src/components/staff/staff-club-lead-behaviour.tsx`
+10. `apps/mobile/src/components/staff/staff-incident-form.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: `pnpm --filter @oasis/mobile typecheck` and `pnpm --filter @oasis/domain typecheck` passed before edits.
+- Tests: `pnpm --filter @oasis/domain test -- src/__tests__/shop.test.ts` passed before edits.
+
+### Changes Made
+- `apps/mobile/src/components/parent/parent-profile-registration-screen.tsx`: extracted pure parent profile registration form and API-input mapping helpers into `parent-profile-registration-utils.ts`.
+- `packages/domain/src/__tests__/shop.test.ts`: extracted a typed zero-sum ledger assertion helper for repeated financial invariant checks.
+- Remaining selected files: reviewed and left unchanged because lint/type baselines were clean and no safe local cleanup justified churn.
+
+### Validation
+- lint command: pass - `pnpm exec eslint <selected files plus extracted utility>`; pass - `pnpm --filter @oasis/mobile lint`; pass - `pnpm --filter @oasis/domain lint`
+- typecheck command: pass - `pnpm --filter @oasis/mobile typecheck`; pass - `pnpm --filter @oasis/domain typecheck`
+- relevant tests: pass - `pnpm --filter @oasis/domain test -- src/__tests__/shop.test.ts`
+- graphify: pass - `graphify update .`
+- diff check: pass - `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Broader mobile screen component extraction deferred; current screens are already split around child panels, and deeper changes would create review risk without a focused product request.
