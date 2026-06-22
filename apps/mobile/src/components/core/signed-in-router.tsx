@@ -22,7 +22,7 @@ export function SignedInRouter() {
     return (
       <View style={styles.loading}>
         <Text style={styles.loadingText}>Could not load session. Please sign out and sign in again.</Text>
-        {health.error?.message ? (
+        {health.error.message ? (
           <Text style={styles.errorDetail}>{health.error.message}</Text>
         ) : null}
       </View>
