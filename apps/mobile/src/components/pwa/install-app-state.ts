@@ -1,4 +1,8 @@
-export type PwaInstallSurface = 'browserPrompt' | 'iosInstructions' | 'hidden';
+export type PwaInstallSurface =
+  | 'androidInstructions'
+  | 'browserPrompt'
+  | 'iosInstructions'
+  | 'hidden';
 
 interface StandaloneInput {
   displayModeStandalone: boolean;
@@ -36,7 +40,9 @@ export function detectPwaInstallSurface({
 
   const isIosDevice = /iPad|iPhone|iPod/.test(userAgent);
   const isTouchMac = /Macintosh/.test(userAgent) && maxTouchPoints > 1;
+  const isAndroidDevice = /Android/.test(userAgent);
 
+  if (isAndroidDevice) return 'androidInstructions';
   return isIosDevice || isTouchMac ? 'iosInstructions' : 'hidden';
 }
 
@@ -44,7 +50,7 @@ export function getInstallAppCopy(surface: PwaInstallSurface): InstallAppCopy {
   if (surface === 'browserPrompt') {
     return {
       detail: 'Install Oasis on this device for a full-screen app experience.',
-      label: 'Install app',
+      label: 'Download app',
       title: 'Install Oasis',
     };
   }
@@ -52,7 +58,15 @@ export function getInstallAppCopy(surface: PwaInstallSurface): InstallAppCopy {
   if (surface === 'iosInstructions') {
     return {
       detail: 'Open Share in Safari, then choose Add to Home Screen.',
-      label: 'How to install',
+      label: 'Download app',
+      title: 'Add Oasis to Home Screen',
+    };
+  }
+
+  if (surface === 'androidInstructions') {
+    return {
+      detail: 'Open the browser menu, then choose Install app or Add to Home screen.',
+      label: 'Download app',
       title: 'Add Oasis to Home Screen',
     };
   }

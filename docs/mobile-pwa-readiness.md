@@ -36,10 +36,11 @@ The local server binds to `127.0.0.1:8081`.
 
 ## Deployment Path
 
-Deploy `apps/mobile/dist` as a static HTTPS site through either EAS Hosting or a
-second Vercel project dedicated to the mobile PWA. Keep the existing
-`apps/web` Vercel deployment as the API owner; the PWA should call its tRPC
-endpoint through `EXPO_PUBLIC_TRPC_URL`, for example:
+Deploy `apps/mobile/dist` as a static HTTPS site through the dedicated Vercel
+project `oasis-portal-app` (`prj_NKVfmtciWnsA2Xw8WacKBHVY39LP`) at
+`app.oasisportal.space`. Keep the existing `apps/web` Vercel deployment as the
+API owner; the PWA should call its tRPC endpoint through `EXPO_PUBLIC_TRPC_URL`,
+for example:
 
 ```bash
 EXPO_PUBLIC_TRPC_URL=https://<web-domain>/api/trpc
@@ -56,6 +57,14 @@ Required deployment settings:
   remains the production web portal and API deployment.
 - Set `EXPO_PUBLIC_TRPC_URL` to the deployed `apps/web` `/api/trpc` endpoint,
   not to the static PWA origin.
+- GitHub Actions deploys this PWA through `deploy-pwa-preview` on pull requests
+  and `deploy-pwa-production` on pushes to `main`.
+- Required repository secrets for the PWA deploy jobs:
+  `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `OASIS_APP_VERCEL_PROJECT_ID`,
+  `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, and `EXPO_PUBLIC_TRPC_URL`.
+- Set `OASIS_APP_VERCEL_PROJECT_ID=prj_NKVfmtciWnsA2Xw8WacKBHVY39LP`.
+- DNS for `app.oasisportal.space` must point to Vercel with:
+  `A app.oasisportal.space 76.76.21.21`.
 
 Before user testing, configure auth for the deployed PWA origin:
 
@@ -63,6 +72,8 @@ Before user testing, configure auth for the deployed PWA origin:
 - Add the PWA sign-in and callback routes to Clerk redirect URLs.
 - Add the PWA callback route to Google OAuth redirect URIs.
 - Confirm email/password and Google SSO both return to the PWA origin.
+- Confirm browser notification permission can be enabled from each portal home
+  page on the deployed HTTPS origin.
 
 Deployment checklist:
 
@@ -75,7 +86,9 @@ Deployment checklist:
    testing.
 5. Install the PWA on at least one Chromium/Android device and one iOS Safari
    device.
-6. Verify sign-in, standalone launch, refresh, offline shell, and sign-out.
+6. Enable browser notifications on the same deployed PWA origin and verify the
+   permission state remains enabled after refresh.
+7. Verify sign-in, standalone launch, refresh, offline shell, and sign-out.
 
 Rollback path:
 
@@ -101,6 +114,14 @@ The service worker is conservative:
 - Uses a same-origin static-asset runtime cache.
 - Does not cache `/api/*` or tRPC responses.
 - Serves `/offline.html` as the navigation fallback, with no private user data.
+- Handles Web Push `push` and `notificationclick` events with generic
+  privacy-safe copy and same-origin route opening.
+
+Browser notifications currently cover PWA permission, service-worker push event
+handling, notification click routing, and app badge updates when the browser
+supports the Badging API. Server-side Web Push subscription storage, VAPID key
+management, and product-event dispatch are the next backend slice before Oasis
+can send remote notifications for every Resend workflow.
 
 ## Native App-Store Path
 
