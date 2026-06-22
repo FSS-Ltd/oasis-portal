@@ -4,6 +4,7 @@ import { C } from './mobile-theme';
 import { ParentPortalScreen } from '../parent/parent-portal-screen';
 import { StaffPortalScreen } from '../staff/staff-portal-screen';
 import { StudentPortalScreen } from '../student/student-portal-screen';
+import { TechnicalSupportPortalScreen } from '../support/technical-support-portal-screen';
 
 export function SignedInRouter() {
   const health = api.health.me.useQuery(undefined, { retry: false });
@@ -41,10 +42,13 @@ export function SignedInRouter() {
     user?.role === 'Pastor' ||
     user?.role === 'HeadOfDiscipline' ||
     user?.role === 'ClubsAdmin' ||
-    user?.role === 'Supervisor' ||
-    user?.role === 'TechnicalSupport'
+    user?.role === 'Supervisor'
   ) {
     return <StaffPortalScreen user={user} />;
+  }
+
+  if (user?.role === 'TechnicalSupport') {
+    return <TechnicalSupportPortalScreen user={user} />;
   }
 
   return (
