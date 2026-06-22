@@ -18,6 +18,14 @@ export function SignedInRouter() {
     );
   }
 
+  if (health.isError) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.loadingText}>Could not load session. Please sign out and sign in again.</Text>
+      </View>
+    );
+  }
+
   if (user?.role === 'Parent') {
     return <ParentPortalScreen user={user} />;
   }
@@ -32,7 +40,8 @@ export function SignedInRouter() {
     user?.role === 'Pastor' ||
     user?.role === 'HeadOfDiscipline' ||
     user?.role === 'ClubsAdmin' ||
-    user?.role === 'Supervisor'
+    user?.role === 'Supervisor' ||
+    user?.role === 'TechnicalSupport'
   ) {
     return <StaffPortalScreen user={user} />;
   }
