@@ -12,6 +12,35 @@ import { appRouter, createContext, logOperationalEvent, operationalErrorMessage 
 import { isTwoFactorEnforcementEnabled } from '@/lib/clerk-two-factor';
 import { resolveClerkSession } from '../../auth-context';
 
+const PWA_ALLOWED_ORIGINS = new Set(['https://app.oasisportal.space']);
+const CORS_ALLOWED_HEADERS = 'Authorization, Content-Type';
+const CORS_ALLOWED_METHODS = 'GET, POST, OPTIONS';
+
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+
+  if (!origin || !PWA_ALLOWED_ORIGINS.has(origin)) {
+    return {};
+  }
+
+  return {
+    'Access-Control-Allow-Headers': CORS_ALLOWED_HEADERS,
+    'Access-Control-Allow-Methods': CORS_ALLOWED_METHODS,
+    'Access-Control-Allow-Origin': origin,
+    Vary: 'Origin',
+  };
+}
+
+function withCors(req: Request, response: Response): Response {
+  const corsHeaders = corsHeadersFor(req);
+
+  for (const [header, value] of Object.entries(corsHeaders)) {
+    response.headers.set(header, value);
+  }
+
+  return response;
+}
+
 const handler = (req: Request): Promise<Response> =>
   fetchRequestHandler({
     endpoint: '/api/trpc',
@@ -47,6 +76,13 @@ const handler = (req: Request): Promise<Response> =>
         });
       }
     },
-  });
+  }).then((response) => withCors(req, response));
 
-export { handler as GET, handler as POST };
+function OPTIONS(req: Request): Response {
+  return new Response(null, {
+    headers: corsHeadersFor(req),
+    status: 204,
+  });
+}
+
+export { handler as GET, OPTIONS, handler as POST };
