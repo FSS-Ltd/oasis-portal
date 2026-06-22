@@ -7,13 +7,6 @@ const manifestPath = path.join(projectRoot, 'public', 'manifest.json');
 const appConfigPath = path.join(projectRoot, 'app.json');
 const serviceWorkerScriptPath = path.join(projectRoot, 'scripts', 'generate-service-worker.mjs');
 const htmlShellPath = path.join(projectRoot, 'app', '+html.tsx');
-const installButtonPath = path.join(
-  projectRoot,
-  'src',
-  'components',
-  'pwa',
-  'install-app-button.tsx',
-);
 
 const failures = [];
 const expectedManifest = {
@@ -92,7 +85,6 @@ function checkManifestMetadata(manifest, description) {
 function checkSourceFiles() {
   fileExists(serviceWorkerScriptPath, 'Workbox service-worker generation script');
   fileExists(htmlShellPath, 'Expo Router web HTML shell');
-  fileExists(installButtonPath, 'Install app button component');
 }
 
 function checkServiceWorkerOutput(filePath) {
@@ -116,6 +108,19 @@ function checkServiceWorkerOutput(filePath) {
 
   if (!hasApiNavigationDenylist || !excludesApiRuntimeCaching || explicitlyCachesApiRoute) {
     fail('Generated service worker must not cache API or tRPC routes.');
+  }
+
+  const notificationHandlerSnippets = [
+    ["addEventListener('push'", 'listen for Web Push events'],
+    ['showNotification', 'show browser notifications from push events'],
+    ["addEventListener('notificationclick'", 'handle notification clicks'],
+    ['clients.openWindow', 'open Oasis when a notification is clicked'],
+  ];
+
+  for (const [snippet, message] of notificationHandlerSnippets) {
+    if (!serviceWorker.includes(snippet)) {
+      fail(`Generated service worker must ${message}.`);
+    }
   }
 }
 

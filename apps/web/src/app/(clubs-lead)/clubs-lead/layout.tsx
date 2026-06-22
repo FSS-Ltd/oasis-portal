@@ -9,6 +9,7 @@ import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { ProfilePortalMenu } from '@/components/profile/profile-portal-menu';
+import { DownloadAppLink } from '@/components/pwa/download-app-link';
 import type { PortalProfileHref } from '@/lib/portal-view-routing';
 import {
   clubPortalView,
@@ -101,6 +102,7 @@ export default async function ClubsLeadLayout({ children }: { children: ReactNod
         </div>
         <ClubsLeadNav />
         <div className="admin-shell__foot">
+          <DownloadAppLink variant="sidebar" />
           <span>Oasis Learning Centre</span>
           <LogoutButton />
         </div>
@@ -123,6 +125,7 @@ export default async function ClubsLeadLayout({ children }: { children: ReactNod
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            <DownloadAppLink variant="mobile" />
             {portalSwitchViews ? (
               <PortalViewSwitch activeView="club" variant="mobile" views={portalSwitchViews} />
             ) : null}

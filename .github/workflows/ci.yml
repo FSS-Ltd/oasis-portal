@@ -124,6 +124,44 @@ jobs:
             echo "Preview deployment skipped because only non-deploy files changed." >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+  pwa-preview-changes:
+    name: Detect PWA preview deploy changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      preview_required: ${{ steps.detect.outputs.preview_required }}
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect PWA deploy-relevant files
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          preview_required=false
+          changed_files="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+
+          while IFS= read -r path; do
+            case "${path}" in
+              .github/workflows/*|apps/mobile/*|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|scripts/*|turbo.json|tsconfig*)
+                preview_required=true
+                break
+                ;;
+            esac
+          done <<< "${changed_files}"
+
+          echo "preview_required=${preview_required}" >> "${GITHUB_OUTPUT}"
+
+          if [ "${preview_required}" = "true" ]; then
+            echo "PWA preview deployment required because mobile app deploy-relevant files changed." >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "PWA preview deployment skipped because no mobile app deploy-relevant files changed." >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
   deploy-preview:
     name: Vercel preview deploy
     runs-on: ubuntu-latest
@@ -241,6 +279,103 @@ jobs:
               body: `Vercel preview: ${{ steps.deploy.outputs.url }}`
             })
 
+  deploy-pwa-preview:
+    name: Vercel PWA preview deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [verify, pwa-preview-changes]
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.pwa-preview-changes.outputs.preview_required == 'true'
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      OASIS_APP_VERCEL_PROJECT_ID: ${{ secrets.OASIS_APP_VERCEL_PROJECT_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.OASIS_APP_VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TELEMETRY_DISABLED: '1'
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate PWA preview deploy secrets
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID OASIS_APP_VERCEL_PROJECT_ID EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY EXPO_PUBLIC_TRPC_URL; do
+            if [ -z "${!name}" ]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            printf 'Add the missing secrets before running Oasis app PWA deploy jobs.\n' >&2
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-factor 2
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
+          for attempt in 1 2 3; do
+            if npm install --global "vercel@${VERCEL_CLI_VERSION}"; then
+              exit 0
+            fi
+
+            if [ "${attempt}" = "3" ]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 10))
+          done
+
+      - name: Link Vercel PWA project
+        run: |
+          mkdir -p apps/mobile/.vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "${VERCEL_ORG_ID}" "${OASIS_APP_VERCEL_PROJECT_ID}" > apps/mobile/.vercel/project.json
+
+      - name: Build PWA preview artifact
+        run: pnpm --filter @oasis/mobile build:web
+
+      - name: Deploy PWA preview
+        id: deploy
+        run: |
+          deployment_url="$(vercel deploy dist --cwd apps/mobile --archive=tgz --yes)"
+          echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
+          echo "PWA preview deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Comment PWA preview URL
+        uses: actions/github-script@v9
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Oasis app PWA preview: ${{ steps.deploy.outputs.url }}`
+            })
+
   deploy-production:
     name: Vercel production deploy
     runs-on: ubuntu-latest
@@ -354,3 +489,85 @@ jobs:
           deployment_url="$(vercel deploy --prebuilt --prod --archive=tgz)"
           echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
           echo "Production deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"
+
+  deploy-pwa-production:
+    name: Vercel PWA production deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [deploy-production]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      OASIS_APP_VERCEL_PROJECT_ID: ${{ secrets.OASIS_APP_VERCEL_PROJECT_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.OASIS_APP_VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TELEMETRY_DISABLED: '1'
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+      EXPO_PUBLIC_TRPC_URL: ${{ secrets.EXPO_PUBLIC_TRPC_URL }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate PWA production deploy secrets
+        run: |
+          missing=()
+          for name in VERCEL_TOKEN VERCEL_ORG_ID OASIS_APP_VERCEL_PROJECT_ID EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY EXPO_PUBLIC_TRPC_URL; do
+            if [ -z "${!name}" ]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            printf 'Add the missing secrets before running Oasis app PWA production deploys.\n' >&2
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-factor 2
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+
+          for attempt in 1 2 3; do
+            if npm install --global "vercel@${VERCEL_CLI_VERSION}"; then
+              exit 0
+            fi
+
+            if [ "${attempt}" = "3" ]; then
+              exit 1
+            fi
+
+            sleep $((attempt * 10))
+          done
+
+      - name: Link Vercel PWA project
+        run: |
+          mkdir -p apps/mobile/.vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "${VERCEL_ORG_ID}" "${OASIS_APP_VERCEL_PROJECT_ID}" > apps/mobile/.vercel/project.json
+
+      - name: Build PWA production artifact
+        run: pnpm --filter @oasis/mobile build:web
+
+      - name: Deploy PWA production
+        id: deploy
+        run: |
+          deployment_url="$(vercel deploy dist --cwd apps/mobile --prod --archive=tgz --yes)"
+          echo "url=${deployment_url}" >> "${GITHUB_OUTPUT}"
+          echo "PWA production deployment: ${deployment_url}" >> "${GITHUB_STEP_SUMMARY}"

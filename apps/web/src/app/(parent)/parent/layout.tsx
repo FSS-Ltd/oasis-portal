@@ -10,6 +10,7 @@ import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ParentBottomNav, ParentSidebarNav, ParentTopNav } from '@/components/parent/parent-nav';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { ProfilePortalMenu } from '@/components/profile/profile-portal-menu';
+import { DownloadAppLink } from '@/components/pwa/download-app-link';
 import {
   clubPortalView,
   parentPortalView,
@@ -83,6 +84,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           </Link>
           <ParentTopNav {...parentNavProps} />
           <div className="parent-topbar__actions">
+            <DownloadAppLink variant="topbar" />
             {portalSwitchViews ? (
               <PortalViewSwitch activeView="parent" variant="topbar" views={portalSwitchViews} />
             ) : null}
@@ -115,6 +117,7 @@ export default async function ParentLayout({ children }: { children: ReactNode }
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            <DownloadAppLink variant="mobile" />
             {portalSwitchViews ? (
               <PortalViewSwitch activeView="parent" variant="mobile" views={portalSwitchViews} />
             ) : null}
