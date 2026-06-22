@@ -100,13 +100,9 @@ Rollback path:
 
 ## Install And Offline Behaviour
 
-The login screen exposes an install panel only when the browser supports
-installation:
-
-- Chromium/Android: waits for `beforeinstallprompt`, then prompts from the
-  button.
-- iOS/iPadOS: shows Safari Share and Add to Home Screen instructions.
-- Standalone display mode: hides the install panel.
+The production web portals expose the download action that sends users to the
+dedicated PWA origin, `https://app.oasisportal.space`. The PWA/mobile app
+surfaces do not render their own install panel.
 
 The service worker is conservative:
 

@@ -7,13 +7,6 @@ const manifestPath = path.join(projectRoot, 'public', 'manifest.json');
 const appConfigPath = path.join(projectRoot, 'app.json');
 const serviceWorkerScriptPath = path.join(projectRoot, 'scripts', 'generate-service-worker.mjs');
 const htmlShellPath = path.join(projectRoot, 'app', '+html.tsx');
-const installButtonPath = path.join(
-  projectRoot,
-  'src',
-  'components',
-  'pwa',
-  'install-app-button.tsx',
-);
 
 const failures = [];
 const expectedManifest = {
@@ -92,7 +85,6 @@ function checkManifestMetadata(manifest, description) {
 function checkSourceFiles() {
   fileExists(serviceWorkerScriptPath, 'Workbox service-worker generation script');
   fileExists(htmlShellPath, 'Expo Router web HTML shell');
-  fileExists(installButtonPath, 'Install app button component');
 }
 
 function checkServiceWorkerOutput(filePath) {

@@ -3,7 +3,6 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { useSignIn, useSSO } from '@clerk/clerk-expo';
 import { WebBrowserResultType } from 'expo-web-browser';
 import oasisLogo from '../../../assets/oasis-logo.png';
-import { InstallAppButton } from '../pwa/install-app-button';
 import { Card, ErrorText, Field, MutedText, MobileButton } from './mobile-ui';
 import { C } from './mobile-theme';
 
@@ -292,7 +291,6 @@ export function SignInPanel() {
         ) : null}
         <Text style={styles.securityNote}>Secured with Clerk two-factor authentication</Text>
       </Card>
-      <InstallAppButton />
     </View>
   );
 }

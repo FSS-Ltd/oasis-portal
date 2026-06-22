@@ -5,7 +5,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { MobileTrpcProvider } from '../src/lib/trpc-provider';
 import { C } from '../src/components/core/mobile-theme';
 import { PwaServiceWorkerRegistration } from '../src/components/pwa/pwa-service-worker-registration';
-import { InstallAppButton } from '../src/components/pwa/install-app-button';
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
@@ -41,7 +40,6 @@ function MissingClerkConfig() {
       <Text style={styles.configText}>
         Set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY before starting Expo.
       </Text>
-      <InstallAppButton />
     </View>
   );
 }
