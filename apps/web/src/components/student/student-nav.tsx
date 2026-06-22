@@ -12,6 +12,7 @@ import {
   Medal,
   MessageCircle,
   ShoppingBag,
+  Smartphone,
   TrendingUp,
   UsersRound,
   Wallet,
@@ -31,6 +32,7 @@ const studentNavItems = [
   { href: '/student/faith', label: 'Faith', icon: BookOpenText },
   { href: '/student/ranks', label: 'Ranks', icon: Medal },
   { href: '/student/shop', label: 'Shop', icon: ShoppingBag },
+  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
 
 type StudentNavItem = (typeof studentNavItems)[number];

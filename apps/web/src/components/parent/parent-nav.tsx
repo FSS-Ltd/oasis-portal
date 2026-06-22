@@ -16,6 +16,7 @@ import {
   Settings,
   ShieldAlert,
   ShoppingBag,
+  Smartphone,
   UserRound,
 } from 'lucide-react';
 
@@ -34,6 +35,7 @@ const parentNavItems = [
   { href: '/parent/registration', label: 'Registration', icon: ClipboardList },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },
   { href: '/parent/noticeboard', label: 'Noticeboard', icon: Bell },
+  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
 
 const parentMobileNavHrefs = new Set([

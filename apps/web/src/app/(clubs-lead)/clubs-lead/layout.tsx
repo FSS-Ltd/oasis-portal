@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Bell, ClipboardList, Home, Star } from 'lucide-react';
+import { Bell, ClipboardList, Home, Smartphone, Star } from 'lucide-react';
 import { prisma } from '@oasis/db';
 import { getClubsLeadUser, linkedChildCount } from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
@@ -9,7 +9,6 @@ import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { ProfilePortalMenu } from '@/components/profile/profile-portal-menu';
-import { DownloadAppLink } from '@/components/pwa/download-app-link';
 import type { PortalProfileHref } from '@/lib/portal-view-routing';
 import {
   clubPortalView,
@@ -27,6 +26,7 @@ const navItems = [
   { href: '/clubs-lead?tab=behaviour', label: 'Behaviour', icon: Star },
   { href: '/clubs-lead?tab=attendance', label: 'Attendance', icon: ClipboardList },
   { href: '/clubs-lead?tab=noticeboard', label: 'Noticeboard', icon: Bell },
+  { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
 
 function ClubsLeadNav() {
@@ -102,7 +102,6 @@ export default async function ClubsLeadLayout({ children }: { children: ReactNod
         </div>
         <ClubsLeadNav />
         <div className="admin-shell__foot">
-          <DownloadAppLink variant="sidebar" />
           <span>Oasis Learning Centre</span>
           <LogoutButton />
         </div>
@@ -125,7 +124,6 @@ export default async function ClubsLeadLayout({ children }: { children: ReactNod
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
-            <DownloadAppLink variant="mobile" />
             {portalSwitchViews ? (
               <PortalViewSwitch activeView="club" variant="mobile" views={portalSwitchViews} />
             ) : null}
