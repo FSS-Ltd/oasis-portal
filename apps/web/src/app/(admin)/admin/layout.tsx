@@ -28,6 +28,7 @@ import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
 import { ProfileBadgeLink } from '@/components/profile/profile-badge-link';
 import { ProfilePortalMenu } from '@/components/profile/profile-portal-menu';
+import { DownloadAppLink } from '@/components/pwa/download-app-link';
 import {
   clubPortalView,
   parentPortalView,
@@ -152,6 +153,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         </div>
         <AdminSidebarNav {...adminNavProps} />
         <div className="admin-shell__foot">
+          <DownloadAppLink variant="sidebar" />
           <span>Oasis Learning Centre</span>
           <LogoutButton />
         </div>
@@ -174,6 +176,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            <DownloadAppLink variant="mobile" />
             {portalSwitchViews ? (
               <PortalViewSwitch activeView="staff" variant="mobile" views={portalSwitchViews} />
             ) : null}

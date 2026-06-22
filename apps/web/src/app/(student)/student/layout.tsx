@@ -10,6 +10,7 @@ import {
   StudentTopNav,
 } from '@/components/student/student-nav';
 import { StudentPortalGate } from '@/components/student/student-portal-gate';
+import { DownloadAppLink } from '@/components/pwa/download-app-link';
 import '../../(admin)/admin/admin.css';
 import './student.css';
 
@@ -33,6 +34,7 @@ export default async function StudentLayout({ children }: { children: ReactNode 
           </Link>
           <StudentTopNav />
           <div className="student-topbar__actions">
+            <DownloadAppLink variant="topbar" />
             <LogoutButton className="student-topbar__logout" />
           </div>
         </header>
@@ -53,6 +55,7 @@ export default async function StudentLayout({ children }: { children: ReactNode 
             </span>
           </Link>
           <div className="admin-shell__mobile-actions">
+            <DownloadAppLink variant="mobile" />
             <LogoutButton className="logout-button logout-button--mobile" />
           </div>
         </header>

@@ -27,6 +27,59 @@
   color: var(--oasis-text);
 }
 
+.download-app-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--oasis-text-secondary);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.download-app-link:hover,
+.download-app-link:focus-visible {
+  border-color: var(--oasis-blue);
+  color: var(--oasis-blue);
+}
+
+.download-app-link--sidebar {
+  width: 100%;
+  min-height: 38px;
+  margin-bottom: 8px;
+}
+
+.download-app-link--topbar {
+  min-height: 34px;
+  padding: 0 12px;
+  background: var(--oasis-bg);
+}
+
+.download-app-link--mobile {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  background: var(--oasis-bg);
+}
+
+.download-app-link--mobile span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .table-responsive,
 .panel--scroll,
 .invoice-table-card,
