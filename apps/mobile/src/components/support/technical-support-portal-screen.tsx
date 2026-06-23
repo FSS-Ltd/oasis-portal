@@ -25,6 +25,8 @@ type DirectoryRow =
   | { account: AccessAccount; id: string; kind: 'account' }
   | { id: string; invitation: AccessInvitation; kind: 'invitation' };
 
+const accessRoles: readonly AccessRole[] = ['Parent', 'TechnicalSupport'];
+
 function roleLabel(role: string): string {
   return role === 'TechnicalSupport' ? 'Technical Support' : role;
 }
@@ -56,6 +58,14 @@ function rowMatches(row: DirectoryRow, query: string): boolean {
       ? `${row.account.fullName} ${row.account.email} ${row.account.role}`
       : `${row.invitation.email} ${row.invitation.role} pending`;
   return haystack.toLowerCase().includes(query);
+}
+
+function rowRole(row: DirectoryRow): string {
+  return row.kind === 'account' ? row.account.role : row.invitation.role;
+}
+
+function countRowsByRole(rows: DirectoryRow[], role: AccessRole): number {
+  return rows.filter((row) => rowRole(row) === role).length;
 }
 
 export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
@@ -96,19 +106,12 @@ export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => rowMatches(row, query));
   }, [rows, search]);
-  const selectedRow =
-    filteredRows.find((row) => row.id === selectedId) ?? filteredRows[0] ?? null;
+  const selectedRow = filteredRows.find((row) => row.id === selectedId) ?? filteredRows[0] ?? null;
   const loading = accountsQuery.isLoading || invitationsQuery.isLoading;
   const errorMessage = accountsQuery.error?.message ?? invitationsQuery.error?.message ?? null;
   const activeCount = accounts.filter((account) => account.active).length;
-  const parentCount = rows.filter((row) =>
-    row.kind === 'account' ? row.account.role === 'Parent' : row.invitation.role === 'Parent',
-  ).length;
-  const supportCount = rows.filter((row) =>
-    row.kind === 'account'
-      ? row.account.role === 'TechnicalSupport'
-      : row.invitation.role === 'TechnicalSupport',
-  ).length;
+  const parentCount = countRowsByRole(rows, 'Parent');
+  const supportCount = countRowsByRole(rows, 'TechnicalSupport');
 
   useEffect(() => {
     if (!selectedRow) {
@@ -168,7 +171,7 @@ export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
             value={inviteEmail}
           />
           <View style={styles.roleToggle}>
-            {(['Parent', 'TechnicalSupport'] as const).map((role) => (
+            {accessRoles.map((role) => (
               <Pressable
                 accessibilityRole="button"
                 key={role}
@@ -216,7 +219,10 @@ export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
                 onPress={() => {
                   setSelectedId(row.id);
                 }}
-                style={[styles.directoryRow, selectedRow?.id === row.id ? styles.selectedRow : null]}
+                style={[
+                  styles.directoryRow,
+                  selectedRow?.id === row.id ? styles.selectedRow : null,
+                ]}
               >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{rowTitle(row).slice(0, 1).toUpperCase()}</Text>

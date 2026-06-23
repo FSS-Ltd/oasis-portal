@@ -142,8 +142,7 @@ export function StudentHomeScreen({
             <View key={notification.id} style={styles.updateRow}>
               <Text style={styles.updateTitle}>{notification.title}</Text>
               <Text style={styles.updateMeta}>
-                {notification.read ? 'Read' : 'Unread'} ·{' '}
-                {String(dashboard.notifications.unreadCount)} unread
+                {notificationMetaLabel(notification.read, dashboard.notifications.unreadCount)}
               </Text>
             </View>
           ))
@@ -153,6 +152,10 @@ export function StudentHomeScreen({
       <PwaHomeActions />
     </View>
   );
+}
+
+function notificationMetaLabel(read: boolean, unreadCount: number): string {
+  return `${read ? 'Read' : 'Unread'} · ${String(unreadCount)} unread`;
 }
 
 function HeroStat({ label, value }: { label: string; value: string }) {

@@ -3,19 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 652
-- Files reviewed so far: 180
-- Files remaining estimate: 472
-- Last run: 2026-06-20
+- Current eligible files: 742
+- Files reviewed so far: 212
+- Files remaining estimate: 530
+- Last run: 2026-06-23
 - Last selected files:
-  - `apps/mobile/src/components/parent/parent-profile-registration-screen.tsx`
-  - `apps/mobile/src/components/staff/staff-club-manager-screen.tsx`
-  - `apps/mobile/src/components/staff/staff-pace-form.tsx`
-  - `apps/mobile/src/components/staff/staff-communications-screen.tsx`
-  - `packages/domain/src/__tests__/shop.test.ts`
-  - `apps/mobile/src/components/staff/staff-shop-counter-screen.tsx`
-  - `apps/mobile/src/components/staff/staff-incident-screen.tsx`
-  - `apps/mobile/src/components/staff/staff-behaviour-screen.tsx`
-  - `apps/mobile/src/components/staff/staff-club-lead-behaviour.tsx`
-  - `apps/mobile/src/components/staff/staff-incident-form.tsx`
-- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then oversized mobile staff screens, oversized tests, and least-recently-reviewed files.
+  - `apps/mobile/src/components/support/technical-support-portal-screen.tsx`
+  - `apps/mobile/src/components/student/student-markets-trade-ticket.tsx`
+  - `apps/mobile/src/components/staff/staff-special-attendance-roster.tsx`
+  - `apps/mobile/src/components/parent/parent-fees-invoices-detail.tsx`
+  - `apps/mobile/src/components/core/sign-in-panel.tsx`
+  - `apps/mobile/src/components/messages/mobile-message-inbox.tsx`
+  - `apps/mobile/src/components/student/student-home-screen.tsx`
+  - `apps/mobile/src/components/staff/staff-attendance-roster.tsx`
+  - `apps/api/src/__tests__/studentNotification.router.test.ts`
+  - `apps/mobile/src/components/staff/staff-club-manager-attendance.tsx`
+- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then remaining oversized mobile UI files, API tests, and least-recently-reviewed files.

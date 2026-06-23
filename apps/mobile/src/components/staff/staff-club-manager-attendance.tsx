@@ -31,6 +31,7 @@ export function StaffClubManagerAttendance({
   rows: StaffClubAttendanceRow[];
 }) {
   const counts = attendanceCounts(rows);
+  const markedCountLabel = `${String(rows.length - counts.unmarked)}/${String(rows.length)}`;
 
   return (
     <View style={styles.stack}>
@@ -40,9 +41,7 @@ export function StaffClubManagerAttendance({
             <Text style={styles.cardTitle}>Attendance review</Text>
             <MutedText>{formattedDate}</MutedText>
           </View>
-          <Badge variant={counts.unmarked > 0 ? 'warning' : 'success'}>
-            {String(rows.length - counts.unmarked)}/{String(rows.length)}
-          </Badge>
+          <Badge variant={counts.unmarked > 0 ? 'warning' : 'success'}>{markedCountLabel}</Badge>
         </View>
         <View style={styles.dateActions}>
           <DateButton

@@ -854,3 +854,54 @@
 
 ### Follow-Ups Deferred
 - Broader mobile screen component extraction deferred; current screens are already split around child panels, and deeper changes would create review risk without a focused product request.
+
+## 2026-06-23 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/support/technical-support-portal-screen.tsx`
+2. `apps/mobile/src/components/student/student-markets-trade-ticket.tsx`
+3. `apps/mobile/src/components/staff/staff-special-attendance-roster.tsx`
+4. `apps/mobile/src/components/parent/parent-fees-invoices-detail.tsx`
+5. `apps/mobile/src/components/core/sign-in-panel.tsx`
+6. `apps/mobile/src/components/messages/mobile-message-inbox.tsx`
+7. `apps/mobile/src/components/student/student-home-screen.tsx`
+8. `apps/mobile/src/components/staff/staff-attendance-roster.tsx`
+9. `apps/api/src/__tests__/studentNotification.router.test.ts`
+10. `apps/mobile/src/components/staff/staff-club-manager-attendance.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: `pnpm --filter @oasis/mobile typecheck` and `pnpm --filter @oasis/api typecheck` passed before edits.
+- Tests: focused API and mobile tests were reserved for post-change validation.
+- Formatting: selected-file Prettier failed for `apps/mobile/src/components/support/technical-support-portal-screen.tsx`, `apps/mobile/src/components/parent/parent-fees-invoices-detail.tsx`, and `apps/api/src/__tests__/studentNotification.router.test.ts`.
+
+### Changes Made
+- `apps/mobile/src/components/support/technical-support-portal-screen.tsx`: formatted the selected file and extracted access-role/count helpers.
+- `apps/mobile/src/components/student/student-markets-trade-ticket.tsx`: extracted the trade action label helper.
+- `apps/mobile/src/components/staff/staff-special-attendance-roster.tsx`: extracted status badge variant selection.
+- `apps/mobile/src/components/parent/parent-fees-invoices-detail.tsx`: formatted the selected file and extracted invoice discount-breakdown lookup.
+- `apps/mobile/src/components/core/sign-in-panel.tsx`: reviewed lint, type, and auth surface; no safe source change was needed.
+- `apps/mobile/src/components/messages/mobile-message-inbox.tsx`: extracted conversation contact selection and reused the message-count label helper.
+- `apps/mobile/src/components/student/student-home-screen.tsx`: extracted notification meta label formatting.
+- `apps/mobile/src/components/staff/staff-attendance-roster.tsx`: extracted status badge variant selection.
+- `apps/api/src/__tests__/studentNotification.router.test.ts`: formatted the selected router test.
+- `apps/mobile/src/components/staff/staff-club-manager-attendance.tsx`: named the marked-over-total attendance badge label.
+- Review memory: carried forward the 2026-06-21 and 2026-06-22 automation-reviewed files from the prior daily branch.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/api lint`
+- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/api typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/mobile test`; pass, `pnpm --filter @oasis/api exec vitest run src/__tests__/studentNotification.router.test.ts`
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff hygiene: pass, `git diff --check`
+- graph update: pass, `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Broader shared extraction between staff club manager and club lead attendance remains deferred because the club lead file was outside today's selected 10-file scope.
