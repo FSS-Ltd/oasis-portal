@@ -2,14 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import {
-  Badge,
-  Card,
-  ErrorText,
-  MutedText,
-  SectionTitle,
-  MobileButton,
-} from '../core/mobile-ui';
+import { Badge, Card, ErrorText, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
 import {
   formatFileSize,
   formatInvoiceDate,
@@ -80,16 +73,16 @@ export function ParentFeesInvoicesDetail({ invoice, onBack }: ParentFeesInvoices
           <Meta label="Billing" value={invoice.billingCadence ?? invoice.term ?? 'Not set'} />
           <Meta label="Issued" value={formatInvoiceDate(invoice.issuedOn)} />
           <Meta label="Due" value={formatInvoiceDate(invoice.dueOn)} />
-          {invoice.paidAt ? <Meta label="Paid on" value={formatInvoiceDate(invoice.paidAt)} /> : null}
+          {invoice.paidAt ? (
+            <Meta label="Paid on" value={formatInvoiceDate(invoice.paidAt)} />
+          ) : null}
         </View>
       </Card>
 
       <Card style={styles.metaCard}>
         <SectionTitle>Line items</SectionTitle>
         {invoice.lineItems.map((line, index) => {
-          const breakdown = invoice.discountBreakdowns.find(
-            (candidate) => candidate.lineItemId === line.id || candidate.childIndex === index,
-          );
+          const breakdown = discountBreakdownForLine(invoice, line.id, index);
           return (
             <View key={line.id} style={styles.lineItem}>
               <View style={styles.row}>
@@ -199,6 +192,16 @@ export function ParentFeesInvoicesDetail({ invoice, onBack }: ParentFeesInvoices
         ) : null}
       </Card>
     </View>
+  );
+}
+
+function discountBreakdownForLine(
+  invoice: ParentInvoice,
+  lineItemId: string,
+  childIndex: number,
+): ParentInvoice['discountBreakdowns'][number] | undefined {
+  return invoice.discountBreakdowns.find(
+    (candidate) => candidate.lineItemId === lineItemId || candidate.childIndex === childIndex,
   );
 }
 

@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-20",
+  "lastRunDate": "2026-06-23",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -2203,6 +2203,392 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
+    },
+    "apps/mobile/src/components/parent/parent-profile-registration.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/staff/staff-club-manager.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/staff/staff-communications.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-behaviour-screen.tsx": {
+      "lastReviewedAt": "2026-06-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/portal/production-portal-shell.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-settings-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-reports-ranks-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 637,
+      "lineCountAfter": 637,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-incident-reports-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 608,
+      "lineCountAfter": 608,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-permission-slip-detail-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-clubs-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 464,
+      "lineCountAfter": 464,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-child-detail-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 439,
+      "lineCountAfter": 439,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/parent/parent-portal-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 401,
+      "lineCountAfter": 401,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/messages/mobile-message-conversation.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 393,
+      "lineCountAfter": 393,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/student/student-portal-screen.tsx": {
+      "lastReviewedAt": "2026-06-21",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 612,
+      "lineCountAfter": 612,
+      "issuesFixed": [
+        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
+      ],
+      "validationStatus": "pass",
+      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
+    },
+    "apps/mobile/src/components/core/portal-mobile-shell.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 679,
+      "lineCountAfter": 656,
+      "issuesFixed": [
+        "Extracted repeated drawer bounce animation timing into local typed helpers while preserving exact timing values."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized shared mobile shell component."
+    },
+    "apps/mobile/src/components/parent/parent-student-settings-screen.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 648,
+      "lineCountAfter": 646,
+      "issuesFixed": [
+        "Formatted selected parent settings screen to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent settings workflow component."
+    },
+    "apps/mobile/src/components/parent/parent-permission-slips-detail.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 497,
+      "lineCountAfter": 496,
+      "issuesFixed": [
+        "Formatted selected permission slip detail screen to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized parent permission slip detail component."
+    },
+    "apps/mobile/src/components/staff/staff-attendance-screen.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 496,
+      "lineCountAfter": 497,
+      "issuesFixed": [
+        "Reviewed oversized staff attendance screen; lint, typecheck, and formatting were clean with no safe local extraction needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed unchanged to avoid attendance workflow behavior churn."
+    },
+    "apps/mobile/src/components/student/student-wallet-screen.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 434,
+      "lineCountAfter": 435,
+      "issuesFixed": [
+        "Reviewed oversized student wallet screen; lint, typecheck, and formatting were clean with no safe local extraction needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed unchanged to avoid wallet behavior churn."
+    },
+    "apps/mobile/src/components/student/student-community-screen.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 422,
+      "lineCountAfter": 425,
+      "issuesFixed": [
+        "Formatted selected student community screen to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized student community component."
+    },
+    "apps/mobile/src/components/student/student-wallet-tithe-panel.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 422,
+      "lineCountAfter": 447,
+      "issuesFixed": [
+        "Extracted tithe preference parsing and validation into a pure local helper with the same validation messages."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized tithe wallet panel."
+    },
+    "apps/mobile/src/components/staff/staff-behaviour-form.tsx": {
+      "lastReviewedAt": "2026-06-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 374,
+      "lineCountAfter": 374,
+      "issuesFixed": [
+        "Extracted the behaviour save button label into a local helper to remove nested label logic from JSX."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized staff behaviour form component."
+    },
+    "apps/mobile/src/components/support/technical-support-portal-screen.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 469,
+      "lineCountAfter": 475,
+      "issuesFixed": [
+        "Formatted selected support portal screen to satisfy Prettier.",
+        "Extracted access-role constants and row role counting helpers while preserving directory behaviour."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as the largest unreviewed eligible mobile source file."
+    },
+    "apps/mobile/src/components/student/student-markets-trade-ticket.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 369,
+      "lineCountAfter": 377,
+      "issuesFixed": [
+        "Extracted the nested trade action button label into a typed local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized mobile student market trade component."
+    },
+    "apps/mobile/src/components/staff/staff-special-attendance-roster.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 358,
+      "lineCountAfter": 358,
+      "issuesFixed": [
+        "Extracted special-attendance status badge variant selection into a named local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized mobile staff attendance component."
+    },
+    "apps/mobile/src/components/parent/parent-fees-invoices-detail.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 354,
+      "lineCountAfter": 357,
+      "issuesFixed": [
+        "Formatted selected invoice detail file to satisfy Prettier.",
+        "Extracted invoice discount-breakdown lookup into a named local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized parent invoice detail component; invoice/payment behaviour was not changed."
+    },
+    "apps/mobile/src/components/core/sign-in-panel.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed-no-change",
+      "lineCountBefore": 350,
+      "lineCountAfter": 350,
+      "issuesFixed": [
+        "Reviewed mobile sign-in panel for lint, type, and safe auth cleanup; no safe source change was justified."
+      ],
+      "validationStatus": "pass",
+      "notes": "Left unchanged to avoid auth/MFA semantic churn."
+    },
+    "apps/mobile/src/components/messages/mobile-message-inbox.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 332,
+      "lineCountAfter": 333,
+      "issuesFixed": [
+        "Extracted conversation contact selection and reused the existing message-count label helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized mobile messages inbox component."
+    },
+    "apps/mobile/src/components/student/student-home-screen.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 328,
+      "lineCountAfter": 331,
+      "issuesFixed": [
+        "Extracted latest notification meta label formatting into a named local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized mobile student home component."
+    },
+    "apps/mobile/src/components/staff/staff-attendance-roster.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 321,
+      "lineCountAfter": 322,
+      "issuesFixed": [
+        "Extracted attendance status badge variant selection into a named local helper."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized mobile staff attendance roster component."
+    },
+    "apps/api/src/__tests__/studentNotification.router.test.ts": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 316,
+      "lineCountAfter": 323,
+      "issuesFixed": [
+        "Formatted selected student notification router test to satisfy Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed API router test over 300 lines."
+    },
+    "apps/mobile/src/components/staff/staff-club-manager-attendance.tsx": {
+      "lastReviewedAt": "2026-06-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 314,
+      "lineCountAfter": 313,
+      "issuesFixed": [
+        "Named the marked-over-total club attendance badge label."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an oversized mobile staff club manager attendance component."
     }
   },
   "deferredFiles": {

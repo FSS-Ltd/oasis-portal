@@ -21,6 +21,17 @@ function conversationCountLabel(count: number): string {
   return count === 1 ? '1 message' : `${String(count)} messages`;
 }
 
+function conversationContact(conversation: ConversationSummary): string {
+  if (conversation.kind === 'Staffroom') return 'Staffroom';
+
+  return (
+    conversation.participants.find((participant) => participant.id !== conversation.currentUserId)
+      ?.fullName ??
+    conversation.admin?.fullName ??
+    'Centre team'
+  );
+}
+
 export function InboxView({
   conversations,
   emptyDetail,
@@ -114,14 +125,7 @@ function ConversationRow({
 }) {
   const latestTime = conversation.latestMessage?.createdAt ?? conversation.updatedAt;
   const unread = conversation.unreadCount > 0;
-  const contact =
-    conversation.kind === 'Staffroom'
-      ? 'Staffroom'
-      : (conversation.participants.find(
-          (participant) => participant.id !== conversation.currentUserId,
-        )?.fullName ??
-        conversation.admin?.fullName ??
-        'Centre team');
+  const contact = conversationContact(conversation);
 
   return (
     <Pressable
@@ -144,10 +148,7 @@ function ConversationRow({
           {conversation.kind === 'Staffroom' ? 'Staff group chat' : 'Private message'}
         </Text>
         <Text numberOfLines={1} style={styles.threadLatest}>
-          {latestSenderLabel(conversation)} -{' '}
-          {conversation.messageCount === 1
-            ? '1 message'
-            : `${String(conversation.messageCount)} messages`}
+          {latestSenderLabel(conversation)} - {conversationCountLabel(conversation.messageCount)}
         </Text>
       </View>
       {unread ? (

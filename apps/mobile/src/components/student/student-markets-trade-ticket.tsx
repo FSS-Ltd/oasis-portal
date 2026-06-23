@@ -155,6 +155,12 @@ export function MarketTradeTicket({
     resetAmount();
   }
 
+  const actionLabel = tradeActionLabel({
+    pending,
+    readyToConfirm,
+    side,
+  });
+
   return (
     <Card style={styles.card}>
       <View style={styles.rowBetween}>
@@ -195,19 +201,7 @@ export function MarketTradeTicket({
             <MobileButton
               compact
               disabled={disabled}
-              label={
-                pending
-                  ? draft.side === 'buy'
-                    ? 'Buying...'
-                    : 'Selling...'
-                  : readyToConfirm
-                    ? draft.side === 'buy'
-                      ? 'Confirm buy'
-                      : 'Confirm sell'
-                    : draft.side === 'buy'
-                      ? 'Review buy'
-                      : 'Review sell'
-              }
+              label={actionLabel}
               onPress={reviewOrConfirm}
               variant={draft.side === 'buy' ? 'success' : 'danger'}
             />
@@ -223,6 +217,20 @@ export function MarketTradeTicket({
       {visibleError ? <ErrorText>{visibleError}</ErrorText> : null}
     </Card>
   );
+}
+
+function tradeActionLabel({
+  pending,
+  readyToConfirm,
+  side,
+}: {
+  pending: boolean;
+  readyToConfirm: boolean;
+  side: MarketTradeSide;
+}): string {
+  if (pending) return side === 'buy' ? 'Buying...' : 'Selling...';
+  if (readyToConfirm) return side === 'buy' ? 'Confirm buy' : 'Confirm sell';
+  return side === 'buy' ? 'Review buy' : 'Review sell';
 }
 
 function TradeSummary({

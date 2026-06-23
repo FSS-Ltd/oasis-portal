@@ -146,23 +146,22 @@ function makeFakeDb(input?: {
   notifications?: StoredNotification[];
   students?: StoredStudent[];
 }): FakeDb {
-  const students =
-    input?.students ?? [
-      {
-        id: primaryStudentId,
-        userId: primaryStudentUser.id,
-        yearGroup: 'Year 6',
-        active: true,
-        createdAt: new Date('2026-01-01T00:00:00.000Z'),
-      },
-      {
-        id: secondaryStudentId,
-        userId: secondaryStudentUser.id,
-        yearGroup: 'Year 8',
-        active: true,
-        createdAt: new Date('2026-01-02T00:00:00.000Z'),
-      },
-    ];
+  const students = input?.students ?? [
+    {
+      id: primaryStudentId,
+      userId: primaryStudentUser.id,
+      yearGroup: 'Year 6',
+      active: true,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+    {
+      id: secondaryStudentId,
+      userId: secondaryStudentUser.id,
+      yearGroup: 'Year 8',
+      active: true,
+      createdAt: new Date('2026-01-02T00:00:00.000Z'),
+    },
+  ];
   const notifications = input?.notifications ?? [];
   const db = {
     $enc: {
@@ -186,7 +185,9 @@ function makeFakeDb(input?: {
     },
     studentNotification: {
       count: vi.fn(({ where }: FakeNotificationCountArgs = {}) =>
-        Promise.resolve(notifications.filter((notification) => matchesWhere(notification, where)).length),
+        Promise.resolve(
+          notifications.filter((notification) => matchesWhere(notification, where)).length,
+        ),
       ),
       create: vi.fn(({ data }: FakeNotificationCreateArgs) => {
         const row = makeNotification(data);
@@ -200,7 +201,9 @@ function makeFakeDb(input?: {
         return Promise.resolve({ count: data.length });
       }),
       findFirst: vi.fn(({ where }: FakeNotificationFindManyArgs = {}) =>
-        Promise.resolve(notifications.find((notification) => matchesWhere(notification, where)) ?? null),
+        Promise.resolve(
+          notifications.find((notification) => matchesWhere(notification, where)) ?? null,
+        ),
       ),
       findMany: vi.fn(({ where, take }: FakeNotificationFindManyArgs = {}) =>
         Promise.resolve(
@@ -261,17 +264,19 @@ describe('studentNotification router', () => {
       }),
     ).resolves.toEqual({ recipientCount: 1 });
 
-    await expect(makeCaller(primaryStudentUser, db).studentNotification.list()).resolves.toMatchObject(
-      [
-        {
-          kind: 'SystemAnnouncement',
-          title: 'Primary update',
-          body: 'Bring your workbook tomorrow.',
-          read: false,
-        },
-      ],
+    await expect(
+      makeCaller(primaryStudentUser, db).studentNotification.list(),
+    ).resolves.toMatchObject([
+      {
+        kind: 'SystemAnnouncement',
+        title: 'Primary update',
+        body: 'Bring your workbook tomorrow.',
+        read: false,
+      },
+    ]);
+    await expect(makeCaller(secondaryStudentUser, db).studentNotification.list()).resolves.toEqual(
+      [],
     );
-    await expect(makeCaller(secondaryStudentUser, db).studentNotification.list()).resolves.toEqual([]);
   });
 
   it('marks only the signed-in student notification as read', async () => {
@@ -295,7 +300,9 @@ describe('studentNotification router', () => {
 
     expect(ownNotification.readAt).toBeInstanceOf(Date);
     expect(otherNotification.readAt).toBeNull();
-    await expect(makeCaller(primaryStudentUser, db).studentNotification.unreadCount()).resolves.toEqual({
+    await expect(
+      makeCaller(primaryStudentUser, db).studentNotification.unreadCount(),
+    ).resolves.toEqual({
       count: 0,
     });
   });

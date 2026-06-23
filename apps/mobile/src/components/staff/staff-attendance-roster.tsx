@@ -77,14 +77,6 @@ function AttendanceRosterRow({
   const activeDraft = draft ?? (row.status ? buildDraft(row.status, row.absenceReason) : null);
   const activeStatus = activeDraft?.status ?? null;
   const canSave = isDraftSaveable(draft) && !pending && !saving;
-  const statusVariant =
-    row.status === 'Present'
-      ? 'success'
-      : row.status === 'Late'
-        ? 'warning'
-        : row.status === 'Absent'
-          ? 'danger'
-          : 'neutral';
 
   return (
     <Card style={[styles.rowCard, row.status === 'Absent' ? styles.absentCard : null]}>
@@ -93,7 +85,7 @@ function AttendanceRosterRow({
           <Text style={styles.studentName}>{row.studentName}</Text>
           <Text style={styles.studentMeta}>{row.yearGroup}</Text>
         </View>
-        <Badge variant={statusVariant}>{row.status ? row.status : 'Unmarked'}</Badge>
+        <Badge variant={statusVariant(row.status)}>{row.status ? row.status : 'Unmarked'}</Badge>
       </View>
 
       <View style={styles.statusRow}>
@@ -149,6 +141,15 @@ function AttendanceRosterRow({
       </View>
     </Card>
   );
+}
+
+function statusVariant(
+  status: AttendanceRowData['status'],
+): 'danger' | 'neutral' | 'success' | 'warning' {
+  if (status === 'Absent') return 'danger';
+  if (status === 'Late') return 'warning';
+  if (status === 'Present') return 'success';
+  return 'neutral';
 }
 
 function StatusButton({

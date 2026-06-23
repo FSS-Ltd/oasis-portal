@@ -150,15 +150,6 @@ function SpecialAttendanceRow({
   pending: boolean;
   row: SpecialAttendanceRowData;
 }) {
-  const statusVariant =
-    row.status === 'Present'
-      ? 'success'
-      : row.status === 'Late'
-        ? 'warning'
-        : row.status === 'Absent'
-          ? 'danger'
-          : 'neutral';
-
   return (
     <View style={styles.row}>
       <View style={styles.rowHeader}>
@@ -166,7 +157,7 @@ function SpecialAttendanceRow({
           <Text style={styles.studentName}>{row.studentName}</Text>
           <Text style={styles.studentMeta}>{row.yearGroup}</Text>
         </View>
-        <Badge variant={statusVariant}>{row.status ?? 'Unmarked'}</Badge>
+        <Badge variant={statusVariant(row.status)}>{row.status ?? 'Unmarked'}</Badge>
       </View>
       <View style={styles.statusRow}>
         {attendanceStatuses.map((status) => (
@@ -185,6 +176,15 @@ function SpecialAttendanceRow({
       <MutedText>{row.recordedAt ? 'Saved' : pending ? 'Saving...' : 'Not saved yet'}</MutedText>
     </View>
   );
+}
+
+function statusVariant(
+  status: SpecialAttendanceRowData['status'],
+): 'danger' | 'neutral' | 'success' | 'warning' {
+  if (status === 'Absent') return 'danger';
+  if (status === 'Late') return 'warning';
+  if (status === 'Present') return 'success';
+  return 'neutral';
 }
 
 function StatusButton({
