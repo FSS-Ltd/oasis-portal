@@ -75,15 +75,28 @@ export function ParentPortalScreen({
   const profile = api.profile.me.useQuery(undefined, { retry: false });
   const dashboard = api.childLog.parentDashboard.useQuery(undefined, { retry: false });
   const registrationStatus = api.registration.status.useQuery(undefined, { retry: false });
-  const notices = api.notice.listForParents.useQuery(undefined, { retry: false });
+  const children = useMemo(() => dashboard.data?.children ?? [], [dashboard.data?.children]);
+  const hasLinkedChildren = children.length > 0;
+  const notices = api.notice.listForParents.useQuery(undefined, {
+    enabled: hasLinkedChildren && route === 'notices',
+    retry: false,
+  });
   const conversationsQuery = api.message.listConversations.useQuery(
     { cursor: messageCursor, kinds: ['ParentStaff'], limit: messagePageSize },
-    { retry: false },
+    { enabled: hasLinkedChildren && route === 'messages', retry: false },
   );
-  const recipients = api.message.listRecipients.useQuery({ kind: 'ParentStaff' }, { retry: false });
-  const clubSignupContext = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
-  const clubNotices = api.club.myClubNotices.useQuery(undefined, { retry: false });
-  const children = useMemo(() => dashboard.data?.children ?? [], [dashboard.data?.children]);
+  const recipients = api.message.listRecipients.useQuery(
+    { kind: 'ParentStaff' },
+    { enabled: hasLinkedChildren && route === 'messages', retry: false },
+  );
+  const clubSignupContext = api.club.linkedChildSignupContext.useQuery(undefined, {
+    enabled: hasLinkedChildren && route === 'clubs',
+    retry: false,
+  });
+  const clubNotices = api.club.myClubNotices.useQuery(undefined, {
+    enabled: hasLinkedChildren && route === 'clubs',
+    retry: false,
+  });
   const selectedChild = selectedParentChild(children, selectedChildId);
   const selectedStudentId = selectedChild?.student.id ?? '';
   const balances = api.meritLedger.balances.useQuery(
@@ -143,11 +156,11 @@ export function ParentPortalScreen({
       profile.refetch(),
       dashboard.refetch(),
       registrationStatus.refetch(),
-      notices.refetch(),
-      utils.message.listConversations.invalidate(),
-      recipients.refetch(),
-      clubSignupContext.refetch(),
-      clubNotices.refetch(),
+      route === 'notices' ? notices.refetch() : Promise.resolve(),
+      route === 'messages' ? utils.message.listConversations.invalidate() : Promise.resolve(),
+      route === 'messages' ? recipients.refetch() : Promise.resolve(),
+      route === 'clubs' ? clubSignupContext.refetch() : Promise.resolve(),
+      route === 'clubs' ? clubNotices.refetch() : Promise.resolve(),
       selectedStudentId ? balances.refetch() : Promise.resolve(),
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
@@ -172,20 +185,22 @@ export function ParentPortalScreen({
     parentInvoices.isFetching ||
     parentCalendar.isFetching ||
     permissionSlips.isFetching;
-  const queryError =
-    dashboard.error?.message ??
-    profile.error?.message ??
-    notices.error?.message ??
-    conversationsQuery.error?.message ??
-    recipients.error?.message ??
-    clubSignupContext.error?.message ??
-    balances.error?.message ??
-    shopItems.error?.message ??
-    shopReservations.error?.message ??
-    parentInvoices.error?.message ??
-    parentCalendar.error?.message ??
-    permissionSlips.error?.message ??
-    null;
+  const routeQueryError =
+    route === 'messages'
+      ? (conversationsQuery.error?.message ?? recipients.error?.message ?? null)
+      : route === 'notices'
+        ? (notices.error?.message ?? null)
+        : route === 'clubs'
+          ? (clubSignupContext.error?.message ?? clubNotices.error?.message ?? null)
+          : route === 'shop'
+            ? (shopItems.error?.message ?? shopReservations.error?.message ?? balances.error?.message ?? null)
+            : route === 'fees'
+              ? (parentInvoices.error?.message ?? null)
+              : route === 'calendar'
+                ? (parentCalendar.error?.message ?? null)
+                : route === 'slips'
+                  ? (permissionSlips.error?.message ?? null)
+                  : null;
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
@@ -226,7 +241,7 @@ export function ParentPortalScreen({
           title="Oasis Learning Centre"
         />
         <View style={styles.messagesContent}>
-          {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+          {routeQueryError ? <ErrorText>{routeQueryError}</ErrorText> : null}
           <ParentMessagesScreen
             conversations={conversations}
             hasMore={Boolean(nextMessageCursor)}
@@ -327,7 +342,7 @@ export function ParentPortalScreen({
           }
           style={styles.scroller}
         >
-          {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+          {routeQueryError ? <ErrorText>{routeQueryError}</ErrorText> : null}
           {route === 'notices' ? <ParentNoticesScreen notices={notices.data ?? []} /> : null}
           {route === 'clubs' ? (
             <ParentClubsScreen

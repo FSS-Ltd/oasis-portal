@@ -1,6 +1,6 @@
 import type { RouterOutputs } from '../../lib/trpc';
 
-export type ParentCalendarEvent = RouterOutputs['calendar']['listForParents'][number];
+export type ParentCalendarEvent = RouterOutputs['calendar']['listVisible'][number];
 export type ParentCalendarAudience = ParentCalendarEvent['audience'];
 export type ParentCalendarCategory = ParentCalendarEvent['category'];
 

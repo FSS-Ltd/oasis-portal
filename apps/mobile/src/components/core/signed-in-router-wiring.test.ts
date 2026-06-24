@@ -72,9 +72,13 @@ describe('signed-in mobile routing', () => {
     expect(supportPortal).toMatch(/Switch to parent mode/);
   });
 
-  it('keeps Technical Support mobile User Access filters in parity with web', () => {
+  it('keeps Technical Support mobile surfaces in parity with the web support shell', () => {
     const supportPortal = readMobile('src/components/support/technical-support-portal-screen.tsx');
 
+    expect(supportPortal).toMatch(/type SupportPortalRoute = 'access' \| 'calendar' \| 'mobile-app'/);
+    expect(supportPortal).toMatch(/api\.calendar\.listVisible\.useQuery/);
+    expect(supportPortal).toMatch(/ParentCalendarScreen/);
+    expect(supportPortal).toMatch(/Mobile app/);
     expect(supportPortal).toMatch(/type AccessFilter/);
     expect(supportPortal).toMatch(/accessFilters/);
     expect(supportPortal).toMatch(/filterAccount/);

@@ -43,6 +43,7 @@ describe('parent home mobile wiring', () => {
   });
 
   it('uses linked-child parent APIs and avoids staff or admin APIs', () => {
+    const shell = readMobile('src/components/core/portal-mobile-shell.tsx');
     const portal = readMobile('src/components/parent/parent-portal-screen.tsx');
     const home = readMobile('src/components/parent/parent-home-screen.tsx');
 
@@ -55,6 +56,11 @@ describe('parent home mobile wiring', () => {
     expect(home).toMatch(/api\.club\.linkedChildSignupContext\.useQuery/);
     expect(home).toMatch(/api\.invoice\.listParent\.useQuery/);
     expect(home).toMatch(/api\.permissionSlip\.listParent\.useQuery/);
+    expect(home).toMatch(/enabled: hasLinkedChildren/);
+    expect(home).toMatch(/const queryError = dashboardError/);
+    expect(portal).toMatch(/routeQueryError/);
+    expect(shell).toMatch(/Feather\.loadFont\(\)/);
+    expect(shell).toMatch(/iconPlaceholder/);
 
     for (const source of [portal, home]) {
       expect(source).not.toMatch(/staffHome\.summary/);

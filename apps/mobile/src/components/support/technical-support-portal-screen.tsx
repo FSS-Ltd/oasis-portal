@@ -15,16 +15,29 @@ import {
   SectionTitle,
   StatCard,
 } from '../core/mobile-ui';
-import { PortalMobileHeader } from '../core/portal-mobile-shell';
+import {
+  PortalMobileBottomNav,
+  PortalMobileHeader,
+  type PortalMobileNavItem,
+} from '../core/portal-mobile-shell';
+import { ParentCalendarScreen } from '../parent/parent-calendar-screen';
+import { TechnicalSupportMobileAppScreen } from './technical-support-mobile-app-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];
 type AccessInvitation = RouterOutputs['admin']['listUserInvitations'][number];
 type AccessRole = 'Parent' | 'TechnicalSupport';
 type AccessFilter = 'active' | 'all' | 'inactive' | AccessRole;
+type SupportPortalRoute = 'access' | 'calendar' | 'mobile-app';
 type DirectoryRow =
   | { account: AccessAccount; id: string; kind: 'account' }
   | { id: string; invitation: AccessInvitation; kind: 'invitation' };
+
+const supportTabs: Array<PortalMobileNavItem<SupportPortalRoute>> = [
+  { id: 'access', icon: 'profile', label: 'Access' },
+  { id: 'calendar', icon: 'calendar', label: 'Calendar' },
+  { id: 'mobile-app', icon: 'mobile', label: 'Mobile app' },
+];
 
 const accessRoles: readonly AccessRole[] = ['Parent', 'TechnicalSupport'];
 
@@ -104,6 +117,7 @@ export function TechnicalSupportPortalScreen({
 }) {
   const { signOut } = useClerk();
   const utils = api.useUtils();
+  const [route, setRoute] = useState<SupportPortalRoute>('access');
   const [filter, setFilter] = useState<AccessFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
@@ -111,6 +125,10 @@ export function TechnicalSupportPortalScreen({
   const [inviteRole, setInviteRole] = useState<AccessRole>('Parent');
   const accountsQuery = api.admin.listUserAccounts.useQuery(undefined, { retry: false });
   const invitationsQuery = api.admin.listUserInvitations.useQuery(undefined, { retry: false });
+  const calendarQuery = api.calendar.listVisible.useQuery(undefined, {
+    enabled: route === 'calendar',
+    retry: false,
+  });
   const inviteUser = api.admin.inviteUser.useMutation({
     async onSuccess() {
       setInviteEmail('');
@@ -150,6 +168,15 @@ export function TechnicalSupportPortalScreen({
   const activeCount = accounts.filter((account) => account.active).length;
   const parentCount = countRowsByRole(rows, 'Parent');
   const supportCount = countRowsByRole(rows, 'TechnicalSupport');
+  const bottomNav = (
+    <PortalMobileBottomNav
+      activeId={route}
+      items={supportTabs}
+      onSelect={setRoute}
+      primaryItemLimit={3}
+      variant="dark"
+    />
+  );
 
   useEffect(() => {
     if (!selectedRow) {
@@ -169,19 +196,54 @@ export function TechnicalSupportPortalScreen({
     });
   }
 
+  if (route === 'calendar') {
+    return (
+      <SafeAreaView style={styles.shell}>
+        <TechnicalSupportHeader
+          onSignOut={() => {
+            void signOut();
+          }}
+          subtitle="Calendar"
+        />
+        <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
+          <ParentCalendarScreen
+            detail="Dates visible to the support admin shell."
+            error={calendarQuery.error?.message ?? null}
+            events={calendarQuery.data ?? []}
+            eyebrow="Support Calendar"
+            loading={calendarQuery.isLoading}
+            title="Key Dates"
+          />
+        </ScrollView>
+        {bottomNav}
+      </SafeAreaView>
+    );
+  }
+
+  if (route === 'mobile-app') {
+    return (
+      <SafeAreaView style={styles.shell}>
+        <TechnicalSupportHeader
+          onSignOut={() => {
+            void signOut();
+          }}
+          subtitle="Mobile App"
+        />
+        <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
+          <TechnicalSupportMobileAppScreen />
+        </ScrollView>
+        {bottomNav}
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.shell}>
-      <PortalMobileHeader
-        actionAccessibilityLabel="Sign out of Technical Support account"
-        actionLabel="Out"
-        avatarLabel="TS"
-        eyebrow="Support Portal"
-        onActionPress={() => {
+      <TechnicalSupportHeader
+        onSignOut={() => {
           void signOut();
         }}
         subtitle="User Access"
-        title="Oasis Learning Centre"
-        variant="dark"
       />
       <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
         {onSwitchToParent ? (
@@ -317,7 +379,29 @@ export function TechnicalSupportPortalScreen({
           <AccessInvitationDetail invitation={selectedRow.invitation} />
         ) : null}
       </ScrollView>
+      {bottomNav}
     </SafeAreaView>
+  );
+}
+
+function TechnicalSupportHeader({
+  onSignOut,
+  subtitle,
+}: {
+  onSignOut: () => void;
+  subtitle: string;
+}) {
+  return (
+    <PortalMobileHeader
+      actionAccessibilityLabel="Sign out of Technical Support account"
+      actionLabel="Out"
+      avatarLabel="TS"
+      eyebrow="Support Portal"
+      onActionPress={onSignOut}
+      subtitle={subtitle}
+      title="Oasis Learning Centre"
+      variant="dark"
+    />
   );
 }
 

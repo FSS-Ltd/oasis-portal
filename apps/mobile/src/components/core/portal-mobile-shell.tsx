@@ -1,4 +1,4 @@
-import { type ComponentProps, useMemo, useRef, useState } from 'react';
+import { type ComponentProps, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -13,6 +13,9 @@ import {
 import Feather from '@expo/vector-icons/Feather';
 import oasisLogo from '../../../assets/oasis-logo.png';
 import { C } from './mobile-theme';
+
+let featherFontLoaded = false;
+let featherFontPromise: Promise<void> | null = null;
 
 type NavVariant = 'light' | 'dark';
 export type PortalMobileNavIconName =
@@ -29,6 +32,7 @@ export type PortalMobileNavIconName =
   | 'leaderboard'
   | 'markets'
   | 'messages'
+  | 'mobile'
   | 'more'
   | 'notices'
   | 'pace'
@@ -396,6 +400,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
     case 'incidents':
     case 'messages':
     case 'markets':
+    case 'mobile':
     case 'more':
     case 'notices':
     case 'pace':
@@ -415,7 +420,35 @@ function navIconFromId(id: string): PortalMobileNavIconName {
   }
 }
 
+function loadFeatherFont() {
+  if (featherFontLoaded) return Promise.resolve();
+  featherFontPromise ??= Feather.loadFont().then(() => {
+    featherFontLoaded = true;
+  });
+  return featherFontPromise;
+}
+
 function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobileNavIconName }) {
+  const [fontReady, setFontReady] = useState(featherFontLoaded);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!fontReady) {
+      void loadFeatherFont()
+        .then(() => {
+          if (mounted) setFontReady(true);
+        })
+        .catch(() => {
+          featherFontPromise = null;
+        });
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [fontReady]);
+
+  if (!fontReady) return <View style={styles.iconPlaceholder} />;
+
   return <Feather color={color} name={featherIconName(name)} size={24} />;
 }
 
@@ -449,6 +482,8 @@ function featherIconName(name: PortalMobileNavIconName): ComponentProps<typeof F
       return 'trending-up';
     case 'messages':
       return 'message-square';
+    case 'mobile':
+      return 'smartphone';
     case 'more':
       return 'more-horizontal';
     case 'notices':
@@ -539,6 +574,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     lineHeight: 14,
+  },
+  iconPlaceholder: {
+    height: 24,
+    width: 24,
   },
   bottomNavLight: {
     backgroundColor: C.surface,
