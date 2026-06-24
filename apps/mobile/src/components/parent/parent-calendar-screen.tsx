@@ -15,10 +15,20 @@ import {
 interface ParentCalendarScreenProps {
   error: string | null;
   events: readonly ParentCalendarEvent[];
+  eyebrow?: string | undefined;
+  detail?: string | undefined;
   loading: boolean;
+  title?: string | undefined;
 }
 
-export function ParentCalendarScreen({ error, events, loading }: ParentCalendarScreenProps) {
+export function ParentCalendarScreen({
+  detail = 'Dates visible to parents and all portals.',
+  error,
+  events,
+  eyebrow = 'Parent Calendar',
+  loading,
+  title = 'Key Dates',
+}: ParentCalendarScreenProps) {
   const [selected, setSelected] = useState<ParentCalendarEvent | null>(null);
   const monthKey = useMemo(() => currentMonthKey(), []);
   const upcomingEvents = useMemo(() => upcomingCalendarEvents(events), [events]);
@@ -38,9 +48,9 @@ export function ParentCalendarScreen({ error, events, loading }: ParentCalendarS
   return (
     <View style={styles.stack}>
       <Card style={styles.heroCard}>
-        <Text style={styles.eyebrow}>Parent Calendar</Text>
-        <SectionTitle>Key Dates</SectionTitle>
-        <MutedText>Dates visible to parents and all portals.</MutedText>
+        <Text style={styles.eyebrow}>{eyebrow}</Text>
+        <SectionTitle>{title}</SectionTitle>
+        <MutedText>{detail}</MutedText>
         <View style={styles.summaryGrid}>
           <SummaryPill label="Upcoming events" value={String(upcomingEvents.length)} />
           <SummaryPill label="This month" value={String(thisMonthEvents.length)} />

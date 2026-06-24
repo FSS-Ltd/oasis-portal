@@ -43,23 +43,29 @@ export function ParentHomeScreen({
   registrationStatus: RegistrationStatus | undefined;
   selectedChild: ParentDashboardChild | null;
 }) {
-  const notices = api.notice.listForParents.useQuery(undefined, { retry: false });
+  const hasLinkedChildren = children.length > 0;
+  const notices = api.notice.listForParents.useQuery(undefined, {
+    enabled: hasLinkedChildren,
+    retry: false,
+  });
   const conversations = api.message.listConversations.useQuery(
     { kinds: ['ParentStaff'], limit: 10 },
-    { retry: false },
+    { enabled: hasLinkedChildren, retry: false },
   );
-  const clubContext = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
-  const invoices = api.invoice.listParent.useQuery({ status: 'All' }, { retry: false });
-  const permissionSlips = api.permissionSlip.listParent.useQuery(undefined, { retry: false });
+  const clubContext = api.club.linkedChildSignupContext.useQuery(undefined, {
+    enabled: hasLinkedChildren,
+    retry: false,
+  });
+  const invoices = api.invoice.listParent.useQuery(
+    { status: 'All' },
+    { enabled: hasLinkedChildren, retry: false },
+  );
+  const permissionSlips = api.permissionSlip.listParent.useQuery(undefined, {
+    enabled: hasLinkedChildren,
+    retry: false,
+  });
 
-  const queryError =
-    dashboardError ??
-    notices.error?.message ??
-    conversations.error?.message ??
-    clubContext.error?.message ??
-    invoices.error?.message ??
-    permissionSlips.error?.message ??
-    null;
+  const queryError = dashboardError;
   const selectedChildId = selectedChild?.student.id ?? null;
   const signals = parentHomeSignals({
     clubContext: clubContext.data,
@@ -79,11 +85,11 @@ export function ParentHomeScreen({
   async function refreshAll() {
     await Promise.all([
       onRefresh(),
-      notices.refetch(),
-      conversations.refetch(),
-      clubContext.refetch(),
-      invoices.refetch(),
-      permissionSlips.refetch(),
+      hasLinkedChildren ? notices.refetch() : Promise.resolve(),
+      hasLinkedChildren ? conversations.refetch() : Promise.resolve(),
+      hasLinkedChildren ? clubContext.refetch() : Promise.resolve(),
+      hasLinkedChildren ? invoices.refetch() : Promise.resolve(),
+      hasLinkedChildren ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
 
