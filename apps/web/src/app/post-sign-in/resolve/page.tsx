@@ -7,7 +7,10 @@ import {
   twoFactorSatisfiedFromClerkAuth,
 } from '@/lib/clerk-two-factor';
 import { ensureDevHeadUser } from '@/lib/dev-head-user';
-import { resolvePostSignInDestinationForState } from '@/lib/post-sign-in-routing';
+import {
+  resolvePostSignInDestinationForState,
+  type PostSignInDestination,
+} from '@/lib/post-sign-in-routing';
 import { PostSignInTransition } from './post-sign-in-transition';
 
 export const dynamic = 'force-dynamic';
@@ -28,6 +31,15 @@ function portalSwitchTargetFromSearchParams(
     : searchParams?.switchTo;
 
   return value === 'parent' || value === 'staff' || value === 'club' ? value : null;
+}
+
+function destinationForPortalSwitch(
+  switchTarget: PortalSwitchTarget | null,
+  counts: { assignedClubLeadCount: number; linkedChildrenCount: number },
+): PostSignInDestination | null {
+  if (switchTarget === 'parent' && counts.linkedChildrenCount > 0) return '/parent';
+  if (switchTarget === 'club' && counts.assignedClubLeadCount > 0) return '/clubs-lead';
+  return null;
 }
 
 export default async function PostSignInResolvePage({ searchParams }: PostSignInResolvePageProps) {
@@ -95,12 +107,13 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
     pendingParentLinkRequests,
     parentNeedsRegistration,
   });
+  const switchDestination = destinationForPortalSwitch(switchTarget, {
+    assignedClubLeadCount,
+    linkedChildrenCount,
+  });
 
-  if (switchTarget === 'parent' && linkedChildrenCount > 0) {
-    return <PostSignInTransition destination="/parent" />;
-  }
-  if (switchTarget === 'club' && assignedClubLeadCount > 0) {
-    return <PostSignInTransition destination="/clubs-lead" />;
+  if (switchDestination) {
+    return <PostSignInTransition destination={switchDestination} />;
   }
 
   return <PostSignInTransition destination={destination} />;

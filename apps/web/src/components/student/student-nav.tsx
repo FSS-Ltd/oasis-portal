@@ -16,6 +16,7 @@ import {
   TrendingUp,
   UsersRound,
   Wallet,
+  type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/lib/trpc';
 
@@ -36,6 +37,7 @@ const studentNavItems = [
 ] as const;
 
 type StudentNavItem = (typeof studentNavItems)[number];
+type StudentNavLinkVariant = 'bottom' | 'side' | 'top';
 
 const studentBottomNavHrefs = [
   '/student',
@@ -78,6 +80,45 @@ function badgeForItem(item: (typeof studentNavItems)[number], unreadBadge: strin
   return 'badge' in item ? unreadBadge : null;
 }
 
+function navItemClassName(variant: StudentNavLinkVariant, active: boolean): string {
+  const baseClassName =
+    variant === 'top'
+      ? 'student-top-nav__item'
+      : variant === 'bottom'
+        ? 'admin-shell__bottom-item'
+        : 'admin-shell__nav-item';
+
+  return [baseClassName, active ? 'is-active' : undefined].filter(Boolean).join(' ');
+}
+
+function StudentNavLink({
+  active,
+  badge,
+  icon: Icon,
+  href,
+  label,
+  variant,
+}: {
+  active: boolean;
+  badge?: string | null;
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  variant: StudentNavLinkVariant;
+}) {
+  return (
+    <Link
+      aria-current={active ? 'page' : undefined}
+      className={navItemClassName(variant, active)}
+      href={{ pathname: href }}
+    >
+      <Icon aria-hidden="true" size={navIconSize} />
+      <span>{label}</span>
+      {badge ? <b>{badge}</b> : null}
+    </Link>
+  );
+}
+
 export function StudentTopNav() {
   const pathname = usePathname() ?? '';
   const unreadBadge = useStudentNotificationBadge();
@@ -87,20 +128,16 @@ export function StudentTopNav() {
     <nav aria-label="Student portal sections" className="student-top-nav">
       {navItems.map((item) => {
         const active = isActiveRoute(pathname, item.href);
-        const Icon = item.icon;
-        const badge = badgeForItem(item, unreadBadge);
-
         return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={active ? 'student-top-nav__item is-active' : 'student-top-nav__item'}
-            href={{ pathname: item.href }}
+          <StudentNavLink
+            active={active}
+            badge={badgeForItem(item, unreadBadge)}
+            href={item.href}
+            icon={item.icon}
             key={item.href}
-          >
-            <Icon aria-hidden="true" size={navIconSize} />
-            <span>{item.label}</span>
-            {badge ? <b>{badge}</b> : null}
-          </Link>
+            label={item.label}
+            variant="top"
+          />
         );
       })}
     </nav>
@@ -115,24 +152,18 @@ export function StudentSidebarNav() {
   return (
     <nav className="admin-shell__nav">
       {navItems.map((item) => {
-        const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
-        const badge = badgeForItem(item, unreadBadge);
-        const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
-          .filter(Boolean)
-          .join(' ');
 
         return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={className}
-            href={{ pathname: item.href }}
+          <StudentNavLink
+            active={active}
+            badge={badgeForItem(item, unreadBadge)}
+            href={item.href}
+            icon={item.icon}
             key={item.href}
-          >
-            <Icon aria-hidden="true" size={navIconSize} />
-            <span>{item.label}</span>
-            {badge ? <b>{badge}</b> : null}
-          </Link>
+            label={item.label}
+            variant="side"
+          />
         );
       })}
     </nav>
@@ -149,22 +180,17 @@ export function StudentBottomNav() {
   return (
     <nav aria-label="Mobile student sections" className="admin-shell__bottom-nav">
       {navItems.map((item) => {
-        const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href);
-        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
-          .filter(Boolean)
-          .join(' ');
 
         return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={className}
-            href={{ pathname: item.href }}
+          <StudentNavLink
+            active={active}
+            href={item.href}
+            icon={item.icon}
             key={item.href}
-          >
-            <Icon aria-hidden="true" size={navIconSize} />
-            <span>{item.label}</span>
-          </Link>
+            label={item.label}
+            variant="bottom"
+          />
         );
       })}
     </nav>

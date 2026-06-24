@@ -3,19 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 742
-- Files reviewed so far: 212
-- Files remaining estimate: 530
-- Last run: 2026-06-23
+- Current eligible files: 744
+- Files reviewed so far: 222
+- Files remaining estimate: 522
+- Last run: 2026-06-24
 - Last selected files:
-  - `apps/mobile/src/components/support/technical-support-portal-screen.tsx`
-  - `apps/mobile/src/components/student/student-markets-trade-ticket.tsx`
-  - `apps/mobile/src/components/staff/staff-special-attendance-roster.tsx`
-  - `apps/mobile/src/components/parent/parent-fees-invoices-detail.tsx`
-  - `apps/mobile/src/components/core/sign-in-panel.tsx`
-  - `apps/mobile/src/components/messages/mobile-message-inbox.tsx`
-  - `apps/mobile/src/components/student/student-home-screen.tsx`
-  - `apps/mobile/src/components/staff/staff-attendance-roster.tsx`
-  - `apps/api/src/__tests__/studentNotification.router.test.ts`
-  - `apps/mobile/src/components/staff/staff-club-manager-attendance.tsx`
-- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then remaining oversized mobile UI files, API tests, and least-recently-reviewed files.
+  - `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`
+  - `apps/mobile/src/components/staff/staff-rota-availability-panel.tsx`
+  - `apps/web/src/components/student/student-nav.tsx`
+  - `apps/web/src/app/(parent)/parent/layout.tsx`
+  - `apps/web/src/components/parent/parent-nav.tsx`
+  - `apps/web/src/app/post-sign-in/resolve/page.tsx`
+  - `apps/web/src/lib/profile-display.ts`
+  - `packages/db/scripts/smoke-rls.ts`
+  - `apps/web/src/app/(admin)/admin/students/students-list.tsx`
+  - `apps/web/src/app/api/trpc/[trpc]/route.ts`
+- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then remaining oversized source files, high-churn files that are not part of dirty user work, and least-recently-reviewed files.

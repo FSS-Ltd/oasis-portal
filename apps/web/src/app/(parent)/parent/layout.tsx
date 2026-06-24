@@ -21,41 +21,45 @@ import './parent.css';
 
 export const dynamic = 'force-dynamic';
 
+async function loadParentShellCounts(user: Awaited<ReturnType<typeof getLinkedChildPortalUser>>) {
+  const now = new Date();
+  return Promise.all([
+    linkedChildCount(user.id),
+    canUseClubLeadAccess(user)
+      ? prisma.clubLeadAssignment.count({
+          where: { userId: user.id, club: { active: true } },
+        })
+      : Promise.resolve(0),
+    prisma.staffNotice.count({
+      where: {
+        active: true,
+        audience: { in: ['Parents', 'Both'] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        reads: {
+          none: { userId: user.id },
+        },
+      },
+    }),
+    prisma.message.count({
+      where: {
+        senderId: { not: user.id },
+        thread: {
+          kind: 'ParentStaff',
+          parentId: user.id,
+          participants: { some: { userId: user.id } },
+        },
+        reads: {
+          none: { userId: user.id },
+        },
+      },
+    }),
+  ]);
+}
+
 export default async function ParentLayout({ children }: { children: ReactNode }) {
   const user = await getLinkedChildPortalUser();
-  const now = new Date();
   const [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount] =
-    await Promise.all([
-      linkedChildCount(user.id),
-      canUseClubLeadAccess(user)
-        ? prisma.clubLeadAssignment.count({
-            where: { userId: user.id, club: { active: true } },
-          })
-        : Promise.resolve(0),
-      prisma.staffNotice.count({
-        where: {
-          active: true,
-          audience: { in: ['Parents', 'Both'] },
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-          reads: {
-            none: { userId: user.id },
-          },
-        },
-      }),
-      prisma.message.count({
-        where: {
-          senderId: { not: user.id },
-          thread: {
-            kind: 'ParentStaff',
-            parentId: user.id,
-            participants: { some: { userId: user.id } },
-          },
-          reads: {
-            none: { userId: user.id },
-          },
-        },
-      }),
-    ]);
+    await loadParentShellCounts(user);
   const parentNavProps = { unreadMessageCount, unreadNoticeCount };
   const hasLinkedChildren = linkedChildren > 0;
   const hasAssignedClub = assignedClubLeadCount > 0;

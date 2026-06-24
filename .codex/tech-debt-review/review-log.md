@@ -905,3 +905,52 @@
 
 ### Follow-Ups Deferred
 - Broader shared extraction between staff club manager and club lead attendance remains deferred because the club lead file was outside today's selected 10-file scope.
+
+## 2026-06-24 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`
+2. `apps/mobile/src/components/staff/staff-rota-availability-panel.tsx`
+3. `apps/web/src/components/student/student-nav.tsx`
+4. `apps/web/src/app/(parent)/parent/layout.tsx`
+5. `apps/web/src/components/parent/parent-nav.tsx`
+6. `apps/web/src/app/post-sign-in/resolve/page.tsx`
+7. `apps/web/src/lib/profile-display.ts`
+8. `packages/db/scripts/smoke-rls.ts`
+9. `apps/web/src/app/(admin)/admin/students/students-list.tsx`
+10. `apps/web/src/app/api/trpc/[trpc]/route.ts`
+
+### Baseline Findings
+- Lint: initial selected-file ESLint failed only for `apps/web/tests/e2e/supervisor-dashboard.spec.ts` because it is outside the ESLint TypeScript project service; that file was deferred and replaced. Selected-file ESLint for the final 10 files passed before edits.
+- Typecheck: `pnpm --filter @oasis/mobile typecheck`, `pnpm --filter @oasis/web typecheck`, and `pnpm --filter @oasis/db typecheck` passed before edits.
+- Tests: package tests were reserved for post-change validation.
+
+### Changes Made
+- `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`: extracted attendance summary and roster row presentation into `staff-club-lead-attendance-components.tsx`, reducing the selected container from 305 to 75 lines.
+- `apps/mobile/src/components/staff/staff-rota-availability-panel.tsx`: extracted availability row editors and draft update helpers into `staff-rota-availability-editor.tsx`, reducing the selected container from 302 to 124 lines.
+- `apps/mobile/tests/staff-clubs/staff-clubs-wiring.test.mjs`: updated the focused source-inspection test to include the extracted attendance component module.
+- `apps/web/src/components/student/student-nav.tsx`: centralized repeated student nav link rendering and active-class handling.
+- `apps/web/src/components/parent/parent-nav.tsx`: centralized parent nav link rendering and mobile label selection.
+- `apps/web/src/app/(parent)/parent/layout.tsx`: extracted parent shell count loading into a named helper.
+- `apps/web/src/app/post-sign-in/resolve/page.tsx`: extracted portal-switch destination selection while preserving the existing destination type.
+- `apps/web/src/lib/profile-display.ts`: moved static role/person/permission label maps out of function bodies.
+- `packages/db/scripts/smoke-rls.ts`: centralized repeated visible-behaviour count assertions.
+- `apps/web/src/app/(admin)/admin/students/students-list.tsx`: reused one student date formatter for enrolment dates.
+- `apps/web/src/app/api/trpc/[trpc]/route.ts`: reviewed and left unchanged.
+
+### Validation
+- lint command: pass, selected-file ESLint including extracted modules; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/db lint`; fail, `pnpm --filter @oasis/web lint` on unrelated pre-existing `apps/web/src/components/supervisor/supervisor-nav.tsx:196`.
+- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/db typecheck`.
+- relevant tests: pass, `pnpm --filter @oasis/mobile test`; pass, `pnpm --filter @oasis/db test`.
+- other checks: pass, selected/touched-file Prettier check; pass, `git diff --check`; pass, `graphify update .`.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: deferred because selected-file ESLint cannot parse it under the current project-service config; it was replaced to keep this run normally validated.
+- Broad web lint still has an unrelated existing issue in `apps/web/src/components/supervisor/supervisor-nav.tsx:196`.
