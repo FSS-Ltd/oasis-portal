@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-23",
+  "lastRunDate": "2026-06-24",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -2589,6 +2589,124 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an oversized mobile staff club manager attendance component."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-attendance.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 305,
+      "lineCountAfter": 75,
+      "issuesFixed": [
+        "Extracted attendance summary and roster row presentation into an adjacent component module."
+      ],
+      "validationStatus": "pass: selected-file ESLint, mobile lint/typecheck/test, Prettier, git diff --check, graphify update",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/mobile/src/components/staff/staff-rota-availability-panel.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 302,
+      "lineCountAfter": 124,
+      "issuesFixed": [
+        "Extracted availability row editors and draft update helpers into an adjacent component module."
+      ],
+      "validationStatus": "pass: selected-file ESLint, mobile lint/typecheck/test, Prettier, git diff --check, graphify update",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/components/student/student-nav.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 172,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Centralized repeated student nav link class, icon, badge, and active-route rendering."
+      ],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/app/(parent)/parent/layout.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 138,
+      "lineCountAfter": 142,
+      "issuesFixed": [
+        "Named parent shell count loading to keep the layout render path focused."
+      ],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/components/parent/parent-nav.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 167,
+      "lineCountAfter": 196,
+      "issuesFixed": [
+        "Centralized parent nav link rendering and mobile label selection."
+      ],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/app/post-sign-in/resolve/page.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 107,
+      "lineCountAfter": 120,
+      "issuesFixed": [
+        "Extracted portal-switch destination selection with the existing destination type preserved."
+      ],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/lib/profile-display.ts": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 54,
+      "lineCountAfter": 57,
+      "issuesFixed": [
+        "Moved repeated role/person/permission label maps out of function bodies."
+      ],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "packages/db/scripts/smoke-rls.ts": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 232,
+      "lineCountAfter": 234,
+      "issuesFixed": [
+        "Centralized repeated visible-behaviour count assertions."
+      ],
+      "validationStatus": "pass: selected-file ESLint, db lint/typecheck/test, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/app/(admin)/admin/students/students-list.tsx": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 226,
+      "lineCountAfter": 230,
+      "issuesFixed": [
+        "Reused one student date formatter instead of constructing one per row render."
+      ],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
+      "notes": "Behaviour-preserving maintenance cleanup only."
+    },
+    "apps/web/src/app/api/trpc/[trpc]/route.ts": {
+      "lastReviewedAt": "2026-06-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 88,
+      "lineCountAfter": 88,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check; reviewed unchanged",
+      "notes": "Reviewed lint/type/format surface; no safe local cleanup needed."
     }
   },
   "deferredFiles": {
@@ -2611,6 +2729,10 @@
     "apps/api/src/__tests__/behaviour.router.test.ts": {
       "deferredAt": "2026-06-12",
       "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
+    },
+    "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
+      "deferredAt": "2026-06-24",
+      "reason": "Selected-file ESLint cannot parse this Playwright spec because it is outside the configured TypeScript project service; replaced with a normally validated source file for this run."
     }
   },
   "fullPassHistory": [

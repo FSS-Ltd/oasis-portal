@@ -17,6 +17,7 @@ describe('staff club lead mobile wiring', () => {
       'staff-club-lead-overview.tsx',
       'staff-club-lead-behaviour.tsx',
       'staff-club-lead-attendance.tsx',
+      'staff-club-lead-attendance-components.tsx',
       'staff-club-lead-noticeboard.tsx',
       'staff-club-lead-utils.ts',
     ];
@@ -72,7 +73,9 @@ describe('staff club lead mobile wiring', () => {
 
   it('keeps loading, empty, pending, success, and error states visible', () => {
     const screen = read('src/components/staff/staff-club-lead-screen.tsx');
-    const attendance = read('src/components/staff/staff-club-lead-attendance.tsx');
+    const attendance =
+      read('src/components/staff/staff-club-lead-attendance.tsx') +
+      read('src/components/staff/staff-club-lead-attendance-components.tsx');
     const behaviour = read('src/components/staff/staff-club-lead-behaviour.tsx');
     const noticeboard = read('src/components/staff/staff-club-lead-noticeboard.tsx');
 
@@ -92,7 +95,9 @@ describe('staff club lead mobile wiring', () => {
 
   it('keeps behaviour logging today-only while attendance can move between session dates', () => {
     const screen = read('src/components/staff/staff-club-lead-screen.tsx');
-    const attendance = read('src/components/staff/staff-club-lead-attendance.tsx');
+    const attendance =
+      read('src/components/staff/staff-club-lead-attendance.tsx') +
+      read('src/components/staff/staff-club-lead-attendance-components.tsx');
 
     assert.match(screen, /todayDate/);
     assert.match(screen, /attendanceDate/);

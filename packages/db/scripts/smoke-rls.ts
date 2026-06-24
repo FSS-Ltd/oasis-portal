@@ -18,6 +18,20 @@ const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
 type CountRow = { count: bigint };
 
+function assertVisibleBehaviourCount({
+  actual,
+  expected,
+  label,
+}: {
+  actual: number;
+  expected: number;
+  label: string;
+}) {
+  if (actual !== expected) {
+    throw new Error(`Expected ${label} to see ${String(expected)} rows, saw ${String(actual)}`);
+  }
+}
+
 function ensureSmokeEncryptionEnv() {
   process.env['OASIS_MASTER_KEY'] ??= randomBytes(32).toString('base64');
   process.env['OASIS_MASTER_KEY_VERSION'] ??= '1';
@@ -190,32 +204,20 @@ async function main() {
       'General',
     );
 
-    if (fullAdminSensitive !== 2) {
-      throw new Error(
-        `Expected full admin to see 2 sensitive rows, saw ${String(fullAdminSensitive)}`,
-      );
-    }
-    if (hodSensitive !== 2) {
-      throw new Error(`Expected HOD to see 2 sensitive rows, saw ${String(hodSensitive)}`);
-    }
-    if (principalSensitive !== 2) {
-      throw new Error(
-        `Expected Principal to see 2 sensitive rows, saw ${String(principalSensitive)}`,
-      );
-    }
-    if (authorSupervisorSensitive !== 2) {
-      throw new Error(
-        `Expected author supervisor to see 2 sensitive rows, saw ${String(authorSupervisorSensitive)}`,
-      );
-    }
-    if (otherSupervisorSensitive !== 0) {
-      throw new Error(
-        `Expected other supervisor to see 0 sensitive rows, saw ${String(otherSupervisorSensitive)}`,
-      );
-    }
-    if (supervisorGeneral !== 1) {
-      throw new Error(`Expected supervisor to see 1 general row, saw ${String(supervisorGeneral)}`);
-    }
+    assertVisibleBehaviourCount({ actual: fullAdminSensitive, expected: 2, label: 'full admin' });
+    assertVisibleBehaviourCount({ actual: hodSensitive, expected: 2, label: 'HOD' });
+    assertVisibleBehaviourCount({ actual: principalSensitive, expected: 2, label: 'Principal' });
+    assertVisibleBehaviourCount({
+      actual: authorSupervisorSensitive,
+      expected: 2,
+      label: 'author supervisor',
+    });
+    assertVisibleBehaviourCount({
+      actual: otherSupervisorSensitive,
+      expected: 0,
+      label: 'other supervisor',
+    });
+    assertVisibleBehaviourCount({ actual: supervisorGeneral, expected: 1, label: 'supervisor' });
 
     console.warn(
       'RLS smoke passed: full admins and author supervisor see Sensitive demerits and General marks; other supervisor does not.',

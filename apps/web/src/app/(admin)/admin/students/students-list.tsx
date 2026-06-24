@@ -38,13 +38,15 @@ const statusFilters: readonly { id: StudentStatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
 ];
 
+const studentDateFormatter = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
 function formatStudentDate(value: Date | string): string {
   if (typeof value === 'string') return value;
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(value);
+  return studentDateFormatter.format(value);
 }
 
 export function StudentsList({ canManageStudents }: StudentsListProps) {
@@ -59,7 +61,9 @@ export function StudentsList({ canManageStudents }: StudentsListProps) {
     { includeInactive: true },
     { enabled: canManageStudents, retry: false },
   );
-  const [today] = useState(() => new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`));
+  const [today] = useState(
+    () => new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`),
+  );
   const demeritStatusQuery = useDailyDemeritStatusMap(today);
   const rows = (canManageStudents ? managedStudentsQuery.data : activeStudentsQuery.data) as
     | readonly StudentDirectoryRow[]

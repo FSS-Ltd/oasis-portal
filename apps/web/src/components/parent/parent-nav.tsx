@@ -18,6 +18,7 @@ import {
   ShoppingBag,
   Smartphone,
   UserRound,
+  type LucideIcon,
 } from 'lucide-react';
 
 const parentNavItems = [
@@ -37,6 +38,9 @@ const parentNavItems = [
   { href: '/parent/noticeboard', label: 'Noticeboard', icon: Bell },
   { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
+
+type ParentNavItem = (typeof parentNavItems)[number];
+type ParentNavLinkVariant = 'bottom' | 'side' | 'top';
 
 const parentMobileNavHrefs = new Set([
   '/parent',
@@ -75,30 +79,69 @@ function badgeForItem(
   return null;
 }
 
+function mobileLabelForItem(label: string): string {
+  if (label === 'Permission Slips') return 'Slips';
+  if (label === 'Fees/Invoices') return 'Fees';
+  return label;
+}
+
+function navItemClassName(variant: ParentNavLinkVariant, active: boolean): string {
+  const baseClassName =
+    variant === 'top'
+      ? 'parent-top-nav__item'
+      : variant === 'bottom'
+        ? 'admin-shell__bottom-item'
+        : 'admin-shell__nav-item';
+
+  return [baseClassName, active ? 'is-active' : undefined].filter(Boolean).join(' ');
+}
+
+function ParentNavLink({
+  active,
+  badge,
+  icon: Icon,
+  item,
+  label,
+  variant,
+}: {
+  active: boolean;
+  badge: string | null;
+  icon?: LucideIcon;
+  item: ParentNavItem;
+  label: string;
+  variant: ParentNavLinkVariant;
+}) {
+  return (
+    <Link
+      aria-current={active ? 'page' : undefined}
+      className={navItemClassName(variant, active)}
+      href={{ pathname: item.href }}
+    >
+      {Icon ? <Icon aria-hidden="true" size={navIconSize} /> : null}
+      <span>{label}</span>
+      {badge ? <b>{badge}</b> : null}
+    </Link>
+  );
+}
+
 export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
   const pathname = usePathname() ?? '';
 
   return (
     <nav className="admin-shell__nav">
       {parentNavItems.map((item) => {
-        const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
-        const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
-          .filter(Boolean)
-          .join(' ');
 
         return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={className}
-            href={{ pathname: item.href }}
+          <ParentNavLink
+            active={active}
+            badge={badgeForItem(item.label, unreadMessageCount, unreadNoticeCount)}
+            icon={item.icon}
+            item={item}
             key={item.label}
-          >
-            <Icon aria-hidden="true" size={navIconSize} />
-            <span>{item.label}</span>
-            {badge ? <b>{badge}</b> : null}
-          </Link>
+            label={item.label}
+            variant="side"
+          />
         );
       })}
     </nav>
@@ -112,18 +155,16 @@ export function ParentTopNav({ unreadMessageCount, unreadNoticeCount }: ParentNa
     <nav aria-label="Parent portal sections" className="parent-top-nav">
       {parentTopNavItems.map((item) => {
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
 
         return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={active ? 'parent-top-nav__item is-active' : 'parent-top-nav__item'}
-            href={{ pathname: item.href }}
+          <ParentNavLink
+            active={active}
+            badge={badgeForItem(item.label, unreadMessageCount, unreadNoticeCount)}
+            item={item}
             key={item.label}
-          >
-            <span>{item.label}</span>
-            {badge ? <b>{badge}</b> : null}
-          </Link>
+            label={item.label}
+            variant="top"
+          />
         );
       })}
     </nav>
@@ -136,30 +177,18 @@ export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: Paren
   return (
     <nav aria-label="Mobile parent sections" className="admin-shell__bottom-nav">
       {parentMobileNavItems.map((item) => {
-        const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
-        const mobileLabel =
-          item.label === 'Permission Slips'
-            ? 'Slips'
-            : item.label === 'Fees/Invoices'
-              ? 'Fees'
-              : item.label;
-        const className = ['admin-shell__bottom-item', active ? 'is-active' : undefined]
-          .filter(Boolean)
-          .join(' ');
 
         return (
-          <Link
-            aria-current={active ? 'page' : undefined}
-            className={className}
-            href={{ pathname: item.href }}
+          <ParentNavLink
+            active={active}
+            badge={badgeForItem(item.label, unreadMessageCount, unreadNoticeCount)}
+            icon={item.icon}
+            item={item}
             key={item.label}
-          >
-            <Icon aria-hidden="true" size={navIconSize} />
-            <span>{mobileLabel}</span>
-            {badge ? <b>{badge}</b> : null}
-          </Link>
+            label={mobileLabelForItem(item.label)}
+            variant="bottom"
+          />
         );
       })}
     </nav>
