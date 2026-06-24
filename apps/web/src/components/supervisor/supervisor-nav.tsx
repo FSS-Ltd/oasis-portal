@@ -67,7 +67,12 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/supervisor/leaderboard', label: 'Leaderboard', icon: Medal },
       { href: '/supervisor/notes-history', label: 'Notes History', icon: FileText },
-      { href: '/supervisor/shop', label: 'Merit Shop', icon: ShoppingBag, permission: 'canUseShop' },
+      {
+        href: '/supervisor/shop',
+        label: 'Merit Shop',
+        icon: ShoppingBag,
+        permission: 'canUseShop',
+      },
     ],
   },
   {
@@ -83,7 +88,12 @@ const navGroups: NavGroup[] = [
     icon: Club,
     items: [
       { href: '/admin/clubs', label: 'Club Admin', icon: Club, permission: 'canManageClubs' },
-      { href: '/admin/invoices', label: 'Invoices', icon: ReceiptText, permission: 'canManageInvoices' },
+      {
+        href: '/admin/invoices',
+        label: 'Invoices',
+        icon: ReceiptText,
+        permission: 'canManageInvoices',
+      },
     ],
   },
 ];
@@ -193,7 +203,9 @@ function NavGroupAccordion({
     <details
       className="admin-shell__nav-group"
       open={isOpen}
-      onToggle={(e) => setIsOpen(e.currentTarget.open)}
+      onToggle={(e) => {
+        setIsOpen(e.currentTarget.open);
+      }}
     >
       <summary className="admin-shell__nav-group-summary">
         <GroupIcon aria-hidden="true" size={navIconSize} />
