@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText } from '../core/mobile-ui';
+import { Badge, Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
 import {
@@ -89,6 +89,7 @@ export function StaffHomeScreen({
   onOpenPace,
   onOpenRota,
   onOpenShop,
+  onSwitchToParent,
   user,
 }: {
   onOpenAttendance?: () => void;
@@ -100,6 +101,7 @@ export function StaffHomeScreen({
   onOpenPace?: () => void;
   onOpenRota?: () => void;
   onOpenShop?: () => void;
+  onSwitchToParent?: () => void;
   user: SessionUser | undefined;
 }) {
   const { signOut } = useClerk();
@@ -153,6 +155,17 @@ export function StaffHomeScreen({
       >
         {summary.isLoading ? <InlineSpinner label="Loading staff home" /> : null}
         {summary.error ? <ErrorText>{summary.error.message}</ErrorText> : null}
+        {onSwitchToParent ? (
+          <Card style={styles.compactCard}>
+            <View style={styles.rowHeader}>
+              <View style={styles.rowBody}>
+                <Text style={styles.cardTitle}>Parent mode</Text>
+                <MutedText>Switch to the linked-child parent portal for this account.</MutedText>
+              </View>
+              <MobileButton label="Parent mode" onPress={onSwitchToParent} variant="blue" />
+            </View>
+          </Card>
+        ) : null}
 
         {data && view ? (
           <>

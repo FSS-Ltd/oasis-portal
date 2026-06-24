@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import { C } from './mobile-theme';
@@ -6,9 +7,15 @@ import { StaffPortalScreen } from '../staff/staff-portal-screen';
 import { StudentPortalScreen } from '../student/student-portal-screen';
 import { TechnicalSupportPortalScreen } from '../support/technical-support-portal-screen';
 
+type MobilePortalView = 'default' | 'parent';
+
 export function SignedInRouter() {
+  const [portalView, setPortalView] = useState<MobilePortalView>('default');
   const health = api.health.me.useQuery(undefined, { retry: false });
   const user = health.data?.user;
+  const linkedChildCount = health.data?.linkedChildCount ?? 0;
+  const canSwitchToParent =
+    Boolean(user) && user?.role !== 'Parent' && user?.role !== 'Student' && linkedChildCount > 0;
 
   if (health.isLoading && !user) {
     return (
@@ -23,8 +30,21 @@ export function SignedInRouter() {
     return (
       <View style={styles.loading}>
         <Text style={styles.loadingText}>Could not load session. Please try again.</Text>
-        {health.error.message ? <Text style={styles.errorDetail}>{health.error.message}</Text> : null}
+        {health.error.message ? (
+          <Text style={styles.errorDetail}>{health.error.message}</Text>
+        ) : null}
       </View>
+    );
+  }
+
+  if (user && canSwitchToParent && portalView === 'parent') {
+    return (
+      <ParentPortalScreen
+        user={user}
+        onSwitchToStaff={() => {
+          setPortalView('default');
+        }}
+      />
     );
   }
 
@@ -44,11 +64,37 @@ export function SignedInRouter() {
     user?.role === 'ClubsAdmin' ||
     user?.role === 'Supervisor'
   ) {
+    if (canSwitchToParent) {
+      return (
+        <StaffPortalScreen
+          user={user}
+          onSwitchToParent={() => {
+            setPortalView('parent');
+          }}
+        />
+      );
+    }
+
     return <StaffPortalScreen user={user} />;
   }
 
   if (user?.role === 'TechnicalSupport') {
+    if (canSwitchToParent) {
+      return (
+        <TechnicalSupportPortalScreen
+          user={user}
+          onSwitchToParent={() => {
+            setPortalView('parent');
+          }}
+        />
+      );
+    }
+
     return <TechnicalSupportPortalScreen user={user} />;
+  }
+
+  if (user && linkedChildCount > 0) {
+    return <ParentPortalScreen user={user} />;
   }
 
   return (
