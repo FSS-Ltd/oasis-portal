@@ -24,7 +24,13 @@ type StaffPortalRoute =
   | 'rota'
   | 'shop';
 
-export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
+export function StaffPortalScreen({
+  onSwitchToParent,
+  user,
+}: {
+  onSwitchToParent?: () => void;
+  user: SessionUser | undefined;
+}) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
 
   if (route === 'attendance') {
@@ -126,7 +132,7 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
     );
   }
 
-  return (
+  const homeScreen = (
     <StaffHomeScreen
       onOpenAttendance={() => {
         setRoute('attendance');
@@ -156,6 +162,9 @@ export function StaffPortalScreen({ user }: { user: SessionUser | undefined }) {
         setRoute('shop');
       }}
       user={user}
+      {...(onSwitchToParent ? { onSwitchToParent } : {})}
     />
   );
+
+  return homeScreen;
 }

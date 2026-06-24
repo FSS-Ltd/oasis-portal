@@ -21,11 +21,20 @@ type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];
 type AccessInvitation = RouterOutputs['admin']['listUserInvitations'][number];
 type AccessRole = 'Parent' | 'TechnicalSupport';
+type AccessFilter = 'active' | 'all' | 'inactive' | AccessRole;
 type DirectoryRow =
   | { account: AccessAccount; id: string; kind: 'account' }
   | { id: string; invitation: AccessInvitation; kind: 'invitation' };
 
 const accessRoles: readonly AccessRole[] = ['Parent', 'TechnicalSupport'];
+
+const accessFilters: Array<{ id: AccessFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'inactive', label: 'Inactive' },
+  { id: 'Parent', label: 'Parents' },
+  { id: 'TechnicalSupport', label: 'Technical Support' },
+];
 
 function roleLabel(role: string): string {
   return role === 'TechnicalSupport' ? 'Technical Support' : role;
@@ -68,9 +77,34 @@ function countRowsByRole(rows: DirectoryRow[], role: AccessRole): number {
   return rows.filter((row) => rowRole(row) === role).length;
 }
 
-export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
+function filterAccount(account: AccessAccount, filter: AccessFilter, query: string): boolean {
+  const matchesFilter =
+    filter === 'all' ||
+    (filter === 'active' && account.active) ||
+    (filter === 'inactive' && !account.active) ||
+    account.role === filter;
+  return matchesFilter && rowMatches({ account, id: account.id, kind: 'account' }, query);
+}
+
+function filterInvitation(
+  invitation: AccessInvitation,
+  filter: AccessFilter,
+  query: string,
+): boolean {
+  const matchesFilter = filter === 'all' || invitation.role === filter;
+  return matchesFilter && rowMatches({ id: invitation.id, invitation, kind: 'invitation' }, query);
+}
+
+export function TechnicalSupportPortalScreen({
+  onSwitchToParent,
+  user,
+}: {
+  onSwitchToParent?: () => void;
+  user: SessionUser;
+}) {
   const { signOut } = useClerk();
   const utils = api.useUtils();
+  const [filter, setFilter] = useState<AccessFilter>('all');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -104,8 +138,12 @@ export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
   }, [accounts, invitations]);
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return rows.filter((row) => rowMatches(row, query));
-  }, [rows, search]);
+    return rows.filter((row) =>
+      row.kind === 'account'
+        ? filterAccount(row.account, filter, query)
+        : filterInvitation(row.invitation, filter, query),
+    );
+  }, [filter, rows, search]);
   const selectedRow = filteredRows.find((row) => row.id === selectedId) ?? filteredRows[0] ?? null;
   const loading = accountsQuery.isLoading || invitationsQuery.isLoading;
   const errorMessage = accountsQuery.error?.message ?? invitationsQuery.error?.message ?? null;
@@ -146,6 +184,18 @@ export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
         variant="dark"
       />
       <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
+        {onSwitchToParent ? (
+          <Card>
+            <View style={styles.detailHeader}>
+              <View style={styles.rowBody}>
+                <SectionTitle>Parent mode</SectionTitle>
+                <MutedText>Switch to parent mode for your linked child account.</MutedText>
+              </View>
+              <MobileButton label="Parent mode" onPress={onSwitchToParent} variant="blue" />
+            </View>
+          </Card>
+        ) : null}
+
         <View style={styles.intro}>
           <Badge variant="blue">Technical Support</Badge>
           <Text style={styles.title}>User Access</Text>
@@ -203,6 +253,30 @@ export function TechnicalSupportPortalScreen({ user }: { user: SessionUser }) {
 
         <Card>
           <SectionTitle>Directory</SectionTitle>
+          <View style={styles.filterToggle}>
+            {accessFilters.map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                key={option.id}
+                onPress={() => {
+                  setFilter(option.id);
+                }}
+                style={[
+                  styles.filterButton,
+                  filter === option.id ? styles.filterButtonActive : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filter === option.id ? styles.filterButtonTextActive : null,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
           <Field
             label="Search"
             onChangeText={setSearch}
@@ -395,6 +469,31 @@ const styles = StyleSheet.create({
     color: C.textPrimary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  filterButton: {
+    alignItems: 'center',
+    borderColor: C.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  filterButtonActive: {
+    backgroundColor: C.navy,
+    borderColor: C.navy,
+  },
+  filterButtonText: {
+    color: C.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  filterButtonTextActive: {
+    color: C.surface,
+  },
+  filterToggle: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   directoryList: {
     gap: 10,

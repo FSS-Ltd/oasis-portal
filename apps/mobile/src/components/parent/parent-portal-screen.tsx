@@ -60,7 +60,13 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'settings', icon: 'settings', label: 'Settings' },
 ];
 
-export function ParentPortalScreen({ user }: { user: SessionUser }) {
+export function ParentPortalScreen({
+  onSwitchToStaff,
+  user,
+}: {
+  onSwitchToStaff?: () => void;
+  user: SessionUser;
+}) {
   const { signOut } = useClerk();
   const [route, setRoute] = useState<ParentPortalRoute>('home');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
@@ -201,11 +207,17 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
     return (
       <SafeAreaView style={styles.shell}>
         <PortalMobileHeader
-          actionAccessibilityLabel={`Sign out of parent account ${user.id}`}
-          actionLabel="Out"
+          actionAccessibilityLabel={
+            onSwitchToStaff ? 'Switch back to staff mode' : `Sign out of parent account ${user.id}`
+          }
+          actionLabel={onSwitchToStaff ? 'Staff' : 'Out'}
           avatarLabel="P"
           eyebrow="Parent Portal"
           onActionPress={() => {
+            if (onSwitchToStaff) {
+              onSwitchToStaff();
+              return;
+            }
             void signOut();
           }}
           subtitle={
@@ -235,11 +247,17 @@ export function ParentPortalScreen({ user }: { user: SessionUser }) {
   return (
     <SafeAreaView style={styles.shell}>
       <PortalMobileHeader
-        actionAccessibilityLabel={`Sign out of parent account ${user.id}`}
-        actionLabel="Out"
+        actionAccessibilityLabel={
+          onSwitchToStaff ? 'Switch back to staff mode' : `Sign out of parent account ${user.id}`
+        }
+        actionLabel={onSwitchToStaff ? 'Staff' : 'Out'}
         avatarLabel="P"
         eyebrow="Parent Portal"
         onActionPress={() => {
+          if (onSwitchToStaff) {
+            onSwitchToStaff();
+            return;
+          }
           void signOut();
         }}
         subtitle={selectedChild ? `Parent of ${selectedChild.student.fullName}` : 'Family account'}
