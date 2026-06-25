@@ -21,22 +21,43 @@ import {
   type PortalMobileNavItem,
 } from '../core/portal-mobile-shell';
 import { ParentCalendarScreen } from '../parent/parent-calendar-screen';
-import { TechnicalSupportMobileAppScreen } from './technical-support-mobile-app-screen';
+import { StaffAttendanceScreen } from '../staff/staff-attendance-screen';
+import { StaffBehaviourScreen } from '../staff/staff-behaviour-screen';
+import { StaffClubManagerScreen } from '../staff/staff-club-manager-screen';
+import { StaffCommunicationsScreen } from '../staff/staff-communications-screen';
+import { StaffIncidentScreen } from '../staff/staff-incident-screen';
+import { StaffPaceScreen } from '../staff/staff-pace-screen';
+import { StaffShopCounterScreen } from '../staff/staff-shop-counter-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];
 type AccessInvitation = RouterOutputs['admin']['listUserInvitations'][number];
 type AccessRole = 'Parent' | 'TechnicalSupport';
 type AccessFilter = 'active' | 'all' | 'inactive' | AccessRole;
-type SupportPortalRoute = 'access' | 'calendar' | 'mobile-app';
+type SupportPortalRoute =
+  | 'access'
+  | 'attendance'
+  | 'behaviour'
+  | 'calendar'
+  | 'clubs'
+  | 'communications'
+  | 'incidents'
+  | 'pace'
+  | 'shop';
 type DirectoryRow =
   | { account: AccessAccount; id: string; kind: 'account' }
   | { id: string; invitation: AccessInvitation; kind: 'invitation' };
 
 const supportTabs: Array<PortalMobileNavItem<SupportPortalRoute>> = [
   { id: 'access', icon: 'profile', label: 'Access' },
+  { id: 'attendance', icon: 'attendance', label: 'Attendance' },
+  { id: 'behaviour', icon: 'behaviour', label: 'Behaviour' },
   { id: 'calendar', icon: 'calendar', label: 'Calendar' },
-  { id: 'mobile-app', icon: 'mobile', label: 'Mobile app' },
+  { id: 'communications', icon: 'messages', label: 'Messages' },
+  { id: 'clubs', icon: 'clubs', label: 'Clubs' },
+  { id: 'incidents', icon: 'incidents', label: 'Incidents' },
+  { id: 'pace', icon: 'pace', label: 'PACE' },
+  { id: 'shop', icon: 'shop', label: 'Shop' },
 ];
 
 const accessRoles: readonly AccessRole[] = ['Parent', 'TechnicalSupport'];
@@ -173,7 +194,7 @@ export function TechnicalSupportPortalScreen({
       activeId={route}
       items={supportTabs}
       onSelect={setRoute}
-      primaryItemLimit={3}
+      primaryItemLimit={5}
       variant="dark"
     />
   );
@@ -194,6 +215,10 @@ export function TechnicalSupportPortalScreen({
       role: inviteRole,
       tags: [],
     });
+  }
+
+  function openAccessRoute() {
+    setRoute('access');
   }
 
   if (route === 'calendar') {
@@ -220,22 +245,15 @@ export function TechnicalSupportPortalScreen({
     );
   }
 
-  if (route === 'mobile-app') {
-    return (
-      <SafeAreaView style={styles.shell}>
-        <TechnicalSupportHeader
-          onSignOut={() => {
-            void signOut();
-          }}
-          subtitle="Mobile App"
-        />
-        <ScrollView contentContainerStyle={styles.content} style={styles.scroller}>
-          <TechnicalSupportMobileAppScreen />
-        </ScrollView>
-        {bottomNav}
-      </SafeAreaView>
-    );
+  if (route === 'attendance') return <StaffAttendanceScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'behaviour') return <StaffBehaviourScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'clubs') return <StaffClubManagerScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'communications') {
+    return <StaffCommunicationsScreen onBack={openAccessRoute} user={user} />;
   }
+  if (route === 'incidents') return <StaffIncidentScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'pace') return <StaffPaceScreen onBack={openAccessRoute} user={user} />;
+  if (route === 'shop') return <StaffShopCounterScreen onBack={openAccessRoute} user={user} />;
 
   return (
     <SafeAreaView style={styles.shell}>

@@ -75,10 +75,23 @@ describe('signed-in mobile routing', () => {
   it('keeps Technical Support mobile surfaces in parity with the web support shell', () => {
     const supportPortal = readMobile('src/components/support/technical-support-portal-screen.tsx');
 
-    expect(supportPortal).toMatch(/type SupportPortalRoute = 'access' \| 'calendar' \| 'mobile-app'/);
+    expect(supportPortal).toMatch(/type SupportPortalRoute =/);
+    expect(supportPortal).toMatch(/'attendance'/);
+    expect(supportPortal).toMatch(/'behaviour'/);
+    expect(supportPortal).toMatch(/'communications'/);
+    expect(supportPortal).toMatch(/'clubs'/);
+    expect(supportPortal).toMatch(/'incidents'/);
+    expect(supportPortal).toMatch(/'pace'/);
+    expect(supportPortal).toMatch(/'shop'/);
+    expect(supportPortal).not.toMatch(/StaffRotaScreen/);
     expect(supportPortal).toMatch(/api\.calendar\.listVisible\.useQuery/);
     expect(supportPortal).toMatch(/ParentCalendarScreen/);
-    expect(supportPortal).toMatch(/Mobile app/);
+    expect(supportPortal).not.toMatch(/mobile-app|Mobile app|TechnicalSupportMobileAppScreen/);
+    expect(
+      existsSync(
+        path.join(mobileRoot, 'src/components/support/technical-support-mobile-app-screen.tsx'),
+      ),
+    ).toBe(false);
     expect(supportPortal).toMatch(/type AccessFilter/);
     expect(supportPortal).toMatch(/accessFilters/);
     expect(supportPortal).toMatch(/filterAccount/);
