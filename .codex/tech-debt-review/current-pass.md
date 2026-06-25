@@ -3,19 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 744
-- Files reviewed so far: 222
-- Files remaining estimate: 522
-- Last run: 2026-06-24
+- Current eligible files: 746
+- Files reviewed so far: 232
+- Files remaining estimate: 514
+- Last run: 2026-06-25
 - Last selected files:
-  - `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`
-  - `apps/mobile/src/components/staff/staff-rota-availability-panel.tsx`
-  - `apps/web/src/components/student/student-nav.tsx`
-  - `apps/web/src/app/(parent)/parent/layout.tsx`
-  - `apps/web/src/components/parent/parent-nav.tsx`
-  - `apps/web/src/app/post-sign-in/resolve/page.tsx`
-  - `apps/web/src/lib/profile-display.ts`
-  - `packages/db/scripts/smoke-rls.ts`
-  - `apps/web/src/app/(admin)/admin/students/students-list.tsx`
-  - `apps/web/src/app/api/trpc/[trpc]/route.ts`
-- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then remaining oversized source files, high-churn files that are not part of dirty user work, and least-recently-reviewed files.
+  - `apps/mobile/src/components/staff/staff-club-lead-attendance-components.tsx`
+  - `apps/mobile/src/components/student/student-mobile-access-gate.tsx`
+  - `apps/mobile/src/components/core/mobile-ui.tsx`
+  - `apps/web/src/components/reports/report-detail.tsx`
+  - `apps/web/src/components/pace/pace-progress-table.tsx`
+  - `apps/web/src/components/student/student-faith-client.tsx`
+  - `packages/domain/src/__tests__/registration.test.ts`
+  - `apps/mobile/src/components/parent/parent-shop-catalog.tsx`
+  - `apps/mobile/src/components/student/student-shop-screen.tsx`
+  - `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`
+- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then remaining oversized mobile UI files, API/web components near threshold, and least-recently-reviewed files. Keep deferring config-level e2e ESLint coverage unless a dedicated lint-config cleanup is approved.
