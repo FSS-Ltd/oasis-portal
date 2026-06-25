@@ -75,7 +75,9 @@ export function StudentFaithClient() {
   }
 
   if (faith.error) {
-    return <EmptyState detail={friendlyErrorMessage(faith.error)} title="Faith Corner unavailable" />;
+    return (
+      <EmptyState detail={friendlyErrorMessage(faith.error)} title="Faith Corner unavailable" />
+    );
   }
 
   if (!faith.data?.ready || !faith.data.memoryVerse) {
@@ -105,14 +107,22 @@ export function StudentFaithClient() {
       <section className="student-faith-actions" aria-label="Faith Corner reactions">
         <button
           aria-pressed={faith.data.likedByCurrentStudent}
-          className={faith.data.likedByCurrentStudent ? 'student-faith-action is-active' : 'student-faith-action'}
+          className={
+            faith.data.likedByCurrentStudent
+              ? 'student-faith-action is-active'
+              : 'student-faith-action'
+          }
           disabled={toggleCurrentLike.isPending}
           onClick={() => {
             toggleCurrentLike.mutate();
           }}
           type="button"
         >
-          <Heart aria-hidden="true" fill={faith.data.likedByCurrentStudent ? 'currentColor' : 'none'} size={18} />
+          <Heart
+            aria-hidden="true"
+            fill={faith.data.likedByCurrentStudent ? 'currentColor' : 'none'}
+            size={18}
+          />
           <span>{faith.data.likeCount}</span>
         </button>
         <button
@@ -152,7 +162,10 @@ export function StudentFaithClient() {
         </section>
 
         {faith.data.verseOfDay ? (
-          <section className="student-faith-card student-faith-card--wide" aria-labelledby="student-verse-day-title">
+          <section
+            className="student-faith-card student-faith-card--wide"
+            aria-labelledby="student-verse-day-title"
+          >
             <div className="student-dashboard-panel__head">
               <div>
                 <p>Verse of the day</p>
@@ -163,7 +176,10 @@ export function StudentFaithClient() {
             <small>{faith.data.verseOfDay.translation}</small>
           </section>
         ) : (
-          <section className="student-faith-card student-faith-card--wide" aria-labelledby="student-verse-day-title">
+          <section
+            className="student-faith-card student-faith-card--wide"
+            aria-labelledby="student-verse-day-title"
+          >
             <div className="student-dashboard-panel__head">
               <div>
                 <p>Verse of the day</p>
@@ -209,9 +225,14 @@ export function StudentFaithClient() {
             </button>
           </form>
 
-          {comments.isLoading ? <div className="student-inline-state">Loading comments...</div> : null}
+          {comments.isLoading ? (
+            <div className="student-inline-state">Loading comments...</div>
+          ) : null}
           {comments.error ? (
-            <EmptyState detail={friendlyErrorMessage(comments.error)} title="Comments unavailable" />
+            <EmptyState
+              detail={friendlyErrorMessage(comments.error)}
+              title="Comments unavailable"
+            />
           ) : null}
           {comments.data?.length === 0 ? (
             <p className="student-dashboard-muted">No approved comments yet.</p>
@@ -259,12 +280,20 @@ function FaithCommentRow({
       <p>{comment.body}</p>
       <button
         aria-pressed={comment.likedByCurrentStudent}
-        className={comment.likedByCurrentStudent ? 'student-faith-comment__like is-active' : 'student-faith-comment__like'}
+        className={
+          comment.likedByCurrentStudent
+            ? 'student-faith-comment__like is-active'
+            : 'student-faith-comment__like'
+        }
         disabled={!canLike || pending}
         onClick={onLike}
         type="button"
       >
-        <Heart aria-hidden="true" fill={comment.likedByCurrentStudent ? 'currentColor' : 'none'} size={15} />
+        <Heart
+          aria-hidden="true"
+          fill={comment.likedByCurrentStudent ? 'currentColor' : 'none'}
+          size={15}
+        />
         <span>{comment.likeCount}</span>
       </button>
     </article>

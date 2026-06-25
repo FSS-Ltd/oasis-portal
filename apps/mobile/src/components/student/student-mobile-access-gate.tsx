@@ -119,15 +119,16 @@ export function StudentMobileAccessGate({ children, onSignOut }: StudentMobileAc
   const usageState = studentAccess.data
     ? accessStateFromUsageStatus(studentAccess.data.usage)
     : null;
-  const blockedState = accessErrorState ?? (usageState && usageState !== 'allowed' ? usageState : null);
+  const blockedState =
+    accessErrorState ?? (usageState && usageState !== 'allowed' ? usageState : null);
   const state: StudentAccessState = studentAccess.isLoading
     ? 'loading'
-    : blockedState ??
+    : (blockedState ??
       (heartbeatStatus === 'ready'
         ? 'allowed'
         : heartbeatStatus === 'failed'
           ? 'heartbeat-failed'
-          : 'loading');
+          : 'loading'));
   const stateMessage =
     studentAccess.error?.message ??
     studentAccess.data?.usage.message ??
@@ -149,7 +150,9 @@ export function StudentMobileAccessGate({ children, onSignOut }: StudentMobileAc
             const nextState = accessStateFromUsageStatus(result.usage);
             if (nextState !== 'allowed') {
               setHeartbeatStatus('failed');
-              setHeartbeatMessage(result.usage.message ?? 'Daily student portal usage limit reached.');
+              setHeartbeatMessage(
+                result.usage.message ?? 'Daily student portal usage limit reached.',
+              );
               return;
             }
             setHeartbeatStatus('ready');
@@ -162,7 +165,7 @@ export function StudentMobileAccessGate({ children, onSignOut }: StudentMobileAc
             const nextState = accessStateFromStudentAccessError(message);
             setHeartbeatStatus('failed');
             setHeartbeatMessage(
-              nextState === 'denied' ? 'Heartbeat failed' : message ?? 'Heartbeat failed',
+              nextState === 'denied' ? 'Heartbeat failed' : (message ?? 'Heartbeat failed'),
             );
             if (nextState === 'denied') runHeartbeat(HEARTBEAT_RETRY_MS);
           });
@@ -193,6 +196,8 @@ export function StudentMobileAccessGate({ children, onSignOut }: StudentMobileAc
     return <>{children}</>;
   }
 
+  const usageDetail = usageMeta(studentAccess.data?.usage);
+
   return (
     <View style={styles.wrap}>
       <Card style={styles.card}>
@@ -200,9 +205,7 @@ export function StudentMobileAccessGate({ children, onSignOut }: StudentMobileAc
         <SectionTitle>{titleForState(state)}</SectionTitle>
         {state === 'loading' ? <InlineSpinner label="Checking student access" /> : null}
         <MutedText>{detailForState(state, stateMessage)}</MutedText>
-        {usageMeta(studentAccess.data?.usage) ? (
-          <Text style={styles.meta}>{usageMeta(studentAccess.data?.usage)}</Text>
-        ) : null}
+        {usageDetail ? <Text style={styles.meta}>{usageDetail}</Text> : null}
         {state === 'denied' || state === 'heartbeat-failed' ? (
           <ErrorText>{stateMessage ?? 'Could not check access'}</ErrorText>
         ) : null}

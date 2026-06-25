@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-24",
+  "lastRunDate": "2026-06-25",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -2707,6 +2707,127 @@
       "issuesFixed": [],
       "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check; reviewed unchanged",
       "notes": "Reviewed lint/type/format surface; no safe local cleanup needed."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-attendance-components.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 302,
+      "lineCountAfter": 302,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as the only remaining oversized mobile component module in the current pass; already focused around presentational attendance rows, so no further safe extraction was made."
+    },
+    "apps/mobile/src/components/student/student-mobile-access-gate.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 290,
+      "lineCountAfter": 293,
+      "issuesFixed": [
+        "Formatted selected file with Prettier.",
+        "Stored usage metadata once instead of recomputing it during render."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/mobile/src/components/core/mobile-ui.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 285,
+      "lineCountAfter": 285,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/web/src/components/reports/report-detail.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 278,
+      "lineCountAfter": 278,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/web/src/components/pace/pace-progress-table.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 274,
+      "lineCountAfter": 274,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/web/src/components/student/student-faith-client.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 273,
+      "lineCountAfter": 302,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "packages/domain/src/__tests__/registration.test.ts": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 273,
+      "lineCountAfter": 273,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/mobile/src/components/parent/parent-shop-catalog.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 270,
+      "lineCountAfter": 272,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/mobile/src/components/student/student-shop-screen.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 269,
+      "lineCountAfter": 269,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+    },
+    "apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 261,
+      "lineCountAfter": 265,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
     }
   },
   "deferredFiles": {
@@ -2731,8 +2852,8 @@
       "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
     },
     "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
-      "deferredAt": "2026-06-24",
-      "reason": "Selected-file ESLint cannot parse this Playwright spec because it is outside the configured TypeScript project service; replaced with a normally validated source file for this run."
+      "deferredAt": "2026-06-25",
+      "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this would require broad ESLint/tsconfig scope changes, so it remains deferred from daily 10-file cleanup."
     }
   },
   "fullPassHistory": [

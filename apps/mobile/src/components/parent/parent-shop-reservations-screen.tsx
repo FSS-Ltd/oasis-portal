@@ -39,7 +39,9 @@ export function ParentShopReservationsScreen({
     onSuccess: async (reservation) => {
       setCart([]);
       setSelectedItemId(null);
-      setStatus(`Reservation placed. ${formatParentShopMerits(reservation.totalPriceMerits)} merits held.`);
+      setStatus(
+        `Reservation placed. ${formatParentShopMerits(reservation.totalPriceMerits)} merits held.`,
+      );
       await Promise.all([
         utils.shop.listItems.invalidate(),
         utils.shop.listReservations.invalidate(),
@@ -55,7 +57,9 @@ export function ParentShopReservationsScreen({
   const [localError, setLocalError] = useState<string | null>(null);
 
   const activeItems = useMemo(() => items.filter((item) => item.active), [items]);
-  const visibleItems = activeItems.filter((item) => category === 'All' || item.category === category);
+  const visibleItems = activeItems.filter(
+    (item) => category === 'All' || item.category === category,
+  );
   const selectedItem = activeItems.find((item) => item.id === selectedItemId) ?? null;
   const cartLines = parentShopCartLinesFor(activeItems, cart);
   const cartTotal = cartLines.reduce((total, line) => total + line.lineTotal, 0);

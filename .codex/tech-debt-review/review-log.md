@@ -954,3 +954,47 @@
 ### Follow-Ups Deferred
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: deferred because selected-file ESLint cannot parse it under the current project-service config; it was replaced to keep this run normally validated.
 - Broad web lint still has an unrelated existing issue in `apps/web/src/components/supervisor/supervisor-nav.tsx:196`.
+
+## 2026-06-25 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/staff/staff-club-lead-attendance-components.tsx`
+2. `apps/mobile/src/components/student/student-mobile-access-gate.tsx`
+3. `apps/mobile/src/components/core/mobile-ui.tsx`
+4. `apps/web/src/components/reports/report-detail.tsx`
+5. `apps/web/src/components/pace/pace-progress-table.tsx`
+6. `apps/web/src/components/student/student-faith-client.tsx`
+7. `packages/domain/src/__tests__/registration.test.ts`
+8. `apps/mobile/src/components/parent/parent-shop-catalog.tsx`
+9. `apps/mobile/src/components/student/student-shop-screen.tsx`
+10. `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint was reserved until after dependency bootstrap in the clean PR worktree.
+- Typecheck: package typechecks were reserved until after dependency bootstrap in the clean PR worktree.
+- Tests: focused domain registration tests were reserved for post-change validation.
+- Formatting: selected-file Prettier formatted `apps/mobile/src/components/student/student-mobile-access-gate.tsx`, `apps/web/src/components/student/student-faith-client.tsx`, `apps/mobile/src/components/parent/parent-shop-catalog.tsx`, and `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`.
+
+### Changes Made
+- `apps/mobile/src/components/student/student-mobile-access-gate.tsx`: formatted the selected file and stored usage metadata once instead of recomputing it during render.
+- `apps/web/src/components/student/student-faith-client.tsx`: formatted the selected file with Prettier.
+- `apps/mobile/src/components/parent/parent-shop-catalog.tsx`: formatted the selected file with Prettier.
+- `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`: formatted the selected file with Prettier.
+- Remaining selected files: reviewed lint, type, formatting, imports, and local structure; no safe source change was needed.
+
+### Validation
+- lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/domain lint`
+- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/domain typecheck`
+- relevant tests: pass, `pnpm --filter @oasis/domain exec vitest run src/__tests__/registration.test.ts`
+- formatting: pass, selected-file `pnpm exec prettier --check`
+- diff hygiene: pass, `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.

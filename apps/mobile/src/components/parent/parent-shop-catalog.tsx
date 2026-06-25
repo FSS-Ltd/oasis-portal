@@ -41,7 +41,9 @@ export function ParentShopCategoryFilters({
             <View
               style={[
                 styles.categoryDot,
-                { backgroundColor: category === 'All' ? C.navy : sample?.categoryInk ?? C.border },
+                {
+                  backgroundColor: category === 'All' ? C.navy : (sample?.categoryInk ?? C.border),
+                },
               ]}
             />
             <Text style={[styles.categoryText, selected ? styles.categoryTextActive : null]}>
