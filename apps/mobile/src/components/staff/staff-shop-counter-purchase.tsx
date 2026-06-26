@@ -127,11 +127,7 @@ export function StaffShopCounterPurchase({
         />
       </View>
 
-      {validation ? (
-        <ErrorText>
-          {validation.message}
-        </ErrorText>
-      ) : null}
+      {validation ? <ErrorText>{validation.message}</ErrorText> : null}
 
       <Pressable
         accessibilityRole="button"
