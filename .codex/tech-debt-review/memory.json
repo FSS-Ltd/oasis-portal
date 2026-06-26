@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-25",
+  "lastRunDate": "2026-06-26",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -2818,16 +2818,124 @@
       "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
     },
     "apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx": {
-      "lastReviewedAt": "2026-06-25",
+      "lastReviewedAt": "2026-06-26",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 261,
-      "lineCountAfter": 265,
+      "lineCountBefore": 264,
+      "lineCountAfter": 264,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible mobile source file by line count."
+    },
+    "apps/web/src/components/invoices/invoice-ui.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 260,
+      "lineCountAfter": 264,
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/components/clubs/clubs-management-client.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 258,
+      "lineCountAfter": 258,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/components/rota/monthly-availability-editor.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 257,
+      "lineCountAfter": 255,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/components/community/student-community-contacts.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 256,
+      "lineCountAfter": 257,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/components/clubs/club-attendance-panel.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 253,
+      "lineCountAfter": 253,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/components/invoices/admin-invoice-modals.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 253,
+      "lineCountAfter": 253,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/mobile/src/components/staff/staff-shop-counter-purchase.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 248,
+      "lineCountAfter": 244,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible mobile source file by line count."
+    },
+    "apps/web/src/app/(admin)/admin/access/access-management-client.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 245,
+      "lineCountAfter": 245,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/components/child-log/snapshot-controls.tsx": {
+      "lastReviewedAt": "2026-06-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 244,
+      "lineCountAfter": 244,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as next unreviewed eligible web source file by line count."
     }
   },
   "deferredFiles": {

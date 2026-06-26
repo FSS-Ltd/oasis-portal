@@ -146,7 +146,10 @@ function DirectMessagePanel({
   );
 }
 
-export function StudentCommunityContacts({ currentStudentId, group }: StudentCommunityContactsProps) {
+export function StudentCommunityContacts({
+  currentStudentId,
+  group,
+}: StudentCommunityContactsProps) {
   const utils = api.useUtils();
   const [activeContactUserId, setActiveContactUserId] = useState<string | null>(null);
   const [directConversationId, setDirectConversationId] = useState<string | null>(null);
@@ -206,13 +209,11 @@ export function StudentCommunityContacts({ currentStudentId, group }: StudentCom
           const isCurrentStudent = member.studentId === currentStudentId;
           const opening = Boolean(
             recipientUserId &&
-              recipientUserId === activeContactUserId &&
-              openConversation.isPending,
+            recipientUserId === activeContactUserId &&
+            openConversation.isPending,
           );
           const active = Boolean(
-            recipientUserId &&
-              recipientUserId === activeContactUserId &&
-              directConversationId,
+            recipientUserId && recipientUserId === activeContactUserId && directConversationId,
           );
 
           return (

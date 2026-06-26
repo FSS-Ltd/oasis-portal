@@ -246,7 +246,11 @@ export function InvoiceDiscounts({ invoice }: { invoice: InvoiceDto }) {
         <div className="invoice-discount-row" key={discount.id}>
           <span>
             <strong>{discount.label}</strong>
-            <small>{discount.optedOut ? 'Opted out' : `${formatPence(discount.appliedAmountPence)} applied`}</small>
+            <small>
+              {discount.optedOut
+                ? 'Opted out'
+                : `${formatPence(discount.appliedAmountPence)} applied`}
+            </small>
           </span>
           <b>{discount.optedOut ? '-' : `-${formatPence(discount.appliedAmountPence)}`}</b>
         </div>

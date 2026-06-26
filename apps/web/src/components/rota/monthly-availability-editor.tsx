@@ -166,9 +166,7 @@ export function MonthlyAvailabilityEditor({
                     onChange={(event) => {
                       setAvailabilityDraft((rows) =>
                         rows.map((row) =>
-                          row.id === window.id
-                            ? withAllDay(row, event.target.checked)
-                            : row,
+                          row.id === window.id ? withAllDay(row, event.target.checked) : row,
                         ),
                       );
                     }}

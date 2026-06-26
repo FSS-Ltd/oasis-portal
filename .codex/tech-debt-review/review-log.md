@@ -998,3 +998,47 @@
 
 ### Follow-Ups Deferred
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
+
+## 2026-06-26 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`
+2. `apps/web/src/components/invoices/invoice-ui.tsx`
+3. `apps/web/src/components/clubs/clubs-management-client.tsx`
+4. `apps/web/src/components/rota/monthly-availability-editor.tsx`
+5. `apps/web/src/components/community/student-community-contacts.tsx`
+6. `apps/web/src/components/clubs/club-attendance-panel.tsx`
+7. `apps/web/src/components/invoices/admin-invoice-modals.tsx`
+8. `apps/mobile/src/components/staff/staff-shop-counter-purchase.tsx`
+9. `apps/web/src/app/(admin)/admin/access/access-management-client.tsx`
+10. `apps/web/src/components/child-log/snapshot-controls.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed with the local repo binary after pnpm exec attempted an interactive module purge in the original checkout.
+- Typecheck: mobile typecheck passed; web typecheck passed in the clean PR worktree after rebasing onto current `origin/main`.
+- Tests: not run because this run made formatting-only source changes.
+- Formatting: selected-file Prettier failed for four files on current `origin/main` before editing.
+
+### Changes Made
+- `apps/web/src/components/invoices/invoice-ui.tsx`: formatted selected file with Prettier.
+- `apps/web/src/components/rota/monthly-availability-editor.tsx`: formatted selected file with Prettier.
+- `apps/web/src/components/community/student-community-contacts.tsx`: formatted selected file with Prettier.
+- `apps/mobile/src/components/staff/staff-shop-counter-purchase.tsx`: formatted selected file with Prettier.
+- Remaining selected files: reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed.
+
+### Validation
+- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`
+- relevant tests: not run, formatting-only source changes
+- formatting: pass, `./node_modules/.bin/prettier --check` on the 10 selected files
+- diff hygiene: pass, `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- pnpm command wrapper/install state: `pnpm exec` attempted interactive module purge in the original checkout; local binaries were used to avoid dependency changes.
