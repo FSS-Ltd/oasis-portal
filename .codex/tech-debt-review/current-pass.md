@@ -4,18 +4,18 @@
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
 - Current eligible files: 745
-- Files reviewed so far: 241
-- Files remaining estimate: 504
-- Last run: 2026-06-26
+- Files reviewed so far: 251
+- Files remaining estimate: 494
+- Last run: 2026-06-27
 - Last selected files:
-  - `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`
-  - `apps/web/src/components/invoices/invoice-ui.tsx`
-  - `apps/web/src/components/clubs/clubs-management-client.tsx`
-  - `apps/web/src/components/rota/monthly-availability-editor.tsx`
-  - `apps/web/src/components/community/student-community-contacts.tsx`
-  - `apps/web/src/components/clubs/club-attendance-panel.tsx`
-  - `apps/web/src/components/invoices/admin-invoice-modals.tsx`
-  - `apps/mobile/src/components/staff/staff-shop-counter-purchase.tsx`
-  - `apps/web/src/app/(admin)/admin/access/access-management-client.tsx`
-  - `apps/web/src/components/child-log/snapshot-controls.tsx`
-- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint coverage until selected directly or approved for a focused cleanup.
+  - `apps/web/src/app/landing-data.ts`
+  - `apps/web/src/lib/user-facing-errors.ts`
+  - `apps/mobile/src/components/student/student-clubs-panel.tsx`
+  - `apps/api/src/__tests__/audit.router.test.ts`
+  - `apps/web/src/components/homework/student-homework-client.tsx`
+  - `apps/api/src/__tests__/investment-accounting-invariants.test.ts`
+  - `apps/web/src/app/(admin)/admin/students/[id]/student-registration-panel.tsx`
+  - `apps/web/src/app/(admin)/admin/staff/_components/attendance-history-panel.tsx`
+  - `apps/web/src/components/messages/message-contact-list.tsx`
+  - `apps/web/src/components/calendar/calendar-model.ts`
+- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint coverage until selected directly or approved for a focused cleanup.

@@ -120,10 +120,7 @@ function mapKnownDomainMessage(message: string): string | null {
   if (message.includes('item is inactive')) {
     return 'This shop item is inactive.';
   }
-  if (
-    message.includes('cannot access merit shop') &&
-    message.includes('most recent tithe')
-  ) {
+  if (message.includes('cannot access merit shop') && message.includes('most recent tithe')) {
     return 'You cannot access Merit Shop until you have given your most recent tithe.';
   }
   if (message.includes('tithe due before merit shop opens')) {
