@@ -54,7 +54,10 @@ function QuestionImages({ images }: { images: readonly HomeworkImage[] }) {
   if (images.length === 0) return null;
 
   return (
-    <div className="homework-image-links homework-image-links--questions" aria-label="Question images">
+    <div
+      className="homework-image-links homework-image-links--questions"
+      aria-label="Question images"
+    >
       {images.map((image) => (
         <a
           href={`/api/homework/assignment-images/${image.id}`}

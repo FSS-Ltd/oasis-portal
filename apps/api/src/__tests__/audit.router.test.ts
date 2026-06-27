@@ -5,7 +5,12 @@ import { auditRouter } from '../routers/audit.js';
 import { router } from '../trpc.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
-const headWithoutAuditTag: SessionUser = { id: 'u_head_no_tag', role: 'Head', tags: [], requires2fa: false };
+const headWithoutAuditTag: SessionUser = {
+  id: 'u_head_no_tag',
+  role: 'Head',
+  tags: [],
+  requires2fa: false,
+};
 const principalWithoutAuditTag: SessionUser = {
   id: 'u_principal',
   role: 'Principal',

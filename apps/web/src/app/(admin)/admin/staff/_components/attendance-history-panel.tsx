@@ -123,7 +123,9 @@ function AttendanceHistoryCard({
 
         {error ? <p className="status--error">{error}</p> : null}
         {exportError ? <p className="status--error">{exportError}</p> : null}
-        {loading ? <p className="muted attendance-history-panel__range">Refreshing range...</p> : null}
+        {loading ? (
+          <p className="muted attendance-history-panel__range">Refreshing range...</p>
+        ) : null}
 
         {visibleRows.length === 0 && !loading && !error ? (
           <EmptyState detail="Try a wider date range." title="No attendance records found" />

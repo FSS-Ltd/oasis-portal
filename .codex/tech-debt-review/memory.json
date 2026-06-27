@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-26",
+  "lastRunDate": "2026-06-27",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -2936,6 +2936,126 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as next unreviewed eligible web source file by line count."
+    },
+    "apps/web/src/app/landing-data.ts": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 257,
+      "lineCountAfter": 257,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/web/src/lib/user-facing-errors.ts": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 255,
+      "lineCountAfter": 252,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/mobile/src/components/student/student-clubs-panel.tsx": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 244,
+      "lineCountAfter": 244,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/api/src/__tests__/audit.router.test.ts": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 242,
+      "lineCountAfter": 247,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/web/src/components/homework/student-homework-client.tsx": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 242,
+      "lineCountAfter": 245,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/api/src/__tests__/investment-accounting-invariants.test.ts": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 237,
+      "lineCountAfter": 237,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/web/src/app/(admin)/admin/students/[id]/student-registration-panel.tsx": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 236,
+      "lineCountAfter": 236,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/web/src/app/(admin)/admin/staff/_components/attendance-history-panel.tsx": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 234,
+      "lineCountAfter": 236,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/web/src/components/messages/message-contact-list.tsx": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 234,
+      "lineCountAfter": 234,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/web/src/components/calendar/calendar-model.ts": {
+      "lastReviewedAt": "2026-06-27",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 232,
+      "lineCountAfter": 232,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     }
   },
   "deferredFiles": {
@@ -2960,8 +3080,8 @@
       "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
     },
     "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
-      "deferredAt": "2026-06-25",
-      "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this would require broad ESLint/tsconfig scope changes, so it remains deferred from daily 10-file cleanup."
+      "deferredAt": "2026-06-27",
+      "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this requires broader ESLint/tsconfig scope changes, so it remains deferred from the daily 10-file cleanup."
     }
   },
   "fullPassHistory": [
