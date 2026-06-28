@@ -1,0 +1,98 @@
+name: Client Demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: Demo app URL. Must contain "demo".
+        required: true
+        type: string
+      email_domain:
+        description: Demo-only email domain for generated accounts.
+        required: true
+        type: string
+      database_schema:
+        description: Demo database schema.
+        required: true
+        default: public
+        type: string
+      production_supabase_ref:
+        description: Live production Supabase project ref that must never be seeded.
+        required: true
+        default: fjatgkyswxqkbunrsmdq
+        type: string
+
+concurrency:
+  group: client-demo-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.0.0'
+
+jobs:
+  seed-and-verify:
+    name: Seed and verify client demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: Client Demo
+
+    env:
+      APP_URL: ${{ inputs.app_url }}
+      DATABASE_URL: ${{ secrets.CLIENT_DEMO_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.CLIENT_DEMO_DIRECT_URL }}
+      CLERK_SECRET_KEY: ${{ secrets.CLIENT_DEMO_CLERK_SECRET_KEY }}
+      OASIS_MASTER_KEY: ${{ secrets.CLIENT_DEMO_OASIS_MASTER_KEY }}
+      OASIS_MASTER_KEY_VERSION: ${{ secrets.CLIENT_DEMO_OASIS_MASTER_KEY_VERSION }}
+      OASIS_BIDX_PEPPER: ${{ secrets.CLIENT_DEMO_OASIS_BIDX_PEPPER }}
+      OASIS_CLIENT_DEMO_SCHEMA: ${{ inputs.database_schema }}
+      OASIS_CLIENT_DEMO_DATABASE_ISOLATION: dedicated-demo-database
+      OASIS_PRODUCTION_SUPABASE_REF: ${{ inputs.production_supabase_ref }}
+      OASIS_CLIENT_DEMO_EMAIL_DOMAIN: ${{ inputs.email_domain }}
+      OASIS_CLIENT_DEMO_PASSWORD: ${{ secrets.CLIENT_DEMO_PASSWORD }}
+      OASIS_CLIENT_DEMO_SEED_CONFIRMATION: reset-isolated-client-demo-database
+      OASIS_CLIENT_DEMO_CLERK_CONFIRMATION: isolated-client-demo-clerk
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ env.PNPM_VERSION }} --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @oasis/db generate
+
+      - name: Validate demo seed secrets
+        run: |
+          node scripts/require-env-file-keys.mjs --process-env \
+            APP_URL \
+            DATABASE_URL \
+            DIRECT_URL \
+            CLERK_SECRET_KEY \
+            OASIS_MASTER_KEY \
+            OASIS_MASTER_KEY_VERSION \
+            OASIS_BIDX_PEPPER \
+            OASIS_CLIENT_DEMO_SCHEMA \
+            OASIS_PRODUCTION_SUPABASE_REF \
+            OASIS_CLIENT_DEMO_EMAIL_DOMAIN \
+            OASIS_CLIENT_DEMO_PASSWORD
+
+      - name: Seed client demo data
+        run: pnpm --filter @oasis/api seed:client-demo
+
+      - name: Verify client demo data
+        run: pnpm --filter @oasis/api verify:client-demo
