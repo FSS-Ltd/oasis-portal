@@ -5,11 +5,7 @@ import { Bell, CalendarDays, UsersRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
-import {
-  friendlyErrorMessage,
-  showErrorToast,
-  showSuccessToast,
-} from '@/lib/notifications';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
 
 type StudentClub = RouterOutputs['club']['studentClubs'][number];
@@ -59,7 +55,10 @@ function ClubCard({
       }}
       type="button"
     >
-      <span className="student-club-card__icon" style={{ backgroundColor: club.accentColor ?? undefined }}>
+      <span
+        className="student-club-card__icon"
+        style={{ backgroundColor: club.accentColor ?? undefined }}
+      >
         <UsersRound aria-hidden="true" size={18} />
       </span>
       <span>
@@ -83,11 +82,15 @@ export function StudentClubsClient() {
   const interest = api.club.studentExpressInterest.useMutation({
     async onSuccess(result) {
       showSuccessToast(
-        result.created ? 'Interest sent for Centre Manager approval.' : 'Interest is already recorded.',
+        result.created
+          ? 'Interest sent for Centre Manager approval.'
+          : 'Interest is already recorded.',
       );
       await Promise.all([
         utils.club.studentClubs.invalidate(),
-        selectedId ? utils.club.studentClubDetail.invalidate({ clubId: selectedId }) : Promise.resolve(),
+        selectedId
+          ? utils.club.studentClubDetail.invalidate({ clubId: selectedId })
+          : Promise.resolve(),
       ]);
     },
     onError(error) {
@@ -144,14 +147,18 @@ export function StudentClubsClient() {
 
         <section className="student-club-detail" aria-label="Selected club">
           {detail.isLoading ? <div className="student-inline-state">Loading club...</div> : null}
-          {detail.error ? <p className="status--error">{friendlyErrorMessage(detail.error)}</p> : null}
+          {detail.error ? (
+            <p className="status--error">{friendlyErrorMessage(detail.error)}</p>
+          ) : null}
           {detailClub ? (
             <>
               <div className="student-club-detail__head">
                 <div>
                   <p>{detailClub.scheduleLabel ?? 'Schedule to be confirmed'}</p>
                   <h2>{detailClub.name}</h2>
-                  <span>{detailClub.description ?? 'More details will be added by the Learning Centre.'}</span>
+                  <span>
+                    {detailClub.description ?? 'More details will be added by the Learning Centre.'}
+                  </span>
                 </div>
                 <Badge tone={statusTone(detailClub.status)}>{detailClub.status}</Badge>
               </div>
@@ -181,10 +188,15 @@ export function StudentClubsClient() {
               ) : null}
 
               {detailClub.status === 'Interested' ? (
-                <p className="student-club-note">Interest sent. A Centre Manager reviews club membership.</p>
+                <p className="student-club-note">
+                  Interest sent. A Centre Manager reviews club membership.
+                </p>
               ) : null}
 
-              <section className="student-dashboard-panel" aria-labelledby="student-club-notices-title">
+              <section
+                className="student-dashboard-panel"
+                aria-labelledby="student-club-notices-title"
+              >
                 <div className="student-dashboard-panel__head">
                   <div>
                     <p>Noticeboard</p>
@@ -206,7 +218,9 @@ export function StudentClubsClient() {
                         <div>
                           <strong>{notice.title}</strong>
                           <p>{notice.body}</p>
-                          <time dateTime={notice.sentAt.toISOString()}>{formatDate(notice.sentAt)}</time>
+                          <time dateTime={notice.sentAt.toISOString()}>
+                            {formatDate(notice.sentAt)}
+                          </time>
                         </div>
                       </article>
                     ))}

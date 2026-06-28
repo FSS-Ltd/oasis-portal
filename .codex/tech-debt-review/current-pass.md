@@ -4,18 +4,18 @@
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
 - Current eligible files: 745
-- Files reviewed so far: 251
-- Files remaining estimate: 494
-- Last run: 2026-06-27
+- Files reviewed so far: 261
+- Files remaining estimate: 484
+- Last run: 2026-06-28
 - Last selected files:
-  - `apps/web/src/app/landing-data.ts`
-  - `apps/web/src/lib/user-facing-errors.ts`
-  - `apps/mobile/src/components/student/student-clubs-panel.tsx`
-  - `apps/api/src/__tests__/audit.router.test.ts`
-  - `apps/web/src/components/homework/student-homework-client.tsx`
-  - `apps/api/src/__tests__/investment-accounting-invariants.test.ts`
-  - `apps/web/src/app/(admin)/admin/students/[id]/student-registration-panel.tsx`
-  - `apps/web/src/app/(admin)/admin/staff/_components/attendance-history-panel.tsx`
-  - `apps/web/src/components/messages/message-contact-list.tsx`
-  - `apps/web/src/components/calendar/calendar-model.ts`
+  - `apps/mobile/src/components/staff/staff-rota-availability-editor.tsx`
+  - `apps/web/src/components/student/student-shop-client.tsx`
+  - `apps/web/src/components/student/invest/student-invest-trade.tsx`
+  - `apps/mobile/src/components/parent/parent-shop-cart.tsx`
+  - `apps/mobile/src/components/messages/mobile-message-new-thread.tsx`
+  - `apps/web/src/components/pace/pace-record-edit-modal.tsx`
+  - `apps/web/src/components/student/student-clubs-client.tsx`
+  - `apps/api/src/routers/staffHome.ts`
+  - `apps/api/scripts/smoke-context-rls.ts`
+  - `apps/mobile/src/components/student/student-homework-activity-detail.tsx`
 - Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint coverage until selected directly or approved for a focused cleanup.

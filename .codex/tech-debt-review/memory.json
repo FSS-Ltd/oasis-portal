@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-27",
+  "lastRunDate": "2026-06-28",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -3056,6 +3056,126 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
+    },
+    "apps/mobile/src/components/staff/staff-rota-availability-editor.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 242,
+      "lineCountAfter": 243,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/web/src/components/student/student-shop-client.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 230,
+      "lineCountAfter": 231,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/web/src/components/student/invest/student-invest-trade.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 229,
+      "lineCountAfter": 230,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/mobile/src/components/parent/parent-shop-cart.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 228,
+      "lineCountAfter": 231,
+      "issuesFixed": [
+        "Formatted selected file with Prettier to remove source formatting drift."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
+    },
+    "apps/mobile/src/components/messages/mobile-message-new-thread.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 227,
+      "lineCountAfter": 228,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/web/src/components/pace/pace-record-edit-modal.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 225,
+      "lineCountAfter": 226,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/web/src/components/student/student-clubs-client.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 222,
+      "lineCountAfter": 237,
+      "issuesFixed": [
+        "Formatted selected file with Prettier to remove source formatting drift."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
+    },
+    "apps/api/src/routers/staffHome.ts": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 224,
+      "lineCountAfter": 225,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/api/scripts/smoke-context-rls.ts": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 216,
+      "lineCountAfter": 217,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+    },
+    "apps/mobile/src/components/student/student-homework-activity-detail.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 215,
+      "lineCountAfter": 220,
+      "issuesFixed": [
+        "Formatted selected file with Prettier to remove source formatting drift."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
     }
   },
   "deferredFiles": {

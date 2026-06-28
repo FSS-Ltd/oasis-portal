@@ -71,9 +71,13 @@ export function StudentHomeworkActivityDetail({
         <View style={styles.resultPanel}>
           <View style={styles.resultRow}>
             <Text style={styles.resultValue}>{formatHomeworkScore(assignment.scorePercent)}</Text>
-            <Text style={styles.resultLabel}>{formatHomeworkMerits(assignment.meritAmount)} awarded</Text>
+            <Text style={styles.resultLabel}>
+              {formatHomeworkMerits(assignment.meritAmount)} awarded
+            </Text>
           </View>
-          {assignment.comments ? <Text style={styles.description}>{assignment.comments}</Text> : null}
+          {assignment.comments ? (
+            <Text style={styles.description}>{assignment.comments}</Text>
+          ) : null}
         </View>
       ) : null}
 

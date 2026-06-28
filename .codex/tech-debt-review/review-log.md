@@ -1087,3 +1087,47 @@
 ### Follow-Ups Deferred
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
 - pnpm command wrapper/install state: `pnpm --filter` attempted an interactive module purge and registry metadata fetch; local binaries were used to avoid dependency changes.
+
+## 2026-06-28 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/staff/staff-rota-availability-editor.tsx`
+2. `apps/web/src/components/student/student-shop-client.tsx`
+3. `apps/web/src/components/student/invest/student-invest-trade.tsx`
+4. `apps/mobile/src/components/parent/parent-shop-cart.tsx`
+5. `apps/mobile/src/components/messages/mobile-message-new-thread.tsx`
+6. `apps/web/src/components/pace/pace-record-edit-modal.tsx`
+7. `apps/web/src/components/student/student-clubs-client.tsx`
+8. `apps/api/src/routers/staffHome.ts`
+9. `apps/api/scripts/smoke-context-rls.ts`
+10. `apps/mobile/src/components/student/student-homework-activity-detail.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed after dependency bootstrap in the clean worktree.
+- Typecheck: direct mobile, web, and API TypeScript checks passed after dependency bootstrap.
+- Tests: not run because this run made formatting-only source changes.
+- Formatting: selected-file Prettier failed for three files before editing.
+
+### Changes Made
+- `apps/mobile/src/components/parent/parent-shop-cart.tsx`: formatted selected file with Prettier.
+- `apps/web/src/components/student/student-clubs-client.tsx`: formatted selected file with Prettier.
+- `apps/mobile/src/components/student/student-homework-activity-detail.tsx`: formatted selected file with Prettier.
+- Remaining selected files: reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed.
+
+### Validation
+- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`
+- relevant tests: not run, formatting-only source changes
+- formatting: pass, `./node_modules/.bin/prettier --check` on the 10 selected files
+- diff hygiene: pass, `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
+- pnpm command wrapper/install state: `pnpm --filter` attempted an interactive module purge in this temporary worktree; direct local binaries were used for final validation.
