@@ -134,7 +134,9 @@ export function ParentShopCart({
         variant="navy"
       />
       {localError ? <ErrorText>{localError}</ErrorText> : null}
-      {mutationError ? <ErrorText>{parentShopFriendlyErrorMessage(mutationError)}</ErrorText> : null}
+      {mutationError ? (
+        <ErrorText>{parentShopFriendlyErrorMessage(mutationError)}</ErrorText>
+      ) : null}
     </Card>
   );
 }
