@@ -17,6 +17,8 @@
     "test": "vitest run --passWithNoTests",
     "email:dev": "email dev --dir src/emails --port 3001",
     "email:smoke": "tsx scripts/send-resend-smoke.ts",
+    "seed:client-demo": "tsx scripts/client-demo-seed.ts",
+    "verify:client-demo": "tsx scripts/client-demo-verify.ts",
     "smoke:context-rls": "tsx scripts/smoke-context-rls.ts"
   },
   "dependencies": {
