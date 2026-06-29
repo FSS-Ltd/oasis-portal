@@ -132,7 +132,7 @@ export function StaffPortalScreen({
     );
   }
 
-  const homeScreen = (
+  return (
     <StaffHomeScreen
       onOpenAttendance={() => {
         setRoute('attendance');
@@ -165,6 +165,4 @@ export function StaffPortalScreen({
       {...(onSwitchToParent ? { onSwitchToParent } : {})}
     />
   );
-
-  return homeScreen;
 }
