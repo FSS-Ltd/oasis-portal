@@ -43,7 +43,7 @@ describe('parent home mobile wiring', () => {
   });
 
   it('uses linked-child parent APIs and avoids staff or admin APIs', () => {
-    const shell = readMobile('src/components/core/portal-mobile-shell.tsx');
+    const nativeIcon = readMobile('src/components/core/portal-mobile-nav-icon.tsx');
     const portal = readMobile('src/components/parent/parent-portal-screen.tsx');
     const home = readMobile('src/components/parent/parent-home-screen.tsx');
 
@@ -59,8 +59,8 @@ describe('parent home mobile wiring', () => {
     expect(home).toMatch(/enabled: hasLinkedChildren/);
     expect(home).toMatch(/const queryError = dashboardError/);
     expect(portal).toMatch(/routeQueryError/);
-    expect(shell).toMatch(/Feather\.loadFont\(\)/);
-    expect(shell).toMatch(/iconPlaceholder/);
+    expect(nativeIcon).toMatch(/Feather\.loadFont\(\)/);
+    expect(nativeIcon).toMatch(/iconPlaceholder/);
 
     for (const source of [portal, home]) {
       expect(source).not.toMatch(/staffHome\.summary/);

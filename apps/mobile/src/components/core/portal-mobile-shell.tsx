@@ -1,48 +1,22 @@
-import { type ComponentProps, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
   Image,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
 import oasisLogo from '../../../assets/oasis-logo.png';
 import { C } from './mobile-theme';
-
-let featherFontLoaded = false;
-let featherFontPromise: Promise<void> | null = null;
+import { PortalMobileNavIcon } from './portal-mobile-nav-icon';
+import type { PortalMobileNavIconName } from './portal-mobile-nav-icon-types';
 
 type NavVariant = 'light' | 'dark';
-export type PortalMobileNavIconName =
-  | 'activity'
-  | 'attendance'
-  | 'behaviour'
-  | 'calendar'
-  | 'clubs'
-  | 'community'
-  | 'dashboard'
-  | 'faith'
-  | 'fees'
-  | 'incidents'
-  | 'leaderboard'
-  | 'markets'
-  | 'messages'
-  | 'more'
-  | 'notices'
-  | 'pace'
-  | 'profile'
-  | 'reports'
-  | 'settings'
-  | 'shop'
-  | 'slips'
-  | 'students'
-  | 'wallet';
+export type { PortalMobileNavIconName } from './portal-mobile-nav-icon-types';
 
 export interface PortalMobileNavItem<T extends string> {
   id: T;
@@ -400,6 +374,7 @@ function navIconFromId(id: string): PortalMobileNavIconName {
     case 'incidents':
     case 'messages':
     case 'markets':
+    case 'mobile':
     case 'more':
     case 'notices':
     case 'pace':
@@ -416,143 +391,6 @@ function navIconFromId(id: string): PortalMobileNavIconName {
       return 'dashboard';
     default:
       return 'dashboard';
-  }
-}
-
-function loadFeatherFont() {
-  if (featherFontLoaded) return Promise.resolve();
-  featherFontPromise ??= Feather.loadFont().then(() => {
-    featherFontLoaded = true;
-  });
-  return featherFontPromise;
-}
-
-function PortalMobileNavIcon({ color, name }: { color: string; name: PortalMobileNavIconName }) {
-  const [fontReady, setFontReady] = useState(featherFontLoaded);
-
-  useEffect(() => {
-    let mounted = true;
-    if (Platform.OS !== 'web' && !fontReady) {
-      void loadFeatherFont()
-        .then(() => {
-          if (mounted) setFontReady(true);
-        })
-        .catch(() => {
-          featherFontPromise = null;
-        });
-    }
-    return () => {
-      mounted = false;
-    };
-  }, [fontReady]);
-
-  if (Platform.OS === 'web') {
-    return (
-      <Text
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-        style={[styles.webIcon, { color }]}
-      >
-        {webIconSymbol(name)}
-      </Text>
-    );
-  }
-
-  if (!fontReady) return <View style={styles.iconPlaceholder} />;
-
-  return <Feather color={color} name={featherIconName(name)} size={24} />;
-}
-
-function webIconSymbol(name: PortalMobileNavIconName): string {
-  switch (name) {
-    case 'activity':
-    case 'attendance':
-      return '✓';
-    case 'behaviour':
-      return '★';
-    case 'calendar':
-      return '▦';
-    case 'clubs':
-    case 'students':
-      return '👥';
-    case 'community':
-    case 'messages':
-      return '✉';
-    case 'dashboard':
-      return '⌂';
-    case 'faith':
-    case 'pace':
-      return '◇';
-    case 'fees':
-    case 'wallet':
-      return '£';
-    case 'incidents':
-      return '!';
-    case 'leaderboard':
-      return '◎';
-    case 'markets':
-      return '↗';
-    case 'more':
-      return '⋯';
-    case 'notices':
-      return '◆';
-    case 'profile':
-      return '●';
-    case 'reports':
-    case 'slips':
-      return '▤';
-    case 'settings':
-      return '⚙';
-    case 'shop':
-      return '◈';
-  }
-}
-
-function featherIconName(name: PortalMobileNavIconName): ComponentProps<typeof Feather>['name'] {
-  switch (name) {
-    case 'activity':
-      return 'clipboard';
-    case 'attendance':
-      return 'check-square';
-    case 'behaviour':
-      return 'star';
-    case 'calendar':
-      return 'calendar';
-    case 'clubs':
-    case 'students':
-      return 'users';
-    case 'community':
-      return 'message-circle';
-    case 'dashboard':
-      return 'home';
-    case 'faith':
-    case 'pace':
-      return 'book-open';
-    case 'fees':
-      return 'credit-card';
-    case 'incidents':
-      return 'shield';
-    case 'leaderboard':
-      return 'award';
-    case 'markets':
-      return 'trending-up';
-    case 'messages':
-      return 'message-square';
-    case 'more':
-      return 'more-horizontal';
-    case 'notices':
-      return 'bell';
-    case 'profile':
-      return 'user';
-    case 'reports':
-    case 'slips':
-      return 'file-text';
-    case 'settings':
-      return 'settings';
-    case 'shop':
-      return 'shopping-bag';
-    case 'wallet':
-      return 'dollar-sign';
   }
 }
 
@@ -628,19 +466,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     lineHeight: 14,
-  },
-  iconPlaceholder: {
-    height: 24,
-    width: 24,
-  },
-  webIcon: {
-    fontFamily: 'Arial, Helvetica, sans-serif',
-    fontSize: 22,
-    fontWeight: '900',
-    height: 24,
-    lineHeight: 24,
-    textAlign: 'center',
-    width: 24,
   },
   bottomNavLight: {
     backgroundColor: C.surface,

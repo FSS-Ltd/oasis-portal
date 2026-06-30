@@ -17,7 +17,8 @@ describe('student Faith Corner mobile wiring', () => {
 
   it('routes the student portal into a dedicated Faith tab', () => {
     const portal = readMobile('src/components/student/student-portal-screen.tsx');
-    const shell = readMobile('src/components/core/portal-mobile-shell.tsx');
+    const iconTypes = readMobile('src/components/core/portal-mobile-nav-icon-types.ts');
+    const nativeIcon = readMobile('src/components/core/portal-mobile-nav-icon.tsx');
 
     expect(portal).toMatch(/StudentFaithCornerScreen/);
     expect(portal).toMatch(
@@ -25,9 +26,9 @@ describe('student Faith Corner mobile wiring', () => {
     );
     expect(portal).toMatch(/id: 'faith', icon: 'faith', label: 'Faith'/);
     expect(portal).toMatch(/activeTab === 'faith'/);
-    expect(shell).toMatch(/\|\s*'faith'/);
-    expect(shell).toMatch(/case 'faith':/);
-    expect(shell).toMatch(/return 'book-open'/);
+    expect(iconTypes).toMatch(/\|\s*'faith'/);
+    expect(nativeIcon).toMatch(/case 'faith':/);
+    expect(nativeIcon).toMatch(/return 'book-open'/);
   });
 
   it('uses student-safe Faith Corner APIs without admin publishing or moderation procedures', () => {
