@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -8,7 +8,6 @@ import {
   Bell,
   CalendarCheck,
   CalendarDays,
-  ChevronDown,
   Club,
   ClipboardList,
   FileText,
@@ -22,6 +21,7 @@ import {
   Star,
   type LucideIcon,
 } from 'lucide-react';
+import { SidebarNavGroup } from '@/components/navigation/sidebar-nav-group';
 
 type NavPermission = 'canManageClubs' | 'canManageInvoices' | 'canUseShop';
 
@@ -180,66 +180,6 @@ function groupTotalBadge(
   return countBadge(total);
 }
 
-type NavGroupAccordionProps = {
-  group: NavGroup;
-  initialOpen: boolean;
-  unreadMessageCount: number;
-  unreadNoticeCount: number;
-  pathname: string;
-};
-
-function NavGroupAccordion({
-  group,
-  initialOpen,
-  unreadMessageCount,
-  unreadNoticeCount,
-  pathname,
-}: NavGroupAccordionProps) {
-  const [isOpen, setIsOpen] = useState(initialOpen);
-  const GroupIcon = group.icon;
-  const totalBadge = groupTotalBadge(group, unreadMessageCount, unreadNoticeCount);
-
-  return (
-    <details
-      className="admin-shell__nav-group"
-      open={isOpen}
-      onToggle={(e) => {
-        setIsOpen(e.currentTarget.open);
-      }}
-    >
-      <summary className="admin-shell__nav-group-summary">
-        <GroupIcon aria-hidden="true" size={navIconSize} />
-        <span className="admin-shell__nav-group-label">{group.label}</span>
-        {totalBadge ? <b className="admin-shell__nav-group-badge">{totalBadge}</b> : null}
-        <ChevronDown aria-hidden="true" className="admin-shell__nav-group-chevron" size={13} />
-      </summary>
-      <div className="admin-shell__nav-group-items">
-        {group.items.map((item) => {
-          const Icon = item.icon;
-          const active = isActiveRoute(pathname, item.href, item.label);
-          const badge = badgeForLabel(item.label, unreadMessageCount, unreadNoticeCount);
-          const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
-            .filter(Boolean)
-            .join(' ');
-
-          return (
-            <Link
-              aria-current={active ? 'page' : undefined}
-              className={className}
-              href={{ pathname: item.href }}
-              key={item.label}
-            >
-              <Icon aria-hidden="true" size={navIconSize} />
-              <span>{item.label}</span>
-              {badge ? <b>{badge}</b> : null}
-            </Link>
-          );
-        })}
-      </div>
-    </details>
-  );
-}
-
 export function SupervisorSidebarNav({
   canManageClubs,
   canManageInvoices,
@@ -250,9 +190,20 @@ export function SupervisorSidebarNav({
   const pathname = usePathname() ?? '';
   const access = { canManageClubs, canManageInvoices, canUseShop };
   const groups = visibleGroupsFor(access);
+  const activeGroupLabel =
+    groups.find((group) =>
+      group.items.some((item) => isActiveRoute(pathname, item.href, item.label)),
+    )?.label ?? null;
+  const [openGroupLabel, setOpenGroupLabel] = useState<string | null>(activeGroupLabel);
+  const [hoverGroupLabel, setHoverGroupLabel] = useState<string | null>(null);
+  const activeOpenGroupLabel = hoverGroupLabel ?? openGroupLabel;
 
   const dashboardActive = isActiveRoute(pathname, '/supervisor', 'Dashboard');
   const mobileAppActive = isActiveRoute(pathname, '/mobile-app', 'Mobile App');
+
+  useEffect(() => {
+    setOpenGroupLabel(activeGroupLabel);
+  }, [activeGroupLabel]);
 
   return (
     <nav className="admin-shell__nav">
@@ -268,14 +219,45 @@ export function SupervisorSidebarNav({
       </Link>
 
       {groups.map((group) => (
-        <NavGroupAccordion
-          group={group}
-          initialOpen={group.items.some((item) => isActiveRoute(pathname, item.href, item.label))}
+        <SidebarNavGroup
+          badge={groupTotalBadge(group, unreadMessageCount, unreadNoticeCount)}
+          icon={group.icon}
           key={group.label}
-          pathname={pathname}
-          unreadMessageCount={unreadMessageCount}
-          unreadNoticeCount={unreadNoticeCount}
-        />
+          label={group.label}
+          navIconSize={navIconSize}
+          onHoverEnd={() => {
+            setHoverGroupLabel((current) => (current === group.label ? null : current));
+          }}
+          onHoverStart={() => {
+            setHoverGroupLabel(group.label);
+          }}
+          onOpenChange={(open) => {
+            setOpenGroupLabel(open ? group.label : null);
+          }}
+          open={activeOpenGroupLabel === group.label}
+        >
+          {group.items.map((item) => {
+            const Icon = item.icon;
+            const active = isActiveRoute(pathname, item.href, item.label);
+            const badge = badgeForLabel(item.label, unreadMessageCount, unreadNoticeCount);
+            const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
+              .filter(Boolean)
+              .join(' ');
+
+            return (
+              <Link
+                aria-current={active ? 'page' : undefined}
+                className={className}
+                href={{ pathname: item.href }}
+                key={item.label}
+              >
+                <Icon aria-hidden="true" size={navIconSize} />
+                <span>{item.label}</span>
+                {badge ? <b>{badge}</b> : null}
+              </Link>
+            );
+          })}
+        </SidebarNavGroup>
       ))}
 
       <Link

@@ -1,8 +1,8 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-06-30
 **Agent:** Technical Agent (Codex)
-**Phase:** Mobile PWA readiness rebase.
+**Phase:** Web navigation accordion grouping.
 
 ---
 
@@ -28,6 +28,32 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-06-30 web navigation accordions
+
+Working branch: `feat/navigation-accordion-menu`.
+
+**PR scope:** Group the growing staff/admin navigation into meaningful
+accordion categories, preserving existing role-based item visibility while
+adding desktop hover-open and mobile tap-open behaviour.
+
+Completed:
+
+- Grouped the admin sidebar into Daily Ops, Learning & Progress,
+  Communication & Consent, People & Access, Finance & Shop, and Governance.
+- Added a shared `SidebarNavGroup` component for hover-aware desktop accordion
+  behaviour and tap/keyboard toggling.
+- Reused the shared accordion component in the supervisor sidebar so admin and
+  supervisor navigation behave consistently.
+- Kept existing bottom-nav priority ordering and permission gates unchanged.
+
+Verification:
+
+- `node --test apps/web/tests/admin-navigation-groups.test.mjs apps/web/tests/mobile-responsive-contract.test.mjs`
+- `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`
+- `../../node_modules/.bin/eslint src` from `apps/web`
+- `./node_modules/.bin/prettier --check apps/web/src/components/navigation/sidebar-nav-group.tsx apps/web/src/components/admin/admin-nav.tsx apps/web/src/components/supervisor/supervisor-nav.tsx 'apps/web/src/app/(admin)/admin/admin.css' apps/web/tests/admin-navigation-groups.test.mjs`
+- `git diff --check`
 
 ## Current session - 2026-06-21 mobile Faith Corner
 
