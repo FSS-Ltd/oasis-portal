@@ -1832,17 +1832,22 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   min-height: 30px;
   padding: 0 9px;
   margin-top: 8px;
+  border: 0;
   border-radius: 6px;
+  background: transparent;
   color: rgba(255, 255, 255, 0.38);
+  font-family: inherit;
   font-size: 0.66rem;
   font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   cursor: pointer;
   list-style: none;
+  text-align: left;
   user-select: none;
 }
 
@@ -1874,7 +1879,7 @@
   transition: transform 0.18s ease;
 }
 
-.admin-shell__nav-group[open] .admin-shell__nav-group-chevron {
+.admin-shell__nav-group[data-open='true'] .admin-shell__nav-group-chevron {
   transform: rotate(180deg);
 }
 
