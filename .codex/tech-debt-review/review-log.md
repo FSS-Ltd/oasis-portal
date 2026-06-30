@@ -1131,3 +1131,44 @@
 ### Follow-Ups Deferred
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
 - pnpm command wrapper/install state: `pnpm --filter` attempted an interactive module purge in this temporary worktree; direct local binaries were used for final validation.
+
+## 2026-06-30 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/student/student-home-wallet-wiring.test.ts`
+2. `packages/domain/src/registration.ts`
+3. `packages/domain/src/clubs.ts`
+4. `apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx`
+5. `apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts`
+6. `apps/web/src/app/(admin)/admin/calendar/page.tsx`
+7. `apps/mobile/src/components/parent/parent-home-wiring.test.ts`
+8. `apps/mobile/src/components/core/signed-in-router-wiring.test.ts`
+9. `packages/domain/src/subjects.ts`
+10. `apps/web/src/components/student/invest/student-invest-extras.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: package-level mobile, web, and domain typechecks passed after dependency-tree links; initial install bootstrap was blocked by sandboxed registry DNS.
+- Tests: focused mobile wiring tests and full domain Vitest suite passed after edits.
+
+### Changes Made
+- `apps/web/src/components/student/invest/student-invest-extras.tsx`: applied Prettier formatting only.
+- Remaining selected files: reviewed for lint, type, import/export, dead-code, and maintainability issues; no safe source edit needed.
+
+### Validation
+- lint command: pass - `/Users/JeanFidele/The Nexus Ecosystem/Projects/oasis-portal/node_modules/.bin/eslint --no-warn-ignored <selected files>`
+- typecheck command: pass - `tsc --noEmit -p apps/mobile/tsconfig.json`; `tsc --noEmit -p apps/web/tsconfig.json`; `tsc --noEmit -p packages/domain/tsconfig.json`
+- relevant tests: pass - mobile focused Vitest wiring tests; full packages/domain Vitest suite
+- formatting: pass - selected-file Prettier check
+- diff hygiene: pass - `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/tests/e2e/phase-3-5-clubs.spec.ts`: still deferred because the known ESLint project-service coverage issue is config-scope, not a selected source-file issue.
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: still deferred for the same project-service coverage reason.

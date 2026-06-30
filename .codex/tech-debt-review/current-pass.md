@@ -4,18 +4,18 @@
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
 - Current eligible files: 745
-- Files reviewed so far: 261
-- Files remaining estimate: 484
-- Last run: 2026-06-28
+- Files reviewed so far: 271
+- Files remaining estimate: 474
+- Last run: 2026-06-30
 - Last selected files:
-  - `apps/mobile/src/components/staff/staff-rota-availability-editor.tsx`
-  - `apps/web/src/components/student/student-shop-client.tsx`
-  - `apps/web/src/components/student/invest/student-invest-trade.tsx`
-  - `apps/mobile/src/components/parent/parent-shop-cart.tsx`
-  - `apps/mobile/src/components/messages/mobile-message-new-thread.tsx`
-  - `apps/web/src/components/pace/pace-record-edit-modal.tsx`
-  - `apps/web/src/components/student/student-clubs-client.tsx`
-  - `apps/api/src/routers/staffHome.ts`
-  - `apps/api/scripts/smoke-context-rls.ts`
-  - `apps/mobile/src/components/student/student-homework-activity-detail.tsx`
-- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint coverage until selected directly or approved for a focused cleanup.
+  - `apps/mobile/src/components/student/student-home-wallet-wiring.test.ts`
+  - `packages/domain/src/registration.ts`
+  - `packages/domain/src/clubs.ts`
+  - `apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx`
+  - `apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts`
+  - `apps/web/src/app/(admin)/admin/calendar/page.tsx`
+  - `apps/mobile/src/components/parent/parent-home-wiring.test.ts`
+  - `apps/mobile/src/components/core/signed-in-router-wiring.test.ts`
+  - `packages/domain/src/subjects.ts`
+  - `apps/web/src/components/student/invest/student-invest-extras.tsx`
+- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, using current lint/type failures first, then high-churn files because no unreviewed files are currently over the oversized thresholds. Continue excluding the known e2e project-service coverage issue from source-file cleanup unless a focused config cleanup is approved.

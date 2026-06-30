@@ -91,8 +91,8 @@ export function InvestmentActivity({ transactions }: ActivityProps) {
               <span className={styles.activityMain}>
                 <strong>{meta.label}</strong>
                 <span>
-                  {formatDate(new Date(transaction.createdAt))} -{' '}
-                  {transaction.units.toFixed(4)} units @ {formatMerits(transaction.nav, 2)} merits
+                  {formatDate(new Date(transaction.createdAt))} - {transaction.units.toFixed(4)}{' '}
+                  units @ {formatMerits(transaction.nav, 2)} merits
                   {isDividend ? ' dividend' : ''}
                   {transaction.type === 'Sell' && transaction.feeMerits > 0
                     ? ` (fee: ${formatMerits(transaction.feeMerits, 2)})`

@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-28",
+  "lastRunDate": "2026-06-30",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -3176,6 +3176,126 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
+    },
+    "apps/mobile/src/components/student/student-home-wallet-wiring.test.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 105,
+      "lineCountAfter": 105,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn mobile wiring coverage; no safe source edit needed."
+    },
+    "packages/domain/src/registration.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 213,
+      "lineCountAfter": 213,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn domain validation schema; no safe source edit needed."
+    },
+    "packages/domain/src/clubs.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 102,
+      "lineCountAfter": 102,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn domain club helper; no safe source edit needed."
+    },
+    "apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 192,
+      "lineCountAfter": 192,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn people profile client; no safe source edit needed."
+    },
+    "apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 105,
+      "lineCountAfter": 105,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn people profile model helper; no safe source edit needed."
+    },
+    "apps/web/src/app/(admin)/admin/calendar/page.tsx": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 20,
+      "lineCountAfter": 20,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn admin calendar page; no safe source edit needed."
+    },
+    "apps/mobile/src/components/parent/parent-home-wiring.test.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 97,
+      "lineCountAfter": 97,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn mobile parent wiring coverage; no safe source edit needed."
+    },
+    "apps/mobile/src/components/core/signed-in-router-wiring.test.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 105,
+      "lineCountAfter": 105,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn mobile routing coverage; no safe source edit needed."
+    },
+    "packages/domain/src/subjects.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 157,
+      "lineCountAfter": 157,
+      "issuesFixed": [
+        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn PACE subject domain helper; no safe source edit needed."
+    },
+    "apps/web/src/components/student/invest/student-invest-extras.tsx": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 127,
+      "lineCountAfter": 127,
+      "issuesFixed": [
+        "Applied Prettier formatting to repair selected-file formatting drift."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as high-churn investment UI helper; applied formatting only."
     }
   },
   "deferredFiles": {
@@ -3200,8 +3320,12 @@
       "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
     },
     "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
-      "deferredAt": "2026-06-27",
-      "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this requires broader ESLint/tsconfig scope changes, so it remains deferred from the daily 10-file cleanup."
+      "deferredAt": "2026-06-30",
+      "reason": "Known ESLint TypeScript project-service coverage issue from prior run; fixing requires config-scope work outside this 10-file source cleanup."
+    },
+    "apps/web/tests/e2e/phase-3-5-clubs.spec.ts": {
+      "deferredAt": "2026-06-30",
+      "reason": "Known ESLint TypeScript project-service coverage issue from prior run; fixing requires config-scope work outside this 10-file source cleanup."
     }
   },
   "fullPassHistory": [
