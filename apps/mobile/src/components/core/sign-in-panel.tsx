@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSignIn, useSSO } from '@clerk/clerk-expo';
 import { WebBrowserResultType } from 'expo-web-browser';
 import oasisLogo from '../../../assets/oasis-logo.png';
@@ -18,6 +18,7 @@ const secondFactorPriority: readonly SecondFactor['strategy'][] = [
   'email_code',
   'backup_code',
 ];
+const PASSWORD_RESET_URL = 'https://www.oasisportal.space/sign-in/forgot-password';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Sign-in failed.';
@@ -214,6 +215,17 @@ export function SignInPanel() {
     setError(null);
   }
 
+  async function openPasswordReset() {
+    if (authPending) return;
+
+    setError(null);
+    try {
+      await Linking.openURL(PASSWORD_RESET_URL);
+    } catch {
+      setError('Could not open password reset. Please use the web portal forgot password link.');
+    }
+  }
+
   return (
     <View style={styles.shell}>
       <Card style={styles.loginCard}>
@@ -267,6 +279,20 @@ export function SignInPanel() {
               secureTextEntry
               value={password}
             />
+            <Pressable
+              accessibilityLabel="Reset your Oasis password"
+              accessibilityRole="link"
+              disabled={authPending}
+              onPress={() => {
+                void openPasswordReset();
+              }}
+              style={[
+                styles.forgotPasswordLink,
+                authPending ? styles.forgotPasswordDisabled : null,
+              ]}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            </Pressable>
           </>
         )}
         {error ? <ErrorText>{error}</ErrorText> : null}
@@ -322,6 +348,19 @@ const styles = StyleSheet.create({
   loginCard: {
     borderRadius: 20,
     padding: 28,
+  },
+  forgotPasswordDisabled: {
+    opacity: 0.45,
+  },
+  forgotPasswordLink: {
+    alignSelf: 'flex-end',
+    marginTop: -6,
+    paddingVertical: 2,
+  },
+  forgotPasswordText: {
+    color: C.blue,
+    fontSize: 12,
+    fontWeight: '700',
   },
   logo: {
     height: 88,
