@@ -94,7 +94,9 @@ export function ClubFormModal({
             <div className="admin-club-visual-picker__header">
               <span>
                 <strong>Icon</strong>
-                <small>{CLUB_ICON_OPTIONS.find((option) => option.key === form.iconKey)?.label}</small>
+                <small>
+                  {CLUB_ICON_OPTIONS.find((option) => option.key === form.iconKey)?.label}
+                </small>
               </span>
             </div>
             <div className="admin-club-icon-grid" aria-label="Choose club icon">

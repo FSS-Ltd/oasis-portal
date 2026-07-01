@@ -3,19 +3,20 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 745
-- Files reviewed so far: 271
-- Files remaining estimate: 474
-- Last run: 2026-06-30
+- Current eligible files: 760
+- Files reviewed so far: 291
+- Files remaining estimate: 469
+- Last run: 2026-07-01
 - Last selected files:
-  - `apps/mobile/src/components/student/student-home-wallet-wiring.test.ts`
-  - `packages/domain/src/registration.ts`
-  - `packages/domain/src/clubs.ts`
-  - `apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx`
-  - `apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts`
-  - `apps/web/src/app/(admin)/admin/calendar/page.tsx`
-  - `apps/mobile/src/components/parent/parent-home-wiring.test.ts`
-  - `apps/mobile/src/components/core/signed-in-router-wiring.test.ts`
-  - `packages/domain/src/subjects.ts`
-  - `apps/web/src/components/student/invest/student-invest-extras.tsx`
-- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, using current lint/type failures first, then high-churn files because no unreviewed files are currently over the oversized thresholds. Continue excluding the known e2e project-service coverage issue from source-file cleanup unless a focused config cleanup is approved.
+  - `apps/api/scripts/client-demo/verify.ts`
+  - `apps/api/scripts/client-demo/plan.ts`
+  - `apps/api/scripts/client-demo/seed-academic.ts`
+  - `apps/api/scripts/client-demo/seed-messaging-safety.ts`
+  - `apps/api/scripts/client-demo/seed-activities.ts`
+  - `apps/api/src/__tests__/trpc.middleware.test.ts`
+  - `packages/domain/src/__tests__/tithe.test.ts`
+  - `apps/mobile/src/components/student/student-faith-comments-panel.tsx`
+  - `apps/web/src/components/clubs/club-management-form-modal.tsx`
+  - `apps/mobile/src/components/smoke/student-smoke-pace.tsx`
+- Continuity note: this run carried forward 20 reviewed-file records from the 2026-06-29 and 2026-06-30 automation memory because origin/main's repo-local memory ended at 2026-06-28.
+- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint project-service coverage until selected directly or approved for a focused config cleanup.
