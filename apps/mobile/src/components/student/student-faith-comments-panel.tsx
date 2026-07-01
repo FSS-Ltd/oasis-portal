@@ -156,7 +156,9 @@ function FaithCommentRow({
     <View style={styles.commentCard}>
       <View style={styles.commentHead}>
         <Text style={styles.commentAuthor}>{comment.authorFirstName}</Text>
-        {comment.status !== 'Approved' ? <Badge variant="warning">Comment pending approval</Badge> : null}
+        {comment.status !== 'Approved' ? (
+          <Badge variant="warning">Comment pending approval</Badge>
+        ) : null}
       </View>
       <Text style={styles.description}>{comment.body}</Text>
       <View style={styles.actionRow}>

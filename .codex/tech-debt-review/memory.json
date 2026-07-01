@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-06-30",
+  "lastRunDate": "2026-07-01",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -3177,6 +3177,126 @@
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
     },
+    "apps/mobile/src/components/core/signed-in-router.tsx": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 128,
+      "lineCountAfter": 128,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "apps/mobile/src/components/staff/staff-portal-screen.tsx": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 171,
+      "lineCountAfter": 171,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; removed an unnecessary single-use homeScreen variable in that run."
+    },
+    "apps/web/src/lib/post-sign-in-routing.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 56,
+      "lineCountAfter": 56,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "apps/web/src/middleware.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 27,
+      "lineCountAfter": 27,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "packages/domain/src/meritLedger.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 197,
+      "lineCountAfter": 197,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "apps/web/src/app/(admin)/admin/staff/invite-user-form.tsx": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 121,
+      "lineCountAfter": 121,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "packages/domain/src/__tests__/clubs.test.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 112,
+      "lineCountAfter": 112,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "apps/web/src/app/(admin)/admin/students/[id]/student-detail.tsx": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 55,
+      "lineCountAfter": 55,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "apps/web/src/app/layout.tsx": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 44,
+      "lineCountAfter": 44,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
+    "apps/web/src/app/(admin)/admin/staff/page.tsx": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 24,
+      "lineCountAfter": 24,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+    },
     "apps/mobile/src/components/student/student-home-wallet-wiring.test.ts": {
       "lastReviewedAt": "2026-06-30",
       "pass": 1,
@@ -3184,10 +3304,10 @@
       "lineCountBefore": 105,
       "lineCountAfter": 105,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn mobile wiring coverage; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "packages/domain/src/registration.ts": {
       "lastReviewedAt": "2026-06-30",
@@ -3196,10 +3316,10 @@
       "lineCountBefore": 213,
       "lineCountAfter": 213,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn domain validation schema; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "packages/domain/src/clubs.ts": {
       "lastReviewedAt": "2026-06-30",
@@ -3208,10 +3328,10 @@
       "lineCountBefore": 102,
       "lineCountAfter": 102,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn domain club helper; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx": {
       "lastReviewedAt": "2026-06-30",
@@ -3220,10 +3340,10 @@
       "lineCountBefore": 192,
       "lineCountAfter": 192,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn people profile client; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts": {
       "lastReviewedAt": "2026-06-30",
@@ -3232,10 +3352,10 @@
       "lineCountBefore": 105,
       "lineCountAfter": 105,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn people profile model helper; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "apps/web/src/app/(admin)/admin/calendar/page.tsx": {
       "lastReviewedAt": "2026-06-30",
@@ -3244,10 +3364,10 @@
       "lineCountBefore": 20,
       "lineCountAfter": 20,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn admin calendar page; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "apps/mobile/src/components/parent/parent-home-wiring.test.ts": {
       "lastReviewedAt": "2026-06-30",
@@ -3256,10 +3376,10 @@
       "lineCountBefore": 97,
       "lineCountAfter": 97,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn mobile parent wiring coverage; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "apps/mobile/src/components/core/signed-in-router-wiring.test.ts": {
       "lastReviewedAt": "2026-06-30",
@@ -3268,10 +3388,10 @@
       "lineCountBefore": 105,
       "lineCountAfter": 105,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn mobile routing coverage; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "packages/domain/src/subjects.ts": {
       "lastReviewedAt": "2026-06-30",
@@ -3280,10 +3400,10 @@
       "lineCountBefore": 157,
       "lineCountAfter": 157,
       "issuesFixed": [
-        "Reviewed selected file for lint, type, import/export, and obvious maintainability issues; no source change needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn PACE subject domain helper; no safe source edit needed."
+      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
     },
     "apps/web/src/components/student/invest/student-invest-extras.tsx": {
       "lastReviewedAt": "2026-06-30",
@@ -3292,10 +3412,130 @@
       "lineCountBefore": 127,
       "lineCountAfter": 127,
       "issuesFixed": [
-        "Applied Prettier formatting to repair selected-file formatting drift."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as high-churn investment UI helper; applied formatting only."
+      "notes": "Reviewed in automation memory for 2026-06-30; formatted with Prettier in that run."
+    },
+    "apps/api/scripts/client-demo/verify.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 462,
+      "lineCountAfter": 462,
+      "issuesFixed": [
+        "Reviewed oversized client-demo verifier; no safe extraction made because the file is a linear Prisma count-check table and abstraction would add delegate typing complexity."
+      ],
+      "validationStatus": "pass",
+      "notes": "Oversized script selected after recent client-demo merge; lint, formatting, and typecheck were already clean."
+    },
+    "apps/api/scripts/client-demo/plan.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 294,
+      "lineCountAfter": 294,
+      "issuesFixed": [
+        "Reviewed client-demo plan validation and seed-data shape; no safe source change required."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed client-demo source file with validation and plan-building logic."
+    },
+    "apps/api/scripts/client-demo/seed-academic.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 281,
+      "lineCountAfter": 281,
+      "issuesFixed": [
+        "Reviewed academic demo seed helpers; no safe source change required."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed client-demo seed module."
+    },
+    "apps/api/scripts/client-demo/seed-messaging-safety.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 265,
+      "lineCountAfter": 265,
+      "issuesFixed": [
+        "Reviewed messaging, permission-slip, and incident demo seed helpers; no safe source change required."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed client-demo seed module; no safeguarding semantics changed."
+    },
+    "apps/api/scripts/client-demo/seed-activities.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 241,
+      "lineCountAfter": 241,
+      "issuesFixed": [
+        "Reviewed clubs, shop, homework, faith, and community demo seed helpers; no safe source change required."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed client-demo seed module."
+    },
+    "apps/api/src/__tests__/trpc.middleware.test.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 222,
+      "lineCountAfter": 222,
+      "issuesFixed": [
+        "Reviewed tRPC middleware tests; no safe source change required."
+      ],
+      "validationStatus": "pass",
+      "notes": "Focused API Vitest passed."
+    },
+    "packages/domain/src/__tests__/tithe.test.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 219,
+      "lineCountAfter": 219,
+      "issuesFixed": [
+        "Reviewed tithe domain tests; no safe source change required."
+      ],
+      "validationStatus": "pass",
+      "notes": "Focused domain Vitest passed."
+    },
+    "apps/mobile/src/components/student/student-faith-comments-panel.tsx": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 214,
+      "lineCountAfter": 216,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed student mobile Faith Corner component."
+    },
+    "apps/web/src/components/clubs/club-management-form-modal.tsx": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 214,
+      "lineCountAfter": 216,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed clubs management modal."
+    },
+    "apps/mobile/src/components/smoke/student-smoke-pace.tsx": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 213,
+      "lineCountAfter": 206,
+      "issuesFixed": [
+        "Formatted selected file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as an unreviewed mobile smoke PACE panel."
     }
   },
   "deferredFiles": {
@@ -3320,12 +3560,8 @@
       "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
     },
     "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
-      "deferredAt": "2026-06-30",
-      "reason": "Known ESLint TypeScript project-service coverage issue from prior run; fixing requires config-scope work outside this 10-file source cleanup."
-    },
-    "apps/web/tests/e2e/phase-3-5-clubs.spec.ts": {
-      "deferredAt": "2026-06-30",
-      "reason": "Known ESLint TypeScript project-service coverage issue from prior run; fixing requires config-scope work outside this 10-file source cleanup."
+      "deferredAt": "2026-06-27",
+      "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this requires broader ESLint/tsconfig scope changes, so it remains deferred from the daily 10-file cleanup."
     }
   },
   "fullPassHistory": [

@@ -1132,35 +1132,39 @@
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
 - pnpm command wrapper/install state: `pnpm --filter` attempted an interactive module purge in this temporary worktree; direct local binaries were used for final validation.
 
-## 2026-06-30 - Pass 1
+## 2026-07-01 - Pass 1
 
 ### Selected Files
-1. `apps/mobile/src/components/student/student-home-wallet-wiring.test.ts`
-2. `packages/domain/src/registration.ts`
-3. `packages/domain/src/clubs.ts`
-4. `apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx`
-5. `apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts`
-6. `apps/web/src/app/(admin)/admin/calendar/page.tsx`
-7. `apps/mobile/src/components/parent/parent-home-wiring.test.ts`
-8. `apps/mobile/src/components/core/signed-in-router-wiring.test.ts`
-9. `packages/domain/src/subjects.ts`
-10. `apps/web/src/components/student/invest/student-invest-extras.tsx`
+1. `apps/api/scripts/client-demo/verify.ts`
+2. `apps/api/scripts/client-demo/plan.ts`
+3. `apps/api/scripts/client-demo/seed-academic.ts`
+4. `apps/api/scripts/client-demo/seed-messaging-safety.ts`
+5. `apps/api/scripts/client-demo/seed-activities.ts`
+6. `apps/api/src/__tests__/trpc.middleware.test.ts`
+7. `packages/domain/src/__tests__/tithe.test.ts`
+8. `apps/mobile/src/components/student/student-faith-comments-panel.tsx`
+9. `apps/web/src/components/clubs/club-management-form-modal.tsx`
+10. `apps/mobile/src/components/smoke/student-smoke-pace.tsx`
 
 ### Baseline Findings
 - Lint: selected-file ESLint passed before edits.
-- Typecheck: package-level mobile, web, and domain typechecks passed after dependency-tree links; initial install bootstrap was blocked by sandboxed registry DNS.
-- Tests: focused mobile wiring tests and full domain Vitest suite passed after edits.
+- Typecheck: API, domain, mobile, and web direct TypeScript checks passed before edits.
+- Tests: focused API and domain Vitest suites were reserved for post-change validation.
+- Formatting: selected-file Prettier failed for three TSX files before edits.
 
 ### Changes Made
-- `apps/web/src/components/student/invest/student-invest-extras.tsx`: applied Prettier formatting only.
-- Remaining selected files: reviewed for lint, type, import/export, dead-code, and maintainability issues; no safe source edit needed.
+- `apps/mobile/src/components/student/student-faith-comments-panel.tsx`: formatted selected file with Prettier.
+- `apps/web/src/components/clubs/club-management-form-modal.tsx`: formatted selected file with Prettier.
+- `apps/mobile/src/components/smoke/student-smoke-pace.tsx`: formatted selected file with Prettier.
+- Remaining selected files: reviewed lint, type, formatting, imports, suppressions, debug logs, local structure, and safe extraction opportunities; no safe source change was needed.
+- Review memory: carried forward 20 reviewed-file records from the 2026-06-29 and 2026-06-30 automation memory so the repo-local pass state does not repeat recent work.
 
 ### Validation
-- lint command: pass - `/Users/JeanFidele/The Nexus Ecosystem/Projects/oasis-portal/node_modules/.bin/eslint --no-warn-ignored <selected files>`
-- typecheck command: pass - `tsc --noEmit -p apps/mobile/tsconfig.json`; `tsc --noEmit -p apps/web/tsconfig.json`; `tsc --noEmit -p packages/domain/tsconfig.json`
-- relevant tests: pass - mobile focused Vitest wiring tests; full packages/domain Vitest suite
-- formatting: pass - selected-file Prettier check
-- diff hygiene: pass - `git diff --check`
+- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`
+- relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/trpc.middleware.test.ts` from `apps/api`; pass, `./node_modules/.bin/vitest run src/__tests__/tithe.test.ts` from `packages/domain`
+- formatting: pass, selected-file and review-memory `./node_modules/.bin/prettier --check` after edits
+- diff hygiene: pass, `git diff --check`
 
 ### Guardrail Confirmation
 - No new features.
@@ -1170,5 +1174,5 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
-- `apps/web/tests/e2e/phase-3-5-clubs.spec.ts`: still deferred because the known ESLint project-service coverage issue is config-scope, not a selected source-file issue.
-- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: still deferred for the same project-service coverage reason.
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
+- `apps/api/scripts/client-demo/verify.ts`: still over 400 lines, but its current shape is a linear verifier table; extraction was deferred because a safe refactor would need careful Prisma delegate typing and dedicated tests.

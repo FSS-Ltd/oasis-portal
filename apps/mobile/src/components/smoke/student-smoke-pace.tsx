@@ -58,10 +58,7 @@ function PaceSubjectCard({ subject }: { subject: PaceSubject }) {
       <View style={styles.paceStats}>
         <PaceStat label="Current" value={`PACE ${String(subject.currentPaceNumber)}`} />
         <PaceStat label="Completed" value={String(subject.completedPaceCount)} />
-        <PaceStat
-          label="Attempts"
-          value={String(subject.currentFinalTestAttempts)}
-        />
+        <PaceStat label="Attempts" value={String(subject.currentFinalTestAttempts)} />
       </View>
       <MutedText>{subject.status.detail}</MutedText>
       {latest ? (
@@ -104,13 +101,9 @@ export function StudentPacePanel({
       <Card style={styles.compactCard}>
         <View style={styles.subjectHeader}>
           <SectionTitle>PACE results</SectionTitle>
-          <Badge variant="blue">
-            {pace ? `${String(pace.today.testCount)} today` : 'Loading'}
-          </Badge>
+          <Badge variant="blue">{pace ? `${String(pace.today.testCount)} today` : 'Loading'}</Badge>
         </View>
-        <MutedText>
-          Passing threshold is {String(pace?.policy.passThreshold ?? 80)}%.
-        </MutedText>
+        <MutedText>Passing threshold is {String(pace?.policy.passThreshold ?? 80)}%.</MutedText>
       </Card>
       {pace?.subjects.length === 0 ? (
         <Card style={styles.compactCard}>
