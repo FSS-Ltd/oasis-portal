@@ -19,6 +19,8 @@ const PORTAL_COPY_BY_DESTINATION = {
   '/not-ready': 'Preparing your Oasis portal',
 } satisfies Record<PostSignInDestination, string>;
 
+const POST_SIGN_IN_REDIRECT_DELAY_MS = 650;
+
 interface PostSignInTransitionProps {
   destination: PostSignInDestination;
 }
@@ -27,7 +29,7 @@ export function PostSignInTransition({ destination }: PostSignInTransitionProps)
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       window.location.replace(destination);
-    }, 650);
+    }, POST_SIGN_IN_REDIRECT_DELAY_MS);
 
     return () => {
       window.clearTimeout(timeout);

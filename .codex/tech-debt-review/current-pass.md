@@ -3,20 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 760
-- Files reviewed so far: 291
-- Files remaining estimate: 469
-- Last run: 2026-07-01
+- Current eligible files: 765
+- Files reviewed so far: 301
+- Files remaining estimate: 464
+- Last run: 2026-07-02
 - Last selected files:
-  - `apps/api/scripts/client-demo/verify.ts`
-  - `apps/api/scripts/client-demo/plan.ts`
-  - `apps/api/scripts/client-demo/seed-academic.ts`
-  - `apps/api/scripts/client-demo/seed-messaging-safety.ts`
-  - `apps/api/scripts/client-demo/seed-activities.ts`
-  - `apps/api/src/__tests__/trpc.middleware.test.ts`
-  - `packages/domain/src/__tests__/tithe.test.ts`
-  - `apps/mobile/src/components/student/student-faith-comments-panel.tsx`
-  - `apps/web/src/components/clubs/club-management-form-modal.tsx`
-  - `apps/mobile/src/components/smoke/student-smoke-pace.tsx`
-- Continuity note: this run carried forward 20 reviewed-file records from the 2026-06-29 and 2026-06-30 automation memory because origin/main's repo-local memory ended at 2026-06-28.
-- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint project-service coverage until selected directly or approved for a focused config cleanup.
+  - `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`
+  - `apps/mobile/src/components/parent/parent-home-screen.tsx`
+  - `packages/domain/src/__tests__/studentPortalSettings.test.ts`
+  - `apps/mobile/src/components/staff/staff-home-model.ts`
+  - `packages/domain/src/permissionSlips.ts`
+  - `apps/web/src/app/(student)/student/layout.tsx`
+  - `apps/web/src/app/api/auth-context.ts`
+  - `apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx`
+  - `apps/web/src/components/behaviour/daily-demerit-badge.tsx`
+  - `apps/mobile/src/components/messages/mobile-messages-panel.tsx`
+- Next selection strategy: continue pass 1 with unreviewed eligible source files, prioritising current lint/type failures first, then high-churn medium-sized files and least-recently-reviewed files. Keep deferred e2e/project-service and oversized router-test cleanup out of the daily pass unless selected for a focused test/config cleanup.

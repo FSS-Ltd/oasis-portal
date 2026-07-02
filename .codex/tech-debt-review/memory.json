@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-07-01",
+  "lastRunDate": "2026-07-02",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -3536,6 +3536,112 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed mobile smoke PACE panel."
+    },
+    "apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 143,
+      "lineCountAfter": 143,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "apps/mobile/src/components/parent/parent-home-screen.tsx": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 210,
+      "lineCountAfter": 215,
+      "issuesFixed": [
+        "Removed redundant dashboard error alias and reused the existing linked-children boolean for the empty state."
+      ],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Small behaviour-preserving cleanup applied during the daily review."
+    },
+    "packages/domain/src/__tests__/studentPortalSettings.test.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 210,
+      "lineCountAfter": 201,
+      "issuesFixed": [
+        "Extracted a typed invalid-usage-limits assertion helper while preserving specific error-message expectations."
+      ],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Small behaviour-preserving cleanup applied during the daily review."
+    },
+    "apps/mobile/src/components/staff/staff-home-model.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 167,
+      "lineCountAfter": 167,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "packages/domain/src/permissionSlips.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 70,
+      "lineCountAfter": 70,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "apps/web/src/app/(student)/student/layout.tsx": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 68,
+      "lineCountAfter": 68,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "apps/web/src/app/api/auth-context.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 61,
+      "lineCountAfter": 61,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "updated",
+      "lineCountBefore": 39,
+      "lineCountAfter": 41,
+      "issuesFixed": [
+        "Named the post-sign-in redirect delay constant to remove a magic number."
+      ],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Small behaviour-preserving cleanup applied during the daily review."
+    },
+    "apps/web/src/components/behaviour/daily-demerit-badge.tsx": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 39,
+      "lineCountAfter": 39,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "apps/mobile/src/components/messages/mobile-messages-panel.tsx": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 206,
+      "lineCountAfter": 206,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     }
   },
   "deferredFiles": {
