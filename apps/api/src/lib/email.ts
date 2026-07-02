@@ -10,6 +10,11 @@ import {
   ClubNotificationEmail,
 } from '../emails/club-notification-email.js';
 import {
+  buildInvoicePastDueReminderEmailText,
+  InvoicePastDueReminderEmail,
+  type InvoicePastDueReminderDays,
+} from '../emails/invoice-past-due-reminder-email.js';
+import {
   buildInvoicePaymentNotificationEmailText,
   InvoicePaymentNotificationEmail,
 } from '../emails/invoice-payment-notification-email.js';
@@ -43,6 +48,7 @@ export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour upda
 export const CLUB_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal club notification';
 export const INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT =
   'Oasis Portal invoice payment awaiting confirmation';
+export const INVOICE_PAST_DUE_REMINDER_EMAIL_SUBJECT_PREFIX = 'Invoice';
 export const NOTICE_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal noticeboard update';
 export const REPORT_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal term report ready';
 
@@ -336,6 +342,41 @@ export interface InvoicePaymentNotificationEmailInput {
   logoUrl?: string;
   recipientName?: string;
   to: string;
+}
+
+export interface InvoicePastDueReminderEmailInput {
+  daysPastDue: InvoicePastDueReminderDays;
+  familyLabel: string;
+  invoiceNumber: string;
+  invoicePath?: string;
+  logoUrl?: string;
+  to: string;
+}
+
+export function buildInvoicePastDueReminderEmail(
+  input: InvoicePastDueReminderEmailInput,
+): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const invoiceUrl = buildPortalUrl(input.invoicePath);
+  const invoiceUrlProps = invoiceUrl ? { invoiceUrl } : {};
+  const commonProps = {
+    daysPastDue: input.daysPastDue,
+    familyLabel: input.familyLabel,
+    invoiceNumber: input.invoiceNumber,
+    ...invoiceUrlProps,
+  };
+
+  return {
+    to: input.to,
+    subject: `${INVOICE_PAST_DUE_REMINDER_EMAIL_SUBJECT_PREFIX} ${input.invoiceNumber} is ${String(
+      input.daysPastDue,
+    )} days past due`,
+    react: createElement(InvoicePastDueReminderEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildInvoicePastDueReminderEmailText(commonProps),
+  };
 }
 
 export function buildInvoicePaymentNotificationEmail(
