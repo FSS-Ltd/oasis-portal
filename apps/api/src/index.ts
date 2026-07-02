@@ -29,6 +29,8 @@ export {
   HELLO_WORLD_EMAIL_TO,
   EMAIL_LOGO_PATH,
   CLUB_NOTIFICATION_EMAIL_SUBJECT,
+  INVOICE_PAST_DUE_REMINDER_EMAIL_SUBJECT_PREFIX,
+  INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   NOTICE_NOTIFICATION_EMAIL_SUBJECT,
   PRODUCTION_RESEND_FROM,
@@ -40,6 +42,8 @@ export {
   buildClubNotificationEmail,
   buildEmailLogoUrl,
   buildHelloWorldEmail,
+  buildInvoicePastDueReminderEmail,
+  buildInvoicePaymentNotificationEmail,
   buildMessageNotificationEmail,
   buildNoticeNotificationEmail,
   buildSmokeTestEmail,
@@ -51,6 +55,8 @@ export {
   type EmailEnv,
   type BehaviourNotificationEmailInput,
   type ClubNotificationEmailInput,
+  type InvoicePastDueReminderEmailInput,
+  type InvoicePaymentNotificationEmailInput,
   type MessageNotificationEmailInput,
   type NoticeNotificationEmailInput,
   type SendEmailInput,
@@ -96,6 +102,14 @@ export {
   type MarketDataRefreshResult,
   type MarketDataSnapshotValuationDto,
 } from './services/market-data/investment-market-refresh.js';
+export {
+  INVOICE_PAST_DUE_REMINDER_AUDIT_ENTITY,
+  INVOICE_PAST_DUE_REMINDER_SOURCE,
+  sendPastDueInvoiceReminders,
+  type InvoicePastDueReminderDb,
+  type PastDueInvoiceReminderSummary,
+  type SendPastDueInvoiceRemindersInput,
+} from './services/invoice-past-due-reminders.js';
 export {
   createTwelveDataMarketDataProvider,
   type TwelveDataQuoteProvider,
