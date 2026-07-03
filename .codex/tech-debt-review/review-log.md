@@ -1177,6 +1177,48 @@
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
 - `apps/api/scripts/client-demo/verify.ts`: still over 400 lines, but its current shape is a linear verifier table; extraction was deferred because a safe refactor would need careful Prisma delegate typing and dedicated tests.
 
+## 2026-07-02 - Pass 1
+
+### Selected Files
+1. `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`
+2. `apps/mobile/src/components/parent/parent-home-screen.tsx`
+3. `packages/domain/src/__tests__/studentPortalSettings.test.ts`
+4. `apps/mobile/src/components/staff/staff-home-model.ts`
+5. `packages/domain/src/permissionSlips.ts`
+6. `apps/web/src/app/(student)/student/layout.tsx`
+7. `apps/web/src/app/api/auth-context.ts`
+8. `apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx`
+9. `apps/web/src/components/behaviour/daily-demerit-badge.tsx`
+10. `apps/mobile/src/components/messages/mobile-messages-panel.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: direct tsc --noEmit passed for apps/web, apps/mobile, and packages/domain before edits.
+- Tests: focused domain test was not run at baseline; it was run after the test cleanup.
+
+### Changes Made
+- `apps/mobile/src/components/parent/parent-home-screen.tsx`: removed a redundant dashboard-error alias and reused the existing linked-children boolean for the empty-state condition.
+- `packages/domain/src/__tests__/studentPortalSettings.test.ts`: extracted a typed helper for repeated invalid usage-limit assertions while preserving exact message checks.
+- `apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx`: named the post-sign-in redirect delay constant.
+- Remaining selected files: reviewed for lint/type errors, imports/exports, dead code, and low-risk cleanup; no source changes needed.
+
+### Validation
+- lint command: pass, `./node_modules/.bin/eslint 'apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx' apps/mobile/src/components/parent/parent-home-screen.tsx packages/domain/src/__tests__/studentPortalSettings.test.ts apps/mobile/src/components/staff/staff-home-model.ts packages/domain/src/permissionSlips.ts 'apps/web/src/app/(student)/student/layout.tsx' apps/web/src/app/api/auth-context.ts apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx apps/web/src/components/behaviour/daily-demerit-badge.tsx apps/mobile/src/components/messages/mobile-messages-panel.tsx`
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`
+- relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/studentPortalSettings.test.ts` from `packages/domain`
+- formatting: pass, `./node_modules/.bin/prettier --check` on selected source files and review memory
+- diff whitespace: pass, `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Existing deferred e2e ESLint project-service coverage and oversized router-test cleanup remain outside this daily source-file cleanup scope.
+
 ## 2026-07-03 - Pass 1
 
 ### Selected Files
@@ -1201,7 +1243,7 @@
 - `apps/api/src/routers/tithe.ts`: formatted selected router file with Prettier.
 - `apps/web/src/components/calendar/calendar-month-view.tsx`: named the formatted month label once and reused it for the heading and calendar grid aria-label.
 - Remaining selected files: reviewed lint, type safety, imports/exports, suppressions, debug logs, and local structure; no safe source change was needed.
-- Review memory: carried forward 10 reviewed-file records from the 2026-07-02 automation memory so this pass does not repeat yesterday's draft-run coverage.
+- Review memory: rebased onto origin/main's real 2026-07-02 memory and appended the 2026-07-03 run.
 
 ### Validation
 - lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files

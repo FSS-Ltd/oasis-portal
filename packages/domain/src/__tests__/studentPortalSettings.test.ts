@@ -11,6 +11,13 @@ import {
 
 const asOf = new Date('2026-06-03T12:00:00.000Z');
 
+function expectInvalidUsageLimits(
+  input: Parameters<typeof validateStudentPortalUsageLimits>[0],
+  expectedMessage: RegExp,
+) {
+  expect(() => validateStudentPortalUsageLimits(input)).toThrow(expectedMessage);
+}
+
 describe('student portal parent control eligibility', () => {
   it('allows parent control for students under 18', () => {
     expect(canParentControlStudent({ dateOfBirth: '2008-06-04', asOf })).toBe(true);
@@ -89,33 +96,17 @@ describe('validateStudentPortalUsageLimits', () => {
   });
 
   it('rejects zero, fractional, negative, and over-window daily limits', () => {
-    expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: 0 })).toThrow(
-      /dailyUsageLimitMinutes/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: 90.5 })).toThrow(
-      /dailyUsageLimitMinutes/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: -1 })).toThrow(
-      /dailyUsageLimitMinutes/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ dailyUsageLimitMinutes: 1441 })).toThrow(
-      /dailyUsageLimitMinutes/,
-    );
+    expectInvalidUsageLimits({ dailyUsageLimitMinutes: 0 }, /dailyUsageLimitMinutes/);
+    expectInvalidUsageLimits({ dailyUsageLimitMinutes: 90.5 }, /dailyUsageLimitMinutes/);
+    expectInvalidUsageLimits({ dailyUsageLimitMinutes: -1 }, /dailyUsageLimitMinutes/);
+    expectInvalidUsageLimits({ dailyUsageLimitMinutes: 1441 }, /dailyUsageLimitMinutes/);
   });
 
   it('rejects invalid and duplicate off-limit weekdays', () => {
-    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [-1] })).toThrow(
-      /offLimitWeekdays/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [7] })).toThrow(
-      /offLimitWeekdays/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [1.5] })).toThrow(
-      /offLimitWeekdays/,
-    );
-    expect(() => validateStudentPortalUsageLimits({ offLimitWeekdays: [2, 2] })).toThrow(
-      /offLimitWeekdays/,
-    );
+    expectInvalidUsageLimits({ offLimitWeekdays: [-1] }, /offLimitWeekdays/);
+    expectInvalidUsageLimits({ offLimitWeekdays: [7] }, /offLimitWeekdays/);
+    expectInvalidUsageLimits({ offLimitWeekdays: [1.5] }, /offLimitWeekdays/);
+    expectInvalidUsageLimits({ offLimitWeekdays: [2, 2] }, /offLimitWeekdays/);
   });
 });
 

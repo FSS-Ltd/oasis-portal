@@ -57,7 +57,7 @@ describe('parent home mobile wiring', () => {
     expect(home).toMatch(/api\.invoice\.listParent\.useQuery/);
     expect(home).toMatch(/api\.permissionSlip\.listParent\.useQuery/);
     expect(home).toMatch(/enabled: hasLinkedChildren/);
-    expect(home).toMatch(/const queryError = dashboardError/);
+    expect(home).toMatch(/\{dashboardError \? <ErrorText>\{dashboardError\}<\/ErrorText> : null\}/);
     expect(portal).toMatch(/routeQueryError/);
     expect(nativeIcon).toMatch(/Feather\.loadFont\(\)/);
     expect(nativeIcon).toMatch(/iconPlaceholder/);

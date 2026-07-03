@@ -65,7 +65,6 @@ export function ParentHomeScreen({
     retry: false,
   });
 
-  const queryError = dashboardError;
   const selectedChildId = selectedChild?.student.id ?? null;
   const signals = parentHomeSignals({
     clubContext: clubContext.data,
@@ -119,9 +118,9 @@ export function ParentHomeScreen({
       </View>
 
       {loadingDashboard && !dashboard ? <InlineSpinner label="Loading parent dashboard" /> : null}
-      {queryError ? <ErrorText>{queryError}</ErrorText> : null}
+      {dashboardError ? <ErrorText>{dashboardError}</ErrorText> : null}
 
-      {children.length === 0 && !loadingDashboard ? (
+      {!hasLinkedChildren && !loadingDashboard ? (
         <ParentEmptyState registrationStatus={registrationStatus} />
       ) : null}
 
@@ -146,7 +145,11 @@ export function ParentHomeScreen({
   );
 }
 
-function ParentEmptyState({ registrationStatus }: { registrationStatus: RegistrationStatus | undefined }) {
+function ParentEmptyState({
+  registrationStatus,
+}: {
+  registrationStatus: RegistrationStatus | undefined;
+}) {
   if (registrationStatus?.requiresRegistration) {
     return (
       <Card>
@@ -159,7 +162,9 @@ function ParentEmptyState({ registrationStatus }: { registrationStatus: Registra
   return (
     <Card>
       <Text style={styles.emptyTitle}>No linked children</Text>
-      <MutedText>Linked child records will appear once Oasis connects them to this account.</MutedText>
+      <MutedText>
+        Linked child records will appear once Oasis connects them to this account.
+      </MutedText>
     </Card>
   );
 }

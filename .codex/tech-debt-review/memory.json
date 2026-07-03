@@ -3541,121 +3541,107 @@
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 142,
-      "lineCountAfter": 142,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 143,
+      "lineCountAfter": 143,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "apps/mobile/src/components/parent/parent-home-screen.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 209,
-      "lineCountAfter": 209,
+      "status": "updated",
+      "lineCountBefore": 210,
+      "lineCountAfter": 215,
       "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
+        "Removed redundant dashboard error alias and reused the existing linked-children boolean for the empty state."
       ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Small behaviour-preserving cleanup applied during the daily review."
     },
     "packages/domain/src/__tests__/studentPortalSettings.test.ts": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 209,
-      "lineCountAfter": 209,
+      "status": "updated",
+      "lineCountBefore": 210,
+      "lineCountAfter": 201,
       "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
+        "Extracted a typed invalid-usage-limits assertion helper while preserving specific error-message expectations."
       ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Small behaviour-preserving cleanup applied during the daily review."
     },
     "apps/mobile/src/components/staff/staff-home-model.ts": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 166,
-      "lineCountAfter": 166,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 167,
+      "lineCountAfter": 167,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "packages/domain/src/permissionSlips.ts": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 69,
-      "lineCountAfter": 69,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 70,
+      "lineCountAfter": 70,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "apps/web/src/app/(student)/student/layout.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 67,
-      "lineCountAfter": 67,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 68,
+      "lineCountAfter": 68,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "apps/web/src/app/api/auth-context.ts": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 60,
-      "lineCountAfter": 60,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 61,
+      "lineCountAfter": 61,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 38,
-      "lineCountAfter": 38,
+      "status": "updated",
+      "lineCountBefore": 39,
+      "lineCountAfter": 41,
       "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
+        "Named the post-sign-in redirect delay constant to remove a magic number."
       ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Small behaviour-preserving cleanup applied during the daily review."
     },
     "apps/web/src/components/behaviour/daily-demerit-badge.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 38,
-      "lineCountAfter": 38,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 39,
+      "lineCountAfter": 39,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "apps/mobile/src/components/messages/mobile-messages-panel.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 205,
-      "lineCountAfter": 205,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from the 2026-07-02 automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory lagged behind the prior automation run; source was not modified in this branch."
+      "lineCountBefore": 206,
+      "lineCountAfter": 206,
+      "issuesFixed": [],
+      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
+      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
     },
     "apps/web/src/app/(admin)/admin/attendance/page.tsx": {
       "lastReviewedAt": "2026-07-03",

@@ -1751,7 +1751,7 @@ describe('invoiceRouter', () => {
       invoiceNumber: 'INV-2026-004',
       status: 'Unpaid',
       studentId: linkedStudentId,
-      dueOn: new Date('2026-06-30T00:00:00.000Z'),
+      dueOn: new Date('2026-12-31T00:00:00.000Z'),
       subtotalAmountPence: 7000,
       totalAmountPence: 7000,
     });

@@ -3,9 +3,9 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 765
+- Current eligible files: 769
 - Files reviewed so far: 311
-- Files remaining estimate: 454
+- Files remaining estimate: 458
 - Last run: 2026-07-03
 - Last run completed at: 2026-07-03T07:05:57+0100
 - Last selected files:
@@ -19,5 +19,5 @@
   - `apps/api/src/lib/clerk.ts`
   - `apps/web/src/components/behaviour/behaviour-student-selector.tsx`
   - `packages/domain/src/__tests__/demeritPolicy.test.ts`
-- Continuity note: this run carried forward 10 reviewed-file records from the 2026-07-02 automation memory because origin/main's repo-local memory ended at 2026-07-01. Earlier carry-forward records from June 29 and June 30 remain preserved.
+- Continuity note: this branch was merged with origin/main before PR publication, preserving the real 2026-07-02 review memory and appending the 2026-07-03 run.
 - Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then any remaining over-threshold files, then high-churn unreviewed files. Keep deferring config-level e2e ESLint project-service coverage until approved for a focused config cleanup.
