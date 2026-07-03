@@ -1176,3 +1176,48 @@
 ### Follow-Ups Deferred
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
 - `apps/api/scripts/client-demo/verify.ts`: still over 400 lines, but its current shape is a linear verifier table; extraction was deferred because a safe refactor would need careful Prisma delegate typing and dedicated tests.
+
+## 2026-07-03 - Pass 1
+
+### Selected Files
+1. `apps/web/src/app/(admin)/admin/attendance/page.tsx`
+2. `apps/web/src/components/calendar/calendar-month-view.tsx`
+3. `apps/api/src/routers/tithe.ts`
+4. `packages/domain/src/leaderboard.ts`
+5. `apps/web/src/app/children-check/page.tsx`
+6. `apps/mobile/app/_layout.tsx`
+7. `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts`
+8. `apps/api/src/lib/clerk.ts`
+9. `apps/web/src/components/behaviour/behaviour-student-selector.tsx`
+10. `packages/domain/src/__tests__/demeritPolicy.test.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed after package-local dependency symlinks restored TypeScript-aware resolution.
+- Typecheck: direct web, API, mobile, and domain TypeScript checks passed before edits.
+- Tests: focused API/domain tests were reserved for post-change validation.
+- Formatting: selected-file Prettier failed for `apps/api/src/routers/tithe.ts` before editing.
+
+### Changes Made
+- `apps/api/src/routers/tithe.ts`: formatted selected router file with Prettier.
+- `apps/web/src/components/calendar/calendar-month-view.tsx`: named the formatted month label once and reused it for the heading and calendar grid aria-label.
+- Remaining selected files: reviewed lint, type safety, imports/exports, suppressions, debug logs, and local structure; no safe source change was needed.
+- Review memory: carried forward 10 reviewed-file records from the 2026-07-02 automation memory so this pass does not repeat yesterday's draft-run coverage.
+
+### Validation
+- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`
+- relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/tithe.router.test.ts --cache=false` from `apps/api`; pass, `./node_modules/.bin/vitest run src/__tests__/demeritPolicy.test.ts src/__tests__/leaderboard.test.ts --cache=false` from `packages/domain`
+- formatting: pass, selected-file and review-memory `./node_modules/.bin/prettier --check`
+- diff hygiene: pass, `git diff --check`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
+- `apps/web/tests/e2e/phase-3-5-clubs.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
+- Dependency note: validation used temporary symlinks to the existing local dependency trees from the main checkout; these symlinks were removed before final status.

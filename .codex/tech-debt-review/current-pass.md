@@ -3,20 +3,21 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 760
-- Files reviewed so far: 291
-- Files remaining estimate: 469
-- Last run: 2026-07-01
+- Current eligible files: 765
+- Files reviewed so far: 311
+- Files remaining estimate: 454
+- Last run: 2026-07-03
+- Last run completed at: 2026-07-03T07:05:57+0100
 - Last selected files:
-  - `apps/api/scripts/client-demo/verify.ts`
-  - `apps/api/scripts/client-demo/plan.ts`
-  - `apps/api/scripts/client-demo/seed-academic.ts`
-  - `apps/api/scripts/client-demo/seed-messaging-safety.ts`
-  - `apps/api/scripts/client-demo/seed-activities.ts`
-  - `apps/api/src/__tests__/trpc.middleware.test.ts`
-  - `packages/domain/src/__tests__/tithe.test.ts`
-  - `apps/mobile/src/components/student/student-faith-comments-panel.tsx`
-  - `apps/web/src/components/clubs/club-management-form-modal.tsx`
-  - `apps/mobile/src/components/smoke/student-smoke-pace.tsx`
-- Continuity note: this run carried forward 20 reviewed-file records from the 2026-06-29 and 2026-06-30 automation memory because origin/main's repo-local memory ended at 2026-06-28.
-- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then remaining near-threshold UI components and least-recently-reviewed files. Keep deferring config-level e2e ESLint project-service coverage until selected directly or approved for a focused config cleanup.
+  - `apps/web/src/app/(admin)/admin/attendance/page.tsx`
+  - `apps/web/src/components/calendar/calendar-month-view.tsx`
+  - `apps/api/src/routers/tithe.ts`
+  - `packages/domain/src/leaderboard.ts`
+  - `apps/web/src/app/children-check/page.tsx`
+  - `apps/mobile/app/_layout.tsx`
+  - `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts`
+  - `apps/api/src/lib/clerk.ts`
+  - `apps/web/src/components/behaviour/behaviour-student-selector.tsx`
+  - `packages/domain/src/__tests__/demeritPolicy.test.ts`
+- Continuity note: this run carried forward 10 reviewed-file records from the 2026-07-02 automation memory because origin/main's repo-local memory ended at 2026-07-01. Earlier carry-forward records from June 29 and June 30 remain preserved.
+- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then any remaining over-threshold files, then high-churn unreviewed files. Keep deferring config-level e2e ESLint project-service coverage until approved for a focused config cleanup.

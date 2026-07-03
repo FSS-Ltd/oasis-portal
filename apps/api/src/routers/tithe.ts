@@ -71,65 +71,67 @@ export const titheRouter = router({
     return loadManualTitheStatus(ctx.db, { studentId: student.id });
   }),
 
-  updatePreference: authedProcedure.input(updatePreferenceInput).mutation(async ({ ctx, input }) => {
-    if (ctx.user.role !== 'Student') {
-      return auditStudentOnlyDenied(ctx, 'tithe.updatePreference');
-    }
+  updatePreference: authedProcedure
+    .input(updatePreferenceInput)
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role !== 'Student') {
+        return auditStudentOnlyDenied(ctx, 'tithe.updatePreference');
+      }
 
-    const student = await loadOwnActiveStudent(ctx);
-    const previous = await ctx.db.titheConfig.findUnique({ where: { studentId: student.id } });
-    const cadence: TitheCadence = input.cadence;
-    const mode: TithePaymentMode = input.mode;
-    const config = await ctx.db.titheConfig.upsert({
-      where: { studentId: student.id },
-      create: {
+      const student = await loadOwnActiveStudent(ctx);
+      const previous = await ctx.db.titheConfig.findUnique({ where: { studentId: student.id } });
+      const cadence: TitheCadence = input.cadence;
+      const mode: TithePaymentMode = input.mode;
+      const config = await ctx.db.titheConfig.upsert({
+        where: { studentId: student.id },
+        create: {
+          studentId: student.id,
+          percentage: input.percentage ?? DEFAULT_TITHE_PERCENTAGE,
+          cadence,
+          mode,
+          fixedAmount: mode === 'FixedAmount' ? (input.fixedAmount ?? null) : null,
+          weeklyDay: input.weeklyDay ?? DEFAULT_TITHE_WEEKLY_DAY,
+          monthlyDate: input.monthlyDate ?? DEFAULT_TITHE_MONTHLY_DATE,
+        },
+        update: {
+          percentage: input.percentage ?? DEFAULT_TITHE_PERCENTAGE,
+          cadence,
+          mode,
+          fixedAmount: mode === 'FixedAmount' ? (input.fixedAmount ?? null) : null,
+          weeklyDay: input.weeklyDay ?? DEFAULT_TITHE_WEEKLY_DAY,
+          monthlyDate: input.monthlyDate ?? DEFAULT_TITHE_MONTHLY_DATE,
+        },
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'TitheConfig',
+          entityId: student.id,
+          meta: {
+            source: 'tithe.updatePreference',
+            previousCadence: previous?.cadence ?? DEFAULT_TITHE_CADENCE,
+            cadence: config.cadence,
+            mode: config.mode,
+          },
+        },
+      });
+
+      return {
         studentId: student.id,
-        percentage: input.percentage ?? DEFAULT_TITHE_PERCENTAGE,
-        cadence,
-        mode,
-        fixedAmount: mode === 'FixedAmount' ? input.fixedAmount ?? null : null,
-        weeklyDay: input.weeklyDay ?? DEFAULT_TITHE_WEEKLY_DAY,
-        monthlyDate: input.monthlyDate ?? DEFAULT_TITHE_MONTHLY_DATE,
-      },
-      update: {
-        percentage: input.percentage ?? DEFAULT_TITHE_PERCENTAGE,
-        cadence,
-        mode,
-        fixedAmount: mode === 'FixedAmount' ? input.fixedAmount ?? null : null,
-        weeklyDay: input.weeklyDay ?? DEFAULT_TITHE_WEEKLY_DAY,
-        monthlyDate: input.monthlyDate ?? DEFAULT_TITHE_MONTHLY_DATE,
-      },
-    });
-
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'Update',
-        entity: 'TitheConfig',
-        entityId: student.id,
-        meta: {
-          source: 'tithe.updatePreference',
-          previousCadence: previous?.cadence ?? DEFAULT_TITHE_CADENCE,
+        config: {
+          studentId: config.studentId,
+          percentage: config.percentage,
           cadence: config.cadence,
           mode: config.mode,
+          fixedAmount: config.fixedAmount,
+          weeklyDay: config.weeklyDay,
+          monthlyDate: config.monthlyDate,
+          lastRunAt: config.lastRunAt,
         },
-      },
-    });
-
-    return {
-      studentId: student.id,
-      config: {
-        studentId: config.studentId,
-        percentage: config.percentage,
-        cadence: config.cadence,
-        mode: config.mode,
-        fixedAmount: config.fixedAmount,
-        weeklyDay: config.weeklyDay,
-        monthlyDate: config.monthlyDate,
-        lastRunAt: config.lastRunAt,
-      },
-    };
-  }),
+      };
+    }),
 
   payDue: roleProcedure('Student').mutation(async ({ ctx }) => {
     const student = await loadOwnActiveStudent(ctx);
