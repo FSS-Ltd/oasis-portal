@@ -1,7 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
+import {
+  Badge,
+  Card,
+  InlineSpinner,
+  MutedText,
+  SectionTitle,
+  MobileButton,
+} from '../core/mobile-ui';
 
 type ClubListItem = RouterOutputs['club']['list'][number];
 type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
