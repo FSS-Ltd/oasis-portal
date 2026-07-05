@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-07-02",
+  "lastRunDate": "2026-07-03",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -3642,6 +3642,126 @@
       "issuesFixed": [],
       "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
       "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+    },
+    "apps/web/src/app/(admin)/admin/attendance/page.tsx": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 37,
+      "lineCountAfter": 37,
+      "issuesFixed": [
+        "Reviewed lint, type safety, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed route file."
+    },
+    "apps/web/src/components/calendar/calendar-month-view.tsx": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 197,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Named the formatted month label once and reused it for the heading and calendar grid aria-label."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed calendar component."
+    },
+    "apps/api/src/routers/tithe.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 138,
+      "lineCountAfter": 140,
+      "issuesFixed": [
+        "Formatted selected router file with Prettier."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed API router; tithe request shapes, auth, and payment semantics were not changed."
+    },
+    "packages/domain/src/leaderboard.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 96,
+      "lineCountAfter": 96,
+      "issuesFixed": [
+        "Reviewed lint, type safety, exports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed domain helper."
+    },
+    "apps/web/src/app/children-check/page.tsx": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 79,
+      "lineCountAfter": 79,
+      "issuesFixed": [
+        "Reviewed lint, type safety, imports, redirects, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed identity route file."
+    },
+    "apps/mobile/app/_layout.tsx": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 65,
+      "lineCountAfter": 65,
+      "issuesFixed": [
+        "Reviewed lint, type safety, imports, configuration handling, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed mobile app root file."
+    },
+    "apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 199,
+      "lineCountAfter": 199,
+      "issuesFixed": [
+        "Reviewed lint, type safety, exports, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed supervisor utility file."
+    },
+    "apps/api/src/lib/clerk.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 197,
+      "lineCountAfter": 197,
+      "issuesFixed": [
+        "Reviewed lint, type safety, dependency adapter boundaries, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed Clerk adapter file."
+    },
+    "apps/web/src/components/behaviour/behaviour-student-selector.tsx": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 191,
+      "lineCountAfter": 191,
+      "issuesFixed": [
+        "Reviewed lint, type safety, accessibility controls, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed behaviour component."
+    },
+    "packages/domain/src/__tests__/demeritPolicy.test.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 190,
+      "lineCountAfter": 190,
+      "issuesFixed": [
+        "Reviewed lint, type safety, test assertions, suppressions, debug logs, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a high-churn unreviewed domain test file."
     }
   },
   "deferredFiles": {
@@ -3668,6 +3788,10 @@
     "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
       "deferredAt": "2026-06-27",
       "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this requires broader ESLint/tsconfig scope changes, so it remains deferred from the daily 10-file cleanup."
+    },
+    "apps/web/tests/e2e/phase-3-5-clubs.spec.ts": {
+      "deferredAt": "2026-07-03",
+      "reason": "Selected-file ESLint project-service coverage is a config-level issue; deferred to avoid broad tsconfig/eslint scope changes in the daily 10-file cleanup."
     }
   },
   "fullPassHistory": [

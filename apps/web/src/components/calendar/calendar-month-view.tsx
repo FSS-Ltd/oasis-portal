@@ -41,6 +41,7 @@ export function CalendarMonthView({
   selection,
 }: CalendarMonthViewProps) {
   const days = buildCalendarMonth(monthKey, events);
+  const monthLabel = formatMonthLabel(monthKey);
 
   return (
     <section
@@ -50,7 +51,7 @@ export function CalendarMonthView({
       <div className="calendar-month-toolbar">
         <div>
           <p>Calendar</p>
-          <h2 id="calendar-month-title">{formatMonthLabel(monthKey)}</h2>
+          <h2 id="calendar-month-title">{monthLabel}</h2>
         </div>
         <div className="calendar-month-toolbar__actions">
           <Button
@@ -71,7 +72,7 @@ export function CalendarMonthView({
         </div>
       </div>
 
-      <div className="calendar-month-grid" aria-label={`${formatMonthLabel(monthKey)} calendar`}>
+      <div className="calendar-month-grid" aria-label={`${monthLabel} calendar`}>
         {weekdayLabels.map((label) => (
           <div className="calendar-month-weekday" key={label}>
             {label}
