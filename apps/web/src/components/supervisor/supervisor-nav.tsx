@@ -195,8 +195,6 @@ export function SupervisorSidebarNav({
       group.items.some((item) => isActiveRoute(pathname, item.href, item.label)),
     )?.label ?? null;
   const [openGroupLabel, setOpenGroupLabel] = useState<string | null>(activeGroupLabel);
-  const [hoverGroupLabel, setHoverGroupLabel] = useState<string | null>(null);
-  const activeOpenGroupLabel = hoverGroupLabel ?? openGroupLabel;
 
   const dashboardActive = isActiveRoute(pathname, '/supervisor', 'Dashboard');
   const mobileAppActive = isActiveRoute(pathname, '/mobile-app', 'Mobile App');
@@ -225,16 +223,10 @@ export function SupervisorSidebarNav({
           key={group.label}
           label={group.label}
           navIconSize={navIconSize}
-          onHoverEnd={() => {
-            setHoverGroupLabel((current) => (current === group.label ? null : current));
-          }}
-          onHoverStart={() => {
-            setHoverGroupLabel(group.label);
-          }}
           onOpenChange={(open) => {
             setOpenGroupLabel(open ? group.label : null);
           }}
-          open={activeOpenGroupLabel === group.label}
+          open={openGroupLabel === group.label}
         >
           {group.items.map((item) => {
             const Icon = item.icon;
