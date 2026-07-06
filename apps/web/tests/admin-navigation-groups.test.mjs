@@ -29,12 +29,13 @@ test('admin sidebar groups the large menu into meaningful accordion categories',
   assert.match(adminNavSource, /label: 'Governance'[\s\S]*label: 'Audit'/);
 });
 
-test('sidebar accordion opens smoothly on desktop hover and remains tap accessible', () => {
-  assert.match(sidebarGroupSource, /onPointerEnter=\{handlePointerEnter\}/);
-  assert.match(sidebarGroupSource, /onPointerLeave=\{handlePointerLeave\}/);
-  assert.match(sidebarGroupSource, /pointerType === 'mouse'/);
+test('sidebar accordion opens and closes on click only, not hover', () => {
+  assert.doesNotMatch(sidebarGroupSource, /onPointerEnter/);
+  assert.doesNotMatch(sidebarGroupSource, /onPointerLeave/);
+  assert.doesNotMatch(sidebarGroupSource, /onHoverStart/);
+  assert.doesNotMatch(sidebarGroupSource, /onHoverEnd/);
   assert.match(sidebarGroupSource, /aria-expanded=\{open\}/);
-  assert.match(sidebarGroupSource, /onClick=\{handleSummaryClick\}/);
+  assert.match(sidebarGroupSource, /onClick=\{\(\) => \{\s*onOpenChange\(!open\);/);
 });
 
 test('admin and supervisor sidebars share the same accordion behaviour', () => {

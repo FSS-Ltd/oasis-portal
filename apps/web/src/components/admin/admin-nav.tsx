@@ -257,8 +257,6 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
       group.items.some((item) => isActiveRoute(pathname, item.href, item.label)),
     )?.label ?? null;
   const [openGroupLabel, setOpenGroupLabel] = useState<string | null>(activeGroupLabel);
-  const [hoverGroupLabel, setHoverGroupLabel] = useState<string | null>(null);
-  const activeOpenGroupLabel = hoverGroupLabel ?? openGroupLabel;
 
   useEffect(() => {
     setOpenGroupLabel(activeGroupLabel);
@@ -283,16 +281,10 @@ export function AdminSidebarNav({ unreadMessageCount, ...access }: AdminNavProps
           key={group.label}
           label={group.label}
           navIconSize={navIconSize}
-          onHoverEnd={() => {
-            setHoverGroupLabel((current) => (current === group.label ? null : current));
-          }}
-          onHoverStart={() => {
-            setHoverGroupLabel(group.label);
-          }}
           onOpenChange={(open) => {
             setOpenGroupLabel(open ? group.label : null);
           }}
-          open={activeOpenGroupLabel === group.label}
+          open={openGroupLabel === group.label}
         >
           {group.items.map((item) => (
             <NavItemLink

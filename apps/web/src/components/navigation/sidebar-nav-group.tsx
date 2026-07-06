@@ -1,11 +1,7 @@
 'use client';
 
-import type {
-  MouseEvent as ReactMouseEvent,
-  PointerEvent as ReactPointerEvent,
-  ReactNode,
-} from 'react';
-import { useId, useRef } from 'react';
+import type { ReactNode } from 'react';
+import { useId } from 'react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 
 type SidebarNavGroupProps = {
@@ -14,15 +10,9 @@ type SidebarNavGroupProps = {
   icon: LucideIcon;
   label: string;
   navIconSize?: number;
-  onHoverEnd: () => void;
-  onHoverStart: () => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
 };
-
-function isHoverPointer(pointerType: string): boolean {
-  return pointerType === 'mouse' || pointerType === 'pen';
-}
 
 export function SidebarNavGroup({
   badge,
@@ -30,67 +20,20 @@ export function SidebarNavGroup({
   icon: GroupIcon,
   label,
   navIconSize = 15,
-  onHoverEnd,
-  onHoverStart,
   onOpenChange,
   open,
 }: SidebarNavGroupProps) {
   const contentId = useId();
-  const lastPointerTypeRef = useRef<string | null>(null);
-
-  function handlePointerEnter(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (isHoverPointer(event.pointerType)) {
-      onHoverStart();
-    }
-  }
-
-  function handlePointerLeave(event: ReactPointerEvent<HTMLDivElement>): void {
-    if (isHoverPointer(event.pointerType)) {
-      onHoverEnd();
-    }
-  }
-
-  function handleSummaryPointerDown(event: ReactPointerEvent<HTMLButtonElement>): void {
-    lastPointerTypeRef.current = event.pointerType;
-
-    if (!isHoverPointer(event.pointerType)) return;
-
-    event.preventDefault();
-    onOpenChange(true);
-
-    const pointerType = event.pointerType;
-    window.setTimeout(() => {
-      if (lastPointerTypeRef.current === pointerType) {
-        lastPointerTypeRef.current = null;
-      }
-    }, 0);
-  }
-
-  function handleSummaryClick(event: ReactMouseEvent<HTMLButtonElement>): void {
-    const pointerType = lastPointerTypeRef.current;
-    lastPointerTypeRef.current = null;
-
-    if (pointerType && isHoverPointer(pointerType)) {
-      event.preventDefault();
-      return;
-    }
-
-    onOpenChange(!open);
-  }
 
   return (
-    <div
-      className="admin-shell__nav-group"
-      data-open={open ? 'true' : undefined}
-      onPointerEnter={handlePointerEnter}
-      onPointerLeave={handlePointerLeave}
-    >
+    <div className="admin-shell__nav-group" data-open={open ? 'true' : undefined}>
       <button
         aria-controls={contentId}
         aria-expanded={open}
         className="admin-shell__nav-group-summary"
-        onClick={handleSummaryClick}
-        onPointerDown={handleSummaryPointerDown}
+        onClick={() => {
+          onOpenChange(!open);
+        }}
         type="button"
       >
         <GroupIcon aria-hidden="true" size={navIconSize} />
