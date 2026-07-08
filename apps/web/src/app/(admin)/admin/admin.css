@@ -2999,6 +2999,16 @@
   font-weight: 800;
 }
 
+.message-recipient-scope-toggle {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+
+.message-recipient-scope-toggle .button {
+  flex: 1;
+}
+
 .message-thread-list {
   display: grid;
 }

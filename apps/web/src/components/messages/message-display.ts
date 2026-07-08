@@ -52,12 +52,16 @@ export function counterpartRole(
 }
 
 export function conversationRecipientId(
+  mode: MessageMode,
   kind: ConversationKind | null,
   conversation: ConversationSummary,
 ): string | null {
   if (!kind || conversation.kind !== kind) return null;
   if (kind === 'StaffDirect' || kind === 'StudentDirect') {
     return otherDirectParticipant(conversation)?.id ?? null;
+  }
+  if (kind === 'ParentStaff') {
+    return mode === 'parent' ? conversation.adminId : conversation.parentId;
   }
   return conversation.adminId;
 }

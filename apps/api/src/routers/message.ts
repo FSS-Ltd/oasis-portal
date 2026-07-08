@@ -149,6 +149,7 @@ const listRecipientsInput = z
     kind: z
       .enum(['ParentStaff', 'SupervisorHead', 'StaffDirect', 'StudentDirect'])
       .default('ParentStaff'),
+    direction: z.enum(['toStaff', 'toParent']).default('toStaff'),
   })
   .optional();
 
@@ -644,6 +645,49 @@ async function loadParentMessageAssignee(
   return admin;
 }
 
+async function loadActiveParentRecipient(
+  ctx: AuthedContext,
+  parentId: string,
+): Promise<UserDisplayRow> {
+  const parent = await ctx.db.user.findUnique({
+    where: { id: parentId },
+    select: userDisplaySelect,
+  });
+
+  if (!parent || !parent.active || parent.role !== 'Parent') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'recipient must be an active parent',
+    });
+  }
+
+  return parent;
+}
+
+async function resolveParentStaffThreadParticipants(
+  ctx: AuthedContext,
+  recipientId: string,
+): Promise<{ parentId: string; adminId: string; recipient: UserDisplayRow }> {
+  const target = await ctx.db.user.findUnique({
+    where: { id: recipientId },
+    select: userDisplaySelect,
+  });
+
+  if (target?.role === 'Parent') {
+    if (!canRespondToParentMessages(ctx.user)) {
+      throw toForbidden(
+        new AccessDeniedError('starting a thread with a parent requires message responder access'),
+      );
+    }
+    const recipient = await loadActiveParentRecipient(ctx, recipientId);
+    return { parentId: recipient.id, adminId: ctx.user.id, recipient };
+  }
+
+  await requireParentStaffThreadAuthor(ctx);
+  const recipient = await loadParentMessageAssignee(ctx, recipientId);
+  return { parentId: ctx.user.id, adminId: recipient.id, recipient };
+}
+
 async function loadStaffMessageRecipient(
   ctx: AuthedContext,
   userId: string,
@@ -1004,7 +1048,16 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
   return router({
     listRecipients: authedProcedure.input(listRecipientsInput).query(async ({ ctx, input }) => {
       const kind = input?.kind ?? 'ParentStaff';
-      if (kind === 'ParentStaff') {
+      const direction = input?.direction ?? 'toStaff';
+      const toParent = kind === 'ParentStaff' && direction === 'toParent';
+
+      if (toParent) {
+        if (!canRespondToParentMessages(ctx.user)) {
+          throw toForbidden(
+            new AccessDeniedError('listing parents requires message responder access'),
+          );
+        }
+      } else if (kind === 'ParentStaff') {
         await requireParentStaffThreadAuthor(ctx);
       } else if (kind === 'StaffDirect') {
         if (!canUseStaffMessaging(ctx.user)) {
@@ -1017,8 +1070,9 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       }
 
       const users = await ctx.db.user.findMany({
-        where:
-          kind === 'StaffDirect'
+        where: toParent
+          ? { active: true, role: 'Parent' }
+          : kind === 'StaffDirect'
             ? { active: true, role: { in: [...STAFF_MESSAGE_ROLES] } }
             : kind === 'StudentDirect'
               ? {
@@ -1040,13 +1094,15 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
         .filter(
           (user) =>
             user.id !== ctx.user.id &&
-            (kind === 'StaffDirect'
-              ? canUseStaffMessaging(user)
-              : kind === 'StudentDirect'
-                ? user.role === 'Head' || user.role === 'Pastor' || user.role === 'Student'
-                : canRespondToParentMessages(user) &&
-                  user.role !== 'Parent' &&
-                  user.role !== 'Student'),
+            (toParent
+              ? user.role === 'Parent'
+              : kind === 'StaffDirect'
+                ? canUseStaffMessaging(user)
+                : kind === 'StudentDirect'
+                  ? user.role === 'Head' || user.role === 'Pastor' || user.role === 'Student'
+                  : canRespondToParentMessages(user) &&
+                    user.role !== 'Parent' &&
+                    user.role !== 'Student'),
         )
         .map((user) => displayRecipient(ctx, user));
     }),
@@ -1091,12 +1147,12 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
         let conversationId: string;
 
         if (input.kind === 'ParentStaff') {
-          await requireParentStaffThreadAuthor(ctx);
-          const recipient = await loadParentMessageAssignee(ctx, input.recipientId);
-          parentId = ctx.user.id;
-          participantIds = [ctx.user.id, input.recipientId];
-          subject = `Message with ${displayRecipient(ctx, recipient).fullName}`;
-          conversationId = `ParentStaff:${ctx.user.id}:${input.recipientId}`;
+          const resolved = await resolveParentStaffThreadParticipants(ctx, input.recipientId);
+          parentId = resolved.parentId;
+          adminId = resolved.adminId;
+          participantIds = [resolved.parentId, resolved.adminId];
+          subject = `Message with ${displayRecipient(ctx, resolved.recipient).fullName}`;
+          conversationId = `ParentStaff:${resolved.parentId}:${resolved.adminId}`;
         } else if (input.kind === 'StaffDirect') {
           if (!canUseStaffMessaging(ctx.user)) {
             throw toForbidden(
@@ -1181,10 +1237,10 @@ export function createMessageRouter(deps: MessageRouterDeps = {}) {
       let supervisorId: string | null = null;
 
       if (input.kind === 'ParentStaff') {
-        await requireParentStaffThreadAuthor(ctx);
-        await loadParentMessageAssignee(ctx, input.adminId);
-        parentId = ctx.user.id;
-        participantIds = [ctx.user.id, input.adminId];
+        const resolved = await resolveParentStaffThreadParticipants(ctx, input.adminId);
+        parentId = resolved.parentId;
+        adminId = resolved.adminId;
+        participantIds = [resolved.parentId, resolved.adminId];
       } else if (input.kind === 'StaffDirect') {
         if (!canUseStaffMessaging(ctx.user)) {
           throw toForbidden(new AccessDeniedError('staff direct messaging requires staff access'));

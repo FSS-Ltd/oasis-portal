@@ -43,7 +43,20 @@ describe('staff communications mobile wiring', () => {
     assert.match(screen, /api\.message\.openStaffroom\.useMutation/);
     assert.match(screen, /staffInboxConversationKinds/);
     assert.match(screen, /supervisorHeadConversationKinds/);
-    assert.doesNotMatch(screen, /kind: 'ParentStaff'/);
+  });
+
+  it('lets message responders start a conversation with a parent', () => {
+    const screen = read('src/components/staff/staff-communications-screen.tsx');
+
+    assert.match(screen, /canRespondToParentMessages/);
+    assert.match(screen, /canMessageParents/);
+    assert.match(screen, /parentConversationKinds/);
+    assert.match(
+      screen,
+      /api\.message\.listRecipients\.useQuery\(\s*\{\s*kind: 'ParentStaff',\s*direction: 'toParent'/,
+    );
+    assert.match(screen, /enabled: canMessageParents/);
+    assert.match(screen, /conversationKind="ParentStaff"/);
   });
 
   it('lets Staff Home open communications without introducing dead navigation', () => {

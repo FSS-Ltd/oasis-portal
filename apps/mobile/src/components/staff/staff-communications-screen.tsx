@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
+import { canRespondToParentMessages } from '@oasis/domain/rbac';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { MobileMessagesPanel } from '../messages/mobile-messages-panel';
 import { C } from '../core/mobile-theme';
@@ -15,6 +16,7 @@ type StaffCommunicationsTab = 'notices' | 'messages';
 
 const staffInboxConversationKinds = ['Staffroom', 'StaffDirect'] as const;
 const supervisorHeadConversationKinds = ['SupervisorHead'] as const;
+const parentConversationKinds = ['ParentStaff'] as const;
 
 function unreadCount(notices: StaffNotice[]): number {
   return notices.filter((notice) => !notice.read).length;
@@ -31,6 +33,7 @@ export function StaffCommunicationsScreen({
   const utils = api.useUtils();
   const [activeTab, setActiveTab] = useState<StaffCommunicationsTab>('notices');
   const canUseSupervisorHead = user?.role === 'Supervisor';
+  const canMessageParents = user ? canRespondToParentMessages(user) : false;
   const notices = api.notice.listForStaff.useQuery(undefined, { retry: false });
   const conversations = api.message.listConversations.useQuery(
     { kinds: [...staffInboxConversationKinds], limit: 20 },
@@ -40,10 +43,18 @@ export function StaffCommunicationsScreen({
     { kinds: [...supervisorHeadConversationKinds], limit: 20 },
     { enabled: canUseSupervisorHead, retry: false },
   );
+  const parentConversations = api.message.listConversations.useQuery(
+    { kinds: [...parentConversationKinds], limit: 20 },
+    { enabled: canMessageParents, retry: false },
+  );
   const recipients = api.message.listRecipients.useQuery({ kind: 'StaffDirect' }, { retry: false });
   const headRecipients = api.message.listRecipients.useQuery(
     { kind: 'SupervisorHead' },
     { enabled: canUseSupervisorHead, retry: false },
+  );
+  const parentRecipients = api.message.listRecipients.useQuery(
+    { kind: 'ParentStaff', direction: 'toParent' },
+    { enabled: canMessageParents, retry: false },
   );
   const openStaffroom = api.message.openStaffroom.useMutation({
     onSuccess: async () => {
@@ -54,17 +65,23 @@ export function StaffCommunicationsScreen({
   const unreadNotices = useMemo(() => unreadCount(notices.data ?? []), [notices.data]);
   const unreadMessages = useMemo(
     () =>
-      [...(conversations.data?.items ?? []), ...(supervisorHeadConversations.data?.items ?? [])]
+      [
+        ...(conversations.data?.items ?? []),
+        ...(supervisorHeadConversations.data?.items ?? []),
+        ...(parentConversations.data?.items ?? []),
+      ]
         .filter(isStaffConversation)
         .reduce((count, conversation) => count + conversation.unreadCount, 0),
-    [conversations.data?.items, supervisorHeadConversations.data?.items],
+    [conversations.data?.items, supervisorHeadConversations.data?.items, parentConversations.data?.items],
   );
   const refreshing =
     notices.isFetching ||
     conversations.isFetching ||
     supervisorHeadConversations.isFetching ||
+    parentConversations.isFetching ||
     recipients.isFetching ||
     headRecipients.isFetching ||
+    parentRecipients.isFetching ||
     openStaffroom.isPending;
 
   async function refresh() {
@@ -72,8 +89,10 @@ export function StaffCommunicationsScreen({
       notices.refetch(),
       conversations.refetch(),
       canUseSupervisorHead ? supervisorHeadConversations.refetch() : Promise.resolve(),
+      canMessageParents ? parentConversations.refetch() : Promise.resolve(),
       recipients.refetch(),
       canUseSupervisorHead ? headRecipients.refetch() : Promise.resolve(),
+      canMessageParents ? parentRecipients.refetch() : Promise.resolve(),
     ]);
   }
 
@@ -163,15 +182,22 @@ export function StaffCommunicationsScreen({
               />
             </Card>
             {openStaffroom.error ? <ErrorText>{openStaffroom.error.message}</ErrorText> : null}
-            {conversations.isLoading || recipients.isLoading || headRecipients.isLoading ? (
+            {conversations.isLoading ||
+            recipients.isLoading ||
+            headRecipients.isLoading ||
+            (canMessageParents && (parentConversations.isLoading || parentRecipients.isLoading)) ? (
               <InlineSpinner label="Loading staff messages" />
             ) : null}
             {conversations.error ? <ErrorText>{conversations.error.message}</ErrorText> : null}
             {supervisorHeadConversations.error ? (
               <ErrorText>{supervisorHeadConversations.error.message}</ErrorText>
             ) : null}
+            {parentConversations.error ? (
+              <ErrorText>{parentConversations.error.message}</ErrorText>
+            ) : null}
             {recipients.error ? <ErrorText>{recipients.error.message}</ErrorText> : null}
             {headRecipients.error ? <ErrorText>{headRecipients.error.message}</ErrorText> : null}
+            {parentRecipients.error ? <ErrorText>{parentRecipients.error.message}</ErrorText> : null}
             {!conversations.isLoading && !conversations.error && !recipients.error ? (
               <MobileMessagesPanel
                 conversationKind="StaffDirect"
@@ -206,6 +232,23 @@ export function StaffCommunicationsScreen({
                 />
               </Card>
             ) : null}
+            {canMessageParents && !parentConversations.isLoading && !parentConversations.error ? (
+              <Card style={styles.headTeamCard}>
+                <Text style={styles.staffroomTitle}>Parents</Text>
+                <MutedText>Choose a parent to start a new conversation.</MutedText>
+                <MobileMessagesPanel
+                  conversationKind="ParentStaff"
+                  conversations={(parentConversations.data?.items ?? []).filter(
+                    isParentStaffConversation,
+                  )}
+                  hasMore={Boolean(parentConversations.data?.nextCursor)}
+                  loadingMore={parentConversations.isFetching}
+                  onRefresh={refresh}
+                  recipients={parentRecipients.data ?? []}
+                  refreshing={refreshing}
+                />
+              </Card>
+            ) : null}
           </View>
         )}
       </View>
@@ -221,8 +264,16 @@ function isSupervisorHeadConversation(conversation: StaffConversation): boolean 
   return conversation.kind === 'SupervisorHead';
 }
 
+function isParentStaffConversation(conversation: StaffConversation): boolean {
+  return conversation.kind === 'ParentStaff';
+}
+
 function isStaffConversation(conversation: StaffConversation): boolean {
-  return isStaffInboxConversation(conversation) || isSupervisorHeadConversation(conversation);
+  return (
+    isStaffInboxConversation(conversation) ||
+    isSupervisorHeadConversation(conversation) ||
+    isParentStaffConversation(conversation)
+  );
 }
 
 function TabButton({

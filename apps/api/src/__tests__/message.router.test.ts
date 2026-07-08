@@ -801,6 +801,40 @@ describe('message.openThread', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
+
+  it('allows Head to open a parent-staff thread with a parent', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    await expect(
+      caller.message.openThread({
+        adminId: otherParentUser.id,
+        subject: 'Welcome to term',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'ParentStaff',
+      parentId: otherParentUser.id,
+      adminId: headUser.id,
+      subject: 'Welcome to term',
+    });
+
+    expect(db.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ threadId: 'cthread000000000000001', userId: otherParentUser.id }),
+        expect.objectContaining({ threadId: 'cthread000000000000001', userId: headUser.id }),
+      ]),
+    );
+  });
+
+  it('blocks a message responder without staff access from opening a thread with a parent', async () => {
+    const { caller } = makeCaller(
+      supervisorUser,
+      makeFakeDb([], [], defaultUsers, [], undefined, []),
+    );
+
+    await expect(
+      caller.message.openThread({ adminId: otherParentUser.id, subject: 'Hello' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
 });
 
 describe('message.send', () => {
@@ -1109,6 +1143,56 @@ describe('message.listRecipients', () => {
     await expect(caller.message.listRecipients({ kind: 'StaffDirect' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('returns active parents for Head when listing with direction toParent', async () => {
+    const { caller } = makeCaller(headUser);
+
+    await expect(
+      caller.message.listRecipients({ kind: 'ParentStaff', direction: 'toParent' }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: parentUser.id, role: 'Parent' }),
+      expect.objectContaining({ id: otherParentUser.id, role: 'Parent' }),
+    ]);
+  });
+
+  it('excludes inactive parents from the toParent recipient list', async () => {
+    const inactiveParent = makeUser({
+      id: 'cparentinactive000002',
+      role: 'Parent',
+      active: false,
+    });
+    const { caller } = makeCaller(
+      headUser,
+      makeFakeDb([], [], [...defaultUsers, inactiveParent]),
+    );
+
+    const recipients = await caller.message.listRecipients({
+      kind: 'ParentStaff',
+      direction: 'toParent',
+    });
+    expect(recipients).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: inactiveParent.id })]),
+    );
+  });
+
+  it('blocks staff without message responder access from listing parents', async () => {
+    const { caller } = makeCaller(
+      supervisorUser,
+      makeFakeDb([], [], defaultUsers, [], undefined, []),
+    );
+
+    await expect(
+      caller.message.listRecipients({ kind: 'ParentStaff', direction: 'toParent' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('blocks parents from listing recipients with direction toParent', async () => {
+    const { caller } = makeCaller(parentUser);
+
+    await expect(
+      caller.message.listRecipients({ kind: 'ParentStaff', direction: 'toParent' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 
@@ -1463,6 +1547,69 @@ describe('message conversation endpoints', () => {
     await expect(
       caller.message.openConversation({ kind: 'StudentDirect', recipientId: headUser.id }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('allows Head to open a parent-staff conversation with a parent', async () => {
+    const { caller, db } = makeCaller(headUser);
+
+    const conversation = await caller.message.openConversation({
+      kind: 'ParentStaff',
+      recipientId: otherParentUser.id,
+    });
+
+    expect(conversation).toMatchObject({
+      id: `ParentStaff:${otherParentUser.id}:${headUser.id}`,
+      kind: 'ParentStaff',
+      messageCount: 0,
+    });
+    expect(db.threads[0]).toMatchObject({
+      kind: 'ParentStaff',
+      parentId: otherParentUser.id,
+      adminId: headUser.id,
+    });
+    expect(db.participants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: otherParentUser.id }),
+        expect.objectContaining({ userId: headUser.id }),
+      ]),
+    );
+  });
+
+  it('dedupes a Head-initiated conversation with one the parent already started', async () => {
+    const parentThread = makeThread({ id: 'cthread000000000000501', adminId: headUser.id });
+    const { caller, db } = makeCaller(headUser, makeFakeDb([parentThread]));
+
+    const conversation = await caller.message.openConversation({
+      kind: 'ParentStaff',
+      recipientId: parentUser.id,
+    });
+
+    expect(conversation.id).toBe(`ParentStaff:${parentUser.id}:${headUser.id}`);
+    expect(db.threads).toHaveLength(1);
+  });
+
+  it('blocks a staff user without message responder access from messaging a parent', async () => {
+    const { caller } = makeCaller(
+      supervisorUser,
+      makeFakeDb([], [], defaultUsers, [], undefined, []),
+    );
+
+    await expect(
+      caller.message.openConversation({ kind: 'ParentStaff', recipientId: otherParentUser.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('rejects an inactive or missing parent recipient for Head-initiated conversations', async () => {
+    const inactiveParent = makeUser({
+      id: 'cparentinactive000001',
+      role: 'Parent',
+      active: false,
+    });
+    const { caller } = makeCaller(headUser, makeFakeDb([], [], [...defaultUsers, inactiveParent]));
+
+    await expect(
+      caller.message.openConversation({ kind: 'ParentStaff', recipientId: inactiveParent.id }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 });
 
