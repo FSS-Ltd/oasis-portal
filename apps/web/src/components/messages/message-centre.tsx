@@ -6,7 +6,12 @@ import { friendlyErrorMessage, showErrorToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { MessageContactList } from './message-contact-list';
 import { MessageConversationPanel } from './message-conversation-panel';
-import type { ConversationKind, LoadedConversationPage, MessageMode } from './message-types';
+import type {
+  AdminRecipientScope,
+  ConversationKind,
+  LoadedConversationPage,
+  MessageMode,
+} from './message-types';
 
 interface MessageCentreProps {
   mode: MessageMode;
@@ -48,13 +53,20 @@ const conversationKindByMode: Record<MessageMode, ConversationKind | null> = {
   supervisor: 'StaffDirect',
 };
 
+const adminScopeConversationKind: Record<AdminRecipientScope, ConversationKind> = {
+  staff: 'StaffDirect',
+  parents: 'ParentStaff',
+};
+
 const CONVERSATION_PAGE_SIZE = 50;
 
 export function MessageCentre({ mode }: MessageCentreProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const utils = api.useUtils();
-  const conversationKind = conversationKindByMode[mode];
+  const [adminRecipientScope, setAdminRecipientScope] = useState<AdminRecipientScope>('staff');
+  const conversationKind =
+    mode === 'admin' ? adminScopeConversationKind[adminRecipientScope] : conversationKindByMode[mode];
   const pageCopy = copy[mode];
   const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
   const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null);
@@ -77,7 +89,12 @@ export function MessageCentre({ mode }: MessageCentreProps) {
     },
   });
   const recipientsQuery = api.message.listRecipients.useQuery(
-    conversationKind ? { kind: conversationKind } : undefined,
+    conversationKind
+      ? {
+          kind: conversationKind,
+          direction: mode === 'admin' && adminRecipientScope === 'parents' ? 'toParent' : 'toStaff',
+        }
+      : undefined,
     {
       enabled: Boolean(conversationKind),
       retry: false,
@@ -249,6 +266,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
 
       <div className="messages-layout">
         <MessageContactList
+          adminRecipientScope={mode === 'admin' ? adminRecipientScope : undefined}
           conversationError={
             conversationsQuery.error ? friendlyErrorMessage(conversationsQuery.error) : null
           }
@@ -261,6 +279,14 @@ export function MessageCentre({ mode }: MessageCentreProps) {
           loading={contactListLoading}
           mode={mode}
           nextConversationCursor={nextConversationCursor}
+          onAdminRecipientScopeChange={
+            mode === 'admin'
+              ? (scope) => {
+                  setAdminRecipientScope(scope);
+                  setSelectedRecipientId(null);
+                }
+              : undefined
+          }
           onLoadMore={loadMoreConversations}
           onSelectConversation={selectConversation}
           onSelectRecipient={(recipientId) => {

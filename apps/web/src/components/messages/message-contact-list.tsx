@@ -7,6 +7,7 @@ import {
   formatDateTime,
 } from './message-display';
 import type {
+  AdminRecipientScope,
   ConversationKind,
   ConversationSummary,
   MessageMode,
@@ -14,6 +15,7 @@ import type {
 } from './message-types';
 
 interface MessageContactListProps {
+  adminRecipientScope?: AdminRecipientScope | undefined;
   conversationError?: string | null;
   conversationKind: ConversationKind | null;
   conversations: ConversationSummary[];
@@ -24,6 +26,7 @@ interface MessageContactListProps {
   loading: boolean;
   mode: MessageMode;
   nextConversationCursor: string | null;
+  onAdminRecipientScopeChange?: ((scope: AdminRecipientScope) => void) | undefined;
   onLoadMore: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSelectRecipient: (recipientId: string) => void;
@@ -126,6 +129,7 @@ function SectionLabel({ children }: { children: string }) {
 }
 
 export function MessageContactList({
+  adminRecipientScope,
   conversationError = null,
   conversationKind,
   conversations,
@@ -136,6 +140,7 @@ export function MessageContactList({
   loading,
   mode,
   nextConversationCursor,
+  onAdminRecipientScopeChange,
   onLoadMore,
   onSelectConversation,
   onSelectRecipient,
@@ -152,7 +157,7 @@ export function MessageContactList({
   );
   const existingRecipientIds = new Set(
     conversations
-      .map((conversation) => conversationRecipientId(conversationKind, conversation))
+      .map((conversation) => conversationRecipientId(mode, conversationKind, conversation))
       .filter((recipientId): recipientId is string => Boolean(recipientId)),
   );
   const availableRecipients = conversationKind
@@ -167,6 +172,31 @@ export function MessageContactList({
         <h2 id="message-list-title">{label}</h2>
         <span>{unreadTotal > 0 ? `${String(unreadTotal)} unread` : String(contactCount)}</span>
       </div>
+
+      {mode === 'admin' && onAdminRecipientScopeChange ? (
+        <div className="message-recipient-scope-toggle" role="group" aria-label="Contact type">
+          <Button
+            aria-pressed={adminRecipientScope !== 'parents'}
+            onClick={() => {
+              onAdminRecipientScopeChange('staff');
+            }}
+            type="button"
+            variant={adminRecipientScope === 'parents' ? 'secondary' : 'primary'}
+          >
+            Staff
+          </Button>
+          <Button
+            aria-pressed={adminRecipientScope === 'parents'}
+            onClick={() => {
+              onAdminRecipientScopeChange('parents');
+            }}
+            type="button"
+            variant={adminRecipientScope === 'parents' ? 'primary' : 'secondary'}
+          >
+            Parents
+          </Button>
+        </div>
+      ) : null}
 
       <div className="message-thread-list-scroll">
         {loading ? <EmptyState>Loading contacts...</EmptyState> : null}
