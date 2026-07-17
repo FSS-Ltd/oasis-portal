@@ -1102,7 +1102,7 @@ describe('shop.listItems', () => {
     );
   });
 
-  it('blocks Student users from reading shop items when manual tithe is due', async () => {
+  it('allows Student users to read shop items when manual tithe is due', async () => {
     const db = makeFakeDb({
       items: [makeItem({ id: shopItemId, active: true })],
       students: [{ id: linkedStudentId, userId: studentUser.id }],
@@ -1117,19 +1117,10 @@ describe('shop.listItems', () => {
       ],
     });
 
-    await expect(makeCaller(studentUser, db).caller.shop.listItems()).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'You cannot access Merit Shop until you have given your most recent tithe.',
-    });
-    expect(db.shopItem.findMany).not.toHaveBeenCalled();
-    expect(auditCreates(db).map((audit) => audit.data)).toContainEqual(
-      expect.objectContaining({
-        action: 'PermissionDenied',
-        entity: 'shop.listItems',
-        entityId: linkedStudentId,
-        meta: expect.objectContaining({ reason: 'TitheDue' }) as unknown,
-      }),
-    );
+    await expect(makeCaller(studentUser, db).caller.shop.listItems()).resolves.toMatchObject([
+      { id: shopItemId },
+    ]);
+    expect(db.shopItem.findMany).toHaveBeenCalled();
   });
 });
 
