@@ -10,7 +10,6 @@ import {
   type StudentPortalLockSource,
 } from '@oasis/domain/studentPortalSettings';
 import type { AppContext, RlsTx } from '../context.js';
-import { loadManualTitheStatus } from '../services/tithe-run.js';
 import { addUtcDays, startOfUtcDay, startOfUtcMinute } from './utc-date.js';
 
 type AuthedContext = AppContext & { user: NonNullable<AppContext['user']> };
@@ -182,7 +181,7 @@ async function auditStudentPortalPolicyDenied(
   ctx: AuthedContext,
   input: {
     entity: string;
-    reason: 'AccountLocked' | 'OffLimitDay' | 'ParentShopBlock' | 'TitheDue' | 'UsageLimit';
+    reason: 'AccountLocked' | 'OffLimitDay' | 'ParentShopBlock' | 'UsageLimit';
     studentId: string;
     lockSource?: StudentPortalLockSource | undefined;
     usageWindow?: StudentPortalUsageWindow | undefined;
@@ -400,19 +399,6 @@ export async function assertStudentMeritShopAccess(
       message: 'Merit Shop access is blocked by a parent or carer.',
     });
   }
-
-  const titheStatus = await loadManualTitheStatus(ctx.db, { studentId: input.studentId });
-  if (!titheStatus.shopBlocked) return;
-
-  await auditStudentPortalPolicyDenied(ctx, {
-    entity: input.entity,
-    reason: 'TitheDue',
-    studentId: input.studentId,
-  });
-  throw new TRPCError({
-    code: 'FORBIDDEN',
-    message: titheStatus.shopBlockReason ?? 'Tithe due before Merit Shop opens.',
-  });
 }
 
 export async function loadAllowedStudentPortalUsageStatus(
