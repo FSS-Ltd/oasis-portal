@@ -58,6 +58,14 @@ const adminScopeConversationKind: Record<AdminRecipientScope, ConversationKind> 
   parents: 'ParentStaff',
 };
 
+type ConversationListKind = ConversationKind | 'Staffroom';
+
+const staffConversationKinds = [
+  'Staffroom',
+  'StaffDirect',
+] as const satisfies readonly ConversationListKind[];
+const parentConversationKinds = ['ParentStaff'] as const satisfies readonly ConversationListKind[];
+
 const CONVERSATION_PAGE_SIZE = 50;
 
 export function MessageCentre({ mode }: MessageCentreProps) {
@@ -66,7 +74,12 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const utils = api.useUtils();
   const [adminRecipientScope, setAdminRecipientScope] = useState<AdminRecipientScope>('staff');
   const conversationKind =
-    mode === 'admin' ? adminScopeConversationKind[adminRecipientScope] : conversationKindByMode[mode];
+    mode === 'admin'
+      ? adminScopeConversationKind[adminRecipientScope]
+      : conversationKindByMode[mode];
+  const conversationKinds =
+    conversationKind === 'ParentStaff' ? parentConversationKinds : staffConversationKinds;
+  const usesStaffroom = conversationKind !== 'ParentStaff';
   const pageCopy = copy[mode];
   const [selectedOverrideId, setSelectedOverrideId] = useState<string | null>(null);
   const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null);
@@ -75,7 +88,11 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   const [conversationCursor, setConversationCursor] = useState<string | undefined>(undefined);
   const [conversationPages, setConversationPages] = useState<LoadedConversationPage[]>([]);
   const conversationsQuery = api.message.listConversations.useQuery(
-    { limit: CONVERSATION_PAGE_SIZE, cursor: conversationCursor },
+    {
+      limit: CONVERSATION_PAGE_SIZE,
+      cursor: conversationCursor,
+      kinds: [...conversationKinds],
+    },
     { retry: false },
   );
   const openStaffroom = api.message.openStaffroom.useMutation({
@@ -146,7 +163,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
   }, [conversationCursor, conversationsQuery.data]);
 
   useEffect(() => {
-    if (mode === 'parent' || staffroomRequested || conversationsQuery.isLoading) {
+    if (!usesStaffroom || staffroomRequested || conversationsQuery.isLoading) {
       return;
     }
     if (conversations.some((conversation) => conversation.kind === 'Staffroom')) return;
@@ -166,6 +183,7 @@ export function MessageCentre({ mode }: MessageCentreProps) {
     conversationsQuery.isLoading,
     resetConversationPages,
     utils.message.listConversations,
+    usesStaffroom,
   ]);
 
   useEffect(() => {
@@ -282,8 +300,12 @@ export function MessageCentre({ mode }: MessageCentreProps) {
           onAdminRecipientScopeChange={
             mode === 'admin'
               ? (scope) => {
+                  if (scope === adminRecipientScope) return;
                   setAdminRecipientScope(scope);
+                  setSelectedOverrideId(null);
                   setSelectedRecipientId(null);
+                  resetConversationPages();
+                  window.history.replaceState(null, '', '/admin/messages');
                 }
               : undefined
           }
