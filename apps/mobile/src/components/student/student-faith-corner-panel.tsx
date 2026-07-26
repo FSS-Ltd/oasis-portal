@@ -1,14 +1,7 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
-import {
-  Badge,
-  Card,
-  ErrorText,
-  InlineSpinner,
-  MutedText,
-  SectionTitle,
-} from '../core/mobile-ui';
+import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle } from '../core/mobile-ui';
 import { StudentFaithCommentsPanel } from './student-faith-comments-panel';
 import {
   clubsFaithBlockedCopy,
@@ -90,10 +83,7 @@ export function StudentFaithCornerPanel({
         </FaithBlock>
       ) : null}
 
-      <FaithBlock
-        title="Verse of the day"
-        heading={faith.verseOfDay?.reference ?? 'Not set'}
-      >
+      <FaithBlock title="Verse of the day" heading={faith.verseOfDay?.reference ?? 'Not set'}>
         {faith.verseOfDay ? (
           <>
             <Text style={styles.verseText}>{faith.verseOfDay.text}</Text>

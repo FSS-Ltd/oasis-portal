@@ -906,85 +906,35 @@
 ### Follow-Ups Deferred
 - Broader shared extraction between staff club manager and club lead attendance remains deferred because the club lead file was outside today's selected 10-file scope.
 
-## 2026-06-24 - Pass 1
+## 2026-06-25 - Pass 1
 
 ### Selected Files
 1. `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`
 2. `apps/mobile/src/components/staff/staff-rota-availability-panel.tsx`
-3. `apps/web/src/components/student/student-nav.tsx`
-4. `apps/web/src/app/(parent)/parent/layout.tsx`
-5. `apps/web/src/components/parent/parent-nav.tsx`
-6. `apps/web/src/app/post-sign-in/resolve/page.tsx`
-7. `apps/web/src/lib/profile-display.ts`
-8. `packages/db/scripts/smoke-rls.ts`
-9. `apps/web/src/app/(admin)/admin/students/students-list.tsx`
-10. `apps/web/src/app/api/trpc/[trpc]/route.ts`
+3. `apps/mobile/src/components/student/student-mobile-access-gate.tsx`
+4. `apps/mobile/src/components/core/mobile-ui.tsx`
+5. `apps/web/src/components/reports/report-detail.tsx`
+6. `apps/web/src/components/pace/pace-progress-table.tsx`
+7. `apps/web/src/components/student/student-faith-client.tsx`
+8. `packages/domain/src/__tests__/registration.test.ts`
+9. `apps/mobile/src/components/parent/parent-shop-catalog.tsx`
+10. `apps/mobile/src/components/student/student-shop-screen.tsx`
 
 ### Baseline Findings
-- Lint: initial selected-file ESLint failed only for `apps/web/tests/e2e/supervisor-dashboard.spec.ts` because it is outside the ESLint TypeScript project service; that file was deferred and replaced. Selected-file ESLint for the final 10 files passed before edits.
-- Typecheck: `pnpm --filter @oasis/mobile typecheck`, `pnpm --filter @oasis/web typecheck`, and `pnpm --filter @oasis/db typecheck` passed before edits.
-- Tests: package tests were reserved for post-change validation.
-
-### Changes Made
-- `apps/mobile/src/components/staff/staff-club-lead-attendance.tsx`: extracted attendance summary and roster row presentation into `staff-club-lead-attendance-components.tsx`, reducing the selected container from 305 to 75 lines.
-- `apps/mobile/src/components/staff/staff-rota-availability-panel.tsx`: extracted availability row editors and draft update helpers into `staff-rota-availability-editor.tsx`, reducing the selected container from 302 to 124 lines.
-- `apps/mobile/tests/staff-clubs/staff-clubs-wiring.test.mjs`: updated the focused source-inspection test to include the extracted attendance component module.
-- `apps/web/src/components/student/student-nav.tsx`: centralized repeated student nav link rendering and active-class handling.
-- `apps/web/src/components/parent/parent-nav.tsx`: centralized parent nav link rendering and mobile label selection.
-- `apps/web/src/app/(parent)/parent/layout.tsx`: extracted parent shell count loading into a named helper.
-- `apps/web/src/app/post-sign-in/resolve/page.tsx`: extracted portal-switch destination selection while preserving the existing destination type.
-- `apps/web/src/lib/profile-display.ts`: moved static role/person/permission label maps out of function bodies.
-- `packages/db/scripts/smoke-rls.ts`: centralized repeated visible-behaviour count assertions.
-- `apps/web/src/app/(admin)/admin/students/students-list.tsx`: reused one student date formatter for enrolment dates.
-- `apps/web/src/app/api/trpc/[trpc]/route.ts`: reviewed and left unchanged.
-
-### Validation
-- lint command: pass, selected-file ESLint including extracted modules; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/db lint`; fail, `pnpm --filter @oasis/web lint` on unrelated pre-existing `apps/web/src/components/supervisor/supervisor-nav.tsx:196`.
-- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/db typecheck`.
-- relevant tests: pass, `pnpm --filter @oasis/mobile test`; pass, `pnpm --filter @oasis/db test`.
-- other checks: pass, selected/touched-file Prettier check; pass, `git diff --check`; pass, `graphify update .`.
-
-### Guardrail Confirmation
-- No new features.
-- No API contract changes.
-- No migrations.
-- No database schema changes.
-- Behaviour preserved.
-
-### Follow-Ups Deferred
-- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: deferred because selected-file ESLint cannot parse it under the current project-service config; it was replaced to keep this run normally validated.
-- Broad web lint still has an unrelated existing issue in `apps/web/src/components/supervisor/supervisor-nav.tsx:196`.
-
-## 2026-06-25 - Pass 1
-
-### Selected Files
-1. `apps/mobile/src/components/staff/staff-club-lead-attendance-components.tsx`
-2. `apps/mobile/src/components/student/student-mobile-access-gate.tsx`
-3. `apps/mobile/src/components/core/mobile-ui.tsx`
-4. `apps/web/src/components/reports/report-detail.tsx`
-5. `apps/web/src/components/pace/pace-progress-table.tsx`
-6. `apps/web/src/components/student/student-faith-client.tsx`
-7. `packages/domain/src/__tests__/registration.test.ts`
-8. `apps/mobile/src/components/parent/parent-shop-catalog.tsx`
-9. `apps/mobile/src/components/student/student-shop-screen.tsx`
-10. `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`
-
-### Baseline Findings
-- Lint: selected-file ESLint was reserved until after dependency bootstrap in the clean PR worktree.
-- Typecheck: package typechecks were reserved until after dependency bootstrap in the clean PR worktree.
+- Lint: initial selected-file ESLint passed after deferring `apps/web/tests/e2e/supervisor-dashboard.spec.ts`, which is outside the ESLint TypeScript project service.
+- Typecheck: `pnpm --filter @oasis/mobile typecheck` and `pnpm --filter @oasis/domain typecheck` passed; `pnpm --filter @oasis/web typecheck` failed on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` route typing.
 - Tests: focused domain registration tests were reserved for post-change validation.
-- Formatting: selected-file Prettier formatted `apps/mobile/src/components/student/student-mobile-access-gate.tsx`, `apps/web/src/components/student/student-faith-client.tsx`, `apps/mobile/src/components/parent/parent-shop-catalog.tsx`, and `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`.
+- Formatting: selected-file Prettier failed for `apps/mobile/src/components/student/student-mobile-access-gate.tsx`, `apps/web/src/components/student/student-faith-client.tsx`, and `apps/mobile/src/components/parent/parent-shop-catalog.tsx`.
 
 ### Changes Made
 - `apps/mobile/src/components/student/student-mobile-access-gate.tsx`: formatted the selected file and stored usage metadata once instead of recomputing it during render.
 - `apps/web/src/components/student/student-faith-client.tsx`: formatted the selected file with Prettier.
 - `apps/mobile/src/components/parent/parent-shop-catalog.tsx`: formatted the selected file with Prettier.
-- `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`: formatted the selected file with Prettier.
 - Remaining selected files: reviewed lint, type, formatting, imports, and local structure; no safe source change was needed.
 
 ### Validation
 - lint command: pass, selected-file ESLint; pass, `pnpm --filter @oasis/mobile lint`; pass, `pnpm --filter @oasis/web lint`; pass, `pnpm --filter @oasis/domain lint`
-- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/web typecheck`; pass, `pnpm --filter @oasis/domain typecheck`
+- typecheck command: pass, `pnpm --filter @oasis/mobile typecheck`; pass, `pnpm --filter @oasis/domain typecheck`; fail, `pnpm --filter @oasis/web typecheck` on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` route typing
 - relevant tests: pass, `pnpm --filter @oasis/domain exec vitest run src/__tests__/registration.test.ts`
 - formatting: pass, selected-file `pnpm exec prettier --check`
 - diff hygiene: pass, `git diff --check`
@@ -997,7 +947,8 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
-- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and was deferred.
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typecheck route typing failure is outside today’s selected files.
 
 ## 2026-06-26 - Pass 1
 
@@ -1014,12 +965,13 @@
 10. `apps/web/src/components/child-log/snapshot-controls.tsx`
 
 ### Baseline Findings
-- Lint: selected-file ESLint passed with the local repo binary after pnpm exec attempted an interactive module purge in the original checkout.
-- Typecheck: mobile typecheck passed; web typecheck passed in the clean PR worktree after rebasing onto current `origin/main`.
+- Lint: selected-file ESLint passed with the local repo binary after pnpm exec attempted an interactive module purge.
+- Typecheck: mobile typecheck passed; web typecheck failed on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` route typing.
 - Tests: not run because this run made formatting-only source changes.
-- Formatting: selected-file Prettier failed for four files on current `origin/main` before editing.
+- Formatting: selected-file Prettier failed for five files before editing.
 
 ### Changes Made
+- `apps/mobile/src/components/parent/parent-shop-reservations-screen.tsx`: formatted selected file with Prettier.
 - `apps/web/src/components/invoices/invoice-ui.tsx`: formatted selected file with Prettier.
 - `apps/web/src/components/rota/monthly-availability-editor.tsx`: formatted selected file with Prettier.
 - `apps/web/src/components/community/student-community-contacts.tsx`: formatted selected file with Prettier.
@@ -1028,7 +980,7 @@
 
 ### Validation
 - lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
-- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; fail, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json` on existing unselected route typing
 - relevant tests: not run, formatting-only source changes
 - formatting: pass, `./node_modules/.bin/prettier --check` on the 10 selected files
 - diff hygiene: pass, `git diff --check`
@@ -1041,7 +993,8 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
-- pnpm command wrapper/install state: `pnpm exec` attempted interactive module purge in the original checkout; local binaries were used to avoid dependency changes.
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typecheck route typing failure is outside today’s selected files.
+- pnpm command wrapper/install state: `pnpm exec` attempted interactive module purge; local binaries were used to avoid dependency changes.
 
 ## 2026-06-27 - Pass 1
 
@@ -1059,7 +1012,7 @@
 
 ### Baseline Findings
 - Lint: selected-file ESLint passed before edits.
-- Typecheck: mobile, API, web, and DB typecheck passed on the clean PR branch.
+- Typecheck: mobile, API, and DB typecheck passed before edits; web typecheck failed on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` route typing.
 - Tests: focused API tests were reserved for post-change validation.
 - Formatting: selected-file Prettier failed for four files before editing.
 
@@ -1072,7 +1025,7 @@
 
 ### Validation
 - lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
-- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/db/tsconfig.json`
+- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/db/tsconfig.json`; fail, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json` on existing unselected route typing
 - relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/audit.router.test.ts src/__tests__/investment-accounting-invariants.test.ts` from `apps/api`
 - formatting: pass, `./node_modules/.bin/prettier --check` on the 10 selected files
 - diff hygiene: pass, `git diff --check`
@@ -1085,86 +1038,45 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typecheck route typing failure is outside today’s selected files.
 - `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
 - pnpm command wrapper/install state: `pnpm --filter` attempted an interactive module purge and registry metadata fetch; local binaries were used to avoid dependency changes.
 
-## 2026-06-28 - Pass 1
+## 2026-07-19 - Pass 1
 
 ### Selected Files
-1. `apps/mobile/src/components/staff/staff-rota-availability-editor.tsx`
-2. `apps/web/src/components/student/student-shop-client.tsx`
-3. `apps/web/src/components/student/invest/student-invest-trade.tsx`
-4. `apps/mobile/src/components/parent/parent-shop-cart.tsx`
-5. `apps/mobile/src/components/messages/mobile-message-new-thread.tsx`
-6. `apps/web/src/components/pace/pace-record-edit-modal.tsx`
-7. `apps/web/src/components/student/student-clubs-client.tsx`
-8. `apps/api/src/routers/staffHome.ts`
-9. `apps/api/scripts/smoke-context-rls.ts`
-10. `apps/mobile/src/components/student/student-homework-activity-detail.tsx`
-
-### Baseline Findings
-- Lint: selected-file ESLint passed after dependency bootstrap in the clean worktree.
-- Typecheck: direct mobile, web, and API TypeScript checks passed after dependency bootstrap.
-- Tests: not run because this run made formatting-only source changes.
-- Formatting: selected-file Prettier failed for three files before editing.
-
-### Changes Made
-- `apps/mobile/src/components/parent/parent-shop-cart.tsx`: formatted selected file with Prettier.
-- `apps/web/src/components/student/student-clubs-client.tsx`: formatted selected file with Prettier.
-- `apps/mobile/src/components/student/student-homework-activity-detail.tsx`: formatted selected file with Prettier.
-- Remaining selected files: reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed.
-
-### Validation
-- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
-- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`
-- relevant tests: not run, formatting-only source changes
-- formatting: pass, `./node_modules/.bin/prettier --check` on the 10 selected files
-- diff hygiene: pass, `git diff --check`
-
-### Guardrail Confirmation
-- No new features.
-- No API contract changes.
-- No migrations.
-- No database schema changes.
-- Behaviour preserved.
-
-### Follow-Ups Deferred
-- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage is a config-level issue and remains deferred.
-- pnpm command wrapper/install state: `pnpm --filter` attempted an interactive module purge in this temporary worktree; direct local binaries were used for final validation.
-
-## 2026-07-01 - Pass 1
-
-### Selected Files
-1. `apps/api/scripts/client-demo/verify.ts`
-2. `apps/api/scripts/client-demo/plan.ts`
-3. `apps/api/scripts/client-demo/seed-academic.ts`
-4. `apps/api/scripts/client-demo/seed-messaging-safety.ts`
-5. `apps/api/scripts/client-demo/seed-activities.ts`
-6. `apps/api/src/__tests__/trpc.middleware.test.ts`
-7. `packages/domain/src/__tests__/tithe.test.ts`
-8. `apps/mobile/src/components/student/student-faith-comments-panel.tsx`
-9. `apps/web/src/components/clubs/club-management-form-modal.tsx`
-10. `apps/mobile/src/components/smoke/student-smoke-pace.tsx`
+1. `packages/db/scripts/smoke-rls.ts`
+2. `apps/web/src/app/(admin)/admin/students/students-list.tsx`
+3. `apps/mobile/src/components/student/student-notifications-list.tsx`
+4. `apps/web/src/components/rota/my-availability-editor.tsx`
+5. `apps/mobile/src/components/student/student-homework-activity-list.tsx`
+6. `apps/web/src/components/parent/child-icon-photo-upload.tsx`
+7. `apps/web/src/components/shop/shop-photo-upload.tsx`
+8. `apps/mobile/src/components/student/student-club-detail-panel.tsx`
+9. `apps/api/src/emails/_components/oasis-email-shell.tsx`
+10. `apps/mobile/src/components/staff/staff-club-manager-overview.tsx`
 
 ### Baseline Findings
 - Lint: selected-file ESLint passed before edits.
-- Typecheck: API, domain, mobile, and web direct TypeScript checks passed before edits.
-- Tests: focused API and domain Vitest suites were reserved for post-change validation.
-- Formatting: selected-file Prettier failed for three TSX files before edits.
+- Typecheck: DB, mobile, and API typechecks passed before edits; web typecheck failed on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` route typing.
+- Tests: no focused tests were run before edits because selected-file baseline was lint/format/type oriented and no behavioural bug was being changed.
+- Formatting: selected-file Prettier failed for `apps/web/src/app/(admin)/admin/students/students-list.tsx`, `apps/mobile/src/components/student/student-homework-activity-list.tsx`, and `apps/mobile/src/components/student/student-club-detail-panel.tsx`.
 
 ### Changes Made
-- `apps/mobile/src/components/student/student-faith-comments-panel.tsx`: formatted selected file with Prettier.
-- `apps/web/src/components/clubs/club-management-form-modal.tsx`: formatted selected file with Prettier.
-- `apps/mobile/src/components/smoke/student-smoke-pace.tsx`: formatted selected file with Prettier.
-- Remaining selected files: reviewed lint, type, formatting, imports, suppressions, debug logs, local structure, and safe extraction opportunities; no safe source change was needed.
-- Review memory: carried forward 20 reviewed-file records from the 2026-06-29 and 2026-06-30 automation memory so the repo-local pass state does not repeat recent work.
+- `apps/web/src/lib/photo-upload-validation.ts`: added a shared web photo validation helper for extension, MIME fallback, size, and signature checks.
+- `apps/web/src/components/parent/child-icon-photo-upload.tsx`: reused the shared photo validation helper while preserving the child icon upload endpoint and payload.
+- `apps/web/src/components/shop/shop-photo-upload.tsx`: reused the shared photo validation helper while preserving the shop item upload endpoint and payload.
+- `apps/web/src/app/(admin)/admin/students/students-list.tsx`: formatted selected file with Prettier.
+- `apps/mobile/src/components/student/student-homework-activity-list.tsx`: formatted selected file with Prettier.
+- `apps/mobile/src/components/student/student-club-detail-panel.tsx`: formatted selected file with Prettier.
+- Remaining selected files: reviewed lint, type, formatting, imports, debug logs, and local structure; no safe source change was needed.
 
 ### Validation
-- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
-- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`
-- relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/trpc.middleware.test.ts` from `apps/api`; pass, `./node_modules/.bin/vitest run src/__tests__/tithe.test.ts` from `packages/domain`
-- formatting: pass, selected-file and review-memory `./node_modules/.bin/prettier --check` after edits
-- diff hygiene: pass, `git diff --check`
+- lint command: pass - `pnpm exec eslint <10 selected files plus photo-upload-validation.ts>`
+- typecheck command: pass - `pnpm --filter @oasis/db typecheck`; pass - `pnpm --filter @oasis/mobile typecheck`; pass - `pnpm --filter @oasis/api typecheck`; fail - `pnpm --filter @oasis/web typecheck` on existing unselected clubs-lead route typing
+- relevant tests: not run - no behaviour-changing logic or targeted test surface for the extracted browser file validation helper
+- formatting: pass - `pnpm exec prettier --check <10 selected files plus photo-upload-validation.ts>`
+- diff hygiene: pass - `git diff --check`
 
 ### Guardrail Confirmation
 - No new features.
@@ -1174,40 +1086,45 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
-- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
-- `apps/api/scripts/client-demo/verify.ts`: still over 400 lines, but its current shape is a linear verifier table; extraction was deferred because a safe refactor would need careful Prisma delegate typing and dedicated tests.
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web route typing failure remains outside today’s selected files.
+- Broader upload component consolidation deferred; only duplicated validation helpers were extracted to avoid changing upload flow semantics.
 
-## 2026-07-02 - Pass 1
+## 2026-07-20 - Pass 1
 
 ### Selected Files
-1. `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`
-2. `apps/mobile/src/components/parent/parent-home-screen.tsx`
-3. `packages/domain/src/__tests__/studentPortalSettings.test.ts`
-4. `apps/mobile/src/components/staff/staff-home-model.ts`
-5. `packages/domain/src/permissionSlips.ts`
-6. `apps/web/src/app/(student)/student/layout.tsx`
-7. `apps/web/src/app/api/auth-context.ts`
-8. `apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx`
-9. `apps/web/src/components/behaviour/daily-demerit-badge.tsx`
-10. `apps/mobile/src/components/messages/mobile-messages-panel.tsx`
+1. `apps/web/src/components/student/student-nav.tsx`
+2. `apps/web/src/app/(parent)/parent/layout.tsx`
+3. `apps/web/src/components/parent/parent-nav.tsx`
+4. `apps/web/src/app/post-sign-in/resolve/page.tsx`
+5. `apps/web/src/app/api/trpc/[trpc]/route.ts`
+6. `apps/web/src/lib/profile-display.ts`
+7. `apps/web/src/app/(admin)/admin/students/new/new-student-form.tsx`
+8. `apps/web/src/app/(admin)/admin/students/page.tsx`
+9. `packages/domain/src/__tests__/users.test.ts`
+10. `apps/api/src/trpc.ts`
 
 ### Baseline Findings
-- Lint: selected-file ESLint passed before edits.
-- Typecheck: direct tsc --noEmit passed for apps/web, apps/mobile, and packages/domain before edits.
-- Tests: focused domain test was not run at baseline; it was run after the test cleanup.
+- Lint: selected-file ESLint passed for web, API, and domain before edits.
+- Typecheck: package typecheck baseline was not run before editing; post-edit API/domain typecheck passed and web typecheck reproduced the existing unselected clubs-lead typed-route failure.
+- Tests: focused domain users test was run after review and passed.
 
 ### Changes Made
-- `apps/mobile/src/components/parent/parent-home-screen.tsx`: removed a redundant dashboard-error alias and reused the existing linked-children boolean for the empty-state condition.
-- `packages/domain/src/__tests__/studentPortalSettings.test.ts`: extracted a typed helper for repeated invalid usage-limit assertions while preserving exact message checks.
-- `apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx`: named the post-sign-in redirect delay constant.
-- Remaining selected files: reviewed for lint/type errors, imports/exports, dead code, and low-risk cleanup; no source changes needed.
+- `apps/web/src/components/student/student-nav.tsx`: Extracted a local nav item class-name helper used by sidebar and bottom navigation.
+- `apps/web/src/app/(parent)/parent/layout.tsx`: Reviewed parent shell layout; no safe source edits needed.
+- `apps/web/src/components/parent/parent-nav.tsx`: Extracted local nav item class-name and mobile-label helpers to remove repeated inline logic.
+- `apps/web/src/app/post-sign-in/resolve/page.tsx`: Reviewed post-sign-in resolver; no safe source edits needed.
+- `apps/web/src/app/api/trpc/[trpc]/route.ts`: Reviewed tRPC route handler; no safe source edits needed.
+- `apps/web/src/lib/profile-display.ts`: Hoisted role, person-type, and permission-tag label maps to module constants.
+- `apps/web/src/app/(admin)/admin/students/new/new-student-form.tsx`: Reviewed new student form; no safe source edits needed.
+- `apps/web/src/app/(admin)/admin/students/page.tsx`: Reviewed student list page shell; no safe source edits needed.
+- `packages/domain/src/__tests__/users.test.ts`: Reviewed user domain tests; no safe source edits needed.
+- `apps/api/src/trpc.ts`: Reviewed API tRPC base procedures; no safe source edits needed.
 
 ### Validation
-- lint command: pass, `./node_modules/.bin/eslint 'apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx' apps/mobile/src/components/parent/parent-home-screen.tsx packages/domain/src/__tests__/studentPortalSettings.test.ts apps/mobile/src/components/staff/staff-home-model.ts packages/domain/src/permissionSlips.ts 'apps/web/src/app/(student)/student/layout.tsx' apps/web/src/app/api/auth-context.ts apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx apps/web/src/components/behaviour/daily-demerit-badge.tsx apps/mobile/src/components/messages/mobile-messages-panel.tsx`
-- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`
-- relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/studentPortalSettings.test.ts` from `packages/domain`
-- formatting: pass, `./node_modules/.bin/prettier --check` on selected source files and review memory
-- diff whitespace: pass, `git diff --check`
+- lint command: pass - `pnpm --filter @oasis/web exec eslint ...`, `pnpm --filter @oasis/domain exec eslint src/__tests__/users.test.ts`, `pnpm --filter @oasis/api exec eslint src/trpc.ts`
+- typecheck command: partial - `pnpm --filter @oasis/api typecheck` passed; `pnpm --filter @oasis/domain typecheck` passed; `pnpm --filter @oasis/web typecheck` failed on existing unselected `src/app/(clubs-lead)/clubs-lead/layout.tsx` typed-route issue.
+- relevant tests: pass - `pnpm --filter @oasis/domain exec vitest run src/__tests__/users.test.ts`
+- format/diff: pass - `pnpm exec prettier --check ...`; `git diff --check`
 
 ### Guardrail Confirmation
 - No new features.
@@ -1217,40 +1134,43 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
-- Existing deferred e2e ESLint project-service coverage and oversized router-test cleanup remain outside this daily source-file cleanup scope.
+- Existing unselected web typecheck failure in `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` remains deferred because it is outside today's selected 10 files.
 
-## 2026-07-03 - Pass 1
+## 2026-07-22 - Pass 1
 
 ### Selected Files
-1. `apps/web/src/app/(admin)/admin/attendance/page.tsx`
-2. `apps/web/src/components/calendar/calendar-month-view.tsx`
-3. `apps/api/src/routers/tithe.ts`
-4. `packages/domain/src/leaderboard.ts`
-5. `apps/web/src/app/children-check/page.tsx`
-6. `apps/mobile/app/_layout.tsx`
-7. `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts`
-8. `apps/api/src/lib/clerk.ts`
-9. `apps/web/src/components/behaviour/behaviour-student-selector.tsx`
-10. `packages/domain/src/__tests__/demeritPolicy.test.ts`
+1. `apps/mobile/src/components/staff/staff-shop-counter-pickup-queue.tsx`
+2. `apps/mobile/src/components/student/student-markets-browse-card.tsx`
+3. `packages/domain/src/schoolYears.ts`
+4. `apps/mobile/src/components/staff/staff-incident-form-controls.tsx`
+5. `apps/mobile/src/components/student/student-faith-corner-panel.tsx`
+6. `apps/web/src/app/(admin)/admin/rota/_components/rota-week-schedule.tsx`
+7. `apps/web/src/components/landing/hero-preview.tsx`
+8. `apps/web/src/components/student/student-portal-gate.tsx`
+9. `apps/mobile/src/components/student/student-homework-activity-submit-panel.tsx`
+10. `apps/web/src/components/clubs/club-management-model.ts`
 
 ### Baseline Findings
-- Lint: selected-file ESLint passed after package-local dependency symlinks restored TypeScript-aware resolution.
-- Typecheck: direct web, API, mobile, and domain TypeScript checks passed before edits.
-- Tests: focused API/domain tests were reserved for post-change validation.
-- Formatting: selected-file Prettier failed for `apps/api/src/routers/tithe.ts` before editing.
+- Lint: final selected-file ESLint passed before edits; deferred `apps/web/tests/e2e/phase-3-verification.spec.ts` because ESLint project-service coverage failed outside local source scope.
+- Typecheck: mobile and domain typechecks passed before edits; web typecheck reproduced existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` typed-route failure.
+- Tests: focused school-year domain test reserved for post-change validation because `packages/domain/src/schoolYears.ts` was selected.
+- Formatting: selected-file Prettier failed for five files before editing.
 
 ### Changes Made
-- `apps/api/src/routers/tithe.ts`: formatted selected router file with Prettier.
-- `apps/web/src/components/calendar/calendar-month-view.tsx`: named the formatted month label once and reused it for the heading and calendar grid aria-label.
-- Remaining selected files: reviewed lint, type safety, imports/exports, suppressions, debug logs, and local structure; no safe source change was needed.
-- Review memory: rebased onto origin/main's real 2026-07-02 memory and appended the 2026-07-03 run.
+- `apps/mobile/src/components/staff/staff-shop-counter-pickup-queue.tsx`: applied Prettier formatting.
+- `packages/domain/src/schoolYears.ts`: replaced the double assertion for the Zod enum with a typed readonly tuple alias.
+- `apps/mobile/src/components/student/student-faith-corner-panel.tsx`: applied Prettier formatting.
+- `apps/web/src/app/(admin)/admin/rota/_components/rota-week-schedule.tsx`: computed shift colour once per shift and reused it for the border and marker styles; applied Prettier formatting.
+- `apps/mobile/src/components/student/student-homework-activity-submit-panel.tsx`: applied Prettier formatting.
+- `apps/web/src/components/clubs/club-management-model.ts`: applied Prettier formatting.
+- Remaining selected files: reviewed lint, type usage, imports, hook dependencies, debug logs, and local structure; no safe source edits needed.
 
 ### Validation
-- lint command: pass, `./node_modules/.bin/eslint` on the 10 selected files
-- typecheck command: pass, `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/api/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass, `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`
-- relevant tests: pass, `./node_modules/.bin/vitest run src/__tests__/tithe.router.test.ts --cache=false` from `apps/api`; pass, `./node_modules/.bin/vitest run src/__tests__/demeritPolicy.test.ts src/__tests__/leaderboard.test.ts --cache=false` from `packages/domain`
-- formatting: pass, selected-file and review-memory `./node_modules/.bin/prettier --check`
-- diff hygiene: pass, `git diff --check`
+- lint command: pass - `node -e 'spawnSync("./node_modules/.bin/eslint", files)'` on the 10 selected files
+- typecheck command: pass - `./node_modules/.bin/tsc --noEmit -p apps/mobile/tsconfig.json`; pass - `./node_modules/.bin/tsc --noEmit -p packages/domain/tsconfig.json`; partial - `./node_modules/.bin/tsc --noEmit -p apps/web/tsconfig.json` failed on existing unselected clubs-lead typed-route issue
+- relevant tests: pass - `./node_modules/.bin/vitest run src/__tests__/schoolYears.test.ts` from `packages/domain`
+- formatting: pass - `node -e 'spawnSync("./node_modules/.bin/prettier", ["--check", ...files])'` on the 10 selected files
+- diff hygiene: pass - `git diff --check`
 
 ### Guardrail Confirmation
 - No new features.
@@ -1260,6 +1180,5 @@
 - Behaviour preserved.
 
 ### Follow-Ups Deferred
-- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
-- `apps/web/tests/e2e/phase-3-5-clubs.spec.ts`: selected-file ESLint project-service coverage remains a config-level issue outside this daily 10-file cleanup.
-- Dependency note: validation used temporary symlinks to the existing local dependency trees from the main checkout; these symlinks were removed before final status.
+- `apps/web/tests/e2e/phase-3-verification.spec.ts`: ESLint project-service coverage requires config-level work outside this run.
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typed-route failure remains outside today's selected files.

@@ -106,10 +106,7 @@ export function RotaWeekSchedule({
                             <span className="rota-availability-badge is-empty">None set</span>
                           ) : (
                             dayAvailability.available.map((staff) => (
-                              <span
-                                className="rota-availability-badge is-available"
-                                key={staff.id}
-                              >
+                              <span className="rota-availability-badge is-available" key={staff.id}>
                                 {staff.label}
                                 <small>{staff.detail}</small>
                               </span>
@@ -140,39 +137,32 @@ export function RotaWeekSchedule({
                   <p className="muted">No shifts</p>
                 ) : (
                   <div className="rota-shift-list">
-                    {dayShifts.map((shift) => (
-                      <button
-                        className="rota-shift"
-                        key={shift.id}
-                        onClick={() => {
-                          onSelectShift(shift);
-                        }}
-                        style={{
-                          borderLeftColor:
-                            shift.kind === 'Meeting'
-                              ? MEETING_COLOUR
-                              : (shift.bandColour ?? '#5B90C5'),
-                        }}
-                        type="button"
-                      >
-                        <span>
-                          {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
-                        </span>
-                        <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
-                        <small>
-                          <i
-                            style={{
-                              backgroundColor:
-                                shift.kind === 'Meeting'
-                                  ? MEETING_COLOUR
-                                  : (shift.bandColour ?? '#5B90C5'),
-                            }}
-                          />
-                          {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}
-                        </small>
-                        {shift.notes ? <em>{shift.notes}</em> : null}
-                      </button>
-                    ))}
+                    {dayShifts.map((shift) => {
+                      const shiftColour =
+                        shift.kind === 'Meeting' ? MEETING_COLOUR : (shift.bandColour ?? '#5B90C5');
+
+                      return (
+                        <button
+                          className="rota-shift"
+                          key={shift.id}
+                          onClick={() => {
+                            onSelectShift(shift);
+                          }}
+                          style={{ borderLeftColor: shiftColour }}
+                          type="button"
+                        >
+                          <span>
+                            {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
+                          </span>
+                          <strong>{shift.staff?.fullName ?? 'Unassigned supervisor'}</strong>
+                          <small>
+                            <i style={{ backgroundColor: shiftColour }} />
+                            {shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Band')}
+                          </small>
+                          {shift.notes ? <em>{shift.notes}</em> : null}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </article>

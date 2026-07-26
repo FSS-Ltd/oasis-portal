@@ -58,10 +58,7 @@ export function StaffShopPickupQueue({
             {reservation.lines.map((line) => (
               <View key={line.id} style={styles.lineRow}>
                 <View
-                  style={[
-                    styles.categoryDot,
-                    { backgroundColor: line.categoryInk || C.crimson },
-                  ]}
+                  style={[styles.categoryDot, { backgroundColor: line.categoryInk || C.crimson }]}
                 />
                 <Text style={styles.lineText}>
                   {line.itemName} x {String(line.unitsReserved)}
