@@ -13,6 +13,13 @@ import {
   type DemeritStagePreview,
 } from './staff-behaviour-utils';
 
+function saveButtonLabel(type: BehaviourType, saving: boolean): string {
+  if (saving) return 'Saving behaviour...';
+  if (type === 'Demerit') return 'Save demerit';
+  if (type === 'General') return 'Save general mark';
+  return 'Save behaviour';
+}
+
 export function BehaviourFormCard({
   demeritPreview,
   errors,
@@ -139,15 +146,7 @@ export function BehaviourFormCard({
 
       <MobileButton
         disabled={saving}
-        label={
-          saving
-            ? 'Saving behaviour...'
-            : form.type === 'Demerit'
-              ? 'Save demerit'
-              : form.type === 'General'
-                ? 'Save general mark'
-                : 'Save behaviour'
-        }
+        label={saveButtonLabel(form.type, saving)}
         onPress={onSubmit}
         variant={form.type === 'Merit' ? 'navy' : 'primary'}
       />

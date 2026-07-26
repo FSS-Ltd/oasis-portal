@@ -70,7 +70,9 @@ export function SettingsStatusCard({ child }: { child: LinkedChildSettings }) {
         />
         <StatusTile
           label="Password changes"
-          value={adult ? 'Student owned' : child.studentCanManagePassword ? 'Allowed' : 'Parent only'}
+          value={
+            adult ? 'Student owned' : child.studentCanManagePassword ? 'Allowed' : 'Parent only'
+          }
           variant={child.studentCanManagePassword || adult ? 'blue' : 'warning'}
         />
         <StatusTile

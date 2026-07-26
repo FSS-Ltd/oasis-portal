@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@oasis/db';
 import type { SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
 import type { EmailClient } from '../lib/email.js';
 import { createNoticeRouter } from '../routers/notice.js';
 import { router } from '../trpc.js';
+import { makeTestContext } from './helpers/test-context.js';
 
 const headUser: SessionUser = { id: 'u_head', role: 'Head', tags: [], requires2fa: false };
 const supervisorUser: SessionUser = {
@@ -407,15 +407,6 @@ function makeFakeDb(
   };
 }
 
-function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeFakeEmailClient(result = { id: 'email_123' }) {
   const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
   const client: EmailClient = { send };
@@ -428,7 +419,7 @@ function auditCreateArgs(db: ReturnType<typeof makeFakeDb>): FakeAuditCreateArgs
 
 function makeCaller(user: SessionUser | null, db = makeFakeDb(), email = makeFakeEmailClient()) {
   const appRouter = router({ notice: createNoticeRouter({ emailClient: email.client }) });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db, email };
+  return { caller: appRouter.createCaller(makeTestContext({ db, user })), db, email };
 }
 
 afterEach(() => {

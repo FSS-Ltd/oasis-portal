@@ -44,6 +44,56 @@ interface PortalMobileBottomNavProps<T extends string> {
   variant?: NavVariant;
 }
 
+interface DrawerTimingStep {
+  duration: number;
+  easing: (value: number) => number;
+  toValue: number;
+}
+
+const drawerSettleSteps: readonly DrawerTimingStep[] = [
+  { duration: 210, easing: Easing.out(Easing.quad), toValue: -12 },
+  { duration: 260, easing: Easing.in(Easing.quad), toValue: 7 },
+  { duration: 180, easing: Easing.out(Easing.quad), toValue: -4 },
+  { duration: 210, easing: Easing.in(Easing.quad), toValue: 2 },
+];
+
+const drawerOpenSteps: readonly DrawerTimingStep[] = [
+  { duration: 620, easing: Easing.out(Easing.cubic), toValue: -30 },
+  { duration: 330, easing: Easing.in(Easing.quad), toValue: 17 },
+  { duration: 250, easing: Easing.out(Easing.quad), toValue: -11 },
+  { duration: 270, easing: Easing.in(Easing.quad), toValue: 6 },
+  { duration: 190, easing: Easing.out(Easing.quad), toValue: -3 },
+  { duration: 210, easing: Easing.in(Easing.quad), toValue: 2 },
+];
+
+function drawerTiming(
+  drawerOffset: Animated.Value,
+  { duration, easing, toValue }: DrawerTimingStep,
+) {
+  return Animated.timing(drawerOffset, {
+    duration,
+    easing,
+    toValue,
+    useNativeDriver: true,
+  });
+}
+
+function drawerSpring(drawerOffset: Animated.Value) {
+  return Animated.spring(drawerOffset, {
+    bounciness: 2,
+    speed: 5,
+    toValue: 0,
+    useNativeDriver: true,
+  });
+}
+
+function runDrawerBounce(drawerOffset: Animated.Value, steps: readonly DrawerTimingStep[]) {
+  Animated.sequence([
+    ...steps.map((step) => drawerTiming(drawerOffset, step)),
+    drawerSpring(drawerOffset),
+  ]).start();
+}
+
 export function PortalMobileHeader({
   actionAccessibilityLabel,
   actionLabel,
@@ -119,87 +169,13 @@ export function PortalMobileBottomNav<T extends string>({
   const overflowBadgeCount = overflowItems.reduce((count, item) => count + (item.badge ?? 0), 0);
 
   function settleDrawer() {
-    Animated.sequence([
-      Animated.timing(drawerOffset, {
-        duration: 210,
-        easing: Easing.out(Easing.quad),
-        toValue: -12,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 260,
-        easing: Easing.in(Easing.quad),
-        toValue: 7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 180,
-        easing: Easing.out(Easing.quad),
-        toValue: -4,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 210,
-        easing: Easing.in(Easing.quad),
-        toValue: 2,
-        useNativeDriver: true,
-      }),
-      Animated.spring(drawerOffset, {
-        bounciness: 2,
-        speed: 5,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    runDrawerBounce(drawerOffset, drawerSettleSteps);
   }
 
   function openDrawer() {
     setDrawerVisible(true);
     drawerOffset.setValue(360);
-    Animated.sequence([
-      Animated.timing(drawerOffset, {
-        duration: 620,
-        easing: Easing.out(Easing.cubic),
-        toValue: -30,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 330,
-        easing: Easing.in(Easing.quad),
-        toValue: 17,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 250,
-        easing: Easing.out(Easing.quad),
-        toValue: -11,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 270,
-        easing: Easing.in(Easing.quad),
-        toValue: 6,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 190,
-        easing: Easing.out(Easing.quad),
-        toValue: -3,
-        useNativeDriver: true,
-      }),
-      Animated.timing(drawerOffset, {
-        duration: 210,
-        easing: Easing.in(Easing.quad),
-        toValue: 2,
-        useNativeDriver: true,
-      }),
-      Animated.spring(drawerOffset, {
-        bounciness: 2,
-        speed: 5,
-        toValue: 0,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    runDrawerBounce(drawerOffset, drawerOpenSteps);
   }
 
   function closeDrawer() {

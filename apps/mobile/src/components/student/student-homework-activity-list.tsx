@@ -65,14 +65,16 @@ export function StudentHomeworkActivityList({
             <MutedText>Reviewed homework will appear here.</MutedText>
           </View>
         ) : (
-          graded.slice(0, 4).map((assignment) => (
-            <AssignmentRow
-              assignment={assignment}
-              key={assignment.id}
-              onSelect={onSelect}
-              selected={assignment.id === selectedId}
-            />
-          ))
+          graded
+            .slice(0, 4)
+            .map((assignment) => (
+              <AssignmentRow
+                assignment={assignment}
+                key={assignment.id}
+                onSelect={onSelect}
+                selected={assignment.id === selectedId}
+              />
+            ))
         )}
       </Card>
     </View>

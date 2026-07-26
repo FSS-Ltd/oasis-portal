@@ -1182,3 +1182,144 @@
 ### Follow-Ups Deferred
 - `apps/web/tests/e2e/phase-3-verification.spec.ts`: ESLint project-service coverage requires config-level work outside this run.
 - `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typed-route failure remains outside today's selected files.
+
+## 2026-07-24 - Pass 1
+
+### Selected Files
+1. `apps/mobile/src/components/staff/staff-incident-utils.ts`
+2. `apps/api/src/__tests__/staffHome.router.test.ts`
+3. `apps/mobile/src/components/student/student-markets-utils.ts`
+4. `apps/api/src/lib/daily-year-band-scope.ts`
+5. `apps/mobile/src/components/parent/parent-profile-registration-utils.ts`
+6. `apps/mobile/src/components/staff/staff-behaviour-utils.ts`
+7. `apps/api/src/students/delete-archived-student.ts`
+8. `apps/api/src/services/market-data/yahoo-finance-provider.ts`
+9. `packages/db/src/encryption.ts`
+10. `apps/api/src/routers/studentNotification.ts`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: mobile, API, and DB typechecks passed before edits.
+- Tests: no baseline selected test failure; staff home focused test was selected for post-edit validation.
+
+### Changes Made
+- `apps/api/src/lib/daily-year-band-scope.ts`: reused the existing year-group band select constant in the staff shift scope delegate type.
+- `apps/api/src/students/delete-archived-student.ts`: returned the delete result directly instead of keeping a single-use variable.
+- `apps/api/src/services/market-data/yahoo-finance-provider.ts`: cached the trimmed currency string before normalisation.
+- `packages/db/src/encryption.ts`: applied selected-file Prettier wrapping.
+- Remaining selected files: reviewed with no safe source edits required.
+- Repo-local memory: carried forward reviewed-file records found in automation memory but missing from JSON.
+
+### Validation
+- lint command: pass - `node_modules/.bin/eslint apps/mobile/src/components/staff/staff-incident-utils.ts apps/api/src/__tests__/staffHome.router.test.ts apps/mobile/src/components/student/student-markets-utils.ts apps/api/src/lib/daily-year-band-scope.ts apps/mobile/src/components/parent/parent-profile-registration-utils.ts apps/mobile/src/components/staff/staff-behaviour-utils.ts apps/api/src/students/delete-archived-student.ts apps/api/src/services/market-data/yahoo-finance-provider.ts packages/db/src/encryption.ts apps/api/src/routers/studentNotification.ts`
+- typecheck command: pass - `pnpm --filter @oasis/api typecheck`, `pnpm --filter @oasis/mobile typecheck`, `pnpm --filter @oasis/db typecheck`
+- relevant tests: pass - `pnpm --filter @oasis/api exec vitest run src/__tests__/staffHome.router.test.ts`
+- formatting: pass - selected-file Prettier check
+- diff whitespace: pass - `git diff --check`
+- note: an accidental broad API test invocation ran the full API suite and failed only in existing unselected `invoice.router.test.ts` expectations. The direct selected test passed afterward.
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- Existing unselected `apps/api/src/__tests__/invoice.router.test.ts` finance summary expectation mismatch observed during accidental broad API test run; outside today's selected-file scope.
+
+## 2026-07-25 - Pass 1
+
+### Selected Files
+1. `apps/web/src/app/registration/registration-form-helpers.ts`
+2. `apps/mobile/src/components/staff/staff-rota-swap-panel.tsx`
+3. `apps/web/src/components/navigation/mobile-side-menu.tsx`
+4. `apps/mobile/src/components/student/student-learning-ranks-panel.tsx`
+5. `apps/web/src/components/student-drillthrough/attendance-calendar.tsx`
+6. `apps/mobile/src/components/parent/parent-student-settings-status.tsx`
+7. `apps/web/src/components/child-log/sensitive-review-client.tsx`
+8. `apps/web/src/components/clubs/parent-club-card.tsx`
+9. `packages/domain/src/demeritPolicy.ts`
+10. `apps/mobile/src/components/parent/parent-permission-slips-list.tsx`
+
+### Baseline Findings
+- Lint: selected source-file ESLint passed; initial e2e candidates failed project-service coverage and were deferred.
+- Typecheck: mobile and domain typechecks passed; web typecheck reproduced the existing unselected clubs-lead typed-route failure.
+- Tests: no baseline focused test failure; selected edits were formatting-only.
+
+### Changes Made
+- `apps/web/src/app/registration/registration-form-helpers.ts`: Reviewed validation helper extraction from a prior pass; no additional safe source change needed.
+- `apps/mobile/src/components/staff/staff-rota-swap-panel.tsx`: Reviewed swap request panel for lint, types, hook usage, and local structure; no safe source change needed.
+- `apps/web/src/components/navigation/mobile-side-menu.tsx`: Reviewed focus-trap, menu close handlers, imports, and client boundary; no safe source change needed.
+- `apps/mobile/src/components/student/student-learning-ranks-panel.tsx`: Reviewed leaderboard panel for lint, types, and responsive text structure; no safe source change needed.
+- `apps/web/src/components/student-drillthrough/attendance-calendar.tsx`: Applied Prettier formatting to wrap long date, section, and blank-day JSX lines.
+- `apps/mobile/src/components/parent/parent-student-settings-status.tsx`: Applied Prettier formatting to wrap the password-change status expression.
+- `apps/web/src/components/child-log/sensitive-review-client.tsx`: Reviewed sensitive review UI for lint, mutation handling, imports, and error display; no safe source change needed.
+- `apps/web/src/components/clubs/parent-club-card.tsx`: Applied Prettier formatting to status tone and badge JSX.
+- `packages/domain/src/demeritPolicy.ts`: Reviewed demerit policy helpers for type safety, exported API stability, and policy logic; no safe source change needed.
+- `apps/mobile/src/components/parent/parent-permission-slips-list.tsx`: Reviewed permission slip list for lint, imports, UI states, and type usage; no safe source change needed.
+
+### Validation
+- lint command: pass - `node_modules/.bin/eslint <10 selected source files>`
+- typecheck command: pass - `pnpm --filter @oasis/mobile typecheck`; pass - `pnpm --filter @oasis/domain typecheck`; partial - `pnpm --filter @oasis/web typecheck` failed on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` typed-route issue.
+- relevant tests: not run - selected edits were formatting-only and no behaviour-changing logic was touched.
+- formatting: pass - `node_modules/.bin/prettier --check <10 selected source files>`
+- diff whitespace: pass - `git diff --check`
+- graphify: pass - `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/tests/e2e/supervisor-dashboard.spec.ts`: direct ESLint project-service coverage requires config-level work outside today's source-file cleanup.
+- `apps/web/tests/e2e/phase-3-verification.spec.ts`: same e2e ESLint project-service coverage issue.
+- `apps/web/tests/e2e/phase-3-5-clubs.spec.ts`: same e2e ESLint project-service coverage issue.
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typed-route failure remains outside today's selected files.
+
+## 2026-07-26 - Pass 1
+
+### Selected Files
+1. `apps/web/src/components/incidents/incident-report-detail.tsx`
+2. `apps/web/src/app/(admin)/admin/behaviour/behaviour-report-client.tsx`
+3. `apps/mobile/src/components/staff/staff-club-lead-utils.ts`
+4. `apps/web/src/components/parent/parent-usage-limit-controls.tsx`
+5. `apps/mobile/src/components/parent/parent-fees-invoices-list.tsx`
+6. `apps/mobile/src/components/student/student-markets-trend-card.tsx`
+7. `apps/mobile/src/components/smoke/student-smoke-leaderboard.tsx`
+8. `apps/web/src/app/(admin)/admin/rota/_components/rota-utils.ts`
+9. `apps/web/src/components/student/student-attendance-client.tsx`
+10. `apps/mobile/src/components/staff/staff-incident-review-panel.tsx`
+
+### Baseline Findings
+- Lint: selected-file ESLint passed before edits.
+- Typecheck: mobile, API, and domain typechecks passed before edits; web typecheck reproduced the existing unselected clubs-lead typed-route failure.
+- Tests: no focused test baseline failure; selected edits were formatting-only.
+- Formatting: selected-file Prettier failed for two files before editing.
+
+### Changes Made
+- `apps/mobile/src/components/smoke/student-smoke-leaderboard.tsx`: Applied Prettier formatting to the core mobile UI import and row item props.
+- `apps/web/src/components/student/student-attendance-client.tsx`: Applied Prettier formatting to attendance summary and recent-records JSX wrapping.
+- Remaining selected files: reviewed lint, type usage, imports/exports, hook dependencies, accessibility labels, UI structure, and local helper shape; no safe source edits needed.
+
+### Validation
+- lint command: pass - `node_modules/.bin/eslint <10 selected source files>`
+- typecheck command: pass - `pnpm --filter @oasis/mobile typecheck`; pass - `pnpm --filter @oasis/api typecheck`; pass - `pnpm --filter @oasis/domain typecheck`; partial - `pnpm --filter @oasis/web typecheck` failed on existing unselected `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx` typed-route issue.
+- relevant tests: not run - selected edits were formatting-only and no behaviour-changing logic was touched.
+- formatting: pass - `node_modules/.bin/prettier --check <10 selected source files>`
+- diff whitespace: pass - `git diff --check`
+- graphify: pass - `graphify update .`
+
+### Guardrail Confirmation
+- No new features.
+- No API contract changes.
+- No migrations.
+- No database schema changes.
+- Behaviour preserved.
+
+### Follow-Ups Deferred
+- `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typed-route failure remains outside today's selected files.
+- E2E test files with ESLint project-service coverage issues remain deferred because they need config-level cleanup, not selected source-file formatting.

@@ -20,6 +20,7 @@ import {
   PortalMobileHeader,
   type PortalMobileNavItem,
 } from '../core/portal-mobile-shell';
+import { formatMerits, stockLabel, stockVariant } from './mobile-shop-utils';
 
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit';
@@ -102,24 +103,6 @@ function canUseMobileShopCounter(user: SessionUser | undefined): boolean {
       user.tags.includes('shopadmin') ||
       user.tags.includes('shopkeeper')),
   );
-}
-
-function formatMerits(value: number): string {
-  return new Intl.NumberFormat('en-GB').format(value);
-}
-
-function stockVariant(item: ShopItem): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (item.stockStatus === 'Inactive') return 'neutral';
-  if (item.stockStatus === 'OutOfStock') return 'danger';
-  if (item.stockStatus === 'LowStock') return 'warning';
-  return 'success';
-}
-
-function stockLabel(item: ShopItem): string {
-  if (item.stockStatus === 'Inactive') return 'Paused';
-  if (item.stockStatus === 'OutOfStock') return 'Out';
-  if (item.stockStatus === 'LowStock') return `Low · ${String(item.stockCount)}`;
-  return `${String(item.stockCount)} left`;
 }
 
 export function SupervisorSmokeScreen() {

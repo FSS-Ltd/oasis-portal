@@ -97,9 +97,7 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
       setSubmittedDecision(form.decision);
     } catch (error) {
       setOperationError(
-        error instanceof Error
-          ? error.message
-          : 'Permission slip response could not be submitted.',
+        error instanceof Error ? error.message : 'Permission slip response could not be submitted.',
       );
     }
   }

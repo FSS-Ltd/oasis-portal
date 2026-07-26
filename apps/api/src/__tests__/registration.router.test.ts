@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ParentInitialRegistrationInput, SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import { registrationRouter } from '../routers/registration.js';
 import { router } from '../trpc.js';
 
@@ -798,18 +798,9 @@ function makeFakeDb() {
   };
 }
 
-function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>['db']): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeCaller(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>['db']) {
   const appRouter = router({ registration: registrationRouter });
-  return appRouter.createCaller(makeCtx(user, db));
+  return appRouter.createCaller(makeTestContext({ db, user }));
 }
 
 describe('registration.submitInitial', () => {

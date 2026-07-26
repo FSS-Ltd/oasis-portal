@@ -4,10 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { ArrowRight, Bell, ClipboardList, Send, Star, UsersRound } from 'lucide-react';
-import {
-  clubCategoriesFor,
-  type BehaviourType,
-} from '@/components/behaviour/behaviour-categories';
+import { clubCategoriesFor, type BehaviourType } from '@/components/behaviour/behaviour-categories';
 import {
   DailyDemeritBadge,
   type DailyDemeritStatus,
@@ -22,61 +19,20 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { api, type RouterOutputs } from '@/lib/trpc';
 import { ClubAttendancePanel } from './club-attendance-panel';
 import { nextScheduledDate } from './club-schedule-utils';
+import {
+  CLUBS_LEAD_TAB_LABELS,
+  clubVisual,
+  entryLabel,
+  entryTone,
+  formatDateTime,
+  parseTab,
+  todayDate,
+  type ClubsLeadTab,
+} from './clubs-lead-portal-utils';
 
 type LeadClub = RouterOutputs['club']['leadClubs'][number];
 type RosterStudent = RouterOutputs['club']['roster']['signups'][number];
 type BehaviourEntry = RouterOutputs['behaviour']['recentEntries']['entries'][number];
-
-type ClubsLeadTab = 'overview' | 'behaviour' | 'attendance' | 'noticeboard';
-
-const CLUB_ACCENTS = ['#7D3C98', '#1B2B5E', '#B45309', '#0E7490', '#0E5C3A', '#8B1E2D'] as const;
-const CLUB_ICONS = ['🎭', '♟', '🎨', '✝', '🎵', '📚'] as const;
-const CLUBS_LEAD_TABS = ['overview', 'behaviour', 'attendance', 'noticeboard'] as const;
-
-function todayDate(): Date {
-  return new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
-}
-
-function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
-}
-
-function clubVisual(club: Pick<LeadClub, 'id' | 'name'>, index: number) {
-  const lower = club.name.toLowerCase();
-  const icon = lower.includes('chess')
-    ? '♟'
-    : lower.includes('drama')
-      ? '🎭'
-      : lower.includes('art')
-        ? '🎨'
-        : lower.includes('scripture')
-          ? '✝'
-          : CLUB_ICONS[index % CLUB_ICONS.length];
-  return {
-    accent: CLUB_ACCENTS[index % CLUB_ACCENTS.length] ?? '#0E5C3A',
-    icon,
-  };
-}
-
-function parseTab(value: string | null): ClubsLeadTab {
-  return CLUBS_LEAD_TABS.some((tab) => tab === value) ? (value as ClubsLeadTab) : 'overview';
-}
-
-function entryTone(entry: Pick<BehaviourEntry, 'type'>): 'blue' | 'green' | 'red' {
-  if (entry.type === 'Merit') return 'green';
-  if (entry.type === 'Demerit') return 'red';
-  return 'blue';
-}
-
-function entryLabel(entry: Pick<BehaviourEntry, 'meritDelta' | 'type'>): string {
-  if (entry.type === 'General') return 'General';
-  return `${entry.meritDelta > 0 ? '+' : ''}${String(entry.meritDelta)} merits`;
-}
 
 function ClubSwitcher({
   clubs,
@@ -692,14 +648,7 @@ export function ClubsLeadPortalClient() {
     <div className="clubs-lead-page">
       <ClubSwitcher clubs={clubs} onSelect={setSelectedClubId} selectedClubId={selectedClub.id} />
       <div className="clubs-lead-tabs" role="tablist" aria-label="Clubs Lead sections">
-        {(
-          [
-            ['overview', 'Overview'],
-            ['behaviour', 'Behaviour'],
-            ['attendance', 'Attendance'],
-            ['noticeboard', 'Noticeboard'],
-          ] as const
-        ).map(([tab, label]) => (
+        {CLUBS_LEAD_TAB_LABELS.map(([tab, label]) => (
           <button
             aria-selected={activeTab === tab}
             className={activeTab === tab ? 'is-selected' : ''}

@@ -163,11 +163,10 @@ export async function deleteArchivedStudent(
       },
     });
 
-    const result: DeleteArchivedStudentResult = {
+    return {
       id: student.id,
       deleted: true,
       deactivatedUserId: deactivatedUser?.id ?? null,
     };
-    return result;
   });
 }

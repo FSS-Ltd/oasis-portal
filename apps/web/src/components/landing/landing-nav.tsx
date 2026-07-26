@@ -161,11 +161,19 @@ export function LandingNav() {
               ))}
             </motion.nav>
             <motion.div
-              animate={{ opacity: 1, transition: { delay: 0.4, duration: 0.45, ease: landingEase }, y: 0 }}
+              animate={{
+                opacity: 1,
+                transition: { delay: 0.4, duration: 0.45, ease: landingEase },
+                y: 0,
+              }}
               className="landing-menu__actions"
               initial={{ opacity: 0, y: 18 }}
             >
-              <Link className="landing-btn landing-btn--primary" href={signInHref} onClick={closeMenu}>
+              <Link
+                className="landing-btn landing-btn--primary"
+                href={signInHref}
+                onClick={closeMenu}
+              >
                 Sign in
                 <ArrowRight aria-hidden="true" size={16} />
               </Link>

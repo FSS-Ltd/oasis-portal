@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import type { RouterOutputs } from '@/lib/trpc';
 import { fromTimeValue, todayKey, toTimeValue } from './club-schedule-utils';
 import {
   CLUB_ICON_OPTIONS,
@@ -8,53 +9,9 @@ import {
   type ClubIconKey,
 } from './club-visuals';
 
-interface ClubSchedule {
-  endMinute: number;
-  frequency: 'Weekly';
-  startDate: string;
-  startMinute: number;
-}
-
-export interface Club {
-  active: boolean;
-  activeSignupCount: number;
-  accentColor: string | null;
-  assignedLeads: {
-    active: boolean;
-    email: string;
-    fullName: string;
-    id: string;
-  }[];
-  capacity: number | null;
-  createdAt: Date | string;
-  createdById: string;
-  description: string | null;
-  iconKey: string | null;
-  id: string;
-  legacySchedule: string | null;
-  name: string;
-  schedule: ClubSchedule | null;
-  scheduleLabel: string | null;
-  signedUpStudentIds: string[];
-  updatedAt: Date | string;
-}
-
-export interface ClubNotification {
-  clubId: string;
-  id: string;
-  sentAt: Date | string;
-  sentByName: string;
-  title: string;
-}
-
-export interface RosterSignup {
-  id: string;
-  signedUpAt: Date | string;
-  studentId: string;
-  studentName: string;
-  yearGroup: string;
-}
-
+export type Club = RouterOutputs['club']['managementList'][number];
+export type ClubNotification = RouterOutputs['club']['notifications'][number];
+export type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
 export type ClubTab = 'attendance' | 'students' | 'leads' | 'rota' | 'notices';
 
 export interface ClubFormState {
@@ -128,7 +85,9 @@ export function formFromClub(club: Club): ClubFormState {
     scheduleStartTime: club.schedule ? toTimeValue(club.schedule.startMinute) : '15:30',
     scheduleEndTime: club.schedule ? toTimeValue(club.schedule.endMinute) : '16:30',
     capacity: club.capacity === null ? '' : String(club.capacity),
-    iconKey: CLUB_ICON_OPTIONS.find((option) => option.key === club.iconKey)?.key ?? 'drama',
+    iconKey:
+      CLUB_ICON_OPTIONS.find((option) => option.key === club.iconKey)?.key ??
+      'drama',
     accentColor: isClubAccentColor(club.accentColor) ? club.accentColor : randomClubAccent(),
   };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import { calendarRouter } from '../routers/calendar.js';
 import { router } from '../trpc.js';
 
@@ -353,18 +353,9 @@ function makeFakeDb(
   return db;
 }
 
-function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
   const appRouter = router({ calendar: calendarRouter });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db };
+  return { caller: appRouter.createCaller(makeTestContext({ db, user })), db };
 }
 
 describe('calendar.create', () => {

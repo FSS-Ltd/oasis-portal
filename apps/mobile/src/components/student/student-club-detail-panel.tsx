@@ -47,7 +47,10 @@ export function StudentClubDetailPanel({
             <Fact label="Schedule" value={club.scheduleLabel ?? 'Schedule to be confirmed'} />
             <Fact label="Places" value={clubSpacesLabel(club)} />
             <Fact label="Supervisor" value={clubLeadLabel(club.supervisorNames)} />
-            <Fact label="Interest" value={club.interestedAt ? formatStudentDate(club.interestedAt) : club.status} />
+            <Fact
+              label="Interest"
+              value={club.interestedAt ? formatStudentDate(club.interestedAt) : club.status}
+            />
           </View>
 
           <View style={styles.noticesPanel}>

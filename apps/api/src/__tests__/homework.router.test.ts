@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import { homeworkRouter } from '../routers/homework.js';
 import { router } from '../trpc.js';
 
@@ -380,9 +380,7 @@ function makeFakeDb(input?: {
               ? (() => {
                   const bands = data.bands;
                   return defaultBands
-                    .filter((band) =>
-                      bands.create.map((b) => b.yearGroupBandId).includes(band.id),
-                    )
+                    .filter((band) => bands.create.map((b) => b.yearGroupBandId).includes(band.id))
                     .map((yearGroupBand) => ({ yearGroupBand }));
                 })()
               : assignment.bands,
@@ -639,18 +637,11 @@ function makeFakeDb(input?: {
   return db;
 }
 
-function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_homework_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
   const appRouter = router({ homework: homeworkRouter });
-  return appRouter.createCaller(makeCtx(user, db));
+  return appRouter.createCaller(
+    makeTestContext({ db, requestId: 'req_homework_test', rls: { kind: 'db', db }, user }),
+  );
 }
 
 describe('homework router', () => {

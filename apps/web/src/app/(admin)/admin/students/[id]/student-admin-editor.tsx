@@ -5,7 +5,6 @@ import { Archive, Link2, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 import {
   STANDARD_SCHOOL_YEARS,
   canonicalSchoolYear,
@@ -21,37 +20,15 @@ import { MotionItem } from '@/components/admin/motion';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { StudentRegistrationPanel } from './student-registration-panel';
-
-function isStandardSchoolYear(value: string): value is StandardSchoolYear {
-  return STANDARD_SCHOOL_YEARS.includes(value as StandardSchoolYear);
-}
-
-function parseStandardSchoolYear(value: string): StandardSchoolYear {
-  if (!isStandardSchoolYear(value)) throw new Error('Choose a standard year group');
-  return value;
-}
-
-const editSchema = z.object({
-  fullName: z.string().trim().min(1, 'Enter the student name'),
-  dob: z.string().min(1, 'Enter the date of birth'),
-  yearGroup: z.string().refine(isStandardSchoolYear, 'Choose a standard year group'),
-  enrolmentDate: z.string().min(1, 'Enter the enrolment date'),
-  address: z.string().trim().optional(),
-});
-
-type EditValues = z.input<typeof editSchema>;
+import {
+  editSchema,
+  initials,
+  parseStandardSchoolYear,
+  type EditValues,
+} from './student-admin-editor-utils';
 
 interface StudentAdminEditorProps {
   studentId: string;
-}
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }
 
 export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
@@ -597,7 +574,9 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       <ConfirmationDialog
         confirmLabel="Delete student"
         errorMessage={
-          deleteArchivedStudent.error ? friendlyErrorMessage(deleteArchivedStudent.error) : undefined
+          deleteArchivedStudent.error
+            ? friendlyErrorMessage(deleteArchivedStudent.error)
+            : undefined
         }
         onCancel={() => {
           if (!deleteArchivedStudent.isPending) setDeleteOpen(false);
@@ -616,7 +595,9 @@ export function StudentAdminEditor({ studentId }: StudentAdminEditorProps) {
       </ConfirmationDialog>
       <ConfirmationDialog
         confirmLabel="Unassign subject"
-        errorMessage={unassignSubject.error ? friendlyErrorMessage(unassignSubject.error) : undefined}
+        errorMessage={
+          unassignSubject.error ? friendlyErrorMessage(unassignSubject.error) : undefined
+        }
         onCancel={() => {
           if (!unassignSubject.isPending) setSubjectToUnassign(null);
         }}

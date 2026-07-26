@@ -31,13 +31,7 @@ type StaffShiftScopeDb = {
       orderBy: Array<{ startsAt: 'asc' }>;
       select: {
         yearGroupBand: {
-          select: {
-            id: true;
-            name: true;
-            standardYears: true;
-            colour: true;
-            active: true;
-          };
+          select: typeof YEAR_GROUP_BAND_SELECT;
         };
       };
     }) => Promise<Array<{ yearGroupBand: YearBandRow | null }>>;

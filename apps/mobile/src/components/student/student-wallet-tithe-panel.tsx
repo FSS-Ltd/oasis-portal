@@ -35,6 +35,51 @@ interface StudentWalletTithePanelProps {
   status: TitheStatus | undefined;
 }
 
+interface TithePreferenceDraft {
+  cadence: TitheCadence;
+  fixedAmount: string;
+  mode: TithePaymentMode;
+  monthlyDate: string;
+  percentage: string;
+  weeklyDay: string;
+}
+
+type TithePreferenceParseResult =
+  | { error: null; input: TithePreferenceInput }
+  | { error: string; input: null };
+
+function tithePreferenceInputFromDraft(draft: TithePreferenceDraft): TithePreferenceParseResult {
+  const parsedWeeklyDay = Number(draft.weeklyDay);
+  const parsedMonthlyDate = Number(draft.monthlyDate);
+  const input: TithePreferenceInput = {
+    cadence: draft.cadence,
+    mode: draft.mode,
+    weeklyDay: parsedWeeklyDay,
+    monthlyDate: parsedMonthlyDate,
+  };
+
+  if (!Number.isInteger(parsedWeeklyDay) || parsedWeeklyDay < 0 || parsedWeeklyDay > 6) {
+    return { error: 'Choose a valid weekly tithe day.', input: null };
+  }
+  if (!Number.isInteger(parsedMonthlyDate) || parsedMonthlyDate < 1 || parsedMonthlyDate > 31) {
+    return { error: 'Monthly tithe date must be between 1 and 31.', input: null };
+  }
+
+  if (draft.mode === 'Percentage') {
+    const parsedPercentage = Number(draft.percentage);
+    if (!Number.isInteger(parsedPercentage) || parsedPercentage < 10 || parsedPercentage > 100) {
+      return { error: 'Percentage must be a whole number from 10 to 100.', input: null };
+    }
+    return { error: null, input: { ...input, percentage: parsedPercentage } };
+  }
+
+  const parsedFixedAmount = parsePositiveMeritAmount(draft.fixedAmount);
+  if (parsedFixedAmount === null) {
+    return { error: 'Fixed amount must be a positive whole number of merits.', input: null };
+  }
+  return { error: null, input: { ...input, fixedAmount: parsedFixedAmount } };
+}
+
 export function StudentWalletTithePanel({
   error,
   loading,
@@ -127,42 +172,21 @@ function LoadedTithePanel({
   }, [weeklyDay]);
 
   function savePreference() {
-    const parsedWeeklyDay = Number(weeklyDay);
-    const parsedMonthlyDate = Number(monthlyDate);
-    const input: TithePreferenceInput = {
+    const result = tithePreferenceInputFromDraft({
       cadence,
+      fixedAmount,
       mode,
-      weeklyDay: parsedWeeklyDay,
-      monthlyDate: parsedMonthlyDate,
-    };
-
-    if (!Number.isInteger(parsedWeeklyDay) || parsedWeeklyDay < 0 || parsedWeeklyDay > 6) {
-      setLocalError('Choose a valid weekly tithe day.');
+      monthlyDate,
+      percentage,
+      weeklyDay,
+    });
+    if (result.input === null) {
+      setLocalError(result.error);
       return;
-    }
-    if (!Number.isInteger(parsedMonthlyDate) || parsedMonthlyDate < 1 || parsedMonthlyDate > 31) {
-      setLocalError('Monthly tithe date must be between 1 and 31.');
-      return;
-    }
-
-    if (mode === 'Percentage') {
-      const parsedPercentage = Number(percentage);
-      if (!Number.isInteger(parsedPercentage) || parsedPercentage < 10 || parsedPercentage > 100) {
-        setLocalError('Percentage must be a whole number from 10 to 100.');
-        return;
-      }
-      input.percentage = parsedPercentage;
-    } else {
-      const parsedFixedAmount = parsePositiveMeritAmount(fixedAmount);
-      if (parsedFixedAmount === null) {
-        setLocalError('Fixed amount must be a positive whole number of merits.');
-        return;
-      }
-      input.fixedAmount = parsedFixedAmount;
     }
 
     setLocalError(null);
-    onSavePreference(input);
+    onSavePreference(result.input);
   }
 
   const visibleError = localError ?? saveError ?? payError;

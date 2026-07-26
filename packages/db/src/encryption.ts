@@ -105,16 +105,8 @@ export function decryptField(wire: string | null | undefined): string | null {
 
   const parts = wire.split(':');
   if (parts.length !== 8) throw new Error('Malformed ciphertext');
-  const [version, keyVersion, wrappedDekB64, wrapIvB64, wrapTagB64, ivB64, tagB64, ctB64] = parts as [
-    string,
-    string,
-    string,
-    string,
-    string,
-    string,
-    string,
-    string,
-  ];
+  const [version, keyVersion, wrappedDekB64, wrapIvB64, wrapTagB64, ivB64, tagB64, ctB64] =
+    parts as [string, string, string, string, string, string, string, string];
   if (version !== VERSION) throw new Error(`Unsupported ciphertext version: ${version}`);
   // ctB64 may legitimately be empty (encrypting ""); other parts must be non-empty.
   if (!keyVersion || !wrappedDekB64 || !wrapIvB64 || !wrapTagB64 || !ivB64 || !tagB64) {
@@ -156,7 +148,9 @@ export function blindIndex(value: string, pepperEnvVar = 'OASIS_BIDX_PEPPER'): s
  * extension would make it too easy to accidentally skip encryption on a new
  * PII field.
  */
-export function withEncryption<T extends PrismaClient>(client: T): T & {
+export function withEncryption<T extends PrismaClient>(
+  client: T,
+): T & {
   $enc: {
     encrypt: typeof encryptField;
     decrypt: typeof decryptField;

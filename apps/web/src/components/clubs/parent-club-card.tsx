@@ -41,10 +41,7 @@ function statusLabel(club: ParentClub, selectedChildId?: string | null): string 
   return 'Open';
 }
 
-function statusTone(
-  club: ParentClub,
-  selectedChildId?: string | null,
-): 'amber' | 'green' | 'grey' {
+function statusTone(club: ParentClub, selectedChildId?: string | null): 'amber' | 'green' | 'grey' {
   if (selectedChildId && club.signedUpStudentIds.includes(selectedChildId)) return 'green';
   if (club.signedUpStudentIds.length > 0) return 'green';
   if (isClubFull(club)) return 'grey';
@@ -84,9 +81,7 @@ export function ParentClubCard({
           <strong>{club.name}</strong>
           <small>{club.scheduleLabel ?? 'No schedule set'}</small>
         </span>
-        <Badge tone={statusTone(club, selectedChildId)}>
-          {statusLabel(club, selectedChildId)}
-        </Badge>
+        <Badge tone={statusTone(club, selectedChildId)}>{statusLabel(club, selectedChildId)}</Badge>
         <span className="parent-club-card__icon" aria-hidden="true">
           <ClubIcon size={28} />
         </span>

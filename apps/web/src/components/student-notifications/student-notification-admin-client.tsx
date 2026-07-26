@@ -5,11 +5,7 @@ import { Bell, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
-import {
-  friendlyErrorMessage,
-  showErrorToast,
-  showSuccessToast,
-} from '@/lib/notifications';
+import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 
 const audiences = [

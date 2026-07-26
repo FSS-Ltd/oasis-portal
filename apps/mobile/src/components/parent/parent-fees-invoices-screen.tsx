@@ -53,7 +53,9 @@ export function ParentFeesInvoicesScreen({ data, error, loading }: ParentFeesInv
         <View style={styles.summaryGrid}>
           <SummaryPill
             label="Outstanding"
-            value={formatPence(stats?.grossRemainingAmountPence ?? stats?.remainingAmountPence ?? 0)}
+            value={formatPence(
+              stats?.grossRemainingAmountPence ?? stats?.remainingAmountPence ?? 0,
+            )}
           />
           <SummaryPill
             label="Overdue"
@@ -79,10 +81,7 @@ export function ParentFeesInvoicesScreen({ data, error, loading }: ParentFeesInv
                 label="Adjusted fee"
                 value={formatPence(yearSummary.adjustedAnnualAmountPence)}
               />
-              <SummaryPill
-                label="Discounts"
-                value={formatPence(yearSummary.discountAmountPence)}
-              />
+              <SummaryPill label="Discounts" value={formatPence(yearSummary.discountAmountPence)} />
               <SummaryPill
                 label="Left to invoice"
                 value={formatPence(yearSummary.grossLeftToInvoiceAmountPence)}

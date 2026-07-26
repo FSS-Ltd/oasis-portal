@@ -157,9 +157,10 @@ export function createYahooFinanceProvider(
       );
     },
     async getGbpRate(currency: string): Promise<number> {
-      const normalised = currency.trim().toUpperCase();
+      const trimmedCurrency = currency.trim();
+      const normalised = trimmedCurrency.toUpperCase();
       if (normalised === 'GBP') return 1;
-      if (normalised === 'GBX' || currency.trim() === 'GBp') return 0.01;
+      if (normalised === 'GBX' || trimmedCurrency === 'GBp') return 0.01;
 
       const quote = await getQuote(`${normalised}GBP=X`);
       const close = closeFromYahooPayload(quote.payload);
