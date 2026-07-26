@@ -1323,3 +1323,9 @@
 ### Follow-Ups Deferred
 - `apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx`: existing web typed-route failure remains outside today's selected files.
 - E2E test files with ESLint project-service coverage issues remain deferred because they need config-level cleanup, not selected source-file formatting.
+
+## 2026-07-26 - Consolidation Integrity Correction
+
+- Removed 75 stale reviewed-file records whose paths no longer exist, including 60 `.ts` aliases duplicated by canonical `.tsx` records.
+- Recalculated the current-pass reviewed and remaining counts from existing reviewed paths.
+- Added `pnpm tech-debt:validate-memory` to reject nonexistent reviewed paths and `.ts`/`.tsx` collisions before future review updates are published.

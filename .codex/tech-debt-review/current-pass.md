@@ -4,8 +4,8 @@
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
 - Current eligible files: 748
-- Files reviewed so far: 442
-- Files remaining estimate: 306
+- Files reviewed so far: 367
+- Files remaining estimate: 381
 - Last run: 2026-07-26
 - Last selected files:
   - `apps/web/src/components/incidents/incident-report-detail.tsx`

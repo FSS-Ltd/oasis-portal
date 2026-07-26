@@ -397,18 +397,6 @@
       ],
       "notes": "Carried forward from 2026-06-03 automation memory because repo memory was one run behind."
     },
-    "apps/mobile/src/components/smoke/portal-mobile-shell.tsx": {
-      "lastReviewedAt": "2026-06-03",
-      "pass": 1,
-      "status": "reviewed",
-      "validationStatus": "pass",
-      "lineCountBefore": 1076,
-      "lineCountAfter": 1076,
-      "issuesFixed": [
-        "Prior automation pass extracted portal mobile nav icons and styles."
-      ],
-      "notes": "Carried forward from 2026-06-03 automation memory; corrected path includes components/smoke."
-    },
     "apps/mobile/src/components/smoke/student-smoke-shop.tsx": {
       "lastReviewedAt": "2026-06-03",
       "pass": 1,
@@ -469,18 +457,6 @@
       ],
       "validationStatus": "partial: selected-file lint passed; API typecheck/tests blocked by unrelated in-progress student-account feature changes after Prisma generate.",
       "notes": "Selected as oversized production source file; left unchanged to preserve PDF layout behaviour."
-    },
-    "packages/db/src/pace-score-backfill.ts": {
-      "lastReviewedAt": "2026-06-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 483,
-      "lineCountAfter": 485,
-      "issuesFixed": [
-        "Extracted duplicated positive PACE number validation into a named parser helper."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as oversized DB parser utility; targeted DB tests passed."
     },
     "apps/api/src/lib/student-portal-access.ts": {
       "lastReviewedAt": "2026-06-04",
@@ -989,19 +965,6 @@
       "validationStatus": "pass",
       "notes": "Selected as oversized investment market data helper; provider response semantics and conversions were preserved."
     },
-    "apps/mobile/src/components/smoke/parent-message-conversation.tsx": {
-      "lastReviewedAt": "2026-06-09",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 392,
-      "lineCountAfter": 388,
-      "issuesFixed": [
-        "Extracted parent message metadata label formatting into a named helper.",
-        "Formatted the selected file to satisfy Prettier."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as oversized mobile conversation UI; message rendering semantics were not changed."
-    },
     "apps/web/src/components/incidents/incident-parent-portal.tsx": {
       "lastReviewedAt": "2026-06-09",
       "pass": 1,
@@ -1076,18 +1039,6 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized club detail UI; club tabs, roster, rota, lead assignment, and notice behavior were not changed."
-    },
-    "apps/mobile/src/components/smoke/sign-in-panel.tsx": {
-      "lastReviewedAt": "2026-06-09",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 342,
-      "lineCountAfter": 350,
-      "issuesFixed": [
-        "Replaced second-factor priority map/find chaining with a typed priority constant and early-return loop."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as oversized mobile sign-in UI; Clerk sign-in and MFA semantics were not changed."
     },
     "apps/mobile/src/components/smoke/student-smoke-wallet.tsx": {
       "lastReviewedAt": "2026-06-09",
@@ -1359,18 +1310,6 @@
       "validationStatus": "pass",
       "notes": "High-churn domain entrypoint reviewed unchanged to avoid public export contract churn."
     },
-    "packages/db/scripts/seed-parent-portal-demo.ts": {
-      "lastReviewedAt": "2026-06-13",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 1255,
-      "lineCountAfter": 1256,
-      "issuesFixed": [
-        "Reviewed oversized demo seed script; no safe local cleanup was justified."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
-    },
     "apps/api/src/services/market-data/investment-market-refresh.ts": {
       "lastReviewedAt": "2026-06-13",
       "pass": 1,
@@ -1391,18 +1330,6 @@
       "lineCountAfter": 687,
       "issuesFixed": [
         "Named the repeated community group not-found message."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
-    },
-    "packages/db/scripts/backfill-talia-pace-scores.ts": {
-      "lastReviewedAt": "2026-06-13",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 661,
-      "lineCountAfter": 668,
-      "issuesFixed": [
-        "Reviewed oversized PACE backfill script; formatting now passes and no safe local cleanup was justified."
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
@@ -1516,18 +1443,6 @@
       "validationStatus": "pass",
       "notes": "Selected as unreviewed clubs UI; no route or data contract changes."
     },
-    "apps/mobile/src/components/smoke/parent-message-inbox.tsx": {
-      "lastReviewedAt": "2026-06-14",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 292,
-      "lineCountAfter": 294,
-      "issuesFixed": [
-        "Extracted the thread count label into a small local helper."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as unreviewed mobile parent messaging UI; label logic preserved."
-    },
     "apps/web/src/components/incidents/incident-staff-workflow-state.ts": {
       "lastReviewedAt": "2026-06-14",
       "pass": 1,
@@ -1563,18 +1478,6 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as unreviewed attendance reporting UI; status values preserved."
-    },
-    "apps/mobile/src/components/smoke/smoke-ui.tsx": {
-      "lastReviewedAt": "2026-06-14",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 285,
-      "lineCountAfter": 285,
-      "issuesFixed": [
-        "Reviewed lint, format, type surface, and component structure; no safe source change needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as unreviewed shared mobile smoke UI; left unchanged after review."
     },
     "apps/mobile/src/components/smoke/parent-smoke-clubs.tsx": {
       "lastReviewedAt": "2026-06-14",
@@ -2204,78 +2107,6 @@
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
     },
-    "apps/mobile/src/components/parent/parent-profile-registration.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/staff/staff-club-manager.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/staff/staff-communications.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/staff/staff-club-lead-behaviour-screen.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/portal/production-portal-shell.tsx": {
-      "lastReviewedAt": "2026-06-21",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/parent/parent-settings-screen.tsx": {
-      "lastReviewedAt": "2026-06-21",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
-    },
     "apps/mobile/src/components/parent/parent-reports-ranks-screen.tsx": {
       "lastReviewedAt": "2026-06-21",
       "pass": 1,
@@ -2294,18 +2125,6 @@
       "status": "reviewed",
       "lineCountBefore": 608,
       "lineCountAfter": 608,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/parent/parent-permission-slip-detail-screen.tsx": {
-      "lastReviewedAt": "2026-06-21",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
       ],
@@ -2951,378 +2770,6 @@
       "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
-    "apps/mobile/src/components/staff/staff-club-lead-attendance.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/staff/staff-rota-availability-panel.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/student/student-mobile-access-gate.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/core/mobile-ui.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/reports/report-detail.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/pace/pace-progress-table.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/student/student-faith-client.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/parent/parent-shop-catalog.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/student/student-shop-screen.ts": {
-      "lastReviewedAt": "2026-06-25",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/parent/parent-shop-reservations-screen.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/invoices/invoice-ui.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/clubs/clubs-management-client.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/rota/monthly-availability-editor.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/community/student-community-contacts.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/clubs/club-attendance-panel.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/invoices/admin-invoice-modals.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/staff/staff-shop-counter-purchase.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/access/access-management-client.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/child-log/snapshot-controls.ts": {
-      "lastReviewedAt": "2026-06-26",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/student/student-clubs-panel.ts": {
-      "lastReviewedAt": "2026-06-27",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/homework/student-homework-client.ts": {
-      "lastReviewedAt": "2026-06-27",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/students/[id]/student-registration-panel.ts": {
-      "lastReviewedAt": "2026-06-27",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/staff/_components/attendance-history-panel.ts": {
-      "lastReviewedAt": "2026-06-27",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/messages/message-contact-list.ts": {
-      "lastReviewedAt": "2026-06-27",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/staff/staff-rota-availability-editor.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/student/student-shop-client.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/student/invest/student-invest-trade.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/parent/parent-shop-cart.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/messages/mobile-message-new-thread.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/pace/pace-record-edit-modal.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/student/student-clubs-client.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "apps/api/src/routers/staffHome.ts": {
       "lastReviewedAt": "2026-06-28",
       "pass": 1,
@@ -3341,42 +2788,6 @@
       "status": "reviewed",
       "lineCountBefore": 217,
       "lineCountAfter": 217,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/student/student-homework-activity-detail.ts": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/core/signed-in-router.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/staff/staff-portal-screen.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
@@ -3419,60 +2830,12 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/web/src/app/(admin)/admin/staff/invite-user-form.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "packages/domain/src/__tests__/clubs.test.ts": {
       "lastReviewedAt": "2026-06-29",
       "pass": 1,
       "status": "reviewed",
       "lineCountBefore": 112,
       "lineCountAfter": 112,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/students/[id]/student-detail.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/layout.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/staff/page.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
@@ -3515,36 +2878,12 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/web/src/app/(admin)/admin/staff/people-profiles-client.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts": {
       "lastReviewedAt": "2026-06-30",
       "pass": 1,
       "status": "reviewed",
       "lineCountBefore": 105,
       "lineCountAfter": 105,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/calendar/page.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
@@ -3581,18 +2920,6 @@
       "status": "reviewed",
       "lineCountBefore": 157,
       "lineCountAfter": 157,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/student/invest/student-invest-extras.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
@@ -3683,66 +3010,6 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/mobile/src/components/student/student-faith-comments-panel.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/clubs/club-management-form-modal.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/smoke/student-smoke-pace.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(clubs-lead)/clubs-lead/layout.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/parent/parent-home-screen.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "packages/domain/src/__tests__/studentPortalSettings.test.ts": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
@@ -3779,84 +3046,12 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/web/src/app/(student)/student/layout.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "apps/web/src/app/api/auth-context.ts": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
       "status": "reviewed",
       "lineCountBefore": 61,
       "lineCountAfter": 61,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/behaviour/daily-demerit-badge.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/messages/mobile-messages-panel.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/app/(admin)/admin/attendance/page.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/calendar/calendar-month-view.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
@@ -3887,30 +3082,6 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/web/src/app/children-check/page.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/app/_layout.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts": {
       "lastReviewedAt": "2026-07-03",
       "pass": 1,
@@ -3929,18 +3100,6 @@
       "status": "reviewed",
       "lineCountBefore": 198,
       "lineCountAfter": 198,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/web/src/components/behaviour/behaviour-student-selector.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
@@ -3995,30 +3154,6 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/web/src/components/shop/shop-shared.ts": {
-      "lastReviewedAt": "2026-07-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/smoke/staff-smoke-clubs.ts": {
-      "lastReviewedAt": "2026-07-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "apps/api/src/services/student-notifications.ts": {
       "lastReviewedAt": "2026-07-04",
       "pass": 1,
@@ -4031,48 +3166,12 @@
       "validationStatus": "pass",
       "notes": "Repo-local memory was behind the automation memory for this pass."
     },
-    "apps/mobile/src/components/parent/parent-home-summary-cards.ts": {
-      "lastReviewedAt": "2026-07-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/student/student-markets-screen.ts": {
-      "lastReviewedAt": "2026-07-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
     "apps/mobile/src/components/parent/parent-student-settings-styles.ts": {
       "lastReviewedAt": "2026-07-04",
       "pass": 1,
       "status": "reviewed",
       "lineCountBefore": 202,
       "lineCountAfter": 202,
-      "issuesFixed": [
-        "Carried forward from automation memory to avoid duplicate review selection."
-      ],
-      "validationStatus": "pass",
-      "notes": "Repo-local memory was behind the automation memory for this pass."
-    },
-    "apps/mobile/src/components/staff/staff-rota-common.ts": {
-      "lastReviewedAt": "2026-07-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory to avoid duplicate review selection."
       ],
