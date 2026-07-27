@@ -1,10 +1,29 @@
 import { StyleSheet, Text, View } from 'react-native';
-import type { RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
+import {
+  Badge,
+  Card,
+  InlineSpinner,
+  MutedText,
+  SectionTitle,
+  MobileButton,
+} from '../core/mobile-ui';
 
-type ClubListItem = RouterOutputs['club']['list'][number];
-type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
+interface ClubListItem {
+  active: boolean;
+  activeSignupCount: number;
+  capacity: number | null;
+  id: string;
+  name: string;
+  scheduleLabel: string | null;
+}
+
+interface RosterSignup {
+  id: string;
+  signedUpAt: Date | string;
+  studentName: string;
+  yearGroup: string;
+}
 
 interface StaffClubsPanelProps {
   clubs: readonly ClubListItem[];

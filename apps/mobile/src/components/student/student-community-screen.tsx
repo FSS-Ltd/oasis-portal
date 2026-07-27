@@ -254,7 +254,9 @@ export function StudentCommunityScreen() {
 
         {formError ? <ErrorText>{formError}</ErrorText> : null}
         {joinGroup.error && !formError ? <ErrorText>{joinGroup.error.message}</ErrorText> : null}
-        {sendMessage.error && !formError ? <ErrorText>{sendMessage.error.message}</ErrorText> : null}
+        {sendMessage.error && !formError ? (
+          <ErrorText>{sendMessage.error.message}</ErrorText>
+        ) : null}
       </Card>
     </KeyboardAvoidingView>
   );

@@ -131,7 +131,9 @@ export function StudentHomeworkActivitySubmitPanel({
       {preparedImage ? (
         <View style={styles.statusPanel}>
           <Text style={styles.smallStrong}>Upload prepared</Text>
-          <MutedText>Upload the selected file, then confirm the submitted homework image.</MutedText>
+          <MutedText>
+            Upload the selected file, then confirm the submitted homework image.
+          </MutedText>
           <MobileButton
             disabled={busy}
             label={submitUpload.isPending ? 'Submitting work' : 'Confirm submitted work'}

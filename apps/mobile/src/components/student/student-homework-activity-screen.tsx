@@ -87,7 +87,9 @@ export function StudentHomeworkActivityScreen({
       <Card style={styles.heroCard}>
         <Text style={styles.eyebrow}>Activity</Text>
         <SectionTitle>Assigned work</SectionTitle>
-        <MutedText>Homework, submission state, and reviewed results for this student account.</MutedText>
+        <MutedText>
+          Homework, submission state, and reviewed results for this student account.
+        </MutedText>
         <View style={styles.heroStats}>
           <HeroStat label="Current assignments" value={String(dueRows.length)} />
           <HeroStat label="Graded homework" value={String(gradedRows.length)} />

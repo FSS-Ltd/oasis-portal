@@ -42,7 +42,9 @@ function AttendanceSummaryCards({ summary }: { summary: StudentAttendance['summa
       <article className="student-attendance-summary-card student-attendance-summary-card--rate">
         <CalendarCheck aria-hidden="true" size={18} />
         <small>Attendance rate</small>
-        <strong>{summary.attendanceRate === null ? 'No records' : `${String(summary.attendanceRate)}%`}</strong>
+        <strong>
+          {summary.attendanceRate === null ? 'No records' : `${String(summary.attendanceRate)}%`}
+        </strong>
         <span>
           {String(summary.attended)}/{String(summary.total)} attended days
         </span>
@@ -96,10 +98,7 @@ export function StudentAttendanceClient() {
 
   if (attendance.error) {
     return (
-      <EmptyState
-        detail={friendlyErrorMessage(attendance.error)}
-        title="Attendance unavailable"
-      />
+      <EmptyState detail={friendlyErrorMessage(attendance.error)} title="Attendance unavailable" />
     );
   }
 
@@ -138,7 +137,10 @@ export function StudentAttendanceClient() {
             earliestDateKey={attendance.data.from}
             fallbackDateKey={attendance.data.to}
           />
-          <section className="student-dashboard-panel" aria-labelledby="student-attendance-recent-title">
+          <section
+            className="student-dashboard-panel"
+            aria-labelledby="student-attendance-recent-title"
+          >
             <div className="student-dashboard-panel__head">
               <div>
                 <p>Recent records</p>

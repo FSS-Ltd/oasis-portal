@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import { rotaRouter } from '../routers/rota.js';
 import { router } from '../trpc.js';
 
@@ -552,18 +552,9 @@ function makeFakeDb() {
   return { db, users, availability, monthlyAvailability, shifts, swaps };
 }
 
-function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeCaller(user: SessionUser | null, db: FakeDb) {
   const appRouter = router({ rota: rotaRouter });
-  return appRouter.createCaller(makeCtx(user, db));
+  return appRouter.createCaller(makeTestContext({ db, user }));
 }
 
 describe('rota availability', () => {

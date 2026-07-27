@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { api } from '../../lib/trpc';
 import {
   Card,
@@ -23,10 +17,7 @@ import {
   SettingsStatusCard,
   ToggleRow,
 } from './parent-student-settings-status';
-import type {
-  LinkedChildSettings,
-  PreparedChildIconPhoto,
-} from './parent-student-settings-types';
+import type { LinkedChildSettings, PreparedChildIconPhoto } from './parent-student-settings-types';
 
 const weekdays = [
   { label: 'Sun', value: 0 },
@@ -42,11 +33,7 @@ function childById(
   children: readonly LinkedChildSettings[],
   selectedChildId: string | null,
 ): LinkedChildSettings | null {
-  return (
-    children.find((child) => child.studentId === selectedChildId) ??
-    children[0] ??
-    null
-  );
+  return children.find((child) => child.studentId === selectedChildId) ?? children[0] ?? null;
 }
 
 function passwordMeetsPolicy(value: string): boolean {
@@ -67,7 +54,9 @@ function normalisedPositiveInteger(value: string): number | null {
 
 export function ParentStudentSettingsScreen({ onRefresh }: { onRefresh: () => Promise<void> }) {
   const utils = api.useUtils();
-  const linkedChildren = api.studentSettings.listLinkedChildren.useQuery(undefined, { retry: false });
+  const linkedChildren = api.studentSettings.listLinkedChildren.useQuery(undefined, {
+    retry: false,
+  });
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -117,7 +106,9 @@ export function ParentStudentSettingsScreen({ onRefresh }: { onRefresh: () => Pr
       </View>
 
       {linkedChildren.isLoading ? <InlineSpinner label="Loading student settings" /> : null}
-      {linkedChildren.error ? <ErrorText>Access denied: {linkedChildren.error.message}</ErrorText> : null}
+      {linkedChildren.error ? (
+        <ErrorText>Access denied: {linkedChildren.error.message}</ErrorText>
+      ) : null}
       {formError ? <ErrorText>{formError}</ErrorText> : null}
       {status ? (
         <Card style={styles.successCard}>
@@ -314,7 +305,9 @@ function CredentialsCard({
         </>
       ) : (
         <>
-          <MutedText>Login handle display and reset controls for the linked student account.</MutedText>
+          <MutedText>
+            Login handle display and reset controls for the linked student account.
+          </MutedText>
           <Field label="Login handle" onChangeText={setLoginHandle} value={loginHandle} />
           <MobileButton
             disabled={disabled || busy}
@@ -371,7 +364,9 @@ function UsageLimitsCard({
   const setUsageLimits = api.studentSettings.setUsageLimits.useMutation();
 
   useEffect(() => {
-    setDailyLimit(child.dailyUsageLimitMinutes === null ? '' : String(child.dailyUsageLimitMinutes));
+    setDailyLimit(
+      child.dailyUsageLimitMinutes === null ? '' : String(child.dailyUsageLimitMinutes),
+    );
     setOffLimitWeekdays(child.offLimitWeekdays);
   }, [child.dailyUsageLimitMinutes, child.offLimitWeekdays, child.studentId]);
 
@@ -522,7 +517,9 @@ function ChildIconCard({
       <View style={styles.iconRow}>
         <ChildIcon child={child} />
         <View style={styles.iconText}>
-          <Text style={styles.smallStrong}>{child.childIconPhotoUrl ? 'Photo set' : 'Initials shown'}</Text>
+          <Text style={styles.smallStrong}>
+            {child.childIconPhotoUrl ? 'Photo set' : 'Initials shown'}
+          </Text>
           <MutedText>JPEG, PNG, or WebP. Maximum 5 MB.</MutedText>
         </View>
       </View>
@@ -546,8 +543,8 @@ function ChildIconCard({
         <Card style={styles.uploadCard}>
           <Text style={styles.smallStrong}>Upload prepared</Text>
           <MutedText>
-            Upload the selected file to Oasis storage, then confirm it here so the child icon
-            record is updated.
+            Upload the selected file to Oasis storage, then confirm it here so the child icon record
+            is updated.
           </MutedText>
           <MobileButton
             disabled={disabled || busy}
@@ -590,7 +587,10 @@ function AccessControlsCard({
         reason: locked ? normalisedNullable(lockReason) : null,
         studentId: child.studentId,
       });
-      onSaved(locked ? 'Settings saved. Parent lock enabled.' : 'Settings saved. Parent lock cleared.', updated);
+      onSaved(
+        locked ? 'Settings saved. Parent lock enabled.' : 'Settings saved. Parent lock cleared.',
+        updated,
+      );
     } catch (error) {
       onError(error instanceof Error ? error.message : 'Parent lock could not be updated.');
     }
@@ -615,13 +615,10 @@ function AccessControlsCard({
   return (
     <Card>
       <SectionTitle>Parent lock</SectionTitle>
-      <MutedText>Locking the portal blocks student access until the parent lock is cleared.</MutedText>
-      <Field
-        label="Parent lock reason"
-        multiline
-        onChangeText={setLockReason}
-        value={lockReason}
-      />
+      <MutedText>
+        Locking the portal blocks student access until the parent lock is cleared.
+      </MutedText>
+      <Field label="Parent lock reason" multiline onChangeText={setLockReason} value={lockReason} />
       <View style={styles.actionRow}>
         <MobileButton
           disabled={disabled || busy}

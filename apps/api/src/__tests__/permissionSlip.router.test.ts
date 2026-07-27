@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import { permissionSlipRouter } from '../routers/permissionSlip.js';
 import { router } from '../trpc.js';
 
@@ -260,7 +260,8 @@ function makeFakeDb(seed?: {
             ...recipient,
             student,
             answers: answers.filter(
-              (answer) => answer.slipId === recipient.slipId && answer.studentId === recipient.studentId,
+              (answer) =>
+                answer.slipId === recipient.slipId && answer.studentId === recipient.studentId,
             ),
           };
         }),
@@ -302,7 +303,8 @@ function makeFakeDb(seed?: {
           return Promise.resolve(
             students.filter((student) => {
               if (ids && !ids.includes(student.id)) return false;
-              if (args.where?.active !== undefined && student.active !== args.where.active) return false;
+              if (args.where?.active !== undefined && student.active !== args.where.active)
+                return false;
               return true;
             }),
           );
@@ -310,16 +312,18 @@ function makeFakeDb(seed?: {
       ),
     },
     calendarEvent: {
-      create: vi.fn((args: { data: Omit<StoredCalendarEvent, 'id' | 'createdAt' | 'updatedAt'> }) => {
-        const event: StoredCalendarEvent = {
-          id: `event_${String(calendarSequence++)}`,
-          createdAt: new Date('2026-05-10T11:00:00.000Z'),
-          updatedAt: new Date('2026-05-10T11:00:00.000Z'),
-          ...args.data,
-        };
-        calendarEvents.push(event);
-        return Promise.resolve(event);
-      }),
+      create: vi.fn(
+        (args: { data: Omit<StoredCalendarEvent, 'id' | 'createdAt' | 'updatedAt'> }) => {
+          const event: StoredCalendarEvent = {
+            id: `event_${String(calendarSequence++)}`,
+            createdAt: new Date('2026-05-10T11:00:00.000Z'),
+            updatedAt: new Date('2026-05-10T11:00:00.000Z'),
+            ...args.data,
+          };
+          calendarEvents.push(event);
+          return Promise.resolve(event);
+        },
+      ),
       update: vi.fn(
         (args: {
           where: { id: string };
@@ -333,39 +337,55 @@ function makeFakeDb(seed?: {
       ),
     },
     permissionSlip: {
-      findMany: vi.fn((args: { where?: { active?: boolean; recipients?: { some: { studentId: { in: string[] } } } } } = {}) =>
-        Promise.resolve(
-          slips
-            .filter((slip) => {
-              if (args.where?.active !== undefined && slip.active !== args.where.active) return false;
-              const ids = args.where?.recipients?.some.studentId.in;
-              if (
-                ids &&
-                !recipients.some(
-                  (recipient) => recipient.slipId === slip.id && ids.includes(recipient.studentId),
-                )
-              ) {
-                return false;
-              }
-              return true;
-            })
-            .map(withRelations),
-        ),
+      findMany: vi.fn(
+        (
+          args: {
+            where?: { active?: boolean; recipients?: { some: { studentId: { in: string[] } } } };
+          } = {},
+        ) =>
+          Promise.resolve(
+            slips
+              .filter((slip) => {
+                if (args.where?.active !== undefined && slip.active !== args.where.active)
+                  return false;
+                const ids = args.where?.recipients?.some.studentId.in;
+                if (
+                  ids &&
+                  !recipients.some(
+                    (recipient) =>
+                      recipient.slipId === slip.id && ids.includes(recipient.studentId),
+                  )
+                ) {
+                  return false;
+                }
+                return true;
+              })
+              .map(withRelations),
+          ),
       ),
-      findUnique: vi.fn((args: { where: { id: string }; include?: unknown; select?: { id?: true; calendarEventId?: true } }) => {
-        const slip = slips.find((candidate) => candidate.id === args.where.id);
-        if (!slip) return Promise.resolve(null);
-        if (args.select) {
-          return Promise.resolve({
-            ...(args.select.id ? { id: slip.id } : {}),
-            ...(args.select.calendarEventId ? { calendarEventId: slip.calendarEventId } : {}),
-          });
-        }
-        return Promise.resolve(args.include ? withRelations(slip) : slip);
-      }),
+      findUnique: vi.fn(
+        (args: {
+          where: { id: string };
+          include?: unknown;
+          select?: { id?: true; calendarEventId?: true };
+        }) => {
+          const slip = slips.find((candidate) => candidate.id === args.where.id);
+          if (!slip) return Promise.resolve(null);
+          if (args.select) {
+            return Promise.resolve({
+              ...(args.select.id ? { id: slip.id } : {}),
+              ...(args.select.calendarEventId ? { calendarEventId: slip.calendarEventId } : {}),
+            });
+          }
+          return Promise.resolve(args.include ? withRelations(slip) : slip);
+        },
+      ),
       create: vi.fn(
         (args: {
-          data: Omit<StoredSlip, 'id' | 'createdAt' | 'updatedAt' | 'createdById' | 'calendarEventId'> & {
+          data: Omit<
+            StoredSlip,
+            'id' | 'createdAt' | 'updatedAt' | 'createdById' | 'calendarEventId'
+          > & {
             calendarEvent?: { connect: { id: string } };
             createdBy: { connect: { id: string } };
           };
@@ -474,7 +494,8 @@ function makeFakeDb(seed?: {
             if (
               args.skipDuplicates &&
               recipients.some(
-                (recipient) => recipient.slipId === row.slipId && recipient.studentId === row.studentId,
+                (recipient) =>
+                  recipient.slipId === row.slipId && recipient.studentId === row.studentId,
               )
             ) {
               return;
@@ -542,18 +563,12 @@ function makeFakeDb(seed?: {
   return db;
 }
 
-function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
   const appRouter = router({ permissionSlip: permissionSlipRouter });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db };
+  return {
+    caller: appRouter.createCaller(makeTestContext({ db, user, rls: { kind: 'db', db } })),
+    db,
+  };
 }
 
 const createInput = {
@@ -699,7 +714,9 @@ describe('permissionSlip parent access', () => {
       answers: [],
     });
 
-    expect(response.recipients.find((recipient) => recipient.studentId === 's_child_1')).toMatchObject({
+    expect(
+      response.recipients.find((recipient) => recipient.studentId === 's_child_1'),
+    ).toMatchObject({
       responseStatus: 'Signed',
       paymentStatus: 'Unpaid',
     });
@@ -744,7 +761,9 @@ describe('permissionSlip parent access', () => {
       answers: [],
     });
 
-    expect(response.recipients.find((recipient) => recipient.studentId === 's_child_1')).toMatchObject({
+    expect(
+      response.recipients.find((recipient) => recipient.studentId === 's_child_1'),
+    ).toMatchObject({
       parentRespondedById: supervisorUser.id,
       responseStatus: 'Signed',
       paymentStatus: 'Unpaid',
@@ -819,7 +838,9 @@ describe('permissionSlip parent access', () => {
     await expect(makeCaller(studentUser).caller.permissionSlip.listParent()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
-    await expect(makeCaller(clubsLeadUser).caller.permissionSlip.listParent()).rejects.toMatchObject({
+    await expect(
+      makeCaller(clubsLeadUser).caller.permissionSlip.listParent(),
+    ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });

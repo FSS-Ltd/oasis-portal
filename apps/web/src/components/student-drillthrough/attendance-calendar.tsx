@@ -25,7 +25,11 @@ function addMonths(date: Date, delta: number): Date {
 }
 
 function compareMonth(left: Date, right: Date): number {
-  return left.getUTCFullYear() * 12 + left.getUTCMonth() - (right.getUTCFullYear() * 12 + right.getUTCMonth());
+  return (
+    left.getUTCFullYear() * 12 +
+    left.getUTCMonth() -
+    (right.getUTCFullYear() * 12 + right.getUTCMonth())
+  );
 }
 
 function toDateKey(date: Date): string {
@@ -33,7 +37,11 @@ function toDateKey(date: Date): string {
 }
 
 function monthLabel(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date);
+  return new Intl.DateTimeFormat('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
 }
 
 function statusClass(status: AttendanceStatus | undefined): string {
@@ -78,7 +86,10 @@ export function AttendanceCalendar({
   const canGoForward = compareMonth(monthDate, currentMonth) < 0;
 
   return (
-    <section className="panel panel__body student-attendance-calendar" aria-label="Attendance calendar">
+    <section
+      className="panel panel__body student-attendance-calendar"
+      aria-label="Attendance calendar"
+    >
       <div className="student-attendance-calendar__header">
         <h3>{monthLabel(monthDate)}</h3>
         <div className="student-attendance-calendar__controls">
@@ -111,7 +122,11 @@ export function AttendanceCalendar({
           </span>
         ))}
         {Array.from({ length: leadingBlankDays }, (_, index) => (
-          <span aria-hidden="true" className="student-attendance-calendar__blank" key={`blank-${String(index)}`} />
+          <span
+            aria-hidden="true"
+            className="student-attendance-calendar__blank"
+            key={`blank-${String(index)}`}
+          />
         ))}
         {Array.from({ length: daysInMonth }, (_, index) => {
           const day = index + 1;

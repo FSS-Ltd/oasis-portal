@@ -20,9 +20,10 @@ export const STANDARD_SCHOOL_YEARS = [
 
 export type StandardSchoolYear = (typeof STANDARD_SCHOOL_YEARS)[number];
 
-export const standardSchoolYearSchema = z.enum(
-  STANDARD_SCHOOL_YEARS as unknown as readonly [StandardSchoolYear, ...StandardSchoolYear[]],
-);
+const standardSchoolYearValues: readonly [StandardSchoolYear, ...StandardSchoolYear[]] =
+  STANDARD_SCHOOL_YEARS;
+
+export const standardSchoolYearSchema = z.enum(standardSchoolYearValues);
 
 const yearSet = new Set<string>(STANDARD_SCHOOL_YEARS);
 

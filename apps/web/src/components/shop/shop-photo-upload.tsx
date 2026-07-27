@@ -4,18 +4,14 @@ import { type ChangeEvent, type ReactNode, useMemo, useRef, useState } from 'rea
 import { useSession } from '@clerk/nextjs';
 import { Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  photoMimeTypeForFile,
+  validatePhotoFile,
+  validatePhotoFileSignature,
+} from '@/lib/photo-upload-validation';
 import { createClient } from '@/lib/supabase/client';
 
-const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const PHOTO_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp';
-
-const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'] as const;
-const mimeTypeByExtension: Record<string, string> = {
-  '.jpeg': 'image/jpeg',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.webp': 'image/webp',
-};
 
 export interface ShopPhotoUploadPayload {
   fileName: string;
@@ -40,46 +36,6 @@ interface ShopPhotoUploadButtonProps {
   variant?: 'secondary' | 'ghost';
 }
 
-function fileExtension(fileName: string): string {
-  const lowerName = fileName.toLowerCase();
-  return allowedExtensions.find((extension) => lowerName.endsWith(extension)) ?? '';
-}
-
-function mimeTypeForFile(file: File): string {
-  if (file.type) return file.type;
-  return mimeTypeByExtension[fileExtension(file.name)] ?? 'application/octet-stream';
-}
-
-function validateFile(file: File): string | null {
-  const extension = fileExtension(file.name);
-  if (!extension) return 'Photos must be JPEG, PNG, or WebP files.';
-  if (file.size > MAX_PHOTO_BYTES) return 'Photos must be 5 MB or less.';
-  return null;
-}
-
-function hasSignature(mimeType: string, bytes: Uint8Array): boolean {
-  if (mimeType === 'image/png') {
-    return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every(
-      (value, index) => bytes[index] === value,
-    );
-  }
-  if (mimeType === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  if (mimeType === 'image/webp') {
-    return (
-      String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
-      String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
-    );
-  }
-  return false;
-}
-
-async function validateFileSignature(file: File): Promise<string | null> {
-  const mimeType = mimeTypeForFile(file);
-  const bytes = new Uint8Array(await file.slice(0, 12).arrayBuffer());
-  if (!hasSignature(mimeType, bytes)) return `${file.name} does not match its selected file type.`;
-  return null;
-}
-
 async function uploadPhoto(
   file: File,
   supabase: ReturnType<typeof createClient>,
@@ -90,7 +46,7 @@ async function uploadPhoto(
     body: JSON.stringify({
       file: {
         fileName: file.name,
-        mimeType: mimeTypeForFile(file),
+        mimeType: photoMimeTypeForFile(file),
         sizeBytes: file.size,
       },
     }),
@@ -144,7 +100,7 @@ export function ShopPhotoUploadButton({
     event.target.value = '';
     if (!file) return;
 
-    const validationError = validateFile(file);
+    const validationError = validatePhotoFile(file);
     if (validationError) {
       onError(validationError);
       return;
@@ -152,7 +108,7 @@ export function ShopPhotoUploadButton({
 
     setUploading(true);
     try {
-      const signatureError = await validateFileSignature(file);
+      const signatureError = await validatePhotoFileSignature(file);
       if (signatureError) {
         onError(signatureError);
         return;

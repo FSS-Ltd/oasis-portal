@@ -1,7 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type { RouterInputs, RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
+import {
+  Badge,
+  Card,
+  InlineSpinner,
+  MutedText,
+  SectionTitle,
+  MobileButton,
+} from '../core/mobile-ui';
 
 type LeaderboardInput = NonNullable<Exclude<RouterInputs['leaderboard']['get'], void>>;
 type LeaderboardKind = Exclude<NonNullable<LeaderboardInput['kind']>, 'HighestDemerits'>;
@@ -24,13 +31,7 @@ function scoreLabel(kind: LeaderboardKind): string {
   return leaderboardKinds.find((option) => option.kind === kind)?.scoreLabel ?? 'merits';
 }
 
-function LeaderboardRowItem({
-  kind,
-  row,
-}: {
-  kind: LeaderboardKind;
-  row: LeaderboardRow;
-}) {
+function LeaderboardRowItem({ kind, row }: { kind: LeaderboardKind; row: LeaderboardRow }) {
   return (
     <View style={styles.row}>
       <View style={styles.rankBadge}>

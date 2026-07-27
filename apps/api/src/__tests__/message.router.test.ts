@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Role, SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import type { EmailClient } from '../lib/email.js';
 import { createMessageRouter } from '../routers/message.js';
 import { router } from '../trpc.js';
@@ -620,15 +620,6 @@ function makeFakeDb(
   };
 }
 
-function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeFakeEmailClient(result = { id: 'email_123' }) {
   const send = vi.fn<EmailClient['send']>().mockResolvedValue(result);
   const client: EmailClient = { send };
@@ -637,7 +628,7 @@ function makeFakeEmailClient(result = { id: 'email_123' }) {
 
 function makeCaller(user: SessionUser | null, db = makeFakeDb(), email = makeFakeEmailClient()) {
   const appRouter = router({ message: createMessageRouter({ emailClient: email.client }) });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db, email };
+  return { caller: appRouter.createCaller(makeTestContext({ db, user })), db, email };
 }
 
 describe('message.openThread', () => {
@@ -1162,10 +1153,7 @@ describe('message.listRecipients', () => {
       role: 'Parent',
       active: false,
     });
-    const { caller } = makeCaller(
-      headUser,
-      makeFakeDb([], [], [...defaultUsers, inactiveParent]),
-    );
+    const { caller } = makeCaller(headUser, makeFakeDb([], [], [...defaultUsers, inactiveParent]));
 
     const recipients = await caller.message.listRecipients({
       kind: 'ParentStaff',

@@ -3,7 +3,16 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RouterOutputs } from '../../lib/trpc';
 import { api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
-import { Badge, Card, ErrorText, InlineSpinner, MutedText, SectionTitle, MobileButton } from '../core/mobile-ui';
+import {
+  Badge,
+  Card,
+  ErrorText,
+  InlineSpinner,
+  MutedText,
+  SectionTitle,
+  MobileButton,
+} from '../core/mobile-ui';
+import { formatMerits, stockLabel, stockVariant } from './mobile-shop-utils';
 
 type ShopItem = RouterOutputs['shop']['listItems'][number];
 type ShopCategory = ShopItem['category'];
@@ -20,24 +29,6 @@ const CATEGORY_ORDER: readonly ShopCategory[] = [
   'Merch',
   'Recognition',
 ];
-
-function formatMerits(value: number): string {
-  return new Intl.NumberFormat('en-GB').format(value);
-}
-
-function stockVariant(item: ShopItem): 'success' | 'warning' | 'danger' | 'neutral' {
-  if (item.stockStatus === 'Inactive') return 'neutral';
-  if (item.stockStatus === 'OutOfStock') return 'danger';
-  if (item.stockStatus === 'LowStock') return 'warning';
-  return 'success';
-}
-
-function stockLabel(item: ShopItem): string {
-  if (item.stockStatus === 'Inactive') return 'Paused';
-  if (item.stockStatus === 'OutOfStock') return 'Out';
-  if (item.stockStatus === 'LowStock') return `Low · ${String(item.stockCount)}`;
-  return `${String(item.stockCount)} left`;
-}
 
 function cartLinesFor(items: readonly ShopItem[], cart: readonly CartLine[]) {
   const itemById = new Map(items.map((item) => [item.id, item]));
@@ -113,8 +104,7 @@ function CategoryFilters({
               style={[
                 styles.categoryDot,
                 {
-                  backgroundColor:
-                    category === 'All' ? C.navy : sample?.categoryInk ?? C.border,
+                  backgroundColor: category === 'All' ? C.navy : (sample?.categoryInk ?? C.border),
                 },
               ]}
             />
@@ -153,7 +143,10 @@ function ShopItemCard({
         <MobileShopTile item={item} size={92} />
         <View style={styles.itemBody}>
           <View style={styles.itemMeta}>
-            <Badge variant="blue" style={{ backgroundColor: item.categoryTint, color: item.categoryInk }}>
+            <Badge
+              variant="blue"
+              style={{ backgroundColor: item.categoryTint, color: item.categoryInk }}
+            >
               {item.categoryLabel}
             </Badge>
             <Badge variant={stockVariant(item)}>{stockLabel(item)}</Badge>
@@ -198,7 +191,10 @@ function ItemDetailCard({
       <View style={styles.detailHero}>
         <MobileShopTile item={item} size={136} />
         <View style={styles.detailBody}>
-          <Badge variant="blue" style={{ backgroundColor: item.categoryTint, color: item.categoryInk }}>
+          <Badge
+            variant="blue"
+            style={{ backgroundColor: item.categoryTint, color: item.categoryInk }}
+          >
             {item.categoryLabel}
           </Badge>
           <SectionTitle>{item.name}</SectionTitle>
@@ -319,7 +315,9 @@ export function MobileShopReservationPanel({
   });
 
   const activeItems = items.filter((item) => item.active);
-  const visibleItems = activeItems.filter((item) => category === 'All' || item.category === category);
+  const visibleItems = activeItems.filter(
+    (item) => category === 'All' || item.category === category,
+  );
   const selectedItem = activeItems.find((item) => item.id === selectedItemId) ?? null;
   const cartLines = cartLinesFor(activeItems, cart);
   const cartTotal = cartLines.reduce((total, line) => total + line.lineTotal, 0);

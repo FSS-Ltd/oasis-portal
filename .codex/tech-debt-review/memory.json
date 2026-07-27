@@ -2,7 +2,7 @@
   "version": 1,
   "repoId": "oasis-portal",
   "currentPass": 1,
-  "lastRunDate": "2026-07-03",
+  "lastRunDate": "2026-07-26",
   "reviewedFiles": {
     "apps/web/src/components/shop/shop-workflow-client.tsx": {
       "lastReviewedAt": "2026-05-27",
@@ -397,18 +397,6 @@
       ],
       "notes": "Carried forward from 2026-06-03 automation memory because repo memory was one run behind."
     },
-    "apps/mobile/src/components/smoke/portal-mobile-shell.tsx": {
-      "lastReviewedAt": "2026-06-03",
-      "pass": 1,
-      "status": "reviewed",
-      "validationStatus": "pass",
-      "lineCountBefore": 1076,
-      "lineCountAfter": 1076,
-      "issuesFixed": [
-        "Prior automation pass extracted portal mobile nav icons and styles."
-      ],
-      "notes": "Carried forward from 2026-06-03 automation memory; corrected path includes components/smoke."
-    },
     "apps/mobile/src/components/smoke/student-smoke-shop.tsx": {
       "lastReviewedAt": "2026-06-03",
       "pass": 1,
@@ -469,18 +457,6 @@
       ],
       "validationStatus": "partial: selected-file lint passed; API typecheck/tests blocked by unrelated in-progress student-account feature changes after Prisma generate.",
       "notes": "Selected as oversized production source file; left unchanged to preserve PDF layout behaviour."
-    },
-    "packages/db/src/pace-score-backfill.ts": {
-      "lastReviewedAt": "2026-06-04",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 483,
-      "lineCountAfter": 485,
-      "issuesFixed": [
-        "Extracted duplicated positive PACE number validation into a named parser helper."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as oversized DB parser utility; targeted DB tests passed."
     },
     "apps/api/src/lib/student-portal-access.ts": {
       "lastReviewedAt": "2026-06-04",
@@ -989,19 +965,6 @@
       "validationStatus": "pass",
       "notes": "Selected as oversized investment market data helper; provider response semantics and conversions were preserved."
     },
-    "apps/mobile/src/components/smoke/parent-message-conversation.tsx": {
-      "lastReviewedAt": "2026-06-09",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 392,
-      "lineCountAfter": 388,
-      "issuesFixed": [
-        "Extracted parent message metadata label formatting into a named helper.",
-        "Formatted the selected file to satisfy Prettier."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as oversized mobile conversation UI; message rendering semantics were not changed."
-    },
     "apps/web/src/components/incidents/incident-parent-portal.tsx": {
       "lastReviewedAt": "2026-06-09",
       "pass": 1,
@@ -1076,18 +1039,6 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as oversized club detail UI; club tabs, roster, rota, lead assignment, and notice behavior were not changed."
-    },
-    "apps/mobile/src/components/smoke/sign-in-panel.tsx": {
-      "lastReviewedAt": "2026-06-09",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 342,
-      "lineCountAfter": 350,
-      "issuesFixed": [
-        "Replaced second-factor priority map/find chaining with a typed priority constant and early-return loop."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as oversized mobile sign-in UI; Clerk sign-in and MFA semantics were not changed."
     },
     "apps/mobile/src/components/smoke/student-smoke-wallet.tsx": {
       "lastReviewedAt": "2026-06-09",
@@ -1359,18 +1310,6 @@
       "validationStatus": "pass",
       "notes": "High-churn domain entrypoint reviewed unchanged to avoid public export contract churn."
     },
-    "packages/db/scripts/seed-parent-portal-demo.ts": {
-      "lastReviewedAt": "2026-06-13",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 1255,
-      "lineCountAfter": 1256,
-      "issuesFixed": [
-        "Reviewed oversized demo seed script; no safe local cleanup was justified."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
-    },
     "apps/api/src/services/market-data/investment-market-refresh.ts": {
       "lastReviewedAt": "2026-06-13",
       "pass": 1,
@@ -1391,18 +1330,6 @@
       "lineCountAfter": 687,
       "issuesFixed": [
         "Named the repeated community group not-found message."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
-    },
-    "packages/db/scripts/backfill-talia-pace-scores.ts": {
-      "lastReviewedAt": "2026-06-13",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 661,
-      "lineCountAfter": 668,
-      "issuesFixed": [
-        "Reviewed oversized PACE backfill script; formatting now passes and no safe local cleanup was justified."
       ],
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed oversized source file in pass 1; behaviour and public contracts were preserved."
@@ -1516,18 +1443,6 @@
       "validationStatus": "pass",
       "notes": "Selected as unreviewed clubs UI; no route or data contract changes."
     },
-    "apps/mobile/src/components/smoke/parent-message-inbox.tsx": {
-      "lastReviewedAt": "2026-06-14",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 292,
-      "lineCountAfter": 294,
-      "issuesFixed": [
-        "Extracted the thread count label into a small local helper."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as unreviewed mobile parent messaging UI; label logic preserved."
-    },
     "apps/web/src/components/incidents/incident-staff-workflow-state.ts": {
       "lastReviewedAt": "2026-06-14",
       "pass": 1,
@@ -1563,18 +1478,6 @@
       ],
       "validationStatus": "pass",
       "notes": "Selected as unreviewed attendance reporting UI; status values preserved."
-    },
-    "apps/mobile/src/components/smoke/smoke-ui.tsx": {
-      "lastReviewedAt": "2026-06-14",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 285,
-      "lineCountAfter": 285,
-      "issuesFixed": [
-        "Reviewed lint, format, type surface, and component structure; no safe source change needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as unreviewed shared mobile smoke UI; left unchanged after review."
     },
     "apps/mobile/src/components/smoke/parent-smoke-clubs.tsx": {
       "lastReviewedAt": "2026-06-14",
@@ -2204,78 +2107,6 @@
       "validationStatus": "pass",
       "notes": "Selected as an unreviewed oversized source file; left unchanged after clean lint/type inspection."
     },
-    "apps/mobile/src/components/parent/parent-profile-registration.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/staff/staff-club-manager.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/staff/staff-communications.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/staff/staff-club-lead-behaviour-screen.tsx": {
-      "lastReviewedAt": "2026-06-20",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-20 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/portal/production-portal-shell.tsx": {
-      "lastReviewedAt": "2026-06-21",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/parent/parent-settings-screen.tsx": {
-      "lastReviewedAt": "2026-06-21",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
-    },
     "apps/mobile/src/components/parent/parent-reports-ranks-screen.tsx": {
       "lastReviewedAt": "2026-06-21",
       "pass": 1,
@@ -2294,18 +2125,6 @@
       "status": "reviewed",
       "lineCountBefore": 608,
       "lineCountAfter": 608,
-      "issuesFixed": [
-        "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
-      ],
-      "validationStatus": "pass",
-      "notes": "Carried forward from 2026-06-21 automation memory; source branch memory was one run behind."
-    },
-    "apps/mobile/src/components/parent/parent-permission-slip-detail-screen.tsx": {
-      "lastReviewedAt": "2026-06-21",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 0,
-      "lineCountAfter": 0,
       "issuesFixed": [
         "Carried forward from automation memory so pass 1 does not repeat this reviewed file."
       ],
@@ -2591,134 +2410,28 @@
       "notes": "Selected as an oversized mobile staff club manager attendance component."
     },
     "apps/mobile/src/components/staff/staff-club-lead-attendance.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 305,
-      "lineCountAfter": 75,
-      "issuesFixed": [
-        "Extracted attendance summary and roster row presentation into an adjacent component module."
-      ],
-      "validationStatus": "pass: selected-file ESLint, mobile lint/typecheck/test, Prettier, git diff --check, graphify update",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/mobile/src/components/staff/staff-rota-availability-panel.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 302,
-      "lineCountAfter": 124,
-      "issuesFixed": [
-        "Extracted availability row editors and draft update helpers into an adjacent component module."
-      ],
-      "validationStatus": "pass: selected-file ESLint, mobile lint/typecheck/test, Prettier, git diff --check, graphify update",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/components/student/student-nav.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 172,
-      "lineCountAfter": 198,
-      "issuesFixed": [
-        "Centralized repeated student nav link class, icon, badge, and active-route rendering."
-      ],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/app/(parent)/parent/layout.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 138,
-      "lineCountAfter": 142,
-      "issuesFixed": [
-        "Named parent shell count loading to keep the layout render path focused."
-      ],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/components/parent/parent-nav.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 167,
-      "lineCountAfter": 196,
-      "issuesFixed": [
-        "Centralized parent nav link rendering and mobile label selection."
-      ],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/app/post-sign-in/resolve/page.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 107,
-      "lineCountAfter": 120,
-      "issuesFixed": [
-        "Extracted portal-switch destination selection with the existing destination type preserved."
-      ],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/lib/profile-display.ts": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 54,
-      "lineCountAfter": 57,
-      "issuesFixed": [
-        "Moved repeated role/person/permission label maps out of function bodies."
-      ],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "packages/db/scripts/smoke-rls.ts": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 232,
-      "lineCountAfter": 234,
-      "issuesFixed": [
-        "Centralized repeated visible-behaviour count assertions."
-      ],
-      "validationStatus": "pass: selected-file ESLint, db lint/typecheck/test, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/app/(admin)/admin/students/students-list.tsx": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 226,
-      "lineCountAfter": 230,
-      "issuesFixed": [
-        "Reused one student date formatter instead of constructing one per row render."
-      ],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check",
-      "notes": "Behaviour-preserving maintenance cleanup only."
-    },
-    "apps/web/src/app/api/trpc/[trpc]/route.ts": {
-      "lastReviewedAt": "2026-06-24",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 88,
-      "lineCountAfter": 88,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, web typecheck, Prettier, git diff --check; reviewed unchanged",
-      "notes": "Reviewed lint/type/format surface; no safe local cleanup needed."
-    },
-    "apps/mobile/src/components/staff/staff-club-lead-attendance-components.tsx": {
       "lastReviewedAt": "2026-06-25",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 302,
-      "lineCountAfter": 302,
+      "lineCountBefore": 306,
+      "lineCountAfter": 306,
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as the only remaining oversized mobile component module in the current pass; already focused around presentational attendance rows, so no further safe extraction was made."
+      "notes": "Selected as oversized mobile React component."
+    },
+    "apps/mobile/src/components/staff/staff-rota-availability-panel.tsx": {
+      "lastReviewedAt": "2026-06-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 303,
+      "lineCountAfter": 303,
+      "issuesFixed": [
+        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as oversized mobile React component."
     },
     "apps/mobile/src/components/student/student-mobile-access-gate.tsx": {
       "lastReviewedAt": "2026-06-25",
@@ -2754,7 +2467,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
     },
     "apps/web/src/components/pace/pace-progress-table.tsx": {
@@ -2766,7 +2479,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
     },
     "apps/web/src/components/student/student-faith-client.tsx": {
@@ -2778,7 +2491,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible source file by line count after oversized candidates."
     },
     "packages/domain/src/__tests__/registration.test.ts": {
@@ -2821,10 +2534,10 @@
       "lastReviewedAt": "2026-06-26",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 264,
+      "lineCountBefore": 260,
       "lineCountAfter": 264,
       "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
+        "Formatted selected file with Prettier."
       ],
       "validationStatus": "pass",
       "notes": "Selected as next unreviewed eligible mobile source file by line count."
@@ -2838,7 +2551,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/components/clubs/clubs-management-client.tsx": {
@@ -2850,7 +2563,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/components/rota/monthly-availability-editor.tsx": {
@@ -2862,7 +2575,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/components/community/student-community-contacts.tsx": {
@@ -2874,7 +2587,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/components/clubs/club-attendance-panel.tsx": {
@@ -2886,7 +2599,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/components/invoices/admin-invoice-modals.tsx": {
@@ -2898,7 +2611,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/mobile/src/components/staff/staff-shop-counter-purchase.tsx": {
@@ -2922,7 +2635,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/components/child-log/snapshot-controls.tsx": {
@@ -2934,7 +2647,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "partial - selected lint and formatting passed; web typecheck has unrelated route-type failure outside selected files",
       "notes": "Selected as next unreviewed eligible web source file by line count."
     },
     "apps/web/src/app/landing-data.ts": {
@@ -2946,7 +2659,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
     "apps/web/src/lib/user-facing-errors.ts": {
@@ -2958,7 +2671,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
     "apps/mobile/src/components/student/student-clubs-panel.tsx": {
@@ -2994,7 +2707,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
     "apps/api/src/__tests__/investment-accounting-invariants.test.ts": {
@@ -3018,7 +2731,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
     "apps/web/src/app/(admin)/admin/staff/_components/attendance-history-panel.tsx": {
@@ -3030,7 +2743,7 @@
       "issuesFixed": [
         "Formatted selected file with Prettier."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
     "apps/web/src/components/messages/message-contact-list.tsx": {
@@ -3042,7 +2755,7 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
     },
     "apps/web/src/components/calendar/calendar-model.ts": {
@@ -3054,128 +2767,873 @@
       "issuesFixed": [
         "Reviewed lint, type, formatting, imports, and local structure; no safe source change was needed."
       ],
-      "validationStatus": "pass",
+      "validationStatus": "pass-with-existing-unrelated-web-typecheck-failure",
       "notes": "Selected as an unreviewed clean source file in pass 1; behaviour preserved."
-    },
-    "apps/mobile/src/components/staff/staff-rota-availability-editor.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 242,
-      "lineCountAfter": 243,
-      "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
-    },
-    "apps/web/src/components/student/student-shop-client.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 230,
-      "lineCountAfter": 231,
-      "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
-    },
-    "apps/web/src/components/student/invest/student-invest-trade.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 229,
-      "lineCountAfter": 230,
-      "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
-    },
-    "apps/mobile/src/components/parent/parent-shop-cart.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 228,
-      "lineCountAfter": 231,
-      "issuesFixed": [
-        "Formatted selected file with Prettier to remove source formatting drift."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
-    },
-    "apps/mobile/src/components/messages/mobile-message-new-thread.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 227,
-      "lineCountAfter": 228,
-      "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
-    },
-    "apps/web/src/components/pace/pace-record-edit-modal.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 225,
-      "lineCountAfter": 226,
-      "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
-    },
-    "apps/web/src/components/student/student-clubs-client.tsx": {
-      "lastReviewedAt": "2026-06-28",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 222,
-      "lineCountAfter": 237,
-      "issuesFixed": [
-        "Formatted selected file with Prettier to remove source formatting drift."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
     },
     "apps/api/src/routers/staffHome.ts": {
       "lastReviewedAt": "2026-06-28",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 224,
+      "lineCountBefore": 225,
       "lineCountAfter": 225,
       "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward from automation memory to avoid duplicate review selection."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+      "notes": "Repo-local memory was behind the automation memory for this pass."
     },
     "apps/api/scripts/smoke-context-rls.ts": {
       "lastReviewedAt": "2026-06-28",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 216,
+      "lineCountBefore": 217,
       "lineCountAfter": 217,
       "issuesFixed": [
-        "Reviewed lint, type, formatting, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward from automation memory to avoid duplicate review selection."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file; no behaviour-preserving edit was needed."
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/web/src/lib/post-sign-in-routing.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 56,
+      "lineCountAfter": 56,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/web/src/middleware.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 33,
+      "lineCountAfter": 33,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/meritLedger.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 197,
+      "lineCountAfter": 197,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/__tests__/clubs.test.ts": {
+      "lastReviewedAt": "2026-06-29",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 112,
+      "lineCountAfter": 112,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/mobile/src/components/student/student-home-wallet-wiring.test.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 105,
+      "lineCountAfter": 105,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/registration.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 213,
+      "lineCountAfter": 213,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/clubs.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 102,
+      "lineCountAfter": 102,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 105,
+      "lineCountAfter": 105,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/mobile/src/components/parent/parent-home-wiring.test.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 97,
+      "lineCountAfter": 97,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/mobile/src/components/core/signed-in-router-wiring.test.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 105,
+      "lineCountAfter": 105,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/subjects.ts": {
+      "lastReviewedAt": "2026-06-30",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 157,
+      "lineCountAfter": 157,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/scripts/client-demo/verify.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/scripts/client-demo/plan.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/scripts/client-demo/seed-academic.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/scripts/client-demo/seed-messaging-safety.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/scripts/client-demo/seed-activities.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/__tests__/trpc.middleware.test.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 223,
+      "lineCountAfter": 223,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/__tests__/tithe.test.ts": {
+      "lastReviewedAt": "2026-07-01",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 220,
+      "lineCountAfter": 220,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/__tests__/studentPortalSettings.test.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 210,
+      "lineCountAfter": 210,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/mobile/src/components/staff/staff-home-model.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 167,
+      "lineCountAfter": 167,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/permissionSlips.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 70,
+      "lineCountAfter": 70,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/web/src/app/api/auth-context.ts": {
+      "lastReviewedAt": "2026-07-02",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 61,
+      "lineCountAfter": 61,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/routers/tithe.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 139,
+      "lineCountAfter": 139,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/leaderboard.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 97,
+      "lineCountAfter": 97,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 200,
+      "lineCountAfter": 200,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/lib/clerk.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 198,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/domain/src/__tests__/demeritPolicy.test.ts": {
+      "lastReviewedAt": "2026-07-03",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 191,
+      "lineCountAfter": 191,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/__tests__/invoice-past-due-reminders.test.ts": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/services/invoice-past-due-reminders.ts": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/__tests__/client-demo-seed.test.ts": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/api/src/services/student-notifications.ts": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 205,
+      "lineCountAfter": 205,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "apps/mobile/src/components/parent/parent-student-settings-styles.ts": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 202,
+      "lineCountAfter": 202,
+      "issuesFixed": [
+        "Carried forward from automation memory to avoid duplicate review selection."
+      ],
+      "validationStatus": "pass",
+      "notes": "Repo-local memory was behind the automation memory for this pass."
+    },
+    "packages/db/scripts/smoke-rls.ts": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 233,
+      "lineCountAfter": 233,
+      "issuesFixed": [
+        "Reviewed lint, type surface, imports, and structure; no safe source change needed."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as high-churn DB smoke script."
+    },
+    "apps/web/src/app/(admin)/admin/students/students-list.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 227,
+      "lineCountAfter": 229,
+      "issuesFixed": [
+        "Applied Prettier formatting to clear selected-file formatting drift."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as high-churn unreviewed admin student list."
+    },
+    "apps/mobile/src/components/student/student-notifications-list.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 198,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Reviewed lint, type surface, imports, and structure; no safe source change needed."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as unreviewed mobile student notification UI."
+    },
+    "apps/web/src/components/rota/my-availability-editor.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 197,
+      "lineCountAfter": 197,
+      "issuesFixed": [
+        "Reviewed lint, type surface, imports, and structure; no safe source change needed."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as unreviewed rota availability editor."
+    },
+    "apps/mobile/src/components/student/student-homework-activity-list.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 196,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Applied Prettier formatting to clear selected-file formatting drift."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as unreviewed mobile homework list."
+    },
+    "apps/web/src/components/parent/child-icon-photo-upload.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 194,
+      "lineCountAfter": 150,
+      "issuesFixed": [
+        "Reused shared photo upload validation helper to remove duplicated file checks."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Endpoint and upload payload behaviour preserved."
+    },
+    "apps/web/src/components/shop/shop-photo-upload.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 194,
+      "lineCountAfter": 150,
+      "issuesFixed": [
+        "Reused shared photo upload validation helper to remove duplicated file checks."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Endpoint and upload payload behaviour preserved."
+    },
+    "apps/mobile/src/components/student/student-club-detail-panel.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 193,
+      "lineCountAfter": 196,
+      "issuesFixed": [
+        "Applied Prettier formatting to clear selected-file formatting drift."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as unreviewed mobile club detail panel."
+    },
+    "apps/api/src/emails/_components/oasis-email-shell.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 190,
+      "lineCountAfter": 190,
+      "issuesFixed": [
+        "Reviewed lint, type surface, imports, and structure; no safe source change needed."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as unreviewed API email shell component."
+    },
+    "apps/mobile/src/components/staff/staff-club-manager-overview.tsx": {
+      "lastReviewedAt": "2026-07-19",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 189,
+      "lineCountAfter": 189,
+      "issuesFixed": [
+        "Reviewed lint, type surface, imports, and structure; no safe source change needed."
+      ],
+      "validationStatus": "pass-with-unrelated-web-typecheck-failure",
+      "notes": "Selected as unreviewed mobile staff club overview."
+    },
+    "apps/web/src/components/student/student-nav.tsx": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 172,
+      "lineCountAfter": 172,
+      "issuesFixed": [
+        "Extracted a local nav item class-name helper used by sidebar and bottom navigation."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/app/(parent)/parent/layout.tsx": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 138,
+      "lineCountAfter": 138,
+      "issuesFixed": [
+        "Reviewed parent shell layout; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/components/parent/parent-nav.tsx": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 167,
+      "lineCountAfter": 168,
+      "issuesFixed": [
+        "Extracted local nav item class-name and mobile-label helpers to remove repeated inline logic."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/app/post-sign-in/resolve/page.tsx": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 107,
+      "lineCountAfter": 107,
+      "issuesFixed": [
+        "Reviewed post-sign-in resolver; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/app/api/trpc/[trpc]/route.ts": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 88,
+      "lineCountAfter": 88,
+      "issuesFixed": [
+        "Reviewed tRPC route handler; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/lib/profile-display.ts": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 54,
+      "lineCountAfter": 57,
+      "issuesFixed": [
+        "Hoisted role, person-type, and permission-tag label maps to module constants."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/app/(admin)/admin/students/new/new-student-form.tsx": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 145,
+      "lineCountAfter": 145,
+      "issuesFixed": [
+        "Reviewed new student form; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/web/src/app/(admin)/admin/students/page.tsx": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 34,
+      "lineCountAfter": 34,
+      "issuesFixed": [
+        "Reviewed student list page shell; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "packages/domain/src/__tests__/users.test.ts": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 157,
+      "lineCountAfter": 157,
+      "issuesFixed": [
+        "Reviewed user domain tests; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/api/src/trpc.ts": {
+      "lastReviewedAt": "2026-07-20",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 153,
+      "lineCountAfter": 153,
+      "issuesFixed": [
+        "Reviewed API tRPC base procedures; no safe source edits needed."
+      ],
+      "validationStatus": "Selected-file ESLint and Prettier passed. API and domain typecheck passed. Web typecheck still fails on existing unselected clubs-lead typed-route issue. Focused domain users test passed.",
+      "notes": "Daily tech debt review; no product behaviour, API contract, schema, migration, auth, billing, tenancy, or safeguarding changes."
+    },
+    "apps/mobile/src/components/staff/staff-shop-counter-pickup-queue.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 189,
+      "lineCountAfter": 186,
+      "issuesFixed": [
+        "Applied Prettier formatting to selected mobile pickup queue component."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/mobile/src/components/student/student-markets-browse-card.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 187,
+      "lineCountAfter": 187,
+      "issuesFixed": [
+        "Reviewed selected market browse component; no safe source edits needed."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "packages/domain/src/schoolYears.ts": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 187,
+      "lineCountAfter": 188,
+      "issuesFixed": [
+        "Replaced double assertion for the Zod school-year enum with a typed readonly tuple alias."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/mobile/src/components/staff/staff-incident-form-controls.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 186,
+      "lineCountAfter": 186,
+      "issuesFixed": [
+        "Reviewed selected incident form controls; no safe source edits needed."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/mobile/src/components/student/student-faith-corner-panel.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 186,
+      "lineCountAfter": 176,
+      "issuesFixed": [
+        "Applied Prettier formatting to selected Faith Corner panel."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/web/src/app/(admin)/admin/rota/_components/rota-week-schedule.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 186,
+      "lineCountAfter": 176,
+      "issuesFixed": [
+        "Computed the rota shift colour once per shift and reused it for both inline styles.",
+        "Applied Prettier formatting to selected rota schedule component."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/web/src/components/landing/hero-preview.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 186,
+      "lineCountAfter": 186,
+      "issuesFixed": [
+        "Reviewed selected landing hero preview; no safe source edits needed."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/web/src/components/student/student-portal-gate.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 184,
+      "lineCountAfter": 184,
+      "issuesFixed": [
+        "Reviewed selected student portal gate; no safe source edits needed."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/mobile/src/components/student/student-homework-activity-submit-panel.tsx": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 183,
+      "lineCountAfter": 185,
+      "issuesFixed": [
+        "Applied Prettier formatting to selected homework submit panel."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/web/src/components/clubs/club-management-model.ts": {
+      "lastReviewedAt": "2026-07-22",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 183,
+      "lineCountAfter": 181,
+      "issuesFixed": [
+        "Applied Prettier formatting to selected clubs management model."
+      ],
+      "validationStatus": "pass with existing unrelated web typecheck failure documented",
+      "notes": "Selected as clean unreviewed source for daily tech debt review; behaviour preserved."
+    },
+    "apps/mobile/src/components/staff/staff-rota-availability-editor.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/student/student-shop-client.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 231,
+      "lineCountAfter": 231,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/student/invest/student-invest-trade.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 230,
+      "lineCountAfter": 230,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/parent/parent-shop-cart.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 229,
+      "lineCountAfter": 229,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/messages/mobile-message-new-thread.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 228,
+      "lineCountAfter": 228,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/pace/pace-record-edit-modal.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 226,
+      "lineCountAfter": 226,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/student/student-clubs-client.tsx": {
+      "lastReviewedAt": "2026-06-28",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 223,
+      "lineCountAfter": 223,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/student/student-homework-activity-detail.tsx": {
       "lastReviewedAt": "2026-06-28",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 215,
-      "lineCountAfter": 220,
+      "lineCountBefore": 216,
+      "lineCountAfter": 216,
       "issuesFixed": [
-        "Formatted selected file with Prettier to remove source formatting drift."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mid-sized source file with Prettier drift; behaviour preserved."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/core/signed-in-router.tsx": {
       "lastReviewedAt": "2026-06-29",
@@ -3187,7 +3645,7 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/staff/staff-portal-screen.tsx": {
       "lastReviewedAt": "2026-06-29",
@@ -3199,43 +3657,7 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; removed an unnecessary single-use homeScreen variable in that run."
-    },
-    "apps/web/src/lib/post-sign-in-routing.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 56,
-      "lineCountAfter": 56,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
-    },
-    "apps/web/src/middleware.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 27,
-      "lineCountAfter": 27,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
-    },
-    "packages/domain/src/meritLedger.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 197,
-      "lineCountAfter": 197,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(admin)/admin/staff/invite-user-form.tsx": {
       "lastReviewedAt": "2026-06-29",
@@ -3247,19 +3669,7 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
-    },
-    "packages/domain/src/__tests__/clubs.test.ts": {
-      "lastReviewedAt": "2026-06-29",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 112,
-      "lineCountAfter": 112,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(admin)/admin/students/[id]/student-detail.tsx": {
       "lastReviewedAt": "2026-06-29",
@@ -3271,19 +3681,19 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/layout.tsx": {
       "lastReviewedAt": "2026-06-29",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 44,
-      "lineCountAfter": 44,
+      "lineCountBefore": 58,
+      "lineCountAfter": 58,
       "issuesFixed": [
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(admin)/admin/staff/page.tsx": {
       "lastReviewedAt": "2026-06-29",
@@ -3295,43 +3705,7 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-29; no repo-local memory entry existed on origin/main."
-    },
-    "apps/mobile/src/components/student/student-home-wallet-wiring.test.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 105,
-      "lineCountAfter": 105,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
-    },
-    "packages/domain/src/registration.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 213,
-      "lineCountAfter": 213,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
-    },
-    "packages/domain/src/clubs.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 102,
-      "lineCountAfter": 102,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(admin)/admin/staff/people-profiles-client.tsx": {
       "lastReviewedAt": "2026-06-30",
@@ -3343,19 +3717,7 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
-    },
-    "apps/web/src/app/(admin)/admin/staff/_components/people-profile-model.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 105,
-      "lineCountAfter": 105,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(admin)/admin/calendar/page.tsx": {
       "lastReviewedAt": "2026-06-30",
@@ -3367,43 +3729,7 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
-    },
-    "apps/mobile/src/components/parent/parent-home-wiring.test.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 97,
-      "lineCountAfter": 97,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
-    },
-    "apps/mobile/src/components/core/signed-in-router-wiring.test.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 105,
-      "lineCountAfter": 105,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
-    },
-    "packages/domain/src/subjects.ts": {
-      "lastReviewedAt": "2026-06-30",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 157,
-      "lineCountAfter": 157,
-      "issuesFixed": [
-        "Carried forward reviewed-file record from automation memory."
-      ],
-      "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; no repo-local memory entry existed on origin/main."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/components/student/invest/student-invest-extras.tsx": {
       "lastReviewedAt": "2026-06-30",
@@ -3415,127 +3741,43 @@
         "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Reviewed in automation memory for 2026-06-30; formatted with Prettier in that run."
-    },
-    "apps/api/scripts/client-demo/verify.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 462,
-      "lineCountAfter": 462,
-      "issuesFixed": [
-        "Reviewed oversized client-demo verifier; no safe extraction made because the file is a linear Prisma count-check table and abstraction would add delegate typing complexity."
-      ],
-      "validationStatus": "pass",
-      "notes": "Oversized script selected after recent client-demo merge; lint, formatting, and typecheck were already clean."
-    },
-    "apps/api/scripts/client-demo/plan.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 294,
-      "lineCountAfter": 294,
-      "issuesFixed": [
-        "Reviewed client-demo plan validation and seed-data shape; no safe source change required."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed client-demo source file with validation and plan-building logic."
-    },
-    "apps/api/scripts/client-demo/seed-academic.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 281,
-      "lineCountAfter": 281,
-      "issuesFixed": [
-        "Reviewed academic demo seed helpers; no safe source change required."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed client-demo seed module."
-    },
-    "apps/api/scripts/client-demo/seed-messaging-safety.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 265,
-      "lineCountAfter": 265,
-      "issuesFixed": [
-        "Reviewed messaging, permission-slip, and incident demo seed helpers; no safe source change required."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed client-demo seed module; no safeguarding semantics changed."
-    },
-    "apps/api/scripts/client-demo/seed-activities.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 241,
-      "lineCountAfter": 241,
-      "issuesFixed": [
-        "Reviewed clubs, shop, homework, faith, and community demo seed helpers; no safe source change required."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as an unreviewed client-demo seed module."
-    },
-    "apps/api/src/__tests__/trpc.middleware.test.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 222,
-      "lineCountAfter": 222,
-      "issuesFixed": [
-        "Reviewed tRPC middleware tests; no safe source change required."
-      ],
-      "validationStatus": "pass",
-      "notes": "Focused API Vitest passed."
-    },
-    "packages/domain/src/__tests__/tithe.test.ts": {
-      "lastReviewedAt": "2026-07-01",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 219,
-      "lineCountAfter": 219,
-      "issuesFixed": [
-        "Reviewed tithe domain tests; no safe source change required."
-      ],
-      "validationStatus": "pass",
-      "notes": "Focused domain Vitest passed."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/student/student-faith-comments-panel.tsx": {
       "lastReviewedAt": "2026-07-01",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 214,
-      "lineCountAfter": 216,
+      "lineCountBefore": 215,
+      "lineCountAfter": 215,
       "issuesFixed": [
-        "Formatted selected file with Prettier."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as an unreviewed student mobile Faith Corner component."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/components/clubs/club-management-form-modal.tsx": {
       "lastReviewedAt": "2026-07-01",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 214,
-      "lineCountAfter": 216,
+      "lineCountBefore": 215,
+      "lineCountAfter": 215,
       "issuesFixed": [
-        "Formatted selected file with Prettier."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as an unreviewed clubs management modal."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/smoke/student-smoke-pace.tsx": {
       "lastReviewedAt": "2026-07-01",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 213,
-      "lineCountAfter": 206,
+      "lineCountBefore": 214,
+      "lineCountAfter": 214,
       "issuesFixed": [
-        "Formatted selected file with Prettier."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as an unreviewed mobile smoke PACE panel."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx": {
       "lastReviewedAt": "2026-07-02",
@@ -3543,53 +3785,23 @@
       "status": "reviewed",
       "lineCountBefore": 143,
       "lineCountAfter": 143,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/parent/parent-home-screen.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 210,
-      "lineCountAfter": 215,
-      "issuesFixed": [
-        "Removed redundant dashboard error alias and reused the existing linked-children boolean for the empty state."
-      ],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Small behaviour-preserving cleanup applied during the daily review."
-    },
-    "packages/domain/src/__tests__/studentPortalSettings.test.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "updated",
-      "lineCountBefore": 210,
-      "lineCountAfter": 201,
-      "issuesFixed": [
-        "Extracted a typed invalid-usage-limits assertion helper while preserving specific error-message expectations."
-      ],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Small behaviour-preserving cleanup applied during the daily review."
-    },
-    "apps/mobile/src/components/staff/staff-home-model.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 167,
-      "lineCountAfter": 167,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
-    },
-    "packages/domain/src/permissionSlips.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 70,
-      "lineCountAfter": 70,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+      "lineCountBefore": 210,
+      "lineCountAfter": 210,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(student)/student/layout.tsx": {
       "lastReviewedAt": "2026-07-02",
@@ -3597,31 +3809,23 @@
       "status": "reviewed",
       "lineCountBefore": 68,
       "lineCountAfter": 68,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
-    },
-    "apps/web/src/app/api/auth-context.ts": {
-      "lastReviewedAt": "2026-07-02",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 61,
-      "lineCountAfter": 61,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/post-sign-in/resolve/post-sign-in-transition.tsx": {
       "lastReviewedAt": "2026-07-02",
       "pass": 1,
-      "status": "updated",
+      "status": "reviewed",
       "lineCountBefore": 39,
-      "lineCountAfter": 41,
+      "lineCountAfter": 39,
       "issuesFixed": [
-        "Named the post-sign-in redirect delay constant to remove a magic number."
+        "Carried forward reviewed-file record from automation memory."
       ],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Small behaviour-preserving cleanup applied during the daily review."
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/components/behaviour/daily-demerit-badge.tsx": {
       "lastReviewedAt": "2026-07-02",
@@ -3629,9 +3833,11 @@
       "status": "reviewed",
       "lineCountBefore": 39,
       "lineCountAfter": 39,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/src/components/messages/mobile-messages-panel.tsx": {
       "lastReviewedAt": "2026-07-02",
@@ -3639,129 +3845,611 @@
       "status": "reviewed",
       "lineCountBefore": 206,
       "lineCountAfter": 206,
-      "issuesFixed": [],
-      "validationStatus": "pass: selected-file ESLint, package typechecks for web/mobile/domain, focused domain Vitest, selected Prettier check, git diff --check",
-      "notes": "Reviewed for lint/type errors and safe local cleanup opportunities; no source change needed."
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/(admin)/admin/attendance/page.tsx": {
       "lastReviewedAt": "2026-07-03",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 37,
-      "lineCountAfter": 37,
+      "lineCountBefore": 38,
+      "lineCountAfter": 38,
       "issuesFixed": [
-        "Reviewed lint, type safety, imports, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed route file."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/components/calendar/calendar-month-view.tsx": {
       "lastReviewedAt": "2026-07-03",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 197,
+      "lineCountBefore": 198,
       "lineCountAfter": 198,
       "issuesFixed": [
-        "Named the formatted month label once and reused it for the heading and calendar grid aria-label."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed calendar component."
-    },
-    "apps/api/src/routers/tithe.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 138,
-      "lineCountAfter": 140,
-      "issuesFixed": [
-        "Formatted selected router file with Prettier."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed API router; tithe request shapes, auth, and payment semantics were not changed."
-    },
-    "packages/domain/src/leaderboard.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 96,
-      "lineCountAfter": 96,
-      "issuesFixed": [
-        "Reviewed lint, type safety, exports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed domain helper."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/app/children-check/page.tsx": {
       "lastReviewedAt": "2026-07-03",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 79,
-      "lineCountAfter": 79,
+      "lineCountBefore": 80,
+      "lineCountAfter": 80,
       "issuesFixed": [
-        "Reviewed lint, type safety, imports, redirects, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed identity route file."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/mobile/app/_layout.tsx": {
       "lastReviewedAt": "2026-07-03",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 65,
-      "lineCountAfter": 65,
+      "lineCountBefore": 66,
+      "lineCountAfter": 66,
       "issuesFixed": [
-        "Reviewed lint, type safety, imports, configuration handling, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed mobile app root file."
-    },
-    "apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 199,
-      "lineCountAfter": 199,
-      "issuesFixed": [
-        "Reviewed lint, type safety, exports, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed supervisor utility file."
-    },
-    "apps/api/src/lib/clerk.ts": {
-      "lastReviewedAt": "2026-07-03",
-      "pass": 1,
-      "status": "reviewed",
-      "lineCountBefore": 197,
-      "lineCountAfter": 197,
-      "issuesFixed": [
-        "Reviewed lint, type safety, dependency adapter boundaries, suppressions, debug logs, and local structure; no safe source change was needed."
-      ],
-      "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed Clerk adapter file."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
     "apps/web/src/components/behaviour/behaviour-student-selector.tsx": {
       "lastReviewedAt": "2026-07-03",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 191,
-      "lineCountAfter": 191,
+      "lineCountBefore": 192,
+      "lineCountAfter": 192,
       "issuesFixed": [
-        "Reviewed lint, type safety, accessibility controls, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed behaviour component."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
     },
-    "packages/domain/src/__tests__/demeritPolicy.test.ts": {
-      "lastReviewedAt": "2026-07-03",
+    "apps/web/src/components/shop/shop-shared.tsx": {
+      "lastReviewedAt": "2026-07-04",
       "pass": 1,
       "status": "reviewed",
-      "lineCountBefore": 190,
-      "lineCountAfter": 190,
+      "lineCountBefore": 212,
+      "lineCountAfter": 212,
       "issuesFixed": [
-        "Reviewed lint, type safety, test assertions, suppressions, debug logs, and local structure; no safe source change was needed."
+        "Carried forward reviewed-file record from automation memory."
       ],
       "validationStatus": "pass",
-      "notes": "Selected as a high-churn unreviewed domain test file."
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/smoke/staff-smoke-clubs.tsx": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 207,
+      "lineCountAfter": 207,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/parent/parent-home-summary-cards.tsx": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 204,
+      "lineCountAfter": 204,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/student/student-markets-screen.tsx": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 204,
+      "lineCountAfter": 204,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/staff/staff-rota-common.tsx": {
+      "lastReviewedAt": "2026-07-04",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 198,
+      "lineCountAfter": 198,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-attendance-components.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 0,
+      "lineCountAfter": 0,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/parent/parent-fees-invoices-screen.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 182,
+      "lineCountAfter": 182,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/landing/landing-nav.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 182,
+      "lineCountAfter": 182,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/student/student-notifications-screen.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 181,
+      "lineCountAfter": 181,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/student-notifications/student-notification-admin-client.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 179,
+      "lineCountAfter": 179,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/homework/homework-image-upload.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 177,
+      "lineCountAfter": 177,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/messages/message-conversation-panel.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 176,
+      "lineCountAfter": 176,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/student/student-markets-portfolio-cards.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 175,
+      "lineCountAfter": 175,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/student/student-homework-activity-screen.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 172,
+      "lineCountAfter": 172,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/web/src/components/child-log/supervisor-notes-history-client.tsx": {
+      "lastReviewedAt": "2026-07-23",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 171,
+      "lineCountAfter": 171,
+      "issuesFixed": [
+        "Carried forward reviewed-file record from automation memory."
+      ],
+      "validationStatus": "pass",
+      "notes": "Added to repo-local memory so future daily review selections skip prior automation coverage."
+    },
+    "apps/mobile/src/components/staff/staff-incident-utils.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 179,
+      "lineCountAfter": 180,
+      "issuesFixed": [
+        "Reviewed selected incident utilities; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/api/src/__tests__/staffHome.router.test.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 178,
+      "lineCountAfter": 179,
+      "issuesFixed": [
+        "Reviewed selected staff home router test; focused Vitest file passed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/mobile/src/components/student/student-markets-utils.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 178,
+      "lineCountAfter": 179,
+      "issuesFixed": [
+        "Reviewed selected market utilities; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/api/src/lib/daily-year-band-scope.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 175,
+      "lineCountAfter": 170,
+      "issuesFixed": [
+        "Reused the existing year-group band select constant in the staff shift scope delegate type."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/mobile/src/components/parent/parent-profile-registration-utils.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 175,
+      "lineCountAfter": 176,
+      "issuesFixed": [
+        "Reviewed selected parent registration utilities; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/mobile/src/components/staff/staff-behaviour-utils.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 174,
+      "lineCountAfter": 175,
+      "issuesFixed": [
+        "Reviewed selected behaviour utilities; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/api/src/students/delete-archived-student.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 173,
+      "lineCountAfter": 173,
+      "issuesFixed": [
+        "Returned the archived-student delete result directly instead of creating a single-use variable."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/api/src/services/market-data/yahoo-finance-provider.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 173,
+      "lineCountAfter": 175,
+      "issuesFixed": [
+        "Cached the trimmed currency value before normalisation to avoid repeated string trimming."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "packages/db/src/encryption.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 173,
+      "lineCountAfter": 168,
+      "issuesFixed": [
+        "Applied Prettier wrapping to selected encryption helper types."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/api/src/routers/studentNotification.ts": {
+      "lastReviewedAt": "2026-07-24",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 172,
+      "lineCountAfter": 173,
+      "issuesFixed": [
+        "Reviewed selected student notification router; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as clean unreviewed pass-1 file after excluding dirty user paths and prior automation coverage."
+    },
+    "apps/web/src/app/registration/registration-form-helpers.ts": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 170,
+      "lineCountAfter": 170,
+      "issuesFixed": [
+        "Reviewed validation helper extraction from a prior pass; no additional safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Reviewed local parsing, Zod issue mapping, exports, and imports; left behaviour unchanged."
+    },
+    "apps/mobile/src/components/staff/staff-rota-swap-panel.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 167,
+      "lineCountAfter": 167,
+      "issuesFixed": [
+        "Reviewed swap request panel for lint, types, hook usage, and local structure; no safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "UI inspected against existing mobile component patterns; no visual or behavior changes."
+    },
+    "apps/web/src/components/navigation/mobile-side-menu.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 167,
+      "lineCountAfter": 167,
+      "issuesFixed": [
+        "Reviewed focus-trap, menu close handlers, imports, and client boundary; no safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Accessibility logic left unchanged."
+    },
+    "apps/mobile/src/components/student/student-learning-ranks-panel.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 166,
+      "lineCountAfter": 166,
+      "issuesFixed": [
+        "Reviewed leaderboard panel for lint, types, and responsive text structure; no safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "No UI behavior changes made."
+    },
+    "apps/web/src/components/student-drillthrough/attendance-calendar.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 166,
+      "lineCountAfter": 181,
+      "issuesFixed": [
+        "Applied Prettier formatting to wrap long date, section, and blank-day JSX lines."
+      ],
+      "validationStatus": "partial",
+      "notes": "Formatting-only change; calendar logic unchanged."
+    },
+    "apps/mobile/src/components/parent/parent-student-settings-status.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 165,
+      "lineCountAfter": 167,
+      "issuesFixed": [
+        "Applied Prettier formatting to wrap the password-change status expression."
+      ],
+      "validationStatus": "partial",
+      "notes": "Formatting-only change; settings status logic unchanged."
+    },
+    "apps/web/src/components/child-log/sensitive-review-client.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 163,
+      "lineCountAfter": 163,
+      "issuesFixed": [
+        "Reviewed sensitive review UI for lint, mutation handling, imports, and error display; no safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Safeguarding-sensitive behaviour was not changed."
+    },
+    "apps/web/src/components/clubs/parent-club-card.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 163,
+      "lineCountAfter": 158,
+      "issuesFixed": [
+        "Applied Prettier formatting to status tone and badge JSX."
+      ],
+      "validationStatus": "partial",
+      "notes": "Formatting-only change; club signup/status behaviour unchanged."
+    },
+    "packages/domain/src/demeritPolicy.ts": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 163,
+      "lineCountAfter": 163,
+      "issuesFixed": [
+        "Reviewed demerit policy helpers for type safety, exported API stability, and policy logic; no safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Safeguarding and demerit escalation semantics were not changed."
+    },
+    "apps/mobile/src/components/parent/parent-permission-slips-list.tsx": {
+      "lastReviewedAt": "2026-07-25",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 162,
+      "lineCountAfter": 162,
+      "issuesFixed": [
+        "Reviewed permission slip list for lint, imports, UI states, and type usage; no safe source change needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "No UI behavior changes made."
+    },
+    "apps/web/src/components/incidents/incident-report-detail.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 161,
+      "lineCountAfter": 161,
+      "issuesFixed": [
+        "Reviewed incident report detail for lint, types, imports, and local structure; no safe source edit needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Selected as the next largest clean unreviewed web UI source file; web typecheck remains blocked by an unrelated clubs-lead typed-route issue."
+    },
+    "apps/web/src/app/(admin)/admin/behaviour/behaviour-report-client.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 161,
+      "lineCountAfter": 161,
+      "issuesFixed": [
+        "Reviewed behaviour report client for lint, types, hook dependencies, and query state handling; no safe source edit needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Selected as a clean unreviewed admin behaviour UI file; web typecheck remains blocked by an unrelated clubs-lead typed-route issue."
+    },
+    "apps/mobile/src/components/staff/staff-club-lead-utils.ts": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 160,
+      "lineCountAfter": 160,
+      "issuesFixed": [
+        "Reviewed staff club lead utilities for lint, exported type safety, and validation helper structure; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a clean unreviewed mobile utility file."
+    },
+    "apps/web/src/components/parent/parent-usage-limit-controls.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 159,
+      "lineCountAfter": 159,
+      "issuesFixed": [
+        "Reviewed parent usage limit controls for lint, accessibility labels, local state-free helpers, and formatting; no safe source edit needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Selected as a clean unreviewed parent UI source file; web typecheck remains blocked by an unrelated clubs-lead typed-route issue."
+    },
+    "apps/mobile/src/components/parent/parent-fees-invoices-list.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 155,
+      "lineCountAfter": 155,
+      "issuesFixed": [
+        "Reviewed parent fees invoice list for lint, imports, empty/loading states, and type usage; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a clean unreviewed mobile parent UI file."
+    },
+    "apps/mobile/src/components/student/student-markets-trend-card.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 155,
+      "lineCountAfter": 155,
+      "issuesFixed": [
+        "Reviewed student market trend card for lint, memo dependencies, imports, and chart rendering structure; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a clean unreviewed mobile student UI file."
+    },
+    "apps/mobile/src/components/smoke/student-smoke-leaderboard.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 155,
+      "lineCountAfter": 156,
+      "issuesFixed": [
+        "Applied Prettier formatting to the core mobile UI import and row item props."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a clean unreviewed mobile smoke source file with baseline Prettier drift."
+    },
+    "apps/web/src/app/(admin)/admin/rota/_components/rota-utils.ts": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 155,
+      "lineCountAfter": 155,
+      "issuesFixed": [
+        "Reviewed rota utility types and date helpers for lint, type safety, and local duplication; no safe source edit needed."
+      ],
+      "validationStatus": "partial",
+      "notes": "Selected as a clean unreviewed rota utility file; web typecheck remains blocked by an unrelated clubs-lead typed-route issue."
+    },
+    "apps/web/src/components/student/student-attendance-client.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 154,
+      "lineCountAfter": 156,
+      "issuesFixed": [
+        "Applied Prettier formatting to the attendance rate, empty-state, and recent-records section JSX."
+      ],
+      "validationStatus": "partial",
+      "notes": "Selected as a clean unreviewed student attendance UI file with baseline Prettier drift; web typecheck remains blocked by an unrelated clubs-lead typed-route issue."
+    },
+    "apps/mobile/src/components/staff/staff-incident-review-panel.tsx": {
+      "lastReviewedAt": "2026-07-26",
+      "pass": 1,
+      "status": "reviewed",
+      "lineCountBefore": 151,
+      "lineCountAfter": 151,
+      "issuesFixed": [
+        "Reviewed staff incident review panel for lint, disabled submit handling, imports, and local structure; no safe source edit needed."
+      ],
+      "validationStatus": "pass",
+      "notes": "Selected as a clean unreviewed mobile staff UI file."
     }
   },
   "deferredFiles": {
@@ -3786,12 +4474,20 @@
       "reason": "Oversized router test files remain candidates for a focused test-suite cleanup pass; deferred today to keep this run production-source and low-risk."
     },
     "apps/web/tests/e2e/supervisor-dashboard.spec.ts": {
-      "deferredAt": "2026-06-27",
-      "reason": "Selected-file ESLint reports the e2e spec is outside the TypeScript project service. Fixing this requires broader ESLint/tsconfig scope changes, so it remains deferred from the daily 10-file cleanup."
+      "deferredAt": "2026-07-26",
+      "reason": "Direct ESLint project-service coverage for e2e tests requires config-level work outside today's source-file hygiene scope."
+    },
+    "apps/web/src/app/(clubs-lead)/clubs-lead/layout.tsx": {
+      "deferredAt": "2026-07-26",
+      "reason": "Existing web typed-route failure is outside today's selected 10 files and requires focused route typing cleanup."
+    },
+    "apps/web/tests/e2e/phase-3-verification.spec.ts": {
+      "deferredAt": "2026-07-26",
+      "reason": "Direct ESLint project-service coverage for e2e tests requires config-level work outside today's source-file hygiene scope."
     },
     "apps/web/tests/e2e/phase-3-5-clubs.spec.ts": {
-      "deferredAt": "2026-07-03",
-      "reason": "Selected-file ESLint project-service coverage is a config-level issue; deferred to avoid broad tsconfig/eslint scope changes in the daily 10-file cleanup."
+      "deferredAt": "2026-07-26",
+      "reason": "Direct ESLint project-service coverage for e2e tests requires config-level work outside today's source-file hygiene scope."
     }
   },
   "fullPassHistory": [

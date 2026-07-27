@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MeritAccount, SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import { leaderboardRouter } from '../routers/leaderboard.js';
 import { router } from '../trpc.js';
 
@@ -403,7 +403,9 @@ function makeFakeDb(
             if (!student?.active) return [];
             const snapshots = investmentSnapshots
               .filter((snapshot) => snapshot.instrumentId === holding.instrumentId)
-              .sort((left, right) => right.serverFetchedAt.getTime() - left.serverFetchedAt.getTime())
+              .sort(
+                (left, right) => right.serverFetchedAt.getTime() - left.serverFetchedAt.getTime(),
+              )
               .slice(0, 1)
               .map((snapshot) => ({ gbpPrice: snapshot.gbpPrice }));
             return [
@@ -486,21 +488,19 @@ function makeFakeDb(
   return db;
 }
 
-function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_leaderboard_test',
-    withRls: <T>(fn: (tx: RlsTx) => Promise<T>): Promise<T> => {
-      void fn;
-      return Promise.reject(new Error('withRls is not used by leaderboard router tests'));
-    },
-  } satisfies AppContext;
-}
-
 function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
   const appRouter = router({ leaderboard: leaderboardRouter });
-  return { caller: appRouter.createCaller(makeCtx(user, db)), db };
+  return {
+    caller: appRouter.createCaller(
+      makeTestContext({
+        db,
+        requestId: 'req_leaderboard_test',
+        rls: { kind: 'reject', message: 'withRls is not used by leaderboard router tests' },
+        user,
+      }),
+    ),
+    db,
+  };
 }
 
 function auditCreates(db: ReturnType<typeof makeFakeDb>): FakeAuditCreateArgs[] {

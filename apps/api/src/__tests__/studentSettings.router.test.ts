@@ -1,7 +1,7 @@
 import { createClerkClient } from '@clerk/backend';
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionUser } from '@oasis/domain';
-import type { AppContext, RlsTx } from '../context.js';
+import { makeTestContext } from './helpers/test-context.js';
 import {
   createDefaultStudentCredentialAdapter,
   createStudentSettingsRouter,
@@ -517,15 +517,6 @@ function makeFakeDb() {
   return { db, settings, users };
 }
 
-function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
-  return {
-    db: db as unknown as AppContext['db'],
-    user,
-    requestId: 'req_test',
-    withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
-  } satisfies AppContext;
-}
-
 function makeCaller(
   user: SessionUser | null,
   db: FakeDb,
@@ -538,7 +529,7 @@ function makeCaller(
   const appRouter = router({
     studentSettings: createStudentSettingsRouter({ childIconPhotoStorage, credentialAdapter }),
   });
-  return appRouter.createCaller(makeCtx(user, db));
+  return appRouter.createCaller(makeTestContext({ db, user, rls: { kind: 'db', db } }));
 }
 
 interface AuditCall {
@@ -1266,9 +1257,7 @@ describe('studentSettings admin readiness reporting', () => {
 describe('studentSettings admin login provisioning', () => {
   it('allows admins to create username-based student logins for unlinked students', async () => {
     const { db, settings, users } = makeFakeDb();
-    const createStudentAccount = vi
-      .fn()
-      .mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
+    const createStudentAccount = vi.fn().mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
     const caller = makeCaller(headUser, db, {
       createStudentAccount,
       setPassword: vi.fn(),
@@ -1354,9 +1343,7 @@ describe('studentSettings admin login provisioning', () => {
 
   it('denies admin student login creation to non-admin users', async () => {
     const { db } = makeFakeDb();
-    const createStudentAccount = vi
-      .fn()
-      .mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
+    const createStudentAccount = vi.fn().mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
     const caller = makeCaller(parentUser, db, {
       createStudentAccount,
       setPassword: vi.fn(),
@@ -1374,9 +1361,7 @@ describe('studentSettings admin login provisioning', () => {
 
   it('rejects already-linked students before creating admin student logins', async () => {
     const { db } = makeFakeDb();
-    const createStudentAccount = vi
-      .fn()
-      .mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
+    const createStudentAccount = vi.fn().mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
     const caller = makeCaller(headUser, db, {
       createStudentAccount,
       setPassword: vi.fn(),
@@ -1411,9 +1396,7 @@ describe('studentSettings admin login provisioning', () => {
       emailEnc: encrypt('student.login@example.com'),
       role: 'Student',
     });
-    const createStudentAccount = vi
-      .fn()
-      .mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
+    const createStudentAccount = vi.fn().mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
     const caller = makeCaller(headUser, db, {
       createStudentAccount,
       setPassword: vi.fn(),
@@ -1472,9 +1455,7 @@ describe('studentSettings admin login provisioning', () => {
 
   it('deletes provider accounts when admin-created local student linking fails', async () => {
     const { db, settings } = makeFakeDb();
-    const createStudentAccount = vi
-      .fn()
-      .mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
+    const createStudentAccount = vi.fn().mockResolvedValue({ clerkUserId: 'clerk_admin_created' });
     const deleteStudentAccount = vi.fn().mockResolvedValue(undefined);
     db.user.upsert.mockRejectedValueOnce(new Error('local link failed'));
     const caller = makeCaller(headUser, db, {

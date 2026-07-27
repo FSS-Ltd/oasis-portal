@@ -3,21 +3,19 @@
 - Current pass: 1
 - Pass start date: 2026-05-27
 - Eligible files at pass start: 389
-- Current eligible files: 769
-- Files reviewed so far: 311
-- Files remaining estimate: 458
-- Last run: 2026-07-03
-- Last run completed at: 2026-07-03T07:05:57+0100
+- Current eligible files: 748
+- Files reviewed so far: 367
+- Files remaining estimate: 381
+- Last run: 2026-07-26
 - Last selected files:
-  - `apps/web/src/app/(admin)/admin/attendance/page.tsx`
-  - `apps/web/src/components/calendar/calendar-month-view.tsx`
-  - `apps/api/src/routers/tithe.ts`
-  - `packages/domain/src/leaderboard.ts`
-  - `apps/web/src/app/children-check/page.tsx`
-  - `apps/mobile/app/_layout.tsx`
-  - `apps/web/src/app/(supervisor)/supervisor/_components/supervisor-utils.ts`
-  - `apps/api/src/lib/clerk.ts`
-  - `apps/web/src/components/behaviour/behaviour-student-selector.tsx`
-  - `packages/domain/src/__tests__/demeritPolicy.test.ts`
-- Continuity note: this branch was merged with origin/main before PR publication, preserving the real 2026-07-02 review memory and appending the 2026-07-03 run.
-- Next selection strategy: continue pass 1 with unreviewed eligible clean source files, prioritising current lint/type failures first, then any remaining over-threshold files, then high-churn unreviewed files. Keep deferring config-level e2e ESLint project-service coverage until approved for a focused config cleanup.
+  - `apps/web/src/components/incidents/incident-report-detail.tsx`
+  - `apps/web/src/app/(admin)/admin/behaviour/behaviour-report-client.tsx`
+  - `apps/mobile/src/components/staff/staff-club-lead-utils.ts`
+  - `apps/web/src/components/parent/parent-usage-limit-controls.tsx`
+  - `apps/mobile/src/components/parent/parent-fees-invoices-list.tsx`
+  - `apps/mobile/src/components/student/student-markets-trend-card.tsx`
+  - `apps/mobile/src/components/smoke/student-smoke-leaderboard.tsx`
+  - `apps/web/src/app/(admin)/admin/rota/_components/rota-utils.ts`
+  - `apps/web/src/components/student/student-attendance-client.tsx`
+  - `apps/mobile/src/components/staff/staff-incident-review-panel.tsx`
+- Next selection strategy: continue pass 1 with clean unreviewed eligible source files, excluding dirty user files and paths already reviewed in this pass; prioritise current lint/type failures, then oversized files, then high-churn or least-recently reviewed files. Keep the existing clubs-lead typed-route failure and e2e project-service coverage issues deferred until selected for focused config/type cleanup.
