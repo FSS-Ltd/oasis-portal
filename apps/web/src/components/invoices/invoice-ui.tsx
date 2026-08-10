@@ -63,8 +63,13 @@ export function statusBadgeTone(status: InvoiceDisplayStatus) {
   return 'grey';
 }
 
+export function invoiceStatusLabel(status: InvoiceDisplayStatus | 'All'): string {
+  if (status === 'PaymentPending') return 'Awaiting confirmation';
+  return status;
+}
+
 export function InvoiceStatusBadge({ status }: { status: InvoiceDisplayStatus }) {
-  return <Badge tone={statusBadgeTone(status)}>{status}</Badge>;
+  return <Badge tone={statusBadgeTone(status)}>{invoiceStatusLabel(status)}</Badge>;
 }
 
 export function InvoiceStatCard({

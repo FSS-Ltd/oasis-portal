@@ -343,7 +343,7 @@ function AdminSlipDetail({ onBack, slip }: { onBack: () => void; slip: AdminPerm
           <strong>{slip.stats.pending}</strong>
         </Panel>
         <Panel body>
-          <span>Payment pending</span>
+          <span>Awaiting confirmation</span>
           <strong>{slip.stats.paymentPending}</strong>
         </Panel>
       </div>
@@ -472,7 +472,7 @@ export function AdminPermissionSlipsClient() {
           <strong>{slipsQuery.data?.stats.signed ?? 0}</strong>
         </Panel>
         <Panel body>
-          <span>Payment pending</span>
+          <span>Awaiting confirmation</span>
           <strong>{slipsQuery.data?.stats.paymentPending ?? 0}</strong>
         </Panel>
       </div>

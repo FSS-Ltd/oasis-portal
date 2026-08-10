@@ -15,6 +15,7 @@ import {
   InvoiceFilterButton,
   InvoiceStatCard,
   InvoiceStatusBadge,
+  invoiceStatusLabel,
   type AdminInvoiceStatusFilter,
   type InvoiceDto,
 } from './invoice-ui';
@@ -331,7 +332,7 @@ export function AdminInvoicesClient() {
                 setStatus(filter);
               }}
             >
-              {filter}
+              {invoiceStatusLabel(filter)}
             </InvoiceFilterButton>
           ))}
         </div>

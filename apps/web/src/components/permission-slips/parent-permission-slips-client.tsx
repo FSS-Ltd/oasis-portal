@@ -386,7 +386,7 @@ function ParentSlipResponseView({ onBack, row }: { onBack: () => void; row: Pare
           <div>
             <ClipboardCheck aria-hidden="true" size={20} />
             <span>
-              <strong>Payment waiting for confirmation</strong>
+              <strong>Awaiting confirmation</strong>
               <small>The slip will show as paid after a Head or Pastor confirms it.</small>
             </span>
           </div>

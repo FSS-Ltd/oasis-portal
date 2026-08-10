@@ -43,7 +43,7 @@ export function ParentFeesInvoicesList({
           <MobileButton
             compact
             key={status}
-            label={status === 'PaymentPending' ? 'Payment pending' : status}
+            label={invoiceStatusLabel(status)}
             onPress={() => {
               onSelectFilter(status);
             }}
