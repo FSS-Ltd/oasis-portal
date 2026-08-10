@@ -73,7 +73,7 @@ describe('parent fees and invoices mobile wiring', () => {
       'Fee cycle',
       'Outstanding',
       'Overdue',
-      'Payment pending',
+      'Awaiting confirmation',
       'Paid',
       'Unpaid',
       'Discounts',

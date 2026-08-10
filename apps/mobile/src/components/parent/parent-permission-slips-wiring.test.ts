@@ -78,7 +78,7 @@ describe('parent permission slips mobile wiring', () => {
       'Permission granted',
       'Response recorded',
       'Payment required',
-      'Payment waiting for confirmation',
+      'Awaiting confirmation',
       'Mark as paid',
       'Paid',
       'Expired',

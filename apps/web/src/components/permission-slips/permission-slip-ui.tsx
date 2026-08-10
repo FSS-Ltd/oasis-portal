@@ -62,7 +62,7 @@ export function responseLabel(status: PermissionSlipRecipient['responseStatus'])
 }
 
 export function paymentLabel(status: PermissionSlipRecipient['paymentStatus']) {
-  if (status === 'PaymentPending') return 'Payment pending';
+  if (status === 'PaymentPending') return 'Awaiting confirmation';
   if (status === 'NotRequired') return 'No payment';
   return status;
 }

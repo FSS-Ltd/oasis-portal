@@ -18,6 +18,7 @@ import {
   InvoiceStatusBadge,
   InvoiceTotal,
   MessageOfficeAction,
+  invoiceStatusLabel,
   parentInvoiceStatusFilters,
   type InvoiceDto,
   type ParentInvoiceStatusFilter,
@@ -195,7 +196,7 @@ function ParentInvoiceCard({
           </div>
           {invoice.status === 'PaymentPending' ? (
             <p className="parent-payment-note">
-              Payment is waiting for pastor or head confirmation.
+              Awaiting confirmation from a pastor or head.
             </p>
           ) : null}
         </div>
@@ -310,7 +311,7 @@ export function ParentFeesClient() {
           />
           <InvoiceStatCard
             hint={filterCountLabel(stats?.paymentPendingCount ?? 0)}
-            label="Pending"
+            label="Awaiting confirmation"
             value={String(stats?.paymentPendingCount ?? 0)}
           />
         </div>
@@ -328,7 +329,7 @@ export function ParentFeesClient() {
                 setStatus(filter);
               }}
             >
-              {filter}
+              {invoiceStatusLabel(filter)}
             </InvoiceFilterButton>
           ))}
         </div>

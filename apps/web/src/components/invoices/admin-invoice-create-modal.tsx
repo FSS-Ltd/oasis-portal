@@ -421,7 +421,7 @@ function FamilyYearSummary({
         <strong>{formatPence(summary.grossLeftToInvoiceAmountPence)}</strong>
       </div>
       {summary.paymentPendingAmountPence > 0 ? (
-        <p>Payment pending confirmation: {formatPence(summary.paymentPendingAmountPence)}</p>
+        <p>Awaiting confirmation: {formatPence(summary.paymentPendingAmountPence)}</p>
       ) : null}
       {summary.children.length > 0 ? (
         <div className="invoice-family-summary__children">

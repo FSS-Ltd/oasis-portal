@@ -332,7 +332,7 @@ export function ParentPermissionSlipDetail({ onBack, row }: ParentPermissionSlip
       ) : null}
       {recipient.paymentStatus === 'PaymentPending' ? (
         <Card style={styles.paymentCard}>
-          <SectionTitle>Payment waiting for confirmation</SectionTitle>
+          <SectionTitle>Awaiting confirmation</SectionTitle>
           <MutedText>The slip will show as paid after a Head or Pastor confirms it.</MutedText>
         </Card>
       ) : null}

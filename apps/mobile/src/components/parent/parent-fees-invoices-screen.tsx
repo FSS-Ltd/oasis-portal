@@ -61,7 +61,10 @@ export function ParentFeesInvoicesScreen({ data, error, loading }: ParentFeesInv
             label="Overdue"
             value={formatPence(stats?.grossOverdueAmountPence ?? stats?.overdueAmountPence ?? 0)}
           />
-          <SummaryPill label="Payment pending" value={String(stats?.paymentPendingCount ?? 0)} />
+          <SummaryPill
+            label="Awaiting confirmation"
+            value={String(stats?.paymentPendingCount ?? 0)}
+          />
           <SummaryPill label="Paid" value={formatPence(stats?.grossPaidAmountPence ?? 0)} />
         </View>
       </Card>

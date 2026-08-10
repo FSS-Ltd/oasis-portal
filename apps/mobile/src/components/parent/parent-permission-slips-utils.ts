@@ -75,7 +75,7 @@ export function responseBadgeVariant(
 }
 
 export function paymentLabel(status: ParentPermissionSlipRecipient['paymentStatus']): string {
-  if (status === 'PaymentPending') return 'Payment waiting for confirmation';
+  if (status === 'PaymentPending') return 'Awaiting confirmation';
   if (status === 'NotRequired') return 'No payment';
   return status;
 }

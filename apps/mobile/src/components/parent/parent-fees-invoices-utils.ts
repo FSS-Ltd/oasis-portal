@@ -37,8 +37,8 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function invoiceStatusLabel(status: ParentInvoiceDisplayStatus): string {
-  if (status === 'PaymentPending') return 'Payment pending';
+export function invoiceStatusLabel(status: ParentInvoiceDisplayStatus | 'All'): string {
+  if (status === 'PaymentPending') return 'Awaiting confirmation';
   return status;
 }
 
