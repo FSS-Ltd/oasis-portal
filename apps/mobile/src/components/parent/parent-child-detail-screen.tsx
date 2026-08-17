@@ -237,7 +237,7 @@ function ReportSummaryCard({
       {reports.slice(0, 3).map((report) => (
         <View key={report.id} style={styles.reportCard}>
           <View style={styles.reportHeader}>
-            <Text style={styles.rowTitle}>{report.term}</Text>
+            <Text style={styles.rowTitle}>{report.period.label}</Text>
             <Badge variant="success">{report.status}</Badge>
           </View>
           <MutedText>
@@ -246,7 +246,7 @@ function ReportSummaryCard({
               ? formatParentDateTime(report.sentAt)
               : formatParentDateTime(report.updatedAt)}
           </MutedText>
-          {report.compiled.headSummary ? (
+          {report.compiled.sections.progressComment && report.compiled.headSummary ? (
             <Text style={styles.summaryText}>{report.compiled.headSummary}</Text>
           ) : null}
         </View>

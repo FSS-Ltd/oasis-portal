@@ -24,22 +24,22 @@ interface ReportStudentSelectorProps {
   reports: readonly TermReport[];
   selectedStudentId: string;
   students: readonly ReportStudent[];
-  term: string;
+  periodKey: string;
 }
 
-function latestReportForTerm(reports: readonly TermReport[], term: string): TermReport | null {
-  return reports.find((report) => report.term === term) ?? reports[0] ?? null;
+function latestReportForPeriod(reports: readonly TermReport[], periodKey: string): TermReport | null {
+  return reports.find((report) => report.period.key === periodKey) ?? null;
 }
 
 export function ReportStudentSelector({
   mode,
   onSelect,
+  periodKey,
   reports,
   selectedStudentId,
   students,
-  term,
 }: ReportStudentSelectorProps) {
-  const currentTermReport = latestReportForTerm(reports, term);
+  const currentPeriodReport = latestReportForPeriod(reports, periodKey);
 
   return (
     <section className="panel panel__body report-student-panel" aria-labelledby="report-students">
@@ -62,13 +62,15 @@ export function ReportStudentSelector({
           {students.map((student) => {
             const selected = student.id === selectedStudentId;
             const badgeLabel =
-              selected && currentTermReport
-                ? reportStatusLabel(currentTermReport.status)
+              selected && currentPeriodReport
+                ? reportStatusLabel(currentPeriodReport.status)
                 : selected
                   ? 'No draft'
                   : 'Open';
             const badgeTone =
-              selected && currentTermReport ? reportStatusTone(currentTermReport.status) : 'grey';
+              selected && currentPeriodReport
+                ? reportStatusTone(currentPeriodReport.status)
+                : 'grey';
 
             return (
               <button

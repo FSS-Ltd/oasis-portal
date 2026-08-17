@@ -23,31 +23,53 @@ test.describe('Phase 4 verification suite', () => {
     await expect(page.getByRole('heading', { name: /record purchase/i })).toBeVisible();
 
     await page.goto('/admin/reports');
-    await expect(page.getByRole('heading', { name: /^term reports$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^student reports$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /generate draft/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /^reports$/i })).toBeVisible();
   });
 
-  headTest('Head can draft, review, and send a report when enabled', async ({ page }) => {
-    await signIn(page, headEmail!, headPassword!);
-
+  headTest('Head can configure, draft, and review a student report', async ({ page }) => {
     test.skip(
       !allowReportSend,
       'Set E2E_ALLOW_REPORT_SEND=1 to run the mutating report draft/review/send smoke.',
     );
 
+    await signIn(page, headEmail!, headPassword!);
+
     await page.goto('/admin/reports');
-    await expect(page.getByRole('heading', { name: /^term reports$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^student reports$/i })).toBeVisible();
 
     const firstStudent = page.locator('.report-student-row').first();
     test.skip((await firstStudent.count()) === 0, 'No active student fixture exists.');
 
     await firstStudent.click();
+    await page.getByLabel('Report Type').selectOption('Custom');
+    await page.getByLabel('From').fill('2026-05-01');
+    await page.getByLabel('To').fill('2026-05-31');
+    await page.getByRole('checkbox', { name: 'General Notes' }).check();
+    await page.getByRole('checkbox', { name: 'Behaviour Notes' }).uncheck();
+    await page.getByRole('checkbox', { name: 'PACE Progress' }).uncheck();
+    await expect(page.getByRole('checkbox', { name: 'PACE Status' })).toBeDisabled();
+    await page.getByRole('checkbox', { name: 'PACE Progress' }).check();
+    await page.getByRole('checkbox', { name: 'PACE Status' }).check();
+
     await page.getByRole('button', { name: /generate draft/i }).click();
     await expect(page.getByText('Draft generated.')).toBeVisible();
-    await page.getByLabel('Summary').fill(`Phase 4 E2E report summary ${String(Date.now())}`);
-    await page.getByRole('button', { name: /^review$/i }).click();
+    await page.getByRole('button', { name: /add general note/i }).click();
+    await page
+      .locator('section[aria-labelledby="report-notes-title"] textarea')
+      .last()
+      .fill(`Phase 4 E2E general note ${String(Date.now())}`);
+    await page
+      .getByLabel('Progress Comment')
+      .fill(`Phase 4 E2E progress comment ${String(Date.now())}`);
+    await page.getByRole('button', { name: /save and review/i }).click();
     await expect(page.getByText('Report reviewed.')).toBeVisible();
+    await expect(page.getByRole('link', { name: /download pdf/i })).toHaveAttribute(
+      'href',
+      /\/api\/reports\/[^/]+\/pdf$/u,
+    );
+
     await page.getByRole('button', { name: /^send$/i }).click();
     await expect(page.getByText('Report sent.')).toBeVisible();
     await expect(page.getByText(/^sent$/i).first()).toBeVisible();
@@ -69,10 +91,11 @@ test.describe('Phase 4 verification suite', () => {
     await signIn(page, parentEmail!, parentPassword!);
 
     await page.goto('/parent/reports');
-    await expect(page.getByRole('heading', { name: /^reports$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^student reports$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /generate draft/i })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /^review$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /save and review/i })).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^send$/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /add (general|behaviour) note/i })).toHaveCount(0);
 
     const reportListItem = page.locator('.report-list__item').first();
     if ((await reportListItem.count()) === 0) {
@@ -81,6 +104,6 @@ test.describe('Phase 4 verification suite', () => {
     }
 
     await reportListItem.click();
-    await expect(page.getByText(/Head Summary|Attendance|PACE Progress/i).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /download pdf/i })).toBeVisible();
   });
 });

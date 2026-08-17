@@ -1,11 +1,21 @@
+import { Buffer } from 'node:buffer';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canUseLinkedChildGuardianAccess,
   canUseAdminOperations,
-  compileTermReport,
+  compileStudentReport,
+  DEFAULT_REPORT_SECTIONS,
+  paceProgressStatusForYear,
+  reportPeriodInputSchema,
+  reportSectionsSchema,
+  resolveReportPeriod,
   type CompiledReport,
+  type ReportPeriodInput,
+  type ReportSections,
+  type ResolvedReportPeriod,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext } from '../context.js';
@@ -17,20 +27,24 @@ import {
 } from '../lib/email.js';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { generateStudentReportPdf } from '../reports/student-report-pdf.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type TermReportStatus = 'Draft' | 'UnderReview' | 'Sent';
+type ReportPeriodType = 'Term' | 'AcademicYear' | 'Custom';
 
 export interface ReportRouterDeps {
   emailClient?: EmailClient;
+  pdfGenerator?: typeof generateStudentReportPdf;
 }
 
 interface ActiveReportStudent {
   id: string;
   active: boolean;
   fullNameEnc: string;
+  yearGroup: string;
   subjects: Array<{
     currentPaceNumber: number;
     subject: { code: string; name: string };
@@ -41,9 +55,16 @@ interface ActiveReportStudent {
 interface TermReportRow {
   id: string;
   studentId: string;
-  term: string;
+  periodKey: string;
+  periodType: ReportPeriodType;
+  periodLabel: string;
+  periodStart: Date;
+  periodEnd: Date;
   status: TermReportStatus;
   compiledJsonEnc: string;
+  pdfBytesEnc: string | null;
+  pdfFileNameEnc: string | null;
+  pdfGeneratedAt: Date | null;
   sentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -58,37 +79,77 @@ interface ReportNotificationGuardian {
   };
 }
 
-const termSchema = z
-  .string()
-  .trim()
-  .regex(
-    /^\d{4}-(Spring|Summer|Autumn)$/u,
-    'term must use YYYY-Spring, YYYY-Summer, or YYYY-Autumn',
-  );
-
 const draftInput = z.object({
   studentId: z.string().cuid(),
-  term: termSchema,
+  period: reportPeriodInputSchema,
+  sections: reportSectionsSchema,
 });
 
-const reviewInput = z.object({
-  reportId: z.string().cuid(),
-  headSummary: z.string().trim().max(5000).optional(),
+const reportEditableTextSchema = z.string().trim().min(1).max(5000);
+const reportSpecificNoteSchema = z.object({
+  id: z.string().uuid(),
+  category: z.string().trim().min(1).max(120).optional(),
+  note: reportEditableTextSchema,
 });
+
+const reviewInput = z
+  .object({
+    reportId: z.string().cuid(),
+    progressComment: z.string().trim().max(5000),
+    behaviourNotes: z.array(reportSpecificNoteSchema).max(50),
+    generalNotes: z.array(reportSpecificNoteSchema.omit({ category: true })).max(50),
+  })
+  .superRefine((input, ctx) => {
+    for (const key of ['behaviourNotes', 'generalNotes'] as const) {
+      const seen = new Set<string>();
+      input[key].forEach((entry, index) => {
+        if (seen.has(entry.id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'report note ids must be unique',
+            path: [key, index, 'id'],
+          });
+        }
+        seen.add(entry.id);
+      });
+    }
+  });
+
+type ReportSpecificNoteInput = z.infer<typeof reportSpecificNoteSchema>;
 
 const reportIdInput = z.object({ reportId: z.string().cuid() });
 const studentInput = z.object({ studentId: z.string().cuid() });
 
-const textEntrySchema = z.object({
+const storedTextEntrySchema = z.object({
+  id: z.string().optional(),
+  origin: z.enum(['Source', 'Report']).optional(),
   createdAt: z.string(),
   category: z.string().optional(),
   note: z.string().nullable(),
 });
 
-const compiledReportSchema = z.object({
+const paceStatusSchema = z.object({
+  status: z.enum(['Behind', 'On Track', 'Ahead', 'Unavailable']),
+  tone: z.enum(['amber', 'blue', 'green', 'grey']),
+  testingLevel: z.number().nullable(),
+  testingLevelLabel: z.string().nullable(),
+  detail: z.string(),
+});
+
+const reportPeriodSnapshotSchema = z.object({
+  type: z.enum(['Term', 'AcademicYear', 'Custom']),
+  key: z.string(),
+  label: z.string(),
+  from: z.string(),
+  to: z.string(),
+});
+
+const storedCompiledReportSchema = z.object({
   studentId: z.string(),
   studentDisplayName: z.string(),
-  term: z.string(),
+  term: z.string().optional(),
+  period: reportPeriodSnapshotSchema.optional(),
+  sections: reportSectionsSchema.optional(),
   attendance: z.object({
     total: z.number(),
     present: z.number(),
@@ -103,15 +164,16 @@ const compiledReportSchema = z.object({
       currentPace: z.number(),
       pacesCompletedThisTerm: z.number(),
       averageTestScore: z.number().nullable(),
+      status: paceStatusSchema.optional(),
     }),
   ),
   behaviour: z.object({
     meritsEarned: z.number(),
     demeritsCount: z.number(),
     demeritsMerits: z.number(),
-    generalEntries: z.array(textEntrySchema),
+    generalEntries: z.array(storedTextEntrySchema),
   }),
-  notes: z.array(textEntrySchema),
+  notes: z.array(storedTextEntrySchema),
   meritActivity: z.array(
     z.object({
       createdAt: z.string(),
@@ -165,35 +227,6 @@ function encryptRequired(
   return encrypted;
 }
 
-function termRange(term: string): { from: Date; to: Date } {
-  const match = /^(\d{4})-(Spring|Summer|Autumn)$/u.exec(term);
-  if (!match) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: 'term must use YYYY-Spring, YYYY-Summer, or YYYY-Autumn',
-    });
-  }
-
-  const year = Number(match[1]);
-  const season = match[2];
-  if (season === 'Spring') {
-    return {
-      from: new Date(`${String(year)}-01-01T00:00:00.000Z`),
-      to: new Date(`${String(year)}-04-01T00:00:00.000Z`),
-    };
-  }
-  if (season === 'Summer') {
-    return {
-      from: new Date(`${String(year)}-04-01T00:00:00.000Z`),
-      to: new Date(`${String(year)}-09-01T00:00:00.000Z`),
-    };
-  }
-  return {
-    from: new Date(`${String(year)}-09-01T00:00:00.000Z`),
-    to: new Date(`${String(year + 1)}-01-01T00:00:00.000Z`),
-  };
-}
-
 async function auditPermissionDenied(
   ctx: AuthedContext,
   entity: string,
@@ -237,7 +270,7 @@ async function assertCanReadReports(
     ctx,
     entity,
     studentId,
-    new AccessDeniedError(`role ${ctx.user.role} cannot read term reports`),
+    new AccessDeniedError(`role ${ctx.user.role} cannot read student reports`),
   );
 }
 
@@ -251,6 +284,7 @@ async function loadActiveStudent(
       id: true,
       active: true,
       fullNameEnc: true,
+      yearGroup: true,
       subjects: {
         select: {
           subjectId: true,
@@ -275,27 +309,61 @@ function scoreForRecord(record: { selfTestScore: number | null; paceTestScore: n
   return record.paceTestScore ?? record.selfTestScore;
 }
 
+function resolveDraftPeriod(input: ReportPeriodInput): ResolvedReportPeriod {
+  try {
+    return resolveReportPeriod(input);
+  } catch (error) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: error instanceof Error ? error.message : 'report period is invalid',
+      cause: error,
+    });
+  }
+}
+
+const EMPTY_REPORT_BALANCES: CompiledReport['balances'] = {
+  Spend: 0,
+  Saving: 0,
+  Investment: 0,
+  InvestmentReturn: 0,
+  TithePaid: 0,
+  Given: 0,
+  FeeSink: 0,
+  TaxSink: 0,
+  ShopReserved: 0,
+};
+
 async function compileReportSnapshot(
   ctx: AuthedContext,
-  input: { studentId: string; term: string; headSummary?: string },
+  input: {
+    studentId: string;
+    period: ResolvedReportPeriod;
+    sections: ReportSections;
+    headSummary?: string;
+  },
 ): Promise<CompiledReport> {
   const student = await loadActiveStudent(ctx, input.studentId);
-  const range = termRange(input.term);
   const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student PII');
   const subjectIds = student.subjects.map((assignment) => assignment.subjectId);
+  const range = {
+    gte: input.period.queryFrom,
+    lt: input.period.queryToExclusive,
+  };
 
   const [attendanceRows, paceRows, behaviourRows, noteRows, ledgerRows] = await Promise.all([
-    ctx.db.attendance.findMany({
-      where: { studentId: student.id, date: { gte: range.from, lt: range.to } },
-      select: { status: true },
-    }),
-    subjectIds.length === 0
+    input.sections.attendance
+      ? ctx.db.attendance.findMany({
+          where: { studentId: student.id, date: range },
+          select: { status: true },
+        })
+      : Promise.resolve([]),
+    !input.sections.paceProgress || subjectIds.length === 0
       ? Promise.resolve([])
       : ctx.db.paceRecord.findMany({
           where: {
             studentId: student.id,
             subjectId: { in: subjectIds },
-            completedAt: { gte: range.from, lt: range.to },
+            completedAt: range,
             OR: [{ selfTestScore: { not: null } }, { paceTestScore: { not: null } }],
           },
           select: {
@@ -304,40 +372,48 @@ async function compileReportSnapshot(
             paceTestScore: true,
           },
         }),
-    ctx.db.behaviourEntry.findMany({
-      where: {
-        studentId: student.id,
-        createdAt: { gte: range.from, lt: range.to },
-        deletedAt: null,
-        visibility: 'General',
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        type: true,
-        category: true,
-        noteEnc: true,
-        meritDelta: true,
-        createdAt: true,
-      },
-    }),
-    ctx.db.childNote.findMany({
-      where: {
-        studentId: student.id,
-        createdAt: { gte: range.from, lt: range.to },
-        deletedAt: null,
-        sensitive: false,
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        noteEnc: true,
-        createdAt: true,
-      },
-    }),
-    ctx.db.meritLedger.findMany({
-      where: { studentId: student.id, createdAt: { lt: range.to } },
-      orderBy: { createdAt: 'desc' },
-      select: { account: true, delta: true, reason: true, createdAt: true },
-    }),
+    input.sections.behaviourSummary || input.sections.behaviourNotes
+      ? ctx.db.behaviourEntry.findMany({
+          where: {
+            studentId: student.id,
+            createdAt: range,
+            deletedAt: null,
+            visibility: 'General',
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            type: true,
+            category: true,
+            noteEnc: true,
+            meritDelta: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+    input.sections.generalNotes
+      ? ctx.db.childNote.findMany({
+          where: {
+            studentId: student.id,
+            createdAt: range,
+            deletedAt: null,
+            sensitive: false,
+          },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            noteEnc: true,
+            createdAt: true,
+          },
+        })
+      : Promise.resolve([]),
+    input.sections.meritActivity || input.sections.balances
+      ? ctx.db.meritLedger.findMany({
+          where: { studentId: student.id, createdAt: { lt: input.period.queryToExclusive } },
+          orderBy: { createdAt: 'desc' },
+          select: { account: true, delta: true, reason: true, createdAt: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const attendance = attendanceRows.reduce(
@@ -351,7 +427,7 @@ async function compileReportSnapshot(
     { total: 0, present: 0, absent: 0, late: 0 },
   );
 
-  const paces = student.subjects.map((assignment) => {
+  const paces = input.sections.paceProgress ? student.subjects.map((assignment) => {
     const subjectRecords = paceRows.filter((row) => row.subjectId === assignment.subjectId);
     const scores = subjectRecords
       .map(scoreForRecord)
@@ -368,29 +444,37 @@ async function compileReportSnapshot(
         (record) => record.paceTestScore !== null && record.paceTestScore >= 80,
       ).length,
       averageTestScore,
+      status: paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup),
     };
-  });
+  }) : [];
 
+  const behaviourSummaryRows = input.sections.behaviourSummary ? behaviourRows : [];
   const behaviour = {
-    meritsEarned: behaviourRows
+    meritsEarned: behaviourSummaryRows
       .filter((entry) => entry.type === 'Merit')
       .reduce((sum, entry) => sum + Math.max(entry.meritDelta, 0), 0),
-    demeritsCount: behaviourRows.filter((entry) => entry.type === 'Demerit').length,
-    demeritsMerits: behaviourRows
+    demeritsCount: behaviourSummaryRows.filter((entry) => entry.type === 'Demerit').length,
+    demeritsMerits: behaviourSummaryRows
       .filter((entry) => entry.type === 'Demerit')
       .reduce((sum, entry) => sum + Math.abs(entry.meritDelta), 0),
-    generalEntries: behaviourRows
-      .filter((entry) => entry.type === 'General')
-      .map((entry) => ({
-        createdAt: entry.createdAt,
-        category: entry.category,
-        note: entry.noteEnc
-          ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
-          : null,
-      })),
+    generalEntries: input.sections.behaviourNotes
+      ? behaviourRows
+          .filter((entry) => entry.type === 'General')
+          .map((entry) => ({
+            id: entry.id,
+            origin: 'Source' as const,
+            createdAt: entry.createdAt,
+            category: entry.category,
+            note: entry.noteEnc
+              ? decryptRequired(ctx.db.$enc.decrypt, entry.noteEnc, 'behaviour note')
+              : null,
+          }))
+      : [],
   };
 
   const notes = noteRows.map((note) => ({
+    id: note.id,
+    origin: 'Source' as const,
     createdAt: note.createdAt,
     note: decryptRequired(ctx.db.$enc.decrypt, note.noteEnc, 'child note'),
   }));
@@ -403,17 +487,18 @@ async function compileReportSnapshot(
       entityId: student.id,
       meta: {
         source: 'report.compile',
-        term: input.term,
+        periodKey: input.period.snapshot.key,
         behaviourEntries: behaviourRows.length,
         notes: noteRows.length,
       },
     },
   });
 
-  return compileTermReport({
+  const compiled = compileStudentReport({
     studentId: student.id,
     studentDisplayName: studentName,
-    term: input.term,
+    period: input.period.snapshot,
+    sections: input.sections,
     attendance,
     paces,
     behaviour,
@@ -421,6 +506,16 @@ async function compileReportSnapshot(
     ledgerRows,
     headSummary: input.headSummary,
   });
+
+  return {
+    ...compiled,
+    meritActivity: input.sections.meritActivity
+      ? compiled.meritActivity.filter(
+          (entry) => new Date(entry.createdAt).getTime() >= input.period.queryFrom.getTime(),
+        )
+      : [],
+    balances: input.sections.balances ? compiled.balances : EMPTY_REPORT_BALANCES,
+  };
 }
 
 function encryptCompiledReport(ctx: AuthedContext, report: CompiledReport): string {
@@ -431,41 +526,263 @@ function encryptCompiledReport(ctx: AuthedContext, report: CompiledReport): stri
   );
 }
 
-function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow) {
+function dateKey(date: Date): string {
+  return [
+    String(date.getUTCFullYear()).padStart(4, '0'),
+    String(date.getUTCMonth() + 1).padStart(2, '0'),
+    String(date.getUTCDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+const LEGACY_UNAVAILABLE_PACE_STATUS = {
+  status: 'Unavailable',
+  tone: 'grey',
+  testingLevel: null,
+  testingLevelLabel: null,
+  detail: 'Status unavailable',
+} as const;
+
+type StoredTextEntry = z.infer<typeof storedTextEntrySchema>;
+
+function normaliseTextEntry(
+  entry: StoredTextEntry,
+  kind: 'behaviour' | 'note',
+  index: number,
+): CompiledReport['notes'][number] {
+  return {
+    id: entry.id ?? `legacy:${kind}:${String(index)}:${entry.createdAt}`,
+    origin: entry.origin ?? 'Source',
+    createdAt: entry.createdAt,
+    ...(entry.category ? { category: entry.category } : {}),
+    note: entry.note,
+  };
+}
+
+function reportEntries(
+  existing: CompiledReport['notes'],
+  input: readonly ReportSpecificNoteInput[],
+  now: Date,
+): CompiledReport['notes'] {
+  const existingCreatedAt = new Map(
+    existing
+      .filter((entry) => entry.origin === 'Report')
+      .map((entry) => [entry.id, entry.createdAt]),
+  );
+  return [
+    ...existing.filter((entry) => entry.origin === 'Source'),
+    ...input.map((entry) => ({
+      id: entry.id,
+      origin: 'Report' as const,
+      createdAt: existingCreatedAt.get(entry.id) ?? now.toISOString(),
+      ...(entry.category ? { category: entry.category } : {}),
+      note: entry.note,
+    })),
+  ];
+}
+
+function preserveEditableDraftContent(
+  fresh: CompiledReport,
+  existing: CompiledReport | null,
+): CompiledReport {
+  if (!existing) return fresh;
+
+  const behaviourReportEntries = existing.behaviour.generalEntries.filter(
+    (entry) => entry.origin === 'Report',
+  );
+  const generalReportEntries = existing.notes.filter((entry) => entry.origin === 'Report');
+  return {
+    ...fresh,
+    headSummary: existing.headSummary,
+    behaviour: {
+      ...fresh.behaviour,
+      generalEntries: [...fresh.behaviour.generalEntries, ...behaviourReportEntries],
+    },
+    notes: [...fresh.notes, ...generalReportEntries],
+  };
+}
+
+function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow): CompiledReport {
   const json = decryptRequired(
     ctx.db.$enc.decrypt,
     row.compiledJsonEnc,
     'compiled term report snapshot',
   );
-  const parsed = compiledReportSchema.safeParse(JSON.parse(json) as unknown);
+  const parsed = storedCompiledReportSchema.safeParse(JSON.parse(json) as unknown);
   if (!parsed.success) {
     throw new TRPCError({
       code: 'INTERNAL_SERVER_ERROR',
       message: 'compiled term report snapshot is invalid',
     });
   }
-  return parsed.data;
+
+  const stored = parsed.data;
+  return {
+    studentId: stored.studentId,
+    studentDisplayName: stored.studentDisplayName,
+    period: stored.period ?? {
+      type: row.periodType,
+      key: row.periodKey,
+      label: row.periodLabel,
+      from: dateKey(row.periodStart),
+      to: dateKey(row.periodEnd),
+    },
+    sections: stored.sections ?? { ...DEFAULT_REPORT_SECTIONS },
+    attendance: stored.attendance,
+    paces: stored.paces.map((pace) => ({
+      ...pace,
+      status: pace.status ?? LEGACY_UNAVAILABLE_PACE_STATUS,
+    })),
+    behaviour: {
+      meritsEarned: stored.behaviour.meritsEarned,
+      demeritsCount: stored.behaviour.demeritsCount,
+      demeritsMerits: stored.behaviour.demeritsMerits,
+      generalEntries: stored.behaviour.generalEntries.map((entry, index) =>
+        normaliseTextEntry(entry, 'behaviour', index),
+      ),
+    },
+    notes: stored.notes.map((entry, index) => normaliseTextEntry(entry, 'note', index)),
+    meritActivity: stored.meritActivity,
+    balances: stored.balances,
+    headSummary: stored.headSummary,
+    compiledAt: stored.compiledAt,
+  };
+}
+
+function reportContentForViewer(ctx: AuthedContext, compiled: CompiledReport): CompiledReport {
+  if (canUseAdminOperations(ctx.user)) return compiled;
+  return {
+    ...compiled,
+    behaviour: {
+      ...compiled.behaviour,
+      generalEntries: compiled.sections.behaviourNotes
+        ? compiled.behaviour.generalEntries
+        : [],
+    },
+    notes: compiled.sections.generalNotes ? compiled.notes : [],
+    headSummary: compiled.sections.progressComment ? compiled.headSummary : '',
+  };
 }
 
 function mapReport(ctx: AuthedContext, row: TermReportRow) {
+  const compiled = decryptCompiledReport(ctx, row);
   return {
     id: row.id,
     studentId: row.studentId,
-    term: row.term,
+    period: {
+      type: row.periodType,
+      key: row.periodKey,
+      label: row.periodLabel,
+      from: dateKey(row.periodStart),
+      to: dateKey(row.periodEnd),
+    },
     status: row.status,
+    pdfGeneratedAt: row.pdfGeneratedAt,
     sentAt: row.sentAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    compiled: decryptCompiledReport(ctx, row),
+    compiled: reportContentForViewer(ctx, compiled),
   };
+}
+
+async function generateReportPdf(
+  ctx: AuthedContext,
+  row: TermReportRow,
+  generatedAt: Date,
+  pdfGenerator: typeof generateStudentReportPdf,
+) {
+  try {
+    return await pdfGenerator({ report: decryptCompiledReport(ctx, row), generatedAt });
+  } catch (error) {
+    logOperationalEvent({
+      event: 'report.pdf_generation_failed',
+      level: 'error',
+      message: 'Student report PDF generation failed',
+      meta: {
+        error: operationalErrorMessage(error),
+        reportId: row.id,
+        studentId: row.studentId,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Could not generate the report PDF. Please try again.',
+      cause: error,
+    });
+  }
+}
+
+async function assertCanDownloadReport(ctx: AuthedContext, report: TermReportRow): Promise<void> {
+  if (canUseAdminOperations(ctx.user)) return;
+  await assertCanReadReports(ctx, report.studentId, 'report.downloadPdf');
+  if (report.status !== 'Sent') {
+    await auditPermissionDenied(
+      ctx,
+      'report.downloadPdf',
+      report.id,
+      new AccessDeniedError('only sent reports can be downloaded'),
+    );
+  }
 }
 
 async function loadReport(ctx: AuthedContext, reportId: string): Promise<TermReportRow> {
   const report = await ctx.db.termReport.findUnique({ where: { id: reportId } });
   if (!report) {
-    throw new TRPCError({ code: 'NOT_FOUND', message: 'term report not found' });
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'student report not found' });
   }
   return report;
+}
+
+async function transitionReport(
+  ctx: AuthedContext,
+  input: {
+    existing: TermReportRow;
+    data: Prisma.TermReportUpdateManyMutationInput;
+    source: 'report.draft' | 'report.review' | 'report.send';
+    auditMeta?: Record<string, unknown>;
+  },
+): Promise<TermReportRow> {
+  return ctx.withRls(async (tx) => {
+    const transitioned = await tx.termReport.updateMany({
+      where: {
+        id: input.existing.id,
+        status: input.existing.status,
+        updatedAt: input.existing.updatedAt,
+        compiledJsonEnc: input.existing.compiledJsonEnc,
+      },
+      data: input.data,
+    });
+    if (transitioned.count !== 1) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This report changed while you were working. Refresh it and try again.',
+      });
+    }
+
+    const report = await tx.termReport.findUnique({ where: { id: input.existing.id } });
+    if (!report) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Updated student report could not be loaded.',
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'TermReport',
+        entityId: report.id,
+        meta: {
+          source: input.source,
+          studentId: report.studentId,
+          periodKey: report.periodKey,
+          ...input.auditMeta,
+        },
+      },
+    });
+    return report;
+  });
 }
 
 function parentReportPath(report: TermReportRow): string {
@@ -490,7 +807,7 @@ async function auditReportNotificationFailure(
           source: 'report.send.notification',
           emailStatus: 'Failed',
           studentId: report.studentId,
-          term: report.term,
+          periodLabel: report.periodLabel,
           ...meta,
         },
       },
@@ -583,7 +900,7 @@ async function notifyReportGuardians({
         to: recipientEmail,
         recipientName,
         childName,
-        term: report.term,
+        term: report.periodLabel,
         reportPath: parentReportPath(report),
       });
       const result = await getEmailClient().send(email);
@@ -600,7 +917,7 @@ async function notifyReportGuardians({
             reportId: report.id,
             studentId: report.studentId,
             subject: REPORT_NOTIFICATION_EMAIL_SUBJECT,
-            term: report.term,
+            periodLabel: report.periodLabel,
             toUserId: guardian.user.id,
             toRole: guardian.user.role,
           },
@@ -635,43 +952,82 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
     cachedEmailClient = createResendEmailClient();
     return cachedEmailClient;
   };
+  const pdfGenerator = deps.pdfGenerator ?? generateStudentReportPdf;
 
   return router({
     draft: adminOperationsProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
+      const period = resolveDraftPeriod(input.period);
       const existing = await ctx.db.termReport.findUnique({
-        where: { studentId_term: { studentId: input.studentId, term: input.term } },
+        where: {
+          studentId_periodKey: {
+            studentId: input.studentId,
+            periodKey: period.snapshot.key,
+          },
+        },
       });
 
       if (existing?.status === 'Sent') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be re-drafted' });
       }
 
-      const compiled = await compileReportSnapshot(ctx, input);
+      const existingCompiled = existing ? decryptCompiledReport(ctx, existing) : null;
+      const compiled = preserveEditableDraftContent(
+        await compileReportSnapshot(ctx, {
+          studentId: input.studentId,
+          period,
+          sections: input.sections,
+          ...(existingCompiled ? { headSummary: existingCompiled.headSummary } : {}),
+        }),
+        existingCompiled,
+      );
       const compiledJsonEnc = encryptCompiledReport(ctx, compiled);
+      const periodEnd = new Date(period.queryToExclusive.getTime() - 86_400_000);
 
       const report = existing
-        ? await ctx.db.termReport.update({
-            where: { id: existing.id },
-            data: { compiledJsonEnc, status: 'Draft', sentAt: null },
-          })
-        : await ctx.db.termReport.create({
+        ? await transitionReport(ctx, {
+            existing,
+            source: 'report.draft',
             data: {
-              studentId: input.studentId,
-              term: input.term,
-              status: 'Draft',
+              periodType: period.snapshot.type,
+              periodLabel: period.snapshot.label,
+              periodStart: period.queryFrom,
+              periodEnd,
               compiledJsonEnc,
+              status: 'Draft',
+              pdfBytesEnc: null,
+              pdfFileNameEnc: null,
+              pdfGeneratedAt: null,
+              sentAt: null,
             },
+          })
+        : await ctx.withRls(async (tx) => {
+            const created = await tx.termReport.create({
+              data: {
+                studentId: input.studentId,
+                periodKey: period.snapshot.key,
+                periodType: period.snapshot.type,
+                periodLabel: period.snapshot.label,
+                periodStart: period.queryFrom,
+                periodEnd,
+                status: 'Draft',
+                compiledJsonEnc,
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Create',
+                entity: 'TermReport',
+                entityId: created.id,
+                meta: {
+                  source: 'report.draft',
+                  studentId: input.studentId,
+                  periodKey: period.snapshot.key,
+                },
+              },
+            });
+            return created;
           });
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: existing ? 'Update' : 'Create',
-          entity: 'TermReport',
-          entityId: report.id,
-          meta: { source: 'report.draft', studentId: input.studentId, term: input.term },
-        },
-      });
 
       return mapReport(ctx, report);
     }),
@@ -683,26 +1039,30 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       }
 
       const compiled = decryptCompiledReport(ctx, existing);
+      const now = new Date();
       const updatedCompiled: CompiledReport = {
         ...compiled,
-        headSummary: input.headSummary ?? compiled.headSummary,
-        compiledAt: new Date().toISOString(),
+        headSummary: input.progressComment,
+        behaviour: {
+          ...compiled.behaviour,
+          generalEntries: reportEntries(
+            compiled.behaviour.generalEntries,
+            input.behaviourNotes,
+            now,
+          ),
+        },
+        notes: reportEntries(compiled.notes, input.generalNotes, now),
+        compiledAt: now.toISOString(),
       };
-      const report = await ctx.db.termReport.update({
-        where: { id: existing.id },
+      const report = await transitionReport(ctx, {
+        existing,
+        source: 'report.review',
         data: {
           status: 'UnderReview',
           compiledJsonEnc: encryptCompiledReport(ctx, updatedCompiled),
-        },
-      });
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'TermReport',
-          entityId: report.id,
-          meta: { source: 'report.review', studentId: report.studentId, term: report.term },
+          pdfBytesEnc: null,
+          pdfFileNameEnc: null,
+          pdfGeneratedAt: null,
         },
       });
 
@@ -712,28 +1072,82 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
     send: adminOperationsProcedure.input(reportIdInput).mutation(async ({ ctx, input }) => {
       const existing = await loadReport(ctx, input.reportId);
       if (existing.status === 'Sent') {
-        throw new TRPCError({ code: 'BAD_REQUEST', message: 'term report is already sent' });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'student report is already sent' });
       }
 
       const sentAt = new Date();
-      const report = await ctx.db.termReport.update({
-        where: { id: existing.id },
-        data: { status: 'Sent', sentAt },
-      });
-
-      await ctx.db.auditLog.create({
+      const pdf = await generateReportPdf(ctx, existing, sentAt, pdfGenerator);
+      const pdfBase64 = Buffer.from(pdf.bytes).toString('base64');
+      const pdfBytesEnc = encryptRequired(ctx.db.$enc.encrypt, pdfBase64, 'student report PDF');
+      const pdfFileNameEnc = encryptRequired(
+        ctx.db.$enc.encrypt,
+        pdf.fileName,
+        'student report PDF file name',
+      );
+      const report = await transitionReport(ctx, {
+        existing,
+        source: 'report.send',
+        auditMeta: { sentAt },
         data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'TermReport',
-          entityId: report.id,
-          meta: { source: 'report.send', studentId: report.studentId, term: report.term, sentAt },
+          status: 'Sent',
+          sentAt,
+          pdfBytesEnc,
+          pdfFileNameEnc,
+          pdfGeneratedAt: sentAt,
         },
       });
 
       await notifyReportGuardians({ ctx, getEmailClient, report });
 
       return mapReport(ctx, report);
+    }),
+
+    downloadPdf: authedProcedure.input(reportIdInput).query(async ({ ctx, input }) => {
+      const report = await loadReport(ctx, input.reportId);
+      await assertCanDownloadReport(ctx, report);
+
+      let fileName: string;
+      let pdfBase64: string;
+      if (report.pdfGeneratedAt) {
+        if (!report.pdfBytesEnc || !report.pdfFileNameEnc) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Stored report PDF is incomplete.',
+          });
+        }
+        pdfBase64 = decryptRequired(ctx.db.$enc.decrypt, report.pdfBytesEnc, 'student report PDF');
+        fileName = decryptRequired(
+          ctx.db.$enc.decrypt,
+          report.pdfFileNameEnc,
+          'student report PDF file name',
+        );
+      } else {
+        const generatedAt = report.sentAt ?? new Date();
+        const pdf = await generateReportPdf(ctx, report, generatedAt, pdfGenerator);
+        pdfBase64 = Buffer.from(pdf.bytes).toString('base64');
+        fileName = pdf.fileName;
+      }
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'TermReport',
+          entityId: report.id,
+          meta: {
+            source: 'report.downloadPdf',
+            studentId: report.studentId,
+            storedFinalPdf: report.pdfGeneratedAt !== null,
+          },
+        },
+      });
+
+      return {
+        reportId: report.id,
+        fileName,
+        mimeType: 'application/pdf' as const,
+        pdfBase64,
+      };
     }),
 
     listForStudent: authedProcedure.input(studentInput).query(async ({ ctx, input }) => {
@@ -745,7 +1159,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
           studentId: input.studentId,
           ...(canUseAdminOperations(ctx.user) ? {} : { status: 'Sent' as const }),
         },
-        orderBy: [{ term: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ periodEnd: 'desc' }, { createdAt: 'desc' }],
       });
 
       await ctx.db.auditLog.create({

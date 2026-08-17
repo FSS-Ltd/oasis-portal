@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SessionUser } from '@oasis/domain';
+import {
+  DEFAULT_REPORT_SECTIONS,
+  type ReportSections,
+  type SessionUser,
+} from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { REPORT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
+import type {
+  GenerateStudentReportPdfInput,
+  GeneratedStudentReportPdf,
+} from '../reports/student-report-pdf.js';
 import { createReportRouter } from '../routers/report.js';
 import { router } from '../trpc.js';
 
@@ -9,6 +17,7 @@ type AttendanceStatus = 'Present' | 'Absent' | 'Late';
 type BehaviourType = 'Merit' | 'Demerit' | 'General';
 type BehaviourVisibility = 'General' | 'Sensitive';
 type TermReportStatus = 'Draft' | 'UnderReview' | 'Sent';
+type ReportPeriodType = 'Term' | 'AcademicYear' | 'Custom';
 
 const headUser: SessionUser = {
   id: 'ckreporthead000000000001',
@@ -49,6 +58,7 @@ interface StoredStudent {
   id: string;
   active: boolean;
   fullNameEnc: string;
+  yearGroup: string;
   subjects: Array<{
     subjectId: string;
     currentPaceNumber: number;
@@ -71,6 +81,7 @@ interface StoredPaceRecord {
 }
 
 interface StoredBehaviourEntry {
+  id: string;
   studentId: string;
   type: BehaviourType;
   category: string;
@@ -82,6 +93,7 @@ interface StoredBehaviourEntry {
 }
 
 interface StoredChildNote {
+  id: string;
   studentId: string;
   noteEnc: string;
   sensitive: boolean;
@@ -108,9 +120,16 @@ interface StoredLedgerRow {
 interface StoredTermReport {
   id: string;
   studentId: string;
-  term: string;
+  periodKey: string;
+  periodType: ReportPeriodType;
+  periodLabel: string;
+  periodStart: Date;
+  periodEnd: Date;
   status: TermReportStatus;
   compiledJsonEnc: string;
+  pdfBytesEnc: string | null;
+  pdfFileNameEnc: string | null;
+  pdfGeneratedAt: Date | null;
   sentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -134,9 +153,11 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
   };
   reports: StoredTermReport[];
   behaviourEntries: StoredBehaviourEntry[];
+  ledgerRows: StoredLedgerRow[];
 }
 
 interface AuditData {
@@ -182,6 +203,7 @@ function makeStudent(): StoredStudent {
     id: studentId,
     active: true,
     fullNameEnc,
+    yearGroup: 'Year 3',
     subjects: [
       {
         subjectId,
@@ -218,6 +240,7 @@ function makeFakeDb() {
   ];
   const behaviourEntries: StoredBehaviourEntry[] = [
     {
+      id: 'ckbehaviourreport000001',
       studentId,
       type: 'Merit',
       category: 'Academic Excellence',
@@ -228,6 +251,7 @@ function makeFakeDb() {
       createdAt: day('2026-05-12'),
     },
     {
+      id: 'ckbehaviourreport000002',
       studentId,
       type: 'Demerit',
       category: 'Correction',
@@ -238,6 +262,7 @@ function makeFakeDb() {
       createdAt: day('2026-05-13'),
     },
     {
+      id: 'ckbehaviourreport000003',
       studentId,
       type: 'General',
       category: 'Character',
@@ -248,6 +273,7 @@ function makeFakeDb() {
       createdAt: day('2026-05-14'),
     },
     {
+      id: 'ckbehaviourreport000004',
       studentId,
       type: 'General',
       category: 'Private',
@@ -260,6 +286,7 @@ function makeFakeDb() {
   ];
   const notes: StoredChildNote[] = [
     {
+      id: 'ckchildnotereport000001',
       studentId,
       noteEnc: encrypt('Reading has improved') ?? '',
       sensitive: false,
@@ -267,6 +294,7 @@ function makeFakeDb() {
       createdAt: day('2026-05-16'),
     },
     {
+      id: 'ckchildnotereport000002',
       studentId,
       noteEnc: encrypt('Private family note') ?? '',
       sensitive: true,
@@ -298,6 +326,7 @@ function makeFakeDb() {
     },
   ];
   const reports: StoredTermReport[] = [];
+  const cloneReport = (report: StoredTermReport): StoredTermReport => ({ ...report });
 
   const db: FakeDb = {
     $enc: {
@@ -334,6 +363,7 @@ function makeFakeDb() {
               .filter((entry) => where.deletedAt !== null || entry.deletedAt === null)
               .filter((entry) => !where.visibility || entry.visibility === where.visibility)
               .map((entry) => ({
+                id: entry.id,
                 type: entry.type,
                 category: entry.category,
                 noteEnc: entry.noteEnc,
@@ -361,7 +391,7 @@ function makeFakeDb() {
               .filter((note) => inRange(note.createdAt, where.createdAt))
               .filter((note) => where.deletedAt !== null || note.deletedAt === null)
               .filter((note) => where.sensitive === undefined || note.sensitive === where.sensitive)
-              .map((note) => ({ noteEnc: note.noteEnc, createdAt: note.createdAt })),
+              .map((note) => ({ id: note.id, noteEnc: note.noteEnc, createdAt: note.createdAt })),
           ),
       ),
     },
@@ -441,18 +471,30 @@ function makeFakeDb() {
         ({
           data,
         }: {
-          data: Omit<StoredTermReport, 'id' | 'sentAt' | 'createdAt' | 'updatedAt'>;
+          data: Omit<
+            StoredTermReport,
+            | 'id'
+            | 'pdfBytesEnc'
+            | 'pdfFileNameEnc'
+            | 'pdfGeneratedAt'
+            | 'sentAt'
+            | 'createdAt'
+            | 'updatedAt'
+          >;
         }) => {
           const now = new Date('2026-05-20T10:00:00.000Z');
           const report: StoredTermReport = {
             id: reportId,
+            pdfBytesEnc: null,
+            pdfFileNameEnc: null,
+            pdfGeneratedAt: null,
             sentAt: null,
             createdAt: now,
             updatedAt: now,
             ...data,
           };
           reports.push(report);
-          return Promise.resolve(report);
+          return Promise.resolve(cloneReport(report));
         },
       ),
       findMany: vi.fn(({ where }: { where: { studentId: string; status?: TermReportStatus } }) =>
@@ -466,31 +508,59 @@ function makeFakeDb() {
         ({
           where,
         }: {
-          where: { id: string } | { studentId_term: { studentId: string; term: string } };
+          where:
+            | { id: string }
+            | { studentId_periodKey: { studentId: string; periodKey: string } };
         }) => {
           if ('id' in where) {
-            return Promise.resolve(reports.find((report) => report.id === where.id) ?? null);
+            const report = reports.find((candidate) => candidate.id === where.id);
+            return Promise.resolve(report ? cloneReport(report) : null);
           }
-          return Promise.resolve(
-            reports.find(
+          const report = reports.find(
               (report) =>
-                report.studentId === where.studentId_term.studentId &&
-                report.term === where.studentId_term.term,
-            ) ?? null,
-          );
+                report.studentId === where.studentId_periodKey.studentId &&
+                report.periodKey === where.studentId_periodKey.periodKey,
+            );
+          return Promise.resolve(report ? cloneReport(report) : null);
         },
       ),
       update: vi.fn(
         ({ where, data }: { where: { id: string }; data: Partial<StoredTermReport> }) => {
           const report = reports.find((candidate) => candidate.id === where.id);
           if (!report) throw new Error('report not found');
-          Object.assign(report, data, { updatedAt: new Date('2026-05-20T11:00:00.000Z') });
-          return Promise.resolve(report);
+          Object.assign(report, data, { updatedAt: new Date(report.updatedAt.getTime() + 1) });
+          return Promise.resolve(cloneReport(report));
+        },
+      ),
+      updateMany: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: {
+            id: string;
+            status: TermReportStatus;
+            updatedAt: Date;
+            compiledJsonEnc: string;
+          };
+          data: Partial<StoredTermReport>;
+        }) => {
+          const report = reports.find(
+            (candidate) =>
+              candidate.id === where.id &&
+              candidate.status === where.status &&
+              candidate.updatedAt.getTime() === where.updatedAt.getTime() &&
+              candidate.compiledJsonEnc === where.compiledJsonEnc,
+          );
+          if (!report) return Promise.resolve({ count: 0 });
+          Object.assign(report, data, { updatedAt: new Date(report.updatedAt.getTime() + 1) });
+          return Promise.resolve({ count: 1 });
         },
       ),
     },
     reports,
     behaviourEntries,
+    ledgerRows,
   };
 
   return db;
@@ -502,6 +572,31 @@ function makeFakeEmailClient(result = { id: 'report_email_123' }) {
   return { client, send };
 }
 
+type PdfGenerator = (
+  input: GenerateStudentReportPdfInput,
+) => Promise<GeneratedStudentReportPdf>;
+
+function makeFakePdfGenerator(
+  result: GeneratedStudentReportPdf = {
+    bytes: Uint8Array.from([37, 80, 68, 70, 45, 49, 46, 55]),
+    fileName: 'Jane-Learner-Summer-2026-report.pdf',
+    mimeType: 'application/pdf',
+  },
+) {
+  const generate = vi.fn<PdfGenerator>().mockResolvedValue(result);
+  return { generate, result };
+}
+
+function deferred<T>() {
+  let resolvePromise: (value: T) => void = () => undefined;
+  let rejectPromise: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { promise, reject: rejectPromise, resolve: resolvePromise };
+}
+
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   return {
     db: db as unknown as AppContext['db'],
@@ -511,32 +606,63 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db = makeFakeDb(), emailClient?: EmailClient) {
+function makeCaller(
+  user: SessionUser | null,
+  db = makeFakeDb(),
+  deps: { emailClient?: EmailClient; pdfGenerator?: PdfGenerator } = {},
+) {
   const appRouter = router({
-    report: createReportRouter({ emailClient: emailClient ?? makeFakeEmailClient().client }),
+    report: createReportRouter({
+      emailClient: deps.emailClient ?? makeFakeEmailClient().client,
+      pdfGenerator: deps.pdfGenerator ?? makeFakePdfGenerator().generate,
+    }),
   });
   return { caller: appRouter.createCaller(makeCtx(user, db)), db };
 }
 
+function defaultDraftInput() {
+  return {
+    studentId,
+    period: { type: 'Term' as const, term: '2026-Summer' },
+    sections: { ...DEFAULT_REPORT_SECTIONS } satisfies ReportSections,
+  };
+}
+
+function defaultReviewInput(reportIdValue: string) {
+  return {
+    reportId: reportIdValue,
+    progressComment: '',
+    behaviourNotes: [],
+    generalNotes: [],
+  };
+}
+
 async function createDraft(db = makeFakeDb()) {
   const { caller } = makeCaller(headUser, db);
-  const draft = await caller.report.draft({ studentId, term: '2026-Summer' });
+  const draft = await caller.report.draft(defaultDraftInput());
   return { db, draft };
 }
 
 describe('report.draft', () => {
-  it('compiles and stores an encrypted term report snapshot', async () => {
+  it('compiles and stores an encrypted student report snapshot', async () => {
     const { caller, db } = makeCaller(headUser);
 
-    const draft = await caller.report.draft({ studentId, term: '2026-Summer' });
+    const draft = await caller.report.draft(defaultDraftInput());
 
     expect(draft).toMatchObject({
       id: reportId,
       studentId,
-      term: '2026-Summer',
+      period: {
+        type: 'Term',
+        key: '2026-Summer',
+        label: 'Summer 2026',
+        from: '2026-04-01',
+        to: '2026-08-31',
+      },
       status: 'Draft',
       compiled: {
         studentDisplayName: 'Jane Learner',
+        sections: DEFAULT_REPORT_SECTIONS,
         attendance: { total: 4, present: 2, absent: 1, late: 1, attendancePct: 75 },
         behaviour: {
           meritsEarned: 10,
@@ -553,17 +679,31 @@ describe('report.draft', () => {
         currentPace: 1042,
         pacesCompletedThisTerm: 1,
         averageTestScore: 85,
+        status: {
+          status: 'Ahead',
+          tone: 'green',
+          testingLevel: 4,
+          testingLevelLabel: 'Testing at Level 4',
+          detail: 'Testing at Level 4',
+        },
       },
     ]);
     expect(draft.compiled.behaviour.generalEntries).toEqual([
       {
+        id: 'ckbehaviourreport000003',
+        origin: 'Source',
         createdAt: '2026-05-14T00:00:00.000Z',
         category: 'Character',
         note: 'Served others well',
       },
     ]);
     expect(draft.compiled.notes).toEqual([
-      { createdAt: '2026-05-16T00:00:00.000Z', note: 'Reading has improved' },
+      {
+        id: 'ckchildnotereport000001',
+        origin: 'Source',
+        createdAt: '2026-05-16T00:00:00.000Z',
+        note: 'Reading has improved',
+      },
     ]);
     expect(draft.compiled.meritActivity).toEqual([
       {
@@ -592,27 +732,114 @@ describe('report.draft', () => {
       action: 'Create',
       entity: 'TermReport',
       entityId: reportId,
-      meta: { source: 'report.draft', studentId, term: '2026-Summer' },
+      meta: { source: 'report.draft', studentId, periodKey: '2026-Summer' },
     });
+  });
+
+  it('uses pre-period ledger rows for balances without exposing them as period activity', async () => {
+    const { caller, db } = makeCaller(headUser);
+    db.ledgerRows.push({
+      studentId,
+      account: 'Spend',
+      delta: 5,
+      reason: 'Previous term balance',
+      createdAt: day('2026-03-31'),
+    });
+
+    const draft = await caller.report.draft(defaultDraftInput());
+
+    expect(draft.compiled.balances.Spend).toBe(35);
+    expect(draft.compiled.meritActivity).not.toContainEqual(
+      expect.objectContaining({ reason: 'Previous term balance' }),
+    );
+  });
+
+  it.each([
+    [
+      { type: 'Term' as const, term: '2026-Summer' },
+      { key: '2026-Summer', from: '2026-04-01', to: '2026-08-31' },
+    ],
+    [
+      { type: 'AcademicYear' as const, startYear: 2025 },
+      { key: '2025-AcademicYear', from: '2025-09-01', to: '2026-08-31' },
+    ],
+    [
+      { type: 'Custom' as const, from: '2026-05-10', to: '2026-05-12' },
+      { key: '2026-05-10_to_2026-05-12', from: '2026-05-10', to: '2026-05-12' },
+    ],
+  ])('compiles a %s period with frozen metadata', async (period, expected) => {
+    const { caller } = makeCaller(headUser);
+
+    const draft = await caller.report.draft({
+      studentId,
+      period,
+      sections: { ...DEFAULT_REPORT_SECTIONS },
+    });
+
+    expect(draft.period).toMatchObject(expected);
+    expect(draft.compiled.period).toMatchObject(expected);
+  });
+
+  it('copies only selected sections and freezes PACE status', async () => {
+    const { caller, db } = makeCaller(headUser);
+    const draft = await caller.report.draft({
+      ...defaultDraftInput(),
+      sections: {
+        ...DEFAULT_REPORT_SECTIONS,
+        behaviourNotes: false,
+        generalNotes: false,
+        meritActivity: false,
+      },
+    });
+
+    expect(draft.compiled.sections.behaviourNotes).toBe(false);
+    expect(draft.compiled.behaviour.generalEntries).toEqual([]);
+    expect(draft.compiled.notes).toEqual([]);
+    expect(draft.compiled.meritActivity).toEqual([]);
+    expect(draft.compiled.paces[0]?.status.status).toBe('Ahead');
+    expect(db.$enc.decrypt).not.toHaveBeenCalledWith(encrypt('Served others well'));
+    expect(db.$enc.decrypt).not.toHaveBeenCalledWith(encrypt('Reading has improved'));
+  });
+
+  it('treats both custom date endpoints as inclusive', async () => {
+    const { caller } = makeCaller(headUser);
+    const draft = await caller.report.draft({
+      ...defaultDraftInput(),
+      period: { type: 'Custom', from: '2026-05-12', to: '2026-05-12' },
+    });
+
+    expect(draft.compiled.behaviour.meritsEarned).toBe(10);
+    expect(draft.compiled.attendance.total).toBe(0);
+  });
+
+  it('rejects impossible custom dates as a bad request', async () => {
+    const { caller } = makeCaller(headUser);
+
+    await expect(
+      caller.report.draft({
+        ...defaultDraftInput(),
+        period: { type: 'Custom', from: '2026-02-30', to: '2026-03-01' },
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('rejects non-full-admin draft attempts', async () => {
     const { caller } = makeCaller(supervisorUser);
 
-    await expect(caller.report.draft({ studentId, term: '2026-Summer' })).rejects.toMatchObject({
+    await expect(caller.report.draft(defaultDraftInput())).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
   });
 });
 
 describe('report.review and report.send', () => {
-  it('updates the Head summary and moves the draft under review', async () => {
+  it('updates the Progress Comment and moves the draft under review', async () => {
     const { db, draft } = await createDraft();
     const { caller } = makeCaller(headUser, db);
 
     const reviewed = await caller.report.review({
-      reportId: draft.id,
-      headSummary: 'A strong term with steady progress.',
+      ...defaultReviewInput(draft.id),
+      progressComment: 'A strong term with steady progress.',
     });
 
     expect(reviewed.status).toBe('UnderReview');
@@ -620,10 +847,191 @@ describe('report.review and report.send', () => {
     expect(db.reports[0]?.compiledJsonEnc).not.toContain('strong term');
   });
 
+  it('adds, edits, and removes only report-specific notes', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    const behaviourId = '3caaf78c-c3be-4eb6-948b-0c93799c8d22';
+    const generalId = '8957af68-17a3-4790-a703-2f11cab89654';
+
+    const reviewed = await caller.report.review({
+      reportId: draft.id,
+      progressComment: 'Jane is making steady progress.',
+      behaviourNotes: [
+        { id: behaviourId, category: 'Character', note: 'Shows initiative.' },
+      ],
+      generalNotes: [{ id: generalId, note: 'Enjoys independent reading.' }],
+    });
+
+    expect(reviewed.compiled.headSummary).toBe('Jane is making steady progress.');
+    expect(reviewed.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: behaviourId,
+          origin: 'Report',
+          note: 'Shows initiative.',
+        }),
+        expect.objectContaining({ origin: 'Source', note: 'Served others well' }),
+      ]),
+    );
+    expect(reviewed.compiled.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: generalId,
+          origin: 'Report',
+          note: 'Enjoys independent reading.',
+        }),
+        expect.objectContaining({ origin: 'Source', note: 'Reading has improved' }),
+      ]),
+    );
+
+    const edited = await caller.report.review({
+      ...defaultReviewInput(draft.id),
+      progressComment: 'Jane is making steady progress.',
+      behaviourNotes: [
+        { id: behaviourId, category: 'Character', note: 'Shows consistent initiative.' },
+      ],
+    });
+    expect(edited.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: behaviourId, note: 'Shows consistent initiative.' }),
+      ]),
+    );
+    expect(edited.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Source' })]),
+    );
+
+    const removed = await caller.report.review(defaultReviewInput(draft.id));
+    expect(removed.compiled.behaviour.generalEntries).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Report' })]),
+    );
+    expect(removed.compiled.notes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Report' })]),
+    );
+    expect(removed.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Source' })]),
+    );
+  });
+
+  it('preserves report additions and Progress Comment when a draft is refreshed', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const draft = await caller.report.draft(defaultDraftInput());
+    const manualId = '3caaf78c-c3be-4eb6-948b-0c93799c8d22';
+    await caller.report.review({
+      reportId: draft.id,
+      progressComment: 'Keep this progress comment.',
+      behaviourNotes: [{ id: manualId, category: 'Character', note: 'Keep this note.' }],
+      generalNotes: [],
+    });
+    db.behaviourEntries.push({
+      id: 'ckbehaviourreport000006',
+      studentId,
+      type: 'General',
+      category: 'Service',
+      noteEnc: encrypt('New source note'),
+      visibility: 'General',
+      meritDelta: 0,
+      deletedAt: null,
+      createdAt: day('2026-05-18'),
+    });
+
+    const refreshed = await caller.report.draft(defaultDraftInput());
+
+    expect(refreshed.status).toBe('Draft');
+    expect(refreshed.compiled.headSummary).toBe('Keep this progress comment.');
+    expect(refreshed.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: manualId, origin: 'Report', note: 'Keep this note.' }),
+        expect.objectContaining({ origin: 'Source', note: 'New source note' }),
+      ]),
+    );
+  });
+
+  it('preserves report additions while their sections are hidden and later restored', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    const behaviourId = 'aa11396e-4620-4708-93f4-a1b0ec354517';
+    const generalId = 'dfe63dcf-ad74-4a37-8e30-8be96b182fc2';
+    await caller.report.review({
+      reportId: draft.id,
+      progressComment: 'Keep all report-only content.',
+      behaviourNotes: [{ id: behaviourId, category: 'Character', note: 'Keep behaviour note.' }],
+      generalNotes: [{ id: generalId, note: 'Keep general note.' }],
+    });
+
+    const hidden = await caller.report.draft({
+      ...defaultDraftInput(),
+      sections: {
+        ...DEFAULT_REPORT_SECTIONS,
+        behaviourNotes: false,
+        generalNotes: false,
+      },
+    });
+
+    expect(hidden.compiled.sections.behaviourNotes).toBe(false);
+    expect(hidden.compiled.sections.generalNotes).toBe(false);
+    expect(hidden.compiled.behaviour.generalEntries).toContainEqual(
+      expect.objectContaining({ id: behaviourId, origin: 'Report', note: 'Keep behaviour note.' }),
+    );
+    expect(hidden.compiled.notes).toContainEqual(
+      expect.objectContaining({ id: generalId, origin: 'Report', note: 'Keep general note.' }),
+    );
+
+    const restored = await caller.report.draft(defaultDraftInput());
+    expect(restored.compiled.behaviour.generalEntries).toContainEqual(
+      expect.objectContaining({ id: behaviourId, origin: 'Report', note: 'Keep behaviour note.' }),
+    );
+    expect(restored.compiled.notes).toContainEqual(
+      expect.objectContaining({ id: generalId, origin: 'Report', note: 'Keep general note.' }),
+    );
+  });
+
+  it('rejects invalid report-specific note payloads', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    const duplicateId = '3caaf78c-c3be-4eb6-948b-0c93799c8d22';
+
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        behaviourNotes: [
+          { id: duplicateId, note: 'First note.' },
+          { id: duplicateId, note: 'Second note.' },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        generalNotes: [{ id: duplicateId, note: '   ' }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        progressComment: 'x'.repeat(5001),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('keeps sent report content immutable', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    await caller.report.send({ reportId: draft.id });
+
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        progressComment: 'Too late to change.',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
   it('sends without recompiling later source data', async () => {
     const { db, draft } = await createDraft();
     const { caller } = makeCaller(headUser, db);
     db.behaviourEntries.push({
+      id: 'ckbehaviourreport000005',
       studentId,
       type: 'Merit',
       category: 'Late addition',
@@ -642,10 +1050,154 @@ describe('report.review and report.send', () => {
     expect(db.reports[0]?.status).toBe('Sent');
   });
 
+  it('generates and encrypts the exact final PDF before marking the report sent', async () => {
+    const { db, draft } = await createDraft();
+    const pdf = makeFakePdfGenerator();
+    pdf.generate.mockImplementation(() => {
+      expect(db.reports[0]?.status).toBe('Draft');
+      return Promise.resolve(pdf.result);
+    });
+    const { caller } = makeCaller(headUser, db, { pdfGenerator: pdf.generate });
+
+    const sent = await caller.report.send({ reportId: draft.id });
+    const stored = db.reports[0];
+
+    const generatedInput = pdf.generate.mock.calls[0]?.[0];
+    if (!generatedInput) throw new Error('expected PDF generation input');
+    expect(generatedInput.report).toMatchObject({
+      studentId,
+      studentDisplayName: 'Jane Learner',
+      period: draft.period,
+    });
+    expect(generatedInput.generatedAt).toBeInstanceOf(Date);
+    expect(sent.status).toBe('Sent');
+    expect(stored?.pdfGeneratedAt).toEqual(stored?.sentAt);
+    expect(stored?.pdfBytesEnc).not.toContain(Buffer.from(pdf.result.bytes).toString('base64'));
+    expect(decrypt(stored?.pdfBytesEnc)).toBe(Buffer.from(pdf.result.bytes).toString('base64'));
+    expect(decrypt(stored?.pdfFileNameEnc)).toBe(pdf.result.fileName);
+    const sendAudit = auditData(db).find((entry) => entry.meta?.['source'] === 'report.send');
+    expect(sendAudit).toMatchObject({
+      action: 'Update',
+      entity: 'TermReport',
+      entityId: draft.id,
+      meta: { source: 'report.send' },
+    });
+  });
+
+  it('keeps the report unsent and skips notifications when final PDF generation fails', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const pdfGenerator = vi.fn<PdfGenerator>().mockRejectedValue(new Error('renderer failed'));
+    const { caller } = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator,
+    });
+
+    await expect(caller.report.send({ reportId: draft.id })).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Could not generate the report PDF. Please try again.',
+    });
+
+    expect(db.reports[0]).toMatchObject({
+      status: 'Draft',
+      sentAt: null,
+      pdfGeneratedAt: null,
+      pdfBytesEnc: null,
+      pdfFileNameEnc: null,
+    });
+    expect(db.termReport.update).not.toHaveBeenCalled();
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('allows only one concurrent send to freeze and notify a report', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const firstPdf = deferred<GeneratedStudentReportPdf>();
+    const secondPdf = deferred<GeneratedStudentReportPdf>();
+    const pdf = makeFakePdfGenerator();
+    pdf.generate
+      .mockImplementationOnce(() => firstPdf.promise)
+      .mockImplementationOnce(() => secondPdf.promise);
+    const firstCaller = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator: pdf.generate,
+    }).caller;
+    const secondCaller = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator: pdf.generate,
+    }).caller;
+
+    const firstSend = firstCaller.report.send({ reportId: draft.id });
+    await vi.waitFor(() => {
+      expect(pdf.generate).toHaveBeenCalledTimes(1);
+    });
+    const secondSend = secondCaller.report.send({ reportId: draft.id });
+    await vi.waitFor(() => {
+      expect(pdf.generate).toHaveBeenCalledTimes(2);
+    });
+    firstPdf.resolve(pdf.result);
+    secondPdf.resolve(pdf.result);
+
+    const results = await Promise.allSettled([firstSend, secondSend]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(email.send).toHaveBeenCalledTimes(1);
+    expect(auditData(db).filter((entry) => entry.meta?.['source'] === 'report.send')).toHaveLength(1);
+    expect(db.reports[0]?.status).toBe('Sent');
+  });
+
+  it('rejects a stale send when review changes the frozen snapshot first', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const pendingPdf = deferred<GeneratedStudentReportPdf>();
+    const pdf = makeFakePdfGenerator();
+    pdf.generate.mockImplementationOnce(() => pendingPdf.promise);
+    const { caller } = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator: pdf.generate,
+    });
+
+    const send = caller.report.send({ reportId: draft.id });
+    await vi.waitFor(() => {
+      expect(pdf.generate).toHaveBeenCalledTimes(1);
+    });
+    const reviewed = await caller.report.review({
+      ...defaultReviewInput(draft.id),
+      progressComment: 'Reviewed while the old PDF was rendering.',
+    });
+    pendingPdf.resolve(pdf.result);
+
+    await expect(send).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(reviewed.status).toBe('UnderReview');
+    expect(db.reports[0]?.status).toBe('UnderReview');
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale draft refresh when send freezes the report first', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const pendingAttendance = deferred<Array<{ status: AttendanceStatus }>>();
+    db.attendance.findMany.mockImplementationOnce(() => pendingAttendance.promise);
+    const { caller } = makeCaller(headUser, db, { emailClient: email.client });
+
+    const refresh = caller.report.draft(defaultDraftInput());
+    await vi.waitFor(() => {
+      expect(db.attendance.findMany).toHaveBeenCalledTimes(2);
+    });
+    await caller.report.send({ reportId: draft.id });
+    pendingAttendance.resolve([{ status: 'Present' }]);
+
+    await expect(refresh).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(db.reports[0]?.status).toBe('Sent');
+    expect(db.reports[0]?.pdfGeneratedAt).toBeInstanceOf(Date);
+    expect(email.send).toHaveBeenCalledTimes(1);
+  });
+
   it('notifies linked guardians when a report is sent', async () => {
     const email = makeFakeEmailClient();
     const { db, draft } = await createDraft();
-    const { caller } = makeCaller(headUser, db, email.client);
+    const { caller } = makeCaller(headUser, db, { emailClient: email.client });
 
     await caller.report.send({ reportId: draft.id });
 
@@ -670,7 +1222,7 @@ describe('report.review and report.send', () => {
         reportId: draft.id,
         studentId,
         subject: REPORT_NOTIFICATION_EMAIL_SUBJECT,
-        term: '2026-Summer',
+        periodLabel: 'Summer 2026',
         toUserId: parentUser.id,
         toRole: parentUser.role,
       },
@@ -683,19 +1235,190 @@ describe('report.review and report.send', () => {
     await caller.report.send({ reportId: draft.id });
     db.attendance.findMany.mockClear();
 
-    await expect(caller.report.draft({ studentId, term: '2026-Summer' })).rejects.toMatchObject({
+    await expect(caller.report.draft(defaultDraftInput())).rejects.toMatchObject({
       code: 'BAD_REQUEST',
     });
     expect(db.attendance.findMany).not.toHaveBeenCalled();
   });
 });
 
+describe('report.downloadPdf', () => {
+  it('allows an administrator to preview a draft from its frozen snapshot', async () => {
+    const { db, draft } = await createDraft();
+    const pdf = makeFakePdfGenerator();
+    const { caller } = makeCaller(headUser, db, { pdfGenerator: pdf.generate });
+
+    const download = await caller.report.downloadPdf({ reportId: draft.id });
+
+    expect(download).toEqual({
+      reportId: draft.id,
+      fileName: pdf.result.fileName,
+      mimeType: 'application/pdf',
+      pdfBase64: Buffer.from(pdf.result.bytes).toString('base64'),
+    });
+    const generatedInput = pdf.generate.mock.calls[0]?.[0];
+    if (!generatedInput) throw new Error('expected PDF generation input');
+    expect(generatedInput.report).toMatchObject({
+      studentId,
+      period: draft.period,
+      compiledAt: draft.compiled.compiledAt,
+    });
+    expect(generatedInput.generatedAt).toBeInstanceOf(Date);
+    expect(db.reports[0]?.pdfGeneratedAt).toBeNull();
+  });
+
+  it('returns the exact stored sent bytes to a linked parent without regenerating', async () => {
+    const { db, draft } = await createDraft();
+    const finalPdf = makeFakePdfGenerator({
+      bytes: Uint8Array.from([37, 80, 68, 70, 45, 102, 105, 110, 97, 108]),
+      fileName: 'Jane-Learner-final-report.pdf',
+      mimeType: 'application/pdf',
+    });
+    await makeCaller(headUser, db, { pdfGenerator: finalPdf.generate }).caller.report.send({
+      reportId: draft.id,
+    });
+    const shouldNotRegenerate = vi
+      .fn<PdfGenerator>()
+      .mockRejectedValue(new Error('stored reports must not regenerate'));
+
+    const download = await makeCaller(parentUser, db, {
+      pdfGenerator: shouldNotRegenerate,
+    }).caller.report.downloadPdf({ reportId: draft.id });
+
+    expect(download.fileName).toBe(finalPdf.result.fileName);
+    expect(Buffer.from(download.pdfBase64, 'base64')).toEqual(Buffer.from(finalPdf.result.bytes));
+    expect(shouldNotRegenerate).not.toHaveBeenCalled();
+  });
+
+  it('rejects parent downloads for drafts and reports belonging to unlinked students', async () => {
+    const { db, draft } = await createDraft();
+
+    await expect(
+      makeCaller(parentUser, db).caller.report.downloadPdf({ reportId: draft.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(auditData(db)).toContainEqual(
+      expect.objectContaining({
+        userId: parentUser.id,
+        action: 'PermissionDenied',
+        entity: 'report.downloadPdf',
+        entityId: draft.id,
+      }),
+    );
+
+    await makeCaller(headUser, db).caller.report.send({ reportId: draft.id });
+    await expect(
+      makeCaller(otherParentUser, db).caller.report.downloadPdf({ reportId: draft.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('generates legacy PDFs from the encrypted frozen snapshot without rewriting it', async () => {
+    const { db, draft } = await createDraft();
+    const stored = db.reports[0];
+    if (!stored) throw new Error('expected stored report');
+    stored.status = 'Sent';
+    stored.sentAt = new Date('2026-05-20T12:00:00.000Z');
+    stored.pdfGeneratedAt = null;
+    stored.pdfBytesEnc = null;
+    stored.pdfFileNameEnc = null;
+    const pdf = makeFakePdfGenerator();
+
+    const download = await makeCaller(headUser, db, {
+      pdfGenerator: pdf.generate,
+    }).caller.report.downloadPdf({ reportId: draft.id });
+
+    expect(download.pdfBase64).toBe(Buffer.from(pdf.result.bytes).toString('base64'));
+    const generatedInput = pdf.generate.mock.calls[0]?.[0];
+    if (!generatedInput) throw new Error('expected PDF generation input');
+    expect(generatedInput.report).toMatchObject({
+      studentId,
+      compiledAt: draft.compiled.compiledAt,
+    });
+    expect(generatedInput.generatedAt).toEqual(stored.sentAt);
+    expect(stored.pdfGeneratedAt).toBeNull();
+    expect(stored.pdfBytesEnc).toBeNull();
+  });
+
+  it('does not silently regenerate an incomplete stored final PDF', async () => {
+    const { db, draft } = await createDraft();
+    const stored = db.reports[0];
+    if (!stored) throw new Error('expected stored report');
+    stored.status = 'Sent';
+    stored.sentAt = new Date('2026-05-20T12:00:00.000Z');
+    stored.pdfGeneratedAt = stored.sentAt;
+    stored.pdfBytesEnc = null;
+    stored.pdfFileNameEnc = encrypt('Jane-Learner-final-report.pdf');
+    const pdf = makeFakePdfGenerator();
+
+    await expect(
+      makeCaller(headUser, db, { pdfGenerator: pdf.generate }).caller.report.downloadPdf({
+        reportId: draft.id,
+      }),
+    ).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Stored report PDF is incomplete.',
+    });
+    expect(pdf.generate).not.toHaveBeenCalled();
+  });
+});
+
 describe('report.listForStudent', () => {
+  it('normalises legacy encrypted snapshots without rewriting them', async () => {
+    const { db, draft } = await createDraft();
+    const report = db.reports[0];
+    if (!report) throw new Error('expected stored report');
+    const legacyCompiled = {
+      studentId: draft.compiled.studentId,
+      studentDisplayName: draft.compiled.studentDisplayName,
+      term: '2026-Summer',
+      attendance: draft.compiled.attendance,
+      paces: draft.compiled.paces.map((pace) => ({
+        subjectCode: pace.subjectCode,
+        subjectName: pace.subjectName,
+        currentPace: pace.currentPace,
+        pacesCompletedThisTerm: pace.pacesCompletedThisTerm,
+        averageTestScore: pace.averageTestScore,
+      })),
+      behaviour: {
+        ...draft.compiled.behaviour,
+        generalEntries: draft.compiled.behaviour.generalEntries.map((entry) => ({
+          createdAt: entry.createdAt,
+          ...(entry.category ? { category: entry.category } : {}),
+          note: entry.note,
+        })),
+      },
+      notes: draft.compiled.notes.map((entry) => ({
+        createdAt: entry.createdAt,
+        ...(entry.category ? { category: entry.category } : {}),
+        note: entry.note,
+      })),
+      meritActivity: draft.compiled.meritActivity,
+      balances: draft.compiled.balances,
+      headSummary: draft.compiled.headSummary,
+      compiledAt: draft.compiled.compiledAt,
+    };
+    report.compiledJsonEnc = encrypt(JSON.stringify(legacyCompiled)) ?? '';
+
+    const result = await makeCaller(headUser, db).caller.report.listForStudent({ studentId });
+    const compiled = result.reports[0]?.compiled;
+
+    expect(compiled?.period).toEqual(draft.period);
+    expect(compiled?.sections).toEqual(DEFAULT_REPORT_SECTIONS);
+    expect(compiled?.paces[0]?.status.status).toBe('Unavailable');
+    expect(compiled?.notes[0]).toMatchObject({
+      id: 'legacy:note:0:2026-05-16T00:00:00.000Z',
+      origin: 'Source',
+    });
+    expect(report.compiledJsonEnc).toBe(encrypt(JSON.stringify(legacyCompiled)));
+  });
+
   it('allows linked parents to read sent reports only', async () => {
     const { db, draft } = await createDraft();
     const headCaller = makeCaller(headUser, db).caller;
     await headCaller.report.send({ reportId: draft.id });
-    await headCaller.report.draft({ studentId, term: '2026-Autumn' });
+    await headCaller.report.draft({
+      ...defaultDraftInput(),
+      period: { type: 'Term', term: '2026-Autumn' },
+    });
 
     const { caller } = makeCaller(parentUser, db);
     const result = await caller.report.listForStudent({ studentId });
@@ -708,11 +1431,50 @@ describe('report.listForStudent', () => {
     });
   });
 
+  it('does not expose preserved report-only notes from hidden sections to parents', async () => {
+    const { db, draft } = await createDraft();
+    const headCaller = makeCaller(headUser, db).caller;
+    await headCaller.report.review({
+      reportId: draft.id,
+      progressComment: 'Hidden progress comment.',
+      behaviourNotes: [
+        {
+          id: '16635882-372f-4d99-b760-776ad3aa9b76',
+          category: 'Character',
+          note: 'Hidden behaviour note.',
+        },
+      ],
+      generalNotes: [
+        { id: '0658301f-8a25-48c6-b200-d3cb7def258b', note: 'Hidden general note.' },
+      ],
+    });
+    await headCaller.report.draft({
+      ...defaultDraftInput(),
+      sections: {
+        ...DEFAULT_REPORT_SECTIONS,
+        behaviourNotes: false,
+        generalNotes: false,
+        progressComment: false,
+      },
+    });
+    await headCaller.report.send({ reportId: draft.id });
+
+    const result = await makeCaller(parentUser, db).caller.report.listForStudent({ studentId });
+    const compiled = result.reports[0]?.compiled;
+
+    expect(compiled?.behaviour.generalEntries).toEqual([]);
+    expect(compiled?.notes).toEqual([]);
+    expect(compiled?.headSummary).toBe('');
+  });
+
   it('allows linked supervisors to read sent reports for linked children only', async () => {
     const { db, draft } = await createDraft();
     const headCaller = makeCaller(headUser, db).caller;
     await headCaller.report.send({ reportId: draft.id });
-    await headCaller.report.draft({ studentId, term: '2026-Autumn' });
+    await headCaller.report.draft({
+      ...defaultDraftInput(),
+      period: { type: 'Term', term: '2026-Autumn' },
+    });
 
     const { caller } = makeCaller(supervisorUser, db);
     const result = await caller.report.listForStudent({ studentId });

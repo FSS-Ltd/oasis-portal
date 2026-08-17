@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { compileTermReport } from '../report.js';
+import { compileStudentReport, DEFAULT_REPORT_SECTIONS } from '../report.js';
 
-describe('compileTermReport', () => {
-  it('computes attendance %, balances, and preserves behaviour summary', () => {
-    const out = compileTermReport({
+describe('compileStudentReport', () => {
+  it('freezes period, sections, PACE status, text origins, and computed summaries', () => {
+    const out = compileStudentReport({
       studentId: 's1',
       studentDisplayName: 'Asha',
-      term: '2026-Summer',
+      period: {
+        type: 'Term',
+        key: '2026-Summer',
+        label: 'Summer 2026',
+        from: '2026-04-01',
+        to: '2026-08-31',
+      },
+      sections: DEFAULT_REPORT_SECTIONS,
       attendance: { total: 40, present: 36, absent: 2, late: 2 },
       paces: [
         {
@@ -15,6 +22,13 @@ describe('compileTermReport', () => {
           currentPace: 1042,
           pacesCompletedThisTerm: 4,
           averageTestScore: 92,
+          status: {
+            status: 'On Track',
+            tone: 'blue',
+            testingLevel: 4,
+            testingLevelLabel: 'Testing at Level 4',
+            detail: 'Testing at Level 4',
+          },
         },
       ],
       behaviour: {
@@ -23,13 +37,22 @@ describe('compileTermReport', () => {
         demeritsMerits: 10,
         generalEntries: [
           {
+            id: 'behaviour_1',
+            origin: 'Source',
             createdAt: new Date('2026-05-12T09:00:00.000Z'),
             category: 'Character',
             note: 'Served others well.',
           },
         ],
       },
-      notes: [{ createdAt: new Date('2026-05-13T09:00:00.000Z'), note: 'Strong reading.' }],
+      notes: [
+        {
+          id: 'note_1',
+          origin: 'Source',
+          createdAt: new Date('2026-05-13T09:00:00.000Z'),
+          note: 'Strong reading.',
+        },
+      ],
       ledgerRows: [
         {
           account: 'Spend',
@@ -50,12 +73,25 @@ describe('compileTermReport', () => {
     expect(out.balances.Spend).toBe(20);
     expect(out.balances.Saving).toBe(10);
     expect(out.headSummary).toBe('Great term.');
+    expect(out.period).toEqual({
+      type: 'Term',
+      key: '2026-Summer',
+      label: 'Summer 2026',
+      from: '2026-04-01',
+      to: '2026-08-31',
+    });
+    expect(out.sections).toEqual(DEFAULT_REPORT_SECTIONS);
+    expect(out.paces[0]?.status.status).toBe('On Track');
     expect(out.behaviour.generalEntries[0]).toEqual({
+      id: 'behaviour_1',
+      origin: 'Source',
       createdAt: '2026-05-12T09:00:00.000Z',
       category: 'Character',
       note: 'Served others well.',
     });
     expect(out.notes[0]).toEqual({
+      id: 'note_1',
+      origin: 'Source',
       createdAt: '2026-05-13T09:00:00.000Z',
       note: 'Strong reading.',
     });
@@ -77,10 +113,17 @@ describe('compileTermReport', () => {
   });
 
   it('handles zero attendance days without dividing by zero', () => {
-    const out = compileTermReport({
+    const out = compileStudentReport({
       studentId: 's1',
       studentDisplayName: 'Asha',
-      term: '2026-Summer',
+      period: {
+        type: 'Term',
+        key: '2026-Summer',
+        label: 'Summer 2026',
+        from: '2026-04-01',
+        to: '2026-08-31',
+      },
+      sections: DEFAULT_REPORT_SECTIONS,
       attendance: { total: 0, present: 0, absent: 0, late: 0 },
       paces: [],
       behaviour: {

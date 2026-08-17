@@ -2342,20 +2342,33 @@ enum TermReportStatus {
   Sent
 }
 
+enum ReportPeriodType {
+  Term
+  AcademicYear
+  Custom
+}
+
 model TermReport {
-  id              String           @id @default(cuid())
+  id              String            @id @default(cuid())
   studentId       String
-  term            String // e.g. "2026-Summer"
-  status          TermReportStatus @default(Draft)
+  periodKey       String            @map("term")
+  periodType      ReportPeriodType
+  periodLabel     String
+  periodStart     DateTime          @db.Date
+  periodEnd       DateTime          @db.Date
+  status          TermReportStatus  @default(Draft)
   // Snapshot of compiled data at send time (encrypted — contains PII)
   compiledJsonEnc String
+  pdfBytesEnc     String?
+  pdfFileNameEnc  String?
+  pdfGeneratedAt  DateTime?
   sentAt          DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   student Student @relation(fields: [studentId], references: [id])
 
-  @@unique([studentId, term])
+  @@unique([studentId, periodKey], map: "TermReport_studentId_term_key")
 }
 
 // ---------------------------------------------------------------------------
