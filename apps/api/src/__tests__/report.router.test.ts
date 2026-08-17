@@ -6,6 +6,10 @@ import {
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
 import { REPORT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
+import type {
+  GenerateStudentReportPdfInput,
+  GeneratedStudentReportPdf,
+} from '../reports/student-report-pdf.js';
 import { createReportRouter } from '../routers/report.js';
 import { router } from '../trpc.js';
 
@@ -539,6 +543,21 @@ function makeFakeEmailClient(result = { id: 'report_email_123' }) {
   return { client, send };
 }
 
+type PdfGenerator = (
+  input: GenerateStudentReportPdfInput,
+) => Promise<GeneratedStudentReportPdf>;
+
+function makeFakePdfGenerator(
+  result: GeneratedStudentReportPdf = {
+    bytes: Uint8Array.from([37, 80, 68, 70, 45, 49, 46, 55]),
+    fileName: 'Jane-Learner-Summer-2026-report.pdf',
+    mimeType: 'application/pdf',
+  },
+) {
+  const generate = vi.fn<PdfGenerator>().mockResolvedValue(result);
+  return { generate, result };
+}
+
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   return {
     db: db as unknown as AppContext['db'],
@@ -548,9 +567,16 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   } satisfies AppContext;
 }
 
-function makeCaller(user: SessionUser | null, db = makeFakeDb(), emailClient?: EmailClient) {
+function makeCaller(
+  user: SessionUser | null,
+  db = makeFakeDb(),
+  deps: { emailClient?: EmailClient; pdfGenerator?: PdfGenerator } = {},
+) {
   const appRouter = router({
-    report: createReportRouter({ emailClient: emailClient ?? makeFakeEmailClient().client }),
+    report: createReportRouter({
+      emailClient: deps.emailClient ?? makeFakeEmailClient().client,
+      pdfGenerator: deps.pdfGenerator ?? makeFakePdfGenerator().generate,
+    }),
   });
   return { caller: appRouter.createCaller(makeCtx(user, db)), db };
 }
@@ -928,10 +954,69 @@ describe('report.review and report.send', () => {
     expect(db.reports[0]?.status).toBe('Sent');
   });
 
+  it('generates and encrypts the exact final PDF before marking the report sent', async () => {
+    const { db, draft } = await createDraft();
+    const pdf = makeFakePdfGenerator();
+    pdf.generate.mockImplementation(() => {
+      expect(db.reports[0]?.status).toBe('Draft');
+      return Promise.resolve(pdf.result);
+    });
+    const { caller } = makeCaller(headUser, db, { pdfGenerator: pdf.generate });
+
+    const sent = await caller.report.send({ reportId: draft.id });
+    const stored = db.reports[0];
+
+    const generatedInput = pdf.generate.mock.calls[0]?.[0];
+    if (!generatedInput) throw new Error('expected PDF generation input');
+    expect(generatedInput.report).toMatchObject({
+      studentId,
+      studentDisplayName: 'Jane Learner',
+      period: draft.period,
+    });
+    expect(generatedInput.generatedAt).toBeInstanceOf(Date);
+    expect(sent.status).toBe('Sent');
+    expect(stored?.pdfGeneratedAt).toEqual(stored?.sentAt);
+    expect(stored?.pdfBytesEnc).not.toContain(Buffer.from(pdf.result.bytes).toString('base64'));
+    expect(decrypt(stored?.pdfBytesEnc)).toBe(Buffer.from(pdf.result.bytes).toString('base64'));
+    expect(decrypt(stored?.pdfFileNameEnc)).toBe(pdf.result.fileName);
+    const sendAudit = auditData(db).find((entry) => entry.meta?.['source'] === 'report.send');
+    expect(sendAudit).toMatchObject({
+      action: 'Update',
+      entity: 'TermReport',
+      entityId: draft.id,
+      meta: { source: 'report.send' },
+    });
+  });
+
+  it('keeps the report unsent and skips notifications when final PDF generation fails', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const pdfGenerator = vi.fn<PdfGenerator>().mockRejectedValue(new Error('renderer failed'));
+    const { caller } = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator,
+    });
+
+    await expect(caller.report.send({ reportId: draft.id })).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Could not generate the report PDF. Please try again.',
+    });
+
+    expect(db.reports[0]).toMatchObject({
+      status: 'Draft',
+      sentAt: null,
+      pdfGeneratedAt: null,
+      pdfBytesEnc: null,
+      pdfFileNameEnc: null,
+    });
+    expect(db.termReport.update).not.toHaveBeenCalled();
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
   it('notifies linked guardians when a report is sent', async () => {
     const email = makeFakeEmailClient();
     const { db, draft } = await createDraft();
-    const { caller } = makeCaller(headUser, db, email.client);
+    const { caller } = makeCaller(headUser, db, { emailClient: email.client });
 
     await caller.report.send({ reportId: draft.id });
 
@@ -973,6 +1058,117 @@ describe('report.review and report.send', () => {
       code: 'BAD_REQUEST',
     });
     expect(db.attendance.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('report.downloadPdf', () => {
+  it('allows an administrator to preview a draft from its frozen snapshot', async () => {
+    const { db, draft } = await createDraft();
+    const pdf = makeFakePdfGenerator();
+    const { caller } = makeCaller(headUser, db, { pdfGenerator: pdf.generate });
+
+    const download = await caller.report.downloadPdf({ reportId: draft.id });
+
+    expect(download).toEqual({
+      reportId: draft.id,
+      fileName: pdf.result.fileName,
+      mimeType: 'application/pdf',
+      pdfBase64: Buffer.from(pdf.result.bytes).toString('base64'),
+    });
+    const generatedInput = pdf.generate.mock.calls[0]?.[0];
+    if (!generatedInput) throw new Error('expected PDF generation input');
+    expect(generatedInput.report).toMatchObject({
+      studentId,
+      period: draft.period,
+      compiledAt: draft.compiled.compiledAt,
+    });
+    expect(generatedInput.generatedAt).toBeInstanceOf(Date);
+    expect(db.reports[0]?.pdfGeneratedAt).toBeNull();
+  });
+
+  it('returns the exact stored sent bytes to a linked parent without regenerating', async () => {
+    const { db, draft } = await createDraft();
+    const finalPdf = makeFakePdfGenerator({
+      bytes: Uint8Array.from([37, 80, 68, 70, 45, 102, 105, 110, 97, 108]),
+      fileName: 'Jane-Learner-final-report.pdf',
+      mimeType: 'application/pdf',
+    });
+    await makeCaller(headUser, db, { pdfGenerator: finalPdf.generate }).caller.report.send({
+      reportId: draft.id,
+    });
+    const shouldNotRegenerate = vi
+      .fn<PdfGenerator>()
+      .mockRejectedValue(new Error('stored reports must not regenerate'));
+
+    const download = await makeCaller(parentUser, db, {
+      pdfGenerator: shouldNotRegenerate,
+    }).caller.report.downloadPdf({ reportId: draft.id });
+
+    expect(download.fileName).toBe(finalPdf.result.fileName);
+    expect(Buffer.from(download.pdfBase64, 'base64')).toEqual(Buffer.from(finalPdf.result.bytes));
+    expect(shouldNotRegenerate).not.toHaveBeenCalled();
+  });
+
+  it('rejects parent downloads for drafts and reports belonging to unlinked students', async () => {
+    const { db, draft } = await createDraft();
+
+    await expect(
+      makeCaller(parentUser, db).caller.report.downloadPdf({ reportId: draft.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await makeCaller(headUser, db).caller.report.send({ reportId: draft.id });
+    await expect(
+      makeCaller(otherParentUser, db).caller.report.downloadPdf({ reportId: draft.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('generates legacy PDFs from the encrypted frozen snapshot without rewriting it', async () => {
+    const { db, draft } = await createDraft();
+    const stored = db.reports[0];
+    if (!stored) throw new Error('expected stored report');
+    stored.status = 'Sent';
+    stored.sentAt = new Date('2026-05-20T12:00:00.000Z');
+    stored.pdfGeneratedAt = null;
+    stored.pdfBytesEnc = null;
+    stored.pdfFileNameEnc = null;
+    const pdf = makeFakePdfGenerator();
+
+    const download = await makeCaller(headUser, db, {
+      pdfGenerator: pdf.generate,
+    }).caller.report.downloadPdf({ reportId: draft.id });
+
+    expect(download.pdfBase64).toBe(Buffer.from(pdf.result.bytes).toString('base64'));
+    const generatedInput = pdf.generate.mock.calls[0]?.[0];
+    if (!generatedInput) throw new Error('expected PDF generation input');
+    expect(generatedInput.report).toMatchObject({
+      studentId,
+      compiledAt: draft.compiled.compiledAt,
+    });
+    expect(generatedInput.generatedAt).toEqual(stored.sentAt);
+    expect(stored.pdfGeneratedAt).toBeNull();
+    expect(stored.pdfBytesEnc).toBeNull();
+  });
+
+  it('does not silently regenerate an incomplete stored final PDF', async () => {
+    const { db, draft } = await createDraft();
+    const stored = db.reports[0];
+    if (!stored) throw new Error('expected stored report');
+    stored.status = 'Sent';
+    stored.sentAt = new Date('2026-05-20T12:00:00.000Z');
+    stored.pdfGeneratedAt = stored.sentAt;
+    stored.pdfBytesEnc = null;
+    stored.pdfFileNameEnc = encrypt('Jane-Learner-final-report.pdf');
+    const pdf = makeFakePdfGenerator();
+
+    await expect(
+      makeCaller(headUser, db, { pdfGenerator: pdf.generate }).caller.report.downloadPdf({
+        reportId: draft.id,
+      }),
+    ).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Stored report PDF is incomplete.',
+    });
+    expect(pdf.generate).not.toHaveBeenCalled();
   });
 });
 

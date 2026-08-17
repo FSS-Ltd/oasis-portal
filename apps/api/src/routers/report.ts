@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import {
@@ -25,6 +26,7 @@ import {
 } from '../lib/email.js';
 import { decryptRequiredText } from '../lib/encrypted-text.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { generateStudentReportPdf } from '../reports/student-report-pdf.js';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 
 type AuthedContext = AppContext & { user: SessionUser };
@@ -34,6 +36,7 @@ type ReportPeriodType = 'Term' | 'AcademicYear' | 'Custom';
 
 export interface ReportRouterDeps {
   emailClient?: EmailClient;
+  pdfGenerator?: typeof generateStudentReportPdf;
 }
 
 interface ActiveReportStudent {
@@ -654,11 +657,49 @@ function mapReport(ctx: AuthedContext, row: TermReportRow) {
       to: dateKey(row.periodEnd),
     },
     status: row.status,
+    pdfGeneratedAt: row.pdfGeneratedAt,
     sentAt: row.sentAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     compiled: decryptCompiledReport(ctx, row),
   };
+}
+
+async function generateReportPdf(
+  ctx: AuthedContext,
+  row: TermReportRow,
+  generatedAt: Date,
+  pdfGenerator: typeof generateStudentReportPdf,
+) {
+  try {
+    return await pdfGenerator({ report: decryptCompiledReport(ctx, row), generatedAt });
+  } catch (error) {
+    logOperationalEvent({
+      event: 'report.pdf_generation_failed',
+      level: 'error',
+      message: 'Student report PDF generation failed',
+      meta: {
+        error: operationalErrorMessage(error),
+        reportId: row.id,
+        studentId: row.studentId,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Could not generate the report PDF. Please try again.',
+      cause: error,
+    });
+  }
+}
+
+async function assertCanDownloadReport(ctx: AuthedContext, report: TermReportRow): Promise<void> {
+  if (canUseAdminOperations(ctx.user)) return;
+  await assertCanReadReports(ctx, report.studentId, 'report.downloadPdf');
+  if (report.status !== 'Sent') {
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'only sent reports can be downloaded' });
+  }
 }
 
 async function loadReport(ctx: AuthedContext, reportId: string): Promise<TermReportRow> {
@@ -836,6 +877,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
     cachedEmailClient = createResendEmailClient();
     return cachedEmailClient;
   };
+  const pdfGenerator = deps.pdfGenerator ?? generateStudentReportPdf;
 
   return router({
     draft: adminOperationsProcedure.input(draftInput).mutation(async ({ ctx, input }) => {
@@ -876,6 +918,9 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
               periodEnd,
               compiledJsonEnc,
               status: 'Draft',
+              pdfBytesEnc: null,
+              pdfFileNameEnc: null,
+              pdfGeneratedAt: null,
               sentAt: null,
             },
           })
@@ -936,6 +981,9 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
         data: {
           status: 'UnderReview',
           compiledJsonEnc: encryptCompiledReport(ctx, updatedCompiled),
+          pdfBytesEnc: null,
+          pdfFileNameEnc: null,
+          pdfGeneratedAt: null,
         },
       });
 
@@ -963,9 +1011,23 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       }
 
       const sentAt = new Date();
+      const pdf = await generateReportPdf(ctx, existing, sentAt, pdfGenerator);
+      const pdfBase64 = Buffer.from(pdf.bytes).toString('base64');
+      const pdfBytesEnc = encryptRequired(ctx.db.$enc.encrypt, pdfBase64, 'student report PDF');
+      const pdfFileNameEnc = encryptRequired(
+        ctx.db.$enc.encrypt,
+        pdf.fileName,
+        'student report PDF file name',
+      );
       const report = await ctx.db.termReport.update({
         where: { id: existing.id },
-        data: { status: 'Sent', sentAt },
+        data: {
+          status: 'Sent',
+          sentAt,
+          pdfBytesEnc,
+          pdfFileNameEnc,
+          pdfGeneratedAt: sentAt,
+        },
       });
 
       await ctx.db.auditLog.create({
@@ -986,6 +1048,54 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       await notifyReportGuardians({ ctx, getEmailClient, report });
 
       return mapReport(ctx, report);
+    }),
+
+    downloadPdf: authedProcedure.input(reportIdInput).query(async ({ ctx, input }) => {
+      const report = await loadReport(ctx, input.reportId);
+      await assertCanDownloadReport(ctx, report);
+
+      let fileName: string;
+      let pdfBase64: string;
+      if (report.pdfGeneratedAt) {
+        if (!report.pdfBytesEnc || !report.pdfFileNameEnc) {
+          throw new TRPCError({
+            code: 'INTERNAL_SERVER_ERROR',
+            message: 'Stored report PDF is incomplete.',
+          });
+        }
+        pdfBase64 = decryptRequired(ctx.db.$enc.decrypt, report.pdfBytesEnc, 'student report PDF');
+        fileName = decryptRequired(
+          ctx.db.$enc.decrypt,
+          report.pdfFileNameEnc,
+          'student report PDF file name',
+        );
+      } else {
+        const generatedAt = report.sentAt ?? new Date();
+        const pdf = await generateReportPdf(ctx, report, generatedAt, pdfGenerator);
+        pdfBase64 = Buffer.from(pdf.bytes).toString('base64');
+        fileName = pdf.fileName;
+      }
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'TermReport',
+          entityId: report.id,
+          meta: {
+            source: 'report.downloadPdf',
+            studentId: report.studentId,
+            storedFinalPdf: report.pdfGeneratedAt !== null,
+          },
+        },
+      });
+
+      return {
+        reportId: report.id,
+        fileName,
+        mimeType: 'application/pdf' as const,
+        pdfBase64,
+      };
     }),
 
     listForStudent: authedProcedure.input(studentInput).query(async ({ ctx, input }) => {
