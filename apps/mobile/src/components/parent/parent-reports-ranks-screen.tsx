@@ -182,7 +182,7 @@ function ReportListCard({
     <Card style={styles.compactCard}>
       <View style={styles.cardHeader}>
         <View>
-          <SectionTitle>Term reports</SectionTitle>
+          <SectionTitle>Student reports</SectionTitle>
           <MutedText>{studentName}</MutedText>
         </View>
         <Badge variant="blue">{formatCount(reports.length, 'report')}</Badge>
@@ -192,7 +192,7 @@ function ReportListCard({
       {reports.map((report) => (
         <View key={report.id} style={styles.reportHistoryRow}>
           <View style={styles.rowBody}>
-            <Text style={styles.rowTitle}>{formatTerm(report.term)}</Text>
+            <Text style={styles.rowTitle}>{report.period.label}</Text>
             <MutedText>
               Sent {formatParentDate(report.sentAt ?? report.updatedAt)}
             </MutedText>
@@ -233,47 +233,69 @@ function ReportDetailCard({ report }: { report: ParentReport | null }) {
         <View>
           <Text style={styles.sectionLabel}>Report detail</Text>
           <Text style={styles.reportTitle}>{compiled.studentDisplayName}</Text>
-          <MutedText>{formatTerm(report.term)}</MutedText>
+          <MutedText>{report.period.label}</MutedText>
         </View>
         <Badge variant="success">Sent</Badge>
       </View>
-      <View style={styles.metricGrid}>
-        <ReportMetric
-          detail={attendanceDetail}
-          label="Attendance"
-          value={`${String(compiled.attendance.attendancePct)}%`}
+      {compiled.sections.attendance ||
+      compiled.sections.behaviourSummary ||
+      compiled.sections.balances ? (
+        <View style={styles.metricGrid}>
+          {compiled.sections.attendance ? (
+            <ReportMetric
+              detail={attendanceDetail}
+              label="Attendance"
+              value={`${String(compiled.attendance.attendancePct)}%`}
+            />
+          ) : null}
+          {compiled.sections.behaviourSummary ? (
+            <ReportMetric
+              detail={`${formatNumber(compiled.behaviour.demeritsCount)} demerits`}
+              label="Merits"
+              value={formatNumber(compiled.behaviour.meritsEarned)}
+            />
+          ) : null}
+          {compiled.sections.balances ? (
+            <>
+              <ReportMetric label="Spend" value={formatNumber(compiled.balances.Spend)} />
+              <ReportMetric label="Saving" value={formatNumber(compiled.balances.Saving)} />
+            </>
+          ) : null}
+        </View>
+      ) : null}
+      {compiled.sections.paceProgress ? <ReportPaceSection report={report} /> : null}
+      {compiled.sections.generalNotes ? (
+        <TextEntries
+          emptyLabel="No general notes recorded."
+          entries={compiled.notes}
+          title="General Notes"
         />
-        <ReportMetric
-          detail={`${formatNumber(compiled.behaviour.demeritsCount)} demerits`}
-          label="Merits"
-          value={formatNumber(compiled.behaviour.meritsEarned)}
+      ) : null}
+      {compiled.sections.behaviourNotes ? (
+        <TextEntries
+          emptyLabel="No general behaviour notes recorded."
+          entries={compiled.behaviour.generalEntries}
+          title="Behaviour Notes"
         />
-        <ReportMetric label="Spend" value={formatNumber(compiled.balances.Spend)} />
-        <ReportMetric label="Saving" value={formatNumber(compiled.balances.Saving)} />
-      </View>
-      <ReportPaceSection report={report} />
-      <TextEntries
-        emptyLabel="No general notes recorded."
-        entries={compiled.notes}
-        title="General Notes"
-      />
-      <TextEntries
-        emptyLabel="No general behaviour notes recorded."
-        entries={compiled.behaviour.generalEntries}
-        title="Behaviour Notes"
-      />
-      <TextEntries
-        emptyLabel="No merit activity recorded."
-        entries={compiled.meritActivity.map((activity) => ({
-          createdAt: activity.createdAt,
-          note: `${activity.account}: ${activity.reason} (${formatSignedNumber(activity.delta)})`,
-        }))}
-        title="Merit Activity"
-      />
-      <View style={styles.noteSection}>
-        <Text style={styles.sectionLabel}>Head Summary</Text>
-        <MutedText>{compiled.headSummary.trim() || 'No Head summary recorded.'}</MutedText>
-      </View>
+      ) : null}
+      {compiled.sections.meritActivity ? (
+        <TextEntries
+          emptyLabel="No merit activity recorded."
+          entries={compiled.meritActivity.map((activity) => ({
+            createdAt: activity.createdAt,
+            note: `${activity.account}: ${activity.reason} (${formatSignedNumber(activity.delta)})`,
+          }))}
+          title="Merit Activity"
+        />
+      ) : null}
+      {compiled.sections.progressComment ? (
+        <View style={styles.noteSection}>
+          <Text style={styles.sectionLabel}>Progress Comment</Text>
+          <MutedText>
+            {compiled.headSummary.trim() || 'No progress comment recorded.'}
+          </MutedText>
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -298,6 +320,11 @@ function ReportPaceSection({ report }: { report: ParentReport }) {
           <Text style={styles.rowValue}>
             {pace.averageTestScore === null ? 'N/A' : `${String(pace.averageTestScore)}%`}
           </Text>
+          {report.compiled.sections.paceStatus ? (
+            <Badge variant={paceStatusBadgeVariant(pace.status.tone)}>
+              {pace.status.status}
+            </Badge>
+          ) : null}
         </View>
       ))}
     </View>
@@ -440,8 +467,12 @@ function formatSignedNumber(value: number): string {
   return `${value > 0 ? '+' : ''}${formatNumber(value)}`;
 }
 
-function formatTerm(term: string): string {
-  return term.replace('-', ' ');
+function paceStatusBadgeVariant(
+  tone: 'amber' | 'blue' | 'green' | 'grey',
+): 'blue' | 'neutral' | 'success' | 'warning' {
+  if (tone === 'green') return 'success';
+  if (tone === 'amber') return 'warning';
+  return tone === 'blue' ? 'blue' : 'neutral';
 }
 
 function rankLabel(rank: number): string {

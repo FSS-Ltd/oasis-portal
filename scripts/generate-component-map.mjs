@@ -262,7 +262,7 @@ const PRODUCT_MODULES = [
   },
   {
     name: 'Shop, invoices, clubs, calendar, tithe, savings, investment, reports, notices, messages, and email',
-    owns: 'Commercial, wallet, finance, calendar, and communication workflows that hang off student, parent, staff, and admin experiences.',
+    owns: 'Commercial, wallet, finance, calendar, communication, and encrypted student-report workflows that hang off student, parent, staff, and admin experiences.',
     apiRouters: [
       'shop',
       'invoice',
@@ -284,6 +284,7 @@ const PRODUCT_MODULES = [
       'packages/domain/src/invoice.ts',
       'packages/domain/src/permissionSlips.ts',
       'packages/domain/src/report.ts',
+      'packages/domain/src/reportPeriod.ts',
       'packages/domain/src/savings.ts',
       'packages/domain/src/shop.ts',
       'packages/domain/src/tithe.ts',
@@ -294,6 +295,7 @@ const PRODUCT_MODULES = [
       'apps/web/src/app/(supervisor)/supervisor/shop/',
       'apps/web/src/app/(parent)/',
       'apps/web/src/app/(student)/student/messages/',
+      'apps/web/src/app/api/reports/',
       'apps/web/src/components/calendar/',
       'apps/web/src/components/clubs/',
       'apps/web/src/components/invoices/',
@@ -386,11 +388,13 @@ const PRODUCT_MODULES = [
     ],
     sharedSurfaces: [
       'apps/api/src/emails/',
+      'apps/api/src/reports/',
       'apps/api/src/services/market-data/',
       'apps/api/src/services/savings-interest.ts',
       'packages/db/prisma/migrations/20260606160000_investment_market_snapshots/',
       'packages/db/prisma/migrations/20260606163000_add_requested_lse_etfs/',
       'packages/db/prisma/migrations/20260616120000_student_direct_messages/',
+      'packages/db/prisma/migrations/20260817120000_report_periods_and_pdfs/',
     ],
   },
   {
