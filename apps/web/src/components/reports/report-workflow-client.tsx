@@ -1,23 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { FileText, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DEFAULT_REPORT_SECTIONS, resolveReportPeriod } from '@oasis/domain';
 import { api, type RouterInputs, type RouterOutputs } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { ReportActions } from './report-actions';
 import { ReportDetail } from './report-detail';
-import { ReportHistoryList } from './report-history-list';
-import { ReportPeriodControls, type DraftPeriod } from './report-period-controls';
-import { ReportSectionPicker, type DraftSections } from './report-section-picker';
+import { ReportDraftControls } from './report-draft-controls';
 import {
-  ReportStudentSelector,
-  type ReportStudent,
-  type ReportWorkflowMode,
-} from './report-student-selector';
-import { formatNumber, type TermReport } from './report-format';
+  editorStateForReport,
+  hasBlankReportNotes,
+  type ReportEditorState,
+} from './report-editor-state';
+import type { DraftPeriod } from './report-period-controls';
+import type { DraftSections } from './report-section-picker';
+import { ReportSidebar } from './report-sidebar';
+import type { ReportStudent, ReportWorkflowMode } from './report-student-selector';
+import { formatNumber, reportCountLabel, type TermReport } from './report-format';
 
 type AdminStudent = RouterOutputs['student']['list'][number];
 type ParentStudent = RouterOutputs['childLog']['listAccessibleStudents'][number];
@@ -68,20 +68,6 @@ function periodInputForReport(report: TermReport): DraftPeriod {
   return { type: 'Custom', from: report.period.from, to: report.period.to };
 }
 
-function reportSpecificNotes(entries: TermReport['compiled']['notes']) {
-  return entries
-    .filter((entry) => entry.origin === 'Report')
-    .map((entry) => ({
-      id: entry.id,
-      ...(entry.category ? { category: entry.category } : {}),
-      note: entry.note ?? '',
-    }));
-}
-
-function reportCountLabel(count: number): string {
-  return count === 1 ? '1 report' : `${formatNumber(count)} reports`;
-}
-
 export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   const searchParams = useSearchParams();
   const utils = api.useUtils();
@@ -93,7 +79,9 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   );
   const [period, setPeriod] = useState<DraftPeriod>(initialPeriod);
   const [sections, setSections] = useState<DraftSections>({ ...DEFAULT_REPORT_SECTIONS });
-  const [headSummary, setHeadSummary] = useState('');
+  const [editor, setEditor] = useState<ReportEditorState>(() => editorStateForReport(null));
+  const [editorDirty, setEditorDirty] = useState(false);
+  const editorReportIdRef = useRef<string | null>(null);
 
   const adminStudentsQuery = api.student.list.useQuery(
     { includeInactive: false },
@@ -134,7 +122,9 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
       setSelectedReportId(report.id);
       setPeriod(periodInputForReport(report));
       setSections({ ...report.compiled.sections });
-      setHeadSummary(report.compiled.headSummary);
+      setEditor(editorStateForReport(report));
+      setEditorDirty(false);
+      editorReportIdRef.current = report.id;
       showSuccessToast('Draft generated.');
       await utils.report.listForStudent.invalidate();
     },
@@ -145,7 +135,9 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   const reviewReport = api.report.review.useMutation({
     onSuccess: async (report) => {
       setSelectedReportId(report.id);
-      setHeadSummary(report.compiled.headSummary);
+      setEditor(editorStateForReport(report));
+      setEditorDirty(false);
+      editorReportIdRef.current = report.id;
       showSuccessToast('Report reviewed.');
       await utils.report.listForStudent.invalidate();
     },
@@ -180,20 +172,42 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   }, [reports, selectedReport?.id, selectedReportId]);
 
   useEffect(() => {
-    setHeadSummary(selectedReport?.compiled.headSummary ?? '');
+    const nextReportId = selectedReport?.id ?? null;
+    if (editorReportIdRef.current === nextReportId) return;
+    editorReportIdRef.current = nextReportId;
+    setEditor(editorStateForReport(selectedReport));
+    setEditorDirty(false);
     if (selectedReport) {
       setPeriod(periodInputForReport(selectedReport));
       setSections({ ...selectedReport.compiled.sections });
     }
-  }, [selectedReport?.id, selectedReport?.compiled.headSummary]);
+  }, [selectedReport]);
+
+  function confirmDiscardEdits(): boolean {
+    return (
+      !editorDirty ||
+      window.confirm('You have unsaved report changes. Discard them and continue?')
+    );
+  }
 
   function selectStudent(studentId: string): void {
+    if (!confirmDiscardEdits()) return;
     setSelectedStudentId(studentId);
     setSelectedReportId('');
   }
 
+  function selectReport(reportIdValue: string): void {
+    if (reportIdValue === selectedReport?.id || !confirmDiscardEdits()) return;
+    setSelectedReportId(reportIdValue);
+  }
+
+  function updateEditor(update: Partial<ReportEditorState>): void {
+    setEditor((current) => ({ ...current, ...update }));
+    setEditorDirty(true);
+  }
+
   async function handleDraft(): Promise<void> {
-    if (!selectedStudent) return;
+    if (!selectedStudent || !confirmDiscardEdits()) return;
     try {
       await draftReport.mutateAsync({ studentId: selectedStudent.id, period, sections });
     } catch {
@@ -205,12 +219,13 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
     if (!selectedReport) return;
     const payload: ReviewReportInput = {
       reportId: selectedReport.id,
-      progressComment: headSummary.trim(),
-      behaviourNotes: reportSpecificNotes(selectedReport.compiled.behaviour.generalEntries),
-      generalNotes: reportSpecificNotes(selectedReport.compiled.notes).map(({ id, note }) => ({
+      progressComment: editor.progressComment.trim(),
+      behaviourNotes: editor.behaviourNotes.map(({ category, id, note }) => ({
         id,
-        note,
+        note: note.trim(),
+        ...(category?.trim() ? { category: category.trim() } : {}),
       })),
+      generalNotes: editor.generalNotes.map(({ id, note }) => ({ id, note: note.trim() })),
     };
     try {
       await reviewReport.mutateAsync(payload);
@@ -220,7 +235,7 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   }
 
   async function handleSend(): Promise<void> {
-    if (!selectedReport) return;
+    if (!selectedReport || editorDirty) return;
     try {
       await sendReport.mutateAsync({ reportId: selectedReport.id });
     } catch {
@@ -278,94 +293,70 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
       {loadingStudents ? <div className="empty-state">Loading students...</div> : null}
 
       <div className="report-layout">
-        <div className="report-sidebar">
-          <ReportStudentSelector
-            mode={mode}
-            onSelect={selectStudent}
-            reports={reports}
-            selectedStudentId={selectedStudentId}
-            students={students}
-            periodKey={selectedPeriodKey}
-          />
-
-          <section
-            className="panel panel__body report-list-panel"
-            aria-labelledby="report-list-title"
-          >
-            <div className="section-title">
-              <div>
-                <h2 id="report-list-title">Report History</h2>
-                <p className="muted">
-                  {reportsLoading ? 'Loading reports...' : reportCountLabel(reports.length)}
-                </p>
-              </div>
-              <Badge tone="blue">
-                <FileText aria-hidden="true" size={14} />
-                {formatNumber(reports.length)}
-              </Badge>
-            </div>
-            <ReportHistoryList
-              onSelect={setSelectedReportId}
-              reports={reports}
-              selectedReportId={selectedReport?.id ?? ''}
-            />
-          </section>
-        </div>
+        <ReportSidebar
+          mode={mode}
+          onReportSelect={selectReport}
+          onStudentSelect={selectStudent}
+          periodKey={selectedPeriodKey}
+          reports={reports}
+          reportsLoading={reportsLoading}
+          selectedReportId={selectedReport?.id ?? ''}
+          selectedStudentId={selectedStudentId}
+          students={students}
+        />
 
         <div className="report-main">
           {mode === 'admin' ? (
-            <section className="panel panel__body report-controls" aria-labelledby="report-actions">
-              <div className="section-title">
-                <div>
-                  <h2 id="report-actions">Draft Controls</h2>
-                  <p className="muted">Choose the reporting period and included sections.</p>
-                </div>
-              </div>
-              <ReportPeriodControls
-                disabled={draftReport.isPending}
-                onChange={(nextPeriod) => {
-                  setPeriod(nextPeriod);
-                  setSelectedReportId('');
-                }}
-                value={period}
-              />
-              <ReportSectionPicker
-                disabled={draftReport.isPending}
-                onChange={setSections}
-                value={sections}
-              />
-              <div className="report-control-row report-control-row--actions">
-                <span className="muted">Generate or refresh this saved snapshot.</span>
-                <Button
-                  disabled={!selectedStudent}
-                  onClick={() => {
-                    void handleDraft();
-                  }}
-                  pending={draftReport.isPending}
-                  type="button"
-                  variant="secondary"
-                >
-                  <RefreshCw aria-hidden="true" size={16} />
-                  Generate Draft
-                </Button>
-              </div>
-            </section>
+            <ReportDraftControls
+              hasSelectedStudent={selectedStudent !== null}
+              onGenerate={() => {
+                void handleDraft();
+              }}
+              onPeriodChange={(nextPeriod) => {
+                if (!confirmDiscardEdits()) return;
+                setPeriod(nextPeriod);
+                setSelectedReportId('');
+              }}
+              onSectionsChange={setSections}
+              pending={draftReport.isPending}
+              period={period}
+              sections={sections}
+            />
           ) : null}
 
           <ReportDetail
+            behaviourNotes={editor.behaviourNotes}
             canEdit={mode === 'admin'}
-            headSummary={headSummary}
-            onHeadSummaryChange={setHeadSummary}
-            onReview={() => {
-              void handleReview();
+            editorDisabled={reviewReport.isPending || sendReport.isPending}
+            generalNotes={editor.generalNotes}
+            onBehaviourNotesChange={(entries) => {
+              updateEditor({ behaviourNotes: entries });
             }}
-            onSend={() => {
-              void handleSend();
+            onGeneralNotesChange={(entries) => {
+              updateEditor({ generalNotes: entries });
             }}
+            onProgressCommentChange={(value) => {
+              updateEditor({ progressComment: value });
+            }}
+            progressComment={editor.progressComment}
             report={selectedReport}
-            reviewPending={reviewReport.isPending}
-            sendPending={sendReport.isPending}
           />
+          {selectedReport ? (
+            <ReportActions
+              canEdit={mode === 'admin'}
+              editorDirty={editorDirty}
+              onReview={() => {
+                void handleReview();
+              }}
+              onSend={() => {
+                void handleSend();
+              }}
+              report={selectedReport}
+              reviewDisabled={hasBlankReportNotes(editor)}
+              reviewPending={reviewReport.isPending}
+              sendPending={sendReport.isPending}
+            />
+          ) : null}
         </div>
       </div>
     </div>

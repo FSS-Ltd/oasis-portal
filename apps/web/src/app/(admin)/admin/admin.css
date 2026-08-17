@@ -6647,6 +6647,79 @@
   align-items: end;
 }
 
+.report-control-row--actions {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.report-period-controls,
+.report-section-picker {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+}
+
+.report-period-controls legend,
+.report-section-picker legend {
+  padding: 0 5px;
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.report-period-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-period-help,
+.report-section-picker__help {
+  margin: 0;
+}
+
+.report-section-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.report-section-picker__option {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.report-section-picker__option.is-checked {
+  border-color: var(--oasis-blue);
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.report-section-picker__option:focus-within {
+  outline: 2px solid var(--oasis-blue);
+  outline-offset: 2px;
+}
+
+.report-section-picker__option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .report-detail__header {
   display: flex;
   align-items: flex-start;
@@ -6706,7 +6779,7 @@
 }
 
 .report-pace-row {
-  grid-template-columns: minmax(0, 1fr) repeat(3, minmax(90px, 0.18fr));
+  grid-template-columns: minmax(0, 1fr) repeat(3, minmax(90px, 0.18fr)) auto;
   align-items: center;
 }
 
@@ -6734,7 +6807,7 @@
 
 .report-entry p,
 .report-ledger-row p,
-.report-head-summary__text {
+.report-progress-comment__text {
   margin: 0;
   color: var(--oasis-text);
   font-size: 0.82rem;
@@ -6751,11 +6824,53 @@
   justify-self: end;
 }
 
-.report-head-summary__text {
+.report-progress-comment__text {
   padding: 12px;
   border: 1px solid var(--oasis-border-light);
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.report-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-note-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.report-entry--source {
+  border-left: 3px solid var(--oasis-blue);
+  background: var(--oasis-surface);
+}
+
+.report-note-editor__entry {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-left: 3px solid var(--oasis-crimson);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+
+.report-note-editor__header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.report-note-editor__header strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+}
+
+.report-pace-row > .badge {
+  justify-self: end;
 }
 
 .report-actions {
@@ -6763,6 +6878,14 @@
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.report-unsaved-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--oasis-danger);
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .club-notification-history__item span {
@@ -12578,7 +12701,10 @@ button.club-assignment-row {
   .student-finance-grid,
   .student-merit-grid,
   .report-layout,
-  .report-two-column {
+  .report-two-column,
+  .report-period-grid,
+  .report-section-picker__grid,
+  .report-balance-grid {
     grid-template-columns: 1fr;
   }
 
@@ -12762,6 +12888,10 @@ button.club-assignment-row {
     justify-self: start;
   }
 
+  .report-pace-row > .badge {
+    justify-self: start;
+  }
+
   .invite-result__summary,
   .invite-result__link-row {
     grid-template-columns: 1fr;
@@ -12829,6 +12959,22 @@ button.club-assignment-row {
 }
 
 @media (max-width: 560px) {
+  .report-actions .button,
+  .report-note-editor > .button,
+  .report-control-row--actions .button {
+    width: 100%;
+  }
+
+  .report-control-row--actions,
+  .report-note-editor__header {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .report-note-editor__header {
+    display: grid;
+  }
+
   .parent-clubs-tabs {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

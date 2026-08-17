@@ -26,6 +26,10 @@ export function formatSignedNumber(value: number): string {
   return `${value > 0 ? '+' : ''}${formatNumber(value)}`;
 }
 
+export function reportCountLabel(count: number): string {
+  return count === 1 ? '1 report' : `${formatNumber(count)} reports`;
+}
+
 export function reportStatusLabel(status: TermReportStatus): string {
   switch (status) {
     case 'Draft':
