@@ -75,7 +75,11 @@ async function seedTermReport(ctx: SeedContext): Promise<void> {
     data: {
       id: 'clientdemo_term_report_primary',
       studentId: primaryStudent.id,
-      term: '2026-Summer',
+      periodKey: '2026-Summer',
+      periodType: 'Term',
+      periodLabel: 'Summer 2026',
+      periodStart: new Date('2026-04-01T00:00:00.000Z'),
+      periodEnd: new Date('2026-08-31T00:00:00.000Z'),
       status: 'Sent',
       compiledJsonEnc: encodedJson({
         demo: true,
