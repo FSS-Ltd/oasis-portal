@@ -563,6 +563,15 @@ function defaultDraftInput() {
   };
 }
 
+function defaultReviewInput(reportIdValue: string) {
+  return {
+    reportId: reportIdValue,
+    progressComment: '',
+    behaviourNotes: [],
+    generalNotes: [],
+  };
+}
+
 async function createDraft(db = makeFakeDb()) {
   const { caller } = makeCaller(headUser, db);
   const draft = await caller.report.draft(defaultDraftInput());
@@ -741,18 +750,159 @@ describe('report.draft', () => {
 });
 
 describe('report.review and report.send', () => {
-  it('updates the Head summary and moves the draft under review', async () => {
+  it('updates the Progress Comment and moves the draft under review', async () => {
     const { db, draft } = await createDraft();
     const { caller } = makeCaller(headUser, db);
 
     const reviewed = await caller.report.review({
-      reportId: draft.id,
-      headSummary: 'A strong term with steady progress.',
+      ...defaultReviewInput(draft.id),
+      progressComment: 'A strong term with steady progress.',
     });
 
     expect(reviewed.status).toBe('UnderReview');
     expect(reviewed.compiled.headSummary).toBe('A strong term with steady progress.');
     expect(db.reports[0]?.compiledJsonEnc).not.toContain('strong term');
+  });
+
+  it('adds, edits, and removes only report-specific notes', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    const behaviourId = '3caaf78c-c3be-4eb6-948b-0c93799c8d22';
+    const generalId = '8957af68-17a3-4790-a703-2f11cab89654';
+
+    const reviewed = await caller.report.review({
+      reportId: draft.id,
+      progressComment: 'Jane is making steady progress.',
+      behaviourNotes: [
+        { id: behaviourId, category: 'Character', note: 'Shows initiative.' },
+      ],
+      generalNotes: [{ id: generalId, note: 'Enjoys independent reading.' }],
+    });
+
+    expect(reviewed.compiled.headSummary).toBe('Jane is making steady progress.');
+    expect(reviewed.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: behaviourId,
+          origin: 'Report',
+          note: 'Shows initiative.',
+        }),
+        expect.objectContaining({ origin: 'Source', note: 'Served others well' }),
+      ]),
+    );
+    expect(reviewed.compiled.notes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: generalId,
+          origin: 'Report',
+          note: 'Enjoys independent reading.',
+        }),
+        expect.objectContaining({ origin: 'Source', note: 'Reading has improved' }),
+      ]),
+    );
+
+    const edited = await caller.report.review({
+      ...defaultReviewInput(draft.id),
+      progressComment: 'Jane is making steady progress.',
+      behaviourNotes: [
+        { id: behaviourId, category: 'Character', note: 'Shows consistent initiative.' },
+      ],
+    });
+    expect(edited.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: behaviourId, note: 'Shows consistent initiative.' }),
+      ]),
+    );
+    expect(edited.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Source' })]),
+    );
+
+    const removed = await caller.report.review(defaultReviewInput(draft.id));
+    expect(removed.compiled.behaviour.generalEntries).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Report' })]),
+    );
+    expect(removed.compiled.notes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Report' })]),
+    );
+    expect(removed.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([expect.objectContaining({ origin: 'Source' })]),
+    );
+  });
+
+  it('preserves report additions and Progress Comment when a draft is refreshed', async () => {
+    const db = makeFakeDb();
+    const { caller } = makeCaller(headUser, db);
+    const draft = await caller.report.draft(defaultDraftInput());
+    const manualId = '3caaf78c-c3be-4eb6-948b-0c93799c8d22';
+    await caller.report.review({
+      reportId: draft.id,
+      progressComment: 'Keep this progress comment.',
+      behaviourNotes: [{ id: manualId, category: 'Character', note: 'Keep this note.' }],
+      generalNotes: [],
+    });
+    db.behaviourEntries.push({
+      id: 'ckbehaviourreport000006',
+      studentId,
+      type: 'General',
+      category: 'Service',
+      noteEnc: encrypt('New source note'),
+      visibility: 'General',
+      meritDelta: 0,
+      deletedAt: null,
+      createdAt: day('2026-05-18'),
+    });
+
+    const refreshed = await caller.report.draft(defaultDraftInput());
+
+    expect(refreshed.status).toBe('Draft');
+    expect(refreshed.compiled.headSummary).toBe('Keep this progress comment.');
+    expect(refreshed.compiled.behaviour.generalEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: manualId, origin: 'Report', note: 'Keep this note.' }),
+        expect.objectContaining({ origin: 'Source', note: 'New source note' }),
+      ]),
+    );
+  });
+
+  it('rejects invalid report-specific note payloads', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    const duplicateId = '3caaf78c-c3be-4eb6-948b-0c93799c8d22';
+
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        behaviourNotes: [
+          { id: duplicateId, note: 'First note.' },
+          { id: duplicateId, note: 'Second note.' },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        generalNotes: [{ id: duplicateId, note: '   ' }],
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        progressComment: 'x'.repeat(5001),
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+  });
+
+  it('keeps sent report content immutable', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    await caller.report.send({ reportId: draft.id });
+
+    await expect(
+      caller.report.review({
+        ...defaultReviewInput(draft.id),
+        progressComment: 'Too late to change.',
+      }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
   });
 
   it('sends without recompiling later source data', async () => {

@@ -81,10 +81,37 @@ const draftInput = z.object({
   sections: reportSectionsSchema,
 });
 
-const reviewInput = z.object({
-  reportId: z.string().cuid(),
-  headSummary: z.string().trim().max(5000).optional(),
+const reportEditableTextSchema = z.string().trim().min(1).max(5000);
+const reportSpecificNoteSchema = z.object({
+  id: z.string().uuid(),
+  category: z.string().trim().min(1).max(120).optional(),
+  note: reportEditableTextSchema,
 });
+
+const reviewInput = z
+  .object({
+    reportId: z.string().cuid(),
+    progressComment: z.string().trim().max(5000),
+    behaviourNotes: z.array(reportSpecificNoteSchema).max(50),
+    generalNotes: z.array(reportSpecificNoteSchema.omit({ category: true })).max(50),
+  })
+  .superRefine((input, ctx) => {
+    for (const key of ['behaviourNotes', 'generalNotes'] as const) {
+      const seen = new Set<string>();
+      input[key].forEach((entry, index) => {
+        if (seen.has(entry.id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'report note ids must be unique',
+            path: [key, index, 'id'],
+          });
+        }
+        seen.add(entry.id);
+      });
+    }
+  });
+
+type ReportSpecificNoteInput = z.infer<typeof reportSpecificNoteSchema>;
 
 const reportIdInput = z.object({ reportId: z.string().cuid() });
 const studentInput = z.object({ studentId: z.string().cuid() });
@@ -523,6 +550,51 @@ function normaliseTextEntry(
   };
 }
 
+function reportEntries(
+  existing: CompiledReport['notes'],
+  input: readonly ReportSpecificNoteInput[],
+  now: Date,
+): CompiledReport['notes'] {
+  const existingCreatedAt = new Map(
+    existing
+      .filter((entry) => entry.origin === 'Report')
+      .map((entry) => [entry.id, entry.createdAt]),
+  );
+  return [
+    ...existing.filter((entry) => entry.origin === 'Source'),
+    ...input.map((entry) => ({
+      id: entry.id,
+      origin: 'Report' as const,
+      createdAt: existingCreatedAt.get(entry.id) ?? now.toISOString(),
+      ...(entry.category ? { category: entry.category } : {}),
+      note: entry.note,
+    })),
+  ];
+}
+
+function preserveEditableDraftContent(
+  fresh: CompiledReport,
+  existing: CompiledReport | null,
+): CompiledReport {
+  if (!existing) return fresh;
+
+  const behaviourReportEntries = existing.behaviour.generalEntries.filter(
+    (entry) => entry.origin === 'Report',
+  );
+  const generalReportEntries = existing.notes.filter((entry) => entry.origin === 'Report');
+  return {
+    ...fresh,
+    headSummary: existing.headSummary,
+    behaviour: {
+      ...fresh.behaviour,
+      generalEntries: fresh.sections.behaviourNotes
+        ? [...fresh.behaviour.generalEntries, ...behaviourReportEntries]
+        : [],
+    },
+    notes: fresh.sections.generalNotes ? [...fresh.notes, ...generalReportEntries] : [],
+  };
+}
+
 function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow): CompiledReport {
   const json = decryptRequired(
     ctx.db.$enc.decrypt,
@@ -781,11 +853,16 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'sent reports cannot be re-drafted' });
       }
 
-      const compiled = await compileReportSnapshot(ctx, {
-        studentId: input.studentId,
-        period,
-        sections: input.sections,
-      });
+      const existingCompiled = existing ? decryptCompiledReport(ctx, existing) : null;
+      const compiled = preserveEditableDraftContent(
+        await compileReportSnapshot(ctx, {
+          studentId: input.studentId,
+          period,
+          sections: input.sections,
+          ...(existingCompiled ? { headSummary: existingCompiled.headSummary } : {}),
+        }),
+        existingCompiled,
+      );
       const compiledJsonEnc = encryptCompiledReport(ctx, compiled);
       const periodEnd = new Date(period.queryToExclusive.getTime() - 86_400_000);
 
@@ -839,10 +916,20 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       }
 
       const compiled = decryptCompiledReport(ctx, existing);
+      const now = new Date();
       const updatedCompiled: CompiledReport = {
         ...compiled,
-        headSummary: input.headSummary ?? compiled.headSummary,
-        compiledAt: new Date().toISOString(),
+        headSummary: input.progressComment,
+        behaviour: {
+          ...compiled.behaviour,
+          generalEntries: reportEntries(
+            compiled.behaviour.generalEntries,
+            input.behaviourNotes,
+            now,
+          ),
+        },
+        notes: reportEntries(compiled.notes, input.generalNotes, now),
+        compiledAt: now.toISOString(),
       };
       const report = await ctx.db.termReport.update({
         where: { id: existing.id },
