@@ -8,7 +8,6 @@ import {
   formatDate,
   formatNumber,
   formatSignedNumber,
-  formatTerm,
   reportStatusLabel,
   reportStatusTone,
   type TermReport,
@@ -101,7 +100,7 @@ export function ReportDetail({
     <section className="panel panel__body report-detail" aria-labelledby="report-detail-title">
       <div className="report-detail__header">
         <div>
-          <p className="eyebrow">{formatTerm(report.term)}</p>
+          <p className="eyebrow">{report.period.label}</p>
           <h2 id="report-detail-title">{compiled.studentDisplayName}</h2>
           <span>Compiled {formatDate(compiled.compiledAt)}</span>
         </div>

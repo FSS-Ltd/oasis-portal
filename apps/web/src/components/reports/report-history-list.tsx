@@ -3,7 +3,6 @@
 import { Badge } from '@/components/ui/badge';
 import {
   formatDate,
-  formatTerm,
   reportStatusLabel,
   reportStatusTone,
   type TermReport,
@@ -39,7 +38,7 @@ export function ReportHistoryList({
           type="button"
         >
           <span>
-            <strong>{formatTerm(report.term)}</strong>
+            <strong>{report.period.label}</strong>
             <small>{report.sentAt ? `Sent ${formatDate(report.sentAt)}` : 'Not sent'}</small>
           </span>
           <Badge tone={reportStatusTone(report.status)}>{reportStatusLabel(report.status)}</Badge>

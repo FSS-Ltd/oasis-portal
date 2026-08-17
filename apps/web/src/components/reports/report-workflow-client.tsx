@@ -3,19 +3,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FileText, RefreshCw } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { DEFAULT_REPORT_SECTIONS, resolveReportPeriod } from '@oasis/domain';
 import { api, type RouterInputs, type RouterOutputs } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Field, SelectInput } from '@/components/ui/field';
 import { ReportDetail } from './report-detail';
 import { ReportHistoryList } from './report-history-list';
+import { ReportPeriodControls, type DraftPeriod } from './report-period-controls';
+import { ReportSectionPicker, type DraftSections } from './report-section-picker';
 import {
   ReportStudentSelector,
   type ReportStudent,
   type ReportWorkflowMode,
 } from './report-student-selector';
-import { formatNumber, formatTerm, type TermReport } from './report-format';
+import { formatNumber, type TermReport } from './report-format';
 
 type AdminStudent = RouterOutputs['student']['list'][number];
 type ParentStudent = RouterOutputs['childLog']['listAccessibleStudents'][number];
@@ -25,13 +27,12 @@ interface ReportWorkflowClientProps {
   mode: ReportWorkflowMode;
 }
 
-const TERM_OPTIONS = ['2026-Spring', '2026-Summer', '2026-Autumn'] as const;
-
-function currentTerm(): (typeof TERM_OPTIONS)[number] {
-  const month = new Date().getMonth();
-  if (month < 4) return '2026-Spring';
-  if (month < 8) return '2026-Summer';
-  return '2026-Autumn';
+function initialPeriod(referenceDate = new Date()): DraftPeriod {
+  const year = referenceDate.getUTCFullYear();
+  return {
+    type: 'AcademicYear',
+    startYear: referenceDate.getUTCMonth() >= 8 ? year : year - 1,
+  };
 }
 
 function mapAdminStudent(student: AdminStudent): ReportStudent {
@@ -50,8 +51,31 @@ function mapParentStudent(student: ParentStudent): ReportStudent {
   };
 }
 
-function latestReportForTerm(reports: readonly TermReport[], term: string): TermReport | null {
-  return reports.find((report) => report.term === term) ?? reports[0] ?? null;
+function latestReportForPeriod(
+  reports: readonly TermReport[],
+  periodKey: string,
+): TermReport | null {
+  return reports.find((report) => report.period.key === periodKey) ?? null;
+}
+
+function periodInputForReport(report: TermReport): DraftPeriod {
+  if (report.period.type === 'AcademicYear') {
+    return { type: 'AcademicYear', startYear: Number(report.period.from.slice(0, 4)) };
+  }
+  if (report.period.type === 'Term') {
+    return { type: 'Term', term: report.period.key };
+  }
+  return { type: 'Custom', from: report.period.from, to: report.period.to };
+}
+
+function reportSpecificNotes(entries: TermReport['compiled']['notes']) {
+  return entries
+    .filter((entry) => entry.origin === 'Report')
+    .map((entry) => ({
+      id: entry.id,
+      ...(entry.category ? { category: entry.category } : {}),
+      note: entry.note ?? '',
+    }));
 }
 
 function reportCountLabel(count: number): string {
@@ -67,7 +91,8 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   const [selectedReportId, setSelectedReportId] = useState(
     () => searchParams?.get('reportId') ?? '',
   );
-  const [term, setTerm] = useState<(typeof TERM_OPTIONS)[number]>(currentTerm);
+  const [period, setPeriod] = useState<DraftPeriod>(initialPeriod);
+  const [sections, setSections] = useState<DraftSections>({ ...DEFAULT_REPORT_SECTIONS });
   const [headSummary, setHeadSummary] = useState('');
 
   const adminStudentsQuery = api.student.list.useQuery(
@@ -92,14 +117,23 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   );
 
   const reports = useMemo(() => reportsQuery.data?.reports ?? [], [reportsQuery.data?.reports]);
+  const selectedPeriodKey = useMemo(() => {
+    try {
+      return resolveReportPeriod(period).snapshot.key;
+    } catch {
+      return '';
+    }
+  }, [period]);
   const selectedReport =
     reports.find((report) => report.id === selectedReportId) ??
-    (mode === 'admin' ? latestReportForTerm(reports, term) : reports[0]) ??
+    (mode === 'admin' ? latestReportForPeriod(reports, selectedPeriodKey) : reports[0]) ??
     null;
 
   const draftReport = api.report.draft.useMutation({
     onSuccess: async (report) => {
       setSelectedReportId(report.id);
+      setPeriod(periodInputForReport(report));
+      setSections({ ...report.compiled.sections });
       setHeadSummary(report.compiled.headSummary);
       showSuccessToast('Draft generated.');
       await utils.report.listForStudent.invalidate();
@@ -147,6 +181,10 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
 
   useEffect(() => {
     setHeadSummary(selectedReport?.compiled.headSummary ?? '');
+    if (selectedReport) {
+      setPeriod(periodInputForReport(selectedReport));
+      setSections({ ...selectedReport.compiled.sections });
+    }
   }, [selectedReport?.id, selectedReport?.compiled.headSummary]);
 
   function selectStudent(studentId: string): void {
@@ -157,7 +195,7 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   async function handleDraft(): Promise<void> {
     if (!selectedStudent) return;
     try {
-      await draftReport.mutateAsync({ studentId: selectedStudent.id, term });
+      await draftReport.mutateAsync({ studentId: selectedStudent.id, period, sections });
     } catch {
       // Toast is handled by the mutation onError callback.
     }
@@ -165,10 +203,15 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
 
   async function handleReview(): Promise<void> {
     if (!selectedReport) return;
-    const trimmedSummary = headSummary.trim();
-    const payload: ReviewReportInput = trimmedSummary
-      ? { reportId: selectedReport.id, headSummary: trimmedSummary }
-      : { reportId: selectedReport.id };
+    const payload: ReviewReportInput = {
+      reportId: selectedReport.id,
+      progressComment: headSummary.trim(),
+      behaviourNotes: reportSpecificNotes(selectedReport.compiled.behaviour.generalEntries),
+      generalNotes: reportSpecificNotes(selectedReport.compiled.notes).map(({ id, note }) => ({
+        id,
+        note,
+      })),
+    };
     try {
       await reviewReport.mutateAsync(payload);
     } catch {
@@ -202,11 +245,11 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
   return (
     <div className="report-page">
       <div className="dashboard-hero">
-        <p>{mode === 'admin' ? 'Reports' : 'Term reports'}</p>
-        <h1>{mode === 'admin' ? 'Term Reports' : 'Reports'}</h1>
+        <p>{mode === 'admin' ? 'Reports' : 'Student reports'}</p>
+        <h1>Student Reports</h1>
         <span>
           {mode === 'admin'
-            ? 'Draft, review, and send end-of-term snapshots.'
+            ? 'Draft, review, and send configurable progress snapshots.'
             : 'Read sent reports for linked children.'}
         </span>
       </div>
@@ -242,7 +285,7 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
             reports={reports}
             selectedStudentId={selectedStudentId}
             students={students}
-            term={term}
+            periodKey={selectedPeriodKey}
           />
 
           <section
@@ -275,25 +318,24 @@ export function ReportWorkflowClient({ mode }: ReportWorkflowClientProps) {
               <div className="section-title">
                 <div>
                   <h2 id="report-actions">Draft Controls</h2>
-                  <p className="muted">Drafting refreshes the selected term snapshot.</p>
+                  <p className="muted">Choose the reporting period and included sections.</p>
                 </div>
               </div>
-              <div className="report-control-row">
-                <Field label="Term">
-                  <SelectInput
-                    onChange={(event) => {
-                      setTerm(event.target.value as (typeof TERM_OPTIONS)[number]);
-                      setSelectedReportId('');
-                    }}
-                    value={term}
-                  >
-                    {TERM_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {formatTerm(option)}
-                      </option>
-                    ))}
-                  </SelectInput>
-                </Field>
+              <ReportPeriodControls
+                disabled={draftReport.isPending}
+                onChange={(nextPeriod) => {
+                  setPeriod(nextPeriod);
+                  setSelectedReportId('');
+                }}
+                value={period}
+              />
+              <ReportSectionPicker
+                disabled={draftReport.isPending}
+                onChange={setSections}
+                value={sections}
+              />
+              <div className="report-control-row report-control-row--actions">
+                <span className="muted">Generate or refresh this saved snapshot.</span>
                 <Button
                   disabled={!selectedStudent}
                   onClick={() => {

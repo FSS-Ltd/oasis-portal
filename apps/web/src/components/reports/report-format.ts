@@ -26,10 +26,6 @@ export function formatSignedNumber(value: number): string {
   return `${value > 0 ? '+' : ''}${formatNumber(value)}`;
 }
 
-export function formatTerm(term: string): string {
-  return term.replace('-', ' ');
-}
-
 export function reportStatusLabel(status: TermReportStatus): string {
   switch (status) {
     case 'Draft':
