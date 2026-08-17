@@ -153,9 +153,11 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
   };
   reports: StoredTermReport[];
   behaviourEntries: StoredBehaviourEntry[];
+  ledgerRows: StoredLedgerRow[];
 }
 
 interface AuditData {
@@ -324,6 +326,7 @@ function makeFakeDb() {
     },
   ];
   const reports: StoredTermReport[] = [];
+  const cloneReport = (report: StoredTermReport): StoredTermReport => ({ ...report });
 
   const db: FakeDb = {
     $enc: {
@@ -491,7 +494,7 @@ function makeFakeDb() {
             ...data,
           };
           reports.push(report);
-          return Promise.resolve(report);
+          return Promise.resolve(cloneReport(report));
         },
       ),
       findMany: vi.fn(({ where }: { where: { studentId: string; status?: TermReportStatus } }) =>
@@ -510,28 +513,54 @@ function makeFakeDb() {
             | { studentId_periodKey: { studentId: string; periodKey: string } };
         }) => {
           if ('id' in where) {
-            return Promise.resolve(reports.find((report) => report.id === where.id) ?? null);
+            const report = reports.find((candidate) => candidate.id === where.id);
+            return Promise.resolve(report ? cloneReport(report) : null);
           }
-          return Promise.resolve(
-            reports.find(
+          const report = reports.find(
               (report) =>
                 report.studentId === where.studentId_periodKey.studentId &&
                 report.periodKey === where.studentId_periodKey.periodKey,
-            ) ?? null,
-          );
+            );
+          return Promise.resolve(report ? cloneReport(report) : null);
         },
       ),
       update: vi.fn(
         ({ where, data }: { where: { id: string }; data: Partial<StoredTermReport> }) => {
           const report = reports.find((candidate) => candidate.id === where.id);
           if (!report) throw new Error('report not found');
-          Object.assign(report, data, { updatedAt: new Date('2026-05-20T11:00:00.000Z') });
-          return Promise.resolve(report);
+          Object.assign(report, data, { updatedAt: new Date(report.updatedAt.getTime() + 1) });
+          return Promise.resolve(cloneReport(report));
+        },
+      ),
+      updateMany: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: {
+            id: string;
+            status: TermReportStatus;
+            updatedAt: Date;
+            compiledJsonEnc: string;
+          };
+          data: Partial<StoredTermReport>;
+        }) => {
+          const report = reports.find(
+            (candidate) =>
+              candidate.id === where.id &&
+              candidate.status === where.status &&
+              candidate.updatedAt.getTime() === where.updatedAt.getTime() &&
+              candidate.compiledJsonEnc === where.compiledJsonEnc,
+          );
+          if (!report) return Promise.resolve({ count: 0 });
+          Object.assign(report, data, { updatedAt: new Date(report.updatedAt.getTime() + 1) });
+          return Promise.resolve({ count: 1 });
         },
       ),
     },
     reports,
     behaviourEntries,
+    ledgerRows,
   };
 
   return db;
@@ -556,6 +585,16 @@ function makeFakePdfGenerator(
 ) {
   const generate = vi.fn<PdfGenerator>().mockResolvedValue(result);
   return { generate, result };
+}
+
+function deferred<T>() {
+  let resolvePromise: (value: T) => void = () => undefined;
+  let rejectPromise: (reason?: unknown) => void = () => undefined;
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { promise, reject: rejectPromise, resolve: resolvePromise };
 }
 
 function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
@@ -695,6 +734,24 @@ describe('report.draft', () => {
       entityId: reportId,
       meta: { source: 'report.draft', studentId, periodKey: '2026-Summer' },
     });
+  });
+
+  it('uses pre-period ledger rows for balances without exposing them as period activity', async () => {
+    const { caller, db } = makeCaller(headUser);
+    db.ledgerRows.push({
+      studentId,
+      account: 'Spend',
+      delta: 5,
+      reason: 'Previous term balance',
+      createdAt: day('2026-03-31'),
+    });
+
+    const draft = await caller.report.draft(defaultDraftInput());
+
+    expect(draft.compiled.balances.Spend).toBe(35);
+    expect(draft.compiled.meritActivity).not.toContainEqual(
+      expect.objectContaining({ reason: 'Previous term balance' }),
+    );
   });
 
   it.each([
@@ -890,6 +947,45 @@ describe('report.review and report.send', () => {
     );
   });
 
+  it('preserves report additions while their sections are hidden and later restored', async () => {
+    const { db, draft } = await createDraft();
+    const { caller } = makeCaller(headUser, db);
+    const behaviourId = 'aa11396e-4620-4708-93f4-a1b0ec354517';
+    const generalId = 'dfe63dcf-ad74-4a37-8e30-8be96b182fc2';
+    await caller.report.review({
+      reportId: draft.id,
+      progressComment: 'Keep all report-only content.',
+      behaviourNotes: [{ id: behaviourId, category: 'Character', note: 'Keep behaviour note.' }],
+      generalNotes: [{ id: generalId, note: 'Keep general note.' }],
+    });
+
+    const hidden = await caller.report.draft({
+      ...defaultDraftInput(),
+      sections: {
+        ...DEFAULT_REPORT_SECTIONS,
+        behaviourNotes: false,
+        generalNotes: false,
+      },
+    });
+
+    expect(hidden.compiled.sections.behaviourNotes).toBe(false);
+    expect(hidden.compiled.sections.generalNotes).toBe(false);
+    expect(hidden.compiled.behaviour.generalEntries).toContainEqual(
+      expect.objectContaining({ id: behaviourId, origin: 'Report', note: 'Keep behaviour note.' }),
+    );
+    expect(hidden.compiled.notes).toContainEqual(
+      expect.objectContaining({ id: generalId, origin: 'Report', note: 'Keep general note.' }),
+    );
+
+    const restored = await caller.report.draft(defaultDraftInput());
+    expect(restored.compiled.behaviour.generalEntries).toContainEqual(
+      expect.objectContaining({ id: behaviourId, origin: 'Report', note: 'Keep behaviour note.' }),
+    );
+    expect(restored.compiled.notes).toContainEqual(
+      expect.objectContaining({ id: generalId, origin: 'Report', note: 'Keep general note.' }),
+    );
+  });
+
   it('rejects invalid report-specific note payloads', async () => {
     const { db, draft } = await createDraft();
     const { caller } = makeCaller(headUser, db);
@@ -1013,6 +1109,91 @@ describe('report.review and report.send', () => {
     expect(email.send).not.toHaveBeenCalled();
   });
 
+  it('allows only one concurrent send to freeze and notify a report', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const firstPdf = deferred<GeneratedStudentReportPdf>();
+    const secondPdf = deferred<GeneratedStudentReportPdf>();
+    const pdf = makeFakePdfGenerator();
+    pdf.generate
+      .mockImplementationOnce(() => firstPdf.promise)
+      .mockImplementationOnce(() => secondPdf.promise);
+    const firstCaller = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator: pdf.generate,
+    }).caller;
+    const secondCaller = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator: pdf.generate,
+    }).caller;
+
+    const firstSend = firstCaller.report.send({ reportId: draft.id });
+    await vi.waitFor(() => {
+      expect(pdf.generate).toHaveBeenCalledTimes(1);
+    });
+    const secondSend = secondCaller.report.send({ reportId: draft.id });
+    await vi.waitFor(() => {
+      expect(pdf.generate).toHaveBeenCalledTimes(2);
+    });
+    firstPdf.resolve(pdf.result);
+    secondPdf.resolve(pdf.result);
+
+    const results = await Promise.allSettled([firstSend, secondSend]);
+
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    expect(email.send).toHaveBeenCalledTimes(1);
+    expect(auditData(db).filter((entry) => entry.meta?.['source'] === 'report.send')).toHaveLength(1);
+    expect(db.reports[0]?.status).toBe('Sent');
+  });
+
+  it('rejects a stale send when review changes the frozen snapshot first', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const pendingPdf = deferred<GeneratedStudentReportPdf>();
+    const pdf = makeFakePdfGenerator();
+    pdf.generate.mockImplementationOnce(() => pendingPdf.promise);
+    const { caller } = makeCaller(headUser, db, {
+      emailClient: email.client,
+      pdfGenerator: pdf.generate,
+    });
+
+    const send = caller.report.send({ reportId: draft.id });
+    await vi.waitFor(() => {
+      expect(pdf.generate).toHaveBeenCalledTimes(1);
+    });
+    const reviewed = await caller.report.review({
+      ...defaultReviewInput(draft.id),
+      progressComment: 'Reviewed while the old PDF was rendering.',
+    });
+    pendingPdf.resolve(pdf.result);
+
+    await expect(send).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(reviewed.status).toBe('UnderReview');
+    expect(db.reports[0]?.status).toBe('UnderReview');
+    expect(email.send).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale draft refresh when send freezes the report first', async () => {
+    const email = makeFakeEmailClient();
+    const { db, draft } = await createDraft();
+    const pendingAttendance = deferred<Array<{ status: AttendanceStatus }>>();
+    db.attendance.findMany.mockImplementationOnce(() => pendingAttendance.promise);
+    const { caller } = makeCaller(headUser, db, { emailClient: email.client });
+
+    const refresh = caller.report.draft(defaultDraftInput());
+    await vi.waitFor(() => {
+      expect(db.attendance.findMany).toHaveBeenCalledTimes(2);
+    });
+    await caller.report.send({ reportId: draft.id });
+    pendingAttendance.resolve([{ status: 'Present' }]);
+
+    await expect(refresh).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(db.reports[0]?.status).toBe('Sent');
+    expect(db.reports[0]?.pdfGeneratedAt).toBeInstanceOf(Date);
+    expect(email.send).toHaveBeenCalledTimes(1);
+  });
+
   it('notifies linked guardians when a report is sent', async () => {
     const email = makeFakeEmailClient();
     const { db, draft } = await createDraft();
@@ -1115,6 +1296,14 @@ describe('report.downloadPdf', () => {
     await expect(
       makeCaller(parentUser, db).caller.report.downloadPdf({ reportId: draft.id }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(auditData(db)).toContainEqual(
+      expect.objectContaining({
+        userId: parentUser.id,
+        action: 'PermissionDenied',
+        entity: 'report.downloadPdf',
+        entityId: draft.id,
+      }),
+    );
 
     await makeCaller(headUser, db).caller.report.send({ reportId: draft.id });
     await expect(
@@ -1240,6 +1429,42 @@ describe('report.listForStudent', () => {
       status: 'Sent',
       compiled: { studentDisplayName: 'Jane Learner' },
     });
+  });
+
+  it('does not expose preserved report-only notes from hidden sections to parents', async () => {
+    const { db, draft } = await createDraft();
+    const headCaller = makeCaller(headUser, db).caller;
+    await headCaller.report.review({
+      reportId: draft.id,
+      progressComment: 'Hidden progress comment.',
+      behaviourNotes: [
+        {
+          id: '16635882-372f-4d99-b760-776ad3aa9b76',
+          category: 'Character',
+          note: 'Hidden behaviour note.',
+        },
+      ],
+      generalNotes: [
+        { id: '0658301f-8a25-48c6-b200-d3cb7def258b', note: 'Hidden general note.' },
+      ],
+    });
+    await headCaller.report.draft({
+      ...defaultDraftInput(),
+      sections: {
+        ...DEFAULT_REPORT_SECTIONS,
+        behaviourNotes: false,
+        generalNotes: false,
+        progressComment: false,
+      },
+    });
+    await headCaller.report.send({ reportId: draft.id });
+
+    const result = await makeCaller(parentUser, db).caller.report.listForStudent({ studentId });
+    const compiled = result.reports[0]?.compiled;
+
+    expect(compiled?.behaviour.generalEntries).toEqual([]);
+    expect(compiled?.notes).toEqual([]);
+    expect(compiled?.headSummary).toBe('');
   });
 
   it('allows linked supervisors to read sent reports for linked children only', async () => {

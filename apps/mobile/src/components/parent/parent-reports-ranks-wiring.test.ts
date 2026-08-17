@@ -45,6 +45,7 @@ describe('parent reports and ranks mobile wiring', () => {
 
     for (const text of [
       'Reports and ranks',
+      'Sent student reports',
       'Student reports',
       'Report detail',
       'Positive ranks',
@@ -60,5 +61,6 @@ describe('parent reports and ranks mobile wiring', () => {
     ]) {
       expect(screen).toContain(text);
     }
+    expect(screen).not.toContain('Sent term reports');
   });
 });

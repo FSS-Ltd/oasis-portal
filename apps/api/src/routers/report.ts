@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import type { Prisma } from '@oasis/db';
 import {
   AccessDeniedError,
   canUseLinkedChildGuardianAccess,
@@ -508,7 +509,11 @@ async function compileReportSnapshot(
 
   return {
     ...compiled,
-    meritActivity: input.sections.meritActivity ? compiled.meritActivity : [],
+    meritActivity: input.sections.meritActivity
+      ? compiled.meritActivity.filter(
+          (entry) => new Date(entry.createdAt).getTime() >= input.period.queryFrom.getTime(),
+        )
+      : [],
     balances: input.sections.balances ? compiled.balances : EMPTY_REPORT_BALANCES,
   };
 }
@@ -590,11 +595,9 @@ function preserveEditableDraftContent(
     headSummary: existing.headSummary,
     behaviour: {
       ...fresh.behaviour,
-      generalEntries: fresh.sections.behaviourNotes
-        ? [...fresh.behaviour.generalEntries, ...behaviourReportEntries]
-        : [],
+      generalEntries: [...fresh.behaviour.generalEntries, ...behaviourReportEntries],
     },
-    notes: fresh.sections.generalNotes ? [...fresh.notes, ...generalReportEntries] : [],
+    notes: [...fresh.notes, ...generalReportEntries],
   };
 }
 
@@ -645,7 +648,23 @@ function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow): Compiled
   };
 }
 
+function reportContentForViewer(ctx: AuthedContext, compiled: CompiledReport): CompiledReport {
+  if (canUseAdminOperations(ctx.user)) return compiled;
+  return {
+    ...compiled,
+    behaviour: {
+      ...compiled.behaviour,
+      generalEntries: compiled.sections.behaviourNotes
+        ? compiled.behaviour.generalEntries
+        : [],
+    },
+    notes: compiled.sections.generalNotes ? compiled.notes : [],
+    headSummary: compiled.sections.progressComment ? compiled.headSummary : '',
+  };
+}
+
 function mapReport(ctx: AuthedContext, row: TermReportRow) {
+  const compiled = decryptCompiledReport(ctx, row);
   return {
     id: row.id,
     studentId: row.studentId,
@@ -661,7 +680,7 @@ function mapReport(ctx: AuthedContext, row: TermReportRow) {
     sentAt: row.sentAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    compiled: decryptCompiledReport(ctx, row),
+    compiled: reportContentForViewer(ctx, compiled),
   };
 }
 
@@ -698,7 +717,12 @@ async function assertCanDownloadReport(ctx: AuthedContext, report: TermReportRow
   if (canUseAdminOperations(ctx.user)) return;
   await assertCanReadReports(ctx, report.studentId, 'report.downloadPdf');
   if (report.status !== 'Sent') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'only sent reports can be downloaded' });
+    await auditPermissionDenied(
+      ctx,
+      'report.downloadPdf',
+      report.id,
+      new AccessDeniedError('only sent reports can be downloaded'),
+    );
   }
 }
 
@@ -708,6 +732,57 @@ async function loadReport(ctx: AuthedContext, reportId: string): Promise<TermRep
     throw new TRPCError({ code: 'NOT_FOUND', message: 'student report not found' });
   }
   return report;
+}
+
+async function transitionReport(
+  ctx: AuthedContext,
+  input: {
+    existing: TermReportRow;
+    data: Prisma.TermReportUpdateManyMutationInput;
+    source: 'report.draft' | 'report.review' | 'report.send';
+    auditMeta?: Record<string, unknown>;
+  },
+): Promise<TermReportRow> {
+  return ctx.withRls(async (tx) => {
+    const transitioned = await tx.termReport.updateMany({
+      where: {
+        id: input.existing.id,
+        status: input.existing.status,
+        updatedAt: input.existing.updatedAt,
+        compiledJsonEnc: input.existing.compiledJsonEnc,
+      },
+      data: input.data,
+    });
+    if (transitioned.count !== 1) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'This report changed while you were working. Refresh it and try again.',
+      });
+    }
+
+    const report = await tx.termReport.findUnique({ where: { id: input.existing.id } });
+    if (!report) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Updated student report could not be loaded.',
+      });
+    }
+    await tx.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'TermReport',
+        entityId: report.id,
+        meta: {
+          source: input.source,
+          studentId: report.studentId,
+          periodKey: report.periodKey,
+          ...input.auditMeta,
+        },
+      },
+    });
+    return report;
+  });
 }
 
 function parentReportPath(report: TermReportRow): string {
@@ -909,8 +984,9 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
       const periodEnd = new Date(period.queryToExclusive.getTime() - 86_400_000);
 
       const report = existing
-        ? await ctx.db.termReport.update({
-            where: { id: existing.id },
+        ? await transitionReport(ctx, {
+            existing,
+            source: 'report.draft',
             data: {
               periodType: period.snapshot.type,
               periodLabel: period.snapshot.label,
@@ -924,32 +1000,34 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
               sentAt: null,
             },
           })
-        : await ctx.db.termReport.create({
-            data: {
-              studentId: input.studentId,
-              periodKey: period.snapshot.key,
-              periodType: period.snapshot.type,
-              periodLabel: period.snapshot.label,
-              periodStart: period.queryFrom,
-              periodEnd,
-              status: 'Draft',
-              compiledJsonEnc,
-            },
+        : await ctx.withRls(async (tx) => {
+            const created = await tx.termReport.create({
+              data: {
+                studentId: input.studentId,
+                periodKey: period.snapshot.key,
+                periodType: period.snapshot.type,
+                periodLabel: period.snapshot.label,
+                periodStart: period.queryFrom,
+                periodEnd,
+                status: 'Draft',
+                compiledJsonEnc,
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                userId: ctx.user.id,
+                action: 'Create',
+                entity: 'TermReport',
+                entityId: created.id,
+                meta: {
+                  source: 'report.draft',
+                  studentId: input.studentId,
+                  periodKey: period.snapshot.key,
+                },
+              },
+            });
+            return created;
           });
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: existing ? 'Update' : 'Create',
-          entity: 'TermReport',
-          entityId: report.id,
-          meta: {
-            source: 'report.draft',
-            studentId: input.studentId,
-            periodKey: period.snapshot.key,
-          },
-        },
-      });
 
       return mapReport(ctx, report);
     }),
@@ -976,28 +1054,15 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
         notes: reportEntries(compiled.notes, input.generalNotes, now),
         compiledAt: now.toISOString(),
       };
-      const report = await ctx.db.termReport.update({
-        where: { id: existing.id },
+      const report = await transitionReport(ctx, {
+        existing,
+        source: 'report.review',
         data: {
           status: 'UnderReview',
           compiledJsonEnc: encryptCompiledReport(ctx, updatedCompiled),
           pdfBytesEnc: null,
           pdfFileNameEnc: null,
           pdfGeneratedAt: null,
-        },
-      });
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'TermReport',
-          entityId: report.id,
-          meta: {
-            source: 'report.review',
-            studentId: report.studentId,
-            periodKey: report.periodKey,
-          },
         },
       });
 
@@ -1019,29 +1084,16 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
         pdf.fileName,
         'student report PDF file name',
       );
-      const report = await ctx.db.termReport.update({
-        where: { id: existing.id },
+      const report = await transitionReport(ctx, {
+        existing,
+        source: 'report.send',
+        auditMeta: { sentAt },
         data: {
           status: 'Sent',
           sentAt,
           pdfBytesEnc,
           pdfFileNameEnc,
           pdfGeneratedAt: sentAt,
-        },
-      });
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'TermReport',
-          entityId: report.id,
-          meta: {
-            source: 'report.send',
-            studentId: report.studentId,
-            periodKey: report.periodKey,
-            sentAt,
-          },
         },
       });
 

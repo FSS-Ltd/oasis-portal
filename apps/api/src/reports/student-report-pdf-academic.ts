@@ -90,7 +90,7 @@ export function drawMetricCards(context: PdfContext, report: CompiledReport): vo
 }
 
 export function drawPaceTable(context: PdfContext, report: CompiledReport): void {
-  drawSectionHeading(context, 'PACE Progress');
+  drawSectionHeading(context, 'PACE Progress', report.paces.length === 0 ? 32 : 51);
   if (report.paces.length === 0) {
     drawEmptyState(context, 'No PACE progress was recorded for this report.');
     return;

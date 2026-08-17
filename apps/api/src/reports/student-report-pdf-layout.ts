@@ -170,8 +170,12 @@ export function ensureSpace(context: PdfContext, requiredHeight: number): void {
   context.y = 690;
 }
 
-export function drawSectionHeading(context: PdfContext, title: string): void {
-  ensureSpace(context, 42);
+export function drawSectionHeading(
+  context: PdfContext,
+  title: string,
+  followingHeight = 13,
+): void {
+  ensureSpace(context, 29 + followingHeight);
   drawText(context.page, title, MARGIN, context.y, 15, context.fonts.bold, NAVY);
   context.y -= 9;
   context.page.drawLine({
@@ -259,7 +263,7 @@ export function wrapText(value: string, font: PDFFont, size: number, maxWidth: n
     for (const rawWord of words) {
       for (const word of splitWord(rawWord, font, size, maxWidth)) {
         const next = line ? `${line} ${word}` : word;
-        if (line && font.widthOfTextAtSize(next, size) > maxWidth) {
+        if (line && textWidth(font, next, size) > maxWidth) {
           lines.push(line);
           line = word;
         } else {
@@ -281,7 +285,7 @@ export function drawText(
   font: PDFFont,
   color: RGB,
 ): void {
-  page.drawText(value, { x, y, size, font, color });
+  page.drawText(pdfSafeText(value, font), { x, y, size, font, color });
 }
 
 export function drawRightText(
@@ -293,7 +297,7 @@ export function drawRightText(
   font: PDFFont,
   color: RGB,
 ): void {
-  drawText(page, value, right - font.widthOfTextAtSize(value, size), y, size, font, color);
+  drawText(page, value, right - textWidth(font, value, size), y, size, font, color);
 }
 
 export function drawCentredText(
@@ -306,17 +310,20 @@ export function drawCentredText(
   font: PDFFont,
   color: RGB,
 ): void {
-  const textWidth = font.widthOfTextAtSize(value, size);
-  drawText(page, value, x + (width - textWidth) / 2, y, size, font, color);
+  const valueWidth = textWidth(font, value, size);
+  drawText(page, value, x + (width - valueWidth) / 2, y, size, font, color);
 }
 
 export function trimToWidth(value: string, font: PDFFont, size: number, maxWidth: number): string {
-  if (font.widthOfTextAtSize(value, size) <= maxWidth) return value;
-  let trimmed = value;
-  while (trimmed.length > 1 && font.widthOfTextAtSize(`${trimmed}...`, size) > maxWidth) {
-    trimmed = trimmed.slice(0, -1);
+  if (textWidth(font, value, size) <= maxWidth) return value;
+  const characters = Array.from(value);
+  while (
+    characters.length > 1 &&
+    textWidth(font, `${characters.join('')}...`, size) > maxWidth
+  ) {
+    characters.pop();
   }
-  return `${trimmed}...`;
+  return `${characters.join('')}...`;
 }
 
 export function formatDate(value: Date): string {
@@ -351,12 +358,12 @@ export function loadLogoBytes(): Uint8Array | null {
 }
 
 function splitWord(value: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  if (font.widthOfTextAtSize(value, size) <= maxWidth) return [value];
+  if (textWidth(font, value, size) <= maxWidth) return [value];
   const segments: string[] = [];
   let segment = '';
   for (const character of value) {
     const next = `${segment}${character}`;
-    if (segment && font.widthOfTextAtSize(next, size) > maxWidth) {
+    if (segment && textWidth(font, next, size) > maxWidth) {
       segments.push(segment);
       segment = character;
     } else {
@@ -365,6 +372,31 @@ function splitWord(value: string, font: PDFFont, size: number, maxWidth: number)
   }
   if (segment) segments.push(segment);
   return segments;
+}
+
+function textWidth(font: PDFFont, value: string, size: number): number {
+  return font.widthOfTextAtSize(pdfSafeText(value, font), size);
+}
+
+function pdfSafeText(value: string, font: PDFFont): string {
+  let safe = '';
+  for (const character of value.normalize('NFC')) {
+    try {
+      font.encodeText(character);
+      safe += character;
+      continue;
+    } catch {
+      const fallback = character.normalize('NFKD').replace(/\p{Mark}/gu, '');
+      try {
+        font.encodeText(fallback);
+        safe += fallback;
+        continue;
+      } catch {
+        safe += '?';
+      }
+    }
+  }
+  return safe;
 }
 
 function formatDateKey(value: string): string {

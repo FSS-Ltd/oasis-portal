@@ -116,7 +116,7 @@ export function ParentReportsRanksScreen({
         </View>
         <Text style={styles.title}>Reports and ranks</Text>
         <Text style={styles.subtitle}>
-          Sent term reports and positive merit economy ranks for linked children.
+          Sent student reports and positive merit economy ranks for linked children.
         </Text>
       </View>
 

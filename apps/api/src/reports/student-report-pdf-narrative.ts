@@ -27,13 +27,13 @@ export function drawTextEntries(
   entries: CompiledReport['notes'],
   emptyLabel: string,
 ): void {
-  drawSectionHeading(context, title);
+  drawSectionHeading(context, title, entries.length === 0 ? 32 : 42);
   if (entries.length === 0) {
     drawEmptyState(context, emptyLabel);
     return;
   }
 
-  entries.forEach((entry) => {
+  entries.forEach((entry, index) => {
     ensureSpace(context, 42);
     const meta = [formatDate(new Date(entry.createdAt)), entry.category].filter(Boolean).join(' - ');
     drawText(context.page, meta, MARGIN, context.y, 8, context.fonts.bold, CRIMSON);
@@ -44,19 +44,28 @@ export function drawTextEntries(
       lineHeight: 14,
     });
     context.y -= 7;
-    ensureSpace(context, 8);
-    context.page.drawLine({
-      start: { x: MARGIN, y: context.y },
-      end: { x: MARGIN + CONTENT_WIDTH, y: context.y },
-      color: BORDER,
-      thickness: 0.6,
-    });
-    context.y -= 16;
+    if (index < entries.length - 1 && context.y - 8 >= CONTENT_BOTTOM) {
+      context.page.drawLine({
+        start: { x: MARGIN, y: context.y },
+        end: { x: MARGIN + CONTENT_WIDTH, y: context.y },
+        color: BORDER,
+        thickness: 0.6,
+      });
+      context.y -= 16;
+    }
   });
 }
 
 export function drawMeritActivity(context: PdfContext, report: CompiledReport): void {
-  drawSectionHeading(context, 'Merit Activity');
+  const firstActivity = report.meritActivity[0];
+  const firstRowHeight = firstActivity
+    ? meritRowHeight(meritReasonLines(context, firstActivity.reason))
+    : 0;
+  drawSectionHeading(
+    context,
+    'Merit Activity',
+    firstActivity ? 24 + firstRowHeight : 32,
+  );
   if (report.meritActivity.length === 0) {
     drawEmptyState(context, 'No merit activity was recorded for this report.');
     return;
@@ -64,8 +73,8 @@ export function drawMeritActivity(context: PdfContext, report: CompiledReport): 
 
   drawMeritHeader(context);
   report.meritActivity.forEach((row, index) => {
-    const reasonLines = wrapText(row.reason, context.fonts.regular, 8, 262);
-    const rowHeight = Math.max(24, reasonLines.length * 12 + 8);
+    const reasonLines = meritReasonLines(context, row.reason);
+    const rowHeight = meritRowHeight(reasonLines);
     if (context.y - rowHeight < CONTENT_BOTTOM) {
       ensureSpace(context, PAGE_HEIGHT);
       drawText(context.page, 'Merit Activity (continued)', MARGIN, context.y, 11, context.fonts.bold, NAVY);
@@ -116,8 +125,16 @@ export function drawMeritActivity(context: PdfContext, report: CompiledReport): 
   context.y -= 20;
 }
 
+function meritReasonLines(context: PdfContext, reason: string): string[] {
+  return wrapText(reason, context.fonts.regular, 8, 262);
+}
+
+function meritRowHeight(reasonLines: readonly string[]): number {
+  return Math.max(24, reasonLines.length * 12 + 8);
+}
+
 export function drawBalances(context: PdfContext, report: CompiledReport): void {
-  drawSectionHeading(context, 'Balances');
+  drawSectionHeading(context, 'Balances', 34);
   const balances = [
     ['Spend', report.balances.Spend],
     ['Saving', report.balances.Saving],
@@ -159,7 +176,7 @@ export function drawBalances(context: PdfContext, report: CompiledReport): void 
 }
 
 export function drawProgressComment(context: PdfContext, report: CompiledReport): void {
-  drawSectionHeading(context, 'Progress Comment');
+  drawSectionHeading(context, 'Progress Comment', 18);
   const comment = report.headSummary.trim() || 'No progress comment was added.';
   const lines = wrapText(comment, context.fonts.regular, 9.5, CONTENT_WIDTH - 28);
   for (const line of lines) {

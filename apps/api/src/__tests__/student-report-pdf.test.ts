@@ -47,6 +47,120 @@ describe('generateStudentReportPdf', () => {
       `Page ${String(pdf.getPageCount())} of ${String(pdf.getPageCount())}`,
     );
   });
+
+  it('generates safely when user-entered text contains unsupported standard-font glyphs', async () => {
+    const report = fullReport();
+    report.studentDisplayName = 'Ade 😊 学生';
+    report.headSummary = 'Consistent effort 😊 across every subject.';
+    const firstNote = report.notes[0];
+    if (!firstNote) throw new Error('expected a report note fixture');
+    report.notes = [{
+      ...firstNote,
+      note: 'Family note: 学生 is progressing well.',
+    }];
+
+    const generated = await generateStudentReportPdf({ report, generatedAt: now });
+    const text = await extractPdfText(generated.bytes);
+
+    expect(Buffer.from(generated.bytes).subarray(0, 5).toString('utf8')).toBe('%PDF-');
+    expect(text).toContain('Consistent effort');
+    expect(text).toContain('is progressing well.');
+  });
+
+  it('keeps a section heading with its first content row', async () => {
+    const report = fullReport();
+    report.sections = {
+      attendance: true,
+      paceProgress: true,
+      paceStatus: true,
+      behaviourSummary: false,
+      behaviourNotes: false,
+      generalNotes: false,
+      meritActivity: false,
+      balances: false,
+      progressComment: true,
+    };
+    const firstPace = report.paces[0];
+    if (!firstPace) throw new Error('expected a PACE fixture');
+    report.paces = Array.from({ length: 15 }, (_, index) => ({
+      ...firstPace,
+      subjectCode: `SUB${String(index + 1)}`,
+      subjectName: `Subject ${String(index + 1)}`,
+    }));
+    report.headSummary = 'The first progress-comment line stays with its heading.';
+
+    const generated = await generateStudentReportPdf({ report, generatedAt: now });
+    const pages = await extractPdfPageTexts(generated.bytes);
+    const headingPage = pages.findIndex((page) => page.includes('Progress Comment'));
+
+    expect(headingPage).toBeGreaterThanOrEqual(0);
+    expect(pages[headingPage]).toContain('The first progress-comment line');
+  });
+
+  it('does not create a continuation page solely for a trailing note separator', async () => {
+    const report = fullReport();
+    report.sections = {
+      attendance: false,
+      paceProgress: false,
+      paceStatus: false,
+      behaviourSummary: false,
+      behaviourNotes: false,
+      generalNotes: true,
+      meritActivity: false,
+      balances: false,
+      progressComment: false,
+    };
+    report.notes = [
+      {
+        id: 'note_boundary',
+        origin: 'Report',
+        createdAt: '2026-06-02T12:00:00.000Z',
+        note: Array.from({ length: 37 }, (_, index) => `Line ${String(index + 1)}`).join('\n'),
+      },
+    ];
+
+    const generated = await generateStudentReportPdf({ report, generatedAt: now });
+    const pdf = await PDFDocument.load(generated.bytes);
+
+    expect(pdf.getPageCount()).toBe(1);
+  });
+
+  it('keeps the Merit Activity heading and header with a tall first row', async () => {
+    const report = fullReport();
+    report.sections = {
+      attendance: true,
+      paceProgress: true,
+      paceStatus: true,
+      behaviourSummary: false,
+      behaviourNotes: false,
+      generalNotes: false,
+      meritActivity: true,
+      balances: false,
+      progressComment: false,
+    };
+    const firstPace = report.paces[0];
+    if (!firstPace) throw new Error('expected a PACE fixture');
+    report.paces = Array.from({ length: 12 }, (_, index) => ({
+      ...firstPace,
+      subjectCode: `SUB${String(index + 1)}`,
+      subjectName: `Subject ${String(index + 1)}`,
+    }));
+    report.meritActivity = [
+      {
+        account: 'Spend',
+        createdAt: '2026-06-03T12:00:00.000Z',
+        delta: 35,
+        reason: `Boundary merit reason ${'with substantial wrapped detail '.repeat(14)}`,
+      },
+    ];
+
+    const generated = await generateStudentReportPdf({ report, generatedAt: now });
+    const pages = await extractPdfPageTexts(generated.bytes);
+    const headingPage = pages.findIndex((page) => page.includes('Merit Activity'));
+
+    expect(headingPage).toBeGreaterThanOrEqual(0);
+    expect(pages[headingPage]).toContain('Boundary merit reason');
+  });
 });
 
 function fullReport(): CompiledReport {
@@ -202,6 +316,10 @@ function ensurePdfDomFallbacks(): void {
 }
 
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
+  return (await extractPdfPageTexts(bytes)).join('\n');
+}
+
+async function extractPdfPageTexts(bytes: Uint8Array): Promise<string[]> {
   ensurePdfDomFallbacks();
   const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfJsModule;
   const pdf = await pdfjs.getDocument({
@@ -217,7 +335,7 @@ async function extractPdfText(bytes: Uint8Array): Promise<string> {
       const content = await page.getTextContent();
       pages.push(content.items.map((item) => item.str).join(' '));
     }
-    return pages.join('\n');
+    return pages;
   } finally {
     await pdf.destroy();
   }
