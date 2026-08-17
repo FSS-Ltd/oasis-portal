@@ -7,7 +7,7 @@ import {
   rowsForTransfer,
   type LedgerRow,
 } from '../meritLedger.js';
-import { compileTermReport } from '../report.js';
+import { compileStudentReport, DEFAULT_REPORT_SECTIONS } from '../report.js';
 import { prepareShopPurchase } from '../shop.js';
 import { computeWeeklyTithe } from '../tithe.js';
 import type { SessionUser } from '../rbac.js';
@@ -92,7 +92,7 @@ describe('Phase 4 accounting invariants', () => {
     });
   });
 
-  it('compiles term reports from ledger snapshots without adding ledger movement', () => {
+  it('compiles student reports from ledger snapshots without adding ledger movement', () => {
     const ledgerRows = [
       ...rowsForMerit({
         studentId,
@@ -114,10 +114,17 @@ describe('Phase 4 accounting invariants', () => {
       createdAt: new Date(`2026-05-${String(index + 1).padStart(2, '0')}T00:00:00.000Z`),
     }));
 
-    const report = compileTermReport({
+    const report = compileStudentReport({
       studentId,
       studentDisplayName: 'Phase Four Student',
-      term: '2026-Summer',
+      period: {
+        type: 'Term',
+        key: '2026-Summer',
+        label: 'Summer 2026',
+        from: '2026-04-01',
+        to: '2026-08-31',
+      },
+      sections: DEFAULT_REPORT_SECTIONS,
       attendance: { total: 4, present: 3, absent: 1, late: 0 },
       paces: [],
       behaviour: {
