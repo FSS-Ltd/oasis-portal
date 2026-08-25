@@ -19,7 +19,8 @@
     "email:smoke": "tsx scripts/send-resend-smoke.ts",
     "seed:client-demo": "tsx scripts/client-demo-seed.ts",
     "verify:client-demo": "tsx scripts/client-demo-verify.ts",
-    "smoke:context-rls": "tsx scripts/smoke-context-rls.ts"
+    "smoke:context-rls": "tsx scripts/smoke-context-rls.ts",
+    "reconcile:accepted-parent-invitations": "tsx scripts/reconcile-accepted-parent-invitations.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.4.1",

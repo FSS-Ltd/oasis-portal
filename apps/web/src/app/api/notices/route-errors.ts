@@ -1,4 +1,5 @@
 import { TRPCError } from '@trpc/server';
+import { logOperationalEvent, operationalErrorMessage } from '@oasis/api';
 import { friendlyErrorMessage } from '@/lib/user-facing-errors';
 
 export function routeErrorResponse(error: unknown, fallback = 'Notice request failed.'): Response {
@@ -17,6 +18,13 @@ export function routeErrorResponse(error: unknown, fallback = 'Notice request fa
       { status },
     );
   }
+
+  logOperationalEvent({
+    event: 'route.unexpected_failure',
+    level: 'error',
+    message: 'A protected route request failed unexpectedly',
+    meta: { error: operationalErrorMessage(error) },
+  });
 
   return Response.json(
     { error: friendlyErrorMessage(error, fallback) },

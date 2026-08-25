@@ -9,6 +9,8 @@
 import { prisma } from '@oasis/db';
 import type { Prisma, PrismaClient } from '@oasis/db';
 import { isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
+import { logOperationalEvent } from './lib/observability.js';
+import { reconcileClerkUser } from './routers/clerkWebhook.js';
 
 export interface CreateContextArgs {
   headers: Headers;
@@ -39,15 +41,44 @@ interface UserLookupRow {
   active: boolean;
 }
 
-async function loadSessionUser(
-  clerkUserId: string,
-  enforceTwoFactor: boolean,
-  twoFactorSatisfied: boolean,
-): Promise<SessionUser | null> {
-  const user: UserLookupRow | null = await prisma.user.findUnique({
+export interface LoadSessionUserDeps {
+  findUser?: (clerkUserId: string) => Promise<UserLookupRow | null>;
+  reconcileUser?: (clerkUserId: string) => Promise<void>;
+}
+
+function findLocalUser(clerkUserId: string): Promise<UserLookupRow | null> {
+  return prisma.user.findUnique({
     where: { clerkId: clerkUserId },
     select: { id: true, role: true, tags: true, active: true },
   });
+}
+
+export async function loadSessionUser(
+  clerkUserId: string,
+  enforceTwoFactor: boolean,
+  twoFactorSatisfied: boolean,
+  deps: LoadSessionUserDeps = {},
+): Promise<SessionUser | null> {
+  const findUser = deps.findUser ?? findLocalUser;
+  let user = await findUser(clerkUserId);
+
+  // A valid Clerk session can outlive a missed asynchronous webhook delivery.
+  // Never reconcile an existing inactive user; that state is admin-controlled.
+  if (!user) {
+    try {
+      await (deps.reconcileUser ?? reconcileClerkUser)(clerkUserId);
+      user = await findUser(clerkUserId);
+    } catch (error) {
+      logOperationalEvent({
+        event: 'auth.clerk_user_reconciliation_failed',
+        level: 'error',
+        message: 'Unable to reconcile a signed-in Clerk user',
+        meta: { errorType: error instanceof Error ? error.name : 'unknown' },
+      });
+      return null;
+    }
+  }
+
   if (!user || !user.active) return null;
   return {
     id: user.id,
