@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { applyRlsTx } from '@oasis/api/context';
 import { prisma } from '@oasis/db';
-import { canViewSensitiveBehaviour } from '@oasis/domain';
+import { canViewSensitiveBehaviour, currentOasisAcademicPeriod } from '@oasis/domain';
 import { MotionPage } from '@/components/admin/motion';
 import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
 
@@ -110,6 +110,7 @@ export default async function AdminIndexPage() {
   ]);
 
   const { absent, late, onTime } = countAttendanceStatuses(attendanceRows);
+  const academicPeriod = currentOasisAcademicPeriod(start);
   const attendingToday = onTime + late;
   const attendanceBreakdown = `${String(absent)} absent · ${String(late)} late · ${String(
     onTime,
@@ -130,7 +131,9 @@ export default async function AdminIndexPage() {
   return (
     <MotionPage>
       <div className="dashboard-hero">
-        <p>{formatLongDate(start)} · Spring Term 2</p>
+        <p>
+          {formatLongDate(start)} · {academicPeriod?.label ?? 'School calendar unavailable'}
+        </p>
         <h1>Good morning, {headName}</h1>
         <span>Head of Centre · Oasis Learning Centre</span>
       </div>

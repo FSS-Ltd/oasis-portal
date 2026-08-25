@@ -9,6 +9,7 @@ import {
   canViewAnyStudentDrillThrough,
   canViewSensitiveChildNotes,
   canViewStudentDrillThrough,
+  currentOasisAcademicPeriod,
   demeritPolicyEscalationEntryIds,
   demeritPolicyStatusForEntries,
   isFullAdmin,
@@ -49,6 +50,7 @@ const PARENT_DASHBOARD_RECENT_LIMIT = 3;
 type ParentDashboardAttendanceStatus = 'Present' | 'Absent' | 'Late';
 type ParentDashboardTodayStatus =
   | { date: string; kind: 'halfTerm'; label: 'Half Term' }
+  | { date: string; kind: 'holiday'; label: string }
   | { date: string; kind: 'closed'; label: 'Closed' }
   | { date: string; kind: 'attendance'; label: ParentDashboardAttendanceStatus }
   | { date: string; kind: 'unmarked'; label: 'No mark' };
@@ -115,6 +117,12 @@ function parentDashboardTodayStatus(
 ): ParentDashboardTodayStatus {
   const key = dateKey(date);
   if (hasHalfTermToday) return { date: key, kind: 'halfTerm', label: 'Half Term' };
+  const academicPeriod = currentOasisAcademicPeriod(date);
+  if (academicPeriod?.kind === 'halfTerm')
+    return { date: key, kind: 'halfTerm', label: 'Half Term' };
+  if (academicPeriod?.kind === 'holiday') {
+    return { date: key, kind: 'holiday', label: academicPeriod.label };
+  }
   if (!isOasisOperatingDay(date)) return { date: key, kind: 'closed', label: 'Closed' };
   if (attendanceStatus) return { date: key, kind: 'attendance', label: attendanceStatus };
   return { date: key, kind: 'unmarked', label: 'No mark' };

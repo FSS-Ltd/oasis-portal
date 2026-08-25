@@ -1485,6 +1485,19 @@ describe('childLog.snapshot', () => {
     });
   });
 
+  it('returns the standard summer-holiday status without a calendar event', async () => {
+    vi.setSystemTime(day('2026-08-25'));
+    const { db } = makeFakeDb();
+
+    const dashboard = await makeCaller(parentUser, db).childLog.parentDashboard();
+
+    expect(dashboard.children[0]?.todayStatus).toEqual({
+      date: '2026-08-25',
+      kind: 'holiday',
+      label: 'Summer holiday',
+    });
+  });
+
   it('returns no mark on operating days without today attendance', async () => {
     const { db } = makeFakeDb();
 

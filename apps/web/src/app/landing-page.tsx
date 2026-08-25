@@ -230,12 +230,13 @@ function formatEventMonth(date: Date): string {
 }
 
 function formatAttendanceSub(data: LandingPageData): string {
+  const periodLabel = data.academicPeriod?.label ?? data.term.label;
   if (data.attendance.attendanceRate === null) {
-    return `No centre-wide attendance has been recorded for ${data.term.label.toLowerCase()} yet.`;
+    return `No centre-wide attendance has been recorded for ${periodLabel.toLowerCase()} yet.`;
   }
 
   const attended = data.attendance.present + data.attendance.late;
-  return `Centre-wide attendance for ${data.term.label.toLowerCase()} to date: ${String(
+  return `Centre-wide attendance for ${periodLabel.toLowerCase()} to date: ${String(
     attended,
   )}/${String(data.attendance.total)} attended.`;
 }
@@ -393,6 +394,7 @@ function EventRows({ events }: { events: LandingCalendarEvent[] }) {
 }
 
 function TermGlance({ data }: { data: LandingPageData }) {
+  const periodLabel = data.academicPeriod?.label ?? data.term.label;
   return (
     <section className="landing-term-band" id="term">
       <div aria-hidden="true" className="landing-term-band__fx">
@@ -401,7 +403,7 @@ function TermGlance({ data }: { data: LandingPageData }) {
         </Parallax>
       </div>
       <div className="landing-wrap">
-        <SectionHead eyebrow="This term" title={`${data.term.season} term, at a glance.`}>
+        <SectionHead eyebrow="School calendar" title={`${periodLabel}, at a glance.`}>
           The dates supervisors plan to and parents need to remember, pulled from the same calendar
           that drives the portal.
         </SectionHead>
@@ -416,7 +418,7 @@ function TermGlance({ data }: { data: LandingPageData }) {
 
           <Reveal className="landing-term-cell" delay={0.1}>
             <article className="landing-term-card">
-              <p className="landing-term-card__label">Term running total</p>
+              <p className="landing-term-card__label">Attendance to date</p>
               <strong className="landing-term-card__big">
                 <Counter value={data.attendance.attendanceRate} />
               </strong>
@@ -431,7 +433,7 @@ function TermGlance({ data }: { data: LandingPageData }) {
 
           <Reveal className="landing-term-cell" delay={0.2}>
             <article className="landing-term-card">
-              <p className="landing-term-card__label">Verse for the term</p>
+              <p className="landing-term-card__label">Verse for the season</p>
               <VerseScrub
                 reference={data.versePlaceholder.reference}
                 text={data.versePlaceholder.text}
