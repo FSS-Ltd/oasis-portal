@@ -3,7 +3,13 @@ import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { logOperationalEvent, operationalErrorMessage } from '@oasis/api';
 import { prisma } from '@oasis/db';
-import { attendanceRate, currentOasisTerm, type OasisTerm } from '@oasis/domain';
+import {
+  attendanceRate,
+  currentOasisAcademicPeriod,
+  currentOasisTerm,
+  type OasisAcademicPeriod,
+  type OasisTerm,
+} from '@oasis/domain';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const LANDING_EVENT_LIMIT = 4;
@@ -37,6 +43,7 @@ export interface LandingVersePlaceholder {
 }
 
 export interface LandingPageData {
+  academicPeriod: OasisAcademicPeriod | null;
   attendance: LandingAttendanceSummary;
   events: LandingCalendarEvent[];
   term: OasisTerm;
@@ -229,6 +236,7 @@ export async function loadLandingPageData(
   referenceDate: Date = new Date(),
 ): Promise<LandingPageData> {
   const term = currentOasisTerm(referenceDate);
+  const academicPeriod = currentOasisAcademicPeriod(referenceDate);
   const today = startOfUtcDay(referenceDate);
   const emptyAttendance = emptyLandingAttendance(term, today);
   const [events, attendance] = await Promise.all([
@@ -245,6 +253,7 @@ export async function loadLandingPageData(
   ]);
 
   return {
+    academicPeriod,
     term,
     events,
     attendance,
