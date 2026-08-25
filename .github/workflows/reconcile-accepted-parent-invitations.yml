@@ -1,0 +1,107 @@
+name: Reconcile accepted parent invitations
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the confirmed reconciliation. Leave false for a dry run.
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: production-parent-invitation-reconciliation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.0.0'
+  VERCEL_CLI_VERSION: '53.0.1'
+
+jobs:
+  reconcile:
+    name: Reconcile accepted parent invitations
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Require the main branch
+        run: |
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo 'This production maintenance workflow may only run from main.' >&2
+            exit 1
+          fi
+
+      - name: Enable corepack (pnpm)
+        run: |
+          corepack enable
+          corepack prepare pnpm@${PNPM_VERSION} --activate
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @oasis/db generate
+
+      - name: Validate production database and Vercel credentials
+        run: |
+          missing=()
+          for name in DATABASE_URL DIRECT_URL VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+            if [ -z "${!name}" ]; then
+              missing+=("${name}")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf 'Missing required production secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Install Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      - name: Pull Vercel production environment
+        run: vercel pull --yes --environment=production
+
+      - name: Validate runtime secrets
+        run: |
+          node --env-file=.vercel/.env.production.local -e '
+            const required = ["CLERK_SECRET_KEY", "OASIS_MASTER_KEY", "OASIS_MASTER_KEY_VERSION", "OASIS_BIDX_PEPPER"];
+            const missing = required.filter((name) => !process.env[name]);
+            if (missing.length) {
+              console.error(`Missing required Vercel runtime environment variables: ${missing.join(", ")}`);
+              process.exit(1);
+            }
+          '
+
+      - name: Dry run accepted parent invitation reconciliation
+        if: ${{ !inputs.apply }}
+        run: >-
+          pnpm --filter @oasis/api exec node
+          --env-file=../../.vercel/.env.production.local --import tsx
+          scripts/reconcile-accepted-parent-invitations.ts
+
+      - name: Apply accepted parent invitation reconciliation
+        if: ${{ inputs.apply }}
+        run: >-
+          pnpm --filter @oasis/api exec node
+          --env-file=../../.vercel/.env.production.local --import tsx
+          scripts/reconcile-accepted-parent-invitations.ts --apply

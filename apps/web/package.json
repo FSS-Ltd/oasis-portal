@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
+    "test": "cd ../.. && node --test apps/web/tests/*.test.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

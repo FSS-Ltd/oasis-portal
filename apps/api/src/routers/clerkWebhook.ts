@@ -1,6 +1,8 @@
+import { createClerkClient } from '@clerk/backend';
 import { verifyWebhook, type WebhookEvent } from '@clerk/backend/webhooks';
 import { Prisma, prisma } from '@oasis/db';
 import { resolveInviteMetadata, type PermissionTag, type Role } from '@oasis/domain';
+import { logOperationalEvent } from '../lib/observability.js';
 
 type ClerkWebhookEventType = 'user.created' | 'user.updated' | 'user.deleted';
 
@@ -29,6 +31,18 @@ interface ClerkUserPayload {
   public_metadata: Record<string, unknown> | null;
 }
 
+export interface ClerkUserProfile {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  primaryEmailAddressId: string | null;
+  emailAddresses: readonly { id: string; emailAddress: string }[];
+  primaryPhoneNumberId: string | null;
+  phoneNumbers: readonly { id: string; phoneNumber: string }[];
+  publicMetadata: Record<string, unknown> | null;
+}
+
 export interface ClerkUserUpsertInput {
   clerkUserId: string;
   fullName: string;
@@ -43,6 +57,10 @@ export interface ClerkUserUpsertInput {
 export interface ClerkUserStore {
   upsertUser(input: ClerkUserUpsertInput): Promise<void>;
   deactivateUser(clerkUserId: string): Promise<void>;
+}
+
+export interface ClerkUserLookupClient {
+  getUser(clerkUserId: string): Promise<ClerkUserProfile>;
 }
 
 type PrismaUserDelegate = Pick<typeof prisma.user, 'create' | 'findUnique' | 'update'>;
@@ -94,6 +112,11 @@ export interface ClerkWebhookHandlerDeps {
   store?: ClerkUserStore;
 }
 
+export interface ClerkUserReconciliationDeps {
+  clerk?: ClerkUserLookupClient;
+  store?: ClerkUserStore;
+}
+
 function isClerkUserEventType(type: string): type is ClerkWebhookEventType {
   return type === 'user.created' || type === 'user.updated' || type === 'user.deleted';
 }
@@ -113,6 +136,26 @@ function asClerkUserPayload(data: WebhookEvent['data']): ClerkUserPayload {
     primary_phone_number_id: payload.primary_phone_number_id ?? null,
     phone_numbers: payload.phone_numbers ?? [],
     public_metadata: payload.public_metadata ?? null,
+  };
+}
+
+function clerkUserPayloadFromProfile(profile: ClerkUserProfile): ClerkUserPayload {
+  return {
+    id: profile.id,
+    first_name: profile.firstName,
+    last_name: profile.lastName,
+    username: profile.username,
+    primary_email_address_id: profile.primaryEmailAddressId,
+    email_addresses: profile.emailAddresses.map((email) => ({
+      id: email.id,
+      email_address: email.emailAddress,
+    })),
+    primary_phone_number_id: profile.primaryPhoneNumberId,
+    phone_numbers: profile.phoneNumbers.map((phone) => ({
+      id: phone.id,
+      phone_number: phone.phoneNumber,
+    })),
+    public_metadata: profile.publicMetadata,
   };
 }
 
@@ -144,8 +187,7 @@ function uniquePresentIds(values: readonly (string | null)[]): string[] {
   return uniqueStrings(values.filter(isPresentId));
 }
 
-export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUserUpsertInput {
-  const user = asClerkUserPayload(data);
+function mapClerkUserPayloadToUpsertInput(user: ClerkUserPayload): ClerkUserUpsertInput {
   const email = primaryEmail(user);
   const metadata = resolveInviteMetadata(user.public_metadata, {
     role: DEFAULT_ROLE,
@@ -159,6 +201,58 @@ export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUser
     role: metadata.role,
     tags: metadata.tags,
   };
+}
+
+export function mapClerkUserToUpsertInput(data: WebhookEvent['data']): ClerkUserUpsertInput {
+  return mapClerkUserPayloadToUpsertInput(asClerkUserPayload(data));
+}
+
+export function mapClerkUserProfileToUpsertInput(
+  profile: ClerkUserProfile,
+): ClerkUserUpsertInput {
+  return mapClerkUserPayloadToUpsertInput(clerkUserPayloadFromProfile(profile));
+}
+
+export function createDefaultClerkUserLookupClient(): ClerkUserLookupClient {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error('CLERK_SECRET_KEY is required to reconcile a Clerk user');
+  }
+
+  const client = createClerkClient({ secretKey });
+  return {
+    async getUser(clerkUserId) {
+      const user = await client.users.getUser(clerkUserId);
+      return {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        username: user.username,
+        primaryEmailAddressId: user.primaryEmailAddressId,
+        emailAddresses: user.emailAddresses.map((email) => ({
+          id: email.id,
+          emailAddress: email.emailAddress,
+        })),
+        primaryPhoneNumberId: user.primaryPhoneNumberId,
+        phoneNumbers: user.phoneNumbers.map((phone) => ({
+          id: phone.id,
+          phoneNumber: phone.phoneNumber,
+        })),
+        publicMetadata: user.publicMetadata,
+      };
+    },
+  };
+}
+
+/** Repairs a missed Clerk webhook after Clerk has verified the session. */
+export async function reconcileClerkUser(
+  clerkUserId: string,
+  deps: ClerkUserReconciliationDeps = {},
+): Promise<void> {
+  const clerk = deps.clerk ?? createDefaultClerkUserLookupClient();
+  const store = deps.store ?? createPrismaClerkUserStore();
+  const profile = await clerk.getUser(clerkUserId);
+  await store.upsertUser(mapClerkUserProfileToUpsertInput(profile));
 }
 
 export function createPrismaClerkUserStore(db: PrismaClerkUserStoreDb = prisma): ClerkUserStore {
@@ -365,6 +459,12 @@ export async function handleClerkWebhookRequest(
     return jsonResponse({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook verification failed';
+    logOperationalEvent({
+      event: 'auth.clerk_webhook_failed',
+      level: 'error',
+      message: 'Clerk webhook verification or user sync failed',
+      meta: { errorType: error instanceof Error ? error.name : 'unknown' },
+    });
     return jsonResponse({ ok: false, error: message }, { status: 400 });
   }
 }

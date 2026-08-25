@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { WebhookEvent } from '@clerk/backend/webhooks';
 import { Webhook } from 'standardwebhooks';
 import type { PermissionTag, Role } from '@oasis/domain';
+import * as contextModule from '../context.js';
 import {
   createPrismaClerkUserStore,
   handleClerkWebhookRequest,
@@ -10,6 +11,32 @@ import {
   type ClerkUserStore,
   type PrismaClerkUserStoreDb,
 } from '../routers/clerkWebhook.js';
+
+type ReconciledSessionUser = {
+  id: string;
+  role: Role;
+  tags: string[];
+  active: boolean;
+};
+
+type DesiredLoadSessionUser = (
+  clerkUserId: string,
+  enforceTwoFactor: boolean,
+  twoFactorSatisfied: boolean,
+  deps: {
+    findUser: (clerkUserId: string) => Promise<ReconciledSessionUser | null>;
+    reconcileUser: (clerkUserId: string) => Promise<void>;
+  },
+) => Promise<{
+  id: string;
+  role: Role;
+  tags: string[];
+  requires2fa: boolean;
+} | null>;
+
+const loadSessionUser = (
+  contextModule as typeof contextModule & { loadSessionUser: DesiredLoadSessionUser }
+).loadSessionUser;
 
 const userCreatedEvent = {
   type: 'user.created',
@@ -202,6 +229,59 @@ describe('processClerkWebhookEvent', () => {
 
     expect(store.deactivateUser).toHaveBeenCalledWith('user_123');
     expect(store.upsertUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadSessionUser', () => {
+  it('reconciles a valid Clerk session when its local user record is missing', async () => {
+    expect(loadSessionUser).toBeTypeOf('function');
+    if (typeof loadSessionUser !== 'function') return;
+
+    let user: ReconciledSessionUser | null = null;
+    const findUnique = vi.fn(() => Promise.resolve(user));
+    const reconcileUser = vi.fn(() => {
+      user = {
+        id: 'user_local_123',
+        role: 'Parent',
+        tags: [],
+        active: true,
+      };
+      return Promise.resolve();
+    });
+
+    await expect(
+      loadSessionUser('user_clerk_123', false, false, {
+        findUser: async () => findUnique(),
+        reconcileUser,
+      }),
+    ).resolves.toEqual({
+      id: 'user_local_123',
+      role: 'Parent',
+      tags: [],
+      requires2fa: false,
+    });
+    expect(reconcileUser).toHaveBeenCalledWith('user_clerk_123');
+    expect(findUnique).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reconcile a locally deactivated account', async () => {
+    expect(loadSessionUser).toBeTypeOf('function');
+    if (typeof loadSessionUser !== 'function') return;
+
+    const reconcileUser = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+    await expect(
+      loadSessionUser('user_deactivated_123', false, false, {
+        findUser: vi.fn().mockResolvedValue({
+          id: 'user_local_deactivated',
+          role: 'Parent',
+          tags: [],
+          active: false,
+        }),
+        reconcileUser,
+      }),
+    ).resolves.toBeNull();
+    expect(reconcileUser).not.toHaveBeenCalled();
   });
 });
 
@@ -658,17 +738,23 @@ describe('handleClerkWebhookRequest', () => {
 
   it('rejects webhook requests that fail signature verification', async () => {
     const store = createStore();
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
     const verifier = {
       verify: vi.fn().mockRejectedValue(new Error('bad signature')),
     };
 
-    const response = await handleClerkWebhookRequest(new Request('https://oasis.test/webhook'), {
-      verifier,
-      store,
-    });
+    try {
+      const response = await handleClerkWebhookRequest(new Request('https://oasis.test/webhook'), {
+        verifier,
+        store,
+      });
 
-    expect(response.status).toBe(400);
-    expect(store.upsertUser).not.toHaveBeenCalled();
-    expect(await response.json()).toEqual({ ok: false, error: 'bad signature' });
+      expect(response.status).toBe(400);
+      expect(store.upsertUser).not.toHaveBeenCalled();
+      expect(await response.json()).toEqual({ ok: false, error: 'bad signature' });
+      expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('auth.clerk_webhook_failed'));
+    } finally {
+      errorLog.mockRestore();
+    }
   });
 });
