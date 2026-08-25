@@ -16,9 +16,15 @@ test('accepted parent invitation reconciliation is manually invoked and main-bra
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /apply:\s*[\s\S]*type: boolean/);
   assert.match(workflow, /GITHUB_REF.*refs\/heads\/main/);
-  assert.match(workflow, /VERCEL_CLI_VERSION: '53\.0\.1'/);
-  assert.match(workflow, /vercel pull --yes --environment=production/);
-  assert.match(workflow, /pnpm --filter @oasis\/api exec node/);
+  assert.match(workflow, /environment:\s*Prod Maintenance/);
+  assert.match(workflow, /DATABASE_URL: \$\{\{ secrets\.PROD_DATABASE_URL \}\}/);
+  assert.match(workflow, /CLERK_SECRET_KEY: \$\{\{ secrets\.PROD_CLERK_SECRET_KEY \}\}/);
+  assert.match(workflow, /OASIS_MASTER_KEY: \$\{\{ secrets\.PROD_OASIS_MASTER_KEY \}\}/);
+  assert.match(workflow, /OASIS_MASTER_KEY_VERSION: \$\{\{ secrets\.PROD_OASIS_MASTER_KEY_VERSION \}\}/);
+  assert.match(workflow, /OASIS_BIDX_PEPPER: \$\{\{ secrets\.PROD_OASIS_BIDX_PEPPER \}\}/);
+  assert.match(workflow, /pnpm --filter @oasis\/api exec tsx/);
   assert.match(workflow, /reconcile-accepted-parent-invitations\.ts/);
   assert.match(workflow, /--apply/);
+  assert.doesNotMatch(workflow, /vercel pull/);
+  assert.doesNotMatch(workflow, /VERCEL_TOKEN/);
 });

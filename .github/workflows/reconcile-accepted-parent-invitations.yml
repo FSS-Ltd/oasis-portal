@@ -19,20 +19,19 @@ permissions:
 env:
   NODE_VERSION: '20'
   PNPM_VERSION: '10.0.0'
-  VERCEL_CLI_VERSION: '53.0.1'
 
 jobs:
   reconcile:
     name: Reconcile accepted parent invitations
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: Prod Maintenance
     env:
       DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_TELEMETRY_DISABLED: '1'
+      CLERK_SECRET_KEY: ${{ secrets.PROD_CLERK_SECRET_KEY }}
+      OASIS_MASTER_KEY: ${{ secrets.PROD_OASIS_MASTER_KEY }}
+      OASIS_MASTER_KEY_VERSION: ${{ secrets.PROD_OASIS_MASTER_KEY_VERSION }}
+      OASIS_BIDX_PEPPER: ${{ secrets.PROD_OASIS_BIDX_PEPPER }}
 
     steps:
       - uses: actions/checkout@v6
@@ -61,10 +60,10 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @oasis/db generate
 
-      - name: Validate production database and Vercel credentials
+      - name: Validate production maintenance secrets
         run: |
           missing=()
-          for name in DATABASE_URL DIRECT_URL VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+          for name in DATABASE_URL CLERK_SECRET_KEY OASIS_MASTER_KEY OASIS_MASTER_KEY_VERSION OASIS_BIDX_PEPPER; do
             if [ -z "${!name}" ]; then
               missing+=("${name}")
             fi
@@ -75,33 +74,21 @@ jobs:
             exit 1
           fi
 
-      - name: Install Vercel CLI
-        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
-
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production
-
-      - name: Validate runtime secrets
+      - name: Expose the active encryption key
         run: |
-          node --env-file=.vercel/.env.production.local -e '
-            const required = ["CLERK_SECRET_KEY", "OASIS_MASTER_KEY", "OASIS_MASTER_KEY_VERSION", "OASIS_BIDX_PEPPER"];
-            const missing = required.filter((name) => !process.env[name]);
-            if (missing.length) {
-              console.error(`Missing required Vercel runtime environment variables: ${missing.join(", ")}`);
-              process.exit(1);
-            }
-          '
+          if ! [[ "${OASIS_MASTER_KEY_VERSION}" =~ ^[1-9][0-9]*$ ]]; then
+            echo 'OASIS_MASTER_KEY_VERSION must be a positive integer.' >&2
+            exit 1
+          fi
+
+          if [ "${OASIS_MASTER_KEY_VERSION}" != '1' ]; then
+            echo "OASIS_MASTER_KEY_V${OASIS_MASTER_KEY_VERSION}=${OASIS_MASTER_KEY}" >> "${GITHUB_ENV}"
+          fi
 
       - name: Dry run accepted parent invitation reconciliation
         if: ${{ !inputs.apply }}
-        run: >-
-          pnpm --filter @oasis/api exec node
-          --env-file=../../.vercel/.env.production.local --import tsx
-          scripts/reconcile-accepted-parent-invitations.ts
+        run: pnpm --filter @oasis/api exec tsx scripts/reconcile-accepted-parent-invitations.ts
 
       - name: Apply accepted parent invitation reconciliation
         if: ${{ inputs.apply }}
-        run: >-
-          pnpm --filter @oasis/api exec node
-          --env-file=../../.vercel/.env.production.local --import tsx
-          scripts/reconcile-accepted-parent-invitations.ts --apply
+        run: pnpm --filter @oasis/api exec tsx scripts/reconcile-accepted-parent-invitations.ts --apply
