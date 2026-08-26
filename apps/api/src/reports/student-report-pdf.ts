@@ -67,7 +67,7 @@ export async function generateStudentReportPdf(
   if (input.report.sections.meritActivity) drawMeritActivity(context, input.report);
   if (input.report.sections.balances) drawBalances(context, input.report);
 
-  drawAllFooters(document, fonts);
+  drawAllFooters(document, fonts, input.report.author);
   const bytes = await document.save();
   return {
     bytes,

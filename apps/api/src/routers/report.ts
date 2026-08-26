@@ -144,9 +144,15 @@ const reportPeriodSnapshotSchema = z.object({
   to: z.string(),
 });
 
+const reportAuthorSchema = z.object({
+  name: z.string(),
+  role: z.string(),
+});
+
 const storedCompiledReportSchema = z.object({
   studentId: z.string(),
   studentDisplayName: z.string(),
+  author: reportAuthorSchema.optional(),
   term: z.string().optional(),
   period: reportPeriodSnapshotSchema.optional(),
   sections: reportSectionsSchema.optional(),
@@ -590,8 +596,10 @@ function preserveEditableDraftContent(
     (entry) => entry.origin === 'Report',
   );
   const generalReportEntries = existing.notes.filter((entry) => entry.origin === 'Report');
+  const author = existing.author ?? fresh.author;
   return {
     ...fresh,
+    ...(author ? { author } : {}),
     headSummary: existing.headSummary,
     behaviour: {
       ...fresh.behaviour,
@@ -619,6 +627,7 @@ function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow): Compiled
   return {
     studentId: stored.studentId,
     studentDisplayName: stored.studentDisplayName,
+    ...(stored.author ? { author: stored.author } : {}),
     period: stored.period ?? {
       type: row.periodType,
       key: row.periodKey,
@@ -645,6 +654,38 @@ function decryptCompiledReport(ctx: AuthedContext, row: TermReportRow): Compiled
     balances: stored.balances,
     headSummary: stored.headSummary,
     compiledAt: stored.compiledAt,
+  };
+}
+
+function reportAuthorRoleLabel(role: SessionUser['role']): string {
+  switch (role) {
+    case 'Head':
+      return 'Head of Centre';
+    case 'HeadOfDiscipline':
+      return 'Head of Discipline';
+    case 'TechnicalSupport':
+      return 'Technical Support';
+    case 'ClubsAdmin':
+      return 'Clubs Admin';
+    case 'ClubsLead':
+      return 'Clubs Lead';
+    default:
+      return role;
+  }
+}
+
+async function reportAuthor(ctx: AuthedContext): Promise<NonNullable<CompiledReport['author']>> {
+  const user = await ctx.db.user.findUnique({
+    where: { id: ctx.user.id },
+    select: { fullNameEnc: true },
+  });
+  if (!user) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'report author not found' });
+  }
+
+  return {
+    name: decryptRequired(ctx.db.$enc.decrypt, user.fullNameEnc, 'report author name'),
+    role: reportAuthorRoleLabel(ctx.user.role),
   };
 }
 
@@ -980,6 +1021,7 @@ export function createReportRouter(deps: ReportRouterDeps = {}) {
         }),
         existingCompiled,
       );
+      if (!compiled.author) compiled.author = await reportAuthor(ctx);
       const compiledJsonEnc = encryptCompiledReport(ctx, compiled);
       const periodEnd = new Date(period.queryToExclusive.getTime() - 86_400_000);
 

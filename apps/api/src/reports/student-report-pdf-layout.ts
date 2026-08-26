@@ -220,7 +220,14 @@ export function drawEmptyState(context: PdfContext, label: string): void {
   context.y -= 48;
 }
 
-export function drawAllFooters(document: PDFDocument, fonts: PdfFonts): void {
+export function drawAllFooters(
+  document: PDFDocument,
+  fonts: PdfFonts,
+  author: GenerateStudentReportPdfInput['report']['author'],
+): void {
+  const authorLabel = author
+    ? trimToWidth(`Prepared by ${author.name} · ${author.role}`, fonts.regular, 8, 320)
+    : 'Confidential student progress report';
   const pages = document.getPages();
   pages.forEach((page, index) => {
     page.drawLine({
@@ -231,7 +238,7 @@ export function drawAllFooters(document: PDFDocument, fonts: PdfFonts): void {
     });
     drawText(
       page,
-      'Confidential student progress report',
+      authorLabel,
       MARGIN,
       31,
       8,
