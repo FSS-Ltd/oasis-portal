@@ -596,9 +596,10 @@ function preserveEditableDraftContent(
     (entry) => entry.origin === 'Report',
   );
   const generalReportEntries = existing.notes.filter((entry) => entry.origin === 'Report');
+  const author = existing.author ?? fresh.author;
   return {
     ...fresh,
-    author: existing.author ?? fresh.author,
+    ...(author ? { author } : {}),
     headSummary: existing.headSummary,
     behaviour: {
       ...fresh.behaviour,
