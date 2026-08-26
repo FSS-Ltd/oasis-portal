@@ -73,7 +73,6 @@ const HEAD_ONLY_PERMISSION_TAGS = [
   'calendar-manager',
   'parent-message-responder',
 ] as const satisfies readonly PermissionTag[];
-const SUPPORT_MANAGED_PERMISSION_TAG_SET: ReadonlySet<PermissionTag> = new Set(['club-lead']);
 const permissionTagOptions = PERMISSION_TAGS as readonly [PermissionTag, ...PermissionTag[]];
 
 const searchParentsInput = z
@@ -202,13 +201,6 @@ function assertCanChangeHeadOnlyTags(
   });
 }
 
-function changedPermissionTags(
-  currentTags: readonly string[],
-  nextTags: readonly string[],
-): PermissionTag[] {
-  return PERMISSION_TAGS.filter((tag) => currentTags.includes(tag) !== nextTags.includes(tag));
-}
-
 function assertCanChangeUserTags(
   actor: SessionUser,
   target: { active: boolean; id: string; role: Role; tags: readonly string[] },
@@ -231,22 +223,12 @@ function assertCanChangeUserTags(
       message: 'permission tags can only be changed for active users',
     });
   }
-  if (target.id === actor.id) return;
   if (
     !ADULT_USER_ACCOUNT_ROLES.includes(target.role as (typeof ADULT_USER_ACCOUNT_ROLES)[number])
   ) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
-      message: 'club lead tags can only be assigned to adult users',
-    });
-  }
-
-  const changedTags = changedPermissionTags(target.tags, nextTags);
-  const invalidTag = changedTags.find((tag) => !SUPPORT_MANAGED_PERMISSION_TAG_SET.has(tag));
-  if (invalidTag) {
-    throw new TRPCError({
-      code: 'FORBIDDEN',
-      message: 'Technical Support can only change the club lead tag',
+      message: 'permission tags can only be assigned to adult users',
     });
   }
 }
@@ -261,13 +243,6 @@ function assertCanInviteUser(actor: SessionUser, role: Role, tags: readonly stri
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: `Technical Support cannot invite ${role} accounts`,
-    });
-  }
-
-  if (tags.length > 0) {
-    throw new TRPCError({
-      code: 'FORBIDDEN',
-      message: 'Technical Support cannot assign permission tags',
     });
   }
 }

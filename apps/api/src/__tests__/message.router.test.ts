@@ -707,12 +707,15 @@ describe('message.openThread', () => {
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
-  it('allows parent thread assignment to an untagged full-admin user', async () => {
+  it('denies parent thread assignment to an untagged non-Head admin user', async () => {
     const { caller } = makeCaller(parentUser);
 
     await expect(
       caller.message.openThread({ adminId: untaggedPrincipalUser.id, subject: 'Question' }),
-    ).resolves.toMatchObject({ adminId: untaggedPrincipalUser.id });
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'admin must be an active parent message responder',
+    });
   });
 
   it('allows a supervisor to open a Head thread', async () => {
@@ -1056,7 +1059,12 @@ describe('message.send', () => {
 });
 
 describe('message.listRecipients', () => {
-  it('returns active full-admin recipients for parents', async () => {
+  it('returns the active Head and tagged responders for parents', async () => {
+    const taggedResponder = makeUser({
+      id: 'ctaggedresponder000001',
+      role: 'ClubsLead',
+      tags: ['parent-message-responder'],
+    });
     const inactiveTagged = makeUser({
       id: 'cpastor000000000000001',
       role: 'Pastor',
@@ -1065,16 +1073,17 @@ describe('message.listRecipients', () => {
     });
     const { caller } = makeCaller(
       parentUser,
-      makeFakeDb([], [], [...defaultUsers, inactiveTagged]),
+      makeFakeDb([], [], [...defaultUsers, taggedResponder, inactiveTagged]),
     );
 
     await expect(caller.message.listRecipients()).resolves.toEqual([
       expect.objectContaining({ id: headUser.id, role: 'Head' }),
       expect.objectContaining({ id: principalUser.id, role: 'Principal' }),
+      expect.objectContaining({ id: taggedResponder.id, role: 'ClubsLead' }),
     ]);
   });
 
-  it('returns active full-admin recipients for linked supervisor parent-staff threads', async () => {
+  it('returns the active Head and tagged recipients for linked supervisor parent-staff threads', async () => {
     const { caller } = makeCaller(supervisorUser);
 
     await expect(caller.message.listRecipients()).resolves.toEqual([
