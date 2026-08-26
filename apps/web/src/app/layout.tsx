@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
 import { hasClerkPublishableKey } from './(auth)/clerk-config';
+import { InactivityLogout } from '@/components/auth/inactivity-logout';
 import { TrpcProvider } from '@/components/providers/trpc-provider';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <ClerkProvider>
       <html lang="en">
         <body>
+          <InactivityLogout />
           <TrpcProvider enableRealtime>{children}</TrpcProvider>
           <Toaster />
         </body>
