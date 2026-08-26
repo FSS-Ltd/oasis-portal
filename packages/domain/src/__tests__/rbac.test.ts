@@ -425,7 +425,7 @@ describe('requireTag', () => {
 });
 
 describe('workflow tags', () => {
-  it('keeps ClubsLead outside full-admin, staff, and unrelated tag workflows', () => {
+  it('keeps ClubsLead outside full-admin and staff workflows while respecting explicit tags', () => {
     const taggedClubsLead: SessionUser = {
       ...clubsLead,
       tags: [
@@ -454,7 +454,7 @@ describe('workflow tags', () => {
     expect(canUseAllStudentSupervisorWorkflow(taggedClubsLead)).toBe(false);
     expect(canUsePrimaryStudentSupervisorWorkflow(taggedClubsLead)).toBe(false);
     expect(canManageCalendar(taggedClubsLead)).toBe(false);
-    expect(canRespondToParentMessages(taggedClubsLead)).toBe(false);
+    expect(canRespondToParentMessages(taggedClubsLead)).toBe(true);
     expect(() => {
       requireClubsLead(taggedClubsLead);
     }).not.toThrow();
@@ -616,18 +616,18 @@ describe('workflow tags', () => {
     expect(canManageCalendar(technicalSupport)).toBe(true);
   });
 
-  it('allows parent message response for full-admin users or tagged users', () => {
+  it('allows parent message response for the Head or tagged users', () => {
     expect(canRespondToParentMessages(head)).toBe(true);
-    expect(canRespondToParentMessages(principal)).toBe(true);
-    expect(canRespondToParentMessages(pastor)).toBe(true);
-    expect(canRespondToParentMessages(hod)).toBe(true);
+    expect(canRespondToParentMessages({ ...principal, tags: [] })).toBe(false);
+    expect(canRespondToParentMessages(pastor)).toBe(false);
+    expect(canRespondToParentMessages(hod)).toBe(false);
     expect(canRespondToParentMessages({ ...supervisor, tags: ['parent-message-responder'] })).toBe(
       true,
     );
     expect(canRespondToParentMessages({ ...parent, tags: ['parent-message-responder'] })).toBe(
       true,
     );
-    expect(canRespondToParentMessages(technicalSupport)).toBe(true);
+    expect(canRespondToParentMessages(technicalSupport)).toBe(false);
   });
 });
 

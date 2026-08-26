@@ -375,8 +375,7 @@ export function canManageCalendar(user: SessionUser): boolean {
 }
 
 export function canRespondToParentMessages(user: Pick<SessionUser, 'role' | 'tags'>): boolean {
-  if (user.role === 'ClubsLead') return false;
-  return canUseAdminOperations(user) || hasTag(user, 'parent-message-responder');
+  return user.role === 'Head' || hasTag(user, 'parent-message-responder');
 }
 
 export function canViewStudentDrillThrough(user: SessionUser): boolean {

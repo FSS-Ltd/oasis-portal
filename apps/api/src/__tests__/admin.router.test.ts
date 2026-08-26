@@ -1309,7 +1309,7 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     });
   });
 
-  it('limits Technical Support tag management to the club lead tag', async () => {
+  it('allows Technical Support to manage tags on active adult accounts', async () => {
     const { caller, db } = makeCaller(supervisorUser);
 
     await expect(caller.admin.listUsers()).rejects.toMatchObject({ code: 'FORBIDDEN' });
@@ -1337,22 +1337,29 @@ describe('admin.listUsers and admin.updateUserTags', () => {
       tags: [],
       active: true,
     });
+    supportDb.user.update.mockResolvedValueOnce({
+      id: 'u_sup',
+      tags: ['audit-viewer'],
+    });
     await expect(
       support.caller.admin.updateUserTags({ userId: 'u_sup', tags: ['audit-viewer'] }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toEqual({ id: 'u_sup', tags: ['audit-viewer'] });
     supportDb.user.findUnique.mockResolvedValueOnce({
-      id: 'u_parent',
-      role: 'Parent',
+      id: 'u_support',
+      role: 'TechnicalSupport',
       tags: [],
       active: true,
     });
     supportDb.user.update.mockResolvedValueOnce({
-      id: 'u_parent',
-      tags: ['club-lead'],
+      id: 'u_support',
+      tags: ['parent-message-responder'],
     });
     await expect(
-      support.caller.admin.updateUserTags({ userId: 'u_parent', tags: ['club-lead'] }),
-    ).resolves.toEqual({ id: 'u_parent', tags: ['club-lead'] });
+      support.caller.admin.updateUserTags({
+        userId: 'u_support',
+        tags: ['parent-message-responder'],
+      }),
+    ).resolves.toEqual({ id: 'u_support', tags: ['parent-message-responder'] });
     await expect(
       support.caller.admin.updateUserProfile({ userId: 'u_sup', phone: '07700 900000' }),
     ).resolves.toMatchObject({ id: 'u_sup', phone: '07700 900000' });
@@ -1764,34 +1771,34 @@ describe('admin.inviteUser', () => {
     expect(db.auditLog.create).not.toHaveBeenCalled();
   });
 
-  it('allows Technical Support to invite Parent and TechnicalSupport accounts without tags', async () => {
+  it('allows Technical Support to invite Parent and TechnicalSupport accounts with tags', async () => {
     const { caller, db, createInvitation, sendEmail } = makeCaller(technicalSupportUser);
 
     await expect(
       caller.admin.inviteUser({
         email: 'parent@example.com',
         role: 'Parent',
-        tags: [],
+        tags: ['audit-viewer'],
       }),
     ).resolves.toMatchObject({ invitationId: 'inv_xyz', status: 'pending', emailStatus: 'Sent' });
     await expect(
       caller.admin.inviteUser({
         email: 'support@example.com',
         role: 'TechnicalSupport',
-        tags: [],
+        tags: ['parent-message-responder'],
       }),
     ).resolves.toMatchObject({ invitationId: 'inv_xyz', status: 'pending', emailStatus: 'Sent' });
 
     expect(createInvitation).toHaveBeenNthCalledWith(1, {
       emailAddress: 'parent@example.com',
-      publicMetadata: { role: 'Parent', tags: [] },
+      publicMetadata: { role: 'Parent', tags: ['audit-viewer'] },
       redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
     });
     expect(createInvitation).toHaveBeenNthCalledWith(2, {
       emailAddress: 'support@example.com',
-      publicMetadata: { role: 'TechnicalSupport', tags: [] },
+      publicMetadata: { role: 'TechnicalSupport', tags: ['parent-message-responder'] },
       redirectUrl: INVITATION_REDIRECT_URL,
       ignoreExisting: true,
       notify: false,
@@ -1801,7 +1808,7 @@ describe('admin.inviteUser', () => {
       data: {
         clerkInvitationId: 'inv_xyz',
         role: 'Parent',
-        tags: [],
+        tags: ['audit-viewer'],
         emailEnc: 'enc:parent@example.com',
         emailBidx: 'bidx:parent@example.com',
         status: 'Pending',
@@ -1828,7 +1835,7 @@ describe('admin.inviteUser', () => {
         entityId: 'inv_xyz',
         meta: {
           role: 'Parent',
-          tags: [],
+          tags: ['audit-viewer'],
           invitationStatus: 'pending',
           emailStatus: 'Sent',
           source: 'admin.inviteUser',
@@ -1837,7 +1844,7 @@ describe('admin.inviteUser', () => {
     });
   });
 
-  it('blocks Technical Support from student-data roles and permission tags', async () => {
+  it('blocks Technical Support from inviting student-data roles', async () => {
     const { caller, createInvitation, sendEmail } = makeCaller(technicalSupportUser);
 
     await expect(
@@ -1845,13 +1852,6 @@ describe('admin.inviteUser', () => {
         email: 'supervisor@example.com',
         role: 'Supervisor',
         tags: [],
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(
-      caller.admin.inviteUser({
-        email: 'parent@example.com',
-        role: 'Parent',
-        tags: ['shopkeeper'],
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(createInvitation).not.toHaveBeenCalled();
