@@ -123,9 +123,15 @@ export interface MeritActivitySnapshot {
   reason: string;
 }
 
+export interface ReportAuthor {
+  name: string;
+  role: string;
+}
+
 export interface CompiledReport {
   studentId: string;
   studentDisplayName: string;
+  author?: ReportAuthor;
   period: ReportPeriodSnapshot;
   sections: ReportSections;
   attendance: CompileStudentReportInput['attendance'] & { attendancePct: number };

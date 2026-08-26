@@ -148,6 +148,7 @@ interface FakeDb {
   meritLedger: { findMany: ReturnType<typeof vi.fn> };
   paceRecord: { findMany: ReturnType<typeof vi.fn> };
   student: { findUnique: ReturnType<typeof vi.fn> };
+  user: { findUnique: ReturnType<typeof vi.fn> };
   termReport: {
     create: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -466,6 +467,13 @@ function makeFakeDb() {
         Promise.resolve(where.id === student.id ? student : null),
       ),
     },
+    user: {
+      findUnique: vi.fn(({ where }: { where: { id: string } }) =>
+        Promise.resolve(
+          where.id === headUser.id ? { fullNameEnc: encrypt('Harriet Head') } : null,
+        ),
+      ),
+    },
     termReport: {
       create: vi.fn(
         ({
@@ -705,6 +713,7 @@ describe('report.draft', () => {
         note: 'Reading has improved',
       },
     ]);
+    expect(draft.compiled.author).toEqual({ name: 'Harriet Head', role: 'Head of Centre' });
     expect(draft.compiled.meritActivity).toEqual([
       {
         createdAt: '2026-05-03T00:00:00.000Z',

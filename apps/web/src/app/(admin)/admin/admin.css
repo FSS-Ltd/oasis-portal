@@ -6742,6 +6742,28 @@
   font-size: 0.78rem;
 }
 
+.report-author {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--oasis-border-light);
+  color: var(--oasis-text-secondary);
+  font-size: 0.78rem;
+}
+
+.report-author strong {
+  color: var(--oasis-navy);
+  overflow-wrap: anywhere;
+}
+
+.report-author small {
+  font-size: inherit;
+  text-align: right;
+}
+
 .report-metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -12874,8 +12896,13 @@ button.club-assignment-row {
   .grid--two,
   .form-grid--two,
   .report-summary-grid,
-  .report-metric-grid {
+  .report-metric-grid,
+  .report-author {
     grid-template-columns: 1fr;
+  }
+
+  .report-author small {
+    text-align: left;
   }
 
   .report-control-row,

@@ -317,6 +317,14 @@ export function ReportDetail({
           )}
         </section>
       ) : null}
+
+      {compiled.author ? (
+        <footer className="report-author">
+          <span>Prepared by</span>
+          <strong>{compiled.author.name}</strong>
+          <small>{compiled.author.role}</small>
+        </footer>
+      ) : null}
     </section>
   );
 }
