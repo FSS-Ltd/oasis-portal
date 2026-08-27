@@ -4,6 +4,7 @@ import type {
   Prisma,
   SchoolFeeBillingCadence,
   SchoolFeeInvoiceDiscountKind,
+  SchoolFeeInvoiceKind,
   SchoolFeeInvoiceStatus,
 } from '@oasis/db';
 import {
@@ -115,6 +116,7 @@ type InvoiceRow = {
   invoiceNumber: string | null;
   studentId: string | null;
   status: SchoolFeeInvoiceStatus;
+  kind: SchoolFeeInvoiceKind;
   schoolYear: number | null;
   billingCadence: SchoolFeeBillingCadence | null;
   familyLabelEnc: string | null;
@@ -218,6 +220,7 @@ export interface SchoolFeeInvoiceDto {
   studentYearGroup: string | null;
   students: SchoolFeeInvoiceStudentDto[];
   status: SchoolFeeInvoiceStatus;
+  kind: SchoolFeeInvoiceKind;
   displayStatus: SchoolFeeInvoiceDisplayStatus;
   schoolYear: number | null;
   billingCadence: SchoolFeeBillingCadence | null;
@@ -719,6 +722,7 @@ function mapInvoice(ctx: AuthedContext, invoice: InvoiceRow, now: Date): SchoolF
         : null,
     students,
     status: invoice.status,
+    kind: invoice.kind,
     displayStatus: schoolFeeInvoiceDisplayStatus(invoice.status, invoice.dueOn, now),
     schoolYear: invoice.schoolYear,
     billingCadence: invoice.billingCadence,

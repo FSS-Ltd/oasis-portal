@@ -18,12 +18,14 @@ import {
 type InvoiceStatus = 'Draft' | 'Unpaid' | 'PaymentPending' | 'Paid';
 type BillingCadence = 'Annual' | 'Term' | 'Monthly';
 type DiscountKind = 'Preset' | 'ManualPercent' | 'ManualFixed';
+type InvoiceKind = 'SchoolFee' | 'Manual';
 
 interface StoredInvoice {
   id: string;
   invoiceNumber: string | null;
   studentId: string | null;
   status: InvoiceStatus;
+  kind: InvoiceKind;
   schoolYear: number | null;
   billingCadence: BillingCadence | null;
   familyLabelEnc: string | null;
@@ -354,6 +356,7 @@ function makeInvoice(input: Pick<StoredInvoice, 'id'> & Partial<StoredInvoice>):
     invoiceNumber: 'INV-2026-001',
     studentId: linkedStudentId,
     status: 'Unpaid',
+    kind: 'SchoolFee',
     schoolYear: 2026,
     billingCadence: 'Monthly',
     familyLabelEnc: encrypt('Parent family'),
@@ -1182,6 +1185,30 @@ describe('invoiceRouter', () => {
     const download = await caller.invoice.downloadPdf({ invoiceId: ownInvoice.id });
     expect(download.pdfBase64).toBe('JVBERi0xLjQK');
     expect(download.fileName).toBe('invoice.pdf');
+  });
+
+  it('lists corrected and ordinary invoices with their persisted kinds', async () => {
+    const corrected = makeInvoice({
+      id: invoiceId,
+      invoiceNumber: 'OLC0059',
+      kind: 'Manual',
+    });
+    const ordinary = makeInvoice({
+      id: 'cinvoice00000000002',
+      invoiceNumber: 'OLC0011',
+      kind: 'SchoolFee',
+    });
+    const fakeDb = makeFakeDb({ initialInvoices: [corrected, ordinary] });
+    const { caller } = createCaller(parentUser, fakeDb);
+
+    const parentList = await caller.invoice.listParent({ status: 'All' });
+
+    expect(parentList.invoices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ invoiceNumber: corrected.invoiceNumber, kind: 'Manual' }),
+        expect.objectContaining({ invoiceNumber: ordinary.invoiceNumber, kind: 'SchoolFee' }),
+      ]),
+    );
   });
 
   it('lets linked supervisor-parent users view only linked child fee invoices', async () => {

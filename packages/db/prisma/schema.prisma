@@ -2394,6 +2394,11 @@ enum SchoolFeeInvoiceDiscountKind {
   ManualFixed
 }
 
+enum SchoolFeeInvoiceKind {
+  SchoolFee
+  Manual
+}
+
 model SchoolFeeYearFeeConfig {
   id                 String   @id @default(cuid())
   schoolYear         Int      @unique
@@ -2409,6 +2414,8 @@ model SchoolFeeInvoice {
   invoiceNumber          String?                  @unique
   studentId              String?
   status                 SchoolFeeInvoiceStatus   @default(Draft)
+  kind                   SchoolFeeInvoiceKind     @default(SchoolFee)
+  invoiceTitleEnc        String?
   schoolYear             Int?
   billingCadence         SchoolFeeBillingCadence?
   familyLabelEnc         String?
