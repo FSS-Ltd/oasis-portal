@@ -15,6 +15,7 @@ import {
   InvoiceFilterButton,
   InvoiceStatCard,
   InvoiceStatusBadge,
+  invoiceKindLabel,
   invoiceStatusLabel,
   type AdminInvoiceStatusFilter,
   type InvoiceDto,
@@ -450,7 +451,11 @@ export function AdminInvoicesClient() {
                         type="button"
                       >
                         <strong>{invoice.invoiceNumber ?? 'Draft invoice'}</strong>
-                        <span>{invoice.term ?? invoice.originalFileName}</span>
+                        <span>
+                          {invoice.kind === 'Manual'
+                            ? (invoice.invoiceTitle ?? invoice.originalFileName)
+                            : (invoice.term ?? invoice.originalFileName)}
+                        </span>
                       </button>
                     </td>
                     <td>
@@ -461,7 +466,10 @@ export function AdminInvoicesClient() {
                     </td>
                     <td>{formatInvoiceDate(invoice.dueOn)}</td>
                     <td>
-                      <InvoiceStatusBadge status={invoice.displayStatus} />
+                      <span className="badge-list">
+                        <InvoiceStatusBadge status={invoice.displayStatus} />
+                        <Badge tone="grey">{invoiceKindLabel(invoice.kind)}</Badge>
+                      </span>
                     </td>
                     <td>{formatPence(invoice.totalAmountPence)}</td>
                     <td>

@@ -2,6 +2,7 @@
 
 import type { ReactElement } from 'react';
 import { Pencil, ReceiptText, Trash2, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage } from '@/lib/notifications';
 import {
@@ -13,6 +14,7 @@ import {
   InvoicePrimaryMeta,
   InvoiceStatusBadge,
   InvoiceTotal,
+  invoiceKindLabel,
   type InvoiceDto,
 } from './invoice-ui';
 
@@ -160,7 +162,10 @@ export function AdminInvoiceDrawer({
         </button>
         <span>Invoice</span>
         <h2>{invoice.invoiceNumber ?? 'Draft invoice'}</h2>
-        <InvoiceStatusBadge status={invoice.displayStatus} />
+        <div className="badge-list">
+          <InvoiceStatusBadge status={invoice.displayStatus} />
+          <Badge tone="grey">{invoiceKindLabel(invoice.kind)}</Badge>
+        </div>
       </header>
       <InvoicePrimaryMeta invoice={invoice} />
       <InvoiceLineItems invoice={invoice} />

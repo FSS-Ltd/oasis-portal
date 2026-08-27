@@ -1312,25 +1312,20 @@ describe('invoiceRouter', () => {
   it('keeps manual and off-year invoices visible without including them in active school-fee totals', async () => {
     const manualInvoice = makeInvoice({
       id: invoiceId,
-      invoiceNumber: 'OLC0059',
+      invoiceNumber: 'OLC-MANUAL-001',
       kind: 'Manual',
-      status: 'Paid',
+      invoiceTitleEnc: encrypt('Sign-up fee'),
+      status: 'Unpaid',
       subtotalAmountPence: 15000,
       totalAmountPence: 15000,
-      paidAt: new Date('2026-05-16T08:00:00.000Z'),
-      paymentConfirmedAt: new Date('2026-05-16T08:00:00.000Z'),
-      paymentConfirmedById: financeUser.id,
     });
     const schoolFeeInvoice = makeInvoice({
       id: 'cinvoice00000000002',
       invoiceNumber: 'OLC0011',
       kind: 'SchoolFee',
-      status: 'Paid',
+      status: 'Unpaid',
       subtotalAmountPence: 24500,
       totalAmountPence: 24500,
-      paidAt: new Date('2026-05-15T08:00:00.000Z'),
-      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
-      paymentConfirmedById: financeUser.id,
     });
     const offYearInvoice = makeInvoice({
       id: 'cinvoice00000000003',
@@ -1354,17 +1349,10 @@ describe('invoiceRouter', () => {
       initialStudents: [
         makeStudent({
           id: linkedStudentId,
-          enrolmentDate: new Date('2026-01-12T00:00:00.000Z'),
-        }),
-        makeStudent({
-          id: otherStudentId,
-          enrolmentDate: new Date('2026-04-01T00:00:00.000Z'),
+          enrolmentDate: new Date('2026-08-01T00:00:00.000Z'),
         }),
       ],
-      initialGuardians: [
-        { userId: parentUser.id, studentId: linkedStudentId },
-        { userId: parentUser.id, studentId: otherStudentId },
-      ],
+      initialGuardians: [{ userId: parentUser.id, studentId: linkedStudentId }],
       initialInvoices: [manualInvoice, schoolFeeInvoice, offYearInvoice, draftInvoice],
       initialLines: [
         makeLine({
@@ -1403,7 +1391,11 @@ describe('invoiceRouter', () => {
     ).toBe(true);
     expect(parentList.invoices).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ invoiceNumber: manualInvoice.invoiceNumber, kind: 'Manual' }),
+        expect.objectContaining({
+          invoiceNumber: 'OLC-MANUAL-001',
+          kind: 'Manual',
+          invoiceTitle: 'Sign-up fee',
+        }),
         expect.objectContaining({
           invoiceNumber: schoolFeeInvoice.invoiceNumber,
           kind: 'SchoolFee',
@@ -1416,16 +1408,13 @@ describe('invoiceRouter', () => {
       ]),
     );
     expect(parentList.invoices.map((invoice) => invoice.id)).not.toContain(draftInvoice.id);
-    expect(parentList.stats).toMatchObject({
-      totalCount: 1,
-      paidCount: 1,
-      paidAmountPence: 24500,
-    });
+    expect(parentList.stats.totalCount).toBe(1);
+    expect(parentList.stats.outstandingAmountPence).toBe(24_500);
     expect(parentList.yearSummary).toMatchObject({
       issuedAmountPence: 24500,
-      paidAmountPence: 24500,
-      remainingAmountPence: 269500,
-      leftToInvoiceAmountPence: 269500,
+      paidAmountPence: 0,
+      remainingAmountPence: 24500,
+      leftToInvoiceAmountPence: 0,
       invoiceCount: 1,
     });
   });

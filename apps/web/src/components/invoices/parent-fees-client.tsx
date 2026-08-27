@@ -159,7 +159,10 @@ function ParentInvoiceCard({
         <span>
           <strong>{invoice.invoiceNumber ?? 'Invoice'}</strong>
           <small>
-            {invoice.term ?? 'School fees'} · Due {formatInvoiceDate(invoice.dueOn)}
+            {invoice.kind === 'Manual'
+              ? (invoice.invoiceTitle ?? 'Manual invoice')
+              : (invoice.term ?? 'School fees')}{' '}
+            · Due {formatInvoiceDate(invoice.dueOn)}
           </small>
         </span>
         <span className="parent-invoice-card__amount">
@@ -195,9 +198,7 @@ function ParentInvoiceCard({
             <MessageOfficeAction />
           </div>
           {invoice.status === 'PaymentPending' ? (
-            <p className="parent-payment-note">
-              Awaiting confirmation from a pastor or head.
-            </p>
+            <p className="parent-payment-note">Awaiting confirmation from a pastor or head.</p>
           ) : null}
         </div>
       ) : null}
@@ -288,7 +289,32 @@ export function ParentFeesClient() {
   const invoices = invoicesQuery.data?.invoices ?? [];
   const stats = invoicesQuery.data?.stats;
   const yearSummary = invoicesQuery.data?.yearSummary;
+  const schoolFeeInvoices = invoices.filter((invoice) => invoice.kind === 'SchoolFee');
+  const manualInvoices = invoices.filter((invoice) => invoice.kind === 'Manual');
   const activeOpenInvoiceId = openInvoiceId;
+
+  function renderInvoiceCard(invoice: InvoiceDto) {
+    return (
+      <ParentInvoiceCard
+        invoice={invoice}
+        key={invoice.id}
+        markingPaid={pendingInvoiceId === invoice.id}
+        onToggle={() => {
+          setOpenInvoiceId((current) => (current === invoice.id ? null : invoice.id));
+        }}
+        onMarkPaid={(targetInvoice) => {
+          setPendingInvoiceId(targetInvoice.id);
+          markPaid.mutate({ invoiceId: targetInvoice.id });
+        }}
+        onToggleDiscount={(discountId, optedOut) => {
+          setPendingDiscountId(discountId);
+          setDiscountOptOut.mutate({ invoiceId: invoice.id, discountId, optedOut });
+        }}
+        open={activeOpenInvoiceId === invoice.id}
+        togglingDiscount={invoice.discounts.some((discount) => discount.id === pendingDiscountId)}
+      />
+    );
+  }
 
   return (
     <section className="invoice-page invoice-page--parent">
@@ -320,7 +346,7 @@ export function ParentFeesClient() {
       <ParentFeeCycleSummary summary={yearSummary} />
 
       <div className="invoice-toolbar">
-        <div className="invoice-filter-group" aria-label="School fee status filters">
+        <div className="invoice-filter-group" aria-label="Invoice status filters">
           {parentInvoiceStatusFilters.map((filter) => (
             <InvoiceFilterButton
               active={status === filter}
@@ -339,46 +365,46 @@ export function ParentFeesClient() {
             onChange={(event) => {
               setSearch(event.target.value);
             }}
-            placeholder="Search fees"
+            placeholder="Search invoices"
             value={search}
           />
         </label>
       </div>
 
       {invoicesQuery.isLoading ? (
-        <InvoiceEmptyState body="Loading school fee invoices." title="Loading fees" />
+        <InvoiceEmptyState body="Loading invoice records." title="Loading invoices" />
       ) : invoicesQuery.error ? (
         <InvoiceEmptyState
           body={friendlyErrorMessage(invoicesQuery.error)}
-          title="Fees unavailable"
+          title="Invoices unavailable"
         />
       ) : invoices.length === 0 ? (
         <InvoiceEmptyState body="No invoices match this view." title="No invoices" />
       ) : (
-        <div className="parent-invoice-list">
-          {invoices.map((invoice) => (
-            <ParentInvoiceCard
-              invoice={invoice}
-              key={invoice.id}
-              markingPaid={pendingInvoiceId === invoice.id}
-              onToggle={() => {
-                setOpenInvoiceId((current) => (current === invoice.id ? null : invoice.id));
-              }}
-              onMarkPaid={(targetInvoice) => {
-                setPendingInvoiceId(targetInvoice.id);
-                markPaid.mutate({ invoiceId: targetInvoice.id });
-              }}
-              onToggleDiscount={(discountId, optedOut) => {
-                setPendingDiscountId(discountId);
-                setDiscountOptOut.mutate({ invoiceId: invoice.id, discountId, optedOut });
-              }}
-              open={activeOpenInvoiceId === invoice.id}
-              togglingDiscount={invoice.discounts.some(
-                (discount) => discount.id === pendingDiscountId,
-              )}
-            />
-          ))}
-        </div>
+        <>
+          <section aria-labelledby="parent-school-fee-invoices-title">
+            <div className="section-title">
+              <h2 id="parent-school-fee-invoices-title">School fees</h2>
+            </div>
+            {schoolFeeInvoices.length === 0 ? (
+              <InvoiceEmptyState
+                body="No school fee invoices match this view."
+                title="No school fees"
+              />
+            ) : (
+              <div className="parent-invoice-list">{schoolFeeInvoices.map(renderInvoiceCard)}</div>
+            )}
+          </section>
+
+          {manualInvoices.length > 0 ? (
+            <section aria-labelledby="parent-other-invoices-title">
+              <div className="section-title">
+                <h2 id="parent-other-invoices-title">Other invoices</h2>
+              </div>
+              <div className="parent-invoice-list">{manualInvoices.map(renderInvoiceCard)}</div>
+            </section>
+          ) : null}
+        </>
       )}
     </section>
   );
