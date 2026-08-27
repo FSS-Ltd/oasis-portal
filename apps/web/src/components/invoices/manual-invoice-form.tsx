@@ -24,6 +24,7 @@ interface ManualInvoiceFormProps {
 
 const dateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/u;
 const maximumManualAmountPence = 5_000_000;
+const maximumSelectedStudents = 20;
 
 export function penceToPoundsInput(amountPence: number): string {
   return (amountPence / 100).toFixed(2);
@@ -113,6 +114,7 @@ export function ManualInvoiceForm({
     amountPence <= maximumManualAmountPence &&
     selectedFamily &&
     selectedStudentIds.length > 0 &&
+    selectedStudentIds.length <= maximumSelectedStudents &&
     familyLabel.trim() &&
     invoiceNumber.trim() &&
     dateOnlyPattern.test(issuedOn) &&
@@ -122,14 +124,23 @@ export function ManualInvoiceForm({
 
   function selectFamily(nextFamilyKey: string) {
     const nextFamily = families.find((family) => family.familyKey === nextFamilyKey);
-    setError(null);
+    const nextStudentIds = nextFamily?.students.map((student) => student.id) ?? [];
+    setError(
+      nextStudentIds.length > maximumSelectedStudents
+        ? `Select up to ${String(maximumSelectedStudents)} children. Extra children were left unselected.`
+        : null,
+    );
     setFamilyKey(nextFamilyKey);
     setFamilyLabel(nextFamily?.familyLabel ?? '');
-    setSelectedStudentIds(nextFamily?.students.map((student) => student.id) ?? []);
+    setSelectedStudentIds(nextStudentIds.slice(0, maximumSelectedStudents));
   }
 
   function updateSelectedStudent(studentId: string, checked: boolean) {
     if (!selectedFamily?.students.some((student) => student.id === studentId)) return;
+    if (checked && selectedStudentIds.length >= maximumSelectedStudents) {
+      setError(`Select no more than ${String(maximumSelectedStudents)} children.`);
+      return;
+    }
     setError(null);
     setSelectedStudentIds((current) =>
       checked
@@ -140,6 +151,7 @@ export function ManualInvoiceForm({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     if (!invoiceTitle.trim()) {
       setError('Enter an invoice title.');
       return;
@@ -158,6 +170,10 @@ export function ManualInvoiceForm({
       selectedStudentIds.some((studentId) => !familyStudentIds.has(studentId))
     ) {
       setError('Select at least one child from the selected family.');
+      return;
+    }
+    if (selectedStudentIds.length > maximumSelectedStudents) {
+      setError(`Select no more than ${String(maximumSelectedStudents)} children.`);
       return;
     }
     if (!familyLabel.trim() || !invoiceNumber.trim()) {
@@ -193,6 +209,7 @@ export function ManualInvoiceForm({
         </div>
         <button
           aria-label={isEdit ? 'Close invoice editor' : 'Close invoice creator'}
+          disabled={pending}
           onClick={onClose}
           type="button"
         >
@@ -211,6 +228,7 @@ export function ManualInvoiceForm({
           <div className="invoice-review-grid">
             <Field label="Title" required>
               <TextInput
+                disabled={pending}
                 maxLength={160}
                 onChange={(event) => {
                   setError(null);
@@ -226,6 +244,7 @@ export function ManualInvoiceForm({
               required
             >
               <TextInput
+                disabled={pending}
                 inputMode="decimal"
                 onChange={(event) => {
                   setError(null);
@@ -238,6 +257,7 @@ export function ManualInvoiceForm({
             </Field>
             <Field label="Invoice number" required>
               <TextInput
+                disabled={pending}
                 maxLength={80}
                 onChange={(event) => {
                   setError(null);
@@ -249,6 +269,7 @@ export function ManualInvoiceForm({
             </Field>
             <Field label="Issued date" required>
               <TextInput
+                disabled={pending}
                 onChange={(event) => {
                   setError(null);
                   setIssuedOn(event.target.value);
@@ -261,6 +282,7 @@ export function ManualInvoiceForm({
             </Field>
             <Field label="Due date" required>
               <TextInput
+                disabled={pending}
                 onChange={(event) => {
                   setError(null);
                   setDueOn(event.target.value);
@@ -277,6 +299,7 @@ export function ManualInvoiceForm({
           <h3>Family and children</h3>
           <Field label="Family" required>
             <SelectInput
+              disabled={pending}
               onChange={(event) => {
                 selectFamily(event.target.value);
               }}
@@ -296,6 +319,11 @@ export function ManualInvoiceForm({
               <label key={student.id}>
                 <input
                   checked={selectedStudentIds.includes(student.id)}
+                  disabled={
+                    pending ||
+                    (!selectedStudentIds.includes(student.id) &&
+                      selectedStudentIds.length >= maximumSelectedStudents)
+                  }
                   onChange={(event) => {
                     updateSelectedStudent(student.id, event.target.checked);
                   }}
@@ -318,7 +346,7 @@ export function ManualInvoiceForm({
       ) : null}
       <footer className="invoice-modal__footer">
         <span className="invoice-create-subtotal">Total {formatPence(totalAmountPence)}</span>
-        <Button onClick={onClose} type="button" variant="ghost">
+        <Button disabled={pending} onClick={onClose} type="button" variant="ghost">
           Cancel
         </Button>
         <Button disabled={!canSubmit} pending={pending} type="submit">
