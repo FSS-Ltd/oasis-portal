@@ -1,6 +1,6 @@
 # Manual Invoices Design
 
-Status: Awaiting review
+Status: Approved for implementation
 Owner: Technical Agent
 Date: 2026-08-27
 
