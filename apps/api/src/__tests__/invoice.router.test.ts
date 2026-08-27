@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Prisma } from '@oasis/db';
 import { describe, expect, it, vi } from 'vitest';
+import { PDFDocument } from 'pdf-lib';
 import {
   SCHOOL_FEE_DISCOUNT_EXPLANATION,
   schoolFeeDiscountChildIndexPresetCode,
@@ -26,6 +28,7 @@ interface StoredInvoice {
   studentId: string | null;
   status: InvoiceStatus;
   kind: InvoiceKind;
+  invoiceTitleEnc: string | null;
   schoolYear: number | null;
   billingCadence: BillingCadence | null;
   familyLabelEnc: string | null;
@@ -158,6 +161,8 @@ interface FakeInvoiceCreateArgs {
     status: InvoiceStatus;
     invoiceNumber?: string | null;
     studentId?: string | null;
+    kind?: InvoiceKind;
+    invoiceTitleEnc?: string | null;
     schoolYear?: number | null;
     billingCadence?: BillingCadence | null;
     familyLabelEnc?: string | null;
@@ -201,13 +206,19 @@ interface FakeDiscountCreateInput {
 }
 
 interface FakeInvoiceUpdateArgs {
-  where: { id: string };
+  where: {
+    id: string;
+    kind?: InvoiceKind;
+    status?: InvoiceStatus | { in: InvoiceStatus[] };
+  };
   data: Partial<
     Pick<
       StoredInvoice,
       | 'invoiceNumber'
       | 'studentId'
       | 'status'
+      | 'kind'
+      | 'invoiceTitleEnc'
       | 'term'
       | 'issuedOn'
       | 'dueOn'
@@ -323,6 +334,15 @@ const thirdStudentId = 'cstudent000000000003';
 const fourthStudentId = 'cstudent000000000004';
 const invoiceId = 'cinvoice00000000001';
 const discountId = 'cdiscount0000000001';
+const manualInvoiceInput = {
+  invoiceTitle: 'Sign-up fee',
+  amountPence: 15_000,
+  studentIds: [linkedStudentId, otherStudentId],
+  familyLabel: 'Parent family',
+  invoiceNumber: 'OLC-MANUAL-001',
+  issuedOn: '2026-08-27',
+  dueOn: '2026-09-10',
+};
 
 function makeStudent(input: Pick<StoredStudent, 'id'> & Partial<StoredStudent>): StoredStudent {
   const names: Record<string, string> = {
@@ -357,6 +377,7 @@ function makeInvoice(input: Pick<StoredInvoice, 'id'> & Partial<StoredInvoice>):
     studentId: linkedStudentId,
     status: 'Unpaid',
     kind: 'SchoolFee',
+    invoiceTitleEnc: null,
     schoolYear: 2026,
     billingCadence: 'Monthly',
     familyLabelEnc: encrypt('Parent family'),
@@ -430,6 +451,7 @@ function makeFakeDb({
   initialInvoiceStudents,
   initialDiscounts = [],
   decryptImpl = decrypt,
+  beforeInvoiceUpdate,
 }: {
   initialStudents?: StoredStudent[];
   initialUsers?: StoredUser[];
@@ -439,6 +461,7 @@ function makeFakeDb({
   initialInvoiceStudents?: StoredInvoiceStudent[];
   initialDiscounts?: StoredDiscount[];
   decryptImpl?: (value: string | null | undefined) => string | null;
+  beforeInvoiceUpdate?: (invoice: StoredInvoice) => void;
 } = {}) {
   const students = initialStudents ?? [
     makeStudent({ id: linkedStudentId }),
@@ -680,6 +703,8 @@ function makeFakeDb({
           invoiceNumber: data.invoiceNumber ?? null,
           studentId: data.studentId ?? null,
           status: data.status,
+          kind: data.kind ?? 'SchoolFee',
+          invoiceTitleEnc: data.invoiceTitleEnc ?? null,
           schoolYear: data.schoolYear ?? null,
           billingCadence: data.billingCadence ?? null,
           familyLabelEnc: data.familyLabelEnc ?? null,
@@ -735,6 +760,18 @@ function makeFakeDb({
       update: vi.fn(({ where, data }: FakeInvoiceUpdateArgs) => {
         const invoice = invoices.find((candidate) => candidate.id === where.id);
         if (!invoice) throw new Error('invoice not found');
+        beforeInvoiceUpdate?.(invoice);
+        const statusMatches =
+          where.status === undefined ||
+          (typeof where.status === 'string'
+            ? invoice.status === where.status
+            : where.status.in.includes(invoice.status));
+        if ((where.kind && invoice.kind !== where.kind) || !statusMatches) {
+          throw new Prisma.PrismaClientKnownRequestError('Record not found', {
+            code: 'P2025',
+            clientVersion: 'test',
+          });
+        }
         Object.assign(invoice, {
           ...data,
           lineItems: undefined,
@@ -1297,6 +1334,10 @@ describe('invoiceRouter', () => {
     expect(created.discountAmountPence).toBe(12250);
     expect(created.totalAmountPence).toBe(36750);
     expect(created.discounts.map((discount) => discount.appliedAmountPence)).toEqual([6125, 6125]);
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('School Fee Invoice');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain(
+      'Invoice for Learning Centre Fees',
+    );
     expect(
       created.discountBreakdowns.map((child) =>
         child.discounts.map((discount) => discount.appliedAmountPence),
@@ -1323,6 +1364,284 @@ describe('invoiceRouter', () => {
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
+  });
+
+  it('creates a manual family invoice charged per child with linked-parent access', async () => {
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const invoice = await adminCaller.invoice.createManual(manualInvoiceInput);
+
+    expect(invoice).toMatchObject({
+      kind: 'Manual',
+      invoiceTitle: 'Sign-up fee',
+      subtotalAmountPence: 30_000,
+      discountAmountPence: 0,
+      totalAmountPence: 30_000,
+    });
+    expect(invoice.lineItems).toEqual([
+      expect.objectContaining({
+        description: 'Sign-up fee - Talia Parent',
+        totalAmountPence: 15_000,
+      }),
+      expect.objectContaining({
+        description: 'Sign-up fee - Other Child',
+        totalAmountPence: 15_000,
+      }),
+    ]);
+    expect(fakeDb.invoiceStudents).toEqual([
+      { invoiceId: invoice.id, studentId: linkedStudentId, position: 1 },
+      { invoiceId: invoice.id, studentId: otherStudentId, position: 2 },
+    ]);
+    expect(fakeDb.discounts).toEqual([]);
+    expect(decrypt(fakeDb.invoices[0]?.invoiceTitleEnc)).toBe('Sign-up fee');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('Invoice\n');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('Sign-up fee');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain('School Fee Invoice');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain('School fees');
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).not.toContain(
+      SCHOOL_FEE_DISCOUNT_EXPLANATION,
+    );
+
+    const { caller: linkedParentCaller } = createCaller(parentUser, fakeDb);
+    const linkedList = await linkedParentCaller.invoice.listParent({ status: 'All' });
+    expect(linkedList.invoices).toEqual([
+      expect.objectContaining({ id: invoice.id, kind: 'Manual', invoiceTitle: 'Sign-up fee' }),
+    ]);
+    const download = await linkedParentCaller.invoice.downloadPdf({ invoiceId: invoice.id });
+    expect(Buffer.from(download.pdfBase64, 'base64').subarray(0, 5).toString('utf8')).toBe('%PDF-');
+
+    const { caller: unlinkedParentCaller } = createCaller(unlinkedParentUser, fakeDb);
+    await expect(unlinkedParentCaller.invoice.listParent({ status: 'All' })).resolves.toMatchObject(
+      {
+        invoices: [],
+      },
+    );
+    await expect(
+      unlinkedParentCaller.invoice.downloadPdf({ invoiceId: invoice.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      unlinkedParentCaller.invoice.parentMarkPaid({ invoiceId: invoice.id }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    await expect(
+      linkedParentCaller.invoice.parentMarkPaid({ invoiceId: invoice.id }),
+    ).resolves.toMatchObject({ status: 'PaymentPending', kind: 'Manual' });
+  });
+
+  it('rejects invalid manual invoice inputs, duplicate numbers, and mixed families', async () => {
+    const existingInvoice = makeInvoice({
+      id: invoiceId,
+      invoiceNumber: manualInvoiceInput.invoiceNumber,
+    });
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: secondParentUser.id, studentId: otherStudentId },
+      ],
+      initialInvoices: [existingInvoice],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    await expect(
+      adminCaller.invoice.createManual({ ...manualInvoiceInput, invoiceTitle: '   ' }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(
+      adminCaller.invoice.createManual({ ...manualInvoiceInput, amountPence: 0 }),
+    ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+    await expect(adminCaller.invoice.createManual(manualInvoiceInput)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'selected students must belong to one family',
+    });
+
+    const singleFamilyInput = {
+      ...manualInvoiceInput,
+      studentIds: [linkedStudentId],
+    };
+    await expect(adminCaller.invoice.createManual(singleFamilyInput)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'invoice number already exists',
+    });
+  });
+
+  it('edits only unpaid manual invoices and preserves the manual invoice kind', async () => {
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+    const created = await adminCaller.invoice.createManual(manualInvoiceInput);
+
+    const updated = await adminCaller.invoice.updateManual({
+      ...manualInvoiceInput,
+      invoiceId: created.id,
+      invoiceTitle: 'Registration fee',
+      amountPence: 20_000,
+      invoiceNumber: 'OLC-MANUAL-001-REV',
+    });
+
+    expect(updated).toMatchObject({
+      kind: 'Manual',
+      invoiceTitle: 'Registration fee',
+      invoiceNumber: 'OLC-MANUAL-001-REV',
+      subtotalAmountPence: 40_000,
+      totalAmountPence: 40_000,
+    });
+    expect(updated.lineItems.map((line) => line.totalAmountPence)).toEqual([20_000, 20_000]);
+    expect(decrypt(fakeDb.invoices[0]?.extractedTextEnc)).toContain('Registration fee');
+    expect(fakeDb.invoices[0]?.kind).toBe('Manual');
+
+    await expect(
+      adminCaller.invoice.updateGenerated({
+        invoiceId: created.id,
+        schoolYear: 2026,
+        billingCadence: 'Monthly',
+        studentIds: [linkedStudentId, otherStudentId],
+        familyLabel: 'Parent family',
+        invoiceNumber: 'OLC-SCHOOL-FEE-REV',
+        issuedOn: '2026-08-27',
+        dueOn: '2026-09-10',
+        term: 'AUTUMN 2026',
+        lineItems: [
+          { description: 'Fee - Talia Parent', quantity: 1, unitAmountPence: 20_000 },
+          { description: 'Fee - Other Child', quantity: 1, unitAmountPence: 20_000 },
+        ],
+        discounts: [],
+        discountExplanation: SCHOOL_FEE_DISCOUNT_EXPLANATION,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only school fee invoices can be edited',
+    });
+
+    const { caller: parentCaller } = createCaller(parentUser, fakeDb);
+    await parentCaller.invoice.parentMarkPaid({ invoiceId: created.id });
+    await expect(
+      adminCaller.invoice.updateManual({
+        ...manualInvoiceInput,
+        invoiceId: created.id,
+        invoiceNumber: 'OLC-MANUAL-PENDING',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only draft and unpaid invoices can be edited',
+    });
+
+    await adminCaller.invoice.confirmPayment({ invoiceId: created.id });
+    await expect(
+      adminCaller.invoice.updateManual({
+        ...manualInvoiceInput,
+        invoiceId: created.id,
+        invoiceNumber: 'OLC-MANUAL-PAID',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only draft and unpaid invoices can be edited',
+    });
+  });
+
+  it('does not allow a school-fee invoice to be edited through the manual route', async () => {
+    const schoolFeeInvoice = makeInvoice({ id: invoiceId });
+    const fakeDb = makeFakeDb({ initialInvoices: [schoolFeeInvoice] });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    await expect(
+      adminCaller.invoice.updateManual({
+        ...manualInvoiceInput,
+        invoiceId: schoolFeeInvoice.id,
+        studentIds: [linkedStudentId],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only manual invoices can be edited',
+    });
+  });
+
+  it('does not publish a manual draft through the school-fee route', async () => {
+    const manualDraft = makeInvoice({ id: invoiceId, status: 'Draft', kind: 'Manual' });
+    const fakeDb = makeFakeDb({ initialInvoices: [manualDraft] });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    await expect(
+      adminCaller.invoice.publishDraft({
+        invoiceId: manualDraft.id,
+        studentId: linkedStudentId,
+        invoiceNumber: 'OLC-MANUAL-DRAFT',
+        issuedOn: '2026-08-27',
+        dueOn: '2026-09-10',
+        term: null,
+        lineItems: [{ description: 'Fee', quantity: 1, unitAmountPence: 15_000 }],
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only school fee drafts can be published',
+    });
+  });
+
+  it('does not overwrite a payment status that changes while a manual edit is prepared', async () => {
+    let interceptUpdate = false;
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      beforeInvoiceUpdate: (invoice) => {
+        if (!interceptUpdate) return;
+        interceptUpdate = false;
+        invoice.status = 'PaymentPending';
+      },
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+    const created = await adminCaller.invoice.createManual(manualInvoiceInput);
+    interceptUpdate = true;
+
+    await expect(
+      adminCaller.invoice.updateManual({
+        ...manualInvoiceInput,
+        invoiceId: created.id,
+        invoiceTitle: 'Late edit',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'only draft and unpaid invoices can be edited',
+    });
+    expect(fakeDb.invoices[0]?.status).toBe('PaymentPending');
+    expect(decrypt(fakeDb.invoices[0]?.invoiceTitleEnc)).toBe('Sign-up fee');
+  });
+
+  it('itemizes every selected child when a manual invoice needs continuation pages', async () => {
+    const studentIds = Array.from(
+      { length: 20 },
+      (_, index) => `cmanualstudent${String(index + 1).padStart(6, '0')}`,
+    );
+    const fakeDb = makeFakeDb({
+      initialStudents: studentIds.map((id) => makeStudent({ id })),
+      initialGuardians: studentIds.map((studentId) => ({
+        userId: parentUser.id,
+        studentId,
+      })),
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    const created = await adminCaller.invoice.createManual({
+      ...manualInvoiceInput,
+      studentIds,
+      invoiceNumber: 'OLC-MANUAL-020',
+    });
+    const pdf = await PDFDocument.load(
+      Buffer.from(decrypt(fakeDb.invoices[0]?.pdfBytesEnc) ?? '', 'base64'),
+    );
+
+    expect(created.lineItems).toHaveLength(20);
+    expect(created.totalAmountPence).toBe(300_000);
+    expect(pdf.getPageCount()).toBe(2);
   });
 
   it('uses capped discounts and prorated annual targets for generated invoices', async () => {

@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { TRPCError } from '@trpc/server';
+import { Prisma } from '@oasis/db';
 import type {
-  Prisma,
   SchoolFeeBillingCadence,
   SchoolFeeInvoiceDiscountKind,
   SchoolFeeInvoiceKind,
@@ -117,6 +117,7 @@ type InvoiceRow = {
   studentId: string | null;
   status: SchoolFeeInvoiceStatus;
   kind: SchoolFeeInvoiceKind;
+  invoiceTitleEnc: string | null;
   schoolYear: number | null;
   billingCadence: SchoolFeeBillingCadence | null;
   familyLabelEnc: string | null;
@@ -221,6 +222,7 @@ export interface SchoolFeeInvoiceDto {
   students: SchoolFeeInvoiceStudentDto[];
   status: SchoolFeeInvoiceStatus;
   kind: SchoolFeeInvoiceKind;
+  invoiceTitle: string | null;
   displayStatus: SchoolFeeInvoiceDisplayStatus;
   schoolYear: number | null;
   billingCadence: SchoolFeeBillingCadence | null;
@@ -447,6 +449,23 @@ const createGeneratedInput = z.object({
 });
 
 const updateGeneratedInput = createGeneratedInput.extend({
+  invoiceId: z.string().cuid(),
+});
+
+const createManualInput = z.object({
+  invoiceTitle: z.string().trim().min(1).max(160),
+  amountPence: z.number().int().positive().max(5_000_000),
+  studentIds: studentIdsInput,
+  familyLabel: z.string().trim().min(1).max(160),
+  invoiceNumber: z.string().trim().min(1).max(80),
+  issuedOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u)
+    .nullable(),
+  dueOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+});
+
+const updateManualInput = createManualInput.extend({
   invoiceId: z.string().cuid(),
 });
 
@@ -697,6 +716,7 @@ function mapStudentRows(ctx: AuthedContext, invoice: InvoiceRow): SchoolFeeInvoi
 }
 
 function discountExplanationFromRow(ctx: AuthedContext, invoice: InvoiceRow): string {
+  if (invoice.kind === 'Manual') return '';
   return (
     decryptOptional(ctx.db.$enc.decrypt, invoice.discountExplanationEnc) ??
     SCHOOL_FEE_DISCOUNT_EXPLANATION
@@ -723,6 +743,7 @@ function mapInvoice(ctx: AuthedContext, invoice: InvoiceRow, now: Date): SchoolF
     students,
     status: invoice.status,
     kind: invoice.kind,
+    invoiceTitle: decryptOptional(ctx.db.$enc.decrypt, invoice.invoiceTitleEnc),
     displayStatus: schoolFeeInvoiceDisplayStatus(invoice.status, invoice.dueOn, now),
     schoolYear: invoice.schoolYear,
     billingCadence: invoice.billingCadence,
@@ -1602,13 +1623,34 @@ function decodePdfLiteralString(value: string): string {
 async function loadDraftForPublishing(tx: RlsTx, invoiceId: string) {
   const invoice = await tx.schoolFeeInvoice.findUnique({
     where: { id: invoiceId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, kind: true },
   });
   if (!invoice) {
     throw new TRPCError({ code: 'NOT_FOUND', message: 'invoice not found' });
   }
   if (invoice.status !== 'Draft') {
     throw new TRPCError({ code: 'BAD_REQUEST', message: 'only draft invoices can be published' });
+  }
+  if (invoice.kind !== 'SchoolFee') {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'only school fee drafts can be published',
+    });
+  }
+}
+
+function rethrowInvoiceWriteConflict(error: unknown, message: string): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+    throw new TRPCError({ code: 'BAD_REQUEST', message });
+  }
+  throw error;
+}
+
+async function guardedInvoiceWrite<T>(write: () => Promise<T>, message: string): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    rethrowInvoiceWriteConflict(error, message);
   }
 }
 
@@ -1627,6 +1669,106 @@ async function assertActiveStudents(tx: RlsTx, studentIds: readonly string[]) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'one or more students were not found' });
     }
     return student;
+  });
+}
+
+type ManualInvoiceInput = z.infer<typeof createManualInput>;
+
+interface ManualInvoiceStudent {
+  id: string;
+  fullName: string;
+  yearGroup: string;
+}
+
+async function assertManualInvoiceFamily(
+  ctx: AuthedContext,
+  tx: RlsTx,
+  studentIds: readonly string[],
+): Promise<ManualInvoiceStudent[]> {
+  const students = await tx.student.findMany({
+    where: { id: { in: [...studentIds] }, active: true },
+    select: {
+      id: true,
+      fullNameEnc: true,
+      yearGroup: true,
+      guardians: { select: { userId: true } },
+    },
+  });
+  if (students.length !== studentIds.length) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: 'one or more students were not found' });
+  }
+
+  const byId = new Map(students.map((student) => [student.id, student]));
+  const orderedStudents = studentIds.map((studentId) => {
+    const student = byId.get(studentId);
+    if (!student) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'one or more students were not found' });
+    }
+    const fullName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student name');
+    return {
+      id: student.id,
+      fullName,
+      yearGroup: student.yearGroup,
+      familyKey: billableFamilyKey(
+        fullName,
+        student.guardians.map((guardian) => guardian.userId),
+      ),
+    };
+  });
+
+  if (new Set(orderedStudents.map((student) => student.familyKey)).size !== 1) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'selected students must belong to one family',
+    });
+  }
+
+  return orderedStudents.map(({ id, fullName, yearGroup }) => ({ id, fullName, yearGroup }));
+}
+
+function manualInvoiceLines(
+  input: ManualInvoiceInput,
+  students: readonly ManualInvoiceStudent[],
+): SchoolFeeInvoiceLineInput[] {
+  return students.map((student) => ({
+    description: `${input.invoiceTitle} - ${student.fullName}`,
+    quantity: 1,
+    unitAmountPence: input.amountPence,
+  }));
+}
+
+async function generateManualInvoicePdf(
+  input: ManualInvoiceInput,
+  students: readonly ManualInvoiceStudent[],
+) {
+  const lineItems = manualInvoiceLines(input, students);
+  const totalAmountPence = input.amountPence * students.length;
+  return generateSchoolFeeInvoicePdf({
+    documentTitle: 'Invoice',
+    billingLabel: input.invoiceTitle,
+    invoiceNumber: input.invoiceNumber,
+    issuedOn: parseDateInput(input.issuedOn),
+    dueOn: parseDateInput(input.dueOn),
+    billTo: input.familyLabel,
+    familyLabel: null,
+    students: students.map((student) => ({
+      name: student.fullName,
+      yearGroup: student.yearGroup,
+    })),
+    schoolYear: null,
+    billingCadence: null,
+    term: null,
+    subtotalAmountPence: totalAmountPence,
+    discountAmountPence: 0,
+    totalAmountPence,
+    discountExplanation: '',
+    paymentReference: input.invoiceNumber,
+    lineItems: lineItems.map((line) => ({
+      ...line,
+      totalAmountPence: input.amountPence,
+    })),
+    discounts: [],
+    discountBreakdowns: [],
   });
 }
 
@@ -1949,6 +2091,7 @@ async function buildGeneratedInvoicePdf(
 ): Promise<{ pdfBase64: string; extractedText: string; fileSizeBytes: number }> {
   const students = mapStudentRows(ctx, invoice);
   const invoiceNumber = invoice.invoiceNumber ?? 'School Fee Invoice';
+  const invoiceTitle = decryptOptional(ctx.db.$enc.decrypt, invoice.invoiceTitleEnc);
   const lineItems = invoice.lineItems.map((line) => lineInputFromRow(ctx, line));
   const lineItemDtos = invoice.lineItems.map((line) => lineDtoFromRow(ctx, line));
   const discounts = (invoice.discounts ?? []).map((discount) =>
@@ -1969,6 +2112,9 @@ async function buildGeneratedInvoicePdf(
     })),
   }));
   const pdfInput: GenerateSchoolFeeInvoicePdfInput = {
+    documentTitle: invoice.kind === 'Manual' ? 'Invoice' : 'School Fee Invoice',
+    billingLabel:
+      invoice.kind === 'Manual' ? (invoiceTitle ?? 'Invoice') : 'Invoice for Learning Centre Fees',
     invoiceNumber,
     issuedOn: invoice.issuedOn,
     dueOn: invoice.dueOn,
@@ -2007,6 +2153,12 @@ function uniqueValues(values: readonly string[]): string[] {
 function familyNameFromStudentName(fullName: string): string {
   const words = fullName.trim().split(/\s+/u);
   return words.at(-1) ?? fullName.trim();
+}
+
+function billableFamilyKey(fullName: string, guardianIds: readonly string[]): string {
+  return guardianIds.length > 0
+    ? [...guardianIds].sort().join('|')
+    : `student:${familyNameFromStudentName(fullName).toLowerCase()}`;
 }
 
 export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
@@ -2130,13 +2282,10 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
           email: decryptRequired(ctx.db.$enc.decrypt, guardian.user.emailEnc, 'guardian email'),
         }));
         const surname = familyNameFromStudentName(fullName);
-        const familyKey =
-          guardians.length > 0
-            ? guardians
-                .map((guardian) => guardian.id)
-                .sort()
-                .join('|')
-            : `student:${surname.toLowerCase()}`;
+        const familyKey = billableFamilyKey(
+          fullName,
+          guardians.map((guardian) => guardian.id),
+        );
         const existing = families.get(familyKey);
         const row =
           existing ??
@@ -2428,43 +2577,47 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         await assertActiveStudents(tx, studentIds);
         await assertInvoiceNumberAvailable(tx, input.invoiceNumber, input.invoiceId);
 
-        const updated = await tx.schoolFeeInvoice.update({
-          where: { id: input.invoiceId },
-          data: {
-            invoiceNumber: input.invoiceNumber,
-            studentId: studentIds[0] ?? null,
-            status: 'Unpaid',
-            schoolYear: input.schoolYear ?? null,
-            billingCadence: input.billingCadence ?? null,
-            familyLabelEnc: input.familyLabel ? ctx.db.$enc.encrypt(input.familyLabel) : null,
-            term: input.term,
-            issuedOn: parseDateInput(input.issuedOn),
-            dueOn: parseDateInput(input.dueOn),
-            paidAt: null,
-            subtotalAmountPence,
-            discountAmountPence: discountData.calculation.discountAmountPence,
-            totalAmountPence,
-            lineItems: {
-              deleteMany: {},
-              create: input.lineItems.map((line, index) => ({
-                ...lineData(line, index + 1),
-                descriptionEnc: ctx.db.$enc.encrypt(line.description),
-              })),
-            },
-            students: {
-              deleteMany: {},
-              create: studentIds.map((studentId, index) => ({
-                studentId,
-                position: index + 1,
-              })),
-            },
-            discounts: {
-              deleteMany: {},
-              create: discountData.create,
-            },
-          },
-          include: invoiceInclude,
-        });
+        const updated = await guardedInvoiceWrite(
+          () =>
+            tx.schoolFeeInvoice.update({
+              where: { id: input.invoiceId, status: 'Draft', kind: 'SchoolFee' },
+              data: {
+                invoiceNumber: input.invoiceNumber,
+                studentId: studentIds[0] ?? null,
+                status: 'Unpaid',
+                schoolYear: input.schoolYear ?? null,
+                billingCadence: input.billingCadence ?? null,
+                familyLabelEnc: input.familyLabel ? ctx.db.$enc.encrypt(input.familyLabel) : null,
+                term: input.term,
+                issuedOn: parseDateInput(input.issuedOn),
+                dueOn: parseDateInput(input.dueOn),
+                paidAt: null,
+                subtotalAmountPence,
+                discountAmountPence: discountData.calculation.discountAmountPence,
+                totalAmountPence,
+                lineItems: {
+                  deleteMany: {},
+                  create: input.lineItems.map((line, index) => ({
+                    ...lineData(line, index + 1),
+                    descriptionEnc: ctx.db.$enc.encrypt(line.description),
+                  })),
+                },
+                students: {
+                  deleteMany: {},
+                  create: studentIds.map((studentId, index) => ({
+                    studentId,
+                    position: index + 1,
+                  })),
+                },
+                discounts: {
+                  deleteMany: {},
+                  create: discountData.create,
+                },
+              },
+              include: invoiceInclude,
+            }),
+          'only school fee drafts can be published',
+        );
 
         await tx.auditLog.create({
           data: {
@@ -2484,6 +2637,174 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
           },
         });
 
+        return updated;
+      })) as InvoiceRow;
+
+      return mapInvoice(ctx, invoice, new Date());
+    }),
+
+    createManual: authedProcedure.input(createManualInput).mutation(async ({ ctx, input }) => {
+      await requireInvoiceManager(ctx, 'invoice.createManual');
+
+      const invoice = (await ctx.withRls(async (tx) => {
+        const students = await assertManualInvoiceFamily(ctx, tx, input.studentIds);
+        await assertInvoiceNumberAvailable(tx, input.invoiceNumber);
+
+        const lineItems = manualInvoiceLines(input, students);
+        const totalAmountPence = input.amountPence * students.length;
+        const pdf = await generateManualInvoicePdf(input, students);
+        const created = await tx.schoolFeeInvoice.create({
+          data: {
+            invoiceNumber: input.invoiceNumber,
+            studentId: input.studentIds[0] ?? null,
+            status: 'Unpaid',
+            kind: 'Manual',
+            invoiceTitleEnc: ctx.db.$enc.encrypt(input.invoiceTitle),
+            schoolYear: null,
+            billingCadence: null,
+            familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
+            term: null,
+            issuedOn: parseDateInput(input.issuedOn),
+            dueOn: parseDateInput(input.dueOn),
+            paidAt: null,
+            subtotalAmountPence: totalAmountPence,
+            discountAmountPence: 0,
+            totalAmountPence,
+            discountExplanationEnc: null,
+            originalFileNameEnc: ctx.db.$enc.encrypt(`${input.invoiceNumber}.pdf`),
+            fileMimeType: 'application/pdf',
+            fileSizeBytes: pdf.bytes.length,
+            pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
+            extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
+            createdById: ctx.user.id,
+            lineItems: {
+              create: lineItems.map((line, index) => ({
+                ...lineData(line, index + 1),
+                descriptionEnc: ctx.db.$enc.encrypt(line.description),
+              })),
+            },
+            students: {
+              create: input.studentIds.map((studentId, index) => ({
+                studentId,
+                position: index + 1,
+              })),
+            },
+          },
+          include: invoiceInclude,
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'SchoolFeeInvoice',
+            entityId: created.id,
+            meta: {
+              source: 'invoice.createManual',
+              studentIds: input.studentIds,
+              amountPence: input.amountPence,
+              totalAmountPence,
+            },
+          },
+        });
+        return created;
+      })) as InvoiceRow;
+
+      return mapInvoice(ctx, invoice, new Date());
+    }),
+
+    updateManual: authedProcedure.input(updateManualInput).mutation(async ({ ctx, input }) => {
+      await requireInvoiceManager(ctx, 'invoice.updateManual', input.invoiceId);
+
+      const invoice = (await ctx.withRls(async (tx) => {
+        const existing = await tx.schoolFeeInvoice.findUnique({
+          where: { id: input.invoiceId },
+          select: { id: true, status: true, kind: true },
+        });
+        if (!existing) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'invoice not found' });
+        }
+        if (existing.kind !== 'Manual') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'only manual invoices can be edited',
+          });
+        }
+        if (existing.status !== 'Draft' && existing.status !== 'Unpaid') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'only draft and unpaid invoices can be edited',
+          });
+        }
+
+        const students = await assertManualInvoiceFamily(ctx, tx, input.studentIds);
+        await assertInvoiceNumberAvailable(tx, input.invoiceNumber, input.invoiceId);
+        const lineItems = manualInvoiceLines(input, students);
+        const totalAmountPence = input.amountPence * students.length;
+        const pdf = await generateManualInvoicePdf(input, students);
+        const updated = await guardedInvoiceWrite(
+          () =>
+            tx.schoolFeeInvoice.update({
+              where: {
+                id: input.invoiceId,
+                kind: 'Manual',
+                status: { in: ['Draft', 'Unpaid'] },
+              },
+              data: {
+                invoiceNumber: input.invoiceNumber,
+                studentId: input.studentIds[0] ?? null,
+                kind: 'Manual',
+                invoiceTitleEnc: ctx.db.$enc.encrypt(input.invoiceTitle),
+                schoolYear: null,
+                billingCadence: null,
+                familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
+                term: null,
+                issuedOn: parseDateInput(input.issuedOn),
+                dueOn: parseDateInput(input.dueOn),
+                subtotalAmountPence: totalAmountPence,
+                discountAmountPence: 0,
+                totalAmountPence,
+                discountExplanationEnc: null,
+                originalFileNameEnc: ctx.db.$enc.encrypt(`${input.invoiceNumber}.pdf`),
+                fileMimeType: 'application/pdf',
+                fileSizeBytes: pdf.bytes.length,
+                pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
+                extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
+                parentMarkedPaidAt: null,
+                parentMarkedPaidById: null,
+                lineItems: {
+                  deleteMany: {},
+                  create: lineItems.map((line, index) => ({
+                    ...lineData(line, index + 1),
+                    descriptionEnc: ctx.db.$enc.encrypt(line.description),
+                  })),
+                },
+                students: {
+                  deleteMany: {},
+                  create: input.studentIds.map((studentId, index) => ({
+                    studentId,
+                    position: index + 1,
+                  })),
+                },
+                discounts: { deleteMany: {} },
+              },
+              include: invoiceInclude,
+            }),
+          'only draft and unpaid invoices can be edited',
+        );
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'SchoolFeeInvoice',
+            entityId: updated.id,
+            meta: {
+              source: 'invoice.updateManual',
+              studentIds: input.studentIds,
+              amountPence: input.amountPence,
+              totalAmountPence,
+            },
+          },
+        });
         return updated;
       })) as InvoiceRow;
 
@@ -2528,6 +2849,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             yearGroup: student.yearGroup,
           }));
           const pdf = await generateSchoolFeeInvoicePdf({
+            documentTitle: 'School Fee Invoice',
+            billingLabel: 'Invoice for Learning Centre Fees',
             invoiceNumber: input.invoiceNumber,
             issuedOn: parseDateInput(input.issuedOn),
             dueOn: parseDateInput(input.dueOn),
@@ -2659,10 +2982,16 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         const invoice = await ctx.withRls(async (tx) => {
           const existing = await tx.schoolFeeInvoice.findUnique({
             where: { id: input.invoiceId },
-            select: { id: true, status: true },
+            select: { id: true, status: true, kind: true },
           });
           if (!existing) {
             throw new TRPCError({ code: 'NOT_FOUND', message: 'invoice not found' });
+          }
+          if (existing.kind !== 'SchoolFee') {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'only school fee invoices can be edited',
+            });
           }
           if (existing.status !== 'Draft' && existing.status !== 'Unpaid') {
             throw new TRPCError({
@@ -2678,6 +3007,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             yearGroup: student.yearGroup,
           }));
           const pdf = await generateSchoolFeeInvoicePdf({
+            documentTitle: 'School Fee Invoice',
+            billingLabel: 'Invoice for Learning Centre Fees',
             invoiceNumber: input.invoiceNumber,
             issuedOn: parseDateInput(input.issuedOn),
             dueOn: parseDateInput(input.dueOn),
@@ -2715,47 +3046,54 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
             })),
           });
           const fileName = `${input.invoiceNumber}.pdf`;
-          const updated = await tx.schoolFeeInvoice.update({
-            where: { id: input.invoiceId },
-            data: {
-              invoiceNumber: input.invoiceNumber,
-              studentId: input.studentIds[0] ?? null,
-              status: existing.status,
-              schoolYear: input.schoolYear,
-              billingCadence: input.billingCadence,
-              familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
-              term: input.term,
-              issuedOn: parseDateInput(input.issuedOn),
-              dueOn: parseDateInput(input.dueOn),
-              subtotalAmountPence,
-              discountAmountPence: discountData.calculation.discountAmountPence,
-              totalAmountPence: discountData.calculation.totalAmountPence,
-              discountExplanationEnc: ctx.db.$enc.encrypt(input.discountExplanation),
-              originalFileNameEnc: ctx.db.$enc.encrypt(fileName),
-              fileMimeType: 'application/pdf',
-              fileSizeBytes: pdf.bytes.length,
-              pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
-              extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
-              parentMarkedPaidAt: null,
-              parentMarkedPaidById: null,
-              lineItems: {
-                deleteMany: {},
-                create: input.lineItems.map((line, index) => ({
-                  ...lineData(line, index + 1),
-                  descriptionEnc: ctx.db.$enc.encrypt(line.description),
-                })),
-              },
-              students: {
-                deleteMany: {},
-                create: input.studentIds.map((studentId, index) => ({
-                  studentId,
-                  position: index + 1,
-                })),
-              },
-              discounts: { deleteMany: {}, create: discountData.create },
-            },
-            include: invoiceInclude,
-          });
+          const updated = await guardedInvoiceWrite(
+            () =>
+              tx.schoolFeeInvoice.update({
+                where: {
+                  id: input.invoiceId,
+                  kind: 'SchoolFee',
+                  status: { in: ['Draft', 'Unpaid'] },
+                },
+                data: {
+                  invoiceNumber: input.invoiceNumber,
+                  studentId: input.studentIds[0] ?? null,
+                  schoolYear: input.schoolYear,
+                  billingCadence: input.billingCadence,
+                  familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
+                  term: input.term,
+                  issuedOn: parseDateInput(input.issuedOn),
+                  dueOn: parseDateInput(input.dueOn),
+                  subtotalAmountPence,
+                  discountAmountPence: discountData.calculation.discountAmountPence,
+                  totalAmountPence: discountData.calculation.totalAmountPence,
+                  discountExplanationEnc: ctx.db.$enc.encrypt(input.discountExplanation),
+                  originalFileNameEnc: ctx.db.$enc.encrypt(fileName),
+                  fileMimeType: 'application/pdf',
+                  fileSizeBytes: pdf.bytes.length,
+                  pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
+                  extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
+                  parentMarkedPaidAt: null,
+                  parentMarkedPaidById: null,
+                  lineItems: {
+                    deleteMany: {},
+                    create: input.lineItems.map((line, index) => ({
+                      ...lineData(line, index + 1),
+                      descriptionEnc: ctx.db.$enc.encrypt(line.description),
+                    })),
+                  },
+                  students: {
+                    deleteMany: {},
+                    create: input.studentIds.map((studentId, index) => ({
+                      studentId,
+                      position: index + 1,
+                    })),
+                  },
+                  discounts: { deleteMany: {}, create: discountData.create },
+                },
+                include: invoiceInclude,
+              }),
+            'only draft and unpaid invoices can be edited',
+          );
           await tx.auditLog.create({
             data: {
               userId: ctx.user.id,

@@ -24,6 +24,8 @@ const PAYMENT_BOX_WIDTH = 202;
 const PAYMENT_BOX_X = PAGE_WIDTH - PAD - PAYMENT_BOX_WIDTH;
 const PAYMENT_BOX_Y = 158;
 const SECTION_COLUMN_GAP = 24;
+const PRIMARY_PAGE_LINE_LIMIT = 8;
+const CONTINUATION_PAGE_LINE_LIMIT = 18;
 
 export interface GeneratedInvoiceLine {
   description: string;
@@ -55,6 +57,8 @@ export interface GeneratedInvoiceChildDiscountBreakdown {
 }
 
 export interface GenerateSchoolFeeInvoicePdfInput {
+  documentTitle: string;
+  billingLabel: string;
   invoiceNumber: string;
   issuedOn: Date | null;
   dueOn: Date | null;
@@ -102,6 +106,7 @@ export async function generateSchoolFeeInvoicePdf(
   drawDiscounts(page, fonts, input);
   drawPayment(page, fonts, input);
   drawFooter(page, fonts);
+  drawLineContinuationPages(pdf, fonts, input);
 
   const bytes = await pdf.save();
   return {
@@ -167,7 +172,7 @@ function drawHeader(
 
   drawText(
     page,
-    'School Fee Invoice',
+    input.documentTitle,
     PAGE_WIDTH - PAD - 168,
     PAGE_HEIGHT - 45,
     11,
@@ -239,7 +244,13 @@ function drawBillTo(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvo
   );
 
   page.drawRectangle({ x: PAD, y: y - 104, width: PAGE_WIDTH - PAD * 2, height: 32, color: NAVY });
-  drawText(page, 'Invoice for Learning Centre Fees', PAD + 14, y - 84, 11, fonts.bold, WHITE);
+  drawText(page, input.billingLabel, PAD + 14, y - 84, 11, fonts.bold, WHITE, 300);
+  const billingText = invoiceBillingDetail(input);
+  if (!billingText) return;
+  drawText(page, billingText, PAGE_WIDTH - PAD - 210, y - 84, 9, fonts.bold, WHITE, 200);
+}
+
+function invoiceBillingDetail(input: GenerateSchoolFeeInvoicePdfInput): string {
   const billingText = [
     input.term,
     input.billingCadence,
@@ -247,16 +258,8 @@ function drawBillTo(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvo
   ]
     .filter(Boolean)
     .join(' / ');
-  drawText(
-    page,
-    billingText || 'School fees',
-    PAGE_WIDTH - PAD - 210,
-    y - 84,
-    9,
-    fonts.bold,
-    WHITE,
-    200,
-  );
+  if (billingText) return billingText;
+  return input.documentTitle === 'School Fee Invoice' ? 'School fees' : '';
 }
 
 function drawLines(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvoicePdfInput) {
@@ -280,7 +283,7 @@ function drawLines(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvoi
   drawText(page, 'Amount', x + 462, y + 8, 8, fonts.bold, BLUE_GREY);
 
   y -= 30;
-  input.lineItems.slice(0, 8).forEach((line, index) => {
+  input.lineItems.slice(0, PRIMARY_PAGE_LINE_LIMIT).forEach((line, index) => {
     const breakdown = input.discountBreakdowns.find((candidate) => candidate.childIndex === index);
     const appliedDiscounts =
       breakdown?.discounts.filter((discount) => discount.appliedAmountPence > 0) ?? [];
@@ -329,26 +332,100 @@ function drawLines(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvoi
 
   const totalsY = y - 18;
   drawSummaryRow(page, fonts, 'Subtotal', input.subtotalAmountPence, totalsY);
-  drawSummaryRow(page, fonts, 'Discounts', -input.discountAmountPence, totalsY - 22);
+  const showDiscountRow =
+    input.discountAmountPence !== 0 || input.documentTitle === 'School Fee Invoice';
+  if (showDiscountRow) {
+    drawSummaryRow(page, fonts, 'Discounts', -input.discountAmountPence, totalsY - 22);
+  }
+  const totalOffset = showDiscountRow ? 58 : 36;
   page.drawRectangle({
     x: PAGE_WIDTH - PAD - 180,
-    y: totalsY - 58,
+    y: totalsY - totalOffset,
     width: 180,
     height: 34,
     color: PALE_BLUE,
     borderColor: BORDER,
     borderWidth: 1,
   });
-  drawText(page, 'Total', PAGE_WIDTH - PAD - 166, totalsY - 37, 10, fonts.bold, BLUE_GREY);
+  drawText(
+    page,
+    'Total',
+    PAGE_WIDTH - PAD - 166,
+    totalsY - totalOffset + 21,
+    10,
+    fonts.bold,
+    BLUE_GREY,
+  );
   drawText(
     page,
     formatMoney(input.totalAmountPence),
     PAGE_WIDTH - PAD - 88,
-    totalsY - 39,
+    totalsY - totalOffset + 19,
     15,
     fonts.bold,
     CRIMSON,
   );
+}
+
+function drawLineContinuationPages(
+  pdf: PDFDocument,
+  fonts: PdfFonts,
+  input: GenerateSchoolFeeInvoicePdfInput,
+): void {
+  const remainingLines = input.lineItems.slice(PRIMARY_PAGE_LINE_LIMIT);
+  for (let offset = 0; offset < remainingLines.length; offset += CONTINUATION_PAGE_LINE_LIMIT) {
+    const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    const lines = remainingLines.slice(offset, offset + CONTINUATION_PAGE_LINE_LIMIT);
+    page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 8, width: PAGE_WIDTH, height: 8, color: NAVY });
+    page.drawRectangle({
+      x: PAGE_WIDTH - 170,
+      y: PAGE_HEIGHT - 8,
+      width: 170,
+      height: 8,
+      color: CRIMSON,
+    });
+    drawText(
+      page,
+      `${input.documentTitle} ${input.invoiceNumber}`,
+      PAD,
+      PAGE_HEIGHT - 48,
+      14,
+      fonts.bold,
+    );
+    drawText(page, 'Line items continued', PAD, PAGE_HEIGHT - 70, 9, fonts.bold, MUTED);
+
+    let y = PAGE_HEIGHT - 108;
+    const width = PAGE_WIDTH - PAD * 2;
+    page.drawRectangle({
+      x: PAD,
+      y,
+      width,
+      height: 24,
+      color: PALE_BLUE,
+      borderColor: BORDER,
+      borderWidth: 1,
+    });
+    drawText(page, 'Description', PAD + 10, y + 8, 8, fonts.bold, BLUE_GREY);
+    drawText(page, 'Qty', PAD + 312, y + 8, 8, fonts.bold, BLUE_GREY);
+    drawText(page, 'Unit', PAD + 365, y + 8, 8, fonts.bold, BLUE_GREY);
+    drawText(page, 'Amount', PAD + 462, y + 8, 8, fonts.bold, BLUE_GREY);
+
+    y -= 30;
+    lines.forEach((line) => {
+      drawText(page, line.description, PAD + 10, y + 12, 9.5, fonts.bold, NAVY, 285);
+      drawText(page, String(line.quantity), PAD + 316, y + 12, 9, fonts.regular, NAVY);
+      drawText(page, formatMoney(line.unitAmountPence), PAD + 365, y + 12, 9, fonts.regular, NAVY);
+      drawText(page, formatMoney(line.totalAmountPence), PAD + 462, y + 12, 9, fonts.bold, NAVY);
+      page.drawLine({
+        start: { x: PAD, y: y - 10 },
+        end: { x: PAGE_WIDTH - PAD, y: y - 10 },
+        thickness: 0.75,
+        color: BORDER,
+      });
+      y -= 32;
+    });
+    drawFooter(page, fonts);
+  }
 }
 
 function drawSummaryRow(
@@ -363,13 +440,16 @@ function drawSummaryRow(
 }
 
 function drawDiscounts(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvoicePdfInput) {
+  const explanation = input.discountExplanation.trim();
+  if (!explanation && input.discounts.length === 0) return;
+
   const x = PAD;
   const titleY = 322;
   const bodyY = titleY - 18;
   const bodyLineHeight = 10.5;
   const leftColumnWidth = PAYMENT_BOX_X - x - SECTION_COLUMN_GAP;
   const explanationLines = wrapText(
-    input.discountExplanation || SCHOOL_FEE_DISCOUNT_EXPLANATION,
+    explanation || SCHOOL_FEE_DISCOUNT_EXPLANATION,
     fonts.regular,
     8.5,
     leftColumnWidth,
@@ -518,18 +598,22 @@ function uniqueValues(values: readonly string[]): string[] {
 
 function invoiceSearchText(input: GenerateSchoolFeeInvoicePdfInput): string {
   return [
-    'School Fee Invoice',
+    input.documentTitle,
     `Invoice No ${input.invoiceNumber}`,
     `Issued ${formatDate(input.issuedOn)}`,
     `Due date ${formatDate(input.dueOn)}`,
     `Bill to ${input.billTo}`,
     `Student(s) ${input.students.map((student) => student.name).join(', ')}`,
     `Year group ${uniqueValues(input.students.map((student) => student.yearGroup)).join(', ')}`,
+    input.billingLabel,
+    invoiceBillingDetail(input) || null,
     `Subtotal ${formatMoney(input.subtotalAmountPence)}`,
     `Total ${formatMoney(input.totalAmountPence)}`,
     `Payment reference ${input.paymentReference}`,
-    input.discountExplanation || SCHOOL_FEE_DISCOUNT_EXPLANATION,
-  ].join('\n');
+    input.discountExplanation.trim() || null,
+  ]
+    .filter((line): line is string => line !== null)
+    .join('\n');
 }
 
 function loadLogoBytes(): Uint8Array | null {
