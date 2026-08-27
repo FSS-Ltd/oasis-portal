@@ -1413,6 +1413,8 @@ async function loadStudentFinanceSummary(
     tx.schoolFeeInvoice.findMany({
       where: {
         OR: [{ id: { in: linkedInvoiceIds } }, { studentId: { in: initialFamilyStudentIds } }],
+        kind: 'SchoolFee',
+        schoolYear,
         status: { not: 'Draft' },
       },
       include: invoiceInclude,
@@ -2367,6 +2369,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
               tx.schoolFeeInvoice.findMany({
                 where: {
                   OR: [{ id: { in: linkedInvoiceIds } }, { studentId: { in: studentIds } }],
+                  kind: 'SchoolFee',
+                  schoolYear,
                   status: { not: 'Draft' },
                 },
                 include: invoiceInclude,
@@ -2452,17 +2456,32 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
           orderBy: [{ dueOn: 'asc' }, { createdAt: 'desc' }],
         }),
       )) as InvoiceRow[];
+      const schoolYear = activeSchoolFeeYear();
+      const schoolFeeRows = (await ctx.withRls((tx) =>
+        tx.schoolFeeInvoice.findMany({
+          where: {
+            OR: [{ id: { in: linkedInvoiceIds } }, { studentId: { in: studentIds } }],
+            kind: 'SchoolFee',
+            schoolYear,
+            status: { not: 'Draft' },
+          },
+          include: invoiceInclude,
+          orderBy: [{ dueOn: 'asc' }, { createdAt: 'desc' }],
+        }),
+      )) as InvoiceRow[];
 
       const mappedInvoices = rows.map((invoice) => mapInvoice(ctx, invoice, now));
+      const mappedSchoolFeeInvoices = schoolFeeRows.map((invoice) => mapInvoice(ctx, invoice, now));
       const invoices = mappedInvoices
         .filter((invoice) => invoiceMatchesParentStatus(invoice, input?.status ?? 'All'))
         .filter((invoice) => invoiceMatchesSearch(invoice, input?.search));
-      const schoolYear = activeSchoolFeeYear();
       const feeConfig = await loadSchoolFeeConfig(ctx, schoolYear);
       const familyStudentIds = [
         ...new Set([
           ...studentIds,
-          ...mappedInvoices.flatMap((invoice) => invoice.students.map((student) => student.id)),
+          ...mappedSchoolFeeInvoices.flatMap((invoice) =>
+            invoice.students.map((student) => student.id),
+          ),
         ]),
       ];
       const familyStudentRows =
@@ -2481,11 +2500,15 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         enrolmentDate: dateOnly(student.enrolmentDate) ?? '',
       })) satisfies BillableStudentDto[];
 
-      await auditInvoiceDecrypt(ctx, 'invoice.listParent', mappedInvoices.length);
+      await auditInvoiceDecrypt(
+        ctx,
+        'invoice.listParent',
+        mappedInvoices.length + mappedSchoolFeeInvoices.length,
+      );
       await auditStudentDecrypt(ctx, 'invoice.listParent', familyStudents.length);
       const yearSummary = calculateFamilyYearSummary({
         feeConfig,
-        invoices: mappedInvoices,
+        invoices: mappedSchoolFeeInvoices,
         schoolYear,
         students: familyStudents,
       });
@@ -2493,7 +2516,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         invoices,
         stats: calculateParentYearStats({
           feeConfig,
-          invoices: mappedInvoices,
+          invoices: mappedSchoolFeeInvoices,
           schoolYear,
           students: familyStudents,
         }),

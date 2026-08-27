@@ -133,6 +133,8 @@ interface FakeInvoiceFindManyArgs {
   where?: {
     id?: { in: string[] };
     studentId?: { in: string[] };
+    kind?: InvoiceKind;
+    schoolYear?: number;
     status?: { not: InvoiceStatus };
     OR?: Array<{ id?: { in: string[] }; studentId?: { in: string[] } }>;
   };
@@ -567,6 +569,8 @@ function makeFakeDb({
     ) {
       return false;
     }
+    if (where.kind && invoice.kind !== where.kind) return false;
+    if (where.schoolYear !== undefined && invoice.schoolYear !== where.schoolYear) return false;
     if (where.status?.not && invoice.status === where.status.not) return false;
     return true;
   }
@@ -1178,8 +1182,19 @@ describe('invoiceRouter', () => {
       totalAmountPence: 98000,
       subtotalAmountPence: 98000,
     });
+    const manualInvoice = makeInvoice({
+      id: 'cinvoice00000000004',
+      invoiceNumber: 'OLC-MANUAL-001',
+      kind: 'Manual',
+      status: 'Paid',
+      subtotalAmountPence: 15000,
+      totalAmountPence: 15000,
+      paidAt: new Date('2026-05-17T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-17T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
     const fakeDb = makeFakeDb({
-      initialInvoices: [paidInvoice, pendingInvoice, unpaidInvoice],
+      initialInvoices: [paidInvoice, pendingInvoice, unpaidInvoice, manualInvoice],
       initialDiscounts: [
         makeDiscount({
           invoiceId: paidInvoice.id,
@@ -1261,28 +1276,83 @@ describe('invoiceRouter', () => {
     expect(download.fileName).toBe('invoice.pdf');
   });
 
-  it('lists corrected and ordinary invoices with their persisted kinds', async () => {
-    const corrected = makeInvoice({
+  it('keeps manual invoices visible without including them in school-fee totals', async () => {
+    const manualInvoice = makeInvoice({
       id: invoiceId,
       invoiceNumber: 'OLC0059',
       kind: 'Manual',
+      status: 'Paid',
+      subtotalAmountPence: 15000,
+      totalAmountPence: 15000,
+      paidAt: new Date('2026-05-16T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-16T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
     });
-    const ordinary = makeInvoice({
+    const schoolFeeInvoice = makeInvoice({
       id: 'cinvoice00000000002',
       invoiceNumber: 'OLC0011',
       kind: 'SchoolFee',
+      status: 'Paid',
+      subtotalAmountPence: 24500,
+      totalAmountPence: 24500,
+      paidAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
     });
-    const fakeDb = makeFakeDb({ initialInvoices: [corrected, ordinary] });
+    const fakeDb = makeFakeDb({
+      initialStudents: [
+        makeStudent({
+          id: linkedStudentId,
+          enrolmentDate: new Date('2026-01-12T00:00:00.000Z'),
+        }),
+        makeStudent({
+          id: otherStudentId,
+          enrolmentDate: new Date('2026-04-01T00:00:00.000Z'),
+        }),
+      ],
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      initialInvoices: [manualInvoice, schoolFeeInvoice],
+      initialLines: [
+        makeLine({
+          invoiceId: manualInvoice.id,
+          unitAmountPence: 15000,
+          totalAmountPence: 15000,
+        }),
+        makeLine({
+          invoiceId: schoolFeeInvoice.id,
+          unitAmountPence: 24500,
+          totalAmountPence: 24500,
+        }),
+      ],
+    });
     const { caller } = createCaller(parentUser, fakeDb);
 
     const parentList = await caller.invoice.listParent({ status: 'All' });
 
     expect(parentList.invoices).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ invoiceNumber: corrected.invoiceNumber, kind: 'Manual' }),
-        expect.objectContaining({ invoiceNumber: ordinary.invoiceNumber, kind: 'SchoolFee' }),
+        expect.objectContaining({ invoiceNumber: manualInvoice.invoiceNumber, kind: 'Manual' }),
+        expect.objectContaining({
+          invoiceNumber: schoolFeeInvoice.invoiceNumber,
+          kind: 'SchoolFee',
+        }),
       ]),
     );
+    expect(parentList.stats).toMatchObject({
+      totalCount: 1,
+      paidCount: 1,
+      paidAmountPence: 24500,
+    });
+    expect(parentList.yearSummary).toMatchObject({
+      issuedAmountPence: 24500,
+      paidAmountPence: 24500,
+      remainingAmountPence: 269500,
+      leftToInvoiceAmountPence: 269500,
+      invoiceCount: 1,
+    });
   });
 
   it('lets linked supervisor-parent users view only linked child fee invoices', async () => {
@@ -1446,10 +1516,26 @@ describe('invoiceRouter', () => {
     );
 
     const { caller: linkedParentCaller } = createCaller(parentUser, fakeDb);
+    const emptySchoolFeeStats = {
+      totalCount: 0,
+      unpaidCount: 0,
+      paymentPendingCount: 0,
+      paidCount: 0,
+      paidAmountPence: 0,
+    };
+    const emptySchoolFeeSummary = {
+      issuedAmountPence: 0,
+      paidAmountPence: 0,
+      remainingAmountPence: 343000,
+      leftToInvoiceAmountPence: 343000,
+      invoiceCount: 0,
+    };
     const linkedList = await linkedParentCaller.invoice.listParent({ status: 'All' });
     expect(linkedList.invoices).toEqual([
       expect.objectContaining({ id: invoice.id, kind: 'Manual', invoiceTitle: 'Sign-up fee' }),
     ]);
+    expect(linkedList.stats).toMatchObject(emptySchoolFeeStats);
+    expect(linkedList.yearSummary).toMatchObject(emptySchoolFeeSummary);
     const download = await linkedParentCaller.invoice.downloadPdf({ invoiceId: invoice.id });
     expect(Buffer.from(download.pdfBase64, 'base64').subarray(0, 5).toString('utf8')).toBe('%PDF-');
 
@@ -1469,6 +1555,22 @@ describe('invoiceRouter', () => {
     await expect(
       linkedParentCaller.invoice.parentMarkPaid({ invoiceId: invoice.id }),
     ).resolves.toMatchObject({ status: 'PaymentPending', kind: 'Manual' });
+    const pendingList = await linkedParentCaller.invoice.listParent({ status: 'All' });
+    expect(pendingList.invoices).toEqual([
+      expect.objectContaining({ id: invoice.id, kind: 'Manual', status: 'PaymentPending' }),
+    ]);
+    expect(pendingList.stats).toMatchObject(emptySchoolFeeStats);
+    expect(pendingList.yearSummary).toMatchObject(emptySchoolFeeSummary);
+
+    await expect(
+      adminCaller.invoice.confirmPayment({ invoiceId: invoice.id }),
+    ).resolves.toMatchObject({ status: 'Paid', kind: 'Manual' });
+    const paidList = await linkedParentCaller.invoice.listParent({ status: 'All' });
+    expect(paidList.invoices).toEqual([
+      expect.objectContaining({ id: invoice.id, kind: 'Manual', status: 'Paid' }),
+    ]);
+    expect(paidList.stats).toMatchObject(emptySchoolFeeStats);
+    expect(paidList.yearSummary).toMatchObject(emptySchoolFeeSummary);
   });
 
   it('rejects invalid manual invoice inputs, duplicate numbers, and mixed families', async () => {
@@ -2257,12 +2359,31 @@ describe('invoiceRouter', () => {
       paymentConfirmedAt: new Date('2026-05-17T08:00:00.000Z'),
       paymentConfirmedById: financeUser.id,
     });
+    const manualInvoice = makeInvoice({
+      id: 'cinvoice00000000006',
+      invoiceNumber: 'OLC-MANUAL-001',
+      kind: 'Manual',
+      status: 'Paid',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 15000,
+      totalAmountPence: 15000,
+      paidAt: new Date('2026-05-18T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-18T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
     const fakeDb = makeFakeDb({
       initialGuardians: [
         { userId: parentUser.id, studentId: linkedStudentId },
         { userId: parentUser.id, studentId: otherStudentId },
       ],
-      initialInvoices: [paidInvoice, pendingInvoice, overdueInvoice, unpaidInvoice, siblingInvoice],
+      initialInvoices: [
+        paidInvoice,
+        pendingInvoice,
+        overdueInvoice,
+        unpaidInvoice,
+        siblingInvoice,
+        manualInvoice,
+      ],
       initialLines: [
         makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
         makeLine({
@@ -2288,6 +2409,12 @@ describe('invoiceRouter', () => {
           invoiceId: siblingInvoice.id,
           unitAmountPence: 24500,
           totalAmountPence: 24500,
+        }),
+        makeLine({
+          id: 'cline000000000006',
+          invoiceId: manualInvoice.id,
+          unitAmountPence: 15000,
+          totalAmountPence: 15000,
         }),
       ],
       initialDiscounts: [
