@@ -1155,7 +1155,7 @@ describe('invoiceRouter', () => {
     expect(auditCall?.data.entity).toBe('invoice.listAdmin');
   });
 
-  it('shows family year payment progress when creating invoices', async () => {
+  it('shows active-year non-draft family payment progress when creating invoices', async () => {
     const paidInvoice = makeInvoice({
       id: invoiceId,
       status: 'Paid',
@@ -1193,8 +1193,33 @@ describe('invoiceRouter', () => {
       paymentConfirmedAt: new Date('2026-05-17T08:00:00.000Z'),
       paymentConfirmedById: financeUser.id,
     });
+    const offYearInvoice = makeInvoice({
+      id: 'cinvoice00000000005',
+      invoiceNumber: 'OLC-2025-001',
+      schoolYear: 2025,
+      status: 'Paid',
+      subtotalAmountPence: 31000,
+      totalAmountPence: 31000,
+      paidAt: new Date('2026-05-18T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-18T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const draftInvoice = makeInvoice({
+      id: 'cinvoice00000000006',
+      invoiceNumber: null,
+      status: 'Draft',
+      subtotalAmountPence: 32000,
+      totalAmountPence: 32000,
+    });
     const fakeDb = makeFakeDb({
-      initialInvoices: [paidInvoice, pendingInvoice, unpaidInvoice, manualInvoice],
+      initialInvoices: [
+        paidInvoice,
+        pendingInvoice,
+        unpaidInvoice,
+        manualInvoice,
+        offYearInvoice,
+        draftInvoice,
+      ],
       initialDiscounts: [
         makeDiscount({
           invoiceId: paidInvoice.id,
@@ -1215,6 +1240,14 @@ describe('invoiceRouter', () => {
       family.students.some((student) => student.id === linkedStudentId),
     );
 
+    expect(
+      fakeDb.db.schoolFeeInvoice.findMany.mock.calls.some(
+        ([args]) =>
+          args?.where?.kind === 'SchoolFee' &&
+          args.where.schoolYear === 2026 &&
+          args.where.status?.not === 'Draft',
+      ),
+    ).toBe(true);
     expect(parentFamily?.yearSummary).toMatchObject({
       schoolYear: 2026,
       cycleLabel: 'Sep 2025 - Aug 2026',
@@ -1276,7 +1309,7 @@ describe('invoiceRouter', () => {
     expect(download.fileName).toBe('invoice.pdf');
   });
 
-  it('keeps manual invoices visible without including them in school-fee totals', async () => {
+  it('keeps manual and off-year invoices visible without including them in active school-fee totals', async () => {
     const manualInvoice = makeInvoice({
       id: invoiceId,
       invoiceNumber: 'OLC0059',
@@ -1299,6 +1332,24 @@ describe('invoiceRouter', () => {
       paymentConfirmedAt: new Date('2026-05-15T08:00:00.000Z'),
       paymentConfirmedById: financeUser.id,
     });
+    const offYearInvoice = makeInvoice({
+      id: 'cinvoice00000000003',
+      invoiceNumber: 'OLC-2025-001',
+      schoolYear: 2025,
+      status: 'Paid',
+      subtotalAmountPence: 31000,
+      totalAmountPence: 31000,
+      paidAt: new Date('2026-05-14T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-14T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const draftInvoice = makeInvoice({
+      id: 'cinvoice00000000004',
+      invoiceNumber: null,
+      status: 'Draft',
+      subtotalAmountPence: 32000,
+      totalAmountPence: 32000,
+    });
     const fakeDb = makeFakeDb({
       initialStudents: [
         makeStudent({
@@ -1314,7 +1365,7 @@ describe('invoiceRouter', () => {
         { userId: parentUser.id, studentId: linkedStudentId },
         { userId: parentUser.id, studentId: otherStudentId },
       ],
-      initialInvoices: [manualInvoice, schoolFeeInvoice],
+      initialInvoices: [manualInvoice, schoolFeeInvoice, offYearInvoice, draftInvoice],
       initialLines: [
         makeLine({
           invoiceId: manualInvoice.id,
@@ -1326,12 +1377,30 @@ describe('invoiceRouter', () => {
           unitAmountPence: 24500,
           totalAmountPence: 24500,
         }),
+        makeLine({
+          invoiceId: offYearInvoice.id,
+          unitAmountPence: 31000,
+          totalAmountPence: 31000,
+        }),
+        makeLine({
+          invoiceId: draftInvoice.id,
+          unitAmountPence: 32000,
+          totalAmountPence: 32000,
+        }),
       ],
     });
     const { caller } = createCaller(parentUser, fakeDb);
 
     const parentList = await caller.invoice.listParent({ status: 'All' });
 
+    expect(
+      fakeDb.db.schoolFeeInvoice.findMany.mock.calls.some(
+        ([args]) =>
+          args?.where?.kind === 'SchoolFee' &&
+          args.where.schoolYear === 2026 &&
+          args.where.status?.not === 'Draft',
+      ),
+    ).toBe(true);
     expect(parentList.invoices).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ invoiceNumber: manualInvoice.invoiceNumber, kind: 'Manual' }),
@@ -1339,8 +1408,14 @@ describe('invoiceRouter', () => {
           invoiceNumber: schoolFeeInvoice.invoiceNumber,
           kind: 'SchoolFee',
         }),
+        expect.objectContaining({
+          invoiceNumber: offYearInvoice.invoiceNumber,
+          kind: 'SchoolFee',
+          schoolYear: 2025,
+        }),
       ]),
     );
+    expect(parentList.invoices.map((invoice) => invoice.id)).not.toContain(draftInvoice.id);
     expect(parentList.stats).toMatchObject({
       totalCount: 1,
       paidCount: 1,
@@ -2307,7 +2382,7 @@ describe('invoiceRouter', () => {
     });
   });
 
-  it('summarises student finance for Pastor and Principal only', async () => {
+  it('summarises active-year non-draft student finance for Pastor and Principal only', async () => {
     const paidInvoice = makeInvoice({
       id: invoiceId,
       status: 'Paid',
@@ -2371,6 +2446,26 @@ describe('invoiceRouter', () => {
       paymentConfirmedAt: new Date('2026-05-18T08:00:00.000Z'),
       paymentConfirmedById: financeUser.id,
     });
+    const offYearInvoice = makeInvoice({
+      id: 'cinvoice00000000007',
+      invoiceNumber: 'OLC-2025-001',
+      schoolYear: 2025,
+      status: 'Paid',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 31000,
+      totalAmountPence: 31000,
+      paidAt: new Date('2026-05-19T08:00:00.000Z'),
+      paymentConfirmedAt: new Date('2026-05-19T08:00:00.000Z'),
+      paymentConfirmedById: financeUser.id,
+    });
+    const draftInvoice = makeInvoice({
+      id: 'cinvoice00000000008',
+      invoiceNumber: null,
+      status: 'Draft',
+      studentId: linkedStudentId,
+      subtotalAmountPence: 32000,
+      totalAmountPence: 32000,
+    });
     const fakeDb = makeFakeDb({
       initialGuardians: [
         { userId: parentUser.id, studentId: linkedStudentId },
@@ -2383,6 +2478,8 @@ describe('invoiceRouter', () => {
         unpaidInvoice,
         siblingInvoice,
         manualInvoice,
+        offYearInvoice,
+        draftInvoice,
       ],
       initialLines: [
         makeLine({ invoiceId: paidInvoice.id, unitAmountPence: 24500, totalAmountPence: 24500 }),
@@ -2415,6 +2512,18 @@ describe('invoiceRouter', () => {
           invoiceId: manualInvoice.id,
           unitAmountPence: 15000,
           totalAmountPence: 15000,
+        }),
+        makeLine({
+          id: 'cline000000000007',
+          invoiceId: offYearInvoice.id,
+          unitAmountPence: 31000,
+          totalAmountPence: 31000,
+        }),
+        makeLine({
+          id: 'cline000000000008',
+          invoiceId: draftInvoice.id,
+          unitAmountPence: 32000,
+          totalAmountPence: 32000,
         }),
       ],
       initialDiscounts: [
@@ -2450,6 +2559,14 @@ describe('invoiceRouter', () => {
       studentId: linkedStudentId,
     });
 
+    expect(
+      fakeDb.db.schoolFeeInvoice.findMany.mock.calls.some(
+        ([args]) =>
+          args?.where?.kind === 'SchoolFee' &&
+          args.where.schoolYear === 2026 &&
+          args.where.status?.not === 'Draft',
+      ),
+    ).toBe(true);
     expect(
       await pastorCaller.invoice.studentFinanceSummary({ studentId: linkedStudentId }),
     ).toEqual(summary);
