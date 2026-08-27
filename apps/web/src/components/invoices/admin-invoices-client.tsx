@@ -57,8 +57,10 @@ export function AdminInvoicesClient() {
   const [createOpen, setCreateOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [createInvoiceError, setCreateInvoiceError] = useState<string | null>(null);
+  const [createManualInvoiceError, setCreateManualInvoiceError] = useState<string | null>(null);
   const [uploadInvoiceError, setUploadInvoiceError] = useState<string | null>(null);
   const [editInvoiceError, setEditInvoiceError] = useState<string | null>(null);
+  const [editManualInvoiceError, setEditManualInvoiceError] = useState<string | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<InvoiceDto | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -124,6 +126,36 @@ export function AdminInvoicesClient() {
     onError(error) {
       setEditInvoiceError(friendlyErrorMessage(error, 'Invoice could not be updated.'));
       showErrorToast(error, 'Invoice could not be updated.');
+    },
+  });
+  const createManualInvoice = api.invoice.createManual.useMutation({
+    onSuccess: async (invoice) => {
+      setCreateManualInvoiceError(null);
+      setCreateOpen(false);
+      setSelectedInvoiceId(invoice.id);
+      await refreshInvoiceViews();
+      showSuccessToast('Manual invoice created.');
+    },
+    onError(error) {
+      setCreateManualInvoiceError(
+        friendlyErrorMessage(error, 'Manual invoice could not be created.'),
+      );
+      showErrorToast(error, 'Manual invoice could not be created.');
+    },
+  });
+  const updateManualInvoice = api.invoice.updateManual.useMutation({
+    onSuccess: async (invoice) => {
+      setEditManualInvoiceError(null);
+      setEditingInvoiceId(null);
+      setSelectedInvoiceId(invoice.id);
+      await refreshInvoiceViews();
+      showSuccessToast('Manual invoice updated.');
+    },
+    onError(error) {
+      setEditManualInvoiceError(
+        friendlyErrorMessage(error, 'Manual invoice could not be updated.'),
+      );
+      showErrorToast(error, 'Manual invoice could not be updated.');
     },
   });
   const publishUploadedInvoice = api.invoice.publishDraft.useMutation({
@@ -258,7 +290,9 @@ export function AdminInvoicesClient() {
               setCreateOpen(false);
               setEditingInvoiceId(null);
               setCreateInvoiceError(null);
+              setCreateManualInvoiceError(null);
               setEditInvoiceError(null);
+              setEditManualInvoiceError(null);
               setUploadInvoiceError(null);
               setUploadOpen(true);
             }}
@@ -273,7 +307,9 @@ export function AdminInvoicesClient() {
               setUploadOpen(false);
               setEditingInvoiceId(null);
               setEditInvoiceError(null);
+              setEditManualInvoiceError(null);
               setCreateInvoiceError(null);
+              setCreateManualInvoiceError(null);
               setCreateOpen(true);
             }}
             type="button"
@@ -375,7 +411,9 @@ export function AdminInvoicesClient() {
                 setUploadOpen(false);
                 setEditingInvoiceId(null);
                 setEditInvoiceError(null);
+                setEditManualInvoiceError(null);
                 setCreateInvoiceError(null);
+                setCreateManualInvoiceError(null);
                 setCreateOpen(true);
               }}
               type="button"
@@ -452,7 +490,9 @@ export function AdminInvoicesClient() {
                               setCreateOpen(false);
                               setUploadOpen(false);
                               setCreateInvoiceError(null);
+                              setCreateManualInvoiceError(null);
                               setEditInvoiceError(null);
+                              setEditManualInvoiceError(null);
                               setSelectedInvoiceId(invoice.id);
                               setEditingInvoiceId(invoice.id);
                             }}
@@ -487,7 +527,9 @@ export function AdminInvoicesClient() {
                 setCreateOpen(false);
                 setUploadOpen(false);
                 setCreateInvoiceError(null);
+                setCreateManualInvoiceError(null);
                 setEditInvoiceError(null);
+                setEditManualInvoiceError(null);
                 setSelectedInvoiceId(invoice.id);
                 setEditingInvoiceId(invoice.id);
               }}
@@ -524,12 +566,22 @@ export function AdminInvoicesClient() {
             onClose={() => {
               setCreateOpen(false);
             }}
-            onSubmit={(input) => {
+            onSubmitGenerated={(input) => {
               setCreateInvoiceError(null);
               createGeneratedInvoice.mutate(input);
             }}
-            pending={createGeneratedInvoice.isPending}
-            serverError={createInvoiceError}
+            onSubmitManual={(input) => {
+              setCreateManualInvoiceError(null);
+              createManualInvoice.mutate(input);
+            }}
+            pending={{
+              Manual: createManualInvoice.isPending,
+              SchoolFee: createGeneratedInvoice.isPending,
+            }}
+            serverError={{
+              Manual: createManualInvoiceError,
+              SchoolFee: createInvoiceError,
+            }}
             presets={presetsQuery.data ?? []}
           />
         ) : (
@@ -577,13 +629,23 @@ export function AdminInvoicesClient() {
             onClose={() => {
               setEditingInvoiceId(null);
             }}
-            onSubmit={(input) => {
+            onSubmitGenerated={(input) => {
               setEditInvoiceError(null);
               updateGeneratedInvoice.mutate({ ...input, invoiceId: editingInvoice.id });
             }}
-            pending={updateGeneratedInvoice.isPending}
+            onSubmitManual={(input) => {
+              setEditManualInvoiceError(null);
+              updateManualInvoice.mutate({ ...input, invoiceId: editingInvoice.id });
+            }}
+            pending={{
+              Manual: updateManualInvoice.isPending,
+              SchoolFee: updateGeneratedInvoice.isPending,
+            }}
             presets={presetsQuery.data ?? []}
-            serverError={editInvoiceError}
+            serverError={{
+              Manual: editManualInvoiceError,
+              SchoolFee: editInvoiceError,
+            }}
           />
         ) : (
           <AdminInvoiceCreateLoadingModal

@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, ReceiptText, X } from 'lucide-react';
 import {
   SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX,
@@ -14,12 +14,21 @@ import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import type { RouterInputs, RouterOutputs } from '@/lib/trpc';
 import { formatPence } from './invoice-ui';
+import {
+  defaultDueDate,
+  defaultInvoiceNumber,
+  ManualInvoiceForm,
+  parsePenceInput,
+  penceToPoundsInput,
+} from './manual-invoice-form';
 
 type BillableFamily = RouterOutputs['invoice']['listBillableFamilies'][number];
 type FeeConfig = RouterOutputs['invoice']['listFeeConfig'];
 type DiscountPreset = RouterOutputs['invoice']['discountPresets'][number];
 type CreateInvoiceInput = RouterInputs['invoice']['createGenerated'];
+type CreateManualInvoiceInput = RouterInputs['invoice']['createManual'];
 type InvoiceDto = RouterOutputs['invoice']['listAdmin']['invoices'][number];
+type InvoiceKind = InvoiceDto['kind'];
 
 interface LineForm {
   studentId: string | null;
@@ -58,17 +67,6 @@ function studentYearSummary(
   return family.yearSummary.children.find((child) => child.studentId === studentId) ?? null;
 }
 
-function penceToPoundsInput(amountPence: number): string {
-  return (amountPence / 100).toFixed(2);
-}
-
-function parsePenceInput(value: string): number | null {
-  const normalized = value.trim().replace(/[£,\s]/gu, '');
-  if (!/^[0-9]+(?:\.[0-9]{1,2})?$/u.test(normalized)) return null;
-  const amount = Number(normalized);
-  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
-}
-
 function parsePercentBps(value: string): number | null {
   const normalized = value.trim().replace(/%/gu, '');
   if (!/^[0-9]+(?:\.[0-9]{1,2})?$/u.test(normalized)) return null;
@@ -99,26 +97,6 @@ function defaultAmountForStudent({
   if (cadence === 'Annual') return summary.grossLeftToInvoiceAmountPence;
   if (summary.grossLeftToInvoiceAmountPence <= 0) return 0;
   return Math.min(fallbackAmountPence, summary.grossLeftToInvoiceAmountPence);
-}
-
-function defaultInvoiceNumber(): string {
-  const now = new Date();
-  return [
-    'OLC',
-    String(now.getFullYear()).slice(2),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0'),
-    String(now.getMilliseconds()).padStart(3, '0'),
-  ].join('');
-}
-
-function defaultDueDate(issuedOn: string): string {
-  const date = new Date(`${issuedOn}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + 14);
-  return date.toISOString().slice(0, 10);
 }
 
 function defaultTerm(issuedOn: string): string {
@@ -446,10 +424,11 @@ function FamilyYearSummary({
   );
 }
 
-function AdminInvoiceFormModal({
+function SchoolFeeInvoiceForm({
   families,
   feeConfig,
   initialInvoice,
+  invoiceKindSelector,
   mode,
   presets,
   onClose,
@@ -460,6 +439,7 @@ function AdminInvoiceFormModal({
   families: readonly BillableFamily[];
   feeConfig: FeeConfig;
   initialInvoice?: InvoiceDto;
+  invoiceKindSelector?: ReactNode;
   mode: 'create' | 'edit';
   presets: readonly DiscountPreset[];
   onClose: () => void;
@@ -761,13 +741,7 @@ function AdminInvoiceFormModal({
   }
 
   return (
-    <div aria-modal="true" className="invoice-modal invoice-modal--wide" role="dialog">
-      <button
-        aria-label={isEdit ? 'Close invoice editor' : 'Close invoice creator'}
-        className="invoice-modal__backdrop"
-        onClick={onClose}
-        type="button"
-      />
+    <div style={{ display: 'contents' }}>
       <form className="invoice-modal__panel" onSubmit={submit}>
         <header className="invoice-modal__header invoice-modal__header--navy">
           <span>
@@ -787,6 +761,11 @@ function AdminInvoiceFormModal({
         </header>
 
         <div className="invoice-modal__body invoice-create-grid">
+          {invoiceKindSelector ? (
+            <section className="invoice-create-section invoice-create-section--wide">
+              {invoiceKindSelector}
+            </section>
+          ) : null}
           <section className="invoice-create-section">
             <h3>Invoice details</h3>
             <div className="invoice-review-grid">
@@ -1183,6 +1162,84 @@ function AdminInvoiceFormModal({
           </Button>
         </footer>
       </form>
+    </div>
+  );
+}
+
+interface AdminInvoiceFormModalProps {
+  families: readonly BillableFamily[];
+  feeConfig: FeeConfig;
+  initialInvoice?: InvoiceDto;
+  mode: 'create' | 'edit';
+  presets: readonly DiscountPreset[];
+  onClose: () => void;
+  onSubmitGenerated: (input: CreateInvoiceInput) => void;
+  onSubmitManual: (input: CreateManualInvoiceInput) => void;
+  pending: Readonly<Record<InvoiceKind, boolean>>;
+  serverError: Readonly<Record<InvoiceKind, string | null | undefined>>;
+}
+
+function AdminInvoiceFormModal({
+  families,
+  feeConfig,
+  initialInvoice,
+  mode,
+  onClose,
+  onSubmitGenerated,
+  onSubmitManual,
+  pending,
+  presets,
+  serverError,
+}: AdminInvoiceFormModalProps) {
+  const [invoiceKind, setInvoiceKind] = useState<InvoiceKind>(initialInvoice?.kind ?? 'SchoolFee');
+  const isEdit = mode === 'edit';
+  const invoiceKindSelector = !isEdit ? (
+    <Field label="Invoice type" required>
+      <SelectInput
+        aria-label="Invoice type"
+        onChange={(event) => {
+          setInvoiceKind(event.target.value as InvoiceKind);
+        }}
+        value={invoiceKind}
+      >
+        <option value="SchoolFee">School fee</option>
+        <option value="Manual">Manual</option>
+      </SelectInput>
+    </Field>
+  ) : undefined;
+
+  return (
+    <div aria-modal="true" className="invoice-modal invoice-modal--wide" role="dialog">
+      <button
+        aria-label={isEdit ? 'Close invoice editor' : 'Close invoice creator'}
+        className="invoice-modal__backdrop"
+        onClick={onClose}
+        type="button"
+      />
+      {invoiceKind === 'Manual' ? (
+        <ManualInvoiceForm
+          families={families}
+          invoiceKindSelector={invoiceKindSelector}
+          onClose={onClose}
+          onSubmit={onSubmitManual}
+          pending={pending.Manual}
+          {...(initialInvoice ? { initialInvoice } : {})}
+          {...(serverError.Manual === undefined ? {} : { serverError: serverError.Manual })}
+        />
+      ) : (
+        <SchoolFeeInvoiceForm
+          families={families}
+          feeConfig={feeConfig}
+          invoiceKindSelector={invoiceKindSelector}
+          mode={mode}
+          onClose={onClose}
+          onSubmit={onSubmitGenerated}
+          pending={pending.SchoolFee}
+          presets={presets}
+          {...(initialInvoice ? { initialInvoice } : {})}
+          {...(serverError.SchoolFee === undefined ? {} : { serverError: serverError.SchoolFee })}
+        />
+      )}
     </div>
   );
 }
