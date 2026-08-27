@@ -9,6 +9,7 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
+import { generateSchoolFeeInvoicePdf } from '../invoices/school-fee-pdf.js';
 import { INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
 import { createInvoiceRouter } from '../routers/invoice.js';
 import { router } from '../trpc.js';
@@ -344,6 +345,39 @@ const manualInvoiceInput = {
   dueOn: '2026-09-10',
 };
 
+function makePdfInput(lineCount: number): Parameters<typeof generateSchoolFeeInvoicePdf>[0] {
+  const lineItems = Array.from({ length: lineCount }, (_, index) => ({
+    description: `Charge for child ${String(index + 1)}`,
+    quantity: 1,
+    unitAmountPence: 15_000,
+    totalAmountPence: 15_000,
+  }));
+  return {
+    documentTitle: 'Invoice',
+    billingLabel: 'Sign-up fee',
+    invoiceNumber: `OLC-MANUAL-${String(lineCount).padStart(3, '0')}`,
+    issuedOn: new Date('2026-08-27T00:00:00.000Z'),
+    dueOn: new Date('2026-09-10T00:00:00.000Z'),
+    billTo: 'Parent family',
+    familyLabel: null,
+    students: lineItems.map((_, index) => ({
+      name: `Child ${String(index + 1)}`,
+      yearGroup: 'Y9',
+    })),
+    schoolYear: null,
+    billingCadence: null,
+    term: null,
+    subtotalAmountPence: 15_000 * lineCount,
+    discountAmountPence: 0,
+    totalAmountPence: 15_000 * lineCount,
+    discountExplanation: '',
+    paymentReference: `OLC-MANUAL-${String(lineCount).padStart(3, '0')}`,
+    lineItems,
+    discounts: [],
+    discountBreakdowns: [],
+  };
+}
+
 function makeStudent(input: Pick<StoredStudent, 'id'> & Partial<StoredStudent>): StoredStudent {
   const names: Record<string, string> = {
     [linkedStudentId]: 'Talia Parent',
@@ -451,6 +485,7 @@ function makeFakeDb({
   initialInvoiceStudents,
   initialDiscounts = [],
   decryptImpl = decrypt,
+  beforeInvoiceCreate,
   beforeInvoiceUpdate,
 }: {
   initialStudents?: StoredStudent[];
@@ -461,6 +496,7 @@ function makeFakeDb({
   initialInvoiceStudents?: StoredInvoiceStudent[];
   initialDiscounts?: StoredDiscount[];
   decryptImpl?: (value: string | null | undefined) => string | null;
+  beforeInvoiceCreate?: () => void;
   beforeInvoiceUpdate?: (invoice: StoredInvoice) => void;
 } = {}) {
   const students = initialStudents ?? [
@@ -698,6 +734,7 @@ function makeFakeDb({
         return invoice ? invoiceRow(invoice) : null;
       }),
       create: vi.fn(({ data }: FakeInvoiceCreateArgs) => {
+        beforeInvoiceCreate?.();
         const created = makeInvoice({
           id: `cinvoicenew000000${String(invoiceSequence++).padStart(2, '0')}`,
           invoiceNumber: data.invoiceNumber ?? null,
@@ -1469,6 +1506,28 @@ describe('invoiceRouter', () => {
     });
   });
 
+  it('returns the duplicate-number contract when a manual create loses the unique-write race', async () => {
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      beforeInvoiceCreate: () => {
+        throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+          meta: { target: ['invoiceNumber'] },
+        });
+      },
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+
+    await expect(adminCaller.invoice.createManual(manualInvoiceInput)).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'invoice number already exists',
+    });
+  });
+
   it('edits only unpaid manual invoices and preserves the manual invoice kind', async () => {
     const fakeDb = makeFakeDb({
       initialGuardians: [
@@ -1616,6 +1675,39 @@ describe('invoiceRouter', () => {
     expect(decrypt(fakeDb.invoices[0]?.invoiceTitleEnc)).toBe('Sign-up fee');
   });
 
+  it('returns the duplicate-number contract when a manual edit loses the unique-write race', async () => {
+    let interceptUpdate = false;
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+      ],
+      beforeInvoiceUpdate: () => {
+        if (!interceptUpdate) return;
+        interceptUpdate = false;
+        throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+          meta: { target: ['invoiceNumber'] },
+        });
+      },
+    });
+    const { caller: adminCaller } = createCaller(financeUser, fakeDb);
+    const created = await adminCaller.invoice.createManual(manualInvoiceInput);
+    interceptUpdate = true;
+
+    await expect(
+      adminCaller.invoice.updateManual({
+        ...manualInvoiceInput,
+        invoiceId: created.id,
+        invoiceNumber: 'OLC-MANUAL-RACE',
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'invoice number already exists',
+    });
+  });
+
   it('itemizes every selected child when a manual invoice needs continuation pages', async () => {
     const studentIds = Array.from(
       { length: 20 },
@@ -1642,6 +1734,58 @@ describe('invoiceRouter', () => {
     expect(created.lineItems).toHaveLength(20);
     expect(created.totalAmountPence).toBe(300_000);
     expect(pdf.getPageCount()).toBe(2);
+  });
+
+  it.each([8, 20])(
+    'keeps the visible total above the payment panel for %i-child manual PDFs',
+    async (lineCount) => {
+      const generated = await generateSchoolFeeInvoicePdf(makePdfInput(lineCount));
+      const pages = await extractPdfPageTextItems(generated.bytes);
+      const primaryTotal = pages[0]?.find((item) => item.text === 'Total');
+
+      expect(primaryTotal).toBeDefined();
+      expect(primaryTotal?.y).toBeGreaterThan(280);
+      expect(
+        pages.flatMap((page) => page).filter((item) => item.text.startsWith('Charge for child')),
+      ).toHaveLength(lineCount);
+    },
+  );
+
+  it('renders discounts and per-child net amounts for school-fee lines on continuation pages', async () => {
+    const input = makePdfInput(9);
+    input.documentTitle = 'School Fee Invoice';
+    input.billingLabel = 'Invoice for Learning Centre Fees';
+    input.schoolYear = 2026;
+    input.billingCadence = 'Monthly';
+    input.term = 'AUGUST 2026';
+    input.discountAmountPence = 1_000;
+    input.totalAmountPence = input.subtotalAmountPence - input.discountAmountPence;
+    input.discountExplanation = SCHOOL_FEE_DISCOUNT_EXPLANATION;
+    input.discounts = [
+      {
+        label: 'Ninth child discount',
+        baseAmountPence: 15_000,
+        appliedAmountPence: 1_000,
+        optedOut: false,
+      },
+    ];
+    input.discountBreakdowns = [
+      {
+        childIndex: 8,
+        discountAmountPence: 1_000,
+        totalAmountPence: 14_000,
+        discounts: [{ label: 'Ninth child discount', appliedAmountPence: 1_000 }],
+      },
+    ];
+
+    const generated = await generateSchoolFeeInvoicePdf(input);
+    const pages = await extractPdfPageTextItems(generated.bytes);
+    const continuationText = pages.slice(1).flatMap((page) => page.map((item) => item.text));
+
+    expect(continuationText).toContain('Discount - Ninth child discount');
+    expect(continuationText).toContain('-£10.00');
+    expect(continuationText).toContain('Net for child');
+    expect(continuationText).toContain('£140.00');
   });
 
   it('uses capped discounts and prorated annual targets for generated invoices', async () => {
@@ -2701,3 +2845,56 @@ describe('invoiceRouter', () => {
     expect(decryptSpy).not.toHaveBeenCalled();
   });
 });
+
+interface PdfPageTextItem {
+  text: string;
+  y: number;
+}
+
+interface PdfJsTextItem {
+  str: string;
+  transform: number[];
+}
+
+interface PdfJsModule {
+  getDocument(options: {
+    data: Uint8Array;
+    disableFontFace: boolean;
+    isEvalSupported: boolean;
+    useSystemFonts: boolean;
+  }): {
+    promise: Promise<{
+      numPages: number;
+      getPage(pageNumber: number): Promise<{
+        getTextContent(): Promise<{ items: PdfJsTextItem[] }>;
+      }>;
+      destroy(): Promise<void>;
+    }>;
+  };
+}
+
+async function extractPdfPageTextItems(bytes: Uint8Array): Promise<PdfPageTextItem[][]> {
+  const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfJsModule;
+  const pdf = await pdfjs.getDocument({
+    data: bytes.slice(),
+    disableFontFace: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  }).promise;
+  try {
+    const pages: PdfPageTextItem[][] = [];
+    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+      const page = await pdf.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pages.push(
+        content.items.map((item) => ({
+          text: item.str,
+          y: item.transform[5] ?? 0,
+        })),
+      );
+    }
+    return pages;
+  } finally {
+    await pdf.destroy();
+  }
+}

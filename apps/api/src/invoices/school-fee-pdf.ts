@@ -23,9 +23,13 @@ const WHITE = rgb(1, 1, 1);
 const PAYMENT_BOX_WIDTH = 202;
 const PAYMENT_BOX_X = PAGE_WIDTH - PAD - PAYMENT_BOX_WIDTH;
 const PAYMENT_BOX_Y = 158;
+const PAYMENT_BOX_HEIGHT = 122;
 const SECTION_COLUMN_GAP = 24;
-const PRIMARY_PAGE_LINE_LIMIT = 8;
-const CONTINUATION_PAGE_LINE_LIMIT = 18;
+const PRIMARY_TABLE_Y = PAGE_HEIGHT - 310;
+const CONTINUATION_TABLE_Y = PAGE_HEIGHT - 108;
+const TABLE_ROW_START_OFFSET = 30;
+const CONTINUATION_MIN_ROW_Y = 94;
+const PAYMENT_TOTALS_GAP = 8;
 
 export interface GeneratedInvoiceLine {
   description: string;
@@ -102,11 +106,11 @@ export async function generateSchoolFeeInvoicePdf(
 
   drawHeader(page, fonts, input, logo);
   drawBillTo(page, fonts, input);
-  drawLines(page, fonts, input);
+  const nextLineIndex = drawLines(page, fonts, input);
   drawDiscounts(page, fonts, input);
   drawPayment(page, fonts, input);
   drawFooter(page, fonts);
-  drawLineContinuationPages(pdf, fonts, input);
+  drawLineContinuationPages(pdf, fonts, input, nextLineIndex);
 
   const bytes = await pdf.save();
   return {
@@ -262,82 +266,33 @@ function invoiceBillingDetail(input: GenerateSchoolFeeInvoicePdfInput): string {
   return input.documentTitle === 'School Fee Invoice' ? 'School fees' : '';
 }
 
-function drawLines(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvoicePdfInput) {
-  const x = PAD;
-  let y = PAGE_HEIGHT - 310;
-  const width = PAGE_WIDTH - PAD * 2;
-  const plainRowGap = 22;
-  const discountedRowGap = 30;
-  page.drawRectangle({
-    x,
-    y,
-    width,
-    height: 24,
-    color: PALE_BLUE,
-    borderColor: BORDER,
-    borderWidth: 1,
-  });
-  drawText(page, 'Description', x + 10, y + 8, 8, fonts.bold, BLUE_GREY);
-  drawText(page, 'Qty', x + 312, y + 8, 8, fonts.bold, BLUE_GREY);
-  drawText(page, 'Unit', x + 365, y + 8, 8, fonts.bold, BLUE_GREY);
-  drawText(page, 'Amount', x + 462, y + 8, 8, fonts.bold, BLUE_GREY);
+interface InvoiceLinePageResult {
+  nextLineIndex: number;
+  nextY: number;
+}
 
-  y -= 30;
-  input.lineItems.slice(0, PRIMARY_PAGE_LINE_LIMIT).forEach((line, index) => {
-    const breakdown = input.discountBreakdowns.find((candidate) => candidate.childIndex === index);
-    const appliedDiscounts =
-      breakdown?.discounts.filter((discount) => discount.appliedAmountPence > 0) ?? [];
-    drawText(page, line.description, x + 10, y + 12, 9.5, fonts.bold, NAVY, 285);
-    drawText(page, String(line.quantity), x + 316, y + 12, 9, fonts.regular, NAVY);
-    drawText(page, formatMoney(line.unitAmountPence), x + 365, y + 12, 9, fonts.regular, NAVY);
-    drawText(page, formatMoney(line.totalAmountPence), x + 462, y + 12, 9, fonts.bold, NAVY);
-    let rowBottomY = y - 10;
-    appliedDiscounts.slice(0, 4).forEach((discount, discountIndex) => {
-      const discountY = y - 4 - discountIndex * 12;
-      drawText(
-        page,
-        `Discount - ${discount.label}`,
-        x + 24,
-        discountY,
-        7.6,
-        fonts.regular,
-        BLUE_GREY,
-        300,
-      );
-      drawText(
-        page,
-        `-${formatMoney(discount.appliedAmountPence)}`,
-        x + 462,
-        discountY,
-        7.6,
-        fonts.regular,
-        BLUE_GREY,
-      );
-      rowBottomY = discountY - 8;
-    });
-    if (breakdown && appliedDiscounts.length > 0) {
-      const netY = rowBottomY - 2;
-      drawText(page, 'Net for child', x + 24, netY, 7.8, fonts.bold, MUTED);
-      drawText(page, formatMoney(breakdown.totalAmountPence), x + 462, netY, 7.8, fonts.bold, NAVY);
-      rowBottomY = netY - 12;
-    }
-    page.drawLine({
-      start: { x, y: rowBottomY },
-      end: { x: x + width, y: rowBottomY },
-      thickness: 0.75,
-      color: BORDER,
-    });
-    y = rowBottomY - (appliedDiscounts.length > 0 ? discountedRowGap : plainRowGap);
-  });
+function drawLines(
+  page: PDFPage,
+  fonts: PdfFonts,
+  input: GenerateSchoolFeeInvoicePdfInput,
+): number {
+  drawLineTableHeader(page, fonts, PRIMARY_TABLE_Y);
+  const totalOffset = invoiceTotalOffset(input);
+  const minimumNextY = PAYMENT_BOX_Y + PAYMENT_BOX_HEIGHT + PAYMENT_TOTALS_GAP + 18 + totalOffset;
+  const result = drawInvoiceLineRows(
+    page,
+    fonts,
+    input,
+    0,
+    PRIMARY_TABLE_Y - TABLE_ROW_START_OFFSET,
+    minimumNextY,
+  );
 
-  const totalsY = y - 18;
+  const totalsY = result.nextY - 18;
   drawSummaryRow(page, fonts, 'Subtotal', input.subtotalAmountPence, totalsY);
-  const showDiscountRow =
-    input.discountAmountPence !== 0 || input.documentTitle === 'School Fee Invoice';
-  if (showDiscountRow) {
+  if (showInvoiceDiscountRow(input)) {
     drawSummaryRow(page, fonts, 'Discounts', -input.discountAmountPence, totalsY - 22);
   }
-  const totalOffset = showDiscountRow ? 58 : 36;
   page.drawRectangle({
     x: PAGE_WIDTH - PAD - 180,
     y: totalsY - totalOffset,
@@ -365,67 +320,176 @@ function drawLines(page: PDFPage, fonts: PdfFonts, input: GenerateSchoolFeeInvoi
     fonts.bold,
     CRIMSON,
   );
+  return result.nextLineIndex;
 }
 
 function drawLineContinuationPages(
   pdf: PDFDocument,
   fonts: PdfFonts,
   input: GenerateSchoolFeeInvoicePdfInput,
+  firstLineIndex: number,
 ): void {
-  const remainingLines = input.lineItems.slice(PRIMARY_PAGE_LINE_LIMIT);
-  for (let offset = 0; offset < remainingLines.length; offset += CONTINUATION_PAGE_LINE_LIMIT) {
+  let nextLineIndex = firstLineIndex;
+  while (nextLineIndex < input.lineItems.length) {
     const page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    const lines = remainingLines.slice(offset, offset + CONTINUATION_PAGE_LINE_LIMIT);
-    page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 8, width: PAGE_WIDTH, height: 8, color: NAVY });
-    page.drawRectangle({
-      x: PAGE_WIDTH - 170,
-      y: PAGE_HEIGHT - 8,
-      width: 170,
-      height: 8,
-      color: CRIMSON,
-    });
-    drawText(
+    drawContinuationHeader(page, fonts, input);
+    drawLineTableHeader(page, fonts, CONTINUATION_TABLE_Y);
+    const result = drawInvoiceLineRows(
       page,
-      `${input.documentTitle} ${input.invoiceNumber}`,
-      PAD,
-      PAGE_HEIGHT - 48,
-      14,
-      fonts.bold,
+      fonts,
+      input,
+      nextLineIndex,
+      CONTINUATION_TABLE_Y - TABLE_ROW_START_OFFSET,
+      CONTINUATION_MIN_ROW_Y,
     );
-    drawText(page, 'Line items continued', PAD, PAGE_HEIGHT - 70, 9, fonts.bold, MUTED);
-
-    let y = PAGE_HEIGHT - 108;
-    const width = PAGE_WIDTH - PAD * 2;
-    page.drawRectangle({
-      x: PAD,
-      y,
-      width,
-      height: 24,
-      color: PALE_BLUE,
-      borderColor: BORDER,
-      borderWidth: 1,
-    });
-    drawText(page, 'Description', PAD + 10, y + 8, 8, fonts.bold, BLUE_GREY);
-    drawText(page, 'Qty', PAD + 312, y + 8, 8, fonts.bold, BLUE_GREY);
-    drawText(page, 'Unit', PAD + 365, y + 8, 8, fonts.bold, BLUE_GREY);
-    drawText(page, 'Amount', PAD + 462, y + 8, 8, fonts.bold, BLUE_GREY);
-
-    y -= 30;
-    lines.forEach((line) => {
-      drawText(page, line.description, PAD + 10, y + 12, 9.5, fonts.bold, NAVY, 285);
-      drawText(page, String(line.quantity), PAD + 316, y + 12, 9, fonts.regular, NAVY);
-      drawText(page, formatMoney(line.unitAmountPence), PAD + 365, y + 12, 9, fonts.regular, NAVY);
-      drawText(page, formatMoney(line.totalAmountPence), PAD + 462, y + 12, 9, fonts.bold, NAVY);
-      page.drawLine({
-        start: { x: PAD, y: y - 10 },
-        end: { x: PAGE_WIDTH - PAD, y: y - 10 },
-        thickness: 0.75,
-        color: BORDER,
-      });
-      y -= 32;
-    });
+    if (result.nextLineIndex === nextLineIndex) {
+      throw new Error('invoice line cannot fit on a continuation page');
+    }
+    nextLineIndex = result.nextLineIndex;
     drawFooter(page, fonts);
   }
+}
+
+function drawContinuationHeader(
+  page: PDFPage,
+  fonts: PdfFonts,
+  input: GenerateSchoolFeeInvoicePdfInput,
+): void {
+  page.drawRectangle({ x: 0, y: PAGE_HEIGHT - 8, width: PAGE_WIDTH, height: 8, color: NAVY });
+  page.drawRectangle({
+    x: PAGE_WIDTH - 170,
+    y: PAGE_HEIGHT - 8,
+    width: 170,
+    height: 8,
+    color: CRIMSON,
+  });
+  drawText(
+    page,
+    `${input.documentTitle} ${input.invoiceNumber}`,
+    PAD,
+    PAGE_HEIGHT - 48,
+    14,
+    fonts.bold,
+  );
+  drawText(page, 'Line items continued', PAD, PAGE_HEIGHT - 70, 9, fonts.bold, MUTED);
+}
+
+function drawLineTableHeader(page: PDFPage, fonts: PdfFonts, y: number): void {
+  const width = PAGE_WIDTH - PAD * 2;
+  page.drawRectangle({
+    x: PAD,
+    y,
+    width,
+    height: 24,
+    color: PALE_BLUE,
+    borderColor: BORDER,
+    borderWidth: 1,
+  });
+  drawText(page, 'Description', PAD + 10, y + 8, 8, fonts.bold, BLUE_GREY);
+  drawText(page, 'Qty', PAD + 312, y + 8, 8, fonts.bold, BLUE_GREY);
+  drawText(page, 'Unit', PAD + 365, y + 8, 8, fonts.bold, BLUE_GREY);
+  drawText(page, 'Amount', PAD + 462, y + 8, 8, fonts.bold, BLUE_GREY);
+}
+
+function drawInvoiceLineRows(
+  page: PDFPage,
+  fonts: PdfFonts,
+  input: GenerateSchoolFeeInvoicePdfInput,
+  firstLineIndex: number,
+  startY: number,
+  minimumNextY: number,
+): InvoiceLinePageResult {
+  let nextLineIndex = firstLineIndex;
+  let nextY = startY;
+  while (nextLineIndex < input.lineItems.length) {
+    const rowHeight = invoiceLineRowHeight(input, nextLineIndex);
+    if (nextY - rowHeight < minimumNextY) break;
+    nextY = drawInvoiceLineRow(page, fonts, input, nextLineIndex, nextY);
+    nextLineIndex += 1;
+  }
+  return { nextLineIndex, nextY };
+}
+
+function invoiceLineRowHeight(input: GenerateSchoolFeeInvoicePdfInput, lineIndex: number): number {
+  const appliedDiscountCount = invoiceLineDiscounts(input, lineIndex).length;
+  return appliedDiscountCount > 0 ? 44 + appliedDiscountCount * 12 : 32;
+}
+
+function invoiceLineDiscounts(
+  input: GenerateSchoolFeeInvoicePdfInput,
+  lineIndex: number,
+): GeneratedInvoiceChildDiscountBreakdown['discounts'] {
+  return (
+    input.discountBreakdowns
+      .find((candidate) => candidate.childIndex === lineIndex)
+      ?.discounts.filter((discount) => discount.appliedAmountPence > 0)
+      .slice(0, 4) ?? []
+  );
+}
+
+function drawInvoiceLineRow(
+  page: PDFPage,
+  fonts: PdfFonts,
+  input: GenerateSchoolFeeInvoicePdfInput,
+  lineIndex: number,
+  y: number,
+): number {
+  const line = input.lineItems[lineIndex];
+  if (!line) return y;
+  const breakdown = input.discountBreakdowns.find(
+    (candidate) => candidate.childIndex === lineIndex,
+  );
+  const appliedDiscounts = invoiceLineDiscounts(input, lineIndex);
+  drawText(page, line.description, PAD + 10, y + 12, 9.5, fonts.bold, NAVY, 285);
+  drawText(page, String(line.quantity), PAD + 316, y + 12, 9, fonts.regular, NAVY);
+  drawText(page, formatMoney(line.unitAmountPence), PAD + 365, y + 12, 9, fonts.regular, NAVY);
+  drawText(page, formatMoney(line.totalAmountPence), PAD + 462, y + 12, 9, fonts.bold, NAVY);
+
+  let rowBottomY = y - 10;
+  appliedDiscounts.forEach((discount, discountIndex) => {
+    const discountY = y - 4 - discountIndex * 12;
+    drawText(
+      page,
+      `Discount - ${discount.label}`,
+      PAD + 24,
+      discountY,
+      7.6,
+      fonts.regular,
+      BLUE_GREY,
+      300,
+    );
+    drawText(
+      page,
+      `-${formatMoney(discount.appliedAmountPence)}`,
+      PAD + 462,
+      discountY,
+      7.6,
+      fonts.regular,
+      BLUE_GREY,
+    );
+    rowBottomY = discountY - 8;
+  });
+  if (breakdown && appliedDiscounts.length > 0) {
+    const netY = rowBottomY - 2;
+    drawText(page, 'Net for child', PAD + 24, netY, 7.8, fonts.bold, MUTED);
+    drawText(page, formatMoney(breakdown.totalAmountPence), PAD + 462, netY, 7.8, fonts.bold, NAVY);
+    rowBottomY = netY - 12;
+  }
+  page.drawLine({
+    start: { x: PAD, y: rowBottomY },
+    end: { x: PAGE_WIDTH - PAD, y: rowBottomY },
+    thickness: 0.75,
+    color: BORDER,
+  });
+  return rowBottomY - (appliedDiscounts.length > 0 ? 30 : 22);
+}
+
+function showInvoiceDiscountRow(input: GenerateSchoolFeeInvoicePdfInput): boolean {
+  return input.discountAmountPence !== 0 || input.documentTitle === 'School Fee Invoice';
+}
+
+function invoiceTotalOffset(input: GenerateSchoolFeeInvoicePdfInput): number {
+  return showInvoiceDiscountRow(input) ? 58 : 36;
 }
 
 function drawSummaryRow(

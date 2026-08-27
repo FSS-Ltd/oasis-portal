@@ -1639,18 +1639,51 @@ async function loadDraftForPublishing(tx: RlsTx, invoiceId: string) {
   }
 }
 
-function rethrowInvoiceWriteConflict(error: unknown, message: string): never {
-  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-    throw new TRPCError({ code: 'BAD_REQUEST', message });
+interface InvoiceWriteConflictOptions {
+  notFoundMessage?: string;
+  translateDuplicateInvoiceNumber?: boolean;
+}
+
+function isInvoiceNumberUniqueConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
+  const meta: Record<string, unknown> | undefined = error.meta;
+  const target = meta?.['target'];
+  const constraint = meta?.['constraint'];
+  const targetValues: unknown[] = Array.isArray(target)
+    ? target.map((value: unknown) => value)
+    : [target];
+  const constraintValues: unknown[] = Array.isArray(constraint)
+    ? constraint.map((value: unknown) => value)
+    : [constraint];
+  const values = [...targetValues, ...constraintValues];
+  return values.some(
+    (value) => typeof value === 'string' && value.toLowerCase().includes('invoicenumber'),
+  );
+}
+
+function rethrowInvoiceWriteConflict(error: unknown, options: InvoiceWriteConflictOptions): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2025' && options.notFoundMessage) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: options.notFoundMessage });
+    }
+    if (
+      error.code === 'P2002' &&
+      options.translateDuplicateInvoiceNumber &&
+      isInvoiceNumberUniqueConflict(error)
+    ) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: 'invoice number already exists' });
+    }
   }
   throw error;
 }
 
-async function guardedInvoiceWrite<T>(write: () => Promise<T>, message: string): Promise<T> {
+async function guardedInvoiceWrite<T>(
+  write: () => Promise<T>,
+  options: InvoiceWriteConflictOptions,
+): Promise<T> {
   try {
     return await write();
   } catch (error) {
-    rethrowInvoiceWriteConflict(error, message);
+    rethrowInvoiceWriteConflict(error, options);
   }
 }
 
@@ -2616,7 +2649,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
               },
               include: invoiceInclude,
             }),
-          'only school fee drafts can be published',
+          { notFoundMessage: 'only school fee drafts can be published' },
         );
 
         await tx.auditLog.create({
@@ -2653,45 +2686,49 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         const lineItems = manualInvoiceLines(input, students);
         const totalAmountPence = input.amountPence * students.length;
         const pdf = await generateManualInvoicePdf(input, students);
-        const created = await tx.schoolFeeInvoice.create({
-          data: {
-            invoiceNumber: input.invoiceNumber,
-            studentId: input.studentIds[0] ?? null,
-            status: 'Unpaid',
-            kind: 'Manual',
-            invoiceTitleEnc: ctx.db.$enc.encrypt(input.invoiceTitle),
-            schoolYear: null,
-            billingCadence: null,
-            familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
-            term: null,
-            issuedOn: parseDateInput(input.issuedOn),
-            dueOn: parseDateInput(input.dueOn),
-            paidAt: null,
-            subtotalAmountPence: totalAmountPence,
-            discountAmountPence: 0,
-            totalAmountPence,
-            discountExplanationEnc: null,
-            originalFileNameEnc: ctx.db.$enc.encrypt(`${input.invoiceNumber}.pdf`),
-            fileMimeType: 'application/pdf',
-            fileSizeBytes: pdf.bytes.length,
-            pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
-            extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
-            createdById: ctx.user.id,
-            lineItems: {
-              create: lineItems.map((line, index) => ({
-                ...lineData(line, index + 1),
-                descriptionEnc: ctx.db.$enc.encrypt(line.description),
-              })),
-            },
-            students: {
-              create: input.studentIds.map((studentId, index) => ({
-                studentId,
-                position: index + 1,
-              })),
-            },
-          },
-          include: invoiceInclude,
-        });
+        const created = await guardedInvoiceWrite(
+          () =>
+            tx.schoolFeeInvoice.create({
+              data: {
+                invoiceNumber: input.invoiceNumber,
+                studentId: input.studentIds[0] ?? null,
+                status: 'Unpaid',
+                kind: 'Manual',
+                invoiceTitleEnc: ctx.db.$enc.encrypt(input.invoiceTitle),
+                schoolYear: null,
+                billingCadence: null,
+                familyLabelEnc: ctx.db.$enc.encrypt(input.familyLabel),
+                term: null,
+                issuedOn: parseDateInput(input.issuedOn),
+                dueOn: parseDateInput(input.dueOn),
+                paidAt: null,
+                subtotalAmountPence: totalAmountPence,
+                discountAmountPence: 0,
+                totalAmountPence,
+                discountExplanationEnc: null,
+                originalFileNameEnc: ctx.db.$enc.encrypt(`${input.invoiceNumber}.pdf`),
+                fileMimeType: 'application/pdf',
+                fileSizeBytes: pdf.bytes.length,
+                pdfBytesEnc: ctx.db.$enc.encrypt(Buffer.from(pdf.bytes).toString('base64')),
+                extractedTextEnc: ctx.db.$enc.encrypt(pdf.extractedText),
+                createdById: ctx.user.id,
+                lineItems: {
+                  create: lineItems.map((line, index) => ({
+                    ...lineData(line, index + 1),
+                    descriptionEnc: ctx.db.$enc.encrypt(line.description),
+                  })),
+                },
+                students: {
+                  create: input.studentIds.map((studentId, index) => ({
+                    studentId,
+                    position: index + 1,
+                  })),
+                },
+              },
+              include: invoiceInclude,
+            }),
+          { translateDuplicateInvoiceNumber: true },
+        );
         await tx.auditLog.create({
           data: {
             userId: ctx.user.id,
@@ -2789,7 +2826,10 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
               },
               include: invoiceInclude,
             }),
-          'only draft and unpaid invoices can be edited',
+          {
+            notFoundMessage: 'only draft and unpaid invoices can be edited',
+            translateDuplicateInvoiceNumber: true,
+          },
         );
         await tx.auditLog.create({
           data: {
@@ -3092,7 +3132,7 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
                 },
                 include: invoiceInclude,
               }),
-            'only draft and unpaid invoices can be edited',
+            { notFoundMessage: 'only draft and unpaid invoices can be edited' },
           );
           await tx.auditLog.create({
             data: {
