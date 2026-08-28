@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ChevronDown, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -251,6 +252,7 @@ function ParentFeeCycleSummary({ summary }: { summary: ParentYearSummary | undef
 
 export function ParentFeesClient() {
   const utils = api.useUtils();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<ParentInvoiceStatusFilter>('All');
   const [search, setSearch] = useState('');
   const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null);
@@ -288,6 +290,11 @@ export function ParentFeesClient() {
   const stats = invoicesQuery.data?.stats;
   const yearSummary = invoicesQuery.data?.yearSummary;
   const activeOpenInvoiceId = openInvoiceId;
+
+  useEffect(() => {
+    const invoiceId = searchParams.get('invoiceId');
+    if (invoiceId) setOpenInvoiceId(invoiceId);
+  }, [searchParams]);
 
   return (
     <section className="invoice-page invoice-page--parent">

@@ -19,6 +19,7 @@ export {
   PermissionSlipPaymentStatus,
   PermissionSlipResponseStatus,
   PermissionSlipSignatureSource,
+  ParentNotificationKind,
   Prisma,
   SchoolFeeBillingCadence,
   SchoolFeeInvoiceDiscountKind,

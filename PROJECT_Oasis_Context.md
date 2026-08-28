@@ -1,6 +1,6 @@
 # PROJECT: Oasis Learning Centre Portal — Context
 
-**Last updated:** 2026-06-21
+**Last updated:** 2026-08-28
 **Agent:** Technical Agent (Codex)
 **Phase:** Mobile PWA readiness rebase.
 
@@ -28,6 +28,48 @@ Expo, Clerk, Expo Router, typed tRPC wiring, and smoke screens under
 `apps/mobile/src/components/smoke`; production mobile routes, reusable native
 primitives, role journeys, mobile e2e, and EAS internal builds are planned as
 small PRs in `docs/phase-6-mobile-production-build-plan.md`.
+
+## Current session - 2026-08-28 parent invoice notifications
+
+Working branch: `feat/parent-invoice-notifications`.
+
+**PR scope:** Notify active parent guardians when a school-fee invoice is issued,
+with in-app notification links that open the parent invoice view.
+
+Completed:
+
+- Added encrypted `ParentNotification` storage, Prisma migration, RLS policies,
+  and an API router for parent list, unread count, and mark-read actions.
+- Wired invoice publishing and generated invoice creation to create parent
+  notifications and send privacy-preserving invoice-issued emails.
+- Added parent web and mobile notification centre screens with unread badges and
+  internal invoice links.
+- Updated parent invoice views to open a linked invoice from
+  `/parent/fees?invoiceId=...`.
+- Updated component ownership metadata and regenerated the architecture map.
+
+Verification:
+
+- `pnpm db:generate`
+- `pnpm docs:component-map`
+- `pnpm --filter @oasis/api exec vitest run src/__tests__/email.router.test.ts src/__tests__/invoice.router.test.ts src/__tests__/parentNotification.router.test.ts`
+- `git diff --check`
+
+Blocked checks:
+
+- `pnpm db:migrate` reached local PostgreSQL but failed inside Prisma schema
+  engine without a specific migration diagnostic.
+- `pnpm --filter @oasis/api typecheck` is blocked by existing unrelated TypeScript
+  errors in admin, registration, student, and missing `zod` domain module
+  resolution.
+- `pnpm --filter @oasis/web typecheck` is blocked by missing Next/React/module
+  type resolution and stale `.next/types` output.
+- `pnpm --filter @oasis/mobile typecheck` is blocked by missing `expo` and `node`
+  type definition files.
+- `pnpm --filter @oasis/{api,web,mobile} lint` is blocked by shared ESLint config
+  resolution for missing `@eslint/js`.
+- `pnpm --filter @oasis/mobile test` is blocked because `vitest` is not
+  resolvable from `apps/mobile/vitest.config.mts`.
 
 ## Current session - 2026-06-21 mobile Faith Corner
 

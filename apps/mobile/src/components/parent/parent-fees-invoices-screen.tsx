@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Card, ErrorText, MutedText, SectionTitle } from '../core/mobile-ui';
@@ -16,10 +16,16 @@ import {
 interface ParentFeesInvoicesScreenProps {
   data: ParentFeesInvoicesData | undefined;
   error: string | null;
+  initialInvoiceId?: string | null;
   loading: boolean;
 }
 
-export function ParentFeesInvoicesScreen({ data, error, loading }: ParentFeesInvoicesScreenProps) {
+export function ParentFeesInvoicesScreen({
+  data,
+  error,
+  initialInvoiceId = null,
+  loading,
+}: ParentFeesInvoicesScreenProps) {
   const [filter, setFilter] = useState<ParentInvoiceStatusFilter>('All');
   const [selected, setSelected] = useState<ParentInvoice | null>(null);
   const invoices = data?.invoices ?? [];
@@ -29,6 +35,12 @@ export function ParentFeesInvoicesScreen({ data, error, loading }: ParentFeesInv
     () => invoices.filter((invoice) => invoiceMatchesStatus(invoice, filter)),
     [filter, invoices],
   );
+
+  useEffect(() => {
+    if (!initialInvoiceId) return;
+    const invoice = invoices.find((candidate) => candidate.id === initialInvoiceId);
+    if (invoice) setSelected(invoice);
+  }, [initialInvoiceId, invoices]);
 
   if (selected) {
     return (

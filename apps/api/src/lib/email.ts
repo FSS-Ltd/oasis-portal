@@ -10,6 +10,10 @@ import {
   ClubNotificationEmail,
 } from '../emails/club-notification-email.js';
 import {
+  buildInvoiceIssuedNotificationEmailText,
+  InvoiceIssuedNotificationEmail,
+} from '../emails/invoice-issued-notification-email.js';
+import {
   buildInvoicePaymentNotificationEmailText,
   InvoicePaymentNotificationEmail,
 } from '../emails/invoice-payment-notification-email.js';
@@ -41,6 +45,7 @@ export const USER_INVITE_EMAIL_SUBJECT = 'Your Oasis Portal invitation';
 export const MESSAGE_NOTIFICATION_EMAIL_SUBJECT = 'New Oasis Portal message';
 export const BEHAVIOUR_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal behaviour update';
 export const CLUB_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal club notification';
+export const INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal invoice issued';
 export const INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT =
   'Oasis Portal invoice payment awaiting confirmation';
 export const NOTICE_NOTIFICATION_EMAIL_SUBJECT = 'Oasis Portal noticeboard update';
@@ -336,6 +341,38 @@ export interface InvoicePaymentNotificationEmailInput {
   logoUrl?: string;
   recipientName?: string;
   to: string;
+}
+
+export interface InvoiceIssuedNotificationEmailInput {
+  invoiceNumber: string;
+  invoicePath?: string;
+  logoUrl?: string;
+  recipientName?: string;
+  to: string;
+}
+
+export function buildInvoiceIssuedNotificationEmail(
+  input: InvoiceIssuedNotificationEmailInput,
+): SendEmailInput {
+  const logoUrl = input.logoUrl ?? buildEmailLogoUrl();
+  const invoiceUrl = buildPortalUrl(input.invoicePath);
+  const invoiceUrlProps = invoiceUrl ? { invoiceUrl } : {};
+  const recipientNameProps = input.recipientName ? { recipientName: input.recipientName } : {};
+  const commonProps = {
+    invoiceNumber: input.invoiceNumber,
+    ...invoiceUrlProps,
+    ...recipientNameProps,
+  };
+
+  return {
+    to: input.to,
+    subject: INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
+    react: createElement(InvoiceIssuedNotificationEmail, {
+      ...commonProps,
+      ...logoProps(logoUrl),
+    }),
+    text: buildInvoiceIssuedNotificationEmailText(commonProps),
+  };
 }
 
 export function buildInvoicePaymentNotificationEmail(

@@ -24,8 +24,13 @@ export const dynamic = 'force-dynamic';
 export default async function ParentLayout({ children }: { children: ReactNode }) {
   const user = await getLinkedChildPortalUser();
   const now = new Date();
-  const [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount] =
-    await Promise.all([
+  const [
+    linkedChildren,
+    assignedClubLeadCount,
+    unreadNoticeCount,
+    unreadMessageCount,
+    unreadNotificationCount,
+  ] = await Promise.all([
       linkedChildCount(user.id),
       canUseClubLeadAccess(user)
         ? prisma.clubLeadAssignment.count({
@@ -55,8 +60,11 @@ export default async function ParentLayout({ children }: { children: ReactNode }
           },
         },
       }),
+      prisma.parentNotification.count({
+        where: { userId: user.id, readAt: null },
+      }),
     ]);
-  const parentNavProps = { unreadMessageCount, unreadNoticeCount };
+  const parentNavProps = { unreadMessageCount, unreadNotificationCount, unreadNoticeCount };
   const hasLinkedChildren = linkedChildren > 0;
   const hasAssignedClub = assignedClubLeadCount > 0;
   const staffView = staffPortalViewForUser(user);

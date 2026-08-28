@@ -223,6 +223,28 @@ const PRODUCT_MODULES = [
     ],
   },
   {
+    name: 'Parent notification centre and invoice alerts',
+    owns: 'Parent-targeted in-app notifications, unread state, invoice-issued alerts, and parent notification links.',
+    apiRouters: ['parentNotification', 'invoice'],
+    domainFiles: ['packages/domain/src/invoice.ts'],
+    webSurfaces: [
+      'apps/web/src/app/(parent)/parent/notifications/',
+      'apps/web/src/components/parent/parent-notifications-client.tsx',
+      'apps/web/src/components/parent/parent-nav.tsx',
+      'apps/web/src/components/invoices/parent-fees-client.tsx',
+    ],
+    mobileSurfaces: [
+      'apps/mobile/src/components/parent/parent-notifications-screen.tsx',
+      'apps/mobile/src/components/parent/parent-notifications-wiring.test.ts',
+      'apps/mobile/src/components/parent/parent-fees-invoices-screen.tsx',
+      'apps/mobile/src/components/parent/parent-portal-screen.tsx',
+    ],
+    sharedSurfaces: [
+      'apps/api/src/services/parent-notifications.ts',
+      'packages/db/prisma/migrations/20260828160000_parent_notifications/',
+    ],
+  },
+  {
     name: 'Homework assignments, submissions, and review',
     owns: 'Head-created homework assignments, age-band targeting, student image submissions, in-person evidence uploads, review comments, scores, and linked homework merit awards.',
     apiRouters: ['homework'],

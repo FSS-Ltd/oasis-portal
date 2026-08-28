@@ -18,6 +18,7 @@ import { selectedParentChild } from './parent-home-utils';
 import { ParentHomeScreen } from './parent-home-screen';
 import { ParentIncidentReportsScreen } from './parent-incident-reports-screen';
 import { ParentMessagesScreen } from './parent-messages-screen';
+import { ParentNotificationsScreen } from './parent-notifications-screen';
 import { ParentNoticesScreen } from './parent-notices-screen';
 import { ParentPermissionSlipsScreen } from './parent-permission-slips-screen';
 import { ParentProfileRegistrationScreen } from './parent-profile-registration-screen';
@@ -34,6 +35,7 @@ type ParentPortalRoute =
   | 'reports'
   | 'incidents'
   | 'notices'
+  | 'notifications'
   | 'messages'
   | 'clubs'
   | 'shop'
@@ -50,6 +52,7 @@ const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'slips', icon: 'slips', label: 'Slips' },
   { id: 'fees', icon: 'fees', label: 'Fees' },
   { id: 'messages', icon: 'messages', label: 'Messages' },
+  { id: 'notifications', icon: 'notices', label: 'Updates' },
   { id: 'child', icon: 'students', label: 'Child' },
   { id: 'notices', icon: 'notices', label: 'Notices' },
   { id: 'reports', icon: 'reports', label: 'Reports' },
@@ -70,6 +73,10 @@ export function ParentPortalScreen({
   const { signOut } = useClerk();
   const [route, setRoute] = useState<ParentPortalRoute>('home');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [pendingParentNotificationId, setPendingParentNotificationId] = useState<string | null>(
+    null,
+  );
   const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
   const [messagePages, setMessagePages] = useState<LoadedMessagePage[]>([]);
   const profile = api.profile.me.useQuery(undefined, { retry: false });
@@ -115,6 +122,13 @@ export function ParentPortalScreen({
     enabled: route === 'slips',
     retry: false,
   });
+  const parentNotifications = api.parentNotification.list.useQuery(undefined, {
+    enabled: route === 'notifications',
+    retry: false,
+  });
+  const parentNotificationUnread = api.parentNotification.unreadCount.useQuery(undefined, {
+    retry: false,
+  });
   const parentInvoices = api.invoice.listParent.useQuery(
     { status: 'All' },
     {
@@ -137,6 +151,18 @@ export function ParentPortalScreen({
     (count, conversation) => count + conversation.unreadCount,
     0,
   );
+  const unreadNotificationCount = parentNotificationUnread.data?.count ?? 0;
+  const markParentNotificationRead = api.parentNotification.markRead.useMutation({
+    async onSuccess() {
+      await Promise.all([
+        utils.parentNotification.list.invalidate(),
+        utils.parentNotification.unreadCount.invalidate(),
+      ]);
+    },
+    onSettled() {
+      setPendingParentNotificationId(null);
+    },
+  });
 
   useEffect(() => {
     if (!conversationsQuery.data) return;
@@ -165,6 +191,8 @@ export function ParentPortalScreen({
       route === 'shop' ? shopItems.refetch() : Promise.resolve(),
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
       route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
+      route === 'notifications' ? parentNotifications.refetch() : Promise.resolve(),
+      parentNotificationUnread.refetch(),
       route === 'calendar' ? parentCalendar.refetch() : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
@@ -183,6 +211,8 @@ export function ParentPortalScreen({
     shopItems.isFetching ||
     shopReservations.isFetching ||
     parentInvoices.isFetching ||
+    parentNotifications.isFetching ||
+    parentNotificationUnread.isFetching ||
     parentCalendar.isFetching ||
     permissionSlips.isFetching;
   const routeQueryError =
@@ -195,7 +225,9 @@ export function ParentPortalScreen({
           : route === 'shop'
             ? (shopItems.error?.message ?? shopReservations.error?.message ?? balances.error?.message ?? null)
             : route === 'fees'
-              ? (parentInvoices.error?.message ?? null)
+            ? (parentInvoices.error?.message ?? null)
+            : route === 'notifications'
+              ? (parentNotifications.error?.message ?? null)
               : route === 'calendar'
                 ? (parentCalendar.error?.message ?? null)
                 : route === 'slips'
@@ -211,7 +243,9 @@ export function ParentPortalScreen({
             ? unreadNoticeCount
             : tab.id === 'messages'
               ? unreadMessageCount
-              : undefined,
+              : tab.id === 'notifications'
+                ? unreadNotificationCount
+                : undefined,
       }))}
       onSelect={setRoute}
       primaryItemLimit={6}
@@ -391,7 +425,26 @@ export function ParentPortalScreen({
             <ParentFeesInvoicesScreen
               data={parentInvoices.data}
               error={parentInvoices.error?.message ?? null}
+              initialInvoiceId={selectedInvoiceId}
               loading={parentInvoices.isFetching}
+            />
+          ) : null}
+          {route === 'notifications' ? (
+            <ParentNotificationsScreen
+              error={parentNotifications.error?.message ?? null}
+              loading={parentNotifications.isFetching || parentNotificationUnread.isFetching}
+              markReadError={markParentNotificationRead.error?.message ?? null}
+              notifications={parentNotifications.data}
+              pendingNotificationId={pendingParentNotificationId}
+              unreadCount={unreadNotificationCount}
+              onMarkRead={(notificationId) => {
+                setPendingParentNotificationId(notificationId);
+                markParentNotificationRead.mutate({ notificationId });
+              }}
+              onOpenInvoice={(invoiceId) => {
+                setSelectedInvoiceId(invoiceId);
+                setRoute('fees');
+              }}
             />
           ) : null}
           {route === 'calendar' ? (

@@ -8,6 +8,7 @@ import {
   DEFAULT_RESEND_FROM,
   HELLO_WORLD_EMAIL_SUBJECT,
   HELLO_WORLD_EMAIL_TO,
+  INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
   INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
   MESSAGE_NOTIFICATION_EMAIL_SUBJECT,
   NOTICE_NOTIFICATION_EMAIL_SUBJECT,
@@ -20,6 +21,7 @@ import {
   buildBehaviourNotificationEmail,
   buildClubNotificationEmail,
   buildHelloWorldEmail,
+  buildInvoiceIssuedNotificationEmail,
   buildInvoicePaymentNotificationEmail,
   buildMessageNotificationEmail,
   buildNoticeNotificationEmail,
@@ -365,6 +367,40 @@ describe('email builders', () => {
       expect(html).toContain('Parent family');
       expect(html).toContain('INV-2026-001');
       expect(html).toContain('https://portal.example.com/admin/invoices');
+      expect(html).not.toContain('Talia Parent');
+      expect(html).not.toContain('Tuition');
+    });
+  });
+
+  it('builds an invoice issued notification email with a parent invoice link', async () => {
+    await withAppUrl('https://portal.example.com', async () => {
+      const email = buildInvoiceIssuedNotificationEmail({
+        to: 'parent@example.com',
+        recipientName: 'Parent User',
+        invoiceNumber: 'INV-2026-001',
+        invoicePath: '/parent/fees?invoiceId=cinvoice00000000001',
+      });
+
+      expect(email.to).toBe('parent@example.com');
+      expect(email.subject).toBe(INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT);
+      expect(email.text).toContain('A new invoice has been issued to you.');
+      expect(email.text).toContain('Invoice INV-2026-001 is ready in Oasis Portal.');
+      expect(email.text).toContain(
+        'https://portal.example.com/parent/fees?invoiceId=cinvoice00000000001',
+      );
+      expect(email.text).not.toContain('Talia Parent');
+      expect(email.text).not.toContain('Tuition');
+      expect(email.text).not.toContain('420.00');
+      expect('react' in email).toBe(true);
+      expect('html' in email).toBe(false);
+
+      if (!('react' in email)) throw new Error('expected react email payload');
+      const html = await render(email.react);
+      expect(html).toContain('New invoice issued');
+      expect(html).toContain('INV-2026-001');
+      expect(html).toContain(
+        'https://portal.example.com/parent/fees?invoiceId=cinvoice00000000001',
+      );
       expect(html).not.toContain('Talia Parent');
       expect(html).not.toContain('Tuition');
     });

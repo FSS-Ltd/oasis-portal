@@ -1650,3 +1650,55 @@ CREATE POLICY homework_submission_image_student_insert ON "HomeworkSubmissionIma
         AND s."active" = true
     )
   );
+
+ALTER TABLE "ParentNotification" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "ParentNotification" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS parent_notifications_full_admin_all ON "ParentNotification";
+DROP POLICY IF EXISTS parent_notifications_technical_support_all ON "ParentNotification";
+DROP POLICY IF EXISTS parent_notifications_staff_insert ON "ParentNotification";
+DROP POLICY IF EXISTS parent_notifications_parent_select ON "ParentNotification";
+DROP POLICY IF EXISTS parent_notifications_parent_update ON "ParentNotification";
+
+CREATE POLICY parent_notifications_full_admin_all ON "ParentNotification"
+  FOR ALL
+  USING (current_setting('app.full_admin', true) = 'true')
+  WITH CHECK (current_setting('app.full_admin', true) = 'true');
+
+CREATE POLICY parent_notifications_technical_support_all ON "ParentNotification"
+  FOR ALL
+  USING (current_setting('app.user_role', true) = 'TechnicalSupport')
+  WITH CHECK (current_setting('app.user_role', true) = 'TechnicalSupport');
+
+CREATE POLICY parent_notifications_staff_insert ON "ParentNotification"
+  FOR INSERT
+  WITH CHECK (
+    current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'ClubsLead',
+      'Supervisor'
+    )
+  );
+
+CREATE POLICY parent_notifications_parent_select ON "ParentNotification"
+  FOR SELECT
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "ParentNotification"."userId" = current_setting('app.user_id', true)
+  );
+
+CREATE POLICY parent_notifications_parent_update ON "ParentNotification"
+  FOR UPDATE
+  USING (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "ParentNotification"."userId" = current_setting('app.user_id', true)
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) = 'Parent'
+    AND "ParentNotification"."userId" = current_setting('app.user_id', true)
+  );

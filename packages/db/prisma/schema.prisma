@@ -173,6 +173,8 @@ model User {
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
   faithCornerCommentsReviewed      FaithCornerComment[]             @relation("FaithCornerCommentsReviewed")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
+  parentNotifications              ParentNotification[]             @relation("ParentNotifications")
+  parentNotificationsCreated       ParentNotification[]             @relation("ParentNotificationsCreated")
   homeworkAssignmentsCreated         HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
   homeworkSubmissionsReviewed        HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
   homeworkSubmissionImagesUploaded   HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
@@ -457,6 +459,10 @@ enum StudentNotificationKind {
   SystemAnnouncement
 }
 
+enum ParentNotificationKind {
+  InvoiceIssued
+}
+
 model StudentNotification {
   id           String                  @id @default(cuid())
   studentId    String
@@ -475,6 +481,29 @@ model StudentNotification {
 
   @@index([studentId, readAt, createdAt])
   @@index([studentId, kind, createdAt])
+  @@index([sourceEntity, sourceId])
+  @@index([createdById, createdAt])
+}
+
+model ParentNotification {
+  id           String                 @id @default(cuid())
+  userId       String
+  kind         ParentNotificationKind
+  title        String
+  bodyEnc      String
+  href         String?
+  sourceEntity String?
+  sourceId     String?
+  createdById  String?
+  readAt       DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  user      User  @relation("ParentNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy User? @relation("ParentNotificationsCreated", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, kind, createdAt])
   @@index([sourceEntity, sourceId])
   @@index([createdById, createdAt])
 }

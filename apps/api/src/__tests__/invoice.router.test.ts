@@ -7,7 +7,11 @@ import {
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
-import { INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT, type EmailClient } from '../lib/email.js';
+import {
+  INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
+  INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
+  type EmailClient,
+} from '../lib/email.js';
 import { createInvoiceRouter } from '../routers/invoice.js';
 import { router } from '../trpc.js';
 import {
@@ -103,6 +107,21 @@ interface StoredUser {
   fullNameEnc: string;
   emailEnc: string;
   createdAt: Date;
+}
+
+interface StoredParentNotification {
+  id: string;
+  userId: string;
+  kind: 'InvoiceIssued';
+  title: string;
+  bodyEnc: string;
+  href: string | null;
+  sourceEntity: string | null;
+  sourceId: string | null;
+  createdById: string | null;
+  readAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface FakeGuardianFindManyArgs {
@@ -426,6 +445,7 @@ function makeFakeDb({
   initialLines = [],
   initialInvoiceStudents,
   initialDiscounts = [],
+  initialParentNotifications = [],
   decryptImpl = decrypt,
 }: {
   initialStudents?: StoredStudent[];
@@ -435,6 +455,7 @@ function makeFakeDb({
   initialLines?: StoredLine[];
   initialInvoiceStudents?: StoredInvoiceStudent[];
   initialDiscounts?: StoredDiscount[];
+  initialParentNotifications?: StoredParentNotification[];
   decryptImpl?: (value: string | null | undefined) => string | null;
 } = {}) {
   const students = initialStudents ?? [
@@ -457,6 +478,7 @@ function makeFakeDb({
         }),
       );
   const discounts = [...initialDiscounts];
+  const parentNotifications = [...initialParentNotifications];
   const feeConfigs: StoredFeeConfig[] = [
     {
       schoolYear: 2026,
@@ -467,6 +489,7 @@ function makeFakeDb({
   ];
   let invoiceSequence = 1;
   let discountSequence = 1;
+  let parentNotificationSequence = 1;
 
   function invoiceRow(invoice: StoredInvoice) {
     return {
@@ -587,8 +610,9 @@ function makeFakeDb({
                   .filter((guardian) => guardian.studentId === student.id)
                   .map((guardian) => ({
                     userId: guardian.userId,
-                    user: {
+                    user: users.find((user) => user.id === guardian.userId) ?? {
                       id: guardian.userId,
+                      role: 'Parent',
                       fullNameEnc: encrypt(
                         guardian.userId === secondParentUser.id ? 'Second Parent' : 'Talia Parent',
                       ),
@@ -790,12 +814,67 @@ function makeFakeDb({
         return deleted ? invoiceRow(deleted) : null;
       }),
     },
+    parentNotification: {
+      count: vi.fn(
+        ({ where }: { where: { userId?: string; readAt?: null } } = { where: {} }) =>
+          parentNotifications.filter((notification) => {
+            if (where.userId && notification.userId !== where.userId) return false;
+            if (where.readAt === null && notification.readAt !== null) return false;
+            return true;
+          }).length,
+      ),
+      findMany: vi.fn(
+        ({
+          where,
+          take,
+        }: {
+          where?: { userId?: string };
+          select?: object;
+          orderBy?: { createdAt: 'desc' };
+          take?: number;
+        } = {}) => {
+          const rows = parentNotifications
+            .filter((notification) => (where?.userId ? notification.userId === where.userId : true))
+            .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
+          return take ? rows.slice(0, take) : rows;
+        },
+      ),
+      createMany: vi.fn(({ data }: { data: Omit<StoredParentNotification, 'id' | 'createdAt' | 'updatedAt'>[] }) => {
+        parentNotifications.push(
+          ...data.map((notification) => ({
+            ...notification,
+            readAt: notification.readAt ?? null,
+            id: `cparentnotification${String(parentNotificationSequence++).padStart(4, '0')}`,
+            createdAt: new Date('2026-05-02T08:00:00.000Z'),
+            updatedAt: new Date('2026-05-02T08:00:00.000Z'),
+          })),
+        );
+        return { count: data.length };
+      }),
+      updateMany: vi.fn(
+        ({ where, data }: { where: { id: string; userId: string; readAt?: null }; data: { readAt: Date } }) => {
+          let count = 0;
+          for (const notification of parentNotifications) {
+            if (notification.id !== where.id || notification.userId !== where.userId) continue;
+            if (where.readAt === null && notification.readAt !== null) continue;
+            notification.readAt = data.readAt;
+            count += 1;
+          }
+          return { count };
+        },
+      ),
+      findFirst: vi.fn(({ where }: { where: { id: string; userId: string } }) =>
+        parentNotifications.find(
+          (notification) => notification.id === where.id && notification.userId === where.userId,
+        ) ?? null,
+      ),
+    },
     auditLog: {
       create: vi.fn((args: FakeAuditCreateArgs) => args),
     },
   };
 
-  return { db, users, invoices, lines, invoiceStudents, discounts, feeConfigs };
+  return { db, users, invoices, lines, invoiceStudents, discounts, parentNotifications, feeConfigs };
 }
 
 function makeFakeEmailClient(result = { id: 'invoice_email_123' }) {
@@ -810,14 +889,13 @@ function createCaller(
   useDefaultExtractor = false,
   emailClient?: EmailClient,
 ) {
+  const resolvedEmailClient = emailClient ?? makeFakeEmailClient({ id: 'invoice_email_default' }).client;
   const testRouter = router({
     invoice: createInvoiceRouter(
       useDefaultExtractor
-        ? emailClient
-          ? { emailClient }
-          : undefined
+        ? { emailClient: resolvedEmailClient }
         : {
-            ...(emailClient ? { emailClient } : {}),
+            emailClient: resolvedEmailClient,
             extractPdfText: () =>
               Promise.resolve(`
         Invoice No: INV-2026-011
@@ -983,6 +1061,121 @@ describe('invoiceRouter', () => {
       otherStudentId,
     ]);
     expect(published.lineItems.map((line) => line.unitAmountPence)).toEqual([18987, 16537]);
+  });
+
+  it('notifies linked parents when an uploaded draft is published', async () => {
+    const originalAppUrl = process.env.APP_URL;
+    process.env.APP_URL = 'https://portal.example.com';
+    const email = makeFakeEmailClient();
+    const fakeDb = makeFakeDb({
+      initialGuardians: [
+        { userId: parentUser.id, studentId: linkedStudentId },
+        { userId: parentUser.id, studentId: otherStudentId },
+        { userId: secondParentUser.id, studentId: otherStudentId },
+      ],
+      initialUsers: [
+        makeUser({
+          id: parentUser.id,
+          role: 'Parent',
+          fullNameEnc: encrypt('First Parent'),
+          emailEnc: encrypt('first.parent@example.com'),
+        }),
+        makeUser({
+          id: secondParentUser.id,
+          role: 'Parent',
+          fullNameEnc: encrypt('Second Parent'),
+          emailEnc: encrypt('second.parent@example.com'),
+        }),
+      ],
+    });
+    const { caller } = createCaller(financeUser, fakeDb, false, email.client);
+    const pdfBase64 = Buffer.from('%PDF-1.4\n').toString('base64');
+
+    try {
+      const draft = await caller.invoice.uploadDraft({
+        fileName: 'OLC0033.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: Buffer.from('%PDF-1.4\n').length,
+        pdfBase64,
+      });
+
+      const published = await caller.invoice.publishDraft({
+        invoiceId: draft.invoice.id,
+        studentIds: [linkedStudentId, otherStudentId],
+        familyLabel: 'Parent family',
+        schoolYear: 2026,
+        billingCadence: 'Monthly',
+        invoiceNumber: 'OLC0033',
+        issuedOn: '2026-05-21',
+        dueOn: '2026-06-04',
+        term: 'MAY 2026',
+        lineItems: [
+          { description: 'Learning centre fees - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+          { description: 'Learning centre fees - Other Child', quantity: 1, unitAmountPence: 24500 },
+        ],
+      });
+
+      expect(published.status).toBe('Unpaid');
+      expect(email.send).toHaveBeenCalledTimes(2);
+      expect(email.send.mock.calls.map(([payload]) => payload.to)).toEqual([
+        'first.parent@example.com',
+        'second.parent@example.com',
+      ]);
+      const firstEmail = email.send.mock.calls[0]?.[0];
+      if (!firstEmail) throw new Error('expected parent notification email');
+      expect(firstEmail.subject).toBe(INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT);
+      expect(firstEmail.text).toContain('A new invoice has been issued to you.');
+      expect(firstEmail.text).toContain('Invoice OLC0033 is ready in Oasis Portal.');
+      expect(firstEmail.text).toContain(
+        `https://portal.example.com/parent/fees?invoiceId=${published.id}`,
+      );
+      expect(firstEmail.text).not.toContain('Talia Parent');
+      expect(firstEmail.text).not.toContain('Learning centre fees');
+      expect(firstEmail.text).not.toContain('24500');
+
+      expect(fakeDb.parentNotifications).toHaveLength(2);
+      expect(fakeDb.parentNotifications.map((notification) => notification.userId)).toEqual([
+        parentUser.id,
+        secondParentUser.id,
+      ]);
+      expect(fakeDb.parentNotifications[0]).toMatchObject({
+        kind: 'InvoiceIssued',
+        title: 'New invoice issued',
+        href: `/parent/fees?invoiceId=${published.id}`,
+        sourceEntity: 'SchoolFeeInvoice',
+        sourceId: published.id,
+        createdById: financeUser.id,
+        readAt: null,
+      });
+      expect(decrypt(fakeDb.parentNotifications[0]?.bodyEnc)).toBe(
+        'Invoice OLC0033 is ready in Oasis Portal.',
+      );
+
+      const emailAudits = fakeDb.db.auditLog.create.mock.calls
+        .map(([args]) => args)
+        .filter((args) => args.data.entity === 'Email');
+      expect(emailAudits).toHaveLength(2);
+      expect(emailAudits[0]?.data.meta).toMatchObject({
+        source: 'invoice.issued.notification.email',
+        emailStatus: 'Sent',
+        invoiceId: published.id,
+        invoiceStatus: 'Unpaid',
+        subject: INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
+        toUserId: parentUser.id,
+        toRole: 'Parent',
+      });
+
+      const auditJson = JSON.stringify(fakeDb.db.auditLog.create.mock.calls);
+      expect(auditJson).not.toContain('Parent family');
+      expect(auditJson).not.toContain('Learning centre fees');
+      expect(auditJson).not.toContain('24500');
+    } finally {
+      if (originalAppUrl === undefined) {
+        delete process.env.APP_URL;
+      } else {
+        process.env.APP_URL = originalAppUrl;
+      }
+    }
   });
 
   it('publishes uploaded draft discounts as exact child-scoped fixed discounts', async () => {
@@ -1295,6 +1488,61 @@ describe('invoiceRouter', () => {
       unlinkedParentCaller.invoice.downloadPdf({ invoiceId: created.id }),
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
+    });
+  });
+
+  it('keeps generated invoice issuance when parent notification delivery fails', async () => {
+    const fakeDb = makeFakeDb({
+      initialGuardians: [{ userId: parentUser.id, studentId: linkedStudentId }],
+      initialUsers: [
+        makeUser({
+          id: parentUser.id,
+          role: 'Parent',
+          fullNameEnc: encrypt('First Parent'),
+          emailEnc: encrypt('first.parent@example.com'),
+        }),
+      ],
+    });
+    const email = makeFakeEmailClient();
+    email.send.mockRejectedValueOnce(new Error('resend unavailable'));
+    const { caller } = createCaller(financeUser, fakeDb, false, email.client);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const created = await caller.invoice.createGenerated({
+        schoolYear: 2026,
+        billingCadence: 'Monthly',
+        studentIds: [linkedStudentId],
+        familyLabel: 'Parent family',
+        invoiceNumber: 'OLC0044',
+        issuedOn: '2026-05-01',
+        dueOn: '2026-05-15',
+        term: 'MAY 2026',
+        lineItems: [
+          { description: 'Monthly fee - Talia Parent', quantity: 1, unitAmountPence: 24500 },
+        ],
+      });
+
+      expect(created.status).toBe('Unpaid');
+      expect(fakeDb.invoices).toHaveLength(1);
+      expect(fakeDb.parentNotifications).toHaveLength(1);
+      expect(email.send).toHaveBeenCalledTimes(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+
+    const failedEmailAudit = fakeDb.db.auditLog.create.mock.calls
+      .map(([args]) => args)
+      .find(
+        (args) =>
+          args.data.entity === 'SchoolFeeInvoice' &&
+          args.data.meta?.['source'] === 'invoice.issued.notification.email',
+      );
+    expect(failedEmailAudit?.data.meta).toMatchObject({
+      emailStatus: 'Failed',
+      invoiceStatus: 'Unpaid',
+      toUserId: parentUser.id,
+      toRole: 'Parent',
     });
   });
 
@@ -1751,7 +1999,7 @@ describe('invoiceRouter', () => {
       invoiceNumber: 'INV-2026-004',
       status: 'Unpaid',
       studentId: linkedStudentId,
-      dueOn: new Date('2026-06-30T00:00:00.000Z'),
+      dueOn: new Date('2026-12-30T00:00:00.000Z'),
       subtotalAmountPence: 7000,
       totalAmountPence: 7000,
     });

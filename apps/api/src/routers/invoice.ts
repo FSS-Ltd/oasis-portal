@@ -39,12 +39,15 @@ import {
 } from '../invoices/school-fee-pdf.js';
 import type { AppContext, RlsTx } from '../context.js';
 import {
+  buildInvoiceIssuedNotificationEmail,
   buildInvoicePaymentNotificationEmail,
   createResendEmailClient,
+  INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
   INVOICE_PAYMENT_NOTIFICATION_EMAIL_SUBJECT,
   type EmailClient,
 } from '../lib/email.js';
 import { logOperationalEvent, operationalErrorMessage } from '../lib/observability.js';
+import { createParentNotifications } from '../services/parent-notifications.js';
 import { authedProcedure, router } from '../trpc.js';
 
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
@@ -64,6 +67,7 @@ const invoiceAdminStatusFilters = [
 ] as const;
 const parentStatusFilters = ['All', 'Unpaid', 'PaymentPending', 'Overdue', 'Paid'] as const;
 const PASTOR_INVOICE_NOTIFICATION_PATH = '/admin/invoices';
+const PARENT_INVOICE_NOTIFICATION_TITLE = 'New invoice issued';
 
 type AuthedContext = AppContext & { user: SessionUser };
 type PdfTextExtractor = (pdfBytes: Uint8Array) => Promise<string>;
@@ -156,6 +160,13 @@ type InvoiceDownloadRow = Pick<
 };
 
 interface PastorInvoicePaymentNotificationRecipient {
+  id: string;
+  role: SessionUser['role'];
+  fullNameEnc: string;
+  emailEnc: string | null;
+}
+
+interface ParentInvoiceIssuedNotificationRecipient {
   id: string;
   role: SessionUser['role'];
   fullNameEnc: string;
@@ -1718,6 +1729,228 @@ async function auditInvoicePaymentNotificationFailure(
   }
 }
 
+function parentInvoicePath(invoiceId: string): string {
+  return `/parent/fees?invoiceId=${encodeURIComponent(invoiceId)}`;
+}
+
+function invoiceIssuedBody(invoiceNumber: string | null): string {
+  return `Invoice ${invoiceNumber ?? 'un-numbered invoice'} is ready in Oasis Portal.`;
+}
+
+async function auditInvoiceIssuedNotificationFailure(
+  ctx: AuthedContext,
+  invoice: Pick<InvoiceRow, 'id' | 'status'>,
+  meta: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'Update',
+        entity: 'SchoolFeeInvoice',
+        entityId: invoice.id,
+        meta: {
+          source: 'invoice.issued.notification.email',
+          emailStatus: 'Failed',
+          invoiceId: invoice.id,
+          invoiceStatus: invoice.status,
+          subject: INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
+          ...meta,
+        },
+      },
+    });
+  } catch (auditErr) {
+    logOperationalEvent({
+      event: 'audit.write_failed',
+      level: 'error',
+      message: 'Invoice issued notification failure audit failed',
+      meta: {
+        error: operationalErrorMessage(auditErr),
+        invoiceId: invoice.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+  }
+}
+
+async function invoiceIssuedParentRecipients(
+  ctx: AuthedContext,
+  invoice: Pick<InvoiceRow, 'id' | 'studentId' | 'students'>,
+): Promise<ParentInvoiceIssuedNotificationRecipient[]> {
+  const studentIds = uniqueValues([
+    ...(invoice.studentId ? [invoice.studentId] : []),
+    ...(invoice.students ?? []).map((student) => student.studentId),
+  ]);
+  if (studentIds.length === 0) return [];
+
+  const students = await ctx.db.student.findMany({
+    where: { id: { in: studentIds }, active: true },
+    select: {
+      guardians: {
+        where: { user: { active: true, role: 'Parent' } },
+        select: {
+          user: {
+            select: {
+              id: true,
+              role: true,
+              fullNameEnc: true,
+              emailEnc: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+    },
+  });
+
+  const recipients = new Map<string, ParentInvoiceIssuedNotificationRecipient>();
+  for (const student of students) {
+    for (const guardian of student.guardians) {
+      if (!recipients.has(guardian.user.id)) {
+        recipients.set(guardian.user.id, guardian.user);
+      }
+    }
+  }
+
+  return [...recipients.values()];
+}
+
+async function createInvoiceIssuedParentNotifications({
+  ctx,
+  invoice,
+  recipients,
+}: {
+  ctx: AuthedContext;
+  invoice: Pick<InvoiceRow, 'id' | 'invoiceNumber'>;
+  recipients: ParentInvoiceIssuedNotificationRecipient[];
+}): Promise<void> {
+  if (recipients.length === 0) return;
+
+  try {
+    await ctx.withRls((tx) =>
+      createParentNotifications(ctx, tx, {
+        auditSource: 'invoice.issued.parentNotification',
+        notifications: recipients.map((recipient) => ({
+          userId: recipient.id,
+          kind: 'InvoiceIssued',
+          title: PARENT_INVOICE_NOTIFICATION_TITLE,
+          body: invoiceIssuedBody(invoice.invoiceNumber),
+          href: parentInvoicePath(invoice.id),
+          sourceEntity: 'SchoolFeeInvoice',
+          sourceId: invoice.id,
+          createdById: ctx.user.id,
+        })),
+      }),
+    );
+  } catch (err) {
+    logOperationalEvent({
+      event: 'parent_notification.create_failed',
+      level: 'error',
+      message: 'Invoice issued parent notification creation failed',
+      meta: {
+        error: operationalErrorMessage(err),
+        invoiceId: invoice.id,
+        recipientCount: recipients.length,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+  }
+}
+
+async function notifyParentsOfInvoiceIssued({
+  ctx,
+  getEmailClient,
+  invoice,
+}: {
+  ctx: AuthedContext;
+  getEmailClient: () => EmailClient;
+  invoice: Pick<InvoiceRow, 'id' | 'invoiceNumber' | 'status' | 'studentId' | 'students'>;
+}): Promise<void> {
+  let recipients: ParentInvoiceIssuedNotificationRecipient[];
+
+  try {
+    recipients = await invoiceIssuedParentRecipients(ctx, invoice);
+  } catch (err) {
+    logOperationalEvent({
+      event: 'email.recipient_resolution_failed',
+      level: 'error',
+      message: 'Invoice issued notification recipient resolution failed',
+      meta: {
+        error: operationalErrorMessage(err),
+        invoiceId: invoice.id,
+      },
+      requestId: ctx.requestId,
+      userId: ctx.user.id,
+    });
+    await auditInvoiceIssuedNotificationFailure(ctx, invoice, {
+      reason: 'recipient-resolution',
+    });
+    return;
+  }
+
+  await createInvoiceIssuedParentNotifications({ ctx, invoice, recipients });
+
+  for (const recipient of recipients) {
+    try {
+      const recipientName = decryptRequired(
+        ctx.db.$enc.decrypt,
+        recipient.fullNameEnc,
+        'guardian name',
+      );
+      const recipientEmail = decryptRequired(
+        ctx.db.$enc.decrypt,
+        recipient.emailEnc,
+        'guardian email',
+      );
+      const result = await getEmailClient().send(
+        buildInvoiceIssuedNotificationEmail({
+          to: recipientEmail,
+          recipientName,
+          invoiceNumber: invoice.invoiceNumber ?? 'un-numbered invoice',
+          invoicePath: parentInvoicePath(invoice.id),
+        }),
+      );
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Create',
+          entity: 'Email',
+          entityId: result.id,
+          meta: {
+            source: 'invoice.issued.notification.email',
+            emailStatus: 'Sent',
+            invoiceId: invoice.id,
+            invoiceStatus: invoice.status,
+            subject: INVOICE_ISSUED_NOTIFICATION_EMAIL_SUBJECT,
+            toUserId: recipient.id,
+            toRole: recipient.role,
+          },
+        },
+      });
+    } catch (err) {
+      logOperationalEvent({
+        event: 'email.delivery_failed',
+        level: 'error',
+        message: 'Invoice issued notification email delivery failed',
+        meta: {
+          error: operationalErrorMessage(err),
+          invoiceId: invoice.id,
+          toUserId: recipient.id,
+        },
+        requestId: ctx.requestId,
+        userId: ctx.user.id,
+      });
+      await auditInvoiceIssuedNotificationFailure(ctx, invoice, {
+        toUserId: recipient.id,
+        toRole: recipient.role,
+      });
+    }
+  }
+}
+
 async function notifyPastorsOfParentMarkedPayment({
   ctx,
   getEmailClient,
@@ -2483,6 +2716,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
         return updated;
       })) as InvoiceRow;
 
+      await notifyParentsOfInvoiceIssued({ ctx, getEmailClient, invoice });
+
       return mapInvoice(ctx, invoice, new Date());
     }),
 
@@ -2618,6 +2853,8 @@ export function createInvoiceRouter(deps: InvoiceRouterDeps = {}) {
           });
           return created;
         });
+
+        await notifyParentsOfInvoiceIssued({ ctx, getEmailClient, invoice });
 
         return mapInvoice(ctx, invoice, new Date());
       }),

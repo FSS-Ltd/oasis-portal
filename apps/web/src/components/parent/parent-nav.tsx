@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bell,
+  BellRing,
   CalendarDays,
   ClipboardList,
   ClipboardCheck,
@@ -34,6 +35,7 @@ const parentNavItems = [
   { href: '/parent/profile', label: 'My Profile', icon: UserRound },
   { href: '/parent/registration', label: 'Registration', icon: ClipboardList },
   { href: '/parent/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/parent/notifications', label: 'Notifications', icon: BellRing },
   { href: '/parent/noticeboard', label: 'Noticeboard', icon: Bell },
   { href: '/mobile-app', label: 'Mobile App', icon: Smartphone },
 ] as const;
@@ -44,6 +46,7 @@ const parentMobileNavHrefs = new Set([
   '/parent/permission-slips',
   '/parent/fees',
   '/parent/messages',
+  '/parent/notifications',
 ]);
 const parentTopNavItems = parentNavItems.filter((item) => item.href !== '/parent/profile');
 const parentMobileNavItems = parentNavItems.filter((item) => parentMobileNavHrefs.has(item.href));
@@ -62,20 +65,27 @@ function countBadge(count: number): string | null {
 
 interface ParentNavProps {
   unreadMessageCount: number;
+  unreadNotificationCount: number;
   unreadNoticeCount: number;
 }
 
 function badgeForItem(
   label: string,
   unreadMessageCount: number,
+  unreadNotificationCount: number,
   unreadNoticeCount: number,
 ): string | null {
   if (label === 'Noticeboard') return countBadge(unreadNoticeCount);
   if (label === 'Messages') return countBadge(unreadMessageCount);
+  if (label === 'Notifications') return countBadge(unreadNotificationCount);
   return null;
 }
 
-export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+export function ParentSidebarNav({
+  unreadMessageCount,
+  unreadNotificationCount,
+  unreadNoticeCount,
+}: ParentNavProps) {
   const pathname = usePathname() ?? '';
 
   return (
@@ -83,7 +93,12 @@ export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: Pare
       {parentNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
+        const badge = badgeForItem(
+          item.label,
+          unreadMessageCount,
+          unreadNotificationCount,
+          unreadNoticeCount,
+        );
         const className = ['admin-shell__nav-item', active ? 'is-active' : undefined]
           .filter(Boolean)
           .join(' ');
@@ -105,14 +120,23 @@ export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: Pare
   );
 }
 
-export function ParentTopNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+export function ParentTopNav({
+  unreadMessageCount,
+  unreadNotificationCount,
+  unreadNoticeCount,
+}: ParentNavProps) {
   const pathname = usePathname() ?? '';
 
   return (
     <nav aria-label="Parent portal sections" className="parent-top-nav">
       {parentTopNavItems.map((item) => {
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
+        const badge = badgeForItem(
+          item.label,
+          unreadMessageCount,
+          unreadNotificationCount,
+          unreadNoticeCount,
+        );
 
         return (
           <Link
@@ -130,7 +154,11 @@ export function ParentTopNav({ unreadMessageCount, unreadNoticeCount }: ParentNa
   );
 }
 
-export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+export function ParentBottomNav({
+  unreadMessageCount,
+  unreadNotificationCount,
+  unreadNoticeCount,
+}: ParentNavProps) {
   const pathname = usePathname() ?? '';
 
   return (
@@ -138,7 +166,12 @@ export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: Paren
       {parentMobileNavItems.map((item) => {
         const Icon = item.icon;
         const active = isActiveRoute(pathname, item.href, item.label);
-        const badge = badgeForItem(item.label, unreadMessageCount, unreadNoticeCount);
+        const badge = badgeForItem(
+          item.label,
+          unreadMessageCount,
+          unreadNotificationCount,
+          unreadNoticeCount,
+        );
         const mobileLabel =
           item.label === 'Permission Slips'
             ? 'Slips'

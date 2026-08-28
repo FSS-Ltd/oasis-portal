@@ -32,6 +32,7 @@ import { permissionSlipRouter } from './routers/permissionSlip.js';
 import { incidentRouter } from './routers/incident.js';
 import { studentSettingsRouter } from './routers/studentSettings.js';
 import { faithCornerRouter } from './routers/faithCorner.js';
+import { parentNotificationRouter } from './routers/parentNotification.js';
 import { studentNotificationRouter } from './routers/studentNotification.js';
 import { homeworkRouter } from './routers/homework.js';
 import { staffHomeRouter } from './routers/staffHome.js';
@@ -66,6 +67,7 @@ export const appRouter = router({
   incident: incidentRouter,
   studentSettings: studentSettingsRouter,
   faithCorner: faithCornerRouter,
+  parentNotification: parentNotificationRouter,
   studentNotification: studentNotificationRouter,
   homework: homeworkRouter,
   staffHome: staffHomeRouter,
