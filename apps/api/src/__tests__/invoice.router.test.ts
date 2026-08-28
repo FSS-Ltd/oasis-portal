@@ -3106,7 +3106,31 @@ interface PdfJsModule {
   };
 }
 
+type PromiseWithResolvers<T> = {
+  promise: Promise<T>;
+  resolve(value: T | PromiseLike<T>): void;
+  reject(reason?: unknown): void;
+};
+
+function ensurePromiseWithResolvers(): void {
+  const promiseWithResolvers = Promise as PromiseConstructor & {
+    withResolvers?: <T>() => PromiseWithResolvers<T>;
+  };
+  if (promiseWithResolvers.withResolvers) return;
+
+  promiseWithResolvers.withResolvers = <T>(): PromiseWithResolvers<T> => {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise;
+      reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+  };
+}
+
 async function extractPdfPageTextItems(bytes: Uint8Array): Promise<PdfPageTextItem[][]> {
+  ensurePromiseWithResolvers();
   const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as unknown as PdfJsModule;
   const pdf = await pdfjs.getDocument({
     data: bytes.slice(),
