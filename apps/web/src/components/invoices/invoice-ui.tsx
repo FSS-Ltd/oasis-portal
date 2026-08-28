@@ -68,6 +68,10 @@ export function invoiceStatusLabel(status: InvoiceDisplayStatus | 'All'): string
   return status;
 }
 
+export function invoiceKindLabel(kind: InvoiceDto['kind']): string {
+  return kind === 'Manual' ? 'Manual' : 'School fee';
+}
+
 export function InvoiceStatusBadge({ status }: { status: InvoiceDisplayStatus }) {
   return <Badge tone={statusBadgeTone(status)}>{invoiceStatusLabel(status)}</Badge>;
 }
@@ -207,7 +211,11 @@ export function InvoicePrimaryMeta({ invoice }: { invoice: InvoiceDto }) {
       </div>
       <div>
         <dt>Billing</dt>
-        <dd>{invoice.billingCadence ?? invoice.term ?? 'Not set'}</dd>
+        <dd>
+          {invoice.kind === 'Manual'
+            ? (invoice.invoiceTitle ?? 'Not set')
+            : (invoice.billingCadence ?? invoice.term ?? 'Not set')}
+        </dd>
       </div>
       <div>
         <dt>Issued</dt>

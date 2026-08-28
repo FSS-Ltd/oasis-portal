@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, ReceiptText, X } from 'lucide-react';
 import {
   SCHOOL_FEE_DISCOUNT_CHILD_INDEX_PREFIX,
@@ -14,12 +14,21 @@ import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import type { RouterInputs, RouterOutputs } from '@/lib/trpc';
 import { formatPence } from './invoice-ui';
+import {
+  defaultDueDate,
+  defaultInvoiceNumber,
+  ManualInvoiceForm,
+  parsePenceInput,
+  penceToPoundsInput,
+} from './manual-invoice-form';
 
 type BillableFamily = RouterOutputs['invoice']['listBillableFamilies'][number];
 type FeeConfig = RouterOutputs['invoice']['listFeeConfig'];
 type DiscountPreset = RouterOutputs['invoice']['discountPresets'][number];
 type CreateInvoiceInput = RouterInputs['invoice']['createGenerated'];
+type CreateManualInvoiceInput = RouterInputs['invoice']['createManual'];
 type InvoiceDto = RouterOutputs['invoice']['listAdmin']['invoices'][number];
+type InvoiceKind = InvoiceDto['kind'];
 
 interface LineForm {
   studentId: string | null;
@@ -58,17 +67,6 @@ function studentYearSummary(
   return family.yearSummary.children.find((child) => child.studentId === studentId) ?? null;
 }
 
-function penceToPoundsInput(amountPence: number): string {
-  return (amountPence / 100).toFixed(2);
-}
-
-function parsePenceInput(value: string): number | null {
-  const normalized = value.trim().replace(/[£,\s]/gu, '');
-  if (!/^[0-9]+(?:\.[0-9]{1,2})?$/u.test(normalized)) return null;
-  const amount = Number(normalized);
-  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
-}
-
 function parsePercentBps(value: string): number | null {
   const normalized = value.trim().replace(/%/gu, '');
   if (!/^[0-9]+(?:\.[0-9]{1,2})?$/u.test(normalized)) return null;
@@ -99,26 +97,6 @@ function defaultAmountForStudent({
   if (cadence === 'Annual') return summary.grossLeftToInvoiceAmountPence;
   if (summary.grossLeftToInvoiceAmountPence <= 0) return 0;
   return Math.min(fallbackAmountPence, summary.grossLeftToInvoiceAmountPence);
-}
-
-function defaultInvoiceNumber(): string {
-  const now = new Date();
-  return [
-    'OLC',
-    String(now.getFullYear()).slice(2),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0'),
-    String(now.getMilliseconds()).padStart(3, '0'),
-  ].join('');
-}
-
-function defaultDueDate(issuedOn: string): string {
-  const date = new Date(`${issuedOn}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + 14);
-  return date.toISOString().slice(0, 10);
 }
 
 function defaultTerm(issuedOn: string): string {
@@ -446,10 +424,11 @@ function FamilyYearSummary({
   );
 }
 
-function AdminInvoiceFormModal({
+function SchoolFeeInvoiceForm({
   families,
   feeConfig,
   initialInvoice,
+  invoiceKindSelector,
   mode,
   presets,
   onClose,
@@ -460,6 +439,7 @@ function AdminInvoiceFormModal({
   families: readonly BillableFamily[];
   feeConfig: FeeConfig;
   initialInvoice?: InvoiceDto;
+  invoiceKindSelector?: ReactNode;
   mode: 'create' | 'edit';
   presets: readonly DiscountPreset[];
   onClose: () => void;
@@ -640,6 +620,7 @@ function AdminInvoiceFormModal({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     const year = Number(schoolYear);
     if (!Number.isInteger(year)) {
       setError('School year must be a number.');
@@ -761,13 +742,7 @@ function AdminInvoiceFormModal({
   }
 
   return (
-    <div aria-modal="true" className="invoice-modal invoice-modal--wide" role="dialog">
-      <button
-        aria-label={isEdit ? 'Close invoice editor' : 'Close invoice creator'}
-        className="invoice-modal__backdrop"
-        onClick={onClose}
-        type="button"
-      />
+    <div style={{ display: 'contents' }}>
       <form className="invoice-modal__panel" onSubmit={submit}>
         <header className="invoice-modal__header invoice-modal__header--navy">
           <span>
@@ -779,6 +754,7 @@ function AdminInvoiceFormModal({
           </div>
           <button
             aria-label={isEdit ? 'Close invoice editor' : 'Close invoice creator'}
+            disabled={pending}
             onClick={onClose}
             type="button"
           >
@@ -787,11 +763,17 @@ function AdminInvoiceFormModal({
         </header>
 
         <div className="invoice-modal__body invoice-create-grid">
+          {invoiceKindSelector ? (
+            <section className="invoice-create-section invoice-create-section--wide">
+              {invoiceKindSelector}
+            </section>
+          ) : null}
           <section className="invoice-create-section">
             <h3>Invoice details</h3>
             <div className="invoice-review-grid">
               <Field label="School year" required>
                 <TextInput
+                  disabled={pending}
                   onChange={(event) => {
                     setSchoolYear(event.target.value);
                   }}
@@ -800,6 +782,7 @@ function AdminInvoiceFormModal({
               </Field>
               <Field label="Cadence" required>
                 <SelectInput
+                  disabled={pending}
                   onChange={(event) => {
                     const nextCadence = event.target.value as CreateInvoiceInput['billingCadence'];
                     const nextAmountPence = cadenceAmount(feeConfig, nextCadence);
@@ -823,6 +806,7 @@ function AdminInvoiceFormModal({
               </Field>
               <Field label="Invoice number" required>
                 <TextInput
+                  disabled={pending}
                   onChange={(event) => {
                     setInvoiceNumber(event.target.value);
                   }}
@@ -831,6 +815,7 @@ function AdminInvoiceFormModal({
               </Field>
               <Field label="Billing period" required>
                 <TextInput
+                  disabled={pending}
                   onChange={(event) => {
                     setTerm(event.target.value);
                   }}
@@ -839,6 +824,7 @@ function AdminInvoiceFormModal({
               </Field>
               <Field label="Issued" required>
                 <TextInput
+                  disabled={pending}
                   onChange={(event) => {
                     setIssuedOn(event.target.value);
                     setDueOn(defaultDueDate(event.target.value));
@@ -849,6 +835,7 @@ function AdminInvoiceFormModal({
               </Field>
               <Field label="Due" required>
                 <TextInput
+                  disabled={pending}
                   onChange={(event) => {
                     setDueOn(event.target.value);
                   }}
@@ -863,6 +850,7 @@ function AdminInvoiceFormModal({
             <h3>Family and children</h3>
             <Field label="Family" required>
               <SelectInput
+                disabled={pending}
                 onChange={(event) => {
                   setError(null);
                   setFamilyKey(event.target.value);
@@ -882,7 +870,7 @@ function AdminInvoiceFormModal({
                 onChange={(event) => {
                   setFamilyLabel(event.target.value);
                 }}
-                disabled={!selectedFamily}
+                disabled={pending || !selectedFamily}
                 value={familyLabel}
               />
             </Field>
@@ -893,6 +881,7 @@ function AdminInvoiceFormModal({
                   <label key={student.id}>
                     <input
                       checked={selectedStudentIds.includes(student.id)}
+                      disabled={pending}
                       onChange={(event) => {
                         updateSelectedStudent(student.id, event.target.checked);
                       }}
@@ -922,7 +911,7 @@ function AdminInvoiceFormModal({
             <div className="invoice-review-lines__header">
               <h3>Line items</h3>
               <Button
-                disabled={!selectedFamily}
+                disabled={pending || !selectedFamily}
                 onClick={() => {
                   setLineItems((current) => [
                     ...current,
@@ -956,6 +945,7 @@ function AdminInvoiceFormModal({
                   <div className="invoice-review-line">
                     <TextInput
                       aria-label="Line item description"
+                      disabled={pending}
                       onChange={(event) => {
                         setLineItems((current) =>
                           current.map((item, itemIndex) =>
@@ -970,6 +960,7 @@ function AdminInvoiceFormModal({
                     />
                     <TextInput
                       aria-label="Quantity"
+                      disabled={pending}
                       inputMode="numeric"
                       onChange={(event) => {
                         setLineItems((current) =>
@@ -982,6 +973,7 @@ function AdminInvoiceFormModal({
                     />
                     <TextInput
                       aria-label="Unit amount"
+                      disabled={pending}
                       inputMode="decimal"
                       onChange={(event) => {
                         setLineItems((current) =>
@@ -996,7 +988,7 @@ function AdminInvoiceFormModal({
                     />
                     <button
                       aria-label="Remove line item"
-                      disabled={lineItems.length === 1}
+                      disabled={pending || lineItems.length === 1}
                       onClick={() => {
                         setLineItems((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
@@ -1036,7 +1028,7 @@ function AdminInvoiceFormModal({
                   <label key={preset.code}>
                     <input
                       checked={!presetDisabled && selectedPresetCodes.includes(preset.code)}
-                      disabled={presetDisabled}
+                      disabled={pending || presetDisabled}
                       onChange={(event) => {
                         if (presetDisabled) return;
                         setSelectedPresetCodes((current) =>
@@ -1062,6 +1054,7 @@ function AdminInvoiceFormModal({
             <Field label="Discount explanation" required>
               <textarea
                 className="input invoice-discount-explanation"
+                disabled={pending}
                 onChange={(event) => {
                   setDiscountExplanation(event.target.value);
                 }}
@@ -1073,6 +1066,7 @@ function AdminInvoiceFormModal({
               <div className="invoice-manual-discount" key={discount.id}>
                 <TextInput
                   aria-label="Manual discount label"
+                  disabled={pending}
                   onChange={(event) => {
                     setManualDiscounts((current) =>
                       current.map((item) =>
@@ -1085,7 +1079,7 @@ function AdminInvoiceFormModal({
                 />
                 <SelectInput
                   aria-label="Apply manual discount to"
-                  disabled={selectedFormStudents.length === 0}
+                  disabled={pending || selectedFormStudents.length === 0}
                   onChange={(event) => {
                     setManualDiscounts((current) =>
                       current.map((item) =>
@@ -1106,6 +1100,7 @@ function AdminInvoiceFormModal({
                 </SelectInput>
                 <SelectInput
                   aria-label="Manual discount type"
+                  disabled={pending}
                   onChange={(event) => {
                     setManualDiscounts((current) =>
                       current.map((item) =>
@@ -1122,6 +1117,7 @@ function AdminInvoiceFormModal({
                 </SelectInput>
                 <TextInput
                   aria-label="Manual discount value"
+                  disabled={pending}
                   inputMode="decimal"
                   onChange={(event) => {
                     setManualDiscounts((current) =>
@@ -1135,6 +1131,7 @@ function AdminInvoiceFormModal({
                 />
                 <button
                   aria-label="Remove manual discount"
+                  disabled={pending}
                   onClick={() => {
                     setManualDiscounts((current) =>
                       current.filter((item) => item.id !== discount.id),
@@ -1147,7 +1144,7 @@ function AdminInvoiceFormModal({
               </div>
             ))}
             <Button
-              disabled={!selectedFamily}
+              disabled={pending || !selectedFamily}
               onClick={() => {
                 setManualDiscounts((current) => [
                   ...current,
@@ -1175,7 +1172,7 @@ function AdminInvoiceFormModal({
         ) : null}
         <footer className="invoice-modal__footer">
           <span className="invoice-create-subtotal">Subtotal {formatPence(subtotal)}</span>
-          <Button onClick={onClose} type="button" variant="ghost">
+          <Button disabled={pending} onClick={onClose} type="button" variant="ghost">
             Cancel
           </Button>
           <Button disabled={!canSubmit} pending={pending} type="submit">
@@ -1183,6 +1180,87 @@ function AdminInvoiceFormModal({
           </Button>
         </footer>
       </form>
+    </div>
+  );
+}
+
+interface AdminInvoiceFormModalProps {
+  families: readonly BillableFamily[];
+  feeConfig: FeeConfig;
+  initialInvoice?: InvoiceDto;
+  mode: 'create' | 'edit';
+  presets: readonly DiscountPreset[];
+  onClose: () => void;
+  onSubmitGenerated: (input: CreateInvoiceInput) => void;
+  onSubmitManual: (input: CreateManualInvoiceInput) => void;
+  pending: Readonly<Record<InvoiceKind, boolean>>;
+  serverError: Readonly<Record<InvoiceKind, string | null | undefined>>;
+}
+
+function AdminInvoiceFormModal({
+  families,
+  feeConfig,
+  initialInvoice,
+  mode,
+  onClose,
+  onSubmitGenerated,
+  onSubmitManual,
+  pending,
+  presets,
+  serverError,
+}: AdminInvoiceFormModalProps) {
+  const [invoiceKind, setInvoiceKind] = useState<InvoiceKind>(initialInvoice?.kind ?? 'SchoolFee');
+  const isEdit = mode === 'edit';
+  const modalPending = pending.Manual || pending.SchoolFee;
+  const invoiceKindSelector = !isEdit ? (
+    <Field label="Invoice type" required>
+      <SelectInput
+        aria-label="Invoice type"
+        disabled={modalPending}
+        onChange={(event) => {
+          setInvoiceKind(event.target.value as InvoiceKind);
+        }}
+        value={invoiceKind}
+      >
+        <option value="SchoolFee">School fee</option>
+        <option value="Manual">Manual</option>
+      </SelectInput>
+    </Field>
+  ) : undefined;
+
+  return (
+    <div aria-modal="true" className="invoice-modal invoice-modal--wide" role="dialog">
+      <button
+        aria-label={isEdit ? 'Close invoice editor' : 'Close invoice creator'}
+        className="invoice-modal__backdrop"
+        disabled={modalPending}
+        onClick={onClose}
+        type="button"
+      />
+      {invoiceKind === 'Manual' ? (
+        <ManualInvoiceForm
+          families={families}
+          invoiceKindSelector={invoiceKindSelector}
+          onClose={onClose}
+          onSubmit={onSubmitManual}
+          pending={modalPending}
+          {...(initialInvoice ? { initialInvoice } : {})}
+          {...(serverError.Manual === undefined ? {} : { serverError: serverError.Manual })}
+        />
+      ) : (
+        <SchoolFeeInvoiceForm
+          families={families}
+          feeConfig={feeConfig}
+          invoiceKindSelector={invoiceKindSelector}
+          mode={mode}
+          onClose={onClose}
+          onSubmit={onSubmitGenerated}
+          pending={modalPending}
+          presets={presets}
+          {...(initialInvoice ? { initialInvoice } : {})}
+          {...(serverError.SchoolFee === undefined ? {} : { serverError: serverError.SchoolFee })}
+        />
+      )}
     </div>
   );
 }

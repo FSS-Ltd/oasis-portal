@@ -22,6 +22,7 @@ export {
   Prisma,
   SchoolFeeBillingCadence,
   SchoolFeeInvoiceDiscountKind,
+  SchoolFeeInvoiceKind,
   SchoolFeeInvoiceStatus,
   ShopCategory,
   ShopReservationStatus,
