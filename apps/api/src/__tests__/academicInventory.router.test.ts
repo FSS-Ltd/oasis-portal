@@ -94,6 +94,7 @@ interface FakeDb {
   };
   student: { findMany: ReturnType<typeof vi.fn> };
   studentSubject: {
+    findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
@@ -206,6 +207,15 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
       ),
     },
     studentSubject: {
+      findFirst: vi.fn(
+        ({ where }: { where: { studentId: string; subjectId: string } }) => {
+          const student = students.find((candidate) => candidate.id === where.studentId);
+          const assignment = findAssignment(where.studentId, where.subjectId);
+          return Promise.resolve(
+            student?.active && assignment?.subject.active ? assignment : null,
+          );
+        },
+      ),
       findUnique: vi.fn(
         ({
           where: { studentId_subjectId: key },
@@ -237,15 +247,45 @@ function callArgs(mock: ReturnType<typeof vi.fn>, index = -1): unknown {
 
 function makeCaller(user: SessionUser, studentFixtures?: StudentRow[]) {
   const state = makeFakeDb(studentFixtures);
+  const rejectDirectProtectedAccess = vi.fn(() =>
+    Promise.reject(new Error('protected model accessed outside withRls')),
+  );
+  const directDb = {
+    ...state.db,
+    $transaction: rejectDirectProtectedAccess,
+    diagnosticResult: {
+      create: rejectDirectProtectedAccess,
+      findMany: rejectDirectProtectedAccess,
+    },
+    paceInventoryOrder: {
+      create: rejectDirectProtectedAccess,
+      findMany: rejectDirectProtectedAccess,
+      findUnique: rejectDirectProtectedAccess,
+      update: rejectDirectProtectedAccess,
+    },
+    student: { findMany: rejectDirectProtectedAccess },
+    studentSubject: {
+      findFirst: rejectDirectProtectedAccess,
+      findUnique: rejectDirectProtectedAccess,
+      update: rejectDirectProtectedAccess,
+    },
+  };
+  const withRls = vi.fn((callback: (tx: RlsTx) => Promise<unknown>) =>
+    callback(state.db as unknown as RlsTx),
+  );
   const context: AppContext = {
-    db: state.db as unknown as AppContext['db'],
+    db: directDb as unknown as AppContext['db'],
     user,
     requestId: 'req_inventory_test',
-    withRls: async <T>(callback: (tx: RlsTx) => Promise<T>) =>
-      callback(state.db as unknown as RlsTx),
+    withRls: withRls as unknown as AppContext['withRls'],
   };
   const testRouter = router({ academicInventory: academicInventoryRouter });
-  return { ...state, caller: testRouter.createCaller(context) };
+  return {
+    ...state,
+    caller: testRouter.createCaller(context),
+    rejectDirectProtectedAccess,
+    withRls,
+  };
 }
 
 async function expectCode(promise: Promise<unknown>, code: TRPCError['code']): Promise<void> {
@@ -265,7 +305,7 @@ async function createOrder(
 
 describe('academic inventory router', () => {
   it('allows a Head to create one order for a student, subject, and PACE', async () => {
-    const { caller, db, orders } = makeCaller(HEAD);
+    const { caller, db, orders, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
 
     const result = await createOrder(caller);
 
@@ -278,6 +318,8 @@ describe('academic inventory router', () => {
     });
     expect(orders).toHaveLength(1);
     expect(orders[0]).not.toHaveProperty('quantity');
+    expect(withRls).toHaveBeenCalledOnce();
+    expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
     const audit = callArgs(db.auditLog.create) as { data: Record<string, unknown> };
     expect(audit.data).toMatchObject({
       userId: HEAD.id,
@@ -287,11 +329,26 @@ describe('academic inventory router', () => {
     });
   });
 
-  it('rejects a Supervisor before creating an order', async () => {
-    const { caller, orders } = makeCaller(SUPERVISOR);
+  it('rejects a Supervisor from every inventory procedure before database access', async () => {
+    const { caller, orders, withRls } = makeCaller(SUPERVISOR);
 
+    await expectCode(caller.academicInventory.summary(), 'FORBIDDEN');
     await expectCode(createOrder(caller), 'FORBIDDEN');
+    await expectCode(
+      caller.academicInventory.updateOrderStatus({ orderId: 'order_1', status: 'InTransit' }),
+      'FORBIDDEN',
+    );
+    await expectCode(
+      caller.academicInventory.recordDiagnostic({
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        level: 2,
+        outcome: 'Fail',
+      }),
+      'FORBIDDEN',
+    );
 
+    expect(withRls).not.toHaveBeenCalled();
     expect(orders).toHaveLength(0);
   });
 
@@ -303,9 +360,42 @@ describe('academic inventory router', () => {
     expect(orders).toHaveLength(0);
   });
 
+  it('rejects an order for an inactive student assignment', async () => {
+    const students = cloneStudents(defaultStudents);
+    const student = students[0];
+    if (!student) throw new Error('expected student fixture');
+    student.active = false;
+    const { caller, orders } = makeCaller(HEAD, students);
+
+    await expectCode(createOrder(caller), 'BAD_REQUEST');
+
+    expect(orders).toHaveLength(0);
+  });
+
+  it('rejects a diagnostic for an inactive subject assignment', async () => {
+    const students = cloneStudents(defaultStudents);
+    const assignment = students[0]?.subjects[0];
+    if (!assignment) throw new Error('expected assignment fixture');
+    assignment.subject.active = false;
+    const { caller, diagnostics } = makeCaller(HEAD, students);
+
+    await expectCode(
+      caller.academicInventory.recordDiagnostic({
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        level: 2,
+        outcome: 'Fail',
+      }),
+      'BAD_REQUEST',
+    );
+
+    expect(diagnostics).toHaveLength(0);
+  });
+
   it('moves orders through Ordered, InTransit, then Delivered', async () => {
-    const { caller, db } = makeCaller(HEAD);
+    const { caller, db, withRls } = makeCaller(HEAD);
     const order = await createOrder(caller);
+    db.auditLog.create.mockClear();
 
     const inTransit = await caller.academicInventory.updateOrderStatus({
       orderId: order.id,
@@ -318,6 +408,15 @@ describe('academic inventory router', () => {
     expect(Object.keys(inTransitUpdate.data).sort()).toEqual(['inTransitAt', 'status']);
     expect(inTransitUpdate.data).toMatchObject({ status: 'InTransit' });
     expect(inTransitUpdate.data.inTransitAt).toBeInstanceOf(Date);
+    expect(callArgs(db.auditLog.create)).toMatchObject({
+      data: {
+        userId: HEAD.id,
+        action: 'Update',
+        entity: 'PaceInventoryOrder',
+        entityId: order.id,
+        meta: { fromStatus: 'Ordered', toStatus: 'InTransit' },
+      },
+    });
 
     const delivered = await caller.academicInventory.updateOrderStatus({
       orderId: order.id,
@@ -330,6 +429,7 @@ describe('academic inventory router', () => {
     expect(Object.keys(deliveredUpdate.data).sort()).toEqual(['deliveredAt', 'status']);
     expect(deliveredUpdate.data).toMatchObject({ status: 'Delivered' });
     expect(deliveredUpdate.data.deliveredAt).toBeInstanceOf(Date);
+    expect(withRls).toHaveBeenCalledTimes(3);
   });
 
   it('rejects skipped and backward order transitions', async () => {
@@ -393,6 +493,44 @@ describe('academic inventory router', () => {
     ]);
   });
 
+  it('uses the highest delivered PACE for an assignment', async () => {
+    const { caller } = makeCaller(HEAD);
+    const highest = await createOrder(caller, { paceNumber: 1014 });
+    const latest = await createOrder(caller, { paceNumber: 1013 });
+    for (const order of [highest, latest]) {
+      await caller.academicInventory.updateOrderStatus({
+        orderId: order.id,
+        status: 'InTransit',
+      });
+      await caller.academicInventory.updateOrderStatus({
+        orderId: order.id,
+        status: 'Delivered',
+      });
+    }
+
+    const summary = await caller.academicInventory.summary();
+
+    expect(summary.alerts).toEqual([]);
+  });
+
+  it('audits authorized summary name decryption after using the RLS client', async () => {
+    const { caller, db, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
+
+    const summary = await caller.academicInventory.summary();
+
+    expect(summary.students[0]?.fullName).toBe('Jane Learner');
+    expect(withRls).toHaveBeenCalledOnce();
+    expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
+    expect(callArgs(db.auditLog.create)).toEqual({
+      data: {
+        userId: HEAD.id,
+        action: 'DecryptPii',
+        entity: 'Student',
+        meta: { source: 'academicInventory.summary', count: 1 },
+      },
+    });
+  });
+
   it('does not let an InTransit PACE 1013 suppress a delivered-stock alert', async () => {
     const students = cloneStudents(defaultStudents);
     const firstStudent = students[0];
@@ -425,7 +563,7 @@ describe('academic inventory router', () => {
   });
 
   it('records a Level 2 failure and advances the assignment to PACE 1013 transactionally', async () => {
-    const { caller, db, diagnostics } = makeCaller(HEAD);
+    const { caller, db, diagnostics, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
 
     const result = await caller.academicInventory.recordDiagnostic({
       studentId: STUDENT_ID,
@@ -436,10 +574,19 @@ describe('academic inventory router', () => {
 
     expect(result).toMatchObject({ level: 2, outcome: 'Fail' });
     expect(diagnostics).toHaveLength(1);
-    expect(db.$transaction).toHaveBeenCalledOnce();
+    expect(withRls).toHaveBeenCalledOnce();
+    expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
     expect(db.studentSubject.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { currentPaceNumber: 1013 } }),
     );
+    expect(callArgs(db.auditLog.create)).toMatchObject({
+      data: {
+        userId: HEAD.id,
+        action: 'Create',
+        entity: 'DiagnosticResult',
+        entityId: 'diagnostic_1',
+      },
+    });
   });
 
   it('keeps two students orders and alerts separate', async () => {
