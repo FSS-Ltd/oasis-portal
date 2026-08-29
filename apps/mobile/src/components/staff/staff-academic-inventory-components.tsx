@@ -297,6 +297,7 @@ export function InventoryDiagnosticCard({
         {diagnosticLevels.map((value) => (
           <SegmentButton
             active={level === value}
+            disabled={pending}
             key={value}
             label={String(value)}
             onPress={() => {
@@ -311,6 +312,7 @@ export function InventoryDiagnosticCard({
         {diagnosticOutcomes.map((value) => (
           <SegmentButton
             active={outcome === value}
+            disabled={pending}
             key={value}
             label={value}
             onPress={() => {
@@ -353,19 +355,26 @@ function OptionButton({
 
 function SegmentButton({
   active,
+  disabled,
   label,
   onPress,
 }: {
   active: boolean;
+  disabled: boolean;
   label: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ selected: active }}
+      accessibilityState={{ disabled, selected: active }}
+      disabled={disabled}
       onPress={onPress}
-      style={[styles.segmentButton, active ? styles.segmentButtonActive : null]}
+      style={[
+        styles.segmentButton,
+        active ? styles.segmentButtonActive : null,
+        disabled ? styles.segmentButtonDisabled : null,
+      ]}
     >
       <Text style={[styles.segmentText, active ? styles.segmentTextActive : null]}>{label}</Text>
     </Pressable>
@@ -440,6 +449,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   segmentButtonActive: { backgroundColor: C.navy, borderColor: C.navy },
+  segmentButtonDisabled: { opacity: 0.45 },
   segmentedRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   segmentText: { color: C.textSecondary, fontSize: 12, fontWeight: '900' },
   segmentTextActive: { color: C.surface },

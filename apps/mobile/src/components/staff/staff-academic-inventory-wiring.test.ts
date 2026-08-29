@@ -77,6 +77,23 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/onChangeOutcome={changeDiagnosticOutcome}/);
   });
 
+  it('locks diagnostic choices while a result is pending', () => {
+    const components = readStaffComponent('staff-academic-inventory-components.tsx');
+    const diagnosticCard = components.slice(
+      components.indexOf('export function InventoryDiagnosticCard'),
+      components.indexOf('function OptionButton'),
+    );
+    const segmentButton = components.slice(
+      components.indexOf('function SegmentButton'),
+      components.indexOf('const styles'),
+    );
+
+    expect(diagnosticCard.match(/disabled={pending}/g)).toHaveLength(3);
+    expect(segmentButton).toMatch(/disabled: boolean/);
+    expect(segmentButton).toMatch(/accessibilityState={{ disabled, selected: active }}/);
+    expect(segmentButton).toMatch(/disabled={disabled}/);
+  });
+
   it('routes a Head-only quick action from Staff Home', () => {
     const portal = readStaffComponent('staff-portal-screen.tsx');
     const home = readStaffComponent('staff-home-screen.tsx');
