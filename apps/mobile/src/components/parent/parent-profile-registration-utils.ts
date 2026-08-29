@@ -1,5 +1,4 @@
 import { type RouterInputs, type RouterOutputs } from '../../lib/trpc';
-import { REGISTRATION_LEVEL_OPTIONS, type RegistrationLevel } from '@oasis/domain';
 
 type ParentProfile = RouterOutputs['profile']['me'];
 type Registration = NonNullable<RouterOutputs['registration']['mine']>;
@@ -7,6 +6,8 @@ type RegistrationUpdateInput = RouterInputs['registration']['updateMine'];
 type RegistrationStudentInput = RegistrationUpdateInput['students'][number];
 type SiblingInput = RouterInputs['registration']['addSiblings']['students'][number];
 type SiblingConsentType = keyof SiblingInput['consents'];
+export const REGISTRATION_LEVEL_OPTIONS = ['ABC', 'Primary', 'Secondary'] as const;
+export type RegistrationLevel = (typeof REGISTRATION_LEVEL_OPTIONS)[number];
 
 const REGISTRATION_CONSENT_TYPES: readonly SiblingConsentType[] = [
   'Contact',

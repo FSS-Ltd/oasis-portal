@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { REGISTRATION_LEVEL_OPTIONS, type RegistrationLevel } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -14,6 +13,7 @@ import {
 } from '../core/mobile-ui';
 import { displaySchoolYearLabel, formatParentDate } from './parent-home-utils';
 import {
+  REGISTRATION_LEVEL_OPTIONS,
   blankSibling,
   hasRegistrationLevel,
   hasValidDate,
@@ -23,6 +23,7 @@ import {
   updateInputFromRegistration,
   type ProfileForm,
   type RegistrationForm,
+  type RegistrationLevel,
   type SiblingForm,
 } from './parent-profile-registration-utils';
 
