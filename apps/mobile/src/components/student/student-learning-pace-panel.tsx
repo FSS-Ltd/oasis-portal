@@ -44,9 +44,16 @@ export function StudentPacePanel({ error, loading, pace }: StudentPacePanelProps
               </MutedText>
             </View>
             <View style={styles.rowMeta}>
-              <Badge variant={paceStatusVariant(subject.status.tone)}>
-                {subject.status.status}
-              </Badge>
+              {pace.paceStatusVisible ? (
+                <>
+                  <Badge variant={paceStatusVariant(subject.status.tone)}>
+                    {subject.status.status}
+                  </Badge>
+                  {subject.status.testingLevelLabel ? (
+                    <Text style={styles.levelText}>{subject.status.testingLevelLabel}</Text>
+                  ) : null}
+                </>
+              ) : null}
               <Text style={styles.scoreText}>{scoreLabel(latest?.score)}</Text>
             </View>
           </View>
@@ -67,6 +74,13 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 3,
     minWidth: 0,
+  },
+  levelText: {
+    color: C.textSecondary,
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'right',
   },
   rowBetween: {
     alignItems: 'center',

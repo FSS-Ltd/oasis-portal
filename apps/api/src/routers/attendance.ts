@@ -341,6 +341,17 @@ function decryptRequired(
   return decrypted;
 }
 
+function dateOnlyTimestamp(value: string, entity: string): number {
+  const time = Date.parse(`${value}T00:00:00.000Z`);
+  if (!Number.isFinite(time)) {
+    throw new TRPCError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: `${entity} date is invalid`,
+    });
+  }
+  return time;
+}
+
 function csvEscape(value: string | number | Date | null | undefined): string {
   if (value === null || value === undefined) return '';
   const text = value instanceof Date ? value.toISOString() : String(value);
@@ -466,6 +477,7 @@ export const attendanceRouter = router({
         select: {
           id: true,
           fullNameEnc: true,
+          dobEnc: true,
           yearGroup: true,
           attendance: {
             where: { date },
@@ -482,11 +494,17 @@ export const attendanceRouter = router({
         orderBy: { createdAt: 'desc' },
       });
 
-      const rows = students.map((student) => {
+      const rowsWithDateOfBirth = students.map((student) => {
         const attendance = student.attendance[0] ?? null;
+        const studentName = decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student');
+        const dateOfBirth = dateOnlyTimestamp(
+          decryptRequired(ctx.db.$enc.decrypt, student.dobEnc, 'student'),
+          'student',
+        );
         return {
+          dateOfBirth,
           studentId: student.id,
-          studentName: decryptRequired(ctx.db.$enc.decrypt, student.fullNameEnc, 'student'),
+          studentName,
           yearGroup: student.yearGroup,
           date: dateKey(date),
           status: attendance?.status ?? null,
@@ -497,6 +515,24 @@ export const attendanceRouter = router({
           recordedAt: attendance?.createdAt ?? null,
         };
       });
+      const rows = rowsWithDateOfBirth
+        .sort((left, right) => {
+          const ageDifference = right.dateOfBirth - left.dateOfBirth;
+          if (ageDifference !== 0) return ageDifference;
+          return left.studentName.localeCompare(right.studentName);
+        })
+        .map((row) => ({
+          absenceReason: row.absenceReason,
+          absenceReasonLabel: row.absenceReasonLabel,
+          attendanceId: row.attendanceId,
+          date: row.date,
+          recordedAt: row.recordedAt,
+          recordedById: row.recordedById,
+          status: row.status,
+          studentId: row.studentId,
+          studentName: row.studentName,
+          yearGroup: row.yearGroup,
+        }));
 
       await ctx.db.auditLog.create({
         data: {

@@ -8,8 +8,7 @@ import {
   REGISTRATION_CONSENT_COPY,
   REGISTRATION_CONSENT_TYPES,
   REGISTRATION_GENDER_OPTIONS,
-  STANDARD_SCHOOL_YEARS,
-  displaySchoolYearLabel,
+  REGISTRATION_LEVEL_OPTIONS,
   parentRegistrationSiblingsInput,
 } from '@oasis/domain';
 import { Button, type ButtonProps } from '@/components/ui/button';
@@ -38,8 +37,8 @@ const issueLabelByField = new Map<string, string>([
   ['fullName', 'Enter the full name.'],
   ['gender', 'Choose Male or Female, or leave gender blank.'],
   ['initials', 'Enter initials for this consent.'],
+  ['registrationLevel', 'Choose ABC, Primary, or Secondary.'],
   ['startDate', 'Choose a valid start date.'],
-  ['yearGroup', 'Choose a year group or check the date of birth.'],
 ]);
 
 function TextArea({
@@ -283,15 +282,18 @@ export function SiblingAddModalButton({
                       />
                     </Field>
                     <Field
-                      error={errors.students?.[index]?.yearGroup?.message}
-                      hint="Leave blank to derive from date of birth."
-                      label="Year group"
+                      error={errors.students?.[index]?.registrationLevel?.message}
+                      hint="The Head of Centre will decide the exact level."
+                      label="Registration level"
+                      required
                     >
-                      <SelectInput {...register(formPath(`students.${String(index)}.yearGroup`))}>
-                        <option value="">Choose year group</option>
-                        {STANDARD_SCHOOL_YEARS.map((year) => (
-                          <option key={year} value={year}>
-                            {displaySchoolYearLabel(year)}
+                      <SelectInput
+                        {...register(formPath(`students.${String(index)}.registrationLevel`))}
+                      >
+                        <option value="">Choose level</option>
+                        {REGISTRATION_LEVEL_OPTIONS.map((level) => (
+                          <option key={level} value={level}>
+                            {level}
                           </option>
                         ))}
                       </SelectInput>

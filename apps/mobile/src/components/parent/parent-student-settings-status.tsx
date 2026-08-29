@@ -80,6 +80,11 @@ export function SettingsStatusCard({ child }: { child: LinkedChildSettings }) {
           value={child.parentMeritShopBlocked ? 'Blocked' : 'Allowed'}
           variant={boolVariant(child.parentMeritShopBlocked)}
         />
+        <StatusTile
+          label="PACE status"
+          value={child.paceStatusVisible ? 'Shown' : 'Hidden'}
+          variant={child.paceStatusVisible ? 'success' : 'neutral'}
+        />
       </View>
       {child.headAcademicLocked ? (
         <MutedText>

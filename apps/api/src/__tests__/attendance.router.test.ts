@@ -76,6 +76,7 @@ interface StoredStudent {
   id: string;
   userId: string | null;
   fullNameEnc: string;
+  dobEnc: string;
   yearGroup: string;
   active: boolean;
   createdAt: Date;
@@ -215,14 +216,16 @@ function makeFakeDb() {
       id: activeStudentId,
       userId: studentUser.id,
       fullNameEnc: 'enc:Jane Learner',
+      dobEnc: 'enc:2014-09-01',
       yearGroup: 'Year 6',
       active: true,
-      createdAt: new Date('2026-04-20T09:00:00.000Z'),
+      createdAt: new Date('2026-04-22T09:00:00.000Z'),
     },
     {
       id: secondStudentId,
       userId: null,
       fullNameEnc: 'enc:Amos Scholar',
+      dobEnc: 'enc:2015-09-01',
       yearGroup: 'Year 5',
       active: true,
       createdAt: new Date('2026-04-21T09:00:00.000Z'),
@@ -231,9 +234,10 @@ function makeFakeDb() {
       id: inactiveStudentId,
       userId: null,
       fullNameEnc: 'enc:Former Student',
+      dobEnc: 'enc:2013-09-01',
       yearGroup: 'Year 7',
       active: false,
-      createdAt: new Date('2026-04-22T09:00:00.000Z'),
+      createdAt: new Date('2026-04-23T09:00:00.000Z'),
     },
   ];
   const users: StoredUser[] = [
@@ -357,6 +361,7 @@ function makeFakeDb() {
               .map((student) => ({
                 id: student.id,
                 fullNameEnc: student.fullNameEnc,
+                dobEnc: student.dobEnc,
                 yearGroup: student.yearGroup,
                 active: student.active,
                 attendance: attendance
@@ -757,20 +762,20 @@ function makeFakeDb() {
           where?: { active?: boolean; name?: { in: string[] } };
           select?: { active?: boolean };
         } = {}) =>
-        Promise.resolve(
-          yearGroupBands
-            .filter((band) => where?.active === undefined || band.active === where.active)
-            .filter((band) => where?.name?.in === undefined || where.name.in.includes(band.name))
-            .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-            .map(({ id, name, standardYears, active, colour, sortOrder }) => ({
-              id,
-              name,
-              standardYears,
-              ...(select?.active ? { active } : {}),
-              colour,
-              sortOrder,
-            })),
-        ),
+          Promise.resolve(
+            yearGroupBands
+              .filter((band) => where?.active === undefined || band.active === where.active)
+              .filter((band) => where?.name?.in === undefined || where.name.in.includes(band.name))
+              .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+              .map(({ id, name, standardYears, active, colour, sortOrder }) => ({
+                id,
+                name,
+                standardYears,
+                ...(select?.active ? { active } : {}),
+                colour,
+                sortOrder,
+              })),
+          ),
       ),
       findFirst: vi.fn(
         ({
@@ -923,6 +928,7 @@ describe('attendance.forDate', () => {
     const rows = await supervisorCaller.attendance.forDate({ date: day('2026-04-29') });
 
     expect(rows).toHaveLength(2);
+    expect(rows.map((row) => row.studentId)).toEqual([secondStudentId, activeStudentId]);
     expect(rows.map((row) => row.studentId)).not.toContain(inactiveStudentId);
     expect(rows.find((row) => row.studentId === activeStudentId)).toMatchObject({
       studentName: 'Jane Learner',
@@ -1340,17 +1346,17 @@ describe('attendance.listExportOptions', () => {
           active: false,
         },
         {
-          id: secondStudentId,
-          label: 'Amos Scholar · Year 5',
-          name: 'Amos Scholar',
-          yearGroup: 'Year 5',
-          active: true,
-        },
-        {
           id: activeStudentId,
           label: 'Jane Learner · Year 6',
           name: 'Jane Learner',
           yearGroup: 'Year 6',
+          active: true,
+        },
+        {
+          id: secondStudentId,
+          label: 'Amos Scholar · Year 5',
+          name: 'Amos Scholar',
+          yearGroup: 'Year 5',
           active: true,
         },
       ],

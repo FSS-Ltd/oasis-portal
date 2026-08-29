@@ -1,4 +1,5 @@
 import { type RouterInputs, type RouterOutputs } from '../../lib/trpc';
+import { REGISTRATION_LEVEL_OPTIONS, type RegistrationLevel } from '@oasis/domain';
 
 type ParentProfile = RouterOutputs['profile']['me'];
 type Registration = NonNullable<RouterOutputs['registration']['mine']>;
@@ -14,6 +15,7 @@ const REGISTRATION_CONSENT_TYPES: readonly SiblingConsentType[] = [
   'PhotoVideo',
   'Accuracy',
 ];
+const registrationLevelSet = new Set<string>(REGISTRATION_LEVEL_OPTIONS);
 
 export interface ProfileForm {
   address: string;
@@ -32,8 +34,8 @@ export interface SiblingForm {
   dob: string;
   fullName: string;
   preferredName: string;
+  registrationLevel: RegistrationLevel | '';
   startDate: string;
-  yearGroup: string;
 }
 
 export function profileForm(profile: ParentProfile | undefined): ProfileForm {
@@ -63,8 +65,8 @@ export function blankSibling(): SiblingForm {
     dob: '',
     fullName: '',
     preferredName: '',
+    registrationLevel: '',
     startDate: new Date().toISOString().slice(0, 10),
-    yearGroup: '',
   };
 }
 
@@ -76,6 +78,10 @@ function optional(value: string): string | undefined {
 export function hasValidDate(value: string): boolean {
   const time = new Date(value).getTime();
   return Number.isFinite(time) && time <= Date.now();
+}
+
+export function hasRegistrationLevel(value: string): value is RegistrationLevel {
+  return registrationLevelSet.has(value);
 }
 
 function parentInitials(fullName: string): string {
@@ -136,11 +142,11 @@ export function updateInputFromRegistration(
         medicalConditions: student.medicalConditions ?? undefined,
         medicationAtCentre: student.medicationAtCentre ?? undefined,
         preferredName: student.preferredName ?? undefined,
+        registrationLevel: student.registrationLevel,
         settlingComfortNotes: student.settlingComfortNotes ?? undefined,
         startDate: new Date(student.startDate),
         studentId: student.studentId,
         studentNotes: student.studentNotes ?? undefined,
-        yearGroup: student.yearGroup,
       }),
     ),
   };
@@ -150,6 +156,9 @@ export function siblingInputFromForm(
   form: SiblingForm,
   profile: ParentProfile | undefined,
 ): SiblingInput {
+  if (!hasRegistrationLevel(form.registrationLevel)) {
+    throw new Error('Choose ABC, Primary, or Secondary.');
+  }
   const initials = parentInitials(profile?.fullName ?? '');
   return {
     additionalInfo: undefined,
@@ -167,9 +176,9 @@ export function siblingInputFromForm(
     medicalConditions: undefined,
     medicationAtCentre: undefined,
     preferredName: optional(form.preferredName),
+    registrationLevel: form.registrationLevel,
     settlingComfortNotes: undefined,
     startDate: new Date(form.startDate),
     studentNotes: undefined,
-    yearGroup: optional(form.yearGroup),
   };
 }

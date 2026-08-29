@@ -14,6 +14,7 @@ import {
   requireSelfStudent,
   rowsForMerit,
   schoolYearStorageAliases,
+  type PaceProgressStatusResult,
   type SessionUser,
 } from '@oasis/domain';
 import type { AppContext, RlsTx } from '../context.js';
@@ -30,6 +31,13 @@ const DEFAULT_POLICY = {
 };
 const AUTOMATIC_PACE_MERIT_CATEGORY = 'Academic Excellence';
 const PRIMARY_SUPERVISOR_YEAR_BAND_NAMES = new Set(['Lower Primary', 'Upper Primary']);
+const HIDDEN_PACE_STATUS = {
+  detail: 'Status hidden by parent setting',
+  status: 'Unavailable',
+  testingLevel: null,
+  testingLevelLabel: null,
+  tone: 'grey',
+} as const satisfies PaceProgressStatusResult;
 
 type AuthedContext = AppContext & { user: SessionUser };
 type PaceTestType = 'SelfTest' | 'FinalTest';
@@ -763,6 +771,11 @@ export const paceRouter = router({
           include: { subject: true },
           orderBy: { subject: { code: 'asc' } },
         },
+        portalSettings: {
+          select: {
+            paceStatusVisible: true,
+          },
+        },
       },
     });
     if (!student) {
@@ -862,6 +875,9 @@ export const paceRouter = router({
       progressBySubject.set(row.subjectId, subjectProgress);
     }
 
+    const paceStatusVisible = student.portalSettings?.paceStatusVisible ?? true;
+    const shouldExposePaceStatus =
+      ctx.user.role !== 'Student' || student.userId !== ctx.user.id || paceStatusVisible;
     const subjects = student.subjects.map((assignment) => {
       const records = recordsBySubject.get(assignment.subjectId) ?? [];
       const currentPaceRecords = records.filter(
@@ -902,7 +918,9 @@ export const paceRouter = router({
                 completionDurations.length) *
                 10,
             ) / 10;
-      const status = paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup);
+      const status = shouldExposePaceStatus
+        ? paceProgressStatusForYear(assignment.currentPaceNumber, student.yearGroup)
+        : HIDDEN_PACE_STATUS;
       const recentRecordDtos = records.slice(0, 5).map((record) => {
         const testType = testTypeForRecord(record);
         const score = scoreForRecord(record);
@@ -1011,6 +1029,7 @@ export const paceRouter = router({
       studentName,
       yearGroup: canonicalSchoolYear(student.yearGroup) ?? student.yearGroup,
       yearGroupLabel: displaySchoolYearLabel(student.yearGroup),
+      paceStatusVisible,
       subjects,
       today: {
         date: dayKey,

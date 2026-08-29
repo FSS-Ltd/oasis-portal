@@ -1014,6 +1014,20 @@
   line-height: 1.25;
 }
 
+.student-pace-status {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  min-width: 96px;
+  text-align: right;
+}
+
+.student-pace-status small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
 .student-pace-current {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1838,7 +1852,6 @@
   padding: 0 10px;
   font-size: 0.78rem;
 }
-
 
 .student-placeholder-page__header {
   display: grid;

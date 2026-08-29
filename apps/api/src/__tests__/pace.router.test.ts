@@ -775,6 +775,27 @@ describe('pace.forStudent RBAC', () => {
     expect(JSON.stringify(result)).not.toContain('Learner');
   });
 
+  it('hides PACE status details from students when the parent setting is off', async () => {
+    const db = makeFakeDb();
+    db.student.findUnique.mockResolvedValue({
+      ...defaultStudent,
+      yearGroup: 'Year 8',
+      portalSettings: { paceStatusVisible: false },
+    });
+    const { caller } = makeCaller(studentUser, db);
+
+    const result = await caller.pace.forStudent({ studentId: STUDENT_ID });
+
+    expect(result.paceStatusVisible).toBe(false);
+    expect(result.subjects[0]?.status).toEqual({
+      detail: 'Status hidden by parent setting',
+      status: 'Unavailable',
+      testingLevel: null,
+      testingLevelLabel: null,
+      tone: 'grey',
+    });
+  });
+
   it('rejects linked Student PACE reads outside the configured Secondary band', async () => {
     const { caller } = makeCaller(studentUser);
 

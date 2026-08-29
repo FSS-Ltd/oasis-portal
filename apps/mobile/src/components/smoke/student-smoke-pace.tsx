@@ -43,7 +43,13 @@ function RecordRow({ record }: { record: PaceRecord }) {
   );
 }
 
-function PaceSubjectCard({ subject }: { subject: PaceSubject }) {
+function PaceSubjectCard({
+  paceStatusVisible,
+  subject,
+}: {
+  paceStatusVisible: boolean;
+  subject: PaceSubject;
+}) {
   const latest = subject.currentScoreRecord ?? subject.recentRecords[0] ?? null;
 
   return (
@@ -53,14 +59,16 @@ function PaceSubjectCard({ subject }: { subject: PaceSubject }) {
           <Text style={styles.subjectCode}>{subject.code}</Text>
           <Text style={styles.subjectName}>{subject.name}</Text>
         </View>
-        <Badge variant={statusVariant(subject.status.tone)}>{subject.status.status}</Badge>
+        {paceStatusVisible ? (
+          <Badge variant={statusVariant(subject.status.tone)}>{subject.status.status}</Badge>
+        ) : null}
       </View>
       <View style={styles.paceStats}>
         <PaceStat label="Current" value={`PACE ${String(subject.currentPaceNumber)}`} />
         <PaceStat label="Completed" value={String(subject.completedPaceCount)} />
         <PaceStat label="Attempts" value={String(subject.currentFinalTestAttempts)} />
       </View>
-      <MutedText>{subject.status.detail}</MutedText>
+      {paceStatusVisible ? <MutedText>{subject.status.detail}</MutedText> : null}
       {latest ? (
         <View style={styles.latestBox}>
           <Text style={styles.latestLabel}>Latest result</Text>
@@ -112,7 +120,11 @@ export function StudentPacePanel({
         </Card>
       ) : null}
       {(pace?.subjects ?? []).map((subject) => (
-        <PaceSubjectCard key={subject.subjectId} subject={subject} />
+        <PaceSubjectCard
+          key={subject.subjectId}
+          paceStatusVisible={pace?.paceStatusVisible ?? true}
+          subject={subject}
+        />
       ))}
     </View>
   );

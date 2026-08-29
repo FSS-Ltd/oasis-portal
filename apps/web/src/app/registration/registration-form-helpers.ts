@@ -96,7 +96,7 @@ function labelForIssue(issue: ZodIssue, mode: RegistrationFormMode): string {
   if (last === 'primaryPhone' || last === 'phone') return 'Enter a phone number.';
   if (last === 'email') return 'Enter a valid email address.';
   if (last === 'dob') return 'Choose a valid date of birth.';
-  if (last === 'yearGroup') return 'Choose a year group or check the date of birth.';
+  if (last === 'registrationLevel') return 'Choose ABC, Primary, or Secondary.';
   if (last === 'startDate') return 'Choose a valid start date.';
   if (last === 'gender') return 'Choose Male or Female, or leave gender blank.';
   if (last === 'initials') return 'Enter initials for this consent.';

@@ -98,6 +98,7 @@ interface StoredSettings {
   headAcademicLocked: boolean;
   headAcademicLockReasonEnc: string | null;
   parentMeritShopBlocked: boolean;
+  paceStatusVisible: boolean;
   settingsUpdatedById: string | null;
   settingsUpdatedAt: Date | null;
   parentLockUpdatedById: string | null;
@@ -172,6 +173,7 @@ function makeSettings(studentId: string, overrides: Partial<StoredSettings> = {}
     headAcademicLocked: false,
     headAcademicLockReasonEnc: null,
     parentMeritShopBlocked: false,
+    paceStatusVisible: true,
     settingsUpdatedById: null,
     settingsUpdatedAt: null,
     parentLockUpdatedById: null,
@@ -596,6 +598,7 @@ describe('studentSettings parent procedures', () => {
       makeSettings(childStudentId, {
         loginHandleEnc: encrypt('jamie.login'),
         dailyUsageLimitMinutes: 90,
+        paceStatusVisible: false,
       }),
     );
     const caller = makeCaller(parentUser, db);
@@ -606,11 +609,13 @@ describe('studentSettings parent procedures', () => {
         fullName: 'Jamie Learner',
         loginHandle: 'jamie.login',
         dailyUsageLimitMinutes: 90,
+        paceStatusVisible: false,
         parentControlAllowed: true,
       }),
       expect.objectContaining({
         studentId: adultStudentId,
         fullName: 'Adult Learner',
+        paceStatusVisible: true,
         parentControlAllowed: false,
       }),
     ]);
@@ -653,6 +658,50 @@ describe('studentSettings parent procedures', () => {
           call.data.entity === 'StudentPortalSettings' &&
           call.data.entityId === childStudentId &&
           call.data.meta?.source === 'studentSettings.setUsageLimits',
+      ),
+    ).toBe(true);
+  });
+
+  it('allows parents to toggle PACE status visibility for linked under-18 children only', async () => {
+    const { db, settings } = makeFakeDb();
+    const caller = makeCaller(parentUser, db);
+
+    await expect(
+      caller.studentSettings.setPaceStatusVisibility({
+        paceStatusVisible: false,
+        studentId: childStudentId,
+      }),
+    ).resolves.toMatchObject({
+      studentId: childStudentId,
+      paceStatusVisible: false,
+    });
+
+    expect(settings.get(childStudentId)).toMatchObject({
+      paceStatusVisible: false,
+      settingsUpdatedById: parentUser.id,
+    });
+
+    await expect(
+      caller.studentSettings.setPaceStatusVisibility({
+        paceStatusVisible: true,
+        studentId: adultStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      caller.studentSettings.setPaceStatusVisibility({
+        paceStatusVisible: true,
+        studentId: unlinkedStudentId,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+    expect(
+      auditCalls(db).some(
+        (call) =>
+          call.data.userId === parentUser.id &&
+          call.data.action === 'Update' &&
+          call.data.entity === 'StudentPortalSettings' &&
+          call.data.entityId === childStudentId &&
+          call.data.meta?.source === 'studentSettings.setPaceStatusVisibility',
       ),
     ).toBe(true);
   });

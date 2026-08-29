@@ -37,7 +37,7 @@ function validStudent(name: string): ParentInitialRegistrationInput['students'][
     preferredName: name.split(' ')[0] ?? name,
     dob: new Date('2016-03-04T00:00:00.000Z'),
     gender: 'Female',
-    yearGroup: 'Year 5',
+    registrationLevel: 'Primary',
     startDate: new Date('2026-04-27T00:00:00.000Z'),
     homeLanguage: 'English',
     studentNotes: 'Routine notes',
@@ -827,8 +827,10 @@ describe('registration.submitInitial', () => {
       fullNameEnc: 'enc:Jane Learner',
       nameBidx: 'bidx:jane learner',
       dobEnc: 'enc:2016-03-04',
+      yearGroup: 'Year 5',
       addressEnc: null,
     });
+    expect(store.profiles[0]).toMatchObject({ registrationLevel: 'Primary' });
     expect(store.profiles).toHaveLength(2);
     expect(store.consents).toHaveLength(10);
     expect(store.db.auditLog.create).toHaveBeenCalledWith({
@@ -934,6 +936,7 @@ describe('registration.mine', () => {
           studentId: 'student_1',
           fullName: 'Jane Learner',
           dob: '2016-03-04',
+          registrationLevel: 'Primary',
           consents: { Accuracy: { granted: true, initials: 'JF' } },
         },
         {
@@ -974,6 +977,7 @@ describe('registration.updateMine', () => {
       students: [
         {
           ...validStudent('Jane Updated'),
+          registrationLevel: 'Secondary',
           studentId: 'student_1',
           consents: {
             Contact: validConsent('JU'),
@@ -989,6 +993,7 @@ describe('registration.updateMine', () => {
         },
       ],
     };
+    store.students[0] = { ...store.students[0], yearGroup: 'Year 4' };
 
     await expect(
       makeCaller(parentUser, store.db).registration.updateMine(updatePayload),
@@ -1003,7 +1008,9 @@ describe('registration.updateMine', () => {
     expect(store.students[0]).toMatchObject({
       fullNameEnc: 'enc:Jane Updated',
       nameBidx: 'bidx:jane updated',
+      yearGroup: 'Year 4',
     });
+    expect(store.profiles[0]).toMatchObject({ registrationLevel: 'Secondary' });
     expect(
       store.consents.find(
         (consent) => consent.profileId === 'profile_1' && consent.consentType === 'Accuracy',
