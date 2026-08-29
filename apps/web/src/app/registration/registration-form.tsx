@@ -8,8 +8,7 @@ import {
   REGISTRATION_CONSENT_COPY,
   REGISTRATION_CONSENT_TYPES,
   REGISTRATION_GENDER_OPTIONS,
-  STANDARD_SCHOOL_YEARS,
-  displaySchoolYearLabel,
+  REGISTRATION_LEVEL_OPTIONS,
 } from '@oasis/domain';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
@@ -609,15 +608,18 @@ export function RegistrationForm({ mode = 'initial' }: { mode?: RegistrationForm
                   />
                 </Field>
                 <Field
-                  error={errors.students?.[index]?.yearGroup?.message}
-                  hint="Leave blank to derive from date of birth."
-                  label="Year group"
+                  error={errors.students?.[index]?.registrationLevel?.message}
+                  hint="The Head of Centre will decide the exact level."
+                  label="Registration level"
+                  required
                 >
-                  <SelectInput {...register(formPath(`students.${String(index)}.yearGroup`))}>
-                    <option value="">Choose year group</option>
-                    {STANDARD_SCHOOL_YEARS.map((year) => (
-                      <option key={year} value={year}>
-                        {displaySchoolYearLabel(year)}
+                  <SelectInput
+                    {...register(formPath(`students.${String(index)}.registrationLevel`))}
+                  >
+                    <option value="">Choose level</option>
+                    {REGISTRATION_LEVEL_OPTIONS.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
                       </option>
                     ))}
                   </SelectInput>

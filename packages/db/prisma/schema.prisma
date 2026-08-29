@@ -396,6 +396,7 @@ model StudentPortalSettings {
   headAcademicLocked        Boolean   @default(false)
   headAcademicLockReasonEnc String?
   parentMeritShopBlocked    Boolean   @default(false)
+  paceStatusVisible         Boolean   @default(true)
   communityMessagingBlocked Boolean   @default(false)
   communityMessagingBlockedReasonEnc String?
   settingsUpdatedById       String?
@@ -780,6 +781,7 @@ model StudentRegistrationProfile {
   registration            ParentRegistration @relation(fields: [registrationId], references: [id])
   studentId               String             @unique
   student                 Student            @relation(fields: [studentId], references: [id])
+  registrationLevel       String             @default("Primary")
   preferredNameEnc        String?
   genderEnc               String?
   homeLanguageEnc         String?
@@ -798,6 +800,7 @@ model StudentRegistrationProfile {
   consents StudentRegistrationConsent[]
 
   @@index([registrationId])
+  @@index([registrationLevel])
 }
 
 model StudentRegistrationConsent {

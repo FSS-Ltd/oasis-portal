@@ -5,7 +5,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { friendlyErrorMessage } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
-import { formatScore, formatShortDate, scoreTone, statusTone } from '@/components/pace/pace-workflow-utils';
+import {
+  formatScore,
+  formatShortDate,
+  scoreTone,
+  statusTone,
+} from '@/components/pace/pace-workflow-utils';
 
 type StudentPace = RouterOutputs['pace']['forStudent'];
 type PaceSubject = StudentPace['subjects'][number];
@@ -27,7 +32,22 @@ function currentPaceLabel(subject: PaceSubject): string {
   return 'Awaiting first score';
 }
 
-function SubjectProgressCard({ subject }: { subject: PaceSubject }) {
+function PaceStatusSummary({ subject }: { subject: PaceSubject }) {
+  return (
+    <div className="student-pace-status">
+      <Badge tone={statusTone(subject.status.tone)}>{subject.status.status}</Badge>
+      {subject.status.testingLevelLabel ? <small>{subject.status.testingLevelLabel}</small> : null}
+    </div>
+  );
+}
+
+function SubjectProgressCard({
+  paceStatusVisible,
+  subject,
+}: {
+  paceStatusVisible: boolean;
+  subject: PaceSubject;
+}) {
   const percent = currentPacePercent(subject);
   const latestScore = subject.latestFinalTest ?? subject.latestSelfTest;
 
@@ -38,7 +58,7 @@ function SubjectProgressCard({ subject }: { subject: PaceSubject }) {
           <p>{subject.code}</p>
           <h2>{subject.name}</h2>
         </div>
-        <Badge tone={statusTone(subject.status.tone)}>{subject.status.status}</Badge>
+        {paceStatusVisible ? <PaceStatusSummary subject={subject} /> : null}
       </div>
 
       <div className="student-pace-current">
@@ -48,7 +68,9 @@ function SubjectProgressCard({ subject }: { subject: PaceSubject }) {
         </span>
         <span>
           <small>Latest score</small>
-          <strong className={`student-pace-score student-pace-score--${scoreTone(latestScore?.score)}`}>
+          <strong
+            className={`student-pace-score student-pace-score--${scoreTone(latestScore?.score)}`}
+          >
             {formatScore(latestScore?.score)}
           </strong>
         </span>
@@ -133,7 +155,11 @@ export function StudentPaceClient() {
       ) : (
         <section className="student-pace-grid" aria-label="Subject PACE progress">
           {pace.data.subjects.map((subject) => (
-            <SubjectProgressCard key={subject.subjectId} subject={subject} />
+            <SubjectProgressCard
+              key={subject.subjectId}
+              paceStatusVisible={pace.data.paceStatusVisible}
+              subject={subject}
+            />
           ))}
         </section>
       )}

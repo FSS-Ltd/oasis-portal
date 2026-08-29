@@ -94,6 +94,9 @@ const parentLockInput = studentIdInput.extend({
 const shopBlockInput = studentIdInput.extend({
   blocked: z.boolean(),
 });
+const paceStatusVisibilityInput = studentIdInput.extend({
+  paceStatusVisible: z.boolean(),
+});
 const childPasswordInput = studentIdInput.extend({
   password: passwordInput,
 });
@@ -120,6 +123,7 @@ const settingsSelect = Prisma.validator<Prisma.StudentPortalSettingsSelect>()({
   headAcademicLocked: true,
   headAcademicLockReasonEnc: true,
   parentMeritShopBlocked: true,
+  paceStatusVisible: true,
   settingsUpdatedById: true,
   settingsUpdatedAt: true,
   parentLockUpdatedById: true,
@@ -182,6 +186,7 @@ interface SettingsMutationData {
   headAcademicLocked?: boolean;
   headAcademicLockReasonEnc?: string | null;
   parentMeritShopBlocked?: boolean;
+  paceStatusVisible?: boolean;
   settingsUpdatedById?: string;
   settingsUpdatedAt?: Date;
   parentLockUpdatedById?: string;
@@ -209,6 +214,7 @@ interface SettingsDefaults {
   headAcademicLocked: boolean;
   headAcademicLockReasonEnc: string | null;
   parentMeritShopBlocked: boolean;
+  paceStatusVisible: boolean;
   childIconPhotoUrl: string | null;
 }
 
@@ -609,6 +615,7 @@ function defaultsFor(settings: SettingsRow | null): SettingsDefaults {
     headAcademicLocked: settings?.headAcademicLocked ?? false,
     headAcademicLockReasonEnc: settings?.headAcademicLockReasonEnc ?? null,
     parentMeritShopBlocked: settings?.parentMeritShopBlocked ?? false,
+    paceStatusVisible: settings?.paceStatusVisible ?? true,
     childIconPhotoUrl: settings?.childIconPhotoUrl ?? null,
   };
 }
@@ -742,6 +749,7 @@ function mapParentSettings(
       ? ctx.db.$enc.decrypt(state.headAcademicLockReasonEnc)
       : null,
     parentMeritShopBlocked: state.parentMeritShopBlocked,
+    paceStatusVisible: state.paceStatusVisible,
     childIconPhotoUrl: state.childIconPhotoUrl,
     effectiveLock,
   };
@@ -762,6 +770,7 @@ function mapStudentSettings(
     dailyUsageLimitMinutes: state.dailyUsageLimitMinutes,
     offLimitWeekdays: state.offLimitWeekdays,
     parentMeritShopBlocked: state.parentMeritShopBlocked,
+    paceStatusVisible: state.paceStatusVisible,
     effectiveLock: effectiveStudentPortalLock(state),
   };
 }
@@ -1365,6 +1374,24 @@ export function createStudentSettingsRouter(deps: StudentSettingsRouterDeps = {}
           studentId: student.id,
           source: 'studentSettings.setMeritShopBlock',
           fields: ['parentMeritShopBlocked'],
+        });
+        return mapParentSettings(ctx, student, settings);
+      }),
+
+    setPaceStatusVisibility: linkedChildGuardianProcedure
+      .input(paceStatusVisibilityInput)
+      .mutation(async ({ ctx, input }) => {
+        const student = await loadParentControlledStudent(ctx, input.studentId);
+        const now = new Date();
+        const settings = await upsertSettings(ctx, student.id, {
+          paceStatusVisible: input.paceStatusVisible,
+          settingsUpdatedById: ctx.user.id,
+          settingsUpdatedAt: now,
+        });
+        await auditSettingsUpdate(ctx, {
+          studentId: student.id,
+          source: 'studentSettings.setPaceStatusVisibility',
+          fields: ['paceStatusVisible'],
         });
         return mapParentSettings(ctx, student, settings);
       }),

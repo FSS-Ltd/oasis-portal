@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { REGISTRATION_LEVEL_OPTIONS, type RegistrationLevel } from '@oasis/domain';
 import { api, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
@@ -14,6 +15,7 @@ import {
 import { displaySchoolYearLabel, formatParentDate } from './parent-home-utils';
 import {
   blankSibling,
+  hasRegistrationLevel,
   hasValidDate,
   profileForm,
   registrationForm,
@@ -164,6 +166,10 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
     }
     if (!hasValidDate(siblingFields.startDate)) {
       setFormError('Enter a valid start date.');
+      return;
+    }
+    if (!hasRegistrationLevel(siblingFields.registrationLevel)) {
+      setFormError('Choose ABC, Primary, or Secondary.');
       return;
     }
     const sibling = siblingInputFromForm(siblingFields, profile.data);
@@ -433,13 +439,12 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
               placeholder="YYYY-MM-DD"
               value={siblingFields.dob}
             />
-            <Field
-              label="Year group"
-              onChangeText={(yearGroup) => {
-                setSiblingFields((current) => ({ ...current, yearGroup }));
+            <RegistrationLevelSelector
+              disabled={mutationPending}
+              onChange={(registrationLevel) => {
+                setSiblingFields((current) => ({ ...current, registrationLevel }));
               }}
-              placeholder="Leave blank to derive"
-              value={siblingFields.yearGroup}
+              value={siblingFields.registrationLevel}
             />
             <MobileButton
               disabled={mutationPending}
@@ -485,6 +490,50 @@ export function ParentProfileRegistrationScreen({ onRefresh }: { onRefresh: () =
         ))}
       </Card>
     </ScrollView>
+  );
+}
+
+function RegistrationLevelSelector({
+  disabled,
+  onChange,
+  value,
+}: {
+  disabled: boolean;
+  onChange: (value: RegistrationLevel) => void;
+  value: RegistrationLevel | '';
+}) {
+  return (
+    <View style={styles.levelSelector}>
+      <Text style={styles.readLabel}>Registration level</Text>
+      <View style={styles.actionRow}>
+        {REGISTRATION_LEVEL_OPTIONS.map((level) => {
+          const selected = value === level;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled, selected }}
+              disabled={disabled}
+              key={level}
+              onPress={() => {
+                onChange(level);
+              }}
+              style={[
+                styles.levelButton,
+                selected ? styles.levelButtonSelected : null,
+                disabled ? styles.disabled : null,
+              ]}
+            >
+              <Text
+                style={[styles.levelButtonText, selected ? styles.levelButtonTextSelected : null]}
+              >
+                {level}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <MutedText>Head of Centre decides the exact level.</MutedText>
+    </View>
   );
 }
 
@@ -578,6 +627,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
   },
+  disabled: {
+    opacity: 0.45,
+  },
   eyebrow: {
     color: C.crimson,
     fontSize: 12,
@@ -593,6 +645,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 10,
     padding: 12,
+  },
+  levelButton: {
+    alignItems: 'center',
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    minHeight: 40,
+    minWidth: 86,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+  },
+  levelButtonSelected: {
+    backgroundColor: C.blueLight,
+    borderColor: C.blueMid,
+  },
+  levelButtonText: {
+    color: C.textSecondary,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  levelButtonTextSelected: {
+    color: C.navy,
+  },
+  levelSelector: {
+    gap: 7,
   },
   readGrid: {
     flexDirection: 'row',

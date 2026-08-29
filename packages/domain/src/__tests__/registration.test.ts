@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  REGISTRATION_LEVEL_OPTIONS,
   parentInitialRegistrationInput,
   parentRegistrationSiblingInput,
   parentRegistrationSiblingsInput,
@@ -16,7 +17,7 @@ function validStudent(name = 'Jane Learner') {
     preferredName: 'Jane',
     dob: new Date('2016-03-04T00:00:00.000Z'),
     gender: 'Female',
-    yearGroup: 'Year 5',
+    registrationLevel: 'Primary',
     startDate: new Date('2026-04-27T00:00:00.000Z'),
     homeLanguage: 'English',
     studentNotes: 'Routine notes',
@@ -86,6 +87,7 @@ describe('parentInitialRegistrationInput', () => {
   it('accepts the registration form and normalises optional blanks', () => {
     const parsed = parentInitialRegistrationInput.parse(validPayload());
 
+    expect(REGISTRATION_LEVEL_OPTIONS).toEqual(['ABC', 'Primary', 'Secondary']);
     expect(parsed.guardianContacts[0]?.email).toBe('parent@one.com');
     expect(parsed.guardianContacts[0]?.secondaryPhone).toBeUndefined();
     expect(parsed.students[0]?.consents.Accuracy.initials).toBe('JF');
@@ -133,7 +135,7 @@ describe('parentInitialRegistrationInput', () => {
       payload.students[0] = {
         ...validStudent(),
         gender: '',
-        yearGroup: '',
+        registrationLevel: 'Secondary',
         startDate: '' as unknown as Date,
         allergies: '',
       };
@@ -141,7 +143,7 @@ describe('parentInitialRegistrationInput', () => {
       const parsed = parentInitialRegistrationInput.parse(payload);
 
       expect(parsed.students[0]?.gender).toBeUndefined();
-      expect(parsed.students[0]?.yearGroup).toBe('Year 5');
+      expect(parsed.students[0]?.registrationLevel).toBe('Secondary');
       expect(parsed.students[0]?.startDate).toEqual(new Date('2026-05-08T10:30:00.000Z'));
       expect(parsed.students[0]?.allergies).toBeUndefined();
     } finally {
@@ -149,21 +151,29 @@ describe('parentInitialRegistrationInput', () => {
     }
   });
 
-  it('asks for a year group when date of birth cannot map to one', () => {
+  it('accepts a broad registration level when date of birth cannot map to a school year', () => {
     const payload = validPayload();
     payload.students[0] = {
       ...validStudent(),
       dob: new Date('2024-03-04T00:00:00.000Z'),
-      yearGroup: '',
+      registrationLevel: 'ABC',
+    };
+
+    const result = parentInitialRegistrationInput.parse(payload);
+    expect(result.students[0]?.registrationLevel).toBe('ABC');
+  });
+
+  it('rejects exact year groups for parent-submitted registration levels', () => {
+    const payload = validPayload();
+    payload.students[0] = {
+      ...validStudent(),
+      registrationLevel: 'Year 5',
     };
 
     const result = parentInitialRegistrationInput.safeParse(payload);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.issues[0]?.path).toEqual(['students', 0, 'yearGroup']);
-      expect(result.error.issues[0]?.message).toBe(
-        'choose a year group or check the date of birth',
-      );
+      expect(result.error.issues[0]?.path).toEqual(['students', 0, 'registrationLevel']);
     }
   });
 
@@ -218,7 +228,7 @@ describe('parentRegistrationUpdateInput', () => {
     const parsed = parentRegistrationUpdateInput.parse(payload);
 
     expect(parsed.students[0]?.studentId).toBe('student_1');
-    expect(parsed.students[0]?.yearGroup).toBe('Year 5');
+    expect(parsed.students[0]?.registrationLevel).toBe('Primary');
   });
 
   it('rejects edited students without a student id', () => {

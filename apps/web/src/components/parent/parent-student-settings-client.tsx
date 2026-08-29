@@ -103,6 +103,12 @@ function SettingsStatusCard({ child }: { child: LinkedChildSettings }) {
           </Badge>
         </div>
         <div>
+          <span>PACE status</span>
+          <Badge tone={child.paceStatusVisible ? 'green' : 'grey'}>
+            {child.paceStatusVisible ? 'Shown' : 'Hidden'}
+          </Badge>
+        </div>
+        <div>
           <span>Merit Shop</span>
           <Badge tone={child.parentMeritShopBlocked ? 'red' : 'green'}>
             {child.parentMeritShopBlocked ? 'Blocked' : 'Allowed'}
@@ -735,6 +741,7 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
       parentAccountLocked?: boolean;
       parentLockReason?: string | null;
       parentMeritShopBlocked?: boolean;
+      paceStatusVisible?: boolean;
     },
   ): LinkedChildSettings {
     const parentAccountLocked = patch.parentAccountLocked ?? current.parentAccountLocked;
@@ -745,6 +752,7 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
       parentLockReason:
         patch.parentLockReason === undefined ? current.parentLockReason : patch.parentLockReason,
       parentMeritShopBlocked: patch.parentMeritShopBlocked ?? current.parentMeritShopBlocked,
+      paceStatusVisible: patch.paceStatusVisible ?? current.paceStatusVisible,
       effectiveLock: effectiveStudentPortalLock({
         parentAccountLocked,
         headAcademicLocked: current.headAcademicLocked,
@@ -822,6 +830,36 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
       showSuccessToast(updated.parentAccountLocked ? 'Account locked.' : 'Account unlocked.');
     },
   });
+  const setPaceStatusVisibility = api.studentSettings.setPaceStatusVisibility.useMutation({
+    async onMutate(input) {
+      await utils.studentSettings.listLinkedChildren.cancel();
+      const previousChild = cachedChild(input.studentId);
+      patchCachedChild(input.studentId, (current) =>
+        optimisticAccessState(current, { paceStatusVisible: input.paceStatusVisible }),
+      );
+      return { previousChild };
+    },
+    onError(error, _input, context) {
+      const previousChild = context?.previousChild;
+      if (previousChild) {
+        patchCachedChild(previousChild.studentId, (current) =>
+          optimisticAccessState(current, {
+            paceStatusVisible: previousChild.paceStatusVisible,
+          }),
+        );
+      }
+      showErrorToast(error, 'PACE status visibility could not be updated.');
+    },
+    onSuccess(updated) {
+      patchCachedChild(updated.studentId, (current) =>
+        optimisticAccessState(current, {
+          paceStatusVisible: updated.paceStatusVisible,
+        }),
+      );
+      setSuccess('PACE status visibility updated.');
+      showSuccessToast('PACE status visibility updated.');
+    },
+  });
 
   return (
     <Panel body className="parent-settings-panel">
@@ -842,6 +880,21 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
         }}
         pending={setMeritShopBlock.isPending}
         sub="The child cannot reserve or purchase shop items while this is on."
+      />
+
+      <SwitchRow
+        checked={child.paceStatusVisible}
+        disabled={disabled}
+        label="Show PACE status badge"
+        onChange={(paceStatusVisible) => {
+          setSuccess(null);
+          setPaceStatusVisibility.mutate({
+            paceStatusVisible,
+            studentId: child.studentId,
+          });
+        }}
+        pending={setPaceStatusVisibility.isPending}
+        sub="When off, the student sees PACE work without ahead, behind, or on-track badges."
       />
 
       <div className="parent-settings-lock-box">
@@ -897,7 +950,10 @@ function AccessPanel({ child, disabled }: { child: LinkedChildSettings; disabled
         ) : null}
       </div>
 
-      <InlineStatus error={setMeritShopBlock.error ?? setParentLock.error} success={success} />
+      <InlineStatus
+        error={setMeritShopBlock.error ?? setParentLock.error ?? setPaceStatusVisibility.error}
+        success={success}
+      />
     </Panel>
   );
 }
@@ -973,7 +1029,10 @@ export function ParentStudentSettingsClient() {
       <div className="dashboard-hero">
         <p>Student portal settings</p>
         <h1>Account controls for linked children</h1>
-        <span>Configure sign-in, password policy, usage limits, locks, and Merit Shop access.</span>
+        <span>
+          Configure sign-in, password policy, usage limits, locks, Merit Shop access, and PACE
+          status visibility.
+        </span>
       </div>
 
       <div className="parent-page-title-row parent-settings-title-row">

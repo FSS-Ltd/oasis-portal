@@ -101,7 +101,7 @@ export function ParentStudentSettingsScreen({ onRefresh }: { onRefresh: () => Pr
         <Text style={styles.title}>Linked-child settings</Text>
         <MutedText>
           Control under-18 student portal access, credentials, usage limits, locks, and merit shop
-          access.
+          access, plus PACE status visibility.
         </MutedText>
       </View>
 
@@ -573,7 +573,9 @@ function AccessControlsCard({
   const [lockReason, setLockReason] = useState(child.parentLockReason ?? '');
   const setParentLock = api.studentSettings.setParentLock.useMutation();
   const setMeritShopBlock = api.studentSettings.setMeritShopBlock.useMutation();
-  const busy = setParentLock.isPending || setMeritShopBlock.isPending;
+  const setPaceStatusVisibility = api.studentSettings.setPaceStatusVisibility.useMutation();
+  const busy =
+    setParentLock.isPending || setMeritShopBlock.isPending || setPaceStatusVisibility.isPending;
 
   useEffect(() => {
     setLockReason(child.parentLockReason ?? '');
@@ -612,6 +614,26 @@ function AccessControlsCard({
     }
   }
 
+  async function updatePaceStatusVisibility(paceStatusVisible: boolean) {
+    onError(null);
+    try {
+      const updated = await setPaceStatusVisibility.mutateAsync({
+        paceStatusVisible,
+        studentId: child.studentId,
+      });
+      onSaved(
+        paceStatusVisible
+          ? 'Settings saved. PACE status shown.'
+          : 'Settings saved. PACE status hidden.',
+        updated,
+      );
+    } catch (error) {
+      onError(
+        error instanceof Error ? error.message : 'PACE status visibility could not be updated.',
+      );
+    }
+  }
+
   return (
     <Card>
       <SectionTitle>Parent lock</SectionTitle>
@@ -638,6 +660,17 @@ function AccessControlsCard({
         sub="Account locks also block shop access through backend policy."
         onToggle={(checked) => {
           void updateMeritShopBlock(checked);
+        }}
+      />
+      <SectionTitle>PACE status</SectionTitle>
+      <MutedText>Show or hide ahead, behind, and on-track badges in the student portal.</MutedText>
+      <ToggleRow
+        checked={child.paceStatusVisible}
+        disabled={disabled || busy}
+        label="Show PACE status badge"
+        sub="PACE work and scores remain visible when this is off."
+        onToggle={(checked) => {
+          void updatePaceStatusVisibility(checked);
         }}
       />
     </Card>

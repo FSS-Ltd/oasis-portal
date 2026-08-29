@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { deriveEnglandWalesSchoolYear, standardSchoolYearSchema } from './schoolYears.js';
 
 export const REGISTRATION_CONSENT_TYPES = [
   'Contact',
@@ -12,6 +11,9 @@ export type RegistrationConsentType = (typeof REGISTRATION_CONSENT_TYPES)[number
 
 export const REGISTRATION_GENDER_OPTIONS = ['Male', 'Female'] as const;
 export type RegistrationGender = (typeof REGISTRATION_GENDER_OPTIONS)[number];
+
+export const REGISTRATION_LEVEL_OPTIONS = ['ABC', 'Primary', 'Secondary'] as const;
+export type RegistrationLevel = (typeof REGISTRATION_LEVEL_OPTIONS)[number];
 
 export const REGISTRATION_CONSENT_COPY = {
   Contact: 'Centre contact by phone, SMS, or email',
@@ -41,9 +43,12 @@ const optionalGenderInput = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.enum(REGISTRATION_GENDER_OPTIONS).optional(),
 );
-const optionalSchoolYearInput = z.preprocess(
-  (value) => (value === '' ? undefined : value),
-  standardSchoolYearSchema.optional(),
+const registrationLevelInput = z.preprocess(
+  (value) => (typeof value === 'string' ? value.trim() : value),
+  z.enum(REGISTRATION_LEVEL_OPTIONS, {
+    required_error: 'choose ABC, Primary, or Secondary',
+    invalid_type_error: 'choose ABC, Primary, or Secondary',
+  }),
 );
 
 export const registrationGuardianContactInput = z
@@ -116,7 +121,7 @@ const registrationStudentShape = {
   preferredName: optionalText(120),
   dob: notFutureDateInput,
   gender: optionalGenderInput,
-  yearGroup: optionalSchoolYearInput,
+  registrationLevel: registrationLevelInput,
   startDate: optionalDateInputWithTodayDefault,
   homeLanguage: optionalText(120),
   studentNotes: optionalText(1000),
@@ -137,27 +142,7 @@ function registrationStudentInputWith<TShape extends z.ZodRawShape>(shape: TShap
       ...registrationStudentShape,
       ...shape,
     })
-    .strict()
-    .superRefine((student, ctx) => {
-      const dob = student.dob as unknown;
-      if (student.yearGroup !== undefined || !(dob instanceof Date)) return;
-      try {
-        deriveEnglandWalesSchoolYear(dob);
-      } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'choose a year group or check the date of birth',
-          path: ['yearGroup'],
-        });
-      }
-    })
-    .transform((student) => {
-      const dob = student.dob as unknown as Date;
-      return {
-        ...student,
-        yearGroup: student.yearGroup ?? deriveEnglandWalesSchoolYear(dob),
-      };
-    });
+    .strict();
 }
 
 export const registrationStudentInput = registrationStudentInputWith({});

@@ -5,6 +5,7 @@ import {
   REGISTRATION_CONSENT_TYPES,
   canAnswerChildRegistrationPrompt,
   canSubmitInitialRegistration,
+  deriveEnglandWalesSchoolYear,
   parentInitialRegistrationInput,
   parentRegistrationSiblingInput,
   parentRegistrationSiblingsInput,
@@ -14,6 +15,7 @@ import {
   type ParentRegistrationSiblingInput,
   type ParentRegistrationUpdateInput,
   type RegistrationConsentType,
+  type RegistrationLevel,
   type Role,
 } from '@oasis/domain';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
@@ -260,6 +262,25 @@ function consentEntries(consents: ParentInitialRegistrationInput['students'][num
   }));
 }
 
+const FALLBACK_YEAR_GROUP_BY_REGISTRATION_LEVEL = {
+  ABC: 'Reception',
+  Primary: 'Year 1',
+  Secondary: 'Year 7',
+} as const satisfies Record<RegistrationLevel, string>;
+
+function provisionalYearGroupForRegistrationStudent(
+  studentInput: Pick<
+    ParentRegistrationSiblingInput['student'],
+    'dob' | 'registrationLevel' | 'startDate'
+  >,
+): string {
+  try {
+    return deriveEnglandWalesSchoolYear(studentInput.dob, studentInput.startDate);
+  } catch {
+    return FALLBACK_YEAR_GROUP_BY_REGISTRATION_LEVEL[studentInput.registrationLevel];
+  }
+}
+
 type EncryptionContext = {
   db: {
     $enc: {
@@ -380,7 +401,19 @@ function studentData(
     fullNameEnc: encryptRequired(ctx.db.$enc.encrypt, studentInput.fullName, 'student PII'),
     nameBidx: ctx.db.$enc.blindIndex(studentInput.fullName),
     dobEnc: encryptRequired(ctx.db.$enc.encrypt, dateOnly(studentInput.dob), 'student PII'),
-    yearGroup: studentInput.yearGroup,
+    yearGroup: provisionalYearGroupForRegistrationStudent(studentInput),
+    enrolmentDate: studentInput.startDate,
+  };
+}
+
+function studentUpdateData(
+  ctx: EncryptionContext,
+  studentInput: ParentRegistrationSiblingInput['student'],
+) {
+  return {
+    fullNameEnc: encryptRequired(ctx.db.$enc.encrypt, studentInput.fullName, 'student PII'),
+    nameBidx: ctx.db.$enc.blindIndex(studentInput.fullName),
+    dobEnc: encryptRequired(ctx.db.$enc.encrypt, dateOnly(studentInput.dob), 'student PII'),
     enrolmentDate: studentInput.startDate,
   };
 }
@@ -390,6 +423,7 @@ function studentProfileData(
   studentInput: ParentRegistrationSiblingInput['student'],
 ) {
   return {
+    registrationLevel: studentInput.registrationLevel,
     preferredNameEnc: encryptOptional(ctx.db.$enc.encrypt, studentInput.preferredName),
     genderEnc: encryptOptional(ctx.db.$enc.encrypt, studentInput.gender),
     homeLanguageEnc: encryptOptional(ctx.db.$enc.encrypt, studentInput.homeLanguage),
@@ -493,6 +527,7 @@ function mapParentRegistration(
       preferredName: decryptOptional(decrypt, profile.preferredNameEnc),
       dob: decryptRequired(decrypt, profile.student.dobEnc, 'student PII'),
       gender: decryptOptional(decrypt, profile.genderEnc),
+      registrationLevel: profile.registrationLevel,
       yearGroup: profile.student.yearGroup,
       startDate: dateOnly(profile.student.enrolmentDate),
       active: profile.student.active,
@@ -541,6 +576,7 @@ function mapRegistrationByStudent(
       yearGroup: row.student.yearGroup,
       enrolmentDate: row.student.enrolmentDate,
       active: row.student.active,
+      registrationLevel: row.registrationLevel,
       preferredName: decryptOptional(decrypt, row.preferredNameEnc),
       gender: decryptOptional(decrypt, row.genderEnc),
       homeLanguage: decryptOptional(decrypt, row.homeLanguageEnc),
@@ -861,7 +897,7 @@ export function createRegistrationRouter() {
 
             await tx.student.update({
               where: { id: studentInput.studentId },
-              data: studentData(ctx, studentInput),
+              data: studentUpdateData(ctx, studentInput),
               select: { id: true },
             });
 

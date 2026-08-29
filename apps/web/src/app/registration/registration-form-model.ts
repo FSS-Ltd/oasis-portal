@@ -35,7 +35,7 @@ export interface RegistrationStudentFormValues {
   preferredName: string;
   dob: string;
   gender: string;
-  yearGroup: string;
+  registrationLevel: string;
   startDate: string;
   homeLanguage: string;
   studentNotes: string;
@@ -78,7 +78,7 @@ export function blankStudent(): RegistrationStudentFormValues {
     preferredName: '',
     dob: '',
     gender: '',
-    yearGroup: '',
+    registrationLevel: '',
     startDate: todayDateInput(),
     homeLanguage: '',
     studentNotes: '',
@@ -194,6 +194,17 @@ function mergeConsents(value: unknown): RegistrationStudentFormValues['consents'
   ) as Record<RegistrationConsentType, { granted: boolean; initials: string }>;
 }
 
+function registrationLevelValue(record: Record<string, unknown>): string {
+  const registrationLevel = stringValue(record.registrationLevel);
+  if (registrationLevel) return registrationLevel;
+
+  const yearGroup = stringValue(record.yearGroup);
+  if (['Nursery', 'Reception', 'ABC', 'R', 'N'].includes(yearGroup)) return 'ABC';
+  if (/^(?:Year\s*|Y)(?:7|8|9|10|11|12|13)$/iu.test(yearGroup)) return 'Secondary';
+  if (yearGroup) return 'Primary';
+  return '';
+}
+
 function mergeStudent(value: unknown): RegistrationStudentFormValues {
   const record = isRecord(value) ? value : {};
   const studentId = stringValue(record.studentId);
@@ -203,7 +214,7 @@ function mergeStudent(value: unknown): RegistrationStudentFormValues {
     preferredName: stringValue(record.preferredName),
     dob: stringValue(record.dob),
     gender: stringValue(record.gender),
-    yearGroup: stringValue(record.yearGroup),
+    registrationLevel: registrationLevelValue(record),
     startDate: stringValue(record.startDate),
     homeLanguage: stringValue(record.homeLanguage),
     studentNotes: stringValue(record.studentNotes),
@@ -251,6 +262,7 @@ interface RegistrationServerStudent {
   preferredName?: string | null;
   dob: string;
   gender?: string | null;
+  registrationLevel?: string | null;
   yearGroup: string;
   startDate: string;
   homeLanguage?: string | null;
@@ -325,7 +337,7 @@ function studentFromServer(student: RegistrationServerStudent): RegistrationStud
     preferredName: nullableString(student.preferredName),
     dob: student.dob,
     gender: nullableString(student.gender),
-    yearGroup: student.yearGroup,
+    registrationLevel: nullableString(student.registrationLevel),
     startDate: student.startDate,
     homeLanguage: nullableString(student.homeLanguage),
     studentNotes: nullableString(student.studentNotes),
