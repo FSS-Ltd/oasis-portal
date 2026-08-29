@@ -7,6 +7,7 @@ import { C } from '../core/mobile-theme';
 import { Badge, Card, ErrorText, InlineSpinner, MobileButton, MutedText } from '../core/mobile-ui';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { PwaHomeActions } from '../pwa/pwa-home-actions';
+import { canOpenAcademicInventory } from './staff-academic-inventory-utils';
 import {
   buildStaffHomeViewModel,
   type StaffHomeQuickAction,
@@ -80,6 +81,7 @@ function toViewModelInput(summary: StaffHomeSummaryOutput): StaffHomeSummary {
 }
 
 export function StaffHomeScreen({
+  onOpenAcademicInventory,
   onOpenAttendance,
   onOpenBehaviour,
   onOpenClubManager,
@@ -92,6 +94,7 @@ export function StaffHomeScreen({
   onSwitchToParent,
   user,
 }: {
+  onOpenAcademicInventory?: () => void;
   onOpenAttendance?: () => void;
   onOpenBehaviour?: () => void;
   onOpenClubManager?: () => void;
@@ -107,11 +110,13 @@ export function StaffHomeScreen({
   const { signOut } = useClerk();
   const summary = api.staffHome.summary.useQuery({ date: todayDate() }, { retry: false });
   const data = summary.data;
+  const canUseAcademicInventory = canOpenAcademicInventory(user);
   const view = useMemo(
-    () => (data ? buildStaffHomeViewModel(toViewModelInput(data)) : null),
-    [data],
+    () => (data ? buildStaffHomeViewModel(toViewModelInput(data), canUseAcademicInventory) : null),
+    [canUseAcademicInventory, data],
   );
   const quickActionHandlers: QuickActionHandlers = {
+    'academic-inventory': onOpenAcademicInventory,
     attendance: onOpenAttendance,
     behaviour: onOpenBehaviour,
     'club-manager': onOpenClubManager,

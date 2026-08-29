@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { type RouterOutputs } from '../../lib/trpc';
+import { StaffAcademicInventoryScreen } from './staff-academic-inventory-screen';
 import { StaffAttendanceScreen } from './staff-attendance-screen';
 import { StaffBehaviourScreen } from './staff-behaviour-screen';
 import { StaffClubLeadScreen } from './staff-club-lead-screen';
@@ -14,6 +15,7 @@ import { StaffShopCounterScreen } from './staff-shop-counter-screen';
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type StaffPortalRoute =
   | 'home'
+  | 'academic-inventory'
   | 'attendance'
   | 'behaviour'
   | 'club-manager'
@@ -32,6 +34,17 @@ export function StaffPortalScreen({
   user: SessionUser | undefined;
 }) {
   const [route, setRoute] = useState<StaffPortalRoute>('home');
+
+  if (route === 'academic-inventory') {
+    return (
+      <StaffAcademicInventoryScreen
+        onBack={() => {
+          setRoute('home');
+        }}
+        user={user}
+      />
+    );
+  }
 
   if (route === 'attendance') {
     return (
@@ -134,6 +147,9 @@ export function StaffPortalScreen({
 
   return (
     <StaffHomeScreen
+      onOpenAcademicInventory={() => {
+        setRoute('academic-inventory');
+      }}
       onOpenAttendance={() => {
         setRoute('attendance');
       }}
