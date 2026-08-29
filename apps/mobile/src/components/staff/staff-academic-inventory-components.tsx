@@ -52,7 +52,11 @@ export function AcademicInventoryHeading({ onBack }: { onBack: () => void }) {
 export function InventoryStatusNotice({ status }: { status: InventoryStatusMessage }) {
   const error = status.tone === 'error';
   return (
-    <View style={[styles.statusNotice, error ? styles.errorNotice : styles.successNotice]}>
+    <View
+      accessibilityLiveRegion={error ? 'assertive' : 'polite'}
+      accessibilityRole="alert"
+      style={[styles.statusNotice, error ? styles.errorNotice : styles.successNotice]}
+    >
       <Text style={[styles.statusText, error ? styles.errorText : styles.successText]}>
         {status.message}
       </Text>

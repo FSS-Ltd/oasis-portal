@@ -57,6 +57,26 @@ describe('staff academic inventory mobile wiring', () => {
     expect(screen).toMatch(/api\.academicInventory\.recordDiagnostic\.useMutation/);
   });
 
+  it('announces mutation feedback to assistive technology', () => {
+    const components = readStaffComponent('staff-academic-inventory-components.tsx');
+
+    expect(components).toMatch(/accessibilityLiveRegion=/);
+    expect(components).toMatch(/accessibilityRole="alert"/);
+  });
+
+  it('clears stale feedback when diagnostic controls change', () => {
+    const screen = readStaffComponent('staff-academic-inventory-screen.tsx');
+
+    expect(screen).toMatch(
+      /function changeDiagnosticLevel[\s\S]*?setDiagnosticLevel[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
+    );
+    expect(screen).toMatch(
+      /function changeDiagnosticOutcome[\s\S]*?setDiagnosticOutcome[\s\S]*?setDiagnosticSubmitted\(false\)[\s\S]*?setStatusMessage\(null\)/,
+    );
+    expect(screen).toMatch(/onChangeLevel={changeDiagnosticLevel}/);
+    expect(screen).toMatch(/onChangeOutcome={changeDiagnosticOutcome}/);
+  });
+
   it('routes a Head-only quick action from Staff Home', () => {
     const portal = readStaffComponent('staff-portal-screen.tsx');
     const home = readStaffComponent('staff-home-screen.tsx');

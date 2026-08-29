@@ -159,6 +159,18 @@ export function StaffAcademicInventoryScreen({
     setStatusMessage(null);
   }
 
+  function changeDiagnosticLevel(level: DiagnosticLevel) {
+    setDiagnosticLevel(level);
+    setDiagnosticSubmitted(false);
+    setStatusMessage(null);
+  }
+
+  function changeDiagnosticOutcome(outcome: DiagnosticOutcome) {
+    setDiagnosticOutcome(outcome);
+    setDiagnosticSubmitted(false);
+    setStatusMessage(null);
+  }
+
   function submitOrder() {
     setOrderSubmitted(true);
     setStatusMessage(null);
@@ -279,8 +291,8 @@ export function StaffAcademicInventoryScreen({
                 <InventoryDiagnosticCard
                   assignment={selectedAssignment}
                   level={diagnosticLevel}
-                  onChangeLevel={setDiagnosticLevel}
-                  onChangeOutcome={setDiagnosticOutcome}
+                  onChangeLevel={changeDiagnosticLevel}
+                  onChangeOutcome={changeDiagnosticOutcome}
                   onSubmit={submitDiagnostic}
                   outcome={diagnosticOutcome}
                   pending={recordDiagnostic.isPending}
