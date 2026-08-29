@@ -34,6 +34,7 @@ export interface StaffHomeSummary {
 }
 
 export type StaffHomeQuickActionId =
+  | 'academic-inventory'
   | 'attendance'
   | 'behaviour'
   | 'club-manager'
@@ -66,7 +67,10 @@ function percent(part: number, total: number): number {
   return Math.round((part / total) * 100);
 }
 
-export function buildStaffHomeViewModel(summary: StaffHomeSummary): StaffHomeViewModel {
+export function buildStaffHomeViewModel(
+  summary: StaffHomeSummary,
+  canUseAcademicInventory = false,
+): StaffHomeViewModel {
   const attendanceCompletionPercent = percent(summary.attendance.marked, summary.attendance.total);
   const quickActions: StaffHomeQuickAction[] = [
     {
@@ -104,6 +108,14 @@ export function buildStaffHomeViewModel(summary: StaffHomeSummary): StaffHomeVie
       meta: `${String(summary.rota.shiftsThisWeek)} this week`,
     },
   ];
+
+  if (canUseAcademicInventory) {
+    quickActions.push({
+      id: 'academic-inventory',
+      label: 'PACE inventory',
+      meta: 'Orders and diagnostics',
+    });
+  }
 
   if (summary.permissions.canUseShopCounter) {
     quickActions.push({

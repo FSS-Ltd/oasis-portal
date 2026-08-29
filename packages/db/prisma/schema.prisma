@@ -64,6 +64,17 @@ enum ChildRegistrationPromptStatus {
   HasChildren
 }
 
+enum PaceInventoryOrderStatus {
+  Ordered
+  InTransit
+  Delivered
+}
+
+enum DiagnosticOutcome {
+  Pass
+  Fail
+}
+
 model User {
   id                                String                        @id @default(cuid())
   clerkId                           String                        @unique
@@ -173,6 +184,8 @@ model User {
   faithCornerUpdated               FaithCornerContent[]             @relation("FaithCornerUpdated")
   faithCornerCommentsReviewed      FaithCornerComment[]             @relation("FaithCornerCommentsReviewed")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
+  paceInventoryOrdersCreated       PaceInventoryOrder[]             @relation("PaceInventoryOrdersCreated")
+  diagnosticResultsRecorded        DiagnosticResult[]               @relation("DiagnosticResultsRecorded")
   homeworkAssignmentsCreated         HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
   homeworkSubmissionsReviewed        HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
   homeworkSubmissionImagesUploaded   HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
@@ -279,6 +292,8 @@ model Student {
   communityMemberships   CommunityGroupMember[]
   communityMessages      CommunityMessage[]      @relation("CommunityMessagesSent")
   communityMessageReads  CommunityMessageRead[]
+  paceInventoryOrders    PaceInventoryOrder[]
+  diagnosticResults      DiagnosticResult[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
   parentLinkRequests       StudentParentLinkRequest[]
@@ -590,6 +605,8 @@ model Subject {
   paces                PaceRecord[]
   progress             PaceProgress[]
   advancementApprovals PaceAdvancementApproval[]
+  paceInventoryOrders  PaceInventoryOrder[]
+  diagnosticResults    DiagnosticResult[]
 }
 
 model StudentSubject {
@@ -692,6 +709,43 @@ model PaceAdvancementApproval {
   @@index([studentId, subjectId, paceNumber])
   @@index([approvedById, approvedAt])
   @@index([approvedAt])
+}
+
+model PaceInventoryOrder {
+  id          String                   @id @default(cuid())
+  studentId   String
+  subjectId   String
+  paceNumber  Int
+  status      PaceInventoryOrderStatus @default(Ordered)
+  orderedAt   DateTime                 @default(now())
+  inTransitAt DateTime?
+  deliveredAt DateTime?
+  createdById String
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  student   Student @relation(fields: [studentId], references: [id])
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  createdBy User    @relation("PaceInventoryOrdersCreated", fields: [createdById], references: [id])
+
+  @@index([studentId, subjectId, status, paceNumber])
+}
+
+model DiagnosticResult {
+  id           String            @id @default(cuid())
+  studentId    String
+  subjectId    String
+  level        Int
+  outcome      DiagnosticOutcome
+  recordedById String
+  recordedAt   DateTime          @default(now())
+  createdAt    DateTime          @default(now())
+
+  student     Student @relation(fields: [studentId], references: [id])
+  subject     Subject @relation(fields: [subjectId], references: [id])
+  recordedBy  User    @relation("DiagnosticResultsRecorded", fields: [recordedById], references: [id])
+
+  @@index([studentId, subjectId, recordedAt])
 }
 
 // ---------------------------------------------------------------------------
