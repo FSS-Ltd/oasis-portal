@@ -46,8 +46,23 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(clientSource, /api\.academicInventory\.addCurrentSupply\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.createOrders\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.updateOrderStatus\.useMutation/);
+  assert.match(
+    clientSource,
+    /const isBulkMutationPending = addCurrentSupply\.isPending \|\| createOrders\.isPending/,
+  );
+  assert.match(clientSource, /availablePacesAhead\(/);
+  assert.match(clientSource, /availableFutureSupply\.map\(/);
+  assert.match(clientSource, /disabled=\{!assignment \|\| isBulkMutationPending\}/);
+  assert.match(
+    clientSource,
+    /disabled=\{!assignment \|\| !hasSelection \|\| isBulkMutationPending\}/,
+  );
+  assert.match(clientSource, /PACE orders created\./);
   assert.match(clientSource, /function nextOrderStatus/);
   assert.match(clientSource, /Mark \{nextStatus\}/);
   assert.match(pickerSource, /type="checkbox"/);
   assert.match(pickerSource, /Level \{level\}/);
+  assert.match(pickerSource, /!isAvailable && !isSelected/);
+  assert.match(pickerSource, /Selected/);
+  assert.match(pickerSource, /Unavailable/);
 });

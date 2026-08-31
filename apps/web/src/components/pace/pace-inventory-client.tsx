@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { PackagePlus, RefreshCw, Truck } from 'lucide-react';
-import { PACE_CATALOGUE } from '@oasis/domain';
+import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
 import { api } from '@/lib/trpc';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -96,7 +96,13 @@ export function PaceInventoryClient() {
   const availablePaceNumbers = PACE_CATALOGUE.filter(
     (paceNumber) => !unavailablePaceNumbers.has(paceNumber),
   );
-  const hasSelection = selectedPaceNumbers.length > 0;
+  const availableFutureSupply = assignment
+    ? availablePacesAhead(assignment.currentPaceNumber, assignmentSupply)
+    : [];
+  const hasUnavailableSelection = selectedPaceNumbers.some((paceNumber) =>
+    unavailablePaceNumbers.has(paceNumber),
+  );
+  const hasSelection = selectedPaceNumbers.length > 0 && !hasUnavailableSelection;
 
   async function invalidateInventory(): Promise<void> {
     await Promise.all([
@@ -120,7 +126,11 @@ export function PaceInventoryClient() {
   const createOrders = api.academicInventory.createOrders.useMutation({
     async onSuccess(_, input) {
       setSelectedPaceNumbers([]);
-      showSuccessToast(`${formatPaceCount(input.paceNumbers.length)} order created.`);
+      showSuccessToast(
+        input.paceNumbers.length === 1
+          ? '1 PACE order created.'
+          : `${String(input.paceNumbers.length)} PACE orders created.`,
+      );
       await invalidateInventory();
     },
     onError(error) {
@@ -136,6 +146,7 @@ export function PaceInventoryClient() {
       showErrorToast(error, 'PACE order status could not be updated.');
     },
   });
+  const isBulkMutationPending = addCurrentSupply.isPending || createOrders.isPending;
 
   function chooseStudent(value: string): void {
     setStudentId(value);
@@ -149,7 +160,7 @@ export function PaceInventoryClient() {
   }
 
   function addSelectedSupply(): void {
-    if (!student || !assignment || !hasSelection) return;
+    if (!student || !assignment || !hasSelection || isBulkMutationPending) return;
     addCurrentSupply.mutate({
       studentId: student.id,
       subjectId: assignment.subjectId,
@@ -158,7 +169,7 @@ export function PaceInventoryClient() {
   }
 
   function createSelectedOrders(): void {
-    if (!student || !assignment || !hasSelection) return;
+    if (!student || !assignment || !hasSelection || isBulkMutationPending) return;
     createOrders.mutate({
       studentId: student.id,
       subjectId: assignment.subjectId,
@@ -352,17 +363,17 @@ export function PaceInventoryClient() {
                     <strong>{paceLabel(assignment.currentPaceNumber)}</strong>
                   </div>
                   <div>
-                    <span>Available PACE numbers</span>
-                    {assignmentSupply.length > 0 ? (
+                    <span>Available future PACE numbers</span>
+                    {availableFutureSupply.length > 0 ? (
                       <span className="pace-number-list">
-                        {assignmentSupply.map((paceNumber) => (
+                        {availableFutureSupply.map((paceNumber) => (
                           <span className="pace-number-list__chip" key={paceNumber}>
                             {paceLabel(paceNumber)}
                           </span>
                         ))}
                       </span>
                     ) : (
-                      <strong>None currently supplied</strong>
+                      <strong>No future PACEs currently supplied</strong>
                     )}
                   </div>
                 </div>
@@ -374,14 +385,14 @@ export function PaceInventoryClient() {
             <div className="panel__body">
               <PaceCataloguePicker
                 availablePaceNumbers={availablePaceNumbers}
-                disabled={!assignment || addCurrentSupply.isPending || createOrders.isPending}
+                disabled={!assignment || isBulkMutationPending}
                 onChange={setSelectedPaceNumbers}
                 selectedPaceNumbers={selectedPaceNumbers}
                 subjectLabel={`${student?.fullName ?? 'Selected student'} · ${formatAssignment(assignment)}`}
               />
               <div className="pace-inventory-actions">
                 <Button
-                  disabled={!assignment || !hasSelection}
+                  disabled={!assignment || !hasSelection || isBulkMutationPending}
                   onClick={addSelectedSupply}
                   pending={addCurrentSupply.isPending}
                   type="button"
@@ -390,7 +401,7 @@ export function PaceInventoryClient() {
                   Add to current supply
                 </Button>
                 <Button
-                  disabled={!assignment || !hasSelection}
+                  disabled={!assignment || !hasSelection || isBulkMutationPending}
                   onClick={createSelectedOrders}
                   pending={createOrders.isPending}
                   type="button"

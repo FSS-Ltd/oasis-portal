@@ -12410,7 +12410,7 @@ button.club-assignment-row {
   padding: 14px;
   border: 1px solid var(--oasis-border-light);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--oasis-bg);
 }
 
 .pace-inventory-summary > div {
@@ -12443,7 +12443,7 @@ button.club-assignment-row {
   padding: 2px 7px;
   border: 1px solid var(--oasis-border-light);
   border-radius: 999px;
-  background: #fff;
+  background: var(--oasis-surface);
   color: var(--oasis-text-secondary);
   font-size: 0.72rem;
   font-weight: 750;
@@ -12493,11 +12493,11 @@ button.club-assignment-row {
 .pace-catalogue-picker__chip {
   display: grid;
   min-width: 0;
-  min-height: 32px;
+  min-height: 38px;
   place-items: center;
   border: 1px solid var(--oasis-border-light);
   border-radius: 6px;
-  background: #fff;
+  background: var(--oasis-surface);
   color: var(--oasis-text-secondary);
   cursor: pointer;
   font-size: 0.72rem;
@@ -12515,9 +12515,22 @@ button.club-assignment-row {
   color: var(--oasis-navy);
 }
 
-.pace-catalogue-picker__chip:has(input:disabled) {
+.pace-catalogue-picker__chip[data-unavailable]:not([data-selected]) {
   cursor: not-allowed;
-  opacity: 0.5;
+  color: var(--oasis-text-muted);
+}
+
+.pace-catalogue-picker__chip-number,
+.pace-catalogue-picker__chip-status {
+  display: block;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.pace-catalogue-picker__chip-status {
+  margin-top: 2px;
+  font-size: 0.61rem;
+  font-weight: 800;
 }
 
 .pace-catalogue-picker__chip input {

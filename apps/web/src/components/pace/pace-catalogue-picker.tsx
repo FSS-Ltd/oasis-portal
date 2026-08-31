@@ -60,22 +60,35 @@ export function PaceCataloguePicker({
                 (paceNumber) => {
                   const isAvailable = available.has(paceNumber);
                   const isSelected = selected.has(paceNumber);
+                  const statusLabel = isSelected
+                    ? isAvailable
+                      ? 'Selected'
+                      : 'Selected · unavailable'
+                    : isAvailable
+                      ? null
+                      : 'Unavailable';
 
                   return (
                     <label
                       className="pace-catalogue-picker__chip"
                       data-selected={isSelected || undefined}
+                      data-unavailable={!isAvailable || undefined}
                       key={paceNumber}
                     >
                       <input
                         checked={isSelected}
-                        disabled={disabled || !isAvailable}
+                        disabled={disabled || (!isAvailable && !isSelected)}
                         onChange={() => {
                           togglePaceNumber(paceNumber);
                         }}
                         type="checkbox"
                       />
-                      <span>#{String(paceNumber)}</span>
+                      <span className="pace-catalogue-picker__chip-number">
+                        #{String(paceNumber)}
+                      </span>
+                      {statusLabel ? (
+                        <span className="pace-catalogue-picker__chip-status">{statusLabel}</span>
+                      ) : null}
                     </label>
                   );
                 },
