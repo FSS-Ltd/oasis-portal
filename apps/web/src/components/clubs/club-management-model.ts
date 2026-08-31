@@ -12,7 +12,7 @@ import {
 export type Club = RouterOutputs['club']['managementList'][number];
 export type ClubNotification = RouterOutputs['club']['notifications'][number];
 export type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
-export type ClubTab = 'attendance' | 'students' | 'leads' | 'rota' | 'notices';
+export type ClubTab = 'attendance' | 'students' | 'leads' | 'notices';
 
 export interface ClubFormState {
   name: string;
@@ -48,7 +48,6 @@ export const clubTabs = [
   ['attendance', 'Attendance'],
   ['students', 'Students'],
   ['leads', 'Club Lead'],
-  ['rota', 'Rota'],
   ['notices', 'Notices'],
 ] as const satisfies readonly [ClubTab, string][];
 
@@ -85,9 +84,7 @@ export function formFromClub(club: Club): ClubFormState {
     scheduleStartTime: club.schedule ? toTimeValue(club.schedule.startMinute) : '15:30',
     scheduleEndTime: club.schedule ? toTimeValue(club.schedule.endMinute) : '16:30',
     capacity: club.capacity === null ? '' : String(club.capacity),
-    iconKey:
-      CLUB_ICON_OPTIONS.find((option) => option.key === club.iconKey)?.key ??
-      'drama',
+    iconKey: CLUB_ICON_OPTIONS.find((option) => option.key === club.iconKey)?.key ?? 'drama',
     accentColor: isClubAccentColor(club.accentColor) ? club.accentColor : randomClubAccent(),
   };
 }

@@ -2,7 +2,13 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Badge, Card, ErrorText, Field, InlineSpinner, MutedText } from '../core/mobile-ui';
 import { C } from '../core/mobile-theme';
 import { formatDate, formatMonth, type RotaMode } from './staff-rota-utils';
-import { ShiftRow, TabButton, type ParentVolunteer, type RotaShift } from './staff-rota-common';
+import {
+  parentVolunteerPlacementLabel,
+  ShiftRow,
+  TabButton,
+  type ParentVolunteer,
+  type RotaShift,
+} from './staff-rota-common';
 
 export function RotaPanel({
   error,
@@ -72,7 +78,9 @@ export function RotaPanel({
           {parentVolunteers.map((volunteer) => (
             <View key={volunteer.id} style={styles.parentVolunteerRow}>
               <Text style={styles.parentVolunteerName}>{volunteer.parent.fullName}</Text>
-              <MutedText>{formatDate(volunteer.date)}</MutedText>
+              <MutedText>
+                {formatDate(volunteer.date)} · {parentVolunteerPlacementLabel(volunteer.placement)}
+              </MutedText>
             </View>
           ))}
         </View>

@@ -1,20 +1,19 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, CalendarDays, Club, UsersRound } from 'lucide-react';
+import { Bell, Club, UsersRound } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api, type RouterOutputs } from '@/lib/trpc';
-import { MyClubRotaPanel } from './my-club-rota-panel';
 import { ParentClubCard, type ParentClub, type ParentClubCardHref } from './parent-club-card';
 
 type SignupContext = RouterOutputs['club']['linkedChildSignupContext'];
 type SignupChild = SignupContext['children'][number];
 type ClubNotice = RouterOutputs['club']['myClubNotices'][number];
-type ParentClubsTab = 'overview' | 'signups' | 'notices' | 'rota';
+type ParentClubsTab = 'overview' | 'signups' | 'notices';
 type MyClubsPortalVariant = 'admin' | 'parent' | 'supervisor';
 
 interface ParentMyClubsClientProps {
@@ -73,17 +72,13 @@ function signedUpClubCount(clubs: readonly ParentClub[]): number {
 function ParentClubsTabs({
   activeTab,
   onTabChange,
-  showRota,
 }: {
   activeTab: ParentClubsTab;
   onTabChange: (tab: ParentClubsTab) => void;
-  showRota: boolean;
 }) {
-  const tabs = showRota ? [...BASE_TABS, ['rota', 'Rota'] as const] : BASE_TABS;
-
   return (
     <div className="parent-clubs-tabs" role="tablist" aria-label="My Clubs sections">
-      {tabs.map(([tab, label]) => (
+      {BASE_TABS.map(([tab, label]) => (
         <button
           aria-selected={activeTab === tab}
           className={activeTab === tab ? 'is-selected' : ''}
@@ -153,12 +148,10 @@ function OverviewTab({
   childCount,
   clubs,
   detailBaseHref,
-  rotaClubCount,
 }: {
   childCount: number;
   clubs: readonly ParentClub[];
   detailBaseHref: ClubDetailBaseHref;
-  rotaClubCount: number;
 }) {
   return (
     <div className="parent-clubs-tab-panel" role="tabpanel">
@@ -174,12 +167,6 @@ function OverviewTab({
           <span>Family signups</span>
           <strong>{String(signedUpClubCount(clubs))}</strong>
           <small>Clubs with linked children signed up</small>
-        </article>
-        <article>
-          <CalendarDays aria-hidden="true" size={18} />
-          <span>Rota access</span>
-          <strong>{rotaClubCount > 0 ? 'Active' : 'Hidden'}</strong>
-          <small>{rotaClubCount > 0 ? 'Volunteer rota team' : 'Not on rota team'}</small>
         </article>
         <article>
           <UsersRound aria-hidden="true" size={18} />
@@ -231,7 +218,7 @@ function SignupsTab({
     return (
       <div className="parent-clubs-tab-panel" role="tabpanel">
         <EmptyState
-          detail="Club signups need linked child records. Rota access remains available when you are added to a rota team."
+          detail="Club signups need linked child records."
           title="No linked children found"
         />
       </div>
@@ -360,7 +347,6 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
   const utils = api.useUtils();
   const contextQuery = api.club.linkedChildSignupContext.useQuery(undefined, { retry: false });
   const noticesQuery = api.club.myClubNotices.useQuery(undefined, { retry: false });
-  const rotaAccessQuery = api.club.myClubRotaAccess.useQuery(undefined, { retry: false });
   const signUp = api.club.signUp.useMutation();
   const withdraw = api.club.withdraw.useMutation();
   const [activeTab, setActiveTab] = useState<ParentClubsTab>('overview');
@@ -370,8 +356,6 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
 
   const children = useMemo(() => contextQuery.data?.children ?? [], [contextQuery.data?.children]);
   const clubs = useMemo(() => contextQuery.data?.clubs ?? [], [contextQuery.data?.clubs]);
-  const rotaClubs = rotaAccessQuery.data ?? [];
-  const showRota = rotaClubs.length > 0;
   const selectedChild =
     children.find((child) => child.id === selectedChildId) ?? children[0] ?? null;
 
@@ -384,12 +368,6 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
       setSelectedChildId(children[0]?.id ?? null);
     }
   }, [children, selectedChildId]);
-
-  useEffect(() => {
-    if (activeTab === 'rota' && !showRota) {
-      setActiveTab('overview');
-    }
-  }, [activeTab, showRota]);
 
   async function refreshSignupContext() {
     await utils.club.linkedChildSignupContext.invalidate();
@@ -448,18 +426,13 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
         <span>{clubs.length === 1 ? '1 active club' : `${String(clubs.length)} active clubs`}</span>
       </div>
 
-      <ParentClubsTabs activeTab={activeTab} onTabChange={setActiveTab} showRota={showRota} />
-
-      {rotaAccessQuery.error ? (
-        <p className="status--error">{friendlyErrorMessage(rotaAccessQuery.error)}</p>
-      ) : null}
+      <ParentClubsTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === 'overview' ? (
         <OverviewTab
           childCount={children.length}
           clubs={clubs}
           detailBaseHref={DETAIL_BASE_HREF[variant]}
-          rotaClubCount={rotaClubs.length}
         />
       ) : null}
       {activeTab === 'signups' ? (
@@ -485,11 +458,6 @@ export function ParentMyClubsClient({ variant = 'parent' }: ParentMyClubsClientP
           loading={noticesQuery.isLoading}
           notices={noticesQuery.data ?? []}
         />
-      ) : null}
-      {activeTab === 'rota' && showRota ? (
-        <div className="parent-clubs-tab-panel" role="tabpanel">
-          <MyClubRotaPanel accessClubs={rotaClubs} />
-        </div>
       ) : null}
     </div>
   );

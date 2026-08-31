@@ -5,6 +5,7 @@ import {
   dayLabels,
   formatDateLabel,
   formatDateTime,
+  parentVolunteerPlacementLabel,
   type ParentVolunteerDay,
   type RotaDayAvailabilitySummary,
   type RotaShift,
@@ -152,6 +153,7 @@ export function RotaWeekSchedule({
                     dayParentVolunteers.map((volunteer) => (
                       <span className="rota-availability-badge is-parent" key={volunteer.id}>
                         {volunteer.parent.fullName}
+                        <small>{parentVolunteerPlacementLabel(volunteer.placement)}</small>
                       </span>
                     ))
                   )}

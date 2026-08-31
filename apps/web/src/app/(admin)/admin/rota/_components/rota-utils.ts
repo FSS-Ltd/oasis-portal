@@ -67,8 +67,20 @@ export type RotaShift = {
 export type ParentVolunteerDay = {
   id: string;
   date: string;
+  placement: 'Centre' | 'LunchAndClubsPrimary' | 'LunchAndClubsSecondary';
   parent: { id: string; fullName: string };
 };
+
+export function parentVolunteerPlacementLabel(placement: ParentVolunteerDay['placement']): string {
+  switch (placement) {
+    case 'LunchAndClubsPrimary':
+      return 'Lunch + Clubs · Primary';
+    case 'LunchAndClubsSecondary':
+      return 'Lunch + Clubs · Secondary';
+    default:
+      return 'Centre Volunteer';
+  }
+}
 
 export const emptyShiftForm: ShiftForm = {
   id: null,

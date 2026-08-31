@@ -64,6 +64,19 @@ function totalBatchEntries(entries: readonly BatchEntryForm[]): number {
   return entries.reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
 }
 
+function parentVolunteerPlacementLabel(
+  placement: 'Centre' | 'LunchAndClubsPrimary' | 'LunchAndClubsSecondary',
+): string {
+  switch (placement) {
+    case 'LunchAndClubsPrimary':
+      return 'Lunch + Clubs · Primary';
+    case 'LunchAndClubsSecondary':
+      return 'Lunch + Clubs · Secondary';
+    default:
+      return 'Centre Volunteer';
+  }
+}
+
 export function SupervisorDashboardClient({
   canExportAttendance,
   canRecordAttendance = false,
@@ -817,7 +830,9 @@ export function SupervisorDashboardClient({
                         style={{ borderLeftColor: '#2563eb' }}
                       >
                         <strong>{volunteer.parent.fullName}</strong>
-                        <span>{volunteer.date}</span>
+                        <span>
+                          {volunteer.date} · {parentVolunteerPlacementLabel(volunteer.placement)}
+                        </span>
                       </article>
                     ))}
                   </div>
