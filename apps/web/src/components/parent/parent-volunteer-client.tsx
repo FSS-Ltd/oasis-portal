@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { CalendarDays, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -8,6 +8,12 @@ import { api, type RouterOutputs } from '@/lib/trpc';
 
 type ParentVolunteerSlots = RouterOutputs['rota']['parentVolunteerSlots'];
 type VolunteerDay = ParentVolunteerSlots['centreVolunteer']['days'][number];
+type VolunteerTab = 'centre' | 'lunchAndClubs';
+
+const volunteerTabs = [
+  { id: 'centre', label: 'Centre Volunteer' },
+  { id: 'lunchAndClubs', label: 'Lunch + Clubs' },
+] as const satisfies readonly { id: VolunteerTab; label: string }[];
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -167,6 +173,7 @@ function LunchAndClubsWeeks({
 export function ParentVolunteerClient() {
   const utils = api.useUtils();
   const slotsQuery = api.rota.parentVolunteerSlots.useQuery(undefined, { retry: false });
+  const [activeTab, setActiveTab] = useState<VolunteerTab>('centre');
   const [centreDates, setCentreDates] = useState<Set<string>>(new Set());
   const [primaryLunchAndClubsDates, setPrimaryLunchAndClubsDates] = useState<Set<string>>(
     new Set(),
@@ -174,21 +181,34 @@ export function ParentVolunteerClient() {
   const [secondaryLunchAndClubsDates, setSecondaryLunchAndClubsDates] = useState<Set<string>>(
     new Set(),
   );
+  const selectedDatesWindow = useRef<string | null>(null);
 
   useEffect(() => {
     if (!slotsQuery.data) return;
+    const windowKey = `${slotsQuery.data.from}:${slotsQuery.data.to}`;
+    if (selectedDatesWindow.current === windowKey) return;
     setCentreDates(selectedDates(slotsQuery.data.centreVolunteer.days));
     setPrimaryLunchAndClubsDates(selectedDates(slotsQuery.data.lunchAndClubs.primary.days));
     setSecondaryLunchAndClubsDates(selectedDates(slotsQuery.data.lunchAndClubs.secondary.days));
+    selectedDatesWindow.current = windowKey;
   }, [slotsQuery.data]);
 
-  const saveVolunteerDays = api.rota.setMyParentVolunteerDays.useMutation({
-    onError: async (error) => {
-      showErrorToast(error, 'Volunteer days could not be saved.');
-      await utils.rota.parentVolunteerSlots.invalidate();
+  const saveCentreDays = api.rota.setMyParentVolunteerDays.useMutation({
+    onError: (error) => {
+      showErrorToast(error, 'Centre volunteer days could not be saved.');
     },
     onSuccess: async () => {
-      showSuccessToast('Your volunteer days have been saved.');
+      showSuccessToast('Centre volunteer days have been saved.');
+      await utils.rota.parentVolunteerSlots.invalidate();
+    },
+  });
+
+  const saveLunchAndClubsDays = api.rota.setMyParentVolunteerDays.useMutation({
+    onError: (error) => {
+      showErrorToast(error, 'Lunch and clubs volunteer days could not be saved.');
+    },
+    onSuccess: async () => {
+      showSuccessToast('Lunch and clubs volunteer days have been saved.');
       await utils.rota.parentVolunteerSlots.invalidate();
     },
   });
@@ -224,6 +244,25 @@ export function ParentVolunteerClient() {
   const centreSelectedDayCount = centreDates.size;
   const lunchAndClubsSelectedDayCount =
     primaryLunchAndClubsDates.size + secondaryLunchAndClubsDates.size;
+  const activeSaveError =
+    activeTab === 'centre' ? saveCentreDays.error : saveLunchAndClubsDays.error;
+
+  function selectVolunteerTab(event: KeyboardEvent<HTMLButtonElement>): void {
+    const currentIndex = volunteerTabs.findIndex((tab) => tab.id === activeTab);
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % volunteerTabs.length;
+    if (event.key === 'ArrowLeft')
+      nextIndex = (currentIndex - 1 + volunteerTabs.length) % volunteerTabs.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = volunteerTabs.length - 1;
+    if (nextIndex === currentIndex) return;
+
+    event.preventDefault();
+    const nextTab = volunteerTabs[nextIndex];
+    if (!nextTab) return;
+    setActiveTab(nextTab.id);
+    document.getElementById(`parent-volunteer-tab-${nextTab.id}`)?.focus();
+  }
 
   return (
     <section className="parent-volunteer-page" aria-labelledby="parent-volunteer-title">
@@ -245,82 +284,128 @@ export function ParentVolunteerClient() {
       ) : null}
       {slots ? (
         <>
-          <section className="panel panel__body parent-volunteer-panel">
-            <div className="section-title">
-              <div>
-                <p className="muted">Learning time</p>
-                <h2>Centre Volunteer</h2>
-                <p className="muted">
-                  Support learning time. Two parent spaces are available each day.
-                </p>
-              </div>
-              <span className="badge">{String(centreSelectedDayCount)} selected</span>
-            </div>
-            <p className="muted">
-              {formatDate(slots.from)} - {formatDate(slots.to)} · Week three opens when this period
-              reaches its second week.
-            </p>
-            <VolunteerWeeks
-              days={slots.centreVolunteer.days}
-              onToggle={toggleCentreDate}
-              pending={saveVolunteerDays.isPending}
-              selected={centreDates}
-            />
-          </section>
-
-          <section className="panel panel__body parent-volunteer-panel">
-            <div className="section-title">
-              <div>
-                <p className="muted">Daily cover</p>
-                <h2>Lunch + Clubs</h2>
-                <p className="muted">
-                  Help during lunch and clubs. Choose either Primary or Secondary for each day.
-                </p>
-              </div>
-              <span className="badge">{String(lunchAndClubsSelectedDayCount)} selected</span>
-            </div>
-            <div className="parent-volunteer-capacity-summary">
-              <span>
-                Primary · {String(slots.lunchAndClubs.primary.dailyCapacity)} spaces daily
-              </span>
-              <span>
-                Secondary · {String(slots.lunchAndClubs.secondary.dailyCapacity)} spaces daily
-              </span>
-            </div>
-            <LunchAndClubsWeeks
-              onTogglePrimary={(date) => {
-                toggleLunchAndClubsDate(date, 'primary');
-              }}
-              onToggleSecondary={(date) => {
-                toggleLunchAndClubsDate(date, 'secondary');
-              }}
-              pending={saveVolunteerDays.isPending}
-              primaryDays={slots.lunchAndClubs.primary.days}
-              primarySelectedDates={primaryLunchAndClubsDates}
-              secondaryDays={slots.lunchAndClubs.secondary.days}
-              secondarySelectedDates={secondaryLunchAndClubsDates}
-            />
-          </section>
-
-          {saveVolunteerDays.error ? (
-            <p className="status--error">{friendlyErrorMessage(saveVolunteerDays.error)}</p>
-          ) : null}
-          <div className="row-actions">
-            <Button
-              onClick={() => {
-                saveVolunteerDays.mutate({
-                  centreDates: [...centreDates].sort(),
-                  primaryLunchAndClubsDates: [...primaryLunchAndClubsDates].sort(),
-                  secondaryLunchAndClubsDates: [...secondaryLunchAndClubsDates].sort(),
-                });
-              }}
-              pending={saveVolunteerDays.isPending}
-              type="button"
-            >
-              <Save aria-hidden="true" size={16} />
-              Save volunteer days
-            </Button>
+          <div aria-label="Volunteer options" className="parent-volunteer-tabs" role="tablist">
+            {volunteerTabs.map((tab) => (
+              <button
+                aria-controls={`parent-volunteer-panel-${tab.id}`}
+                aria-selected={activeTab === tab.id}
+                className={`parent-volunteer-tab${activeTab === tab.id ? ' is-active' : ''}`}
+                id={`parent-volunteer-tab-${tab.id}`}
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                }}
+                onKeyDown={selectVolunteerTab}
+                role="tab"
+                tabIndex={activeTab === tab.id ? 0 : -1}
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          {activeTab === 'centre' ? (
+            <section
+              aria-labelledby="parent-volunteer-tab-centre"
+              className="panel panel__body parent-volunteer-panel"
+              id="parent-volunteer-panel-centre"
+              role="tabpanel"
+            >
+              <div className="parent-volunteer-panel__header">
+                <div>
+                  <p className="muted">Learning time</p>
+                  <h2>Centre Volunteer</h2>
+                  <p className="muted">
+                    Support learning time. Two parent spaces are available each day.
+                  </p>
+                </div>
+                <div className="parent-volunteer-panel__actions">
+                  <span className="badge">{String(centreSelectedDayCount)} selected</span>
+                  <Button
+                    onClick={() => {
+                      saveCentreDays.mutate({ centreDates: [...centreDates].sort() });
+                    }}
+                    pending={saveCentreDays.isPending}
+                    size="sm"
+                    type="button"
+                  >
+                    <Save aria-hidden="true" size={16} />
+                    Save Centre days
+                  </Button>
+                </div>
+              </div>
+              <p className="muted">
+                {formatDate(slots.from)} - {formatDate(slots.to)} · Week three opens when this
+                period reaches its second week.
+              </p>
+              <VolunteerWeeks
+                days={slots.centreVolunteer.days}
+                onToggle={toggleCentreDate}
+                pending={saveCentreDays.isPending}
+                selected={centreDates}
+              />
+            </section>
+          ) : (
+            <section
+              aria-labelledby="parent-volunteer-tab-lunchAndClubs"
+              className="panel panel__body parent-volunteer-panel"
+              id="parent-volunteer-panel-lunchAndClubs"
+              role="tabpanel"
+            >
+              <div className="parent-volunteer-panel__header">
+                <div>
+                  <p className="muted">Daily cover</p>
+                  <h2>Lunch + Clubs</h2>
+                  <p className="muted">
+                    Help during lunch and clubs. Choose either Primary or Secondary for each day.
+                  </p>
+                </div>
+                <div className="parent-volunteer-panel__actions">
+                  <span className="badge">{String(lunchAndClubsSelectedDayCount)} selected</span>
+                  <Button
+                    onClick={() => {
+                      saveLunchAndClubsDays.mutate({
+                        primaryLunchAndClubsDates: [...primaryLunchAndClubsDates].sort(),
+                        secondaryLunchAndClubsDates: [...secondaryLunchAndClubsDates].sort(),
+                      });
+                    }}
+                    pending={saveLunchAndClubsDays.isPending}
+                    size="sm"
+                    type="button"
+                  >
+                    <Save aria-hidden="true" size={16} />
+                    Save Lunch + Clubs
+                  </Button>
+                </div>
+              </div>
+              <div className="parent-volunteer-capacity-summary">
+                <span>
+                  Primary · {String(slots.lunchAndClubs.primary.dailyCapacity)} spaces daily
+                </span>
+                <span>
+                  Secondary · {String(slots.lunchAndClubs.secondary.dailyCapacity)} spaces daily
+                </span>
+              </div>
+              <LunchAndClubsWeeks
+                onTogglePrimary={(date) => {
+                  toggleLunchAndClubsDate(date, 'primary');
+                }}
+                onToggleSecondary={(date) => {
+                  toggleLunchAndClubsDate(date, 'secondary');
+                }}
+                pending={saveLunchAndClubsDays.isPending}
+                primaryDays={slots.lunchAndClubs.primary.days}
+                primarySelectedDates={primaryLunchAndClubsDates}
+                secondaryDays={slots.lunchAndClubs.secondary.days}
+                secondarySelectedDates={secondaryLunchAndClubsDates}
+              />
+            </section>
+          )}
+
+          {activeSaveError ? (
+            <p className="status--error">{friendlyErrorMessage(activeSaveError)}</p>
+          ) : null}
         </>
       ) : null}
     </section>

@@ -9,7 +9,7 @@ export default function SupervisorRotaPage() {
           <p>My schedule</p>
           <h1>Rota</h1>
           <p>
-            Review your shifts, maintain weekly availability and monthly unavailability, and
+            Review your shifts, volunteer for Lunch + Clubs cover, maintain availability, and
             request shift swaps.
           </p>
         </div>

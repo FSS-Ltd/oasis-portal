@@ -117,6 +117,14 @@ interface StoredParentVolunteerDay {
   updatedAt: Date;
 }
 
+interface StoredStaffLunchAndClubsVolunteerDay {
+  id: string;
+  staffUserId: string;
+  date: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface FakeDb {
   $enc: { decrypt: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
@@ -151,6 +159,11 @@ interface FakeDb {
     deleteMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
   };
+  staffLunchAndClubsVolunteerDay: {
+    findMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+    createMany: ReturnType<typeof vi.fn>;
+  };
   shiftSwapRequest: {
     findFirst: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -170,6 +183,13 @@ function at(value: string): Date {
 
 function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function currentVolunteerWindowStart(): Date {
+  const start = day(dateKey(new Date()));
+  const dayOfWeek = start.getUTCDay();
+  start.setUTCDate(start.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
+  return start;
 }
 
 function decrypt(value: string | null | undefined): string | null {
@@ -261,6 +281,9 @@ function makeFakeDb() {
   const shifts: StoredShift[] = [];
   const swaps: StoredSwap[] = [];
   const parentVolunteerDays: StoredParentVolunteerDay[] = [];
+  const staffLunchAndClubsVolunteerDays: StoredStaffLunchAndClubsVolunteerDay[] = [];
+  let nextParentVolunteerDayId = 1;
+  let nextStaffLunchAndClubsVolunteerDayId = 1;
 
   const withBand = (shift: StoredShift) => ({
     ...shift,
@@ -613,13 +636,75 @@ function makeFakeDb() {
           );
           if (duplicate) throw new Error('duplicate parent volunteer day');
           const row: StoredParentVolunteerDay = {
-            id: `parent_volunteer_${String(parentVolunteerDays.length + 1)}`,
+            id: `parent_volunteer_${String(nextParentVolunteerDayId++)}`,
             createdAt: at('2026-04-29T09:00:00.000Z'),
             updatedAt: at('2026-04-29T09:00:00.000Z'),
             ...data,
           };
           parentVolunteerDays.push(row);
           return Promise.resolve(row);
+        },
+      ),
+    },
+    staffLunchAndClubsVolunteerDay: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            staffUserId?: string;
+            date: { gte: Date; lte: Date };
+          };
+        }) =>
+          Promise.resolve(
+            staffLunchAndClubsVolunteerDays
+              .filter(
+                (row) => where.staffUserId === undefined || row.staffUserId === where.staffUserId,
+              )
+              .filter(
+                (row) =>
+                  row.date.getTime() >= where.date.gte.getTime() &&
+                  row.date.getTime() <= where.date.lte.getTime(),
+              )
+              .sort((a, b) => a.date.getTime() - b.date.getTime())
+              .map((row) => ({
+                ...row,
+                staffUser: users.find((user) => user.id === row.staffUserId) ?? null,
+              })),
+          ),
+      ),
+      deleteMany: vi.fn(
+        ({ where }: { where: { staffUserId: string; date: { gte: Date; lte: Date } } }) => {
+          const before = staffLunchAndClubsVolunteerDays.length;
+          for (let index = staffLunchAndClubsVolunteerDays.length - 1; index >= 0; index -= 1) {
+            const row = staffLunchAndClubsVolunteerDays[index];
+            if (
+              row &&
+              row.staffUserId === where.staffUserId &&
+              row.date.getTime() >= where.date.gte.getTime() &&
+              row.date.getTime() <= where.date.lte.getTime()
+            ) {
+              staffLunchAndClubsVolunteerDays.splice(index, 1);
+            }
+          }
+          return Promise.resolve({ count: before - staffLunchAndClubsVolunteerDays.length });
+        },
+      ),
+      createMany: vi.fn(
+        ({
+          data,
+        }: {
+          data: Array<Pick<StoredStaffLunchAndClubsVolunteerDay, 'staffUserId' | 'date'>>;
+        }) => {
+          for (const row of data) {
+            staffLunchAndClubsVolunteerDays.push({
+              id: `staff_lunch_clubs_${String(nextStaffLunchAndClubsVolunteerDayId++)}`,
+              createdAt: at('2026-04-29T09:00:00.000Z'),
+              updatedAt: at('2026-04-29T09:00:00.000Z'),
+              ...row,
+            });
+          }
+          return Promise.resolve({ count: data.length });
         },
       ),
     },
@@ -710,7 +795,16 @@ function makeFakeDb() {
     },
   };
 
-  return { db, users, availability, monthlyAvailability, parentVolunteerDays, shifts, swaps };
+  return {
+    db,
+    users,
+    availability,
+    monthlyAvailability,
+    parentVolunteerDays,
+    staffLunchAndClubsVolunteerDays,
+    shifts,
+    swaps,
+  };
 }
 
 function makeCaller(user: SessionUser | null, db: FakeDb) {
@@ -756,6 +850,77 @@ describe('rota availability', () => {
       code: 'BAD_REQUEST',
       message: 'availability windows must not overlap',
     });
+  });
+
+  it('lets staff save their own combined lunch and clubs cover days', async () => {
+    const { db, staffLunchAndClubsVolunteerDays } = makeFakeDb();
+    const caller = makeCaller(supervisorUser, db);
+    const windowStart = currentVolunteerWindowStart();
+    const firstDate = dateKey(windowStart);
+    const secondDate = dateKey(new Date(windowStart.getTime() + 86_400_000));
+
+    await expect(
+      caller.rota.setMyStaffLunchAndClubsVolunteerDays({
+        dates: [firstDate, secondDate],
+      }),
+    ).resolves.toMatchObject({
+      dates: [firstDate, secondDate],
+    });
+    expect(staffLunchAndClubsVolunteerDays).toHaveLength(2);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: supervisorUser.id,
+        action: 'Update',
+        entity: 'StaffLunchAndClubsVolunteerDay',
+        entityId: supervisorUser.id,
+        meta: {
+          dayCount: 2,
+          source: 'rota.setMyStaffLunchAndClubsVolunteerDays',
+        },
+      },
+    });
+    expect(staffLunchAndClubsVolunteerDays).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          staffUserId: supervisorUser.id,
+          date: day(firstDate),
+        }),
+      ]),
+    );
+
+    await caller.rota.setMyStaffLunchAndClubsVolunteerDays({
+      dates: [secondDate],
+    });
+    expect(staffLunchAndClubsVolunteerDays).toHaveLength(1);
+    await expect(caller.rota.myStaffLunchAndClubsVolunteerDays()).resolves.toMatchObject({
+      dates: [secondDate],
+    });
+    await expect(
+      makeCaller(headUser, db).rota.staffLunchAndClubsVolunteerSchedule({
+        from: windowStart,
+        to: new Date(windowStart.getTime() + 6 * 86_400_000),
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        date: secondDate,
+        staff: { id: supervisorUser.id, fullName: 'Supervisor One' },
+      }),
+    ]);
+
+    await expect(
+      makeCaller(parentUser, db).rota.myStaffLunchAndClubsVolunteerDays(),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(technicalSupportUser, db).rota.setMyStaffLunchAndClubsVolunteerDays({
+        dates: [],
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      makeCaller(parentUser, db).rota.staffLunchAndClubsVolunteerSchedule({
+        from: windowStart,
+        to: windowStart,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('lets full-admin users set their own weekly availability', async () => {
@@ -855,13 +1020,6 @@ describe('rota availability', () => {
 });
 
 describe('parent volunteer days', () => {
-  function currentVolunteerWindowStart(): Date {
-    const start = day(dateKey(new Date()));
-    const dayOfWeek = start.getUTCDay();
-    start.setUTCDate(start.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
-    return start;
-  }
-
   it('keeps parent selections private and separates centre, Primary, and Secondary capacity', async () => {
     const { db, parentVolunteerDays } = makeFakeDb();
     const windowStart = currentVolunteerWindowStart();
@@ -990,6 +1148,47 @@ describe('parent volunteer days', () => {
         ]),
       );
     }
+  });
+
+  it('preserves other volunteer placements when a parent saves one card', async () => {
+    const { db } = makeFakeDb();
+    const windowStart = currentVolunteerWindowStart();
+    const firstDate = dateKey(windowStart);
+    const secondDate = dateKey(new Date(windowStart.getTime() + 86_400_000));
+    const parentCaller = makeCaller(parentUser, db);
+
+    await parentCaller.rota.setMyParentVolunteerDays({
+      centreDates: [firstDate],
+      primaryLunchAndClubsDates: [secondDate],
+      secondaryLunchAndClubsDates: [],
+    });
+
+    const centreUpdate = await parentCaller.rota.setMyParentVolunteerDays({
+      centreDates: [secondDate],
+    });
+    expect(centreUpdate.centreVolunteer.days.find((slot) => slot.date === firstDate)).toMatchObject(
+      { selected: false },
+    );
+    expect(
+      centreUpdate.centreVolunteer.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({ selected: true });
+    expect(
+      centreUpdate.lunchAndClubs.primary.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({ selected: true });
+
+    const lunchAndClubsUpdate = await parentCaller.rota.setMyParentVolunteerDays({
+      primaryLunchAndClubsDates: [],
+      secondaryLunchAndClubsDates: [firstDate],
+    });
+    expect(
+      lunchAndClubsUpdate.centreVolunteer.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({ selected: true });
+    expect(
+      lunchAndClubsUpdate.lunchAndClubs.primary.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({ selected: false });
+    expect(
+      lunchAndClubsUpdate.lunchAndClubs.secondary.days.find((slot) => slot.date === firstDate),
+    ).toMatchObject({ selected: true });
   });
 
   it('limits volunteering to parents and to the rolling two-week window', async () => {

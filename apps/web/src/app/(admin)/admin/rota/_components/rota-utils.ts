@@ -71,6 +71,12 @@ export type ParentVolunteerDay = {
   parent: { id: string; fullName: string };
 };
 
+export type StaffLunchAndClubsVolunteerDay = {
+  id: string;
+  date: string;
+  staff: { id: string; fullName: string };
+};
+
 export function parentVolunteerPlacementLabel(placement: ParentVolunteerDay['placement']): string {
   switch (placement) {
     case 'LunchAndClubsPrimary':

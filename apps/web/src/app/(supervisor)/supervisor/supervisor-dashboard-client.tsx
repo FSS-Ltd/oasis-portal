@@ -13,6 +13,7 @@ import {
 } from '@/components/behaviour/daily-demerit-badge';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
 import { MonthlyAvailabilityEditor } from '@/components/rota/monthly-availability-editor';
+import { StaffLunchAndClubsVolunteerEditor } from '@/components/rota/staff-lunch-and-clubs-volunteer-editor';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -847,6 +848,7 @@ export function SupervisorDashboardClient({
         <aside className="supervisor-layout__side">
           <MyAvailabilityEditor />
           <MonthlyAvailabilityEditor />
+          <StaffLunchAndClubsVolunteerEditor />
 
           <section className="panel panel__body">
             <div className="section-title">

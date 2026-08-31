@@ -118,6 +118,7 @@ model User {
   monthlyAvailabilityWindows       StaffMonthlyAvailabilityWindow[] @relation("StaffMonthlyAvailability")
   staffShifts                      StaffShift[]                     @relation("StaffShifts")
   volunteerDays                    ParentVolunteerDay[]             @relation("ParentVolunteerDays")
+  lunchAndClubsVolunteerDays       StaffLunchAndClubsVolunteerDay[] @relation("StaffLunchAndClubsVolunteerDays")
   requestedShiftSwaps              ShiftSwapRequest[]               @relation("RequestedShiftSwaps")
   targetedShiftSwaps               ShiftSwapRequest[]               @relation("TargetedShiftSwaps")
   approvedShiftSwaps               ShiftSwapRequest[]               @relation("ApprovedShiftSwaps")
@@ -1063,6 +1064,19 @@ enum ParentVolunteerPlacement {
   Centre
   LunchAndClubsPrimary
   LunchAndClubsSecondary
+}
+
+model StaffLunchAndClubsVolunteerDay {
+  id          String   @id @default(cuid())
+  staffUserId String
+  date        DateTime @db.Date
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staffUser User @relation("StaffLunchAndClubsVolunteerDays", fields: [staffUserId], references: [id])
+
+  @@unique([staffUserId, date])
+  @@index([date])
 }
 
 enum StaffShiftKind {
