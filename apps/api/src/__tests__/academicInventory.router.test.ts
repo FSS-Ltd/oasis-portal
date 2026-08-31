@@ -82,7 +82,7 @@ type OrderCreateData = Pick<
 > & { status: 'Ordered' };
 
 interface OrderUpdateArgs {
-  where: { id: string };
+  where: { id: string; status?: OrderRow['status'] };
   data: Partial<OrderRow>;
 }
 
@@ -99,6 +99,7 @@ interface AssignmentUpdateArgs {
 interface FakeDb {
   $enc: { decrypt: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
+  $executeRaw: ReturnType<typeof vi.fn>;
   auditLog: { create: ReturnType<typeof vi.fn> };
   diagnosticResult: {
     create: ReturnType<typeof vi.fn>;
@@ -112,6 +113,7 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+    updateMany: ReturnType<typeof vi.fn>;
   };
   studentPaceSupply: {
     createMany: ReturnType<typeof vi.fn>;
@@ -159,6 +161,8 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
   const orders: OrderRow[] = [];
   const diagnostics: DiagnosticRow[] = [];
   const supply: SupplyRow[] = [];
+  const rlsState = { depth: 0 };
+  const auditInsideRls: boolean[] = [];
   const transaction = vi.fn<(callback: (tx: FakeDb) => Promise<unknown>) => Promise<unknown>>();
 
   const findAssignment = (studentId: string, subjectId: string): Assignment | null =>
@@ -171,10 +175,12 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
       decrypt: vi.fn((value: string) => value.replace(/^enc:/, '')),
     },
     $transaction: transaction,
+    $executeRaw: vi.fn().mockResolvedValue(0),
     auditLog: {
-      create: vi.fn(({ data }: { data: Record<string, unknown> }) =>
-        Promise.resolve({ id: 'audit_1', ...data }),
-      ),
+      create: vi.fn(({ data }: { data: Record<string, unknown> }) => {
+        auditInsideRls.push(rlsState.depth > 0);
+        return Promise.resolve({ id: 'audit_1', ...data });
+      }),
     },
     diagnosticResult: {
       create: vi.fn(({ data }: { data: DiagnosticCreateData }) => {
@@ -190,10 +196,28 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         diagnostics.push(row);
         return Promise.resolve(row);
       }),
-      findMany: vi.fn(({ where }: { where?: { deletedAt?: null } } = {}) =>
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            deletedAt?: null;
+            OR?: Array<{ studentId: string; subjectId: string }>;
+          };
+        } = {}) =>
         Promise.resolve(
           [...diagnostics]
-            .filter((diagnostic) => where?.deletedAt === undefined || !diagnostic.deletedAt)
+            .filter((diagnostic) => {
+              if (where?.deletedAt !== undefined && diagnostic.deletedAt) return false;
+              return (
+                !where?.OR ||
+                where.OR.some(
+                  (assignment) =>
+                    diagnostic.studentId === assignment.studentId &&
+                    diagnostic.subjectId === assignment.subjectId,
+                )
+              );
+            })
             .reverse(),
         ),
       ),
@@ -251,6 +275,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
             subjectId?: string;
             paceNumber?: { in: number[] };
             status?: OrderRow['status'] | { in: OrderRow['status'][] };
+            OR?: Array<{ studentId: string; subjectId: string }>;
           };
         } = {}) =>
           Promise.resolve(
@@ -266,6 +291,16 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
                 }
                 if (where?.subjectId && order.subjectId !== where.subjectId) return false;
                 if (where?.paceNumber && !where.paceNumber.in.includes(order.paceNumber)) return false;
+                if (
+                  where?.OR &&
+                  !where.OR.some(
+                    (assignment) =>
+                      order.studentId === assignment.studentId &&
+                      order.subjectId === assignment.subjectId,
+                  )
+                ) {
+                  return false;
+                }
                 if (!where?.status) return true;
                 return typeof where.status === 'string'
                   ? order.status === where.status
@@ -282,6 +317,14 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         if (!order) throw new Error('order not found');
         Object.assign(order, data, { updatedAt: new Date() });
         return Promise.resolve(order);
+      }),
+      updateMany: vi.fn(({ where, data }: OrderUpdateArgs) => {
+        const order = orders.find(
+          (candidate) => candidate.id === where.id && candidate.status === where.status,
+        );
+        if (!order) return Promise.resolve({ count: 0 });
+        Object.assign(order, data, { updatedAt: new Date() });
+        return Promise.resolve({ count: 1 });
       }),
     },
     studentPaceSupply: {
@@ -305,7 +348,39 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
           return Promise.resolve({ count: data.length });
         },
       ),
-      findMany: vi.fn(() => Promise.resolve([...supply])),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            studentId?: string | { in: string[] };
+            subjectId?: string;
+            paceNumber?: { in: number[] };
+            OR?: Array<{ studentId: string; subjectId: string }>;
+          };
+        } = {}) =>
+          Promise.resolve(
+            supply.filter((item) => {
+              if (
+                where?.studentId &&
+                (typeof where.studentId === 'string'
+                  ? item.studentId !== where.studentId
+                  : !where.studentId.in.includes(item.studentId))
+              ) {
+                return false;
+              }
+              if (where?.subjectId && item.subjectId !== where.subjectId) return false;
+              if (where?.paceNumber && !where.paceNumber.in.includes(item.paceNumber)) return false;
+              return (
+                !where?.OR ||
+                where.OR.some(
+                  (assignment) =>
+                    item.studentId === assignment.studentId && item.subjectId === assignment.subjectId,
+                )
+              );
+            }),
+          ),
+      ),
       upsert: vi.fn(
         ({
           where: { studentId_subjectId_paceNumber: key },
@@ -378,9 +453,16 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
       ),
     },
   };
-  transaction.mockImplementation((callback) => callback(db));
+  transaction.mockImplementation(async (callback) => {
+    rlsState.depth += 1;
+    try {
+      return await callback(db);
+    } finally {
+      rlsState.depth -= 1;
+    }
+  });
 
-  return { db, diagnostics, orders, students, supply };
+  return { auditInsideRls, db, diagnostics, orders, rlsState, students, supply };
 }
 
 function callArgs(mock: ReturnType<typeof vi.fn>, index = -1): unknown {
@@ -397,7 +479,7 @@ function makeCaller(user: SessionUser, studentFixtures?: StudentRow[]) {
   );
   const directDb = {
     ...state.db,
-    $transaction: rejectDirectProtectedAccess,
+    $transaction: state.db.$transaction,
     diagnosticResult: {
       create: rejectDirectProtectedAccess,
       findMany: rejectDirectProtectedAccess,
@@ -423,9 +505,15 @@ function makeCaller(user: SessionUser, studentFixtures?: StudentRow[]) {
       update: rejectDirectProtectedAccess,
     },
   };
-  const withRls = vi.fn((callback: (tx: RlsTx) => Promise<unknown>) =>
-    callback(state.db as unknown as RlsTx),
-  );
+  const runWithRls = async (callback: (tx: RlsTx) => Promise<unknown>) => {
+    state.rlsState.depth += 1;
+    try {
+      return await callback(state.db as unknown as RlsTx);
+    } finally {
+      state.rlsState.depth -= 1;
+    }
+  };
+  const withRls = vi.fn(runWithRls);
   const context: AppContext = {
     db: directDb as unknown as AppContext['db'],
     user,
@@ -469,7 +557,13 @@ async function addCurrentSupply(
 
 describe('academic inventory router', () => {
   it('allows a Head to create one order for a student, subject, and PACE', async () => {
-    const { caller, db, orders, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
+    const {
+      auditInsideRls,
+      caller,
+      db,
+      orders,
+      rejectDirectProtectedAccess,
+    } = makeCaller(HEAD);
 
     const result = await createOrder(caller);
 
@@ -482,7 +576,7 @@ describe('academic inventory router', () => {
     });
     expect(orders).toHaveLength(1);
     expect(orders[0]).not.toHaveProperty('quantity');
-    expect(withRls).toHaveBeenCalledOnce();
+    expect(db.$transaction).toHaveBeenCalledOnce();
     expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
     const audit = callArgs(db.auditLog.create) as { data: Record<string, unknown> };
     expect(audit.data).toMatchObject({
@@ -491,10 +585,11 @@ describe('academic inventory router', () => {
       entity: 'PaceInventoryOrder',
       entityId: 'order_1',
     });
+    expect(auditInsideRls).toEqual([true]);
   });
 
   it('adds selected current supply in one RLS bulk write', async () => {
-    const { caller, db, supply } = makeCaller(HEAD);
+    const { auditInsideRls, caller, db, supply } = makeCaller(HEAD);
 
     const result = await addCurrentSupply(caller, [1011, 1012]);
 
@@ -507,12 +602,13 @@ describe('academic inventory router', () => {
         ]),
       }),
     );
+    expect(auditInsideRls).toEqual([true]);
 
     await expectCode(addCurrentSupply(caller, [1012]), 'BAD_REQUEST');
   });
 
   it('creates selected orders in one RLS bulk write', async () => {
-    const { caller, db, orders } = makeCaller(HEAD);
+    const { auditInsideRls, caller, db, orders } = makeCaller(HEAD);
 
     const result = await caller.academicInventory.createOrders({
       studentId: STUDENT_ID,
@@ -523,6 +619,7 @@ describe('academic inventory router', () => {
     expect(result).toEqual({ count: 2 });
     expect(orders.map((row) => row.paceNumber)).toEqual([1013, 1014]);
     expect(db.paceInventoryOrder.createMany).toHaveBeenCalled();
+    expect(auditInsideRls).toEqual([true]);
 
     await expectCode(
       caller.academicInventory.createOrders({
@@ -608,7 +705,7 @@ describe('academic inventory router', () => {
   });
 
   it('moves orders through Ordered, InTransit, then Delivered', async () => {
-    const { caller, db, supply, withRls } = makeCaller(HEAD);
+    const { auditInsideRls, caller, db, supply } = makeCaller(HEAD);
     await addCurrentSupply(caller, [1013]);
     const order = await createOrder(caller);
     db.auditLog.create.mockClear();
@@ -619,8 +716,8 @@ describe('academic inventory router', () => {
     });
     expect(inTransit).toMatchObject({ status: 'InTransit', deliveredAt: null });
     expect(inTransit.inTransitAt).toBeInstanceOf(Date);
-    const inTransitUpdate = callArgs(db.paceInventoryOrder.update) as OrderUpdateArgs;
-    expect(inTransitUpdate.where).toEqual({ id: order.id });
+    const inTransitUpdate = callArgs(db.paceInventoryOrder.updateMany) as OrderUpdateArgs;
+    expect(inTransitUpdate.where).toEqual({ id: order.id, status: 'Ordered' });
     expect(Object.keys(inTransitUpdate.data).sort()).toEqual(['inTransitAt', 'status']);
     expect(inTransitUpdate.data).toMatchObject({ status: 'InTransit' });
     expect(inTransitUpdate.data.inTransitAt).toBeInstanceOf(Date);
@@ -640,8 +737,8 @@ describe('academic inventory router', () => {
     });
     expect(delivered).toMatchObject({ status: 'Delivered' });
     expect(delivered.deliveredAt).toBeInstanceOf(Date);
-    const deliveredUpdate = callArgs(db.paceInventoryOrder.update) as OrderUpdateArgs;
-    expect(deliveredUpdate.where).toEqual({ id: order.id });
+    const deliveredUpdate = callArgs(db.paceInventoryOrder.updateMany) as OrderUpdateArgs;
+    expect(deliveredUpdate.where).toEqual({ id: order.id, status: 'InTransit' });
     expect(Object.keys(deliveredUpdate.data).sort()).toEqual(['deliveredAt', 'status']);
     expect(deliveredUpdate.data).toMatchObject({ status: 'Delivered' });
     expect(deliveredUpdate.data.deliveredAt).toBeInstanceOf(Date);
@@ -659,7 +756,8 @@ describe('academic inventory router', () => {
     );
     expect(supply).toHaveLength(1);
     expect(supply[0]).toMatchObject({ paceNumber: 1013, source: 'CurrentStock' });
-    expect(withRls).toHaveBeenCalledTimes(4);
+    expect(db.$transaction).toHaveBeenCalledTimes(4);
+    expect(auditInsideRls).toEqual([true, true, true, true]);
   });
 
   it('rejects skipped and backward order transitions', async () => {
@@ -675,6 +773,24 @@ describe('academic inventory router', () => {
       caller.academicInventory.updateOrderStatus({ orderId: order.id, status: 'Ordered' }),
       'BAD_REQUEST',
     );
+  });
+
+  it('fails a conditional order-status update race without supply or an audit', async () => {
+    const { caller, db, supply } = makeCaller(HEAD);
+    const order = await createOrder(caller);
+    db.auditLog.create.mockClear();
+    db.paceInventoryOrder.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expectCode(
+      caller.academicInventory.updateOrderStatus({ orderId: order.id, status: 'InTransit' }),
+      'CONFLICT',
+    );
+
+    expect(db.paceInventoryOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: order.id, status: 'Ordered' } }),
+    );
+    expect(supply).toEqual([]);
+    expect(db.auditLog.create).not.toHaveBeenCalled();
   });
 
   it('alerts at two PACEs remaining but not three', async () => {
@@ -811,6 +927,52 @@ describe('academic inventory router', () => {
     });
   });
 
+  it('returns history only for active student-subject assignments', async () => {
+    const { caller, diagnostics, orders, supply } = makeCaller(HEAD);
+    const now = new Date();
+    orders.push({
+      id: 'historic-order',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1013,
+      status: 'Delivered',
+      orderedAt: now,
+      inTransitAt: now,
+      deliveredAt: now,
+      createdById: HEAD.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    diagnostics.push({
+      id: 'historic-diagnostic',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_2_ID,
+      level: 2,
+      outcome: 'Pass',
+      recordedById: HEAD.id,
+      recordedAt: now,
+      createdAt: now,
+      deletedAt: null,
+      deletedById: null,
+    });
+    supply.push({
+      id: 'historic-supply',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_2_ID,
+      paceNumber: 1013,
+      source: 'DeliveredOrder',
+      createdById: HEAD.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const summary = await caller.academicInventory.summary();
+
+    expect(summary.orders).toEqual([]);
+    expect(summary.diagnostics).toEqual([]);
+    expect(summary.supply).toEqual([]);
+  });
+
   it('does not let an InTransit PACE 1013 suppress a delivered-stock alert', async () => {
     const students = cloneStudents(defaultStudents);
     const firstStudent = students[0];
@@ -844,7 +1006,8 @@ describe('academic inventory router', () => {
   });
 
   it('records a diagnostic without changing the assignment PACE', async () => {
-    const { caller, db, diagnostics, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
+    const { auditInsideRls, caller, db, diagnostics, rejectDirectProtectedAccess, withRls } =
+      makeCaller(HEAD);
 
     const result = await caller.academicInventory.recordDiagnostic({
       studentId: STUDENT_ID,
@@ -866,10 +1029,11 @@ describe('academic inventory router', () => {
         entityId: 'diagnostic_1',
       },
     });
+    expect(auditInsideRls).toEqual([true]);
   });
 
   it('soft-deletes a recorded diagnostic without touching the assignment', async () => {
-    const { caller, db, diagnostics } = makeCaller(HEAD);
+    const { auditInsideRls, caller, db, diagnostics } = makeCaller(HEAD);
     const diagnostic = await caller.academicInventory.recordDiagnostic({
       studentId: STUDENT_ID,
       subjectId: SUBJECT_ID,
@@ -887,6 +1051,7 @@ describe('academic inventory router', () => {
       }),
     );
     expect(db.studentSubject.update).not.toHaveBeenCalled();
+    expect(auditInsideRls).toEqual([true, true]);
     const summary = await caller.academicInventory.summary();
     expect(summary.diagnostics).toEqual([]);
   });

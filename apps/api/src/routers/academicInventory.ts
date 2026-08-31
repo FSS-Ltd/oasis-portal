@@ -9,7 +9,12 @@ import {
   requiresPaceReorder,
 } from '@oasis/domain';
 import { TRPCError } from '@trpc/server';
-import type { RlsTx } from '../context.js';
+import {
+  applySerializableRlsTx,
+  RlsSerializationConflictError,
+  type AppContext,
+  type RlsTx,
+} from '../context.js';
 import { roleProcedure, router } from '../trpc.js';
 
 const RECENT_HISTORY_LIMIT = 100;
@@ -57,6 +62,23 @@ function duplicatePaceNumbersMessage(prefix: string, paceNumbers: readonly numbe
   return `${prefix}: ${paceNumbers.join(', ')}`;
 }
 
+async function withSerializableInventoryRls<T>(
+  ctx: Pick<AppContext, 'db' | 'user'>,
+  mutation: (tx: RlsTx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await applySerializableRlsTx(ctx.db, ctx.user, mutation);
+  } catch (error) {
+    if (error instanceof RlsSerializationConflictError) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'The inventory changed while your request was being processed. Please retry.',
+      });
+    }
+    throw error;
+  }
+}
+
 export const academicInventoryRouter = router({
   summary: roleProcedure('Head').query(async ({ ctx }) => {
     const { students, orders, diagnostics, supply } = await ctx.withRls(async (tx) => {
@@ -82,11 +104,16 @@ export const academicInventoryRouter = router({
         },
         orderBy: { id: 'asc' },
       });
-      const studentIds = students.map((student) => student.id);
+      const activeAssignments = students.flatMap((student) =>
+        student.subjects.map((assignment) => ({
+          studentId: student.id,
+          subjectId: assignment.subjectId,
+        })),
+      );
 
       const [orders, diagnostics, supply] = await Promise.all([
         tx.paceInventoryOrder.findMany({
-          where: { studentId: { in: studentIds } },
+          where: { OR: activeAssignments },
           orderBy: { createdAt: 'desc' },
           take: RECENT_HISTORY_LIMIT,
           select: {
@@ -104,7 +131,7 @@ export const academicInventoryRouter = router({
           },
         }),
         tx.diagnosticResult.findMany({
-          where: { studentId: { in: studentIds }, deletedAt: null },
+          where: { deletedAt: null, OR: activeAssignments },
           orderBy: { recordedAt: 'desc' },
           take: RECENT_HISTORY_LIMIT,
           select: {
@@ -119,7 +146,7 @@ export const academicInventoryRouter = router({
           },
         }),
         tx.studentPaceSupply.findMany({
-          where: { studentId: { in: studentIds } },
+          where: { OR: activeAssignments },
           select: {
             id: true,
             studentId: true,
@@ -195,9 +222,9 @@ export const academicInventoryRouter = router({
   createOrder: roleProcedure('Head')
     .input(createOrderInput)
     .mutation(async ({ ctx, input }) => {
-      const order = await ctx.withRls(async (tx) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
-        return tx.paceInventoryOrder.create({
+        const order = await tx.paceInventoryOrder.create({
           data: {
             studentId: input.studentId,
             subjectId: input.subjectId,
@@ -206,27 +233,27 @@ export const academicInventoryRouter = router({
             createdById: ctx.user.id,
           },
         });
-      });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'PaceInventoryOrder',
-          entityId: order.id,
-          meta: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            paceNumber: input.paceNumber,
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'PaceInventoryOrder',
+            entityId: order.id,
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              paceNumber: input.paceNumber,
+            },
           },
-        },
+        });
+        return order;
       });
-      return order;
     }),
 
   addCurrentSupply: roleProcedure('Head')
     .input(currentStudentPaceSupplyInput)
     .mutation(async ({ ctx, input }) => {
-      const result = await ctx.withRls(async (tx) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
         const existingSupply = await tx.studentPaceSupply.findMany({
           where: {
@@ -249,7 +276,7 @@ export const academicInventoryRouter = router({
             ),
           });
         }
-        return tx.studentPaceSupply.createMany({
+        const result = await tx.studentPaceSupply.createMany({
           data: input.paceNumbers.map((paceNumber) => ({
             studentId: input.studentId,
             subjectId: input.subjectId,
@@ -258,27 +285,27 @@ export const academicInventoryRouter = router({
             createdById: ctx.user.id,
           })),
         });
-      });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'StudentPaceSupply',
-          meta: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            paceNumbers: input.paceNumbers,
-            source: 'CurrentStock',
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'StudentPaceSupply',
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              paceNumbers: input.paceNumbers,
+              source: 'CurrentStock',
+            },
           },
-        },
+        });
+        return result;
       });
-      return result;
     }),
 
   createOrders: roleProcedure('Head')
     .input(bulkPaceInventoryOrderInput)
     .mutation(async ({ ctx, input }) => {
-      const result = await ctx.withRls(async (tx) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
         const [existingSupply, pendingOrders] = await Promise.all([
           tx.studentPaceSupply.findMany({
@@ -312,7 +339,7 @@ export const academicInventoryRouter = router({
             ),
           });
         }
-        return tx.paceInventoryOrder.createMany({
+        const result = await tx.paceInventoryOrder.createMany({
           data: input.paceNumbers.map((paceNumber) => ({
             studentId: input.studentId,
             subjectId: input.subjectId,
@@ -321,29 +348,28 @@ export const academicInventoryRouter = router({
             createdById: ctx.user.id,
           })),
         });
-      });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'PaceInventoryOrder',
-          meta: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            paceNumbers: input.paceNumbers,
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'PaceInventoryOrder',
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              paceNumbers: input.paceNumbers,
+            },
           },
-        },
+        });
+        return result;
       });
-      return result;
     }),
 
   updateOrderStatus: roleProcedure('Head')
     .input(paceInventoryStatusInput)
     .mutation(async ({ ctx, input }) => {
-      const { orderId, previousStatus, updated } = await ctx.withRls(async (tx) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
         const order = await tx.paceInventoryOrder.findUnique({
           where: { id: input.orderId },
-          select: { id: true, studentId: true, subjectId: true, paceNumber: true, status: true },
         });
         if (!order) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'inventory order not found' });
@@ -363,10 +389,16 @@ export const academicInventoryRouter = router({
           input.status === 'InTransit'
             ? { status: 'InTransit' as const, inTransitAt: reachedAt }
             : { status: 'Delivered' as const, deliveredAt: reachedAt };
-        const updated = await tx.paceInventoryOrder.update({
-          where: { id: order.id },
+        const updateResult = await tx.paceInventoryOrder.updateMany({
+          where: { id: order.id, status: previousStatus },
           data,
         });
+        if (updateResult.count !== 1) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'The inventory order changed before it could be updated. Please retry.',
+          });
+        }
         if (input.status === 'Delivered') {
           await tx.studentPaceSupply.upsert({
             where: {
@@ -386,24 +418,23 @@ export const academicInventoryRouter = router({
             update: {},
           });
         }
-        return { orderId: order.id, previousStatus, updated };
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'PaceInventoryOrder',
+            entityId: order.id,
+            meta: { fromStatus: previousStatus, toStatus: input.status },
+          },
+        });
+        return { ...order, ...data, updatedAt: reachedAt };
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'PaceInventoryOrder',
-          entityId: orderId,
-          meta: { fromStatus: previousStatus, toStatus: input.status },
-        },
-      });
-      return updated;
     }),
 
   recordDiagnostic: roleProcedure('Head')
     .input(diagnosticResultInput)
     .mutation(async ({ ctx, input }) => {
-      const result = await ctx.withRls(async (tx) => {
+      return ctx.withRls(async (tx) => {
         await requireAssignment(tx, input);
         const diagnostic = await tx.diagnosticResult.create({
           data: {
@@ -414,29 +445,28 @@ export const academicInventoryRouter = router({
             recordedById: ctx.user.id,
           },
         });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'DiagnosticResult',
+            entityId: diagnostic.id,
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              level: input.level,
+              outcome: input.outcome,
+            },
+          },
+        });
         return diagnostic;
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'DiagnosticResult',
-          entityId: result.id,
-          meta: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            level: input.level,
-            outcome: input.outcome,
-          },
-        },
-      });
-      return result;
     }),
 
   deleteDiagnostic: roleProcedure('Head')
     .input(deleteDiagnosticResultInput)
     .mutation(async ({ ctx, input }) => {
-      const deleted = await ctx.withRls(async (tx) => {
+      return ctx.withRls(async (tx) => {
         const diagnostic = await tx.diagnosticResult.findFirst({
           where: { id: input.diagnosticId, deletedAt: null },
           select: { id: true },
@@ -448,17 +478,17 @@ export const academicInventoryRouter = router({
           where: { id: diagnostic.id },
           data: { deletedAt: new Date(), deletedById: ctx.user.id },
         });
-        return { id: diagnostic.id };
+        const deleted = { id: diagnostic.id };
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'DiagnosticResult',
+            entityId: deleted.id,
+            meta: { diagnosticId: deleted.id },
+          },
+        });
+        return deleted;
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Delete',
-          entity: 'DiagnosticResult',
-          entityId: deleted.id,
-          meta: { diagnosticId: deleted.id },
-        },
-      });
-      return deleted;
     }),
 });
