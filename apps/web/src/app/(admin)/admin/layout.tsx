@@ -121,6 +121,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     canViewPace,
     canViewStudents,
     canExportAttendance: canExportAttendanceCsv,
+    isHead: user.role === 'Head',
     clubsOnly: user.role === 'ClubsAdmin',
     fullAdmin,
     unreadMessageCount,
