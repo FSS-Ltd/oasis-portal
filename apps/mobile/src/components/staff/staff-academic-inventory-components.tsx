@@ -88,7 +88,7 @@ export function InventoryAlerts({ summary }: { summary: InventorySummary }) {
                 </MutedText>
               </View>
               <Text style={styles.alertPace}>
-                #{String(alert.currentPaceNumber)} / #{String(alert.deliveredPaceNumber)}
+                #{String(alert.currentPaceNumber)} · {String(alert.remainingPaceCount)} available
               </Text>
             </View>
           );
