@@ -57,6 +57,19 @@ interface DiagnosticRow {
   recordedById: string;
   recordedAt: Date;
   createdAt: Date;
+  deletedAt: Date | null;
+  deletedById: string | null;
+}
+
+interface SupplyRow {
+  id: string;
+  studentId: string;
+  subjectId: string;
+  paceNumber: number;
+  source: 'CurrentStock' | 'DeliveredOrder';
+  createdById: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 type DiagnosticCreateData = Pick<
@@ -73,6 +86,11 @@ interface OrderUpdateArgs {
   data: Partial<OrderRow>;
 }
 
+interface DiagnosticUpdateArgs {
+  where: { id: string };
+  data: { deletedAt: Date; deletedById: string };
+}
+
 interface AssignmentUpdateArgs {
   where: { studentId_subjectId: { studentId: string; subjectId: string } };
   data: { currentPaceNumber: number };
@@ -85,12 +103,20 @@ interface FakeDb {
   diagnosticResult: {
     create: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   paceInventoryOrder: {
     create: ReturnType<typeof vi.fn>;
+    createMany: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+  };
+  studentPaceSupply: {
+    createMany: ReturnType<typeof vi.fn>;
+    findMany: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
   };
   student: { findMany: ReturnType<typeof vi.fn> };
   studentSubject: {
@@ -132,6 +158,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
   const students = cloneStudents(studentFixtures);
   const orders: OrderRow[] = [];
   const diagnostics: DiagnosticRow[] = [];
+  const supply: SupplyRow[] = [];
   const transaction = vi.fn<(callback: (tx: FakeDb) => Promise<unknown>) => Promise<unknown>>();
 
   const findAssignment = (studentId: string, subjectId: string): Assignment | null =>
@@ -157,11 +184,31 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
           ...data,
           recordedAt: now,
           createdAt: now,
+          deletedAt: null,
+          deletedById: null,
         };
         diagnostics.push(row);
         return Promise.resolve(row);
       }),
-      findMany: vi.fn(() => Promise.resolve([...diagnostics].reverse())),
+      findMany: vi.fn(({ where }: { where?: { deletedAt?: null } } = {}) =>
+        Promise.resolve(
+          [...diagnostics]
+            .filter((diagnostic) => where?.deletedAt === undefined || !diagnostic.deletedAt)
+            .reverse(),
+        ),
+      ),
+      findFirst: vi.fn(({ where }: { where: { id: string; deletedAt: null } }) =>
+        Promise.resolve(
+          diagnostics.find((diagnostic) => diagnostic.id === where.id && !diagnostic.deletedAt) ??
+            null,
+        ),
+      ),
+      update: vi.fn(({ where, data }: DiagnosticUpdateArgs) => {
+        const diagnostic = diagnostics.find((candidate) => candidate.id === where.id);
+        if (!diagnostic) throw new Error('diagnostic not found');
+        Object.assign(diagnostic, data);
+        return Promise.resolve(diagnostic);
+      }),
     },
     paceInventoryOrder: {
       create: vi.fn(({ data }: { data: OrderCreateData }) => {
@@ -179,12 +226,53 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         orders.push(row);
         return Promise.resolve(row);
       }),
-      findMany: vi.fn(({ where }: { where?: { status?: OrderRow['status'] } } = {}) =>
-        Promise.resolve(
-          [...orders]
-            .filter((order) => where?.status === undefined || order.status === where.status)
-            .reverse(),
-        ),
+      createMany: vi.fn(({ data }: { data: OrderCreateData[] }) => {
+        const now = new Date();
+        for (const item of data) {
+          orders.push({
+            id: `order_${String(orders.length + 1)}`,
+            ...item,
+            status: 'Ordered',
+            orderedAt: now,
+            inTransitAt: null,
+            deliveredAt: null,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+        return Promise.resolve({ count: data.length });
+      }),
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where?: {
+            studentId?: string | { in: string[] };
+            subjectId?: string;
+            paceNumber?: { in: number[] };
+            status?: OrderRow['status'] | { in: OrderRow['status'][] };
+          };
+        } = {}) =>
+          Promise.resolve(
+            [...orders]
+              .filter((order) => {
+                if (
+                  where?.studentId &&
+                  (typeof where.studentId === 'string'
+                    ? order.studentId !== where.studentId
+                    : !where.studentId.in.includes(order.studentId))
+                ) {
+                  return false;
+                }
+                if (where?.subjectId && order.subjectId !== where.subjectId) return false;
+                if (where?.paceNumber && !where.paceNumber.in.includes(order.paceNumber)) return false;
+                if (!where?.status) return true;
+                return typeof where.status === 'string'
+                  ? order.status === where.status
+                  : where.status.in.includes(order.status);
+              })
+              .reverse(),
+          ),
       ),
       findUnique: vi.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(orders.find((order) => order.id === where.id) ?? null),
@@ -195,6 +283,63 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
         Object.assign(order, data, { updatedAt: new Date() });
         return Promise.resolve(order);
       }),
+    },
+    studentPaceSupply: {
+      createMany: vi.fn(
+        ({
+          data,
+        }: {
+          data: Array<
+            Pick<SupplyRow, 'studentId' | 'subjectId' | 'paceNumber' | 'source' | 'createdById'>
+          >;
+        }) => {
+          const now = new Date();
+          for (const item of data) {
+            supply.push({
+              id: `supply_${String(supply.length + 1)}`,
+              ...item,
+              createdAt: now,
+              updatedAt: now,
+            });
+          }
+          return Promise.resolve({ count: data.length });
+        },
+      ),
+      findMany: vi.fn(() => Promise.resolve([...supply])),
+      upsert: vi.fn(
+        ({
+          where: { studentId_subjectId_paceNumber: key },
+          create,
+        }: {
+          where: {
+            studentId_subjectId_paceNumber: Pick<
+              SupplyRow,
+              'studentId' | 'subjectId' | 'paceNumber'
+            >;
+          };
+          create: Pick<
+            SupplyRow,
+            'studentId' | 'subjectId' | 'paceNumber' | 'source' | 'createdById'
+          >;
+        }) => {
+          const existing = supply.find(
+            (row) =>
+              row.studentId === key.studentId &&
+              row.subjectId === key.subjectId &&
+              row.paceNumber === key.paceNumber,
+          );
+          if (existing) return Promise.resolve(existing);
+          const now = new Date();
+          const row: SupplyRow = {
+            id: `supply_${String(supply.length + 1)}`,
+            ...create,
+            createdAt: now,
+            updatedAt: now,
+          };
+          supply.push(row);
+          return Promise.resolve(row);
+        },
+      ),
     },
     student: {
       findMany: vi.fn(() =>
@@ -235,7 +380,7 @@ function makeFakeDb(studentFixtures: StudentRow[] = defaultStudents) {
   };
   transaction.mockImplementation((callback) => callback(db));
 
-  return { db, diagnostics, orders, students };
+  return { db, diagnostics, orders, students, supply };
 }
 
 function callArgs(mock: ReturnType<typeof vi.fn>, index = -1): unknown {
@@ -256,12 +401,20 @@ function makeCaller(user: SessionUser, studentFixtures?: StudentRow[]) {
     diagnosticResult: {
       create: rejectDirectProtectedAccess,
       findMany: rejectDirectProtectedAccess,
+      findFirst: rejectDirectProtectedAccess,
+      update: rejectDirectProtectedAccess,
     },
     paceInventoryOrder: {
       create: rejectDirectProtectedAccess,
+      createMany: rejectDirectProtectedAccess,
       findMany: rejectDirectProtectedAccess,
       findUnique: rejectDirectProtectedAccess,
       update: rejectDirectProtectedAccess,
+    },
+    studentPaceSupply: {
+      createMany: rejectDirectProtectedAccess,
+      findMany: rejectDirectProtectedAccess,
+      upsert: rejectDirectProtectedAccess,
     },
     student: { findMany: rejectDirectProtectedAccess },
     studentSubject: {
@@ -303,6 +456,17 @@ async function createOrder(
   });
 }
 
+async function addCurrentSupply(
+  caller: ReturnType<typeof makeCaller>['caller'],
+  paceNumbers: number[],
+) {
+  return caller.academicInventory.addCurrentSupply({
+    studentId: STUDENT_ID,
+    subjectId: SUBJECT_ID,
+    paceNumbers,
+  });
+}
+
 describe('academic inventory router', () => {
   it('allows a Head to create one order for a student, subject, and PACE', async () => {
     const { caller, db, orders, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
@@ -329,11 +493,61 @@ describe('academic inventory router', () => {
     });
   });
 
+  it('adds selected current supply in one RLS bulk write', async () => {
+    const { caller, db, supply } = makeCaller(HEAD);
+
+    const result = await addCurrentSupply(caller, [1011, 1012]);
+
+    expect(result).toEqual({ count: 2 });
+    expect(supply.map((row) => row.paceNumber)).toEqual([1011, 1012]);
+    expect(db.studentPaceSupply.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ paceNumber: 1011, source: 'CurrentStock' }),
+        ]),
+      }),
+    );
+
+    await expectCode(addCurrentSupply(caller, [1012]), 'BAD_REQUEST');
+  });
+
+  it('creates selected orders in one RLS bulk write', async () => {
+    const { caller, db, orders } = makeCaller(HEAD);
+
+    const result = await caller.academicInventory.createOrders({
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      paceNumbers: [1013, 1014],
+    });
+
+    expect(result).toEqual({ count: 2 });
+    expect(orders.map((row) => row.paceNumber)).toEqual([1013, 1014]);
+    expect(db.paceInventoryOrder.createMany).toHaveBeenCalled();
+
+    await expectCode(
+      caller.academicInventory.createOrders({
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumbers: [1014],
+      }),
+      'BAD_REQUEST',
+    );
+  });
+
   it('rejects a Supervisor from every inventory procedure before database access', async () => {
     const { caller, orders, withRls } = makeCaller(SUPERVISOR);
 
     await expectCode(caller.academicInventory.summary(), 'FORBIDDEN');
     await expectCode(createOrder(caller), 'FORBIDDEN');
+    await expectCode(addCurrentSupply(caller, [1011]), 'FORBIDDEN');
+    await expectCode(
+      caller.academicInventory.createOrders({
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumbers: [1013],
+      }),
+      'FORBIDDEN',
+    );
     await expectCode(
       caller.academicInventory.updateOrderStatus({ orderId: 'order_1', status: 'InTransit' }),
       'FORBIDDEN',
@@ -347,6 +561,7 @@ describe('academic inventory router', () => {
       }),
       'FORBIDDEN',
     );
+    await expectCode(caller.academicInventory.deleteDiagnostic({ diagnosticId: 'diagnostic_1' }), 'FORBIDDEN');
 
     expect(withRls).not.toHaveBeenCalled();
     expect(orders).toHaveLength(0);
@@ -393,7 +608,8 @@ describe('academic inventory router', () => {
   });
 
   it('moves orders through Ordered, InTransit, then Delivered', async () => {
-    const { caller, db, withRls } = makeCaller(HEAD);
+    const { caller, db, supply, withRls } = makeCaller(HEAD);
+    await addCurrentSupply(caller, [1013]);
     const order = await createOrder(caller);
     db.auditLog.create.mockClear();
 
@@ -429,7 +645,21 @@ describe('academic inventory router', () => {
     expect(Object.keys(deliveredUpdate.data).sort()).toEqual(['deliveredAt', 'status']);
     expect(deliveredUpdate.data).toMatchObject({ status: 'Delivered' });
     expect(deliveredUpdate.data.deliveredAt).toBeInstanceOf(Date);
-    expect(withRls).toHaveBeenCalledTimes(3);
+    expect(db.studentPaceSupply.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          studentId_subjectId_paceNumber: {
+            studentId: STUDENT_ID,
+            subjectId: SUBJECT_ID,
+            paceNumber: 1013,
+          },
+        },
+        create: expect.objectContaining({ source: 'DeliveredOrder' }),
+      }),
+    );
+    expect(supply).toHaveLength(1);
+    expect(supply[0]).toMatchObject({ paceNumber: 1013, source: 'CurrentStock' });
+    expect(withRls).toHaveBeenCalledTimes(4);
   });
 
   it('rejects skipped and backward order transitions', async () => {
@@ -488,12 +718,54 @@ describe('academic inventory router', () => {
         studentId: STUDENT_ID,
         subjectId: SUBJECT_ID,
         currentPaceNumber: 1011,
-        deliveredPaceNumber: 1013,
+        availablePaceNumbers: [1013],
+        remainingPaceCount: 1,
+      },
+      {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_2_ID,
+        currentPaceNumber: 1010,
+        availablePaceNumbers: [1013],
+        remainingPaceCount: 1,
       },
     ]);
   });
 
-  it('uses the highest delivered PACE for an assignment', async () => {
+  it('bases alerts exclusively on supplied PACEs ahead of the current PACE', async () => {
+    const students = cloneStudents(defaultStudents);
+    const assignment = students[0]?.subjects[0];
+    if (!assignment) throw new Error('expected assignment fixture');
+    assignment.currentPaceNumber = 1010;
+    const { caller } = makeCaller(HEAD, students);
+
+    await addCurrentSupply(caller, [1011, 1012]);
+    let summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([
+      {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        currentPaceNumber: 1010,
+        availablePaceNumbers: [1011, 1012],
+        remainingPaceCount: 2,
+      },
+    ]);
+
+    await addCurrentSupply(caller, [1013]);
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+
+    const ordered = await caller.academicInventory.createOrders({
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      paceNumbers: [1014],
+    });
+    expect(ordered).toEqual({ count: 1 });
+    await caller.academicInventory.updateOrderStatus({ orderId: 'order_1', status: 'InTransit' });
+    summary = await caller.academicInventory.summary();
+    expect(summary.alerts).toEqual([]);
+  });
+
+  it('counts each delivered PACE as available supply', async () => {
     const { caller } = makeCaller(HEAD);
     const highest = await createOrder(caller, { paceNumber: 1014 });
     const latest = await createOrder(caller, { paceNumber: 1013 });
@@ -510,7 +782,15 @@ describe('academic inventory router', () => {
 
     const summary = await caller.academicInventory.summary();
 
-    expect(summary.alerts).toEqual([]);
+    expect(summary.alerts).toEqual([
+      {
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        currentPaceNumber: 1011,
+        availablePaceNumbers: [1013, 1014],
+        remainingPaceCount: 2,
+      },
+    ]);
   });
 
   it('audits authorized summary name decryption after using the RLS client', async () => {
@@ -558,11 +838,12 @@ describe('academic inventory router', () => {
     expect(summary.alerts[0]).toMatchObject({
       studentId: STUDENT_ID,
       subjectId: SUBJECT_ID,
-      deliveredPaceNumber: 1012,
+      availablePaceNumbers: [1012],
+      remainingPaceCount: 1,
     });
   });
 
-  it('records a Level 2 failure and advances the assignment to PACE 1013 transactionally', async () => {
+  it('records a diagnostic without changing the assignment PACE', async () => {
     const { caller, db, diagnostics, rejectDirectProtectedAccess, withRls } = makeCaller(HEAD);
 
     const result = await caller.academicInventory.recordDiagnostic({
@@ -576,9 +857,7 @@ describe('academic inventory router', () => {
     expect(diagnostics).toHaveLength(1);
     expect(withRls).toHaveBeenCalledOnce();
     expect(rejectDirectProtectedAccess).not.toHaveBeenCalled();
-    expect(db.studentSubject.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { currentPaceNumber: 1013 } }),
-    );
+    expect(db.studentSubject.update).not.toHaveBeenCalled();
     expect(callArgs(db.auditLog.create)).toMatchObject({
       data: {
         userId: HEAD.id,
@@ -587,6 +866,29 @@ describe('academic inventory router', () => {
         entityId: 'diagnostic_1',
       },
     });
+  });
+
+  it('soft-deletes a recorded diagnostic without touching the assignment', async () => {
+    const { caller, db, diagnostics } = makeCaller(HEAD);
+    const diagnostic = await caller.academicInventory.recordDiagnostic({
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      level: 2,
+      outcome: 'Fail',
+    });
+
+    const result = await caller.academicInventory.deleteDiagnostic({ diagnosticId: diagnostic.id });
+
+    expect(result).toEqual({ id: diagnostic.id });
+    expect(diagnostics[0]).toMatchObject({ deletedById: HEAD.id, deletedAt: expect.any(Date) });
+    expect(db.diagnosticResult.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ deletedById: HEAD.id, deletedAt: expect.any(Date) }),
+      }),
+    );
+    expect(db.studentSubject.update).not.toHaveBeenCalled();
+    const summary = await caller.academicInventory.summary();
+    expect(summary.diagnostics).toEqual([]);
   });
 
   it('keeps two students orders and alerts separate', async () => {
@@ -635,13 +937,15 @@ describe('academic inventory router', () => {
         studentId: STUDENT_ID,
         subjectId: SUBJECT_ID,
         currentPaceNumber: 1011,
-        deliveredPaceNumber: 1013,
+        availablePaceNumbers: [1013],
+        remainingPaceCount: 1,
       },
       {
         studentId: STUDENT_2_ID,
         subjectId: SUBJECT_ID,
         currentPaceNumber: 1023,
-        deliveredPaceNumber: 1025,
+        availablePaceNumbers: [1025],
+        remainingPaceCount: 1,
       },
     ]);
   });
