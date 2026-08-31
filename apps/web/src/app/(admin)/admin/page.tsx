@@ -228,6 +228,9 @@ export default async function AdminIndexPage() {
               <QuickAction href="/admin/attendance" label="Mark Attendance" />
               <QuickAction href="/admin/behaviour" label="Log Behaviour" />
               <QuickAction href="/admin/pace" label="Record PACE Score" />
+              {user.role === 'Head' ? (
+                <QuickAction href="/admin/pace/inventory" label="PACE Inventory" />
+              ) : null}
               <QuickAction href="/admin/snapshot" label="Generate Report" />
             </div>
           </section>

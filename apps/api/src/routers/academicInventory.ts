@@ -1,12 +1,21 @@
 import {
+  availablePacesAhead,
+  bulkPaceInventoryOrderInput,
+  currentStudentPaceSupplyInput,
+  deleteDiagnosticResultInput,
   diagnosticResultInput,
-  firstPaceNumberForDiagnosticLevel,
+  PACE_CATALOGUE,
   paceInventoryOrderInput,
   paceInventoryStatusInput,
   requiresPaceReorder,
 } from '@oasis/domain';
 import { TRPCError } from '@trpc/server';
-import type { RlsTx } from '../context.js';
+import {
+  applySerializableRlsTx,
+  RlsSerializationConflictError,
+  type AppContext,
+  type RlsTx,
+} from '../context.js';
 import { roleProcedure, router } from '../trpc.js';
 
 const RECENT_HISTORY_LIMIT = 100;
@@ -15,10 +24,33 @@ const NEXT_ORDER_STATUS = {
   InTransit: 'Delivered',
   Delivered: null,
 } as const;
+const ORDER_SUMMARY_SELECT = {
+  id: true,
+  studentId: true,
+  subjectId: true,
+  paceNumber: true,
+  status: true,
+  orderedAt: true,
+  inTransitAt: true,
+  deliveredAt: true,
+  createdById: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 const createOrderInput = diagnosticResultInput
   .pick({ studentId: true, subjectId: true })
   .extend({ paceNumber: paceInventoryOrderInput.shape.paceNumber });
+
+function newestOrdersFirst(
+  left: { createdAt: Date; id: string },
+  right: { createdAt: Date; id: string },
+): number {
+  const createdAtComparison = right.createdAt.getTime() - left.createdAt.getTime();
+  if (createdAtComparison !== 0) return createdAtComparison;
+  if (left.id === right.id) return 0;
+  return left.id < right.id ? 1 : -1;
+}
 
 async function requireAssignment(
   db: RlsTx,
@@ -42,9 +74,80 @@ async function requireAssignment(
   }
 }
 
+function selectedPaceNumbersAlreadyExist(
+  selectedPaceNumbers: readonly number[],
+  existingPaceNumbers: readonly number[],
+): number[] {
+  const existing = new Set(existingPaceNumbers);
+  return selectedPaceNumbers.filter((paceNumber) => existing.has(paceNumber));
+}
+
+function duplicatePaceNumbersMessage(prefix: string, paceNumbers: readonly number[]): string {
+  return `${prefix}: ${paceNumbers.join(', ')}`;
+}
+
+async function requirePaceNumbersAvailable(
+  tx: RlsTx,
+  input: { studentId: string; subjectId: string; paceNumbers: readonly number[] },
+): Promise<void> {
+  const [existingSupply, pendingOrders] = await Promise.all([
+    tx.studentPaceSupply.findMany({
+      where: {
+        studentId: input.studentId,
+        subjectId: input.subjectId,
+        paceNumber: { in: [...input.paceNumbers] },
+      },
+      select: { paceNumber: true },
+    }),
+    tx.paceInventoryOrder.findMany({
+      where: {
+        studentId: input.studentId,
+        subjectId: input.subjectId,
+        paceNumber: { in: [...input.paceNumbers] },
+        status: { in: ['Ordered', 'InTransit'] },
+      },
+      select: { paceNumber: true },
+    }),
+  ]);
+  const unavailablePaceNumbers = selectedPaceNumbersAlreadyExist(input.paceNumbers, [
+    ...existingSupply.map((item) => item.paceNumber),
+    ...pendingOrders.map((item) => item.paceNumber),
+  ]);
+  if (unavailablePaceNumbers.length > 0) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: duplicatePaceNumbersMessage(
+        'selected PACE numbers are already supplied or awaiting delivery',
+        unavailablePaceNumbers,
+      ),
+    });
+  }
+}
+
+function isUniqueConstraintConflict(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
+
+async function withSerializableInventoryRls<T>(
+  ctx: Pick<AppContext, 'db' | 'user'>,
+  mutation: (tx: RlsTx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await applySerializableRlsTx(ctx.db, ctx.user, mutation);
+  } catch (error) {
+    if (error instanceof RlsSerializationConflictError || isUniqueConstraintConflict(error)) {
+      throw new TRPCError({
+        code: 'CONFLICT',
+        message: 'The inventory changed while your request was being processed. Please retry.',
+      });
+    }
+    throw error;
+  }
+}
+
 export const academicInventoryRouter = router({
   summary: roleProcedure('Head').query(async ({ ctx }) => {
-    const { students, orders, diagnostics, deliveredOrders } = await ctx.withRls(async (tx) => {
+    const { students, orders, diagnostics, supply } = await ctx.withRls(async (tx) => {
       const students = await tx.student.findMany({
         where: {
           active: true,
@@ -67,31 +170,28 @@ export const academicInventoryRouter = router({
         },
         orderBy: { id: 'asc' },
       });
-      const studentIds = students.map((student) => student.id);
+      const activeAssignments = students.flatMap((student) =>
+        student.subjects.map((assignment) => ({
+          studentId: student.id,
+          subjectId: assignment.subjectId,
+        })),
+      );
 
-      const [orders, diagnostics, deliveredOrders] = await Promise.all([
+      const [outstandingOrders, deliveredOrders, diagnostics, supply] = await Promise.all([
         tx.paceInventoryOrder.findMany({
-          where: { studentId: { in: studentIds } },
-          orderBy: { createdAt: 'desc' },
+          where: { OR: activeAssignments, status: { in: ['Ordered', 'InTransit'] } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: ORDER_SUMMARY_SELECT,
+        }),
+        tx.paceInventoryOrder.findMany({
+          where: { OR: activeAssignments, status: 'Delivered' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: RECENT_HISTORY_LIMIT,
-          select: {
-            id: true,
-            studentId: true,
-            subjectId: true,
-            paceNumber: true,
-            status: true,
-            orderedAt: true,
-            inTransitAt: true,
-            deliveredAt: true,
-            createdById: true,
-            createdAt: true,
-            updatedAt: true,
-          },
+          select: ORDER_SUMMARY_SELECT,
         }),
         tx.diagnosticResult.findMany({
-          where: { studentId: { in: studentIds } },
-          orderBy: { recordedAt: 'desc' },
-          take: RECENT_HISTORY_LIMIT,
+          where: { deletedAt: null, OR: activeAssignments },
+          orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
           select: {
             id: true,
             studentId: true,
@@ -103,35 +203,39 @@ export const academicInventoryRouter = router({
             createdAt: true,
           },
         }),
-        tx.paceInventoryOrder.findMany({
-          where: { studentId: { in: studentIds }, status: 'Delivered' },
-          select: { studentId: true, subjectId: true, paceNumber: true },
+        tx.studentPaceSupply.findMany({
+          where: { OR: activeAssignments },
+          select: {
+            id: true,
+            studentId: true,
+            subjectId: true,
+            paceNumber: true,
+            source: true,
+            createdById: true,
+            createdAt: true,
+            updatedAt: true,
+          },
         }),
       ]);
-      return { students, orders, diagnostics, deliveredOrders };
+      const orders = [...outstandingOrders, ...deliveredOrders].sort(newestOrdersFirst);
+      return { students, orders, diagnostics, supply };
     });
 
-    const highestDeliveredByAssignment = new Map<string, Map<string, number>>();
-    for (const order of deliveredOrders) {
-      let bySubject = highestDeliveredByAssignment.get(order.studentId);
-      if (!bySubject) {
-        bySubject = new Map<string, number>();
-        highestDeliveredByAssignment.set(order.studentId, bySubject);
-      }
-      const currentHighest = bySubject.get(order.subjectId);
-      if (currentHighest === undefined || order.paceNumber > currentHighest) {
-        bySubject.set(order.subjectId, order.paceNumber);
-      }
+    const supplyByAssignment = new Map<string, number[]>();
+    for (const item of supply) {
+      const key = `${item.studentId}:${item.subjectId}`;
+      const paceNumbers = supplyByAssignment.get(key) ?? [];
+      paceNumbers.push(item.paceNumber);
+      supplyByAssignment.set(key, paceNumbers);
     }
 
     const alerts = students.flatMap((student) =>
       student.subjects.flatMap((assignment) => {
-        const deliveredPaceNumber =
-          highestDeliveredByAssignment.get(student.id)?.get(assignment.subjectId) ?? null;
-        if (
-          deliveredPaceNumber === null ||
-          !requiresPaceReorder(assignment.currentPaceNumber, deliveredPaceNumber)
-        ) {
+        const availablePaceNumbers = availablePacesAhead(
+          assignment.currentPaceNumber,
+          supplyByAssignment.get(`${student.id}:${assignment.subjectId}`) ?? [],
+        );
+        if (!requiresPaceReorder(assignment.currentPaceNumber, availablePaceNumbers)) {
           return [];
         }
         return [
@@ -139,7 +243,8 @@ export const academicInventoryRouter = router({
             studentId: student.id,
             subjectId: assignment.subjectId,
             currentPaceNumber: assignment.currentPaceNumber,
-            deliveredPaceNumber,
+            availablePaceNumbers,
+            remainingPaceCount: availablePaceNumbers.length,
           },
         ];
       }),
@@ -168,6 +273,7 @@ export const academicInventoryRouter = router({
       students: decryptedStudents,
       orders,
       diagnostics,
+      supply,
       alerts,
     };
   }),
@@ -175,9 +281,10 @@ export const academicInventoryRouter = router({
   createOrder: roleProcedure('Head')
     .input(createOrderInput)
     .mutation(async ({ ctx, input }) => {
-      const order = await ctx.withRls(async (tx) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
-        return tx.paceInventoryOrder.create({
+        await requirePaceNumbersAvailable(tx, { ...input, paceNumbers: [input.paceNumber] });
+        const order = await tx.paceInventoryOrder.create({
           data: {
             studentId: input.studentId,
             subjectId: input.subjectId,
@@ -186,30 +293,92 @@ export const academicInventoryRouter = router({
             createdById: ctx.user.id,
           },
         });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'PaceInventoryOrder',
+            entityId: order.id,
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              paceNumber: input.paceNumber,
+            },
+          },
+        });
+        return order;
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'PaceInventoryOrder',
-          entityId: order.id,
-          meta: {
+    }),
+
+  addCurrentSupply: roleProcedure('Head')
+    .input(currentStudentPaceSupplyInput)
+    .mutation(async ({ ctx, input }) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
+        await requireAssignment(tx, input);
+        await requirePaceNumbersAvailable(tx, input);
+        const result = await tx.studentPaceSupply.createMany({
+          data: input.paceNumbers.map((paceNumber) => ({
             studentId: input.studentId,
             subjectId: input.subjectId,
-            paceNumber: input.paceNumber,
+            paceNumber,
+            source: 'CurrentStock',
+            createdById: ctx.user.id,
+          })),
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'StudentPaceSupply',
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              paceNumbers: input.paceNumbers,
+              source: 'CurrentStock',
+            },
           },
-        },
+        });
+        return result;
       });
-      return order;
+    }),
+
+  createOrders: roleProcedure('Head')
+    .input(bulkPaceInventoryOrderInput)
+    .mutation(async ({ ctx, input }) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
+        await requireAssignment(tx, input);
+        await requirePaceNumbersAvailable(tx, input);
+        const result = await tx.paceInventoryOrder.createMany({
+          data: input.paceNumbers.map((paceNumber) => ({
+            studentId: input.studentId,
+            subjectId: input.subjectId,
+            paceNumber,
+            status: 'Ordered',
+            createdById: ctx.user.id,
+          })),
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'PaceInventoryOrder',
+            meta: {
+              studentId: input.studentId,
+              subjectId: input.subjectId,
+              paceNumbers: input.paceNumbers,
+            },
+          },
+        });
+        return result;
+      });
     }),
 
   updateOrderStatus: roleProcedure('Head')
     .input(paceInventoryStatusInput)
     .mutation(async ({ ctx, input }) => {
-      const { orderId, previousStatus, updated } = await ctx.withRls(async (tx) => {
+      return withSerializableInventoryRls(ctx, async (tx) => {
         const order = await tx.paceInventoryOrder.findUnique({
           where: { id: input.orderId },
-          select: { id: true, status: true },
         });
         if (!order) {
           throw new TRPCError({ code: 'NOT_FOUND', message: 'inventory order not found' });
@@ -222,6 +391,12 @@ export const academicInventoryRouter = router({
             message: 'invalid inventory order transition',
           });
         }
+        if (input.status === 'Delivered' && !PACE_CATALOGUE.includes(order.paceNumber)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'PACE orders outside the supported range cannot be marked delivered.',
+          });
+        }
 
         const previousStatus = order.status;
         const reachedAt = new Date();
@@ -229,29 +404,52 @@ export const academicInventoryRouter = router({
           input.status === 'InTransit'
             ? { status: 'InTransit' as const, inTransitAt: reachedAt }
             : { status: 'Delivered' as const, deliveredAt: reachedAt };
-        const updated = await tx.paceInventoryOrder.update({
-          where: { id: order.id },
+        const updateResult = await tx.paceInventoryOrder.updateMany({
+          where: { id: order.id, status: previousStatus },
           data,
         });
-        return { orderId: order.id, previousStatus, updated };
+        if (updateResult.count !== 1) {
+          throw new TRPCError({
+            code: 'CONFLICT',
+            message: 'The inventory order changed before it could be updated. Please retry.',
+          });
+        }
+        if (input.status === 'Delivered') {
+          await tx.studentPaceSupply.upsert({
+            where: {
+              studentId_subjectId_paceNumber: {
+                studentId: order.studentId,
+                subjectId: order.subjectId,
+                paceNumber: order.paceNumber,
+              },
+            },
+            create: {
+              studentId: order.studentId,
+              subjectId: order.subjectId,
+              paceNumber: order.paceNumber,
+              source: 'DeliveredOrder',
+              createdById: ctx.user.id,
+            },
+            update: {},
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'PaceInventoryOrder',
+            entityId: order.id,
+            meta: { fromStatus: previousStatus, toStatus: input.status },
+          },
+        });
+        return { ...order, ...data, updatedAt: reachedAt };
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'PaceInventoryOrder',
-          entityId: orderId,
-          meta: { fromStatus: previousStatus, toStatus: input.status },
-        },
-      });
-      return updated;
     }),
 
   recordDiagnostic: roleProcedure('Head')
     .input(diagnosticResultInput)
     .mutation(async ({ ctx, input }) => {
-      const currentPaceNumber = firstPaceNumberForDiagnosticLevel(input.level);
-      const result = await ctx.withRls(async (tx) => {
+      return ctx.withRls(async (tx) => {
         await requireAssignment(tx, input);
         const diagnostic = await tx.diagnosticResult.create({
           data: {
@@ -262,32 +460,46 @@ export const academicInventoryRouter = router({
             recordedById: ctx.user.id,
           },
         });
-        await tx.studentSubject.update({
-          where: {
-            studentId_subjectId: {
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Create',
+            entity: 'DiagnosticResult',
+            entityId: diagnostic.id,
+            meta: {
               studentId: input.studentId,
               subjectId: input.subjectId,
+              level: input.level,
+              outcome: input.outcome,
             },
           },
-          data: { currentPaceNumber },
         });
         return diagnostic;
       });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Create',
-          entity: 'DiagnosticResult',
-          entityId: result.id,
-          meta: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            level: input.level,
-            outcome: input.outcome,
-            currentPaceNumber,
+    }),
+
+  deleteDiagnostic: roleProcedure('Head')
+    .input(deleteDiagnosticResultInput)
+    .mutation(async ({ ctx, input }) => {
+      return ctx.withRls(async (tx) => {
+        const result = await tx.diagnosticResult.updateMany({
+          where: { id: input.diagnosticId, deletedAt: null },
+          data: { deletedAt: new Date(), deletedById: ctx.user.id },
+        });
+        if (result.count !== 1) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'diagnostic result not found' });
+        }
+        const deleted = { id: input.diagnosticId };
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Delete',
+            entity: 'DiagnosticResult',
+            entityId: deleted.id,
+            meta: { diagnosticId: deleted.id },
           },
-        },
+        });
+        return deleted;
       });
-      return result;
     }),
 });

@@ -6,8 +6,8 @@
  * `app.full_admin` session vars set so the policies in `packages/db/prisma/rls.sql`
  * fire. When no session is present, RLS denies by default (vars cleared).
  */
-import { prisma } from '@oasis/db';
-import type { Prisma, PrismaClient } from '@oasis/db';
+import { Prisma, prisma } from '@oasis/db';
+import type { PrismaClient } from '@oasis/db';
 import { isFullAdmin, type Role, type SessionUser } from '@oasis/domain';
 import { logOperationalEvent } from './lib/observability.js';
 import { reconcileClerkUser } from './routers/clerkWebhook.js';
@@ -20,6 +20,15 @@ export interface CreateContextArgs {
 }
 
 export type RlsTx = Prisma.TransactionClient;
+
+const SERIALIZABLE_TRANSACTION_ATTEMPTS = 3;
+
+export class RlsSerializationConflictError extends Error {
+  constructor() {
+    super('The inventory changed while your request was being processed. Please retry.');
+    this.name = 'RlsSerializationConflictError';
+  }
+}
 
 type TxClient = Pick<PrismaClient, '$transaction'>;
 
@@ -107,6 +116,50 @@ export function applyRlsTx<T>(
     await tx.$executeRaw`SELECT set_config('app.full_admin', ${fullAdmin}, true)`;
     return fn(tx);
   });
+}
+
+function isSerializationConflict(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'P2034'
+  );
+}
+
+/**
+ * Run an RLS-scoped serializable transaction with bounded retries for Postgres
+ * serialization conflicts. The RLS session variables are set on every retry.
+ */
+export async function applySerializableRlsTx<T>(
+  client: TxClient,
+  user: SessionUser | null,
+  fn: (tx: RlsTx) => Promise<T>,
+): Promise<T> {
+  const userId = user?.id ?? '';
+  const role: string = user?.role ?? '';
+  const fullAdmin = user ? (isFullAdmin(user) ? 'true' : 'false') : '';
+
+  for (let attempt = 1; attempt <= SERIALIZABLE_TRANSACTION_ATTEMPTS; attempt += 1) {
+    try {
+      return await client.$transaction(
+        async (tx: RlsTx) => {
+          await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
+          await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
+          await tx.$executeRaw`SELECT set_config('app.full_admin', ${fullAdmin}, true)`;
+          return fn(tx);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (!isSerializationConflict(error)) throw error;
+      if (attempt === SERIALIZABLE_TRANSACTION_ATTEMPTS) {
+        throw new RlsSerializationConflictError();
+      }
+    }
+  }
+
+  throw new RlsSerializationConflictError();
 }
 
 export async function createContext(args: CreateContextArgs): Promise<AppContext> {

@@ -40,6 +40,16 @@ CREATE POLICY personal_task_owner_only ON "PersonalTask"
     AND "ownerId" = current_setting('app.user_id', true)
   );
 
+ALTER TABLE "StudentPaceSupply" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "StudentPaceSupply" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS student_pace_supply_head_all ON "StudentPaceSupply";
+
+CREATE POLICY student_pace_supply_head_all ON "StudentPaceSupply"
+  FOR ALL
+  USING (current_setting('app.user_role', true) = 'Head')
+  WITH CHECK (current_setting('app.user_role', true) = 'Head');
+
 ALTER TABLE "StudentPortalSettings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "StudentPortalSettings" FORCE ROW LEVEL SECURITY;
 

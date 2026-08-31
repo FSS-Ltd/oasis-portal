@@ -12402,6 +12402,214 @@ button.club-assignment-row {
   grid-column: 1 / -1;
 }
 
+.pace-inventory {
+  display: grid;
+  gap: 16px;
+}
+
+.pace-inventory__planner-heading {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--oasis-border-light);
+}
+
+.pace-inventory__planner-heading h2,
+.pace-inventory__planner-heading p,
+.pace-inventory__alerts .section-title h2,
+.pace-inventory__alerts .section-title p,
+.pace-inventory__secondary .section-title h2,
+.pace-inventory__secondary .section-title p {
+  margin: 0;
+}
+
+.pace-inventory__eyebrow,
+.pace-catalogue-picker__eyebrow {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pace-inventory-summary {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.35fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.pace-inventory-summary > div {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.pace-inventory-summary span:first-child {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.pace-inventory-summary strong {
+  color: var(--oasis-navy);
+  font-size: 0.9rem;
+}
+
+.pace-inventory-summary__current {
+  padding-right: 16px;
+  border-right: 1px solid var(--oasis-border-light);
+}
+
+.pace-inventory-summary__current strong {
+  font-size: 1.15rem;
+}
+
+.pace-number-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pace-number-list__chip {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 999px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.pace-catalogue-picker {
+  display: grid;
+  gap: 14px;
+}
+
+.pace-catalogue-picker__heading {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.pace-catalogue-picker__heading h2,
+.pace-catalogue-picker__heading p {
+  margin: 0;
+}
+
+.pace-catalogue-picker__heading .badge {
+  flex: none;
+}
+
+.pace-catalogue-picker__numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 112px));
+  gap: 8px;
+  justify-content: start;
+}
+
+.pace-catalogue-picker__chip {
+  display: grid;
+  min-width: 0;
+  min-height: 40px;
+  place-items: center;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.pace-catalogue-picker__chip:has(input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--oasis-blue) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.pace-catalogue-picker__chip[data-selected] {
+  border-color: var(--oasis-blue);
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+}
+
+.pace-catalogue-picker__chip[data-unavailable]:not([data-selected]) {
+  cursor: not-allowed;
+  color: var(--oasis-text-muted);
+}
+
+.pace-catalogue-picker__chip-number,
+.pace-catalogue-picker__chip-status {
+  display: block;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.pace-catalogue-picker__chip-status {
+  margin-top: 2px;
+  font-size: 0.61rem;
+  font-weight: 800;
+}
+
+.pace-catalogue-picker__chip input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+}
+
+.pace-catalogue-picker__more {
+  justify-self: start;
+}
+
+.pace-inventory-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.pace-inventory-actions .field__hint {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .pace-inventory-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .pace-inventory-summary__current {
+    padding: 0 0 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--oasis-border-light);
+  }
+
+  .pace-catalogue-picker__heading {
+    display: grid;
+  }
+
+  .pace-catalogue-picker__numbers {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pace-inventory-actions .button {
+    width: 100%;
+  }
+}
+
 .inline-form,
 .row-actions {
   display: flex;
