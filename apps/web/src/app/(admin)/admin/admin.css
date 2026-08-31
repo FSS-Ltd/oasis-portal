@@ -3768,6 +3768,21 @@
   gap: 4px;
 }
 
+.calendar-month-weeks {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 4px;
+}
+
+.calendar-month-week {
+  --calendar-range-space: 0px;
+
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  position: relative;
+}
+
 .calendar-month-weekday {
   padding: 4px 2px;
   color: var(--oasis-text-muted);
@@ -3790,7 +3805,9 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
+  position: relative;
   text-align: left;
+  z-index: 0;
 }
 
 .calendar-month-day.is-outside {
@@ -3845,7 +3862,13 @@
   min-width: 0;
 }
 
+.calendar-month-day__range-space {
+  display: block;
+  height: var(--calendar-range-space);
+}
+
 .calendar-month-event,
+.calendar-month-range-event,
 .calendar-month-more {
   display: block;
   width: 100%;
@@ -3867,6 +3890,29 @@
   background: var(--oasis-blue-light);
   color: var(--oasis-navy);
   cursor: pointer;
+}
+
+.calendar-month-range-event {
+  align-self: start;
+  z-index: 1;
+  height: 20px;
+  margin: 29px 1px 0;
+  padding: 3px 6px;
+  transform: translateY(var(--calendar-range-offset));
+  border-radius: 0;
+  background: var(--oasis-blue-light);
+  color: var(--oasis-navy);
+  cursor: pointer;
+}
+
+.calendar-month-range-event.is-range-start {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.calendar-month-range-event.is-range-end {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 
 .calendar-month-more {
@@ -4074,6 +4120,13 @@
 .calendar-month-event.calendar-category--birthdays,
 .calendar-month-event.calendar-category--meetings,
 .calendar-month-event.calendar-category--trainings,
+.calendar-month-range-event.calendar-category--half-term,
+.calendar-month-range-event.calendar-category--trips,
+.calendar-month-range-event.calendar-category--oasis-days,
+.calendar-month-range-event.calendar-category--the-cedars,
+.calendar-month-range-event.calendar-category--birthdays,
+.calendar-month-range-event.calendar-category--meetings,
+.calendar-month-range-event.calendar-category--trainings,
 .calendar-category-badge,
 .calendar-card__date.calendar-category--half-term,
 .calendar-card__date.calendar-category--trips,
@@ -4093,8 +4146,24 @@
 .calendar-month-event.calendar-category--the-cedars,
 .calendar-month-event.calendar-category--birthdays,
 .calendar-month-event.calendar-category--meetings,
-.calendar-month-event.calendar-category--trainings {
+.calendar-month-event.calendar-category--trainings,
+.calendar-month-range-event.calendar-category--half-term,
+.calendar-month-range-event.calendar-category--trips,
+.calendar-month-range-event.calendar-category--oasis-days,
+.calendar-month-range-event.calendar-category--the-cedars,
+.calendar-month-range-event.calendar-category--birthdays,
+.calendar-month-range-event.calendar-category--meetings,
+.calendar-month-range-event.calendar-category--trainings {
   border-left: 3px solid var(--calendar-category);
+}
+
+.calendar-month-range-event.is-range-continued-from {
+  border-left-color: transparent;
+}
+
+.calendar-month-range-event:focus-visible {
+  outline: 2px solid var(--oasis-navy);
+  outline-offset: 2px;
 }
 
 .calendar-category-badge {

@@ -27,6 +27,22 @@ export interface CalendarMonthDay {
   events: CalendarEvent[];
 }
 
+export interface CalendarMonthRangeSegment {
+  continuesFromPreviousWeek: boolean;
+  continuesToNextWeek: boolean;
+  endColumn: number;
+  event: CalendarEvent;
+  lane: number;
+  showsLabel: boolean;
+  startColumn: number;
+}
+
+export interface CalendarMonthWeek {
+  days: CalendarMonthDay[];
+  rangeLaneCount: number;
+  rangeSegments: CalendarMonthRangeSegment[];
+}
+
 export const audienceLabels: Record<CalendarAudience, string> = {
   All: 'All portals',
   Parents: 'Parents',
@@ -200,6 +216,10 @@ export function eventDayLabel(event: Pick<CalendarEvent, 'endDate' | 'startDate'
   }).format(new Date(`${event.startDate}T00:00:00.000Z`));
 }
 
+export function isCalendarEventRange(event: Pick<CalendarEvent, 'endDate' | 'startDate'>): boolean {
+  return event.startDate !== event.endDate;
+}
+
 export function buildCalendarMonth(
   monthKey: string,
   events: readonly CalendarEvent[],
@@ -227,5 +247,63 @@ export function buildCalendarMonth(
             left.startDate.localeCompare(right.startDate) || left.title.localeCompare(right.title),
         ),
     };
+  });
+}
+
+export function buildCalendarMonthWeeks(
+  monthKey: string,
+  events: readonly CalendarEvent[],
+): CalendarMonthWeek[] {
+  const days = buildCalendarMonth(monthKey, events);
+
+  return Array.from({ length: days.length / 7 }, (_, weekIndex) => {
+    const weekDays = days.slice(weekIndex * 7, weekIndex * 7 + 7).map((day) => ({
+      ...day,
+      events: day.events.filter((event) => !isCalendarEventRange(event)),
+    }));
+    const weekStart = weekDays[0]?.key;
+    const weekEnd = weekDays.at(-1)?.key;
+    if (!weekStart || !weekEnd) {
+      return { days: weekDays, rangeLaneCount: 0, rangeSegments: [] };
+    }
+
+    const laneEndColumns: number[] = [];
+    const rangeSegments = events
+      .filter(
+        (event) =>
+          event.active &&
+          isCalendarEventRange(event) &&
+          event.startDate <= weekEnd &&
+          event.endDate >= weekStart,
+      )
+      .sort(
+        (left, right) =>
+          left.startDate.localeCompare(right.startDate) || left.title.localeCompare(right.title),
+      )
+      .map((event) => {
+        const segmentStart = event.startDate > weekStart ? event.startDate : weekStart;
+        const segmentEnd = event.endDate < weekEnd ? event.endDate : weekEnd;
+        const startColumn = weekDays.findIndex((day) => day.key === segmentStart);
+        const endColumn = weekDays.findIndex((day) => day.key === segmentEnd);
+        const availableLane = laneEndColumns.findIndex((lastEndColumn) => {
+          return lastEndColumn < startColumn;
+        });
+        const lane = availableLane === -1 ? laneEndColumns.length : availableLane;
+        laneEndColumns[lane] = endColumn;
+
+        return {
+          continuesFromPreviousWeek: event.startDate < weekStart,
+          continuesToNextWeek: event.endDate > weekEnd,
+          endColumn,
+          event,
+          lane,
+          showsLabel:
+            (event.startDate >= weekStart && event.startDate <= weekEnd) ||
+            (weekIndex === 0 && event.startDate < weekStart),
+          startColumn,
+        } satisfies CalendarMonthRangeSegment;
+      });
+
+    return { days: weekDays, rangeLaneCount: laneEndColumns.length, rangeSegments };
   });
 }
