@@ -9,7 +9,7 @@ function readMobile(relativePath: string): string {
 }
 
 describe('parent volunteer mobile wiring', () => {
-  it('adds a parent volunteer route with private availability and save controls', () => {
+  it('adds Centre Volunteer and Lunch + Clubs choices with private availability and save controls', () => {
     const screenPath = path.join(mobileRoot, 'src/components/parent/parent-volunteer-screen.tsx');
     const portal = readMobile('src/components/parent/parent-portal-screen.tsx');
     const screen = readFileSync(screenPath, 'utf8');
@@ -20,7 +20,13 @@ describe('parent volunteer mobile wiring', () => {
     expect(portal).toMatch(/api\.rota\.parentVolunteerSlots\.useQuery/);
     expect(portal).toMatch(/route === 'volunteer'/);
     expect(screen).toMatch(/api\.rota\.setMyParentVolunteerDays\.useMutation/);
-    expect(screen).toContain('two volunteer spaces per day');
+    expect(screen).toContain('Centre Volunteer');
+    expect(screen).toContain('Lunch + Clubs');
+    expect(screen).toContain('Primary · 3 spaces daily');
+    expect(screen).toContain('Secondary · 2 spaces daily');
+    expect(screen).toMatch(/centreDates/);
+    expect(screen).toMatch(/primaryLunchAndClubsDates/);
+    expect(screen).toMatch(/secondaryLunchAndClubsDates/);
     expect(screen).not.toMatch(/parent\.fullName/);
   });
 });

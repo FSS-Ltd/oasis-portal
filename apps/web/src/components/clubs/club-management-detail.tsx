@@ -19,7 +19,6 @@ import {
   type NotificationFormState,
   type RosterSignup,
 } from './club-management-model';
-import { ClubRotaPanel } from './club-rota-panel';
 import { clubAccentStyle, clubVisual } from './club-visuals';
 
 function RosterTable({ signups }: { signups: readonly RosterSignup[] }) {
@@ -328,7 +327,6 @@ export function ClubDetail({
         </div>
       ) : null}
       {activeTab === 'leads' ? <LeadAssignmentPanel club={club} /> : null}
-      {activeTab === 'rota' ? <ClubRotaPanel club={club} /> : null}
       {activeTab === 'notices' ? (
         <NoticesTab
           club={club}

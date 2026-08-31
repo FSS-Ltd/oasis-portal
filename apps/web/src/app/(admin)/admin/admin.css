@@ -4720,6 +4720,8 @@
 
 .admin-club-form-modal {
   width: min(100%, 580px);
+  max-height: min(760px, calc(100dvh - 40px));
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
 }
 
@@ -4775,6 +4777,9 @@
 .admin-club-form-modal__body {
   display: grid;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
 }
 
@@ -8385,6 +8390,60 @@ button.club-assignment-row {
 .people-summary-card small {
   color: var(--oasis-text-secondary);
   font-size: 0.75rem;
+}
+
+.lunch-and-clubs-exemptions {
+  display: grid;
+  gap: 14px;
+}
+
+.lunch-and-clubs-exemptions > .section-title > svg {
+  color: var(--oasis-blue);
+}
+
+.lunch-and-clubs-exemptions__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.lunch-and-clubs-exemptions__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-bg);
+}
+
+.lunch-and-clubs-exemptions__row > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.lunch-and-clubs-exemptions__row strong {
+  overflow: hidden;
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lunch-and-clubs-exemptions__row small,
+.lunch-and-clubs-exemptions__row em {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.lunch-and-clubs-exemptions__row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--oasis-blue);
 }
 
 .people-profiles__layout {

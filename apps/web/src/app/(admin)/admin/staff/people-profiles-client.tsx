@@ -9,6 +9,7 @@ import { roleLabel } from '@/lib/profile-display';
 import { EmptyState } from '@/components/ui/empty-state';
 import { InviteUserForm } from './invite-user-form';
 import { PeopleDirectory } from './_components/people-directory';
+import { LunchAndClubsExemptionsPanel } from './_components/lunch-and-clubs-exemptions-panel';
 import { PendingInviteProfilePanel } from './_components/pending-invite-profile-panel';
 import { StudentProfilePanel } from './_components/student-profile-panel';
 import { UserProfilePanel } from './_components/user-profile-panel';
@@ -139,6 +140,10 @@ export function PeopleProfilesClient({
       </div>
 
       {error ? <p className="status--error">{error}</p> : null}
+
+      {currentUserRole === 'Head' || currentUserRole === 'TechnicalSupport' ? (
+        <LunchAndClubsExemptionsPanel />
+      ) : null}
 
       <div className="people-profiles__layout">
         <PeopleDirectory

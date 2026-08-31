@@ -91,6 +91,7 @@ model User {
   addressEnc                        String?
   // --- operational ---
   active                            Boolean                       @default(true)
+  lunchAndClubsVolunteerExempt      Boolean                       @default(false)
   createdAt                         DateTime                      @default(now())
   updatedAt                         DateTime                      @updatedAt
 
@@ -996,15 +997,22 @@ model ParentVolunteerDay {
   id           String   @id @default(cuid())
   parentUserId String
   date         DateTime @db.Date
+  placement    ParentVolunteerPlacement
   slot         Int      @db.SmallInt
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   parentUser User @relation("ParentVolunteerDays", fields: [parentUserId], references: [id])
 
-  @@unique([parentUserId, date])
-  @@unique([date, slot])
-  @@index([date])
+  @@unique([parentUserId, date, placement])
+  @@unique([date, placement, slot])
+  @@index([date, placement])
+}
+
+enum ParentVolunteerPlacement {
+  Centre
+  LunchAndClubsPrimary
+  LunchAndClubsSecondary
 }
 
 enum StaffShiftKind {

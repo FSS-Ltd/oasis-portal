@@ -9,6 +9,17 @@ export type ParentVolunteer = RouterOutputs['rota']['parentVolunteerSchedule'][n
 export type SwapCandidate = RouterOutputs['rota']['swapCandidates'][number];
 export type SwapRequest = RouterOutputs['rota']['mySwapRequests'][number];
 
+export function parentVolunteerPlacementLabel(placement: ParentVolunteer['placement']): string {
+  switch (placement) {
+    case 'LunchAndClubsPrimary':
+      return 'Lunch + Clubs · Primary';
+    case 'LunchAndClubsSecondary':
+      return 'Lunch + Clubs · Secondary';
+    default:
+      return 'Centre Volunteer';
+  }
+}
+
 export function shiftTitle(shift: Pick<RotaShift, 'bandName' | 'kind'>): string {
   return shift.kind === 'Meeting' ? 'Meeting' : (shift.bandName ?? 'Cover');
 }

@@ -37,6 +37,12 @@ const clubsUser: SessionUser = {
   tags: [],
   requires2fa: false,
 };
+const technicalSupportUser: SessionUser = {
+  id: 'u_technical_support',
+  role: 'TechnicalSupport',
+  tags: [],
+  requires2fa: false,
+};
 
 interface StoredUser {
   id: string;
@@ -44,6 +50,7 @@ interface StoredUser {
   active: boolean;
   fullNameEnc: string;
   emailEnc: string;
+  lunchAndClubsVolunteerExempt: boolean;
   createdAt: Date;
 }
 
@@ -104,6 +111,7 @@ interface StoredParentVolunteerDay {
   id: string;
   parentUserId: string;
   date: Date;
+  placement: 'Centre' | 'LunchAndClubsPrimary' | 'LunchAndClubsSecondary';
   slot: number;
   createdAt: Date;
   updatedAt: Date;
@@ -115,7 +123,9 @@ interface FakeDb {
   auditLog: { create: ReturnType<typeof vi.fn> };
   user: {
     findMany: ReturnType<typeof vi.fn>;
+    findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: { findUnique: ReturnType<typeof vi.fn> };
   staffAvailabilityWindow: {
@@ -175,6 +185,7 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Head User',
       emailEnc: 'enc:head@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-20T09:00:00.000Z'),
     },
     {
@@ -183,6 +194,7 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Supervisor One',
       emailEnc: 'enc:sup@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-21T09:00:00.000Z'),
     },
     {
@@ -191,6 +203,7 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Supervisor Two',
       emailEnc: 'enc:sup2@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-22T09:00:00.000Z'),
     },
     {
@@ -199,6 +212,7 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Parent User',
       emailEnc: 'enc:parent@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-23T09:00:00.000Z'),
     },
     {
@@ -207,6 +221,7 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Second Parent',
       emailEnc: 'enc:parent2@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-24T09:00:00.000Z'),
     },
     {
@@ -215,6 +230,7 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Third Parent',
       emailEnc: 'enc:parent3@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     },
     {
@@ -223,7 +239,17 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Clubs User',
       emailEnc: 'enc:clubs@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-24T09:00:00.000Z'),
+    },
+    {
+      id: technicalSupportUser.id,
+      role: 'TechnicalSupport',
+      active: true,
+      fullNameEnc: 'enc:Technical Support',
+      emailEnc: 'enc:technical@example.test',
+      lunchAndClubsVolunteerExempt: false,
+      createdAt: at('2026-04-26T09:00:00.000Z'),
     },
   ];
   const bands: StoredBand[] = [
@@ -284,6 +310,31 @@ function makeFakeDb() {
         const user = users.find((candidate) => candidate.id === where.id);
         return Promise.resolve(user ?? null);
       }),
+      findFirst: vi.fn(
+        ({ where }: { where: { active?: boolean; id?: string; role?: { in?: string[] } } }) =>
+          Promise.resolve(
+            users.find(
+              (user) =>
+                (where.active === undefined || user.active === where.active) &&
+                (where.id === undefined || user.id === where.id) &&
+                (where.role?.in === undefined || where.role.in.includes(user.role)),
+            ) ?? null,
+          ),
+      ),
+      update: vi.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Pick<StoredUser, 'lunchAndClubsVolunteerExempt'>;
+        }) => {
+          const user = users.find((candidate) => candidate.id === where.id);
+          if (!user) throw new Error('user missing');
+          Object.assign(user, data);
+          return Promise.resolve(user);
+        },
+      ),
     },
     yearGroupBand: {
       findUnique: vi.fn(({ where }: { where: { id: string } }) => {
@@ -513,6 +564,7 @@ function makeFakeDb() {
           where: {
             parentUserId?: string;
             date: Date | { gte: Date; lte: Date };
+            placement?: StoredParentVolunteerDay['placement'];
           };
         }) =>
           Promise.resolve(
@@ -528,6 +580,7 @@ function makeFakeDb() {
                   row.date.getTime() <= where.date.lte.getTime()
                 );
               })
+              .filter((row) => where.placement === undefined || row.placement === where.placement)
               .sort((a, b) => a.date.getTime() - b.date.getTime() || a.slot - b.slot)
               .map((row) => ({
                 ...row,
@@ -544,12 +597,19 @@ function makeFakeDb() {
         return Promise.resolve({ count: before - parentVolunteerDays.length });
       }),
       create: vi.fn(
-        ({ data }: { data: Pick<StoredParentVolunteerDay, 'parentUserId' | 'date' | 'slot'> }) => {
+        ({
+          data,
+        }: {
+          data: Pick<StoredParentVolunteerDay, 'parentUserId' | 'date' | 'placement' | 'slot'>;
+        }) => {
           const duplicate = parentVolunteerDays.find(
             (row) =>
               (row.parentUserId === data.parentUserId &&
-                dateKey(row.date) === dateKey(data.date)) ||
-              (dateKey(row.date) === dateKey(data.date) && row.slot === data.slot),
+                dateKey(row.date) === dateKey(data.date) &&
+                row.placement === data.placement) ||
+              (dateKey(row.date) === dateKey(data.date) &&
+                row.placement === data.placement &&
+                row.slot === data.slot),
           );
           if (duplicate) throw new Error('duplicate parent volunteer day');
           const row: StoredParentVolunteerDay = {
@@ -802,7 +862,7 @@ describe('parent volunteer days', () => {
     return start;
   }
 
-  it('keeps parent selections private, caps each day at two, and shows staff the names', async () => {
+  it('keeps parent selections private and separates centre, Primary, and Secondary capacity', async () => {
     const { db, parentVolunteerDays } = makeFakeDb();
     const windowStart = currentVolunteerWindowStart();
     const firstDate = dateKey(windowStart);
@@ -810,51 +870,98 @@ describe('parent volunteer days', () => {
     const parentCaller = makeCaller(parentUser, db);
 
     const initialSlots = await parentCaller.rota.parentVolunteerSlots();
+    expect(initialSlots).toMatchObject({
+      centreVolunteer: { dailyCapacity: 2 },
+      lunchAndClubs: {
+        primary: { dailyCapacity: 3 },
+        secondary: { dailyCapacity: 2 },
+      },
+    });
     expect(initialSlots.from).toBe(firstDate);
-    expect(initialSlots.days[0]).toMatchObject({ date: firstDate });
-    expect(initialSlots.days[0]).not.toHaveProperty('parent');
-    expect(initialSlots.days[0]).not.toHaveProperty('volunteers');
+    expect(initialSlots.centreVolunteer.days[0]).toMatchObject({ date: firstDate });
+    expect(initialSlots.centreVolunteer.days[0]).not.toHaveProperty('parent');
+    expect(initialSlots.lunchAndClubs.primary.days[0]).not.toHaveProperty('volunteers');
 
     const parentSelection = await parentCaller.rota.setMyParentVolunteerDays({
-      dates: [firstDate, secondDate],
+      centreDates: [firstDate, secondDate],
+      primaryLunchAndClubsDates: [firstDate],
+      secondaryLunchAndClubsDates: [],
     });
-    expect(parentSelection.days.find((slot) => slot.date === firstDate)).toMatchObject({
+    expect(
+      parentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
+    ).toMatchObject({
       selected: true,
       spacesRemaining: 1,
       status: 'Selected',
     });
-    expect(parentSelection.days.find((slot) => slot.date === secondDate)).toMatchObject({
+    expect(
+      parentSelection.centreVolunteer.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({
       selected: true,
       spacesRemaining: 1,
       status: 'Selected',
     });
+    expect(
+      parentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
+    ).toMatchObject({ selected: true, spacesRemaining: 2, status: 'Selected' });
 
     const secondParentSelection = await makeCaller(
       secondParentUser,
       db,
-    ).rota.setMyParentVolunteerDays({ dates: [firstDate] });
-    expect(secondParentSelection.days.find((slot) => slot.date === firstDate)).toMatchObject({
+    ).rota.setMyParentVolunteerDays({
+      centreDates: [firstDate],
+      primaryLunchAndClubsDates: [firstDate],
+      secondaryLunchAndClubsDates: [secondDate],
+    });
+    expect(
+      secondParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
+    ).toMatchObject({
       selected: true,
       spacesRemaining: 0,
       status: 'Selected',
     });
     await expect(
-      makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({ dates: [firstDate] }),
+      makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
+        centreDates: [firstDate],
+        primaryLunchAndClubsDates: [],
+        secondaryLunchAndClubsDates: [],
+      }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: `${firstDate} already has two parent volunteers`,
+      message: `${firstDate} already has no centre volunteer spaces`,
     });
-    expect(parentVolunteerDays).toHaveLength(3);
+
+    const thirdParentSelection = await makeCaller(
+      thirdParentUser,
+      db,
+    ).rota.setMyParentVolunteerDays({
+      centreDates: [],
+      primaryLunchAndClubsDates: [firstDate],
+      secondaryLunchAndClubsDates: [secondDate],
+    });
+    expect(
+      thirdParentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
+    ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
+    expect(
+      thirdParentSelection.lunchAndClubs.secondary.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
+    expect(parentVolunteerDays).toHaveLength(8);
 
     const updatedParentSelection = await parentCaller.rota.setMyParentVolunteerDays({
-      dates: [secondDate],
+      centreDates: [secondDate],
+      primaryLunchAndClubsDates: [firstDate],
+      secondaryLunchAndClubsDates: [],
     });
-    expect(updatedParentSelection.days.find((slot) => slot.date === firstDate)).toMatchObject({
+    expect(
+      updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
+    ).toMatchObject({
       selected: false,
       spacesRemaining: 1,
       status: 'Available',
     });
-    expect(updatedParentSelection.days.find((slot) => slot.date === secondDate)).toMatchObject({
+    expect(
+      updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === secondDate),
+    ).toMatchObject({
       selected: true,
       spacesRemaining: 1,
       status: 'Selected',
@@ -865,18 +972,20 @@ describe('parent volunteer days', () => {
         from: windowStart,
         to: new Date(windowStart.getTime() + 13 * 86_400_000),
       }),
-    ).resolves.toEqual([
-      {
-        id: 'parent_volunteer_3',
-        date: firstDate,
-        parent: { id: secondParentUser.id, fullName: 'Second Parent' },
-      },
-      {
-        id: 'parent_volunteer_2',
-        date: secondDate,
-        parent: { id: parentUser.id, fullName: 'Parent User' },
-      },
-    ]);
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          date: firstDate,
+          placement: 'LunchAndClubsPrimary',
+          parent: { id: secondParentUser.id, fullName: 'Second Parent' },
+        }),
+        expect.objectContaining({
+          date: secondDate,
+          placement: 'LunchAndClubsSecondary',
+          parent: { id: thirdParentUser.id, fullName: 'Third Parent' },
+        }),
+      ]),
+    );
   });
 
   it('limits volunteering to parents and to the rolling two-week window', async () => {
@@ -889,7 +998,11 @@ describe('parent volunteer days', () => {
       code: 'FORBIDDEN',
     });
     await expect(
-      makeCaller(parentUser, db).rota.setMyParentVolunteerDays({ dates: [dateKey(beforeWindow)] }),
+      makeCaller(parentUser, db).rota.setMyParentVolunteerDays({
+        centreDates: [dateKey(beforeWindow)],
+        primaryLunchAndClubsDates: [],
+        secondaryLunchAndClubsDates: [],
+      }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'Volunteer days must be within the current two-week window',
@@ -898,6 +1011,37 @@ describe('parent volunteer days', () => {
       makeCaller(parentUser, db).rota.parentVolunteerSchedule({
         from: windowStart,
         to: windowStart,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('lets Head and Technical Support manage Lunch + Clubs exemptions only', async () => {
+    const { db, users } = makeFakeDb();
+    const headCaller = makeCaller(headUser, db);
+    const technicalCaller = makeCaller(technicalSupportUser, db);
+
+    await expect(headCaller.rota.listLunchAndClubsVolunteerExemptions()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: supervisorUser.id,
+          fullName: 'Supervisor One',
+          lunchAndClubsVolunteerExempt: false,
+        }),
+      ]),
+    );
+    await expect(
+      technicalCaller.rota.setLunchAndClubsVolunteerExemption({
+        staffUserId: supervisorUser.id,
+        exempt: true,
+      }),
+    ).resolves.toEqual({ staffUserId: supervisorUser.id, exempt: true });
+    expect(users.find((user) => user.id === supervisorUser.id)?.lunchAndClubsVolunteerExempt).toBe(
+      true,
+    );
+    await expect(
+      makeCaller(supervisorUser, db).rota.setLunchAndClubsVolunteerExemption({
+        staffUserId: secondSupervisorUser.id,
+        exempt: true,
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
@@ -1014,6 +1158,7 @@ describe('rota scheduling', () => {
       active: false,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     });
     shifts.push({
@@ -1076,6 +1221,7 @@ describe('rota scheduling', () => {
       active: false,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     });
     availability.push(
@@ -1142,6 +1288,7 @@ describe('rota scheduling', () => {
       active: false,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
+      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     });
     monthlyAvailability.push(
