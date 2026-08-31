@@ -70,6 +70,11 @@ enum PaceInventoryOrderStatus {
   Delivered
 }
 
+enum StudentPaceSupplySource {
+  CurrentStock
+  DeliveredOrder
+}
+
 enum DiagnosticOutcome {
   Pass
   Fail
@@ -187,7 +192,9 @@ model User {
   faithCornerCommentsReviewed      FaithCornerComment[]             @relation("FaithCornerCommentsReviewed")
   studentNotificationsCreated      StudentNotification[]            @relation("StudentNotificationsCreated")
   paceInventoryOrdersCreated       PaceInventoryOrder[]             @relation("PaceInventoryOrdersCreated")
+  studentPaceSupplyCreated         StudentPaceSupply[]              @relation("StudentPaceSupplyCreated")
   diagnosticResultsRecorded        DiagnosticResult[]               @relation("DiagnosticResultsRecorded")
+  diagnosticResultsDeleted         DiagnosticResult[]               @relation("DiagnosticResultsDeleted")
   homeworkAssignmentsCreated         HomeworkAssignment[]              @relation("HomeworkAssignmentsCreated")
   homeworkSubmissionsReviewed        HomeworkSubmission[]              @relation("HomeworkSubmissionsReviewed")
   homeworkSubmissionImagesUploaded   HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
@@ -313,6 +320,7 @@ model Student {
   communityMessages      CommunityMessage[]      @relation("CommunityMessagesSent")
   communityMessageReads  CommunityMessageRead[]
   paceInventoryOrders    PaceInventoryOrder[]
+  paceSupply             StudentPaceSupply[]
   diagnosticResults      DiagnosticResult[]
   loginInvitation          UserInvitation?             @relation("StudentLoginInvitation")
   selfRegistration         StudentSelfRegistration?
@@ -626,6 +634,7 @@ model Subject {
   progress             PaceProgress[]
   advancementApprovals PaceAdvancementApproval[]
   paceInventoryOrders  PaceInventoryOrder[]
+  paceSupply           StudentPaceSupply[]
   diagnosticResults    DiagnosticResult[]
 }
 
@@ -751,6 +760,23 @@ model PaceInventoryOrder {
   @@index([studentId, subjectId, status, paceNumber])
 }
 
+model StudentPaceSupply {
+  id          String                   @id @default(cuid())
+  studentId   String
+  subjectId   String
+  paceNumber  Int
+  source      StudentPaceSupplySource
+  createdById String
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  student   Student @relation(fields: [studentId], references: [id])
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  createdBy User    @relation("StudentPaceSupplyCreated", fields: [createdById], references: [id])
+
+  @@unique([studentId, subjectId, paceNumber])
+}
+
 model DiagnosticResult {
   id           String            @id @default(cuid())
   studentId    String
@@ -760,12 +786,17 @@ model DiagnosticResult {
   recordedById String
   recordedAt   DateTime          @default(now())
   createdAt    DateTime          @default(now())
+  deletedAt    DateTime?
+  deletedById  String?
 
   student     Student @relation(fields: [studentId], references: [id])
   subject     Subject @relation(fields: [subjectId], references: [id])
   recordedBy  User    @relation("DiagnosticResultsRecorded", fields: [recordedById], references: [id])
+  deletedBy   User?   @relation("DiagnosticResultsDeleted", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([studentId, subjectId, recordedAt])
+  @@index([deletedAt])
+  @@index([deletedById])
 }
 
 // ---------------------------------------------------------------------------
