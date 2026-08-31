@@ -24,6 +24,7 @@ import { ParentProfileRegistrationScreen } from './parent-profile-registration-s
 import { ParentReportsRanksScreen } from './parent-reports-ranks-screen';
 import { ParentShopReservationsScreen } from './parent-shop-reservations-screen';
 import { ParentStudentSettingsScreen } from './parent-student-settings-screen';
+import { ParentVolunteerScreen } from './parent-volunteer-screen';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
 type MessagePage = RouterOutputs['message']['listConversations'];
@@ -39,6 +40,7 @@ type ParentPortalRoute =
   | 'shop'
   | 'fees'
   | 'calendar'
+  | 'volunteer'
   | 'slips'
   | 'profile'
   | 'settings';
@@ -47,6 +49,7 @@ const messagePageSize = 20;
 const parentTabs: Array<PortalMobileNavItem<ParentPortalRoute>> = [
   { id: 'home', icon: 'dashboard', label: 'Home' },
   { id: 'calendar', icon: 'calendar', label: 'Calendar' },
+  { id: 'volunteer', icon: 'calendar', label: 'Volunteer' },
   { id: 'slips', icon: 'slips', label: 'Slips' },
   { id: 'fees', icon: 'fees', label: 'Fees' },
   { id: 'messages', icon: 'messages', label: 'Messages' },
@@ -126,6 +129,10 @@ export function ParentPortalScreen({
     enabled: route === 'calendar',
     retry: false,
   });
+  const parentVolunteerSlots = api.rota.parentVolunteerSlots.useQuery(undefined, {
+    enabled: route === 'volunteer',
+    retry: false,
+  });
   const utils = api.useUtils();
   const conversations = useMemo(
     () => messagePages.flatMap(({ page }) => page.items),
@@ -166,6 +173,7 @@ export function ParentPortalScreen({
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
       route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
       route === 'calendar' ? parentCalendar.refetch() : Promise.resolve(),
+      route === 'volunteer' ? parentVolunteerSlots.refetch() : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
@@ -184,6 +192,7 @@ export function ParentPortalScreen({
     shopReservations.isFetching ||
     parentInvoices.isFetching ||
     parentCalendar.isFetching ||
+    parentVolunteerSlots.isFetching ||
     permissionSlips.isFetching;
   const routeQueryError =
     route === 'messages'
@@ -193,14 +202,19 @@ export function ParentPortalScreen({
         : route === 'clubs'
           ? (clubSignupContext.error?.message ?? clubNotices.error?.message ?? null)
           : route === 'shop'
-            ? (shopItems.error?.message ?? shopReservations.error?.message ?? balances.error?.message ?? null)
+            ? (shopItems.error?.message ??
+              shopReservations.error?.message ??
+              balances.error?.message ??
+              null)
             : route === 'fees'
               ? (parentInvoices.error?.message ?? null)
               : route === 'calendar'
                 ? (parentCalendar.error?.message ?? null)
-                : route === 'slips'
-                  ? (permissionSlips.error?.message ?? null)
-                  : null;
+                : route === 'volunteer'
+                  ? (parentVolunteerSlots.error?.message ?? null)
+                  : route === 'slips'
+                    ? (permissionSlips.error?.message ?? null)
+                    : null;
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
@@ -399,6 +413,13 @@ export function ParentPortalScreen({
               error={parentCalendar.error?.message ?? null}
               events={parentCalendar.data ?? []}
               loading={parentCalendar.isFetching}
+            />
+          ) : null}
+          {route === 'volunteer' ? (
+            <ParentVolunteerScreen
+              error={parentVolunteerSlots.error?.message ?? null}
+              loading={parentVolunteerSlots.isFetching}
+              slots={parentVolunteerSlots.data}
             />
           ) : null}
         </ScrollView>

@@ -1,5 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
+import { Prisma } from '@oasis/db';
 import { isStaff, requireStaff, type SessionUser } from '@oasis/domain';
 import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
@@ -31,6 +32,23 @@ const setAvailabilityInput = z.object({
 
 const dateKeyInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date');
 const monthKeyInput = z.string().regex(/^\d{4}-\d{2}$/u, 'Enter a valid month');
+
+const PARENT_VOLUNTEER_DAILY_CAPACITY = 2;
+const PARENT_VOLUNTEER_WINDOW_DAYS = 14;
+
+const setMyParentVolunteerDaysInput = z
+  .object({
+    dates: z.array(dateKeyInput).max(PARENT_VOLUNTEER_WINDOW_DAYS).default([]),
+  })
+  .superRefine(({ dates }, ctx) => {
+    if (new Set(dates).size !== dates.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose each volunteer day only once',
+        path: ['dates'],
+      });
+    }
+  });
 
 const monthlyAvailabilityWindowInput = z
   .object({
@@ -148,6 +166,19 @@ function monthRange(month: string): { from: Date; to: Date } {
   return { from, to };
 }
 
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function parentVolunteerWindow(now = new Date()): { from: Date; to: Date } {
+  const from = normalizeDate(now);
+  const dayOfWeek = from.getUTCDay();
+  from.setUTCDate(from.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
+  return { from, to: addDays(from, PARENT_VOLUNTEER_WINDOW_DAYS - 1) };
+}
+
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
   value: string | null | undefined,
@@ -184,6 +215,64 @@ function assertStaffWorkflow(user: SessionUser): void {
       cause: err instanceof Error ? err : undefined,
     });
   }
+}
+
+function assertParentVolunteerWorkflow(user: SessionUser): void {
+  if (user.role !== 'Parent') {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'parent volunteer access is limited to parent accounts',
+    });
+  }
+}
+
+function assertParentVolunteerDatesWithinWindow(
+  dates: readonly string[],
+  window: { from: Date; to: Date },
+): void {
+  const invalidDate = dates.find((value) => {
+    const date = dateFromKey(value);
+    return date.getTime() < window.from.getTime() || date.getTime() > window.to.getTime();
+  });
+  if (invalidDate) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Volunteer days must be within the current two-week window',
+    });
+  }
+}
+
+async function listParentVolunteerSlots(ctx: RouterCtx) {
+  const window = parentVolunteerWindow();
+  const rows = await ctx.db.parentVolunteerDay.findMany({
+    where: { date: { gte: window.from, lte: window.to } },
+    select: { date: true, parentUserId: true },
+  });
+  const volunteersByDate = new Map<string, string[]>();
+  for (const row of rows) {
+    const key = dateKey(row.date);
+    volunteersByDate.set(key, [...(volunteersByDate.get(key) ?? []), row.parentUserId]);
+  }
+
+  return {
+    from: dateKey(window.from),
+    to: dateKey(window.to),
+    days: Array.from({ length: PARENT_VOLUNTEER_WINDOW_DAYS }, (_, index) => {
+      const date = dateKey(addDays(window.from, index));
+      const volunteerIds = volunteersByDate.get(date) ?? [];
+      const selected = volunteerIds.includes(ctx.user.id);
+      return {
+        date,
+        selected,
+        status: selected
+          ? ('Selected' as const)
+          : volunteerIds.length >= PARENT_VOLUNTEER_DAILY_CAPACITY
+            ? ('Full' as const)
+            : ('Available' as const),
+        spacesRemaining: Math.max(PARENT_VOLUNTEER_DAILY_CAPACITY - volunteerIds.length, 0),
+      };
+    }),
+  };
 }
 
 function assertNoAvailabilityOverlap(windows: z.infer<typeof availabilityWindowInput>[]): void {
@@ -535,6 +624,119 @@ export const rotaRouter = router({
 
       return rows.map((row) => ({ ...row, date: dateKey(row.date) }));
     }),
+
+  parentVolunteerSlots: authedProcedure.query(async ({ ctx }) => {
+    assertParentVolunteerWorkflow(ctx.user);
+    return listParentVolunteerSlots(ctx);
+  }),
+
+  setMyParentVolunteerDays: authedProcedure
+    .input(setMyParentVolunteerDaysInput)
+    .mutation(async ({ ctx, input }) => {
+      assertParentVolunteerWorkflow(ctx.user);
+      const requestedDates = [...input.dates].sort();
+      const window = parentVolunteerWindow();
+      assertParentVolunteerDatesWithinWindow(requestedDates, window);
+
+      const existingRows = await ctx.db.parentVolunteerDay.findMany({
+        where: {
+          parentUserId: ctx.user.id,
+          date: { gte: window.from, lte: window.to },
+        },
+        select: { id: true, date: true },
+      });
+      const existingDates = new Set(existingRows.map((row) => dateKey(row.date)));
+      const requestedDateSet = new Set(requestedDates);
+      const recordsToRemove = existingRows.filter(
+        (row) => !requestedDateSet.has(dateKey(row.date)),
+      );
+      const datesToCreate = requestedDates.filter((date) => !existingDates.has(date));
+
+      try {
+        await ctx.db.$transaction(async (tx) => {
+          if (recordsToRemove.length > 0) {
+            await tx.parentVolunteerDay.deleteMany({
+              where: { id: { in: recordsToRemove.map((row) => row.id) } },
+            });
+          }
+
+          for (const value of datesToCreate) {
+            const date = dateFromKey(value);
+            const reservations = await tx.parentVolunteerDay.findMany({
+              where: { date },
+              select: { slot: true },
+            });
+            const occupiedSlots = new Set(reservations.map((reservation) => reservation.slot));
+            const slot = [1, 2].find((candidate) => !occupiedSlots.has(candidate));
+            if (!slot) {
+              throw new TRPCError({
+                code: 'BAD_REQUEST',
+                message: `${value} already has two parent volunteers`,
+              });
+            }
+            await tx.parentVolunteerDay.create({
+              data: { parentUserId: ctx.user.id, date, slot },
+            });
+          }
+        });
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'One or more days were just filled. Refresh and choose another day.',
+          });
+        }
+        throw error;
+      }
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'ParentVolunteerDay',
+          entityId: ctx.user.id,
+          meta: {
+            addedDates: datesToCreate,
+            removedDates: recordsToRemove.map((row) => dateKey(row.date)),
+            source: 'rota.setMyParentVolunteerDays',
+          },
+        },
+      });
+
+      return listParentVolunteerSlots(ctx);
+    }),
+
+  parentVolunteerSchedule: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
+    assertStaffWorkflow(ctx.user);
+    const from = normalizeDate(input.from);
+    const to = normalizeDate(input.to);
+    const rows = await ctx.db.parentVolunteerDay.findMany({
+      where: { date: { gte: from, lte: to } },
+      orderBy: [{ date: 'asc' }, { slot: 'asc' }],
+      include: {
+        parentUser: { select: { id: true, fullNameEnc: true } },
+      },
+    });
+    const volunteers = rows.map((row) => ({
+      id: row.id,
+      date: dateKey(row.date),
+      parent: {
+        id: row.parentUser.id,
+        fullName: decryptRequired(ctx.db.$enc.decrypt, row.parentUser.fullNameEnc, 'parent'),
+      },
+    }));
+
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'ParentVolunteerDay',
+        meta: { count: volunteers.length, source: 'rota.parentVolunteerSchedule' },
+      },
+    });
+
+    return volunteers;
+  }),
 
   myRota: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     assertStaffWorkflow(ctx.user);

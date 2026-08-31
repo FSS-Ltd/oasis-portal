@@ -64,6 +64,12 @@ export type RotaShift = {
   staff: { fullName: string; email: string; role: string } | null;
 };
 
+export type ParentVolunteerDay = {
+  id: string;
+  date: string;
+  parent: { id: string; fullName: string };
+};
+
 export const emptyShiftForm: ShiftForm = {
   id: null,
   staffUserId: '',

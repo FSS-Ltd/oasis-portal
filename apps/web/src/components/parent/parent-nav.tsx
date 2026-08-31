@@ -24,6 +24,7 @@ import {
 const parentNavItems = [
   { href: '/parent', label: 'Home', icon: Home },
   { href: '/parent/calendar', label: 'Calendar', icon: CalendarDays },
+  { href: '/parent/volunteer', label: 'Volunteer', icon: CalendarDays },
   { href: '/parent/permission-slips', label: 'Permission Slips', icon: ClipboardCheck },
   { href: '/parent/clubs', label: 'Clubs', icon: Club },
   { href: '/parent/fees', label: 'Fees/Invoices', icon: ReceiptText },
