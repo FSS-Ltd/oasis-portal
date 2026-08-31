@@ -7765,6 +7765,65 @@ button.club-assignment-row {
   margin-top: 14px;
 }
 
+.staff-lunch-clubs-volunteer {
+  display: grid;
+  gap: 14px;
+}
+
+.staff-lunch-clubs-volunteer__header {
+  align-items: flex-start;
+}
+
+.staff-lunch-clubs-volunteer__actions {
+  align-items: flex-end;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.staff-lunch-clubs-volunteer__days {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-lunch-clubs-volunteer__day {
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  color: var(--oasis-text);
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  padding: 10px;
+  text-align: left;
+}
+
+.staff-lunch-clubs-volunteer__day strong {
+  font-size: 0.76rem;
+}
+
+.staff-lunch-clubs-volunteer__day span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.staff-lunch-clubs-volunteer__day:hover:not(:disabled) {
+  border-color: var(--oasis-blue);
+}
+
+.staff-lunch-clubs-volunteer__day.is-selected {
+  background: var(--oasis-success-bg);
+  border-color: var(--oasis-success);
+}
+
+.staff-lunch-clubs-volunteer__day.is-selected span {
+  color: var(--oasis-success);
+}
+
 .supervisor-workflow {
   display: grid;
   gap: 16px;
@@ -12838,6 +12897,12 @@ button.club-assignment-row {
   border-color: #bfdbfe;
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+.rota-availability-badge.is-staff-cover {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
 }
 
 .rota-availability-badge.is-empty {

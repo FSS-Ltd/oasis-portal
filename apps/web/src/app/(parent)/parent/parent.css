@@ -172,11 +172,72 @@
   gap: 20px;
 }
 
+.parent-volunteer-tabs {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--oasis-border);
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 4px;
+  scrollbar-width: thin;
+}
+
+.parent-volunteer-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  color: var(--oasis-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  margin-bottom: -1px;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+
+.parent-volunteer-tab:hover {
+  background: var(--oasis-bg);
+  color: var(--oasis-navy);
+}
+
+.parent-volunteer-tab.is-active {
+  background: #fff;
+  border-color: var(--oasis-border);
+  color: var(--oasis-navy);
+}
+
+.parent-volunteer-tab:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--oasis-blue) 45%, transparent);
+  outline-offset: 2px;
+}
+
 .parent-volunteer-panel,
 .parent-volunteer-weeks,
 .parent-volunteer-weeks section {
   display: grid;
   gap: 16px;
+}
+
+.parent-volunteer-panel__header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.parent-volunteer-panel__header h2,
+.parent-volunteer-panel__header p {
+  margin-top: 0;
+}
+
+.parent-volunteer-panel__actions {
+  align-items: flex-end;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .parent-volunteer-weeks h3 {
@@ -1199,6 +1260,10 @@
     flex-direction: column;
   }
 
+  .parent-volunteer-panel__header {
+    gap: 12px;
+  }
+
   .parent-volunteer-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1232,6 +1297,26 @@
 }
 
 @media (max-width: 560px) {
+  .parent-volunteer-tabs {
+    margin-inline: -4px;
+  }
+
+  .parent-volunteer-tab {
+    font-size: 0.82rem;
+    padding-inline: 12px;
+  }
+
+  .parent-volunteer-panel__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .parent-volunteer-panel__actions {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
   .parent-volunteer-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -26,6 +26,7 @@ import {
   type RotaShift,
   type ShiftForm,
   type StaffAvailability,
+  type StaffLunchAndClubsVolunteerDay,
   type StaffMonthlyAvailability,
 } from './_components/rota-utils';
 
@@ -106,6 +107,11 @@ export function RotaSchedulerClient() {
     { from: weekStart, to: weekEnd },
     { retry: false },
   );
+  const staffLunchAndClubsVolunteerScheduleQuery =
+    api.rota.staffLunchAndClubsVolunteerSchedule.useQuery(
+      { from: weekStart, to: weekEnd },
+      { retry: false },
+    );
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
   const swapsQuery = api.rota.pendingSwapRequests.useQuery(undefined, { retry: false });
 
@@ -118,6 +124,8 @@ export function RotaSchedulerClient() {
   const staffMonthlyAvailability = (monthlyAvailabilityQuery.data ??
     []) as StaffMonthlyAvailability[];
   const parentVolunteers = (parentVolunteerScheduleQuery.data ?? []) as ParentVolunteerDay[];
+  const staffLunchAndClubsVolunteers = (staffLunchAndClubsVolunteerScheduleQuery.data ??
+    []) as StaffLunchAndClubsVolunteerDay[];
   const staffAvailabilityByDay = useMemo(
     () => buildStaffAvailabilityByDay({ staffAvailability, staffMonthlyAvailability, weekDays }),
     [staffAvailability, staffMonthlyAvailability, weekDays],
@@ -133,6 +141,7 @@ export function RotaSchedulerClient() {
       utils.rota.staffAvailability.invalidate(),
       utils.rota.staffMonthlyAvailability.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.parentVolunteerSchedule.invalidate({ from: weekStart, to: weekEnd }),
+      utils.rota.staffLunchAndClubsVolunteerSchedule.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.pendingSwapRequests.invalidate(),
     ]);
   };
@@ -224,6 +233,12 @@ export function RotaSchedulerClient() {
             : undefined
         }
         parentVolunteers={parentVolunteers}
+        staffLunchAndClubsVolunteerErrorMessage={
+          staffLunchAndClubsVolunteerScheduleQuery.error
+            ? friendlyErrorMessage(staffLunchAndClubsVolunteerScheduleQuery.error)
+            : undefined
+        }
+        staffLunchAndClubsVolunteers={staffLunchAndClubsVolunteers}
         staffAvailabilityByDay={staffAvailabilityByDay}
         shifts={shifts}
         weekDays={weekDays}

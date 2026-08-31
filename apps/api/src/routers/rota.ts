@@ -33,7 +33,7 @@ const setAvailabilityInput = z.object({
 const dateKeyInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date');
 const monthKeyInput = z.string().regex(/^\d{4}-\d{2}$/u, 'Enter a valid month');
 
-const PARENT_VOLUNTEER_WINDOW_DAYS = 14;
+const VOLUNTEER_WINDOW_DAYS = 14;
 
 const PARENT_VOLUNTEER_PLACEMENTS = {
   Centre: { dailyCapacity: 2, label: 'Centre volunteer' },
@@ -45,13 +45,17 @@ type ParentVolunteerPlacement = keyof typeof PARENT_VOLUNTEER_PLACEMENTS;
 
 const setMyParentVolunteerDaysInput = z
   .object({
-    centreDates: z.array(dateKeyInput).max(PARENT_VOLUNTEER_WINDOW_DAYS).default([]),
-    primaryLunchAndClubsDates: z.array(dateKeyInput).max(PARENT_VOLUNTEER_WINDOW_DAYS).default([]),
-    secondaryLunchAndClubsDates: z
-      .array(dateKeyInput)
-      .max(PARENT_VOLUNTEER_WINDOW_DAYS)
-      .default([]),
+    centreDates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).optional(),
+    primaryLunchAndClubsDates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).optional(),
+    secondaryLunchAndClubsDates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).optional(),
   })
+  .refine(
+    (input) =>
+      input.centreDates !== undefined ||
+      input.primaryLunchAndClubsDates !== undefined ||
+      input.secondaryLunchAndClubsDates !== undefined,
+    { message: 'Choose volunteer days to save' },
+  )
   .superRefine((input, ctx) => {
     const dateLists = [
       ['centreDates', input.centreDates],
@@ -59,6 +63,7 @@ const setMyParentVolunteerDaysInput = z
       ['secondaryLunchAndClubsDates', input.secondaryLunchAndClubsDates],
     ] as const;
     for (const [field, dates] of dateLists) {
+      if (!dates) continue;
       if (new Set(dates).size !== dates.length) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -67,6 +72,7 @@ const setMyParentVolunteerDaysInput = z
         });
       }
     }
+    if (!input.primaryLunchAndClubsDates || !input.secondaryLunchAndClubsDates) return;
     const primaryDates = new Set(input.primaryLunchAndClubsDates);
     const duplicateLunchDate = input.secondaryLunchAndClubsDates.find((date) =>
       primaryDates.has(date),
@@ -76,6 +82,20 @@ const setMyParentVolunteerDaysInput = z
         code: z.ZodIssueCode.custom,
         message: 'Choose either Primary or Secondary for lunch and clubs on the same day',
         path: ['secondaryLunchAndClubsDates'],
+      });
+    }
+  });
+
+const setMyStaffLunchAndClubsVolunteerDaysInput = z
+  .object({
+    dates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).default([]),
+  })
+  .superRefine((input, ctx) => {
+    if (new Set(input.dates).size !== input.dates.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose each cover day only once',
+        path: ['dates'],
       });
     }
   });
@@ -207,11 +227,11 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-function parentVolunteerWindow(now = new Date()): { from: Date; to: Date } {
+function rollingVolunteerWindow(now = new Date()): { from: Date; to: Date } {
   const from = normalizeDate(now);
   const dayOfWeek = from.getUTCDay();
   from.setUTCDate(from.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
-  return { from, to: addDays(from, PARENT_VOLUNTEER_WINDOW_DAYS - 1) };
+  return { from, to: addDays(from, VOLUNTEER_WINDOW_DAYS - 1) };
 }
 
 function decryptRequired(
@@ -261,7 +281,7 @@ function assertParentVolunteerWorkflow(user: SessionUser): void {
   }
 }
 
-function assertParentVolunteerDatesWithinWindow(
+function assertVolunteerDatesWithinWindow(
   dates: readonly string[],
   window: { from: Date; to: Date },
 ): void {
@@ -278,7 +298,7 @@ function assertParentVolunteerDatesWithinWindow(
 }
 
 async function listParentVolunteerSlots(ctx: RouterCtx) {
-  const window = parentVolunteerWindow();
+  const window = rollingVolunteerWindow();
   const rows = await ctx.db.parentVolunteerDay.findMany({
     where: { date: { gte: window.from, lte: window.to } },
     select: { date: true, parentUserId: true, placement: true },
@@ -294,7 +314,7 @@ async function listParentVolunteerSlots(ctx: RouterCtx) {
 
   const slotsForPlacement = (placement: ParentVolunteerPlacement) => {
     const { dailyCapacity } = PARENT_VOLUNTEER_PLACEMENTS[placement];
-    return Array.from({ length: PARENT_VOLUNTEER_WINDOW_DAYS }, (_, index) => {
+    return Array.from({ length: VOLUNTEER_WINDOW_DAYS }, (_, index) => {
       const date = dateKey(addDays(window.from, index));
       const volunteerIds = volunteersByPlacementAndDate.get(`${placement}:${date}`) ?? [];
       const selected = volunteerIds.includes(ctx.user.id);
@@ -331,12 +351,36 @@ async function listParentVolunteerSlots(ctx: RouterCtx) {
   };
 }
 
-function parentVolunteerDatesByPlacement(input: z.infer<typeof setMyParentVolunteerDaysInput>) {
-  return [
-    { placement: 'Centre' as const, dates: input.centreDates },
-    { placement: 'LunchAndClubsPrimary' as const, dates: input.primaryLunchAndClubsDates },
-    { placement: 'LunchAndClubsSecondary' as const, dates: input.secondaryLunchAndClubsDates },
+function parentVolunteerDatesByPlacement(
+  input: z.infer<typeof setMyParentVolunteerDaysInput>,
+): { placement: ParentVolunteerPlacement; dates: string[] }[] {
+  const datesByPlacement: { placement: ParentVolunteerPlacement; dates: string[] | undefined }[] = [
+    { placement: 'Centre', dates: input.centreDates },
+    { placement: 'LunchAndClubsPrimary', dates: input.primaryLunchAndClubsDates },
+    { placement: 'LunchAndClubsSecondary', dates: input.secondaryLunchAndClubsDates },
   ];
+  return datesByPlacement.filter(
+    (selection): selection is { placement: ParentVolunteerPlacement; dates: string[] } =>
+      selection.dates !== undefined,
+  );
+}
+
+async function listMyStaffLunchAndClubsVolunteerDays(ctx: RouterCtx) {
+  const window = rollingVolunteerWindow();
+  const rows = await ctx.db.staffLunchAndClubsVolunteerDay.findMany({
+    where: {
+      staffUserId: ctx.user.id,
+      date: { gte: window.from, lte: window.to },
+    },
+    orderBy: { date: 'asc' },
+    select: { date: true },
+  });
+
+  return {
+    from: dateKey(window.from),
+    to: dateKey(window.to),
+    dates: rows.map((row) => dateKey(row.date)),
+  };
 }
 
 function assertNoAvailabilityOverlap(windows: z.infer<typeof availabilityWindowInput>[]): void {
@@ -701,8 +745,8 @@ export const rotaRouter = router({
       const requestedSelections = parentVolunteerDatesByPlacement(input).flatMap(
         ({ placement, dates }) => dates.map((date) => ({ date, placement })),
       );
-      const window = parentVolunteerWindow();
-      assertParentVolunteerDatesWithinWindow(
+      const window = rollingVolunteerWindow();
+      assertVolunteerDatesWithinWindow(
         requestedSelections.map((selection) => selection.date),
         window,
       );
@@ -714,6 +758,36 @@ export const rotaRouter = router({
         },
         select: { id: true, date: true, placement: true },
       });
+      const requestedDatesByPlacement = new Map(
+        parentVolunteerDatesByPlacement(input).map(({ placement, dates }) => [
+          placement,
+          new Set(dates),
+        ]),
+      );
+      const effectiveDatesByPlacement = new Map<ParentVolunteerPlacement, Set<string>>(
+        (Object.keys(PARENT_VOLUNTEER_PLACEMENTS) as ParentVolunteerPlacement[]).map(
+          (placement) => [
+            placement,
+            new Set(
+              existingRows
+                .filter((row) => row.placement === placement)
+                .map((row) => dateKey(row.date)),
+            ),
+          ],
+        ),
+      );
+      for (const [placement, dates] of requestedDatesByPlacement) {
+        effectiveDatesByPlacement.set(placement, dates);
+      }
+      const primaryDates = effectiveDatesByPlacement.get('LunchAndClubsPrimary') ?? new Set();
+      const secondaryDates = effectiveDatesByPlacement.get('LunchAndClubsSecondary') ?? new Set();
+      const lunchAndClubsConflict = [...primaryDates].find((date) => secondaryDates.has(date));
+      if (lunchAndClubsConflict) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Choose either Primary or Secondary for lunch and clubs on the same day',
+        });
+      }
       const existingSelectionKeys = new Set(
         existingRows.map((row) => `${row.placement}:${dateKey(row.date)}`),
       );
@@ -721,7 +795,9 @@ export const rotaRouter = router({
         requestedSelections.map((selection) => `${selection.placement}:${selection.date}`),
       );
       const recordsToRemove = existingRows.filter(
-        (row) => !requestedSelectionKeys.has(`${row.placement}:${dateKey(row.date)}`),
+        (row) =>
+          requestedDatesByPlacement.has(row.placement) &&
+          !requestedSelectionKeys.has(`${row.placement}:${dateKey(row.date)}`),
       );
       const selectionsToCreate = requestedSelections.filter(
         (selection) => !existingSelectionKeys.has(`${selection.placement}:${selection.date}`),
@@ -790,6 +866,84 @@ export const rotaRouter = router({
       });
 
       return listParentVolunteerSlots(ctx);
+    }),
+
+  myStaffLunchAndClubsVolunteerDays: authedProcedure.query(async ({ ctx }) => {
+    assertStaffWorkflow(ctx.user);
+    return listMyStaffLunchAndClubsVolunteerDays(ctx);
+  }),
+
+  setMyStaffLunchAndClubsVolunteerDays: authedProcedure
+    .input(setMyStaffLunchAndClubsVolunteerDaysInput)
+    .mutation(async ({ ctx, input }) => {
+      assertStaffWorkflow(ctx.user);
+      const window = rollingVolunteerWindow();
+      assertVolunteerDatesWithinWindow(input.dates, window);
+
+      await ctx.db.$transaction(async (tx) => {
+        await tx.staffLunchAndClubsVolunteerDay.deleteMany({
+          where: {
+            staffUserId: ctx.user.id,
+            date: { gte: window.from, lte: window.to },
+          },
+        });
+        if (input.dates.length > 0) {
+          await tx.staffLunchAndClubsVolunteerDay.createMany({
+            data: input.dates.map((date) => ({
+              staffUserId: ctx.user.id,
+              date: dateFromKey(date),
+            })),
+          });
+        }
+      });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Update',
+          entity: 'StaffLunchAndClubsVolunteerDay',
+          entityId: ctx.user.id,
+          meta: {
+            dayCount: input.dates.length,
+            source: 'rota.setMyStaffLunchAndClubsVolunteerDays',
+          },
+        },
+      });
+
+      return listMyStaffLunchAndClubsVolunteerDays(ctx);
+    }),
+
+  staffLunchAndClubsVolunteerSchedule: adminOperationsProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      const from = normalizeDate(input.from);
+      const to = normalizeDate(input.to);
+      const rows = await ctx.db.staffLunchAndClubsVolunteerDay.findMany({
+        where: { date: { gte: from, lte: to } },
+        orderBy: { date: 'asc' },
+        include: {
+          staffUser: { select: { id: true, fullNameEnc: true } },
+        },
+      });
+      const volunteers = rows.map((row) => ({
+        id: row.id,
+        date: dateKey(row.date),
+        staff: {
+          id: row.staffUser.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, row.staffUser.fullNameEnc, 'staff user'),
+        },
+      }));
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'StaffLunchAndClubsVolunteerDay',
+          meta: { count: volunteers.length, source: 'rota.staffLunchAndClubsVolunteerSchedule' },
+        },
+      });
+
+      return volunteers;
     }),
 
   parentVolunteerSchedule: adminOperationsProcedure
