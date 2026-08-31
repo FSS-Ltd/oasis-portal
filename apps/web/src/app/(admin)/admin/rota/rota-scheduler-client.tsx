@@ -22,6 +22,7 @@ import {
   shiftToForm,
   today,
   type RotaDayAvailabilitySummary,
+  type ParentVolunteerDay,
   type RotaShift,
   type ShiftForm,
   type StaffAvailability,
@@ -101,6 +102,10 @@ export function RotaSchedulerClient() {
     { from: weekStart, to: weekEnd },
     { retry: false },
   );
+  const parentVolunteerScheduleQuery = api.rota.parentVolunteerSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
   const bandsQuery = api.admin.listYearGroupBands.useQuery(undefined, { retry: false });
   const swapsQuery = api.rota.pendingSwapRequests.useQuery(undefined, { retry: false });
 
@@ -112,6 +117,7 @@ export function RotaSchedulerClient() {
   const staffAvailability = (availabilityQuery.data ?? []) as StaffAvailability[];
   const staffMonthlyAvailability = (monthlyAvailabilityQuery.data ??
     []) as StaffMonthlyAvailability[];
+  const parentVolunteers = (parentVolunteerScheduleQuery.data ?? []) as ParentVolunteerDay[];
   const staffAvailabilityByDay = useMemo(
     () => buildStaffAvailabilityByDay({ staffAvailability, staffMonthlyAvailability, weekDays }),
     [staffAvailability, staffMonthlyAvailability, weekDays],
@@ -126,6 +132,7 @@ export function RotaSchedulerClient() {
       utils.rota.weekSchedule.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.staffAvailability.invalidate(),
       utils.rota.staffMonthlyAvailability.invalidate({ from: weekStart, to: weekEnd }),
+      utils.rota.parentVolunteerSchedule.invalidate({ from: weekStart, to: weekEnd }),
       utils.rota.pendingSwapRequests.invalidate(),
     ]);
   };
@@ -211,6 +218,12 @@ export function RotaSchedulerClient() {
           setWeekStart(nextWeek);
           setShiftForm((current) => ({ ...current, date: dateKey(nextWeek) }));
         }}
+        parentVolunteerErrorMessage={
+          parentVolunteerScheduleQuery.error
+            ? friendlyErrorMessage(parentVolunteerScheduleQuery.error)
+            : undefined
+        }
+        parentVolunteers={parentVolunteers}
         staffAvailabilityByDay={staffAvailabilityByDay}
         shifts={shifts}
         weekDays={weekDays}

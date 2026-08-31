@@ -5,6 +5,7 @@ import {
   dayLabels,
   formatDateLabel,
   formatDateTime,
+  type ParentVolunteerDay,
   type RotaDayAvailabilitySummary,
   type RotaShift,
 } from './rota-utils';
@@ -22,6 +23,8 @@ interface RotaWeekScheduleProps {
   onRefresh: () => void;
   onSelectShift: (shift: RotaShift) => void;
   onThisWeek: () => void;
+  parentVolunteerErrorMessage?: string | undefined;
+  parentVolunteers: readonly ParentVolunteerDay[];
   staffAvailabilityByDay: readonly RotaDayAvailabilitySummary[];
   shifts: readonly RotaShift[];
   weekDays: readonly Date[];
@@ -40,6 +43,8 @@ export function RotaWeekSchedule({
   onRefresh,
   onSelectShift,
   onThisWeek,
+  parentVolunteerErrorMessage,
+  parentVolunteers,
   staffAvailabilityByDay,
   shifts,
   weekDays,
@@ -83,10 +88,16 @@ export function RotaWeekSchedule({
         {availabilityErrorMessage ? (
           <p className="status--error">{availabilityErrorMessage}</p>
         ) : null}
+        {parentVolunteerErrorMessage ? (
+          <p className="status--error">{parentVolunteerErrorMessage}</p>
+        ) : null}
         <div className="rota-week-grid">
           {weekDays.map((day) => {
             const key = dateKey(day);
             const dayShifts = shifts.filter((shift) => shift.date === key);
+            const dayParentVolunteers = parentVolunteers.filter(
+              (volunteer) => volunteer.date === key,
+            );
             const dayAvailability = staffAvailabilityByDay.find((summary) => summary.date === key);
             return (
               <article className="rota-day" key={key}>
@@ -133,6 +144,18 @@ export function RotaWeekSchedule({
                     )}
                   </div>
                 ) : null}
+                <div className="rota-parent-volunteers">
+                  <span className="rota-availability-badges__label">Parent volunteers</span>
+                  {dayParentVolunteers.length === 0 ? (
+                    <span className="rota-availability-badge is-empty">None selected</span>
+                  ) : (
+                    dayParentVolunteers.map((volunteer) => (
+                      <span className="rota-availability-badge is-parent" key={volunteer.id}>
+                        {volunteer.parent.fullName}
+                      </span>
+                    ))
+                  )}
+                </div>
                 {dayShifts.length === 0 ? (
                   <p className="muted">No shifts</p>
                 ) : (

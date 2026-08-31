@@ -1,8 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Badge, Card, ErrorText, Field, InlineSpinner, MutedText } from '../core/mobile-ui';
 import { C } from '../core/mobile-theme';
-import { formatMonth, type RotaMode } from './staff-rota-utils';
-import { ShiftRow, TabButton, type RotaShift } from './staff-rota-common';
+import { formatDate, formatMonth, type RotaMode } from './staff-rota-utils';
+import { ShiftRow, TabButton, type ParentVolunteer, type RotaShift } from './staff-rota-common';
 
 export function RotaPanel({
   error,
@@ -11,6 +11,9 @@ export function RotaPanel({
   month,
   onChangeMode,
   onChangeMonth,
+  parentVolunteerError,
+  parentVolunteerLoading,
+  parentVolunteers,
   shifts,
 }: {
   error: string | undefined;
@@ -19,6 +22,9 @@ export function RotaPanel({
   month: string;
   onChangeMode: (mode: RotaMode) => void;
   onChangeMonth: (month: string) => void;
+  parentVolunteerError: string | undefined;
+  parentVolunteerLoading: boolean;
+  parentVolunteers: readonly ParentVolunteer[];
   shifts: readonly RotaShift[];
 }) {
   return (
@@ -56,6 +62,20 @@ export function RotaPanel({
         {shifts.map((shift) => (
           <ShiftRow key={shift.id} shift={shift} />
         ))}
+        <View style={styles.parentVolunteerSection}>
+          <Text style={styles.parentVolunteerTitle}>Parent volunteers</Text>
+          {parentVolunteerLoading ? <InlineSpinner label="Loading parent volunteers" /> : null}
+          {parentVolunteerError ? <ErrorText>{parentVolunteerError}</ErrorText> : null}
+          {!parentVolunteerLoading && !parentVolunteerError && parentVolunteers.length === 0 ? (
+            <MutedText>No parent volunteers selected for this view.</MutedText>
+          ) : null}
+          {parentVolunteers.map((volunteer) => (
+            <View key={volunteer.id} style={styles.parentVolunteerRow}>
+              <Text style={styles.parentVolunteerName}>{volunteer.parent.fullName}</Text>
+              <MutedText>{formatDate(volunteer.date)}</MutedText>
+            </View>
+          ))}
+        </View>
       </Card>
     </>
   );
@@ -80,6 +100,28 @@ const styles = StyleSheet.create({
   modeRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  parentVolunteerName: {
+    color: C.navy,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  parentVolunteerRow: {
+    borderTopColor: C.borderLight,
+    borderTopWidth: 1,
+    gap: 2,
+    paddingTop: 10,
+  },
+  parentVolunteerSection: {
+    borderTopColor: C.border,
+    borderTopWidth: 1,
+    gap: 10,
+    paddingTop: 12,
+  },
+  parentVolunteerTitle: {
+    color: C.navy,
+    fontSize: 14,
+    fontWeight: '900',
   },
   rowBody: {
     flex: 1,

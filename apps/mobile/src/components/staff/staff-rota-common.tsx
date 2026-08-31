@@ -5,6 +5,7 @@ import { C } from '../core/mobile-theme';
 import { formatDate, formatTime } from './staff-rota-utils';
 
 export type RotaShift = RouterOutputs['rota']['myRota'][number];
+export type ParentVolunteer = RouterOutputs['rota']['parentVolunteerSchedule'][number];
 export type SwapCandidate = RouterOutputs['rota']['swapCandidates'][number];
 export type SwapRequest = RouterOutputs['rota']['mySwapRequests'][number];
 

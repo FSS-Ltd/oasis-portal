@@ -111,6 +111,7 @@ model User {
   availabilityWindows              StaffAvailabilityWindow[]        @relation("StaffAvailability")
   monthlyAvailabilityWindows       StaffMonthlyAvailabilityWindow[] @relation("StaffMonthlyAvailability")
   staffShifts                      StaffShift[]                     @relation("StaffShifts")
+  volunteerDays                    ParentVolunteerDay[]             @relation("ParentVolunteerDays")
   requestedShiftSwaps              ShiftSwapRequest[]               @relation("RequestedShiftSwaps")
   targetedShiftSwaps               ShiftSwapRequest[]               @relation("TargetedShiftSwaps")
   approvedShiftSwaps               ShiftSwapRequest[]               @relation("ApprovedShiftSwaps")
@@ -988,6 +989,21 @@ model StaffMonthlyAvailabilityWindow {
   staffUser User @relation("StaffMonthlyAvailability", fields: [staffUserId], references: [id])
 
   @@index([staffUserId, date])
+  @@index([date])
+}
+
+model ParentVolunteerDay {
+  id           String   @id @default(cuid())
+  parentUserId String
+  date         DateTime @db.Date
+  slot         Int      @db.SmallInt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  parentUser User @relation("ParentVolunteerDays", fields: [parentUserId], references: [id])
+
+  @@unique([parentUserId, date])
+  @@unique([date, slot])
   @@index([date])
 }
 

@@ -167,6 +167,73 @@
   margin-bottom: 20px;
 }
 
+.parent-volunteer-page {
+  display: grid;
+  gap: 20px;
+}
+
+.parent-volunteer-panel,
+.parent-volunteer-weeks,
+.parent-volunteer-weeks section {
+  display: grid;
+  gap: 16px;
+}
+
+.parent-volunteer-weeks h3 {
+  color: var(--ink, #1b2b5e);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.parent-volunteer-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.parent-volunteer-day {
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid #d8deea;
+  border-radius: 10px;
+  color: #1b2b5e;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  min-height: 82px;
+  padding: 12px;
+  text-align: left;
+}
+
+.parent-volunteer-day strong {
+  font-size: 0.83rem;
+}
+
+.parent-volunteer-day span {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.parent-volunteer-day:hover:not(:disabled) {
+  border-color: #5b90c5;
+}
+
+.parent-volunteer-day.is-selected {
+  background: #edf7ef;
+  border-color: #2f7d4f;
+}
+
+.parent-volunteer-day.is-selected span {
+  color: #1f6a3d;
+  font-weight: 700;
+}
+
+.parent-volunteer-day.is-full,
+.parent-volunteer-day:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .parent-home-intro {
   display: grid;
   min-width: 0;
@@ -1078,6 +1145,10 @@
     flex-direction: column;
   }
 
+  .parent-volunteer-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .parent-child-selector {
     justify-items: start;
   }
@@ -1103,6 +1174,10 @@
 }
 
 @media (max-width: 560px) {
+  .parent-volunteer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .parent-shell .parent-child-hero__stats {
     grid-template-columns: 1fr;
   }

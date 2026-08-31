@@ -108,6 +108,10 @@ export function SupervisorDashboardClient({
     { from: weekStart, to: weekEnd },
     { enabled: view === 'rota', retry: false },
   );
+  const parentVolunteerScheduleQuery = api.rota.parentVolunteerSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { enabled: view === 'rota', retry: false },
+  );
   const swapCandidatesQuery = api.rota.swapCandidates.useQuery(
     { from: weekStart, to: weekEnd },
     { enabled: view === 'rota', retry: false },
@@ -202,6 +206,7 @@ export function SupervisorDashboardClient({
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
   const teamShifts = teamScheduleQuery.data ?? [];
+  const parentVolunteers = parentVolunteerScheduleQuery.data ?? [];
   const swapCandidates = swapCandidatesQuery.data ?? [];
   const mySwapRequests = mySwapRequestsQuery.data ?? [];
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
@@ -785,6 +790,34 @@ export function SupervisorDashboardClient({
                         </strong>
                         <span>{formatShift(shift)}</span>
                         {shift.notes ? <em>{shift.notes}</em> : null}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h3>Parent volunteers this week</h3>
+                {parentVolunteerScheduleQuery.isLoading ? (
+                  <div className="empty-state">Loading parent volunteers...</div>
+                ) : null}
+                {parentVolunteerScheduleQuery.error ? (
+                  <p className="status--error">
+                    {friendlyErrorMessage(parentVolunteerScheduleQuery.error)}
+                  </p>
+                ) : null}
+                {!parentVolunteerScheduleQuery.isLoading && parentVolunteers.length === 0 ? (
+                  <div className="empty-state">No parent volunteers selected this week.</div>
+                ) : (
+                  <div className="rota-shift-list">
+                    {parentVolunteers.map((volunteer) => (
+                      <article
+                        className="rota-shift"
+                        key={volunteer.id}
+                        style={{ borderLeftColor: '#2563eb' }}
+                      >
+                        <strong>{volunteer.parent.fullName}</strong>
+                        <span>{volunteer.date}</span>
                       </article>
                     ))}
                   </div>

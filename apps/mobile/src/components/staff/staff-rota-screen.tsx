@@ -54,6 +54,18 @@ export function StaffRotaScreen({
     { from: monthBounds.from, to: monthBounds.to },
     { enabled: rotaMode === 'month', retry: false },
   );
+  const todayParentVolunteers = api.rota.parentVolunteerSchedule.useQuery(
+    { from: today, to: today },
+    { retry: false },
+  );
+  const weekParentVolunteers = api.rota.parentVolunteerSchedule.useQuery(
+    { from: weekStart, to: weekEnd },
+    { retry: false },
+  );
+  const monthParentVolunteers = api.rota.parentVolunteerSchedule.useQuery(
+    { from: monthBounds.from, to: monthBounds.to },
+    { enabled: rotaMode === 'month', retry: false },
+  );
   const availability = api.rota.myAvailability.useQuery(undefined, { retry: false });
   const monthlyAvailability = api.rota.myMonthlyAvailability.useQuery({ month }, { retry: false });
   const swapCandidates = api.rota.swapCandidates.useQuery(
@@ -147,11 +159,32 @@ export function StaffRotaScreen({
       : rotaMode === 'week'
         ? weekRota.error?.message
         : monthRota.error?.message;
+  const activeParentVolunteers =
+    rotaMode === 'today'
+      ? (todayParentVolunteers.data ?? [])
+      : rotaMode === 'week'
+        ? (weekParentVolunteers.data ?? [])
+        : (monthParentVolunteers.data ?? []);
+  const activeParentVolunteerLoading =
+    rotaMode === 'today'
+      ? todayParentVolunteers.isLoading
+      : rotaMode === 'week'
+        ? weekParentVolunteers.isLoading
+        : monthParentVolunteers.isLoading;
+  const activeParentVolunteerError =
+    rotaMode === 'today'
+      ? todayParentVolunteers.error?.message
+      : rotaMode === 'week'
+        ? weekParentVolunteers.error?.message
+        : monthParentVolunteers.error?.message;
   const pendingSwaps = (mySwaps.data ?? []).filter((swap) => swap.status === 'Pending');
   const refreshing =
     todayRota.isFetching ||
     weekRota.isFetching ||
     monthRota.isFetching ||
+    todayParentVolunteers.isFetching ||
+    weekParentVolunteers.isFetching ||
+    monthParentVolunteers.isFetching ||
     availability.isFetching ||
     monthlyAvailability.isFetching ||
     swapCandidates.isFetching ||
@@ -165,6 +198,9 @@ export function StaffRotaScreen({
       todayRota.refetch(),
       weekRota.refetch(),
       rotaMode === 'month' ? monthRota.refetch() : Promise.resolve(),
+      todayParentVolunteers.refetch(),
+      weekParentVolunteers.refetch(),
+      rotaMode === 'month' ? monthParentVolunteers.refetch() : Promise.resolve(),
       availability.refetch(),
       monthlyAvailability.refetch(),
       swapCandidates.refetch(),
@@ -253,6 +289,9 @@ export function StaffRotaScreen({
               mode={rotaMode}
               onChangeMode={setRotaMode}
               onChangeMonth={setMonth}
+              parentVolunteerError={activeParentVolunteerError}
+              parentVolunteerLoading={activeParentVolunteerLoading}
+              parentVolunteers={activeParentVolunteers}
               shifts={activeRota}
             />
           ) : null}

@@ -18,6 +18,18 @@ const secondSupervisorUser: SessionUser = {
   requires2fa: false,
 };
 const parentUser: SessionUser = { id: 'u_parent', role: 'Parent', tags: [], requires2fa: false };
+const secondParentUser: SessionUser = {
+  id: 'u_parent2',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
+const thirdParentUser: SessionUser = {
+  id: 'u_parent3',
+  role: 'Parent',
+  tags: [],
+  requires2fa: false,
+};
 const studentUser: SessionUser = { id: 'u_student', role: 'Student', tags: [], requires2fa: false };
 const clubsUser: SessionUser = {
   id: 'u_clubs',
@@ -88,6 +100,15 @@ interface StoredSwap {
   updatedAt: Date;
 }
 
+interface StoredParentVolunteerDay {
+  id: string;
+  parentUserId: string;
+  date: Date;
+  slot: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface FakeDb {
   $enc: { decrypt: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
@@ -114,6 +135,11 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     delete: ReturnType<typeof vi.fn>;
+  };
+  parentVolunteerDay: {
+    findMany: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
   };
   shiftSwapRequest: {
     findFirst: ReturnType<typeof vi.fn>;
@@ -176,6 +202,22 @@ function makeFakeDb() {
       createdAt: at('2026-04-23T09:00:00.000Z'),
     },
     {
+      id: secondParentUser.id,
+      role: 'Parent',
+      active: true,
+      fullNameEnc: 'enc:Second Parent',
+      emailEnc: 'enc:parent2@example.test',
+      createdAt: at('2026-04-24T09:00:00.000Z'),
+    },
+    {
+      id: thirdParentUser.id,
+      role: 'Parent',
+      active: true,
+      fullNameEnc: 'enc:Third Parent',
+      emailEnc: 'enc:parent3@example.test',
+      createdAt: at('2026-04-25T09:00:00.000Z'),
+    },
+    {
       id: clubsUser.id,
       role: 'ClubsAdmin',
       active: true,
@@ -192,6 +234,7 @@ function makeFakeDb() {
   const monthlyAvailability: StoredMonthlyAvailability[] = [];
   const shifts: StoredShift[] = [];
   const swaps: StoredSwap[] = [];
+  const parentVolunteerDays: StoredParentVolunteerDay[] = [];
 
   const withBand = (shift: StoredShift) => ({
     ...shift,
@@ -462,6 +505,64 @@ function makeFakeDb() {
         return Promise.resolve(withStaffAndBand(shift));
       }),
     },
+    parentVolunteerDay: {
+      findMany: vi.fn(
+        ({
+          where,
+        }: {
+          where: {
+            parentUserId?: string;
+            date: Date | { gte: Date; lte: Date };
+          };
+        }) =>
+          Promise.resolve(
+            parentVolunteerDays
+              .filter(
+                (row) =>
+                  where.parentUserId === undefined || row.parentUserId === where.parentUserId,
+              )
+              .filter((row) => {
+                if (where.date instanceof Date) return dateKey(row.date) === dateKey(where.date);
+                return (
+                  row.date.getTime() >= where.date.gte.getTime() &&
+                  row.date.getTime() <= where.date.lte.getTime()
+                );
+              })
+              .sort((a, b) => a.date.getTime() - b.date.getTime() || a.slot - b.slot)
+              .map((row) => ({
+                ...row,
+                parentUser: users.find((user) => user.id === row.parentUserId),
+              })),
+          ),
+      ),
+      deleteMany: vi.fn(({ where }: { where: { id: { in: string[] } } }) => {
+        const before = parentVolunteerDays.length;
+        for (let index = parentVolunteerDays.length - 1; index >= 0; index -= 1) {
+          const row = parentVolunteerDays[index];
+          if (row && where.id.in.includes(row.id)) parentVolunteerDays.splice(index, 1);
+        }
+        return Promise.resolve({ count: before - parentVolunteerDays.length });
+      }),
+      create: vi.fn(
+        ({ data }: { data: Pick<StoredParentVolunteerDay, 'parentUserId' | 'date' | 'slot'> }) => {
+          const duplicate = parentVolunteerDays.find(
+            (row) =>
+              (row.parentUserId === data.parentUserId &&
+                dateKey(row.date) === dateKey(data.date)) ||
+              (dateKey(row.date) === dateKey(data.date) && row.slot === data.slot),
+          );
+          if (duplicate) throw new Error('duplicate parent volunteer day');
+          const row: StoredParentVolunteerDay = {
+            id: `parent_volunteer_${String(parentVolunteerDays.length + 1)}`,
+            createdAt: at('2026-04-29T09:00:00.000Z'),
+            updatedAt: at('2026-04-29T09:00:00.000Z'),
+            ...data,
+          };
+          parentVolunteerDays.push(row);
+          return Promise.resolve(row);
+        },
+      ),
+    },
     shiftSwapRequest: {
       findFirst: vi.fn(
         ({
@@ -549,7 +650,7 @@ function makeFakeDb() {
     },
   };
 
-  return { db, users, availability, monthlyAvailability, shifts, swaps };
+  return { db, users, availability, monthlyAvailability, parentVolunteerDays, shifts, swaps };
 }
 
 function makeCaller(user: SessionUser | null, db: FakeDb) {
@@ -690,6 +791,115 @@ describe('rota availability', () => {
       code: 'BAD_REQUEST',
       message: 'monthly unavailability windows must not overlap',
     });
+  });
+});
+
+describe('parent volunteer days', () => {
+  function currentVolunteerWindowStart(): Date {
+    const start = day(dateKey(new Date()));
+    const dayOfWeek = start.getUTCDay();
+    start.setUTCDate(start.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
+    return start;
+  }
+
+  it('keeps parent selections private, caps each day at two, and shows staff the names', async () => {
+    const { db, parentVolunteerDays } = makeFakeDb();
+    const windowStart = currentVolunteerWindowStart();
+    const firstDate = dateKey(windowStart);
+    const secondDate = dateKey(new Date(windowStart.getTime() + 86_400_000));
+    const parentCaller = makeCaller(parentUser, db);
+
+    const initialSlots = await parentCaller.rota.parentVolunteerSlots();
+    expect(initialSlots.from).toBe(firstDate);
+    expect(initialSlots.days[0]).toMatchObject({ date: firstDate });
+    expect(initialSlots.days[0]).not.toHaveProperty('parent');
+    expect(initialSlots.days[0]).not.toHaveProperty('volunteers');
+
+    const parentSelection = await parentCaller.rota.setMyParentVolunteerDays({
+      dates: [firstDate, secondDate],
+    });
+    expect(parentSelection.days.find((slot) => slot.date === firstDate)).toMatchObject({
+      selected: true,
+      spacesRemaining: 1,
+      status: 'Selected',
+    });
+    expect(parentSelection.days.find((slot) => slot.date === secondDate)).toMatchObject({
+      selected: true,
+      spacesRemaining: 1,
+      status: 'Selected',
+    });
+
+    const secondParentSelection = await makeCaller(
+      secondParentUser,
+      db,
+    ).rota.setMyParentVolunteerDays({ dates: [firstDate] });
+    expect(secondParentSelection.days.find((slot) => slot.date === firstDate)).toMatchObject({
+      selected: true,
+      spacesRemaining: 0,
+      status: 'Selected',
+    });
+    await expect(
+      makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({ dates: [firstDate] }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: `${firstDate} already has two parent volunteers`,
+    });
+    expect(parentVolunteerDays).toHaveLength(3);
+
+    const updatedParentSelection = await parentCaller.rota.setMyParentVolunteerDays({
+      dates: [secondDate],
+    });
+    expect(updatedParentSelection.days.find((slot) => slot.date === firstDate)).toMatchObject({
+      selected: false,
+      spacesRemaining: 1,
+      status: 'Available',
+    });
+    expect(updatedParentSelection.days.find((slot) => slot.date === secondDate)).toMatchObject({
+      selected: true,
+      spacesRemaining: 1,
+      status: 'Selected',
+    });
+
+    await expect(
+      makeCaller(headUser, db).rota.parentVolunteerSchedule({
+        from: windowStart,
+        to: new Date(windowStart.getTime() + 13 * 86_400_000),
+      }),
+    ).resolves.toEqual([
+      {
+        id: 'parent_volunteer_3',
+        date: firstDate,
+        parent: { id: secondParentUser.id, fullName: 'Second Parent' },
+      },
+      {
+        id: 'parent_volunteer_2',
+        date: secondDate,
+        parent: { id: parentUser.id, fullName: 'Parent User' },
+      },
+    ]);
+  });
+
+  it('limits volunteering to parents and to the rolling two-week window', async () => {
+    const { db } = makeFakeDb();
+    const windowStart = currentVolunteerWindowStart();
+    const beforeWindow = new Date(windowStart);
+    beforeWindow.setUTCDate(beforeWindow.getUTCDate() - 1);
+
+    await expect(makeCaller(supervisorUser, db).rota.parentVolunteerSlots()).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await expect(
+      makeCaller(parentUser, db).rota.setMyParentVolunteerDays({ dates: [dateKey(beforeWindow)] }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'Volunteer days must be within the current two-week window',
+    });
+    await expect(
+      makeCaller(parentUser, db).rota.parentVolunteerSchedule({
+        from: windowStart,
+        to: windowStart,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 

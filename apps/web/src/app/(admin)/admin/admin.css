@@ -12286,10 +12286,25 @@ button.club-assignment-row {
   color: #991b1b;
 }
 
+.rota-availability-badge.is-parent {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .rota-availability-badge.is-empty {
   border-color: var(--oasis-border-light);
   background: #f8fbff;
   color: var(--oasis-text-muted);
+}
+
+.rota-parent-volunteers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--oasis-border-light);
 }
 
 .rota-shift-list,
