@@ -12,7 +12,9 @@ CREATE TABLE "StudentPaceSupply" (
 
   CONSTRAINT "StudentPaceSupply_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "StudentPaceSupply_studentId_subjectId_paceNumber_key"
-    UNIQUE ("studentId", "subjectId", "paceNumber")
+    UNIQUE ("studentId", "subjectId", "paceNumber"),
+  CONSTRAINT "StudentPaceSupply_paceNumber_check"
+    CHECK ("paceNumber" BETWEEN 1001 AND 1144)
 );
 
 ALTER TABLE "StudentPaceSupply"
@@ -48,6 +50,7 @@ SELECT
   "updatedAt"
 FROM "PaceInventoryOrder"
 WHERE "status" = 'Delivered'
+  AND "paceNumber" BETWEEN 1001 AND 1144
 ON CONFLICT ("studentId", "subjectId", "paceNumber") DO NOTHING;
 
 ALTER TABLE "DiagnosticResult" ADD COLUMN "deletedAt" TIMESTAMP(3);

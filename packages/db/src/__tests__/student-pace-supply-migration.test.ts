@@ -16,10 +16,12 @@ describe('student PACE supply migration', () => {
     expect(sql).toContain('CREATE TYPE "StudentPaceSupplySource"');
     expect(sql).toContain('CREATE TABLE "StudentPaceSupply"');
     expect(sql).toContain('UNIQUE ("studentId", "subjectId", "paceNumber")');
+    expect(sql).toContain('CHECK ("paceNumber" BETWEEN 1001 AND 1144)');
     expect(sql).toContain('INSERT INTO "StudentPaceSupply"');
     expect(sql).toContain("'DeliveredOrder'");
     expect(sql).toContain('FROM "PaceInventoryOrder"');
     expect(sql).toContain('WHERE "status" = \'Delivered\'');
+    expect(sql).toContain('AND "paceNumber" BETWEEN 1001 AND 1144');
     expect(sql).toContain('ON CONFLICT ("studentId", "subjectId", "paceNumber") DO NOTHING');
     expect(sql).toContain('ADD COLUMN "deletedAt" TIMESTAMP(3)');
     expect(sql).toContain('ADD COLUMN "deletedById" TEXT');
