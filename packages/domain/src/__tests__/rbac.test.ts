@@ -15,6 +15,7 @@ import {
   canUseAllStudentSupervisorWorkflow,
   canUsePrimaryStudentSupervisorWorkflow,
   canUseFullPaceAccess,
+  canUsePersonalTasks,
   canUseStaffMessaging,
   canViewAnyStudentDrillThrough,
   canViewAuditLog,
@@ -190,6 +191,18 @@ describe('canUseStaffMessaging', () => {
     expect(canUseStaffMessaging(clubsLead)).toBe(false);
     expect(canUseStaffMessaging(parent)).toBe(false);
     expect(canUseStaffMessaging(student)).toBe(false);
+  });
+});
+
+describe('canUsePersonalTasks', () => {
+  it('allows individual task lists for staffroom and technical support roles only', () => {
+    for (const user of [head, principal, pastor, hod, technicalSupport, clubsAdmin, supervisor]) {
+      expect(canUsePersonalTasks(user)).toBe(true);
+    }
+
+    expect(canUsePersonalTasks(clubsLead)).toBe(false);
+    expect(canUsePersonalTasks(parent)).toBe(false);
+    expect(canUsePersonalTasks(student)).toBe(false);
   });
 });
 
