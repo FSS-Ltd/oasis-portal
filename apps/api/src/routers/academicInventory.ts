@@ -62,6 +62,48 @@ function duplicatePaceNumbersMessage(prefix: string, paceNumbers: readonly numbe
   return `${prefix}: ${paceNumbers.join(', ')}`;
 }
 
+async function requirePaceNumbersAvailable(
+  tx: RlsTx,
+  input: { studentId: string; subjectId: string; paceNumbers: readonly number[] },
+): Promise<void> {
+  const [existingSupply, pendingOrders] = await Promise.all([
+    tx.studentPaceSupply.findMany({
+      where: {
+        studentId: input.studentId,
+        subjectId: input.subjectId,
+        paceNumber: { in: [...input.paceNumbers] },
+      },
+      select: { paceNumber: true },
+    }),
+    tx.paceInventoryOrder.findMany({
+      where: {
+        studentId: input.studentId,
+        subjectId: input.subjectId,
+        paceNumber: { in: [...input.paceNumbers] },
+        status: { in: ['Ordered', 'InTransit'] },
+      },
+      select: { paceNumber: true },
+    }),
+  ]);
+  const unavailablePaceNumbers = selectedPaceNumbersAlreadyExist(input.paceNumbers, [
+    ...existingSupply.map((item) => item.paceNumber),
+    ...pendingOrders.map((item) => item.paceNumber),
+  ]);
+  if (unavailablePaceNumbers.length > 0) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: duplicatePaceNumbersMessage(
+        'selected PACE numbers are already supplied or awaiting delivery',
+        unavailablePaceNumbers,
+      ),
+    });
+  }
+}
+
+function isUniqueConstraintConflict(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
+
 async function withSerializableInventoryRls<T>(
   ctx: Pick<AppContext, 'db' | 'user'>,
   mutation: (tx: RlsTx) => Promise<T>,
@@ -69,7 +111,7 @@ async function withSerializableInventoryRls<T>(
   try {
     return await applySerializableRlsTx(ctx.db, ctx.user, mutation);
   } catch (error) {
-    if (error instanceof RlsSerializationConflictError) {
+    if (error instanceof RlsSerializationConflictError || isUniqueConstraintConflict(error)) {
       throw new TRPCError({
         code: 'CONFLICT',
         message: 'The inventory changed while your request was being processed. Please retry.',
@@ -224,6 +266,7 @@ export const academicInventoryRouter = router({
     .mutation(async ({ ctx, input }) => {
       return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
+        await requirePaceNumbersAvailable(tx, { ...input, paceNumbers: [input.paceNumber] });
         const order = await tx.paceInventoryOrder.create({
           data: {
             studentId: input.studentId,
@@ -255,27 +298,7 @@ export const academicInventoryRouter = router({
     .mutation(async ({ ctx, input }) => {
       return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
-        const existingSupply = await tx.studentPaceSupply.findMany({
-          where: {
-            studentId: input.studentId,
-            subjectId: input.subjectId,
-            paceNumber: { in: input.paceNumbers },
-          },
-          select: { paceNumber: true },
-        });
-        const existingPaceNumbers = selectedPaceNumbersAlreadyExist(
-          input.paceNumbers,
-          existingSupply.map((item) => item.paceNumber),
-        );
-        if (existingPaceNumbers.length > 0) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: duplicatePaceNumbersMessage(
-              'selected PACE numbers already exist in supply',
-              existingPaceNumbers,
-            ),
-          });
-        }
+        await requirePaceNumbersAvailable(tx, input);
         const result = await tx.studentPaceSupply.createMany({
           data: input.paceNumbers.map((paceNumber) => ({
             studentId: input.studentId,
@@ -307,38 +330,7 @@ export const academicInventoryRouter = router({
     .mutation(async ({ ctx, input }) => {
       return withSerializableInventoryRls(ctx, async (tx) => {
         await requireAssignment(tx, input);
-        const [existingSupply, pendingOrders] = await Promise.all([
-          tx.studentPaceSupply.findMany({
-            where: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              paceNumber: { in: input.paceNumbers },
-            },
-            select: { paceNumber: true },
-          }),
-          tx.paceInventoryOrder.findMany({
-            where: {
-              studentId: input.studentId,
-              subjectId: input.subjectId,
-              paceNumber: { in: input.paceNumbers },
-              status: { in: ['Ordered', 'InTransit'] },
-            },
-            select: { paceNumber: true },
-          }),
-        ]);
-        const unavailablePaceNumbers = selectedPaceNumbersAlreadyExist(input.paceNumbers, [
-          ...existingSupply.map((item) => item.paceNumber),
-          ...pendingOrders.map((item) => item.paceNumber),
-        ]);
-        if (unavailablePaceNumbers.length > 0) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: duplicatePaceNumbersMessage(
-              'selected PACE numbers are already supplied or awaiting delivery',
-              unavailablePaceNumbers,
-            ),
-          });
-        }
+        await requirePaceNumbersAvailable(tx, input);
         const result = await tx.paceInventoryOrder.createMany({
           data: input.paceNumbers.map((paceNumber) => ({
             studentId: input.studentId,

@@ -631,6 +631,52 @@ describe('academic inventory router', () => {
     );
   });
 
+  it('rejects supply and order entry when the selected PACE is already unavailable', async () => {
+    const supplied = makeCaller(HEAD);
+    await addCurrentSupply(supplied.caller, [1011]);
+
+    await expectCode(createOrder(supplied.caller, { paceNumber: 1011 }), 'BAD_REQUEST');
+    await expectCode(
+      supplied.caller.academicInventory.createOrders({
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumbers: [1011],
+      }),
+      'BAD_REQUEST',
+    );
+
+    const pending = makeCaller(HEAD);
+    await createOrder(pending.caller, { paceNumber: 1013 });
+
+    await expectCode(addCurrentSupply(pending.caller, [1013]), 'BAD_REQUEST');
+    await expectCode(
+      pending.caller.academicInventory.createOrders({
+        studentId: STUDENT_ID,
+        subjectId: SUBJECT_ID,
+        paceNumbers: [1013],
+      }),
+      'BAD_REQUEST',
+    );
+
+    const bulkPending = makeCaller(HEAD);
+    await bulkPending.caller.academicInventory.createOrders({
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      paceNumbers: [1014],
+    });
+    await expectCode(createOrder(bulkPending.caller, { paceNumber: 1014 }), 'BAD_REQUEST');
+  });
+
+  it('maps a concurrent supply uniqueness conflict to a safe retriable error', async () => {
+    const { caller, db, supply } = makeCaller(HEAD);
+    db.studentPaceSupply.createMany.mockRejectedValueOnce({ code: 'P2002' });
+
+    await expectCode(addCurrentSupply(caller, [1011]), 'CONFLICT');
+
+    expect(supply).toEqual([]);
+    expect(db.auditLog.create).not.toHaveBeenCalled();
+  });
+
   it('rejects a Supervisor from every inventory procedure before database access', async () => {
     const { caller, orders, withRls } = makeCaller(SUPERVISOR);
 
@@ -705,9 +751,23 @@ describe('academic inventory router', () => {
   });
 
   it('moves orders through Ordered, InTransit, then Delivered', async () => {
-    const { auditInsideRls, caller, db, supply } = makeCaller(HEAD);
+    const { auditInsideRls, caller, db, orders, supply } = makeCaller(HEAD);
     await addCurrentSupply(caller, [1013]);
-    const order = await createOrder(caller);
+    const now = new Date();
+    const order: OrderRow = {
+      id: 'order_1',
+      studentId: STUDENT_ID,
+      subjectId: SUBJECT_ID,
+      paceNumber: 1013,
+      status: 'Ordered',
+      orderedAt: now,
+      inTransitAt: null,
+      deliveredAt: null,
+      createdById: HEAD.id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    orders.push(order);
     db.auditLog.create.mockClear();
 
     const inTransit = await caller.academicInventory.updateOrderStatus({
@@ -756,8 +816,8 @@ describe('academic inventory router', () => {
     );
     expect(supply).toHaveLength(1);
     expect(supply[0]).toMatchObject({ paceNumber: 1013, source: 'CurrentStock' });
-    expect(db.$transaction).toHaveBeenCalledTimes(4);
-    expect(auditInsideRls).toEqual([true, true, true, true]);
+    expect(db.$transaction).toHaveBeenCalledTimes(3);
+    expect(auditInsideRls).toEqual([true, true, true]);
   });
 
   it('rejects skipped and backward order transitions', async () => {
