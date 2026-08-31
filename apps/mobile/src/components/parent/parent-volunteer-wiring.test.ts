@@ -18,6 +18,10 @@ describe('parent volunteer mobile wiring', () => {
     expect(portal).toMatch(/ParentVolunteerScreen/);
     expect(portal).toMatch(/'volunteer'/);
     expect(portal).toMatch(/api\.rota\.parentVolunteerSlots\.useQuery/);
+    expect(portal).toMatch(/const canUseParentVolunteer = user\.role === 'Parent'/);
+    expect(portal).toMatch(/enabled: canUseParentVolunteer && route === 'volunteer'/);
+    expect(portal).toMatch(/const visibleParentTabs = parentTabs\.filter/);
+    expect(portal).toMatch(/canUseParentVolunteer \|\| tab\.id !== 'volunteer'/);
     expect(portal).toMatch(/route === 'volunteer'/);
     expect(screen).toMatch(/api\.rota\.setMyParentVolunteerDays\.useMutation/);
     expect(screen).toContain('Centre Volunteer');

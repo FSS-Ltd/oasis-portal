@@ -967,25 +967,29 @@ describe('parent volunteer days', () => {
       status: 'Selected',
     });
 
-    await expect(
-      makeCaller(headUser, db).rota.parentVolunteerSchedule({
-        from: windowStart,
-        to: new Date(windowStart.getTime() + 13 * 86_400_000),
-      }),
-    ).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          date: firstDate,
-          placement: 'LunchAndClubsPrimary',
-          parent: { id: secondParentUser.id, fullName: 'Second Parent' },
-        }),
-        expect.objectContaining({
-          date: secondDate,
-          placement: 'LunchAndClubsSecondary',
-          parent: { id: thirdParentUser.id, fullName: 'Third Parent' },
-        }),
-      ]),
-    );
+    const scheduleInput = {
+      from: windowStart,
+      to: new Date(windowStart.getTime() + 13 * 86_400_000),
+    };
+    for (const user of [headUser, technicalSupportUser]) {
+      const volunteerSchedule = await makeCaller(user, db).rota.parentVolunteerSchedule(
+        scheduleInput,
+      );
+      expect(volunteerSchedule).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            date: firstDate,
+            placement: 'LunchAndClubsPrimary',
+            parent: { id: secondParentUser.id, fullName: 'Second Parent' },
+          }),
+          expect.objectContaining({
+            date: secondDate,
+            placement: 'LunchAndClubsSecondary',
+            parent: { id: thirdParentUser.id, fullName: 'Third Parent' },
+          }),
+        ]),
+      );
+    }
   });
 
   it('limits volunteering to parents and to the rolling two-week window', async () => {

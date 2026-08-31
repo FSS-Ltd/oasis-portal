@@ -50,8 +50,6 @@ const parentMobileNavHrefs = new Set([
   '/parent/fees',
   '/parent/messages',
 ]);
-const parentTopNavItems = parentNavItems.filter((item) => item.href !== '/parent/profile');
-const parentMobileNavItems = parentNavItems.filter((item) => parentMobileNavHrefs.has(item.href));
 const navIconSize = 15;
 
 function isActiveRoute(pathname: string, href: string, label: string) {
@@ -66,8 +64,15 @@ function countBadge(count: number): string | null {
 }
 
 interface ParentNavProps {
+  canUseParentVolunteer: boolean;
   unreadMessageCount: number;
   unreadNoticeCount: number;
+}
+
+function visibleParentNavItems(canUseParentVolunteer: boolean): readonly ParentNavItem[] {
+  return canUseParentVolunteer
+    ? parentNavItems
+    : parentNavItems.filter((item) => item.href !== '/parent/volunteer');
 }
 
 function badgeForItem(
@@ -125,12 +130,17 @@ function ParentNavLink({
   );
 }
 
-export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+export function ParentSidebarNav({
+  canUseParentVolunteer,
+  unreadMessageCount,
+  unreadNoticeCount,
+}: ParentNavProps) {
   const pathname = usePathname() ?? '';
+  const visibleItems = visibleParentNavItems(canUseParentVolunteer);
 
   return (
     <nav className="admin-shell__nav">
-      {parentNavItems.map((item) => {
+      {visibleItems.map((item) => {
         const active = isActiveRoute(pathname, item.href, item.label);
 
         return (
@@ -149,12 +159,19 @@ export function ParentSidebarNav({ unreadMessageCount, unreadNoticeCount }: Pare
   );
 }
 
-export function ParentTopNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+export function ParentTopNav({
+  canUseParentVolunteer,
+  unreadMessageCount,
+  unreadNoticeCount,
+}: ParentNavProps) {
   const pathname = usePathname() ?? '';
+  const visibleItems = visibleParentNavItems(canUseParentVolunteer).filter(
+    (item) => item.href !== '/parent/profile',
+  );
 
   return (
     <nav aria-label="Parent portal sections" className="parent-top-nav">
-      {parentTopNavItems.map((item) => {
+      {visibleItems.map((item) => {
         const active = isActiveRoute(pathname, item.href, item.label);
 
         return (
@@ -172,12 +189,19 @@ export function ParentTopNav({ unreadMessageCount, unreadNoticeCount }: ParentNa
   );
 }
 
-export function ParentBottomNav({ unreadMessageCount, unreadNoticeCount }: ParentNavProps) {
+export function ParentBottomNav({
+  canUseParentVolunteer,
+  unreadMessageCount,
+  unreadNoticeCount,
+}: ParentNavProps) {
   const pathname = usePathname() ?? '';
+  const visibleItems = visibleParentNavItems(canUseParentVolunteer).filter((item) =>
+    parentMobileNavHrefs.has(item.href),
+  );
 
   return (
     <nav aria-label="Mobile parent sections" className="admin-shell__bottom-nav">
-      {parentMobileNavItems.map((item) => {
+      {visibleItems.map((item) => {
         const active = isActiveRoute(pathname, item.href, item.label);
 
         return (

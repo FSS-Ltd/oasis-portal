@@ -71,6 +71,7 @@ export function ParentPortalScreen({
   user: SessionUser;
 }) {
   const { signOut } = useClerk();
+  const canUseParentVolunteer = user.role === 'Parent';
   const [route, setRoute] = useState<ParentPortalRoute>('home');
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [messageCursor, setMessageCursor] = useState<string | undefined>(undefined);
@@ -130,7 +131,7 @@ export function ParentPortalScreen({
     retry: false,
   });
   const parentVolunteerSlots = api.rota.parentVolunteerSlots.useQuery(undefined, {
-    enabled: route === 'volunteer',
+    enabled: canUseParentVolunteer && route === 'volunteer',
     retry: false,
   });
   const utils = api.useUtils();
@@ -143,6 +144,9 @@ export function ParentPortalScreen({
   const unreadMessageCount = conversations.reduce(
     (count, conversation) => count + conversation.unreadCount,
     0,
+  );
+  const visibleParentTabs = parentTabs.filter(
+    (tab) => canUseParentVolunteer || tab.id !== 'volunteer',
   );
 
   useEffect(() => {
@@ -173,7 +177,9 @@ export function ParentPortalScreen({
       route === 'shop' ? shopReservations.refetch() : Promise.resolve(),
       route === 'fees' ? parentInvoices.refetch() : Promise.resolve(),
       route === 'calendar' ? parentCalendar.refetch() : Promise.resolve(),
-      route === 'volunteer' ? parentVolunteerSlots.refetch() : Promise.resolve(),
+      canUseParentVolunteer && route === 'volunteer'
+        ? parentVolunteerSlots.refetch()
+        : Promise.resolve(),
       route === 'slips' ? permissionSlips.refetch() : Promise.resolve(),
     ]);
   }
@@ -218,7 +224,7 @@ export function ParentPortalScreen({
   const bottomNav = (
     <PortalMobileBottomNav
       activeId={route}
-      items={parentTabs.map((tab) => ({
+      items={visibleParentTabs.map((tab) => ({
         ...tab,
         badge:
           tab.id === 'notices'

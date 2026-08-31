@@ -792,38 +792,39 @@ export const rotaRouter = router({
       return listParentVolunteerSlots(ctx);
     }),
 
-  parentVolunteerSchedule: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
-    assertStaffWorkflow(ctx.user);
-    const from = normalizeDate(input.from);
-    const to = normalizeDate(input.to);
-    const rows = await ctx.db.parentVolunteerDay.findMany({
-      where: { date: { gte: from, lte: to } },
-      orderBy: [{ date: 'asc' }, { slot: 'asc' }],
-      include: {
-        parentUser: { select: { id: true, fullNameEnc: true } },
-      },
-    });
-    const volunteers = rows.map((row) => ({
-      id: row.id,
-      date: dateKey(row.date),
-      placement: row.placement,
-      parent: {
-        id: row.parentUser.id,
-        fullName: decryptRequired(ctx.db.$enc.decrypt, row.parentUser.fullNameEnc, 'parent'),
-      },
-    }));
+  parentVolunteerSchedule: adminOperationsProcedure
+    .input(dateRangeInput)
+    .query(async ({ ctx, input }) => {
+      const from = normalizeDate(input.from);
+      const to = normalizeDate(input.to);
+      const rows = await ctx.db.parentVolunteerDay.findMany({
+        where: { date: { gte: from, lte: to } },
+        orderBy: [{ date: 'asc' }, { slot: 'asc' }],
+        include: {
+          parentUser: { select: { id: true, fullNameEnc: true } },
+        },
+      });
+      const volunteers = rows.map((row) => ({
+        id: row.id,
+        date: dateKey(row.date),
+        placement: row.placement,
+        parent: {
+          id: row.parentUser.id,
+          fullName: decryptRequired(ctx.db.$enc.decrypt, row.parentUser.fullNameEnc, 'parent'),
+        },
+      }));
 
-    await ctx.db.auditLog.create({
-      data: {
-        userId: ctx.user.id,
-        action: 'DecryptPii',
-        entity: 'ParentVolunteerDay',
-        meta: { count: volunteers.length, source: 'rota.parentVolunteerSchedule' },
-      },
-    });
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'DecryptPii',
+          entity: 'ParentVolunteerDay',
+          meta: { count: volunteers.length, source: 'rota.parentVolunteerSchedule' },
+        },
+      });
 
-    return volunteers;
-  }),
+      return volunteers;
+    }),
 
   myRota: authedProcedure.input(dateRangeInput).query(async ({ ctx, input }) => {
     assertStaffWorkflow(ctx.user);

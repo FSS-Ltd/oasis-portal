@@ -60,7 +60,11 @@ export default async function ParentLayout({ children }: { children: ReactNode }
   const user = await getLinkedChildPortalUser();
   const [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount] =
     await loadParentShellCounts(user);
-  const parentNavProps = { unreadMessageCount, unreadNoticeCount };
+  const parentNavProps = {
+    canUseParentVolunteer: user.role === 'Parent',
+    unreadMessageCount,
+    unreadNoticeCount,
+  };
   const hasLinkedChildren = linkedChildren > 0;
   const hasAssignedClub = assignedClubLeadCount > 0;
   const staffView = staffPortalViewForUser(user);
