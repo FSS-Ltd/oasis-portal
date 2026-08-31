@@ -79,6 +79,10 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(pickerSource, /!isAvailable && !isSelected/);
   assert.match(pickerSource, /Selected/);
   assert.match(pickerSource, /Unavailable/);
+  assert.match(
+    pickerSource,
+    /Unavailable PACEs are\s+normally disabled, but an already selected unavailable PACE can still be removed\./,
+  );
 });
 
 test('PACE Progress is exact while PACE Inventory owns its nested routes', () => {

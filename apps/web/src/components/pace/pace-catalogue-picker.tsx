@@ -49,7 +49,7 @@ export function PaceCataloguePicker({
       </div>
       <p className="field__hint">
         Select PACE numbers to add to current supply or create tracked orders. Unavailable PACEs are
-        disabled.
+        normally disabled, but an already selected unavailable PACE can still be removed.
       </p>
       <div className="pace-catalogue-picker__levels">
         {levels.map((level) => (
