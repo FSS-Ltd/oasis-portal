@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput } from '@/components/ui/field';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
@@ -71,6 +72,7 @@ export function PaceInventoryClient() {
   const [studentId, setStudentId] = useState('');
   const [subjectId, setSubjectId] = useState('');
   const [selectedPaceNumbers, setSelectedPaceNumbers] = useState<number[]>([]);
+  const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
 
   const summary = summaryQuery.data;
   const students = summary?.students ?? [];
@@ -144,6 +146,16 @@ export function PaceInventoryClient() {
     },
     onError(error) {
       showErrorToast(error, 'PACE order status could not be updated.');
+    },
+  });
+  const deleteDiagnostic = api.academicInventory.deleteDiagnostic.useMutation({
+    async onSuccess() {
+      setPendingDiagnosticId(null);
+      showSuccessToast('Diagnostic result deleted.');
+      await invalidateInventory();
+    },
+    onError(error) {
+      showErrorToast(error, 'Diagnostic result could not be deleted.');
     },
   });
   const isBulkMutationPending = addCurrentSupply.isPending || createOrders.isPending;
@@ -255,6 +267,24 @@ export function PaceInventoryClient() {
       id: 'recorded',
       header: 'Recorded',
       render: (diagnostic) => formatDate(diagnostic.recordedAt),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      render: (diagnostic) => (
+        <Button
+          disabled={deleteDiagnostic.isPending}
+          onClick={() => {
+            deleteDiagnostic.reset();
+            setPendingDiagnosticId(diagnostic.id);
+          }}
+          size="sm"
+          type="button"
+          variant="danger"
+        >
+          Delete diagnostic
+        </Button>
+      ),
     },
   ];
 
@@ -458,6 +488,28 @@ export function PaceInventoryClient() {
           />
         </div>
       </section>
+
+      {pendingDiagnosticId ? (
+        <ConfirmationDialog
+          confirmLabel="Delete diagnostic"
+          errorMessage={
+            deleteDiagnostic.error ? friendlyErrorMessage(deleteDiagnostic.error) : undefined
+          }
+          onCancel={() => {
+            setPendingDiagnosticId(null);
+          }}
+          onConfirm={() => {
+            deleteDiagnostic.mutate({ diagnosticId: pendingDiagnosticId });
+          }}
+          open
+          pending={deleteDiagnostic.isPending}
+          title="Delete diagnostic result?"
+          variant="danger"
+        >
+          This removes the diagnostic reference only. It does not change the student&apos;s current
+          PACE.
+        </ConfirmationDialog>
+      ) : null}
     </div>
   );
 }

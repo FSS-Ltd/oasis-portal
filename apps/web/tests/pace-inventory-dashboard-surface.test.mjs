@@ -33,7 +33,7 @@ test('the dashboard provides a Head-only PACE Inventory route backed by the inve
   assert.match(routeSource, /PaceInventoryClient/);
 });
 
-test('the PACE Inventory client supports bulk supply, tracked orders, status changes, and diagnostics', () => {
+test('the PACE Inventory client supports bulk supply, tracked orders, status changes, and diagnostic corrections', () => {
   const clientPath = path.join(webRoot, 'src/components/pace/pace-inventory-client.tsx');
   const pickerPath = path.join(webRoot, 'src/components/pace/pace-catalogue-picker.tsx');
 
@@ -46,6 +46,9 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(clientSource, /api\.academicInventory\.addCurrentSupply\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.createOrders\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.updateOrderStatus\.useMutation/);
+  assert.match(clientSource, /api\.academicInventory\.deleteDiagnostic\.useMutation/);
+  assert.match(clientSource, /Delete diagnostic/);
+  assert.match(clientSource, /ConfirmationDialog/);
   assert.match(
     clientSource,
     /const isBulkMutationPending = addCurrentSupply\.isPending \|\| createOrders\.isPending/,
@@ -65,4 +68,14 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(pickerSource, /!isAvailable && !isSelected/);
   assert.match(pickerSource, /Selected/);
   assert.match(pickerSource, /Unavailable/);
+});
+
+test('PACE Progress is exact while PACE Inventory owns its nested routes', () => {
+  const adminNavSource = readWeb('src/components/admin/admin-nav.tsx');
+
+  assert.match(adminNavSource, /href === '\/admin\/pace'[^\n]*pathname === href/);
+  assert.match(
+    adminNavSource,
+    /return pathname === href \|\| pathname\.startsWith\(`\$\{href\}\/`\);/,
+  );
 });

@@ -21,6 +21,7 @@ import {
   ShieldAlert,
   MessageSquare,
   MonitorCheck,
+  PackageCheck,
   ReceiptText,
   ShoppingBag,
   Smartphone,
@@ -67,6 +68,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: '/admin/students', label: 'Students', icon: GraduationCap },
       { href: '/admin/pace', label: 'PACE', icon: BookOpenCheck },
+      { href: '/admin/pace/inventory', label: 'PACE Inventory', icon: PackageCheck },
       { href: '/admin/homework', label: 'Homework', icon: ClipboardList },
       { href: '/admin/academic', label: 'Academics', icon: BookOpen },
       { href: '/admin/faith-corner', label: 'Faith Corner', icon: BookOpenText },
@@ -140,6 +142,7 @@ type AdminNavProps = {
   canUsePersonalTasks: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
+  isHead: boolean;
   fullAdmin: boolean;
   canUseMessages: boolean;
   unreadMessageCount: number;
@@ -151,6 +154,7 @@ function isActiveRoute(pathname: string, href: string, label: string): boolean {
   if (href === '/admin') {
     return label === 'Dashboard' && pathname === '/admin';
   }
+  if (href === '/admin/pace') return pathname === href;
 
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -182,6 +186,7 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'Calendar') return true;
   if (item.label === 'My tasks') return access.canUsePersonalTasks;
   if (item.label === 'Mobile App') return true;
+  if (item.label === 'PACE Inventory') return access.isHead;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
