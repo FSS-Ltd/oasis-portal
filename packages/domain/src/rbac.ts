@@ -140,6 +140,15 @@ export function canUseStaffMessaging(user: Pick<SessionUser, 'role'>): boolean {
   return isStaff(user) || user.role === 'TechnicalSupport';
 }
 
+/**
+ * Personal Daily Ops tasks are available to every staff-facing role, including
+ * Technical Support. This is deliberately separate from `isStaff`, whose
+ * narrower meaning governs supervisor workflows.
+ */
+export function canUsePersonalTasks(user: Pick<SessionUser, 'role'>): boolean {
+  return isStaff(user) || user.role === 'TechnicalSupport';
+}
+
 export function canManageClubs(user: Pick<SessionUser, 'role'>): boolean {
   return user.role === 'ClubsAdmin' || canUseAdminOperations(user);
 }
@@ -260,6 +269,12 @@ export function requireCanManageUserAccountRole(actor: SessionUser, targetRole: 
 export function requireStaff(user: SessionUser): void {
   if (!isStaff(user)) {
     throw new AccessDeniedError('supervisor workflow requires full-admin or Supervisor');
+  }
+}
+
+export function requirePersonalTasks(user: SessionUser): void {
+  if (!canUsePersonalTasks(user)) {
+    throw new AccessDeniedError(`role ${user.role} cannot use personal tasks`);
   }
 }
 

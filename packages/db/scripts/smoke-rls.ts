@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type Prisma } from '@prisma/client';
 import { blindIndex, encryptField } from '../src/encryption.js';
 
 function prismaWithOptionalUrl(url: string | undefined): PrismaClient {
@@ -17,8 +17,13 @@ const RUNTIME_ROLE = 'oasis_app';
 const RUNTIME_PASSWORD = 'oasis_app_ci_password';
 
 type CountRow = { count: bigint };
+type RuntimeSession = {
+  fullAdmin: boolean;
+  role: string;
+  userId: string;
+};
 
-function assertVisibleBehaviourCount({
+function assertVisibleCount({
   actual,
   expected,
   label,
@@ -73,6 +78,20 @@ async function prepareRuntimeRole() {
   `);
 }
 
+async function withRuntimeSession<T>(
+  client: PrismaClient,
+  session: RuntimeSession,
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return client.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.user_id', ${session.userId}, true)`;
+    await tx.$executeRaw`SELECT set_config('app.user_role', ${session.role}, true)`;
+    await tx.$executeRaw`SELECT set_config('app.full_admin', ${String(session.fullAdmin)}, true)`;
+
+    return run(tx);
+  });
+}
+
 async function countVisibleBehaviour(
   client: PrismaClient,
   userId: string,
@@ -80,19 +99,110 @@ async function countVisibleBehaviour(
   fullAdmin: boolean,
   visibility: string,
 ) {
-  const rows = await client.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('app.user_id', ${userId}, true)`;
-    await tx.$executeRaw`SELECT set_config('app.user_role', ${role}, true)`;
-    await tx.$executeRaw`SELECT set_config('app.full_admin', ${String(fullAdmin)}, true)`;
-
-    return tx.$queryRaw<CountRow[]>`
+  const rows = await withRuntimeSession(
+    client,
+    { fullAdmin, role, userId },
+    (tx) =>
+      tx.$queryRaw<CountRow[]>`
       SELECT COUNT(*)::bigint AS count
       FROM "BehaviourEntry"
       WHERE "visibility" = ${visibility}::"BehaviourVisibility"
-    `;
-  });
+    `,
+  );
 
   return Number(rows[0]?.count ?? 0n);
+}
+
+async function countVisiblePersonalTasks(
+  client: PrismaClient,
+  session: RuntimeSession,
+): Promise<number> {
+  const rows = await withRuntimeSession(
+    client,
+    session,
+    (tx) =>
+      tx.$queryRaw<CountRow[]>`
+      SELECT COUNT(*)::bigint AS count
+      FROM "PersonalTask"
+    `,
+  );
+
+  return Number(rows[0]?.count ?? 0n);
+}
+
+async function insertPersonalTask(
+  client: PrismaClient,
+  session: RuntimeSession,
+  id: string,
+  title: string,
+): Promise<void> {
+  const inserted = await withRuntimeSession(
+    client,
+    session,
+    (tx) =>
+      tx.$executeRaw`
+      INSERT INTO "PersonalTask" ("id", "ownerId", "title", "updatedAt")
+      VALUES (${id}, ${session.userId}, ${title}, NOW())
+    `,
+  );
+
+  if (inserted !== 1) {
+    throw new Error(`Expected to insert personal task ${id}`);
+  }
+}
+
+async function assertPersonalTaskIsolation(client: PrismaClient): Promise<void> {
+  const authorSession: RuntimeSession = {
+    fullAdmin: false,
+    role: 'Supervisor',
+    userId: 'ci-sup-author',
+  };
+
+  const crossOwnerRead = await withRuntimeSession(
+    client,
+    authorSession,
+    (tx) =>
+      tx.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "PersonalTask"
+      WHERE "id" = 'ci-task-other'
+    `,
+  );
+  if (crossOwnerRead.length !== 0) {
+    throw new Error('cross-owner personal task read unexpectedly returned a task');
+  }
+
+  const crossOwnerUpdate = await withRuntimeSession(
+    client,
+    authorSession,
+    (tx) =>
+      tx.$executeRaw`
+      UPDATE "PersonalTask"
+      SET "title" = 'Unexpected update'
+      WHERE "id" = 'ci-task-other'
+    `,
+  );
+  if (crossOwnerUpdate !== 0) {
+    throw new Error('cross-owner personal task update unexpectedly succeeded');
+  }
+
+  let crossOwnerInsertBlocked = false;
+  try {
+    await withRuntimeSession(
+      client,
+      authorSession,
+      (tx) =>
+        tx.$executeRaw`
+        INSERT INTO "PersonalTask" ("id", "ownerId", "title", "updatedAt")
+        VALUES ('ci-task-intrusion', 'ci-sup-other', 'Unexpected insert', NOW())
+      `,
+    );
+  } catch {
+    crossOwnerInsertBlocked = true;
+  }
+  if (!crossOwnerInsertBlocked) {
+    throw new Error('cross-owner personal task insert unexpectedly succeeded');
+  }
 }
 
 async function main() {
@@ -144,6 +254,26 @@ async function main() {
         ${encryptField('2015-01-01')}, 'Y5', NOW(), NOW()
       )
     `;
+
+    await insertPersonalTask(
+      runtimePrisma,
+      { fullAdmin: true, role: 'Head', userId: 'ci-head' },
+      'ci-task-head',
+      'Head task',
+    );
+    await insertPersonalTask(
+      runtimePrisma,
+      { fullAdmin: false, role: 'Supervisor', userId: 'ci-sup-author' },
+      'ci-task-author',
+      'Author task',
+    );
+    await insertPersonalTask(
+      runtimePrisma,
+      { fullAdmin: false, role: 'Supervisor', userId: 'ci-sup-other' },
+      'ci-task-other',
+      'Other task',
+    );
+    await assertPersonalTaskIsolation(runtimePrisma);
 
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.user_id', 'ci-head', true)`;
@@ -204,23 +334,47 @@ async function main() {
       'General',
     );
 
-    assertVisibleBehaviourCount({ actual: fullAdminSensitive, expected: 2, label: 'full admin' });
-    assertVisibleBehaviourCount({ actual: hodSensitive, expected: 2, label: 'HOD' });
-    assertVisibleBehaviourCount({ actual: principalSensitive, expected: 2, label: 'Principal' });
-    assertVisibleBehaviourCount({
+    assertVisibleCount({ actual: fullAdminSensitive, expected: 2, label: 'full admin' });
+    assertVisibleCount({ actual: hodSensitive, expected: 2, label: 'HOD' });
+    assertVisibleCount({ actual: principalSensitive, expected: 2, label: 'Principal' });
+    assertVisibleCount({
       actual: authorSupervisorSensitive,
       expected: 2,
       label: 'author supervisor',
     });
-    assertVisibleBehaviourCount({
+    assertVisibleCount({
       actual: otherSupervisorSensitive,
       expected: 0,
       label: 'other supervisor',
     });
-    assertVisibleBehaviourCount({ actual: supervisorGeneral, expected: 1, label: 'supervisor' });
+    assertVisibleCount({ actual: supervisorGeneral, expected: 1, label: 'supervisor' });
+
+    const headTasks = await countVisiblePersonalTasks(runtimePrisma, {
+      fullAdmin: true,
+      role: 'Head',
+      userId: 'ci-head',
+    });
+    const authorTasks = await countVisiblePersonalTasks(runtimePrisma, {
+      fullAdmin: false,
+      role: 'Supervisor',
+      userId: 'ci-sup-author',
+    });
+    const otherTasks = await countVisiblePersonalTasks(runtimePrisma, {
+      fullAdmin: false,
+      role: 'Supervisor',
+      userId: 'ci-sup-other',
+    });
+
+    assertVisibleCount({ actual: headTasks, expected: 1, label: 'Head personal tasks' });
+    assertVisibleCount({
+      actual: authorTasks,
+      expected: 1,
+      label: 'author personal tasks',
+    });
+    assertVisibleCount({ actual: otherTasks, expected: 1, label: 'other personal tasks' });
 
     console.warn(
-      'RLS smoke passed: full admins and author supervisor see Sensitive demerits and General marks; other supervisor does not.',
+      'RLS smoke passed: sensitive behaviour rules and owner-only personal task access are enforced.',
     );
   } finally {
     await runtimePrisma.$disconnect();

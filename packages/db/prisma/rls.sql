@@ -8,6 +8,38 @@
 --   SET app.user_role = 'Head' | 'Principal' | ...;
 --   SET app.full_admin = 'true' | 'false';
 
+ALTER TABLE "PersonalTask" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "PersonalTask" FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS personal_task_owner_only ON "PersonalTask";
+
+CREATE POLICY personal_task_owner_only ON "PersonalTask"
+  FOR ALL
+  USING (
+    current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+    AND "ownerId" = current_setting('app.user_id', true)
+  )
+  WITH CHECK (
+    current_setting('app.user_role', true) IN (
+      'Head',
+      'Principal',
+      'Pastor',
+      'HeadOfDiscipline',
+      'TechnicalSupport',
+      'ClubsAdmin',
+      'Supervisor'
+    )
+    AND "ownerId" = current_setting('app.user_id', true)
+  );
+
 ALTER TABLE "StudentPortalSettings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "StudentPortalSettings" FORCE ROW LEVEL SECURITY;
 

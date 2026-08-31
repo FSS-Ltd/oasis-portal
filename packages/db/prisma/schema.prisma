@@ -192,8 +192,26 @@ model User {
   homeworkSubmissionImagesUploaded   HomeworkSubmissionImage[]         @relation("HomeworkSubmissionImagesUploaded")
   homeworkAssignmentImagesUploaded   HomeworkAssignmentImage[]         @relation("HomeworkAssignmentImagesUploaded")
   charityPotsUpdated               CharityPot[]                     @relation("CharityPotUpdated")
+  personalTasks                    PersonalTask[]
 
   @@index([role])
+}
+
+model PersonalTask {
+  id          String    @id @default(cuid())
+  ownerId     String
+  title       String
+  dueAt       DateTime?
+  reminderAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, completedAt, dueAt])
+  @@index([ownerId, createdAt])
+  @@index([ownerId, reminderAt])
 }
 
 model UserInvitation {

@@ -58,6 +58,7 @@ const navGroups: NavGroup[] = [
       { href: '/admin/rota', label: 'Rota', icon: CalendarDays },
       { href: '/admin/calendar', label: 'Calendar', icon: CalendarDays },
       { href: '/admin/snapshot', label: 'Snapshot', icon: ClipboardList },
+      { href: '/admin/tasks', label: 'My tasks', icon: ClipboardCheck },
     ],
   },
   {
@@ -136,6 +137,7 @@ type AdminNavProps = {
   canManagePermissionSlips: boolean;
   canUseShop: boolean;
   canUseAdminOperations: boolean;
+  canUsePersonalTasks: boolean;
   clubsOnly: boolean;
   canExportAttendance: boolean;
   fullAdmin: boolean;
@@ -178,6 +180,7 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'Invoices') return access.fullAdmin || access.canManageInvoices;
   if (item.label === 'Merit Shop') return access.fullAdmin || access.canUseShop;
   if (item.label === 'Calendar') return true;
+  if (item.label === 'My tasks') return access.canUsePersonalTasks;
   if (item.label === 'Mobile App') return true;
   if (access.fullAdmin) {
     if (item.label === 'User Access') return false;

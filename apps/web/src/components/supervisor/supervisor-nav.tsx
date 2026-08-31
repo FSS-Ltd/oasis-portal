@@ -8,6 +8,7 @@ import {
   Bell,
   CalendarCheck,
   CalendarDays,
+  ClipboardCheck,
   Club,
   ClipboardList,
   FileText,
@@ -50,6 +51,7 @@ const navGroups: NavGroup[] = [
       { href: '/supervisor/behaviour', label: 'Behaviour', icon: Star },
       { href: '/supervisor/incidents', label: 'Incidents', icon: ShieldAlert },
       { href: '/supervisor/snapshot', label: 'Snapshot', icon: ClipboardList },
+      { href: '/supervisor/tasks', label: 'My tasks', icon: ClipboardCheck },
     ],
   },
   {
