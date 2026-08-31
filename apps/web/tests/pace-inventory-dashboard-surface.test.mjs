@@ -46,10 +46,13 @@ test('the dashboard provides a Head-only PACE Inventory route backed by the inve
 
 test('the PACE Inventory client supports bulk supply, tracked orders, status changes, and diagnostic corrections', () => {
   const clientPath = path.join(webRoot, 'src/components/pace/pace-inventory-client.tsx');
+  const diagnosticFormPath = path.join(webRoot, 'src/components/pace/pace-diagnostic-form.tsx');
   const pickerPath = path.join(webRoot, 'src/components/pace/pace-catalogue-picker.tsx');
 
   assert.equal(existsSync(clientPath), true);
   const clientSource = readFileSync(clientPath, 'utf8');
+  assert.equal(existsSync(diagnosticFormPath), true);
+  const diagnosticFormSource = readFileSync(diagnosticFormPath, 'utf8');
   assert.equal(existsSync(pickerPath), true);
   const pickerSource = readFileSync(pickerPath, 'utf8');
 
@@ -57,7 +60,9 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(clientSource, /api\.academicInventory\.addCurrentSupply\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.createOrders\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.updateOrderStatus\.useMutation/);
+  assert.match(clientSource, /api\.academicInventory\.recordDiagnostic\.useMutation/);
   assert.match(clientSource, /api\.academicInventory\.deleteDiagnostic\.useMutation/);
+  assert.match(clientSource, /PaceDiagnosticForm/);
   assert.match(clientSource, /Delete diagnostic/);
   assert.match(clientSource, /ConfirmationDialog/);
   assert.match(
@@ -83,6 +88,11 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
     pickerSource,
     /Unavailable PACEs are\s+normally disabled, but an already selected unavailable PACE can still be removed\./,
   );
+  assert.match(diagnosticFormSource, /<form/);
+  assert.match(diagnosticFormSource, /label="Level"/);
+  assert.match(diagnosticFormSource, /label="Outcome"/);
+  assert.match(diagnosticFormSource, /Record diagnostic/);
+  assert.match(diagnosticFormSource, /It does not change the student&apos;s current PACE\./);
 });
 
 test('PACE Progress is exact while PACE Inventory owns its nested routes', () => {

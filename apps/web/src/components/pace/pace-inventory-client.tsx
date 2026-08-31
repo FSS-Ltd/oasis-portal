@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Field, SelectInput } from '@/components/ui/field';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { PaceCataloguePicker } from './pace-catalogue-picker';
+import { PaceDiagnosticForm, type PaceDiagnosticSelection } from './pace-diagnostic-form';
 
 type InventorySummary = RouterOutputs['academicInventory']['summary'];
 type InventoryStudent = InventorySummary['students'][number];
@@ -148,6 +149,15 @@ export function PaceInventoryClient() {
       showErrorToast(error, 'PACE order status could not be updated.');
     },
   });
+  const recordDiagnostic = api.academicInventory.recordDiagnostic.useMutation({
+    async onSuccess() {
+      showSuccessToast('Diagnostic result recorded.');
+      await invalidateInventory();
+    },
+    onError(error) {
+      showErrorToast(error, 'Diagnostic result could not be recorded.');
+    },
+  });
   const deleteDiagnostic = api.academicInventory.deleteDiagnostic.useMutation({
     async onSuccess() {
       setPendingDiagnosticId(null);
@@ -186,6 +196,15 @@ export function PaceInventoryClient() {
       studentId: student.id,
       subjectId: assignment.subjectId,
       paceNumbers: selectedPaceNumbers,
+    });
+  }
+
+  function recordSelectedDiagnostic(selection: PaceDiagnosticSelection): void {
+    if (!student || !assignment || recordDiagnostic.isPending) return;
+    recordDiagnostic.mutate({
+      studentId: student.id,
+      subjectId: assignment.subjectId,
+      ...selection,
     });
   }
 
@@ -480,6 +499,12 @@ export function PaceInventoryClient() {
           <div className="section-title">
             <h2 id="diagnostics-title">Diagnostic reference</h2>
           </div>
+          <PaceDiagnosticForm
+            disabled={!student || !assignment}
+            onSubmit={recordSelectedDiagnostic}
+            pending={recordDiagnostic.isPending}
+            selectionLabel={`${student?.fullName ?? 'Select a student'} · ${formatAssignment(assignment)}`}
+          />
           <DataTable
             columns={diagnosticColumns}
             empty="No diagnostic results have been recorded yet."
