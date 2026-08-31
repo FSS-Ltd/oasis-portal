@@ -4,6 +4,7 @@ import {
   currentStudentPaceSupplyInput,
   deleteDiagnosticResultInput,
   diagnosticResultInput,
+  PACE_CATALOGUE,
   paceInventoryOrderInput,
   paceInventoryStatusInput,
   requiresPaceReorder,
@@ -23,10 +24,33 @@ const NEXT_ORDER_STATUS = {
   InTransit: 'Delivered',
   Delivered: null,
 } as const;
+const ORDER_SUMMARY_SELECT = {
+  id: true,
+  studentId: true,
+  subjectId: true,
+  paceNumber: true,
+  status: true,
+  orderedAt: true,
+  inTransitAt: true,
+  deliveredAt: true,
+  createdById: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 const createOrderInput = diagnosticResultInput
   .pick({ studentId: true, subjectId: true })
   .extend({ paceNumber: paceInventoryOrderInput.shape.paceNumber });
+
+function newestOrdersFirst(
+  left: { createdAt: Date; id: string },
+  right: { createdAt: Date; id: string },
+): number {
+  const createdAtComparison = right.createdAt.getTime() - left.createdAt.getTime();
+  if (createdAtComparison !== 0) return createdAtComparison;
+  if (left.id === right.id) return 0;
+  return left.id < right.id ? 1 : -1;
+}
 
 async function requireAssignment(
   db: RlsTx,
@@ -153,29 +177,21 @@ export const academicInventoryRouter = router({
         })),
       );
 
-      const [orders, diagnostics, supply] = await Promise.all([
+      const [outstandingOrders, deliveredOrders, diagnostics, supply] = await Promise.all([
         tx.paceInventoryOrder.findMany({
-          where: { OR: activeAssignments },
-          orderBy: { createdAt: 'desc' },
+          where: { OR: activeAssignments, status: { in: ['Ordered', 'InTransit'] } },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: ORDER_SUMMARY_SELECT,
+        }),
+        tx.paceInventoryOrder.findMany({
+          where: { OR: activeAssignments, status: 'Delivered' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: RECENT_HISTORY_LIMIT,
-          select: {
-            id: true,
-            studentId: true,
-            subjectId: true,
-            paceNumber: true,
-            status: true,
-            orderedAt: true,
-            inTransitAt: true,
-            deliveredAt: true,
-            createdById: true,
-            createdAt: true,
-            updatedAt: true,
-          },
+          select: ORDER_SUMMARY_SELECT,
         }),
         tx.diagnosticResult.findMany({
           where: { deletedAt: null, OR: activeAssignments },
-          orderBy: { recordedAt: 'desc' },
-          take: RECENT_HISTORY_LIMIT,
+          orderBy: [{ recordedAt: 'desc' }, { id: 'desc' }],
           select: {
             id: true,
             studentId: true,
@@ -201,6 +217,7 @@ export const academicInventoryRouter = router({
           },
         }),
       ]);
+      const orders = [...outstandingOrders, ...deliveredOrders].sort(newestOrdersFirst);
       return { students, orders, diagnostics, supply };
     });
 
@@ -374,6 +391,12 @@ export const academicInventoryRouter = router({
             message: 'invalid inventory order transition',
           });
         }
+        if (input.status === 'Delivered' && !PACE_CATALOGUE.includes(order.paceNumber)) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'PACE orders outside the supported range cannot be marked delivered.',
+          });
+        }
 
         const previousStatus = order.status;
         const reachedAt = new Date();
@@ -459,18 +482,14 @@ export const academicInventoryRouter = router({
     .input(deleteDiagnosticResultInput)
     .mutation(async ({ ctx, input }) => {
       return ctx.withRls(async (tx) => {
-        const diagnostic = await tx.diagnosticResult.findFirst({
+        const result = await tx.diagnosticResult.updateMany({
           where: { id: input.diagnosticId, deletedAt: null },
-          select: { id: true },
-        });
-        if (!diagnostic) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'diagnostic result not found' });
-        }
-        await tx.diagnosticResult.update({
-          where: { id: diagnostic.id },
           data: { deletedAt: new Date(), deletedById: ctx.user.id },
         });
-        const deleted = { id: diagnostic.id };
+        if (result.count !== 1) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'diagnostic result not found' });
+        }
+        const deleted = { id: input.diagnosticId };
         await tx.auditLog.create({
           data: {
             userId: ctx.user.id,

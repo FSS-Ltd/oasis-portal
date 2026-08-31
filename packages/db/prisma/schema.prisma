@@ -744,6 +744,7 @@ model PaceInventoryOrder {
   id          String                   @id @default(cuid())
   studentId   String
   subjectId   String
+  /// Database constraint enforces the supported PACE catalogue range of 1001–1144.
   paceNumber  Int
   status      PaceInventoryOrderStatus @default(Ordered)
   orderedAt   DateTime                 @default(now())

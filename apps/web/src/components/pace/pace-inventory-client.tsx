@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PackagePlus, RefreshCw, Truck } from 'lucide-react';
 import { availablePacesAhead, PACE_CATALOGUE } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
@@ -21,10 +21,16 @@ type InventoryAssignment = InventoryStudent['subjects'][number];
 type InventoryOrder = InventorySummary['orders'][number];
 type InventoryDiagnostic = InventorySummary['diagnostics'][number];
 
+interface PaceSelectionState {
+  assignmentKey: string;
+  paceNumbers: number[];
+}
+
 const dateFormatter = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' });
 
 function selectedStudent(students: InventoryStudent[], studentId: string): InventoryStudent | null {
-  return students.find((student) => student.id === studentId) ?? students[0] ?? null;
+  if (!studentId) return students[0] ?? null;
+  return students.find((student) => student.id === studentId) ?? null;
 }
 
 function selectedAssignment(
@@ -32,12 +38,8 @@ function selectedAssignment(
   subjectId: string,
 ): InventoryAssignment | null {
   if (!student) return null;
-
-  return (
-    student.subjects.find((assignment) => assignment.subjectId === subjectId) ??
-    student.subjects[0] ??
-    null
-  );
+  if (!subjectId) return student.subjects[0] ?? null;
+  return student.subjects.find((assignment) => assignment.subjectId === subjectId) ?? null;
 }
 
 function nextOrderStatus(status: InventoryOrder['status']): 'Delivered' | 'InTransit' | null {
@@ -72,7 +74,10 @@ export function PaceInventoryClient() {
   const summaryQuery = api.academicInventory.summary.useQuery(undefined, { retry: false });
   const [studentId, setStudentId] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [selectedPaceNumbers, setSelectedPaceNumbers] = useState<number[]>([]);
+  const [paceSelection, setPaceSelection] = useState<PaceSelectionState>({
+    assignmentKey: '',
+    paceNumbers: [],
+  });
   const [pendingDiagnosticId, setPendingDiagnosticId] = useState<string | null>(null);
 
   const summary = summaryQuery.data;
@@ -81,6 +86,11 @@ export function PaceInventoryClient() {
   const assignment = selectedAssignment(student, subjectId);
   const selectedStudentId = student?.id ?? '';
   const selectedSubjectId = assignment?.subjectId ?? '';
+  const selectionContextKey = `${selectedStudentId}:${selectedSubjectId}:${String(
+    assignment?.currentPaceNumber ?? '',
+  )}`;
+  const selectedPaceNumbers =
+    paceSelection.assignmentKey === selectionContextKey ? paceSelection.paceNumbers : [];
   const assignmentSupply = (summary?.supply ?? [])
     .filter(
       (supply) => supply.studentId === selectedStudentId && supply.subjectId === selectedSubjectId,
@@ -107,6 +117,14 @@ export function PaceInventoryClient() {
   );
   const hasSelection = selectedPaceNumbers.length > 0 && !hasUnavailableSelection;
 
+  useEffect(() => {
+    setPaceSelection((current) =>
+      current.assignmentKey === selectionContextKey
+        ? current
+        : { assignmentKey: selectionContextKey, paceNumbers: [] },
+    );
+  }, [selectionContextKey]);
+
   async function invalidateInventory(): Promise<void> {
     await Promise.all([
       utils.academicInventory.summary.invalidate(),
@@ -118,7 +136,7 @@ export function PaceInventoryClient() {
 
   const addCurrentSupply = api.academicInventory.addCurrentSupply.useMutation({
     async onSuccess(_, input) {
-      setSelectedPaceNumbers([]);
+      setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
       showSuccessToast(`${formatPaceCount(input.paceNumbers.length)} added to current supply.`);
       await invalidateInventory();
     },
@@ -128,7 +146,7 @@ export function PaceInventoryClient() {
   });
   const createOrders = api.academicInventory.createOrders.useMutation({
     async onSuccess(_, input) {
-      setSelectedPaceNumbers([]);
+      setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
       showSuccessToast(
         input.paceNumbers.length === 1
           ? '1 PACE order created.'
@@ -173,12 +191,12 @@ export function PaceInventoryClient() {
   function chooseStudent(value: string): void {
     setStudentId(value);
     setSubjectId('');
-    setSelectedPaceNumbers([]);
+    setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
   }
 
   function chooseSubject(value: string): void {
     setSubjectId(value);
-    setSelectedPaceNumbers([]);
+    setPaceSelection((current) => ({ ...current, paceNumbers: [] }));
   }
 
   function addSelectedSupply(): void {
@@ -238,6 +256,9 @@ export function PaceInventoryClient() {
       render: (order) => {
         const nextStatus = nextOrderStatus(order.status);
         if (!nextStatus) return 'Complete';
+        if (nextStatus === 'Delivered' && !PACE_CATALOGUE.includes(order.paceNumber)) {
+          return 'PACE order is outside the supported range and cannot be delivered.';
+        }
 
         return (
           <Button
@@ -320,15 +341,21 @@ export function PaceInventoryClient() {
   }
 
   return (
-    <div className="motion-page">
+    <div className="motion-page pace-inventory">
       {summary && summary.alerts.length > 0 ? (
-        <section className="panel" aria-labelledby="pace-inventory-alerts-title">
+        <section
+          className="panel pace-inventory__alerts"
+          aria-labelledby="pace-inventory-alerts-title"
+        >
           <div className="panel__body">
             <div className="section-title">
-              <h2 id="pace-inventory-alerts-title">Supply alerts</h2>
-              <Badge tone="amber">{String(summary.alerts.length)} require attention</Badge>
+              <div>
+                <h2 id="pace-inventory-alerts-title">Needs attention</h2>
+                <p className="muted">Students with two or fewer future PACEs available now.</p>
+              </div>
+              <Badge tone="amber">{String(summary.alerts.length)} to review</Badge>
             </div>
-            <div className="academic-list">
+            <div className="academic-list academic-list--compact">
               {summary.alerts.map((alert) => {
                 const alertStudent = students.find((row) => row.id === alert.studentId);
                 const alertAssignment = alertStudent?.subjects.find(
@@ -368,10 +395,20 @@ export function PaceInventoryClient() {
         />
       ) : (
         <>
-          <section className="panel" aria-labelledby="pace-inventory-selection-title">
+          <section
+            className="panel pace-inventory__planner"
+            aria-labelledby="pace-inventory-selection-title"
+          >
             <div className="panel__body">
-              <div className="section-title">
-                <h2 id="pace-inventory-selection-title">Student and subject</h2>
+              <div className="pace-inventory__planner-heading">
+                <div>
+                  <p className="pace-inventory__eyebrow">Student PACE supply</p>
+                  <h2 id="pace-inventory-selection-title">Plan what this student needs next</h2>
+                  <p className="muted">
+                    Add PACEs already on hand, or create a tracking record for an order placed on
+                    the A.C.E. site.
+                  </p>
+                </div>
               </div>
               <div className="form-grid form-grid--two">
                 <Field label="Student">
@@ -407,12 +444,12 @@ export function PaceInventoryClient() {
 
               {assignment ? (
                 <div className="pace-inventory-summary" aria-live="polite">
-                  <div>
+                  <div className="pace-inventory-summary__current">
                     <span>Current PACE</span>
                     <strong>{paceLabel(assignment.currentPaceNumber)}</strong>
                   </div>
                   <div>
-                    <span>Available future PACE numbers</span>
+                    <span>Available now</span>
                     {availableFutureSupply.length > 0 ? (
                       <span className="pace-number-list">
                         {availableFutureSupply.map((paceNumber) => (
@@ -430,15 +467,22 @@ export function PaceInventoryClient() {
             </div>
           </section>
 
-          <section className="panel">
+          <section className="panel pace-inventory__planner pace-inventory__planner--selection">
             <div className="panel__body">
-              <PaceCataloguePicker
-                availablePaceNumbers={availablePaceNumbers}
-                disabled={!assignment || isBulkMutationPending}
-                onChange={setSelectedPaceNumbers}
-                selectedPaceNumbers={selectedPaceNumbers}
-                subjectLabel={`${student?.fullName ?? 'Selected student'} · ${formatAssignment(assignment)}`}
-              />
+              {assignment ? (
+                <PaceCataloguePicker
+                  availablePaceNumbers={availablePaceNumbers}
+                  currentPaceNumber={assignment.currentPaceNumber}
+                  disabled={isBulkMutationPending}
+                  onChange={(paceNumbers) => {
+                    setPaceSelection({ assignmentKey: selectionContextKey, paceNumbers });
+                  }}
+                  selectedPaceNumbers={selectedPaceNumbers}
+                  subjectLabel={`${student?.fullName ?? 'Selected student'} · ${formatAssignment(assignment)}`}
+                />
+              ) : (
+                <p className="field__hint">Choose an assigned subject to plan PACEs.</p>
+              )}
               <div className="pace-inventory-actions">
                 <Button
                   disabled={!assignment || !hasSelection || isBulkMutationPending}
@@ -468,10 +512,13 @@ export function PaceInventoryClient() {
         </>
       )}
 
-      <section className="panel" aria-labelledby="pace-orders-title">
+      <section className="panel pace-inventory__secondary" aria-labelledby="pace-orders-title">
         <div className="panel__body">
           <div className="section-title">
-            <h2 id="pace-orders-title">PACE order history</h2>
+            <div>
+              <h2 id="pace-orders-title">Tracked orders</h2>
+              <p className="muted">A record of PACEs ordered for each student and subject.</p>
+            </div>
             <Button
               onClick={() => {
                 void summaryQuery.refetch();
@@ -494,10 +541,15 @@ export function PaceInventoryClient() {
         </div>
       </section>
 
-      <section className="panel" aria-labelledby="diagnostics-title">
+      <section className="panel pace-inventory__secondary" aria-labelledby="diagnostics-title">
         <div className="panel__body">
           <div className="section-title">
-            <h2 id="diagnostics-title">Diagnostic reference</h2>
+            <div>
+              <h2 id="diagnostics-title">Diagnostic reference</h2>
+              <p className="muted">
+                For the Head&apos;s reference only; it never changes current PACE.
+              </p>
+            </div>
           </div>
           <PaceDiagnosticForm
             disabled={!student || !assignment}

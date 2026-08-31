@@ -20,6 +20,19 @@ function evaluateIsActiveRoute(adminNavSource) {
   return Function(`return (${helperSource});`)();
 }
 
+function evaluateSelectionHelper(clientSource, helperName) {
+  const match = clientSource.match(new RegExp(`function ${helperName}\\([\\s\\S]*?\\n\\}`, 'u'));
+
+  assert.ok(match, `${helperName} helper must exist`);
+  const helperSource = match[0]
+    .replaceAll(': InventoryStudent[]', '')
+    .replaceAll(': InventoryStudent | null', '')
+    .replaceAll(': InventoryAssignment | null', '')
+    .replaceAll(': string', '');
+
+  return Function(`${helperSource}; return ${helperName};`)();
+}
+
 test('the Head dashboard exposes PACE Inventory next to the PACE workflow', () => {
   const adminNavSource = readWeb('src/components/admin/admin-nav.tsx');
   const dashboardSource = readWeb('src/app/(admin)/admin/page.tsx');
@@ -71,7 +84,8 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   );
   assert.match(clientSource, /availablePacesAhead\(/);
   assert.match(clientSource, /availableFutureSupply\.map\(/);
-  assert.match(clientSource, /disabled=\{!assignment \|\| isBulkMutationPending\}/);
+  assert.match(clientSource, /\{assignment \? \(/);
+  assert.match(clientSource, /disabled=\{isBulkMutationPending\}/);
   assert.match(
     clientSource,
     /disabled=\{!assignment \|\| !hasSelection \|\| isBulkMutationPending\}/,
@@ -79,20 +93,62 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
   assert.match(clientSource, /PACE orders created\./);
   assert.match(clientSource, /function nextOrderStatus/);
   assert.match(clientSource, /Mark \{nextStatus\}/);
+  assert.match(clientSource, /PACE order is outside the supported range and cannot be delivered\./);
   assert.match(pickerSource, /type="checkbox"/);
-  assert.match(pickerSource, /Level \{level\}/);
+  assert.match(pickerSource, /availablePacesAhead\(currentPaceNumber, PACE_CATALOGUE\)/);
+  assert.match(pickerSource, /slice\(0, visibleCount\)/);
+  assert.match(pickerSource, /Show next \{String\(PACE_PICKER_WINDOW_SIZE\)\} PACEs/);
+  assert.doesNotMatch(pickerSource, /paceLevelForNumber|Level \{level\}/);
   assert.match(pickerSource, /!isAvailable && !isSelected/);
   assert.match(pickerSource, /Selected/);
   assert.match(pickerSource, /Unavailable/);
-  assert.match(
-    pickerSource,
-    /Unavailable PACEs are\s+normally disabled, but an already selected unavailable PACE can still be removed\./,
-  );
+  assert.match(pickerSource, /Starting after PACE #\{String\(currentPaceNumber\)\}/);
   assert.match(diagnosticFormSource, /<form/);
   assert.match(diagnosticFormSource, /label="Level"/);
   assert.match(diagnosticFormSource, /label="Outcome"/);
   assert.match(diagnosticFormSource, /Record diagnostic/);
   assert.match(diagnosticFormSource, /It does not change the student&apos;s current PACE\./);
+});
+
+test('PACE Inventory does not resolve stale student or subject ids to fallback assignments', () => {
+  const clientSource = readWeb('src/components/pace/pace-inventory-client.tsx');
+  const resolveStudent = evaluateSelectionHelper(clientSource, 'selectedStudent');
+  const resolveAssignment = evaluateSelectionHelper(clientSource, 'selectedAssignment');
+  const students = [
+    {
+      id: 'student-1',
+      subjects: [{ subjectId: 'english' }, { subjectId: 'maths' }],
+    },
+    {
+      id: 'student-2',
+      subjects: [{ subjectId: 'science' }],
+    },
+  ];
+
+  assert.equal(resolveStudent(students, ''), students[0]);
+  assert.equal(resolveStudent(students, 'student-2'), students[1]);
+  assert.equal(resolveStudent(students, 'deactivated-student'), null);
+  assert.equal(resolveAssignment(students[0], ''), students[0].subjects[0]);
+  assert.equal(resolveAssignment(students[0], 'maths'), students[0].subjects[1]);
+  assert.equal(resolveAssignment(students[0], 'deactivated-subject'), null);
+  assert.equal(resolveAssignment(null, ''), null);
+});
+
+test('PACE Inventory clears and guards PACE numbers when the effective assignment changes', () => {
+  const clientSource = readWeb('src/components/pace/pace-inventory-client.tsx');
+
+  assert.match(
+    clientSource,
+    /const selectionContextKey = `\$\{selectedStudentId\}:\$\{selectedSubjectId\}:\$\{String\([\s\S]*assignment\?\.currentPaceNumber \?\? ''[\s\S]*\)\}`;/,
+  );
+  assert.match(
+    clientSource,
+    /paceSelection\.assignmentKey === selectionContextKey \? paceSelection\.paceNumbers : \[\]/,
+  );
+  assert.match(
+    clientSource,
+    /useEffect\(\(\) => \{[\s\S]*setPaceSelection\([\s\S]*paceNumbers: \[\][\s\S]*\}, \[selectionContextKey\]\);/,
+  );
 });
 
 test('PACE Progress is exact while PACE Inventory owns its nested routes', () => {
