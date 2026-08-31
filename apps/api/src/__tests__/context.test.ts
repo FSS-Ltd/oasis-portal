@@ -15,7 +15,8 @@ describe('applySerializableRlsTx', () => {
     } as unknown as RlsTx;
     let attempts = 0;
     const client = {
-      $transaction: vi.fn((callback: (transaction: RlsTx) => Promise<string>) => {
+      $transaction: vi.fn((callback: (transaction: RlsTx) => Promise<string>, options: unknown) => {
+        expect(options).toEqual({ isolationLevel: 'Serializable' });
         attempts += 1;
         if (attempts === 1) return Promise.reject(serializationConflict());
         return callback(tx);
