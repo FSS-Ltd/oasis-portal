@@ -5,6 +5,7 @@ import { Plus, Save, X } from 'lucide-react';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
+import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { CalendarEventCard } from './calendar-event-card';
@@ -31,12 +32,21 @@ import {
 
 interface SharedCalendarProps {
   canAssignRequiredPeople?: boolean;
+  canDelete?: boolean;
   canManage: boolean;
   mode: CalendarMode;
 }
 
+type CalendarDestructiveAction = 'archive' | 'delete';
+
+interface CalendarDestructiveActionCandidate {
+  action: CalendarDestructiveAction;
+  event: CalendarEvent;
+}
+
 export function SharedCalendar({
   canAssignRequiredPeople = false,
+  canDelete = false,
   canManage,
   mode,
 }: SharedCalendarProps) {
@@ -45,7 +55,8 @@ export function SharedCalendar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [monthKey, setMonthKey] = useState(currentMonthKey);
-  const [pendingArchiveId, setPendingArchiveId] = useState<string | null>(null);
+  const [destructiveAction, setDestructiveAction] =
+    useState<CalendarDestructiveActionCandidate | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const copy = pageCopy[mode];
@@ -103,15 +114,24 @@ export function SharedCalendar({
     },
   });
   const archiveEvent = api.calendar.archive.useMutation({
-    onSettled: () => {
-      setPendingArchiveId(null);
-    },
     onSuccess: async () => {
+      setDestructiveAction(null);
       showSuccessToast('Calendar date archived.');
       await invalidateCalendar();
     },
     onError(error) {
       showErrorToast(error, 'Calendar date could not be archived.');
+    },
+  });
+  const deleteEvent = api.calendar.delete.useMutation({
+    onSuccess: async (_, variables) => {
+      setSelectedEvent((current) => (current?.id === variables.id ? null : current));
+      setDestructiveAction(null);
+      showSuccessToast('Calendar date deleted.');
+      await invalidateCalendar();
+    },
+    onError(error) {
+      showErrorToast(error, 'Calendar date could not be deleted.');
     },
   });
 
@@ -120,7 +140,7 @@ export function SharedCalendar({
   const monthEvents = events.filter((event) => eventOverlapsMonth(event, monthKey));
   const monthActiveCount = monthEvents.filter((event) => event.active).length;
   const activeCount = activeEvents.length;
-  const mutationError = createEvent.error ?? updateEvent.error ?? archiveEvent.error;
+  const mutationError = createEvent.error ?? updateEvent.error;
   const requiredPeople = requiredPeopleQuery.data ?? [];
   const listDescription = canManage
     ? `${copy.listDescription} Showing ${formatMonthLabel(monthKey)}.`
@@ -228,9 +248,19 @@ export function SharedCalendar({
     setFormError(null);
   }
 
-  function archiveCalendarEvent(eventId: string): void {
-    setPendingArchiveId(eventId);
-    archiveEvent.mutate({ id: eventId });
+  function requestDestructiveAction(action: CalendarDestructiveAction, event: CalendarEvent): void {
+    archiveEvent.reset();
+    deleteEvent.reset();
+    setDestructiveAction({ action, event });
+  }
+
+  function confirmDestructiveAction(): void {
+    if (!destructiveAction) return;
+    if (destructiveAction.action === 'archive') {
+      archiveEvent.mutate({ id: destructiveAction.event.id });
+      return;
+    }
+    deleteEvent.mutate({ id: destructiveAction.event.id });
   }
 
   function selectFormDate(date: string): void {
@@ -572,15 +602,30 @@ export function SharedCalendar({
               {monthEvents.map((event) => (
                 <CalendarEventCard
                   canManage={canManage}
+                  canDelete={canDelete}
                   event={event}
                   key={event.id}
-                  onArchive={archiveCalendarEvent}
+                  onArchive={() => {
+                    requestDestructiveAction('archive', event);
+                  }}
+                  onDelete={() => {
+                    requestDestructiveAction('delete', event);
+                  }}
                   onEdit={editEvent}
                   onView={(calendarEvent) => {
                     setSelectedEvent(calendarEvent);
                   }}
                   canAssignRequiredPeople={canAssignRequiredPeople}
-                  pendingArchive={pendingArchiveId === event.id}
+                  pendingArchive={
+                    destructiveAction?.action === 'archive' &&
+                    destructiveAction.event.id === event.id &&
+                    archiveEvent.isPending
+                  }
+                  pendingDelete={
+                    destructiveAction?.action === 'delete' &&
+                    destructiveAction.event.id === event.id &&
+                    deleteEvent.isPending
+                  }
                 />
               ))}
             </div>
@@ -603,6 +648,43 @@ export function SharedCalendar({
           }}
         />
       ) : null}
+      <ConfirmationDialog
+        confirmLabel={destructiveAction?.action === 'delete' ? 'Delete date' : 'Archive date'}
+        errorMessage={
+          destructiveAction?.action === 'delete'
+            ? deleteEvent.error
+              ? friendlyErrorMessage(deleteEvent.error)
+              : undefined
+            : archiveEvent.error
+              ? friendlyErrorMessage(archiveEvent.error)
+              : undefined
+        }
+        onCancel={() => {
+          if (archiveEvent.isPending || deleteEvent.isPending) return;
+          setDestructiveAction(null);
+        }}
+        onConfirm={confirmDestructiveAction}
+        open={destructiveAction !== null}
+        pending={archiveEvent.isPending || deleteEvent.isPending}
+        title={
+          destructiveAction?.action === 'delete'
+            ? 'Delete calendar date?'
+            : 'Archive calendar date?'
+        }
+        variant={destructiveAction?.action === 'delete' ? 'danger' : 'primary'}
+      >
+        {destructiveAction?.action === 'delete' ? (
+          <p>
+            Delete <strong>{destructiveAction.event.title}</strong> permanently? This cannot be
+            undone.
+          </p>
+        ) : (
+          <p>
+            Archive <strong>{destructiveAction?.event.title}</strong>? It will no longer appear in
+            shared calendars, but the record will remain available to administrators.
+          </p>
+        )}
+      </ConfirmationDialog>
     </div>
   );
 }

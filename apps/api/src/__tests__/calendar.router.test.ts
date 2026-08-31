@@ -131,6 +131,10 @@ interface FakeCalendarUpdateArgs {
   data: Partial<Omit<StoredCalendarEvent, 'id' | 'createdAt' | 'updatedAt'>>;
 }
 
+interface FakeCalendarDeleteArgs {
+  where: { id: string };
+}
+
 interface FakeAuditCreateArgs {
   data: {
     userId: string;
@@ -297,6 +301,14 @@ function makeFakeDb(
         };
         events[index] = updated;
         return Promise.resolve(updated);
+      }),
+      delete: vi.fn((args: FakeCalendarDeleteArgs) => {
+        const index = events.findIndex((event) => event.id === args.where.id);
+        if (index === -1) throw new Error('not found');
+        const deleted = events[index];
+        if (!deleted) throw new Error('not found');
+        events.splice(index, 1);
+        return Promise.resolve(deleted);
       }),
     },
     calendarEventRequiredPerson: {
@@ -904,7 +916,7 @@ describe('calendar reader lists', () => {
   });
 });
 
-describe('calendar.update and calendar.archive', () => {
+describe('calendar.update, calendar.archive, and calendar.delete', () => {
   it('updates an event and writes an audit row', async () => {
     const db = makeFakeDb([makeEvent({ id: 'event_update', title: 'Original' })]);
     const { caller } = makeCaller(calendarManagerUser, db);
@@ -1038,6 +1050,15 @@ describe('calendar.update and calendar.archive', () => {
     });
   });
 
+  it('prevents tagged calendar managers from permanently deleting dates', async () => {
+    const db = makeFakeDb([makeEvent({ id: 'event_delete_restricted', title: 'Keep me' })]);
+
+    await expect(
+      makeCaller(calendarManagerUser, db).caller.calendar.delete({ id: 'event_delete_restricted' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(db.events).toHaveLength(1);
+  });
+
   it('archives events, writes an audit row, and hides them from readers', async () => {
     const db = makeFakeDb([makeEvent({ id: 'event_archive', title: 'Archive me' })]);
     const { caller } = makeCaller(headUser, db);
@@ -1058,5 +1079,24 @@ describe('calendar.update and calendar.archive', () => {
 
     const parentCaller = makeCaller(parentUser, db).caller;
     await expect(parentCaller.calendar.listForParents()).resolves.toEqual([]);
+  });
+
+  it('allows full administrators to permanently delete dates and writes an audit row', async () => {
+    const db = makeFakeDb([makeEvent({ id: 'event_delete', title: 'Delete me' })]);
+    const { caller } = makeCaller(headUser, db);
+
+    await expect(caller.calendar.delete({ id: 'event_delete' })).resolves.toEqual({
+      id: 'event_delete',
+    });
+    expect(db.events).toEqual([]);
+    expect(db.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        userId: headUser.id,
+        action: 'Delete',
+        entity: 'CalendarEvent',
+        entityId: 'event_delete',
+        meta: { source: 'calendar.delete' },
+      },
+    });
   });
 });

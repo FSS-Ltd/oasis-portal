@@ -1,4 +1,4 @@
-import { Archive, CalendarDays, Pencil, UsersRound } from 'lucide-react';
+import { Archive, CalendarDays, Pencil, Trash2, UsersRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   audienceLabels,
@@ -11,27 +11,34 @@ import {
 
 interface CalendarEventCardProps {
   canAssignRequiredPeople: boolean;
+  canDelete: boolean;
   canManage: boolean;
   event: CalendarEvent;
   onArchive: (eventId: string) => void;
+  onDelete: (eventId: string) => void;
   onEdit: (event: CalendarEvent) => void;
   onView?: (event: CalendarEvent) => void;
   pendingArchive: boolean;
+  pendingDelete: boolean;
 }
 
 export function CalendarEventCard({
   canAssignRequiredPeople,
+  canDelete,
   canManage,
   event,
   onArchive,
+  onDelete,
   onEdit,
   onView,
   pendingArchive,
+  pendingDelete,
 }: CalendarEventCardProps) {
   const canEdit =
     canManage &&
     event.source === 'Manual' &&
     (event.audience !== 'Custom' || canAssignRequiredPeople);
+  const canPermanentlyDelete = canEdit && canDelete;
 
   return (
     <article className={event.active ? 'calendar-card' : 'calendar-card is-archived'}>
@@ -81,6 +88,21 @@ export function CalendarEventCard({
                 >
                   <Archive aria-hidden="true" size={14} />
                   Archive
+                </Button>
+              ) : null}
+              {canPermanentlyDelete ? (
+                <Button
+                  aria-label={`Delete ${event.title}`}
+                  onClick={() => {
+                    onDelete(event.id);
+                  }}
+                  pending={pendingDelete}
+                  size="sm"
+                  type="button"
+                  variant="danger"
+                >
+                  <Trash2 aria-hidden="true" size={14} />
+                  Delete
                 </Button>
               ) : null}
             </div>

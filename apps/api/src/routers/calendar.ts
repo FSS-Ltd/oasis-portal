@@ -5,6 +5,7 @@ import {
   canManageCalendar,
   canUseAdminOperations,
   canUseLinkedChildGuardianAccess,
+  isFullAdmin,
   isStaff,
   type SessionUser,
 } from '@oasis/domain';
@@ -111,6 +112,13 @@ function requireCalendarManager(user: SessionUser): void {
   if (canManageCalendar(user)) return;
   throw toForbidden(
     new AccessDeniedError('calendar management requires Head or calendar-manager staff tag'),
+  );
+}
+
+function requireCalendarDeletionManager(user: SessionUser): void {
+  if (isFullAdmin(user)) return;
+  throw toForbidden(
+    new AccessDeniedError('permanently deleting calendar dates requires a full administrator'),
   );
 }
 
@@ -764,5 +772,26 @@ export const calendarRouter = router({
       });
 
       return mapCalendarEvent(ctx, event);
+    }),
+
+  delete: authedProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      requireCalendarDeletionManager(ctx.user);
+      await assertCalendarEventCanBeManaged(ctx, input.id);
+
+      await ctx.db.calendarEvent.delete({ where: { id: input.id } });
+
+      await ctx.db.auditLog.create({
+        data: {
+          userId: ctx.user.id,
+          action: 'Delete',
+          entity: 'CalendarEvent',
+          entityId: input.id,
+          meta: { source: 'calendar.delete' },
+        },
+      });
+
+      return { id: input.id };
     }),
 });
