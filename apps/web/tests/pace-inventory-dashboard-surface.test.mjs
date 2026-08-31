@@ -9,6 +9,17 @@ function readWeb(relativePath) {
   return readFileSync(path.join(webRoot, relativePath), 'utf8');
 }
 
+function evaluateIsActiveRoute(adminNavSource) {
+  const match = adminNavSource.match(
+    /function isActiveRoute\(pathname: string, href: string, label: string\): boolean \{[\s\S]*?\n\}/,
+  );
+
+  assert.ok(match, 'isActiveRoute helper must exist');
+  const helperSource = match[0].replaceAll(': string', '').replace(': boolean', '');
+
+  return Function(`return (${helperSource});`)();
+}
+
 test('the Head dashboard exposes PACE Inventory next to the PACE workflow', () => {
   const adminNavSource = readWeb('src/components/admin/admin-nav.tsx');
   const dashboardSource = readWeb('src/app/(admin)/admin/page.tsx');
@@ -72,10 +83,11 @@ test('the PACE Inventory client supports bulk supply, tracked orders, status cha
 
 test('PACE Progress is exact while PACE Inventory owns its nested routes', () => {
   const adminNavSource = readWeb('src/components/admin/admin-nav.tsx');
+  const isActiveRoute = evaluateIsActiveRoute(adminNavSource);
 
-  assert.match(adminNavSource, /href === '\/admin\/pace'[^\n]*pathname === href/);
-  assert.match(
-    adminNavSource,
-    /return pathname === href \|\| pathname\.startsWith\(`\$\{href\}\/`\);/,
-  );
+  assert.equal(isActiveRoute('/admin/pace', '/admin/pace', 'PACE'), true);
+  for (const pathname of ['/admin/pace/inventory', '/admin/pace/inventory/diagnostics']) {
+    assert.equal(isActiveRoute(pathname, '/admin/pace', 'PACE'), false);
+    assert.equal(isActiveRoute(pathname, '/admin/pace/inventory', 'PACE Inventory'), true);
+  }
 });
