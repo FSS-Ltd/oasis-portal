@@ -15,6 +15,7 @@ function readWebIfExists(relativePath) {
 }
 
 const adminNavSource = readWeb('src/components/admin/admin-nav.tsx');
+const rotaPageSource = readWeb('src/app/(admin)/admin/rota/page.tsx');
 const supervisorNavSource = readWeb('src/components/supervisor/supervisor-nav.tsx');
 const sidebarGroupSource = readWebIfExists('src/components/navigation/sidebar-nav-group.tsx');
 
@@ -41,4 +42,11 @@ test('sidebar accordion opens and closes on click only, not hover', () => {
 test('admin and supervisor sidebars share the same accordion behaviour', () => {
   assert.match(adminNavSource, /SidebarNavGroup/);
   assert.match(supervisorNavSource, /SidebarNavGroup/);
+});
+
+test('the Rota page accepts every role that the admin navigation can send there', () => {
+  assert.match(adminNavSource, /href: '\/admin\/rota', label: 'Rota'/);
+  assert.match(rotaPageSource, /getAdminOperationsUser/);
+  assert.match(rotaPageSource, /await getAdminOperationsUser\(\);/);
+  assert.doesNotMatch(rotaPageSource, /assertFullAdmin/);
 });

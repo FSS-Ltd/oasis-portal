@@ -1,10 +1,10 @@
 import { CalendarDays, UsersRound } from 'lucide-react';
 import { MotionPage } from '@/components/admin/motion';
-import { assertFullAdmin } from '@/components/admin/require-full-admin';
+import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
 import { RotaSchedulerClient } from './rota-scheduler-client';
 
 export default async function RotaPage() {
-  await assertFullAdmin();
+  await getAdminOperationsUser();
 
   return (
     <MotionPage>
@@ -24,7 +24,7 @@ export default async function RotaPage() {
           </span>
           <span className="badge badge--blue">
             <UsersRound aria-hidden="true" size={14} />
-            Head only
+            Admin operations
           </span>
         </div>
       </div>
