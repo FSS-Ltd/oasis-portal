@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
+import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS, type PermissionTag } from '@oasis/domain/rbac';
 import { api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {

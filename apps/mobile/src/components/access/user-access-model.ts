@@ -1,4 +1,4 @@
-import { PERMISSION_TAGS, ROLES, type PermissionTag, type Role } from '@oasis/domain';
+import { PERMISSION_TAGS, ROLES, type PermissionTag, type Role } from '@oasis/domain/rbac';
 import type { RouterOutputs } from '../../lib/trpc';
 
 export type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];

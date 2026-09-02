@@ -12,12 +12,14 @@ describe('shared mobile User Access', () => {
   it('keeps directory, invitation, profile, role, tag, and status controls in one shared screen', () => {
     const screen = readMobile('src/components/access/user-access-screen.tsx');
     const detail = readMobile('src/components/access/user-access-account-detail.tsx');
+    const model = readMobile('src/components/access/user-access-model.ts');
 
-    expect(screen).toContain("import { ROLES, type Role } from '@oasis/domain'");
+    expect(screen).toContain("import { ROLES, type Role } from '@oasis/domain/rbac'");
+    expect(model).toContain("from '@oasis/domain/rbac'");
     expect(screen).toContain('api.admin.listUserAccounts.useQuery');
     expect(screen).toContain('api.admin.listUserInvitations.useQuery');
     expect(screen).toContain('api.admin.inviteUser.useMutation');
-    expect(detail).toContain('import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS');
+    expect(detail).toContain("from '@oasis/domain/rbac'");
     expect(detail).toContain('api.admin.updateUserAccountProfile.useMutation');
     expect(detail).toContain('api.admin.updateUserRole.useMutation');
     expect(detail).toContain('api.admin.updateUserTags.useMutation');

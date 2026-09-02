@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ROLES, type Role } from '@oasis/domain';
+import { ROLES, type Role } from '@oasis/domain/rbac';
 import { api } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import {
