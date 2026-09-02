@@ -34,9 +34,30 @@ type DesiredLoadSessionUser = (
   requires2fa: boolean;
 } | null>;
 
+type DesiredLoadAccountAccess = (
+  clerkUserId: string,
+  enforceTwoFactor: boolean,
+  twoFactorSatisfied: boolean,
+  deps: {
+    findUser: (clerkUserId: string) => Promise<ReconciledSessionUser | null>;
+    reconcileUser: (clerkUserId: string) => Promise<void>;
+  },
+) => Promise<{
+  accountAccessState: 'active' | 'deactivated' | 'unavailable';
+  user: {
+    id: string;
+    role: Role;
+    tags: string[];
+    requires2fa: boolean;
+  } | null;
+}>;
+
 const loadSessionUser = (
   contextModule as typeof contextModule & { loadSessionUser: DesiredLoadSessionUser }
 ).loadSessionUser;
+const loadAccountAccess = (
+  contextModule as typeof contextModule & { loadAccountAccess: DesiredLoadAccountAccess }
+).loadAccountAccess;
 
 const userCreatedEvent = {
   type: 'user.created',
@@ -282,6 +303,49 @@ describe('loadSessionUser', () => {
       }),
     ).resolves.toBeNull();
     expect(reconcileUser).not.toHaveBeenCalled();
+  });
+});
+
+describe('loadAccountAccess', () => {
+  it('distinguishes active, deactivated, and unavailable local account access', async () => {
+    expect(loadAccountAccess).toBeTypeOf('function');
+    if (typeof loadAccountAccess !== 'function') return;
+
+    await expect(
+      loadAccountAccess('active', false, false, {
+        findUser: vi.fn().mockResolvedValue({
+          id: 'user_active',
+          role: 'Parent',
+          tags: [],
+          active: true,
+        }),
+        reconcileUser: vi.fn(),
+      }),
+    ).resolves.toEqual({
+      accountAccessState: 'active',
+      user: { id: 'user_active', role: 'Parent', tags: [], requires2fa: false },
+    });
+
+    const reconcileDeactivated = vi.fn();
+    await expect(
+      loadAccountAccess('deactivated', false, false, {
+        findUser: vi.fn().mockResolvedValue({
+          id: 'user_deactivated',
+          role: 'Parent',
+          tags: [],
+          active: false,
+        }),
+        reconcileUser: reconcileDeactivated,
+      }),
+    ).resolves.toEqual({ accountAccessState: 'deactivated', user: null });
+    expect(reconcileDeactivated).not.toHaveBeenCalled();
+
+    await expect(
+      loadAccountAccess('unavailable', false, false, {
+        findUser: vi.fn().mockResolvedValue(null),
+        reconcileUser: vi.fn().mockResolvedValue(undefined),
+      }),
+    ).resolves.toEqual({ accountAccessState: 'unavailable', user: null });
   });
 });
 

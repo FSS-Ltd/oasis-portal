@@ -1,0 +1,113 @@
+.page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: clamp(1.5rem, 5vw, 4rem);
+  background:
+    radial-gradient(circle at top, rgba(186, 216, 201, 0.46), transparent 45%),
+    #f7f8f5;
+}
+
+.card {
+  width: min(100%, 38rem);
+  padding: clamp(2rem, 6vw, 4.25rem);
+  border: 1px solid #d9e3dc;
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1.5rem 4rem rgba(24, 32, 27, 0.12);
+  color: #18201b;
+  text-align: center;
+}
+
+.logo {
+  width: min(10rem, 50vw);
+  height: auto;
+  margin-bottom: 2rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  color: #4d6557;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.card h1 {
+  max-width: 26rem;
+  margin: 0 auto;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.message,
+.support {
+  color: #4b5b51;
+  line-height: 1.65;
+}
+
+.message {
+  max-width: 31rem;
+  margin: 1.25rem auto 2rem;
+}
+
+.countdown {
+  padding: 1rem;
+  border: 1px solid #c8d5cb;
+  border-radius: 0.9rem;
+  background: #f7faf7;
+  text-align: left;
+}
+
+.countdownHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #33443a;
+}
+
+.countdownHeader strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.3rem;
+}
+
+.progressLabel {
+  display: block;
+  margin-top: 1rem;
+  color: #33443a;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.countdown progress {
+  display: block;
+  width: 100%;
+  height: 0.75rem;
+  margin: 0.45rem 0 0.8rem;
+  accent-color: #2f6b4f;
+}
+
+.countdown p {
+  margin: 0;
+  color: #4b5b51;
+  font-size: 0.9rem;
+}
+
+.support {
+  margin: 1.4rem 0 0;
+  font-size: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .card,
+  .countdown progress {
+    scroll-behavior: auto;
+    transition-duration: 0ms;
+  }
+}

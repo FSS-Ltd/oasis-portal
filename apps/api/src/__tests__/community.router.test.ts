@@ -582,6 +582,7 @@ function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFakeDb>): A
   return {
     db: db as unknown as AppContext['db'],
     user,
+    accountAccessState: user ? 'active' : 'unavailable',
     requestId: 'req_community_test',
     withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
   } satisfies AppContext;

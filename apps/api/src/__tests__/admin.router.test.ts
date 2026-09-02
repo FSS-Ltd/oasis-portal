@@ -263,6 +263,7 @@ function makeCtx(user: SessionUser | null, db: FakeDb): AppContext {
   return {
     db: db as unknown as AppContext['db'],
     user,
+    accountAccessState: user ? 'active' : 'unavailable',
     requestId: 'req_test',
     withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
   } satisfies AppContext;
@@ -1185,6 +1186,24 @@ describe('admin.listUsers and admin.updateUserTags', () => {
     );
   });
 
+  it('lets Technical Support change another adult user role', async () => {
+    const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({
+      id: 'u_sup',
+      role: 'Supervisor',
+      tags: [],
+    });
+    db.user.update.mockResolvedValue(makeAdminUserRow({ role: 'ClubsAdmin', tags: [] }));
+    const { caller } = makeCaller(technicalSupportUser, { db });
+
+    await expect(
+      caller.admin.updateUserRole({ userId: 'u_sup', role: 'ClubsAdmin' }),
+    ).resolves.toMatchObject({ id: 'u_sup', role: 'ClubsAdmin', tags: [] });
+    expect(db.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { role: 'ClubsAdmin', tags: [] } }),
+    );
+  });
+
   it('rejects Student as a role change target', async () => {
     const db = makeFakeDb();
     const { caller } = makeCaller(headUser, { db });
@@ -1497,7 +1516,7 @@ describe('admin.listUserAccounts and account support updates', () => {
     ]);
     expect(result[0]).not.toHaveProperty('children');
     expect(db.user.findMany).toHaveBeenCalledWith({
-      where: { role: { in: ['Parent', 'TechnicalSupport'] } },
+      where: {},
       orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
       take: 100,
       select: {
@@ -1554,7 +1573,7 @@ describe('admin.listUserAccounts and account support updates', () => {
       },
     ]);
     expect(db.userInvitation.findMany).toHaveBeenCalledWith({
-      where: { role: { in: ['Parent', 'TechnicalSupport'] }, status: 'Pending' },
+      where: { status: 'Pending' },
       orderBy: [{ createdAt: 'desc' }],
       take: 100,
       select: {
@@ -1725,33 +1744,32 @@ describe('admin.listUserAccounts and account support updates', () => {
     });
   });
 
-  it('blocks Technical Support from unsafe account targets and self-deactivation', async () => {
+  it('lets Technical Support manage every account role but blocks self-deactivation', async () => {
     const db = makeFakeDb();
     db.user.findUnique.mockResolvedValue({ id: 'u_sup', role: 'Supervisor' });
+    db.user.update.mockResolvedValue(makeAdminUserRow({ id: 'u_sup', role: 'Supervisor' }));
     const { caller } = makeCaller(technicalSupportUser, { db });
 
     await expect(
       caller.admin.updateUserAccountProfile({ userId: 'u_sup', phone: '07700 900000' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    ).resolves.toMatchObject({ id: 'u_sup', role: 'Supervisor' });
     await expect(
       caller.admin.updateUserAccountStatus({ userId: technicalSupportUser.id, active: false }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(db.user.update).not.toHaveBeenCalled();
+    expect(db.user.update).toHaveBeenCalledTimes(1);
   });
 
-  it('blocks full-admin callers from Technical Support account status endpoints', async () => {
+  it('lets full-admin callers use account status endpoints', async () => {
     const db = makeFakeDb();
+    db.user.findUnique.mockResolvedValue({ id: 'u_parent', role: 'Parent' });
+    db.user.update.mockResolvedValue(
+      makeAdminUserRow({ id: 'u_parent', role: 'Parent', active: false }),
+    );
     const { caller } = makeCaller(headUser, { db });
 
     await expect(
-      caller.admin.updateUserAccountStatus({ userId: headUser.id, active: false }),
-    ).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'Access denied: role Head cannot manage user accounts',
-    });
-    expect(db.user.findUnique).not.toHaveBeenCalled();
-    expect(db.user.update).not.toHaveBeenCalled();
-    expect(db.auditLog.create).not.toHaveBeenCalled();
+      caller.admin.updateUserAccountStatus({ userId: 'u_parent', active: false }),
+    ).resolves.toMatchObject({ id: 'u_parent', active: false });
   });
 });
 
@@ -1844,7 +1862,7 @@ describe('admin.inviteUser', () => {
     });
   });
 
-  it('blocks Technical Support from inviting student-data roles', async () => {
+  it('allows Technical Support to invite every valid account role', async () => {
     const { caller, createInvitation, sendEmail } = makeCaller(technicalSupportUser);
 
     await expect(
@@ -1853,9 +1871,9 @@ describe('admin.inviteUser', () => {
         role: 'Supervisor',
         tags: [],
       }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(createInvitation).not.toHaveBeenCalled();
-    expect(sendEmail).not.toHaveBeenCalled();
+    ).resolves.toMatchObject({ invitationId: 'inv_xyz', status: 'pending', emailStatus: 'Sent' });
+    expect(createInvitation).toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalled();
   });
 
   it('rejects unknown role with BAD_REQUEST (zod)', async () => {
@@ -2473,7 +2491,7 @@ describe('admin.resendUserInvitation', () => {
     });
   });
 
-  it('scopes Technical Support resend lookups to manageable invitation roles', async () => {
+  it('lets Technical Support resend invitations for every account role', async () => {
     const db = makeFakeDb();
     db.userInvitation.findFirst.mockResolvedValue(null);
     const {
@@ -2492,7 +2510,6 @@ describe('admin.resendUserInvitation', () => {
     });
     expect(usedDb.userInvitation.findFirst).toHaveBeenCalledWith({
       where: {
-        role: { in: ['Parent', 'TechnicalSupport'] },
         id: 'invite_supervisor',
         status: 'Pending',
       },
@@ -2515,7 +2532,7 @@ describe('admin.resendUserInvitation', () => {
 });
 
 describe('admin.deleteUserInvitation', () => {
-  it('lets Technical Support revoke and delete a scoped pending invitation', async () => {
+  it('lets Technical Support revoke and delete pending invitations for every role', async () => {
     const db = makeFakeDb();
     db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow());
     const clerk = makeFakeClerk(undefined, {
@@ -2542,7 +2559,6 @@ describe('admin.deleteUserInvitation', () => {
 
     expect(usedDb.userInvitation.findFirst).toHaveBeenCalledWith({
       where: {
-        role: { in: ['Parent', 'TechnicalSupport'] },
         id: 'invite_row_1',
         status: 'Pending',
       },
@@ -2579,18 +2595,18 @@ describe('admin.deleteUserInvitation', () => {
     });
   });
 
-  it('does not allow full admins to delete User Access pending invitations', async () => {
+  it('allows full admins to delete pending invitations', async () => {
     const db = makeFakeDb();
     db.userInvitation.findFirst.mockResolvedValue(makeInvitationRow());
     const { caller, db: usedDb, revokeInvitation } = makeCaller(headUser, { db });
 
-    await expect(caller.admin.deleteUserInvitation({ id: 'invite_row_1' })).rejects.toMatchObject({
-      code: 'FORBIDDEN',
+    await expect(caller.admin.deleteUserInvitation({ id: 'invite_row_1' })).resolves.toEqual({
+      id: 'invite_row_1',
+      deleted: true,
     });
-
-    expect(usedDb.userInvitation.findFirst).not.toHaveBeenCalled();
-    expect(revokeInvitation).not.toHaveBeenCalled();
-    expect(usedDb.userInvitation.delete).not.toHaveBeenCalled();
+    expect(usedDb.userInvitation.findFirst).toHaveBeenCalled();
+    expect(revokeInvitation).toHaveBeenCalledWith('inv_xyz');
+    expect(usedDb.userInvitation.delete).toHaveBeenCalledWith({ where: { id: 'invite_row_1' } });
   });
 });
 

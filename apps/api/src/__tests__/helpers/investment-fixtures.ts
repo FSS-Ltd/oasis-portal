@@ -595,6 +595,7 @@ export function makeCtx(user: SessionUser | null, db: ReturnType<typeof makeFake
   return {
     db: db as unknown as AppContext['db'],
     user,
+    accountAccessState: user ? 'active' : 'unavailable',
     requestId: 'req_test',
     withRls: <T>(fn: (tx: RlsTx) => Promise<T>): Promise<T> => {
       void fn;

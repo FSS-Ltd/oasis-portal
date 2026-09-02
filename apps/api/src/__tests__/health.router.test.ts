@@ -13,6 +13,7 @@ const supervisorUser: SessionUser = {
 function makeCtx(
   user: SessionUser | null,
   linkedChildCount: number,
+  accountAccessState: AppContext['accountAccessState'] = user ? 'active' : 'unavailable',
 ): { ctx: AppContext; guardianCount: ReturnType<typeof vi.fn> } {
   const guardianCount = vi.fn().mockResolvedValue(linkedChildCount);
   return {
@@ -24,6 +25,7 @@ function makeCtx(
       } as unknown as AppContext['db'],
       requestId: 'req_health_test',
       user,
+      accountAccessState,
       withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
     },
     guardianCount,
@@ -36,6 +38,7 @@ describe('health.me', () => {
     const result = await healthRouter.createCaller(ctx).me();
 
     expect(result).toEqual({
+      accountAccessState: 'active',
       linkedChildCount: 2,
       user: supervisorUser,
     });
@@ -48,7 +51,18 @@ describe('health.me', () => {
     const { ctx, guardianCount } = makeCtx(null, 0);
     const result = await healthRouter.createCaller(ctx).me();
 
-    expect(result).toEqual({ linkedChildCount: 0, user: null });
+    expect(result).toEqual({ accountAccessState: 'unavailable', linkedChildCount: 0, user: null });
+    expect(guardianCount).not.toHaveBeenCalled();
+  });
+
+  it('reports a deactivated account without restoring a SessionUser', async () => {
+    const { ctx, guardianCount } = makeCtx(null, 0, 'deactivated');
+
+    await expect(healthRouter.createCaller(ctx).me()).resolves.toEqual({
+      accountAccessState: 'deactivated',
+      linkedChildCount: 0,
+      user: null,
+    });
     expect(guardianCount).not.toHaveBeenCalled();
   });
 });

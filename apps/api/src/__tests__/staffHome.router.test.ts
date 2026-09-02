@@ -123,6 +123,7 @@ function makeCaller(user: SessionUser | null, db = makeFakeDb()) {
     db: db as unknown as AppContext['db'],
     requestId: 'staff-home-test',
     user,
+    accountAccessState: user ? 'active' : 'unavailable',
     withRls: <T>(fn: (tx: RlsTx) => Promise<T>) => fn(db as unknown as RlsTx),
   } satisfies AppContext;
   return { caller: app.createCaller(ctx), db };

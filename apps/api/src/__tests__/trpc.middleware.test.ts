@@ -35,6 +35,7 @@ function makeCtx(user: SessionUser | null): { ctx: AppContext; auditLog: FakeAud
   const ctx = {
     db: { auditLog } as unknown as AppContext['db'],
     user,
+    accountAccessState: user ? 'active' : 'unavailable',
     requestId: 'req_test',
     withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => fn({} as RlsTx),
   } satisfies AppContext;
@@ -114,7 +115,7 @@ describe('adminOperationsProcedure', () => {
 });
 
 describe('userAccountAdminProcedure', () => {
-  it('allows Technical Support only', async () => {
+  it('allows full admins and Technical Support', async () => {
     const appRouter = router({
       accountAdminOnly: userAccountAdminProcedure.query(() => 'ok'),
     });
@@ -122,11 +123,9 @@ describe('userAccountAdminProcedure', () => {
     await expect(
       appRouter.createCaller(makeCtx(technicalSupportUser).ctx).accountAdminOnly(),
     ).resolves.toBe('ok');
-    await expect(
-      appRouter.createCaller(makeCtx(headUser).ctx).accountAdminOnly(),
-    ).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    });
+    await expect(appRouter.createCaller(makeCtx(headUser).ctx).accountAdminOnly()).resolves.toBe(
+      'ok',
+    );
   });
 
   it('rejects non-account-admin roles as FORBIDDEN', async () => {

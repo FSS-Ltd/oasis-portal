@@ -235,7 +235,7 @@ export function AccessManagementClient({ currentUserId }: AccessManagementClient
         <div className="section-title">
           <div>
             <h2>Invite account</h2>
-            <p className="muted">Send an invitation for a parent or support account.</p>
+            <p className="muted">Send an invitation for any supported account role.</p>
           </div>
         </div>
         <AccessInviteForm />

@@ -34,6 +34,7 @@ import {
   isFullAdmin,
   isStaff,
   PERMISSION_TAGS,
+  ROLES,
   requireClubsLead,
   requireCanViewSensitive,
   requireCanManageInvoices,
@@ -123,10 +124,10 @@ describe('admin operations access', () => {
 });
 
 describe('TechnicalSupport account administration', () => {
-  it('is the only User Access account-admin role', () => {
+  it('allows full admins and Technical Support to manage user accounts', () => {
     expect(canManageUserAccounts(technicalSupport)).toBe(true);
-    expect(canManageUserAccounts(head)).toBe(false);
-    expect(canManageUserAccounts(principal)).toBe(false);
+    expect(canManageUserAccounts(head)).toBe(true);
+    expect(canManageUserAccounts(principal)).toBe(true);
     expect(isStaff(clubsAdmin)).toBe(true);
     expect(isStaff(technicalSupport)).toBe(false);
     expect(isFullAdmin(technicalSupport)).toBe(false);
@@ -135,15 +136,15 @@ describe('TechnicalSupport account administration', () => {
     }).not.toThrow();
     expect(() => {
       requireUserAccountAdmin(head);
-    }).toThrow(AccessDeniedError);
+    }).not.toThrow();
   });
 
-  it('can manage Parent and TechnicalSupport account shells only', () => {
-    expect(canManageUserAccountRole(technicalSupport, 'Parent')).toBe(true);
-    expect(canManageUserAccountRole(technicalSupport, 'TechnicalSupport')).toBe(true);
-    expect(canManageUserAccountRole(technicalSupport, 'Supervisor')).toBe(false);
-    expect(canManageUserAccountRole(technicalSupport, 'Student')).toBe(false);
-    expect(canManageUserAccountRole(technicalSupport, 'Head')).toBe(false);
+  it('can manage every role target while preserving non-admin denials', () => {
+    for (const role of ROLES) {
+      expect(canManageUserAccountRole(technicalSupport, role)).toBe(true);
+      expect(canManageUserAccountRole(head, role)).toBe(true);
+    }
+    expect(canManageUserAccountRole(supervisor, 'Parent')).toBe(false);
     expect(canManageUserAccountRole(head, 'Supervisor')).toBe(true);
   });
 });

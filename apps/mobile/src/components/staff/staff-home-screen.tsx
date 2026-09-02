@@ -91,6 +91,7 @@ export function StaffHomeScreen({
   onOpenPace,
   onOpenRota,
   onOpenShop,
+  onOpenUserAccess,
   onSwitchToParent,
   user,
 }: {
@@ -104,6 +105,7 @@ export function StaffHomeScreen({
   onOpenPace?: () => void;
   onOpenRota?: () => void;
   onOpenShop?: () => void;
+  onOpenUserAccess?: (() => void) | undefined;
   onSwitchToParent?: () => void;
   user: SessionUser | undefined;
 }) {
@@ -168,6 +170,18 @@ export function StaffHomeScreen({
                 <MutedText>Switch to the linked-child parent portal for this account.</MutedText>
               </View>
               <MobileButton label="Parent mode" onPress={onSwitchToParent} variant="blue" />
+            </View>
+          </Card>
+        ) : null}
+
+        {user?.role === 'Head' && onOpenUserAccess ? (
+          <Card style={styles.compactCard}>
+            <View style={styles.rowHeader}>
+              <View style={styles.rowBody}>
+                <Text style={styles.cardTitle}>User Access</Text>
+                <MutedText>Manage portal accounts and invitations.</MutedText>
+              </View>
+              <MobileButton label="User Access" onPress={onOpenUserAccess} variant="blue" />
             </View>
           </Card>
         ) : null}

@@ -606,6 +606,7 @@ function makeCaller(user: SessionUser, studentFixtures?: StudentRow[]) {
   const context: AppContext = {
     db: directDb as unknown as AppContext['db'],
     user,
+    accountAccessState: 'active',
     requestId: 'req_inventory_test',
     withRls: withRls as unknown as AppContext['withRls'],
   };

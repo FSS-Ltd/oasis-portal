@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { type RouterOutputs } from '../../lib/trpc';
+import { UserAccessScreen } from '../access/user-access-screen';
+import { Badge, MutedText, SectionTitle } from '../core/mobile-ui';
+import { PortalMobileHeader } from '../core/portal-mobile-shell';
 import { StaffAcademicInventoryScreen } from './staff-academic-inventory-screen';
 import { StaffAttendanceScreen } from './staff-attendance-screen';
 import { StaffBehaviourScreen } from './staff-behaviour-screen';
@@ -24,7 +27,8 @@ type StaffPortalRoute =
   | 'incidents'
   | 'pace'
   | 'rota'
-  | 'shop';
+  | 'shop'
+  | 'user-access';
 
 export function StaffPortalScreen({
   onSwitchToParent,
@@ -145,6 +149,37 @@ export function StaffPortalScreen({
     );
   }
 
+  if (route === 'user-access' && user?.role === 'Head') {
+    return (
+      <UserAccessScreen
+        currentUserId={user.id}
+        header={
+          <PortalMobileHeader
+            actionAccessibilityLabel="Return to staff home"
+            actionLabel="Back"
+            avatarLabel="H"
+            eyebrow="Staff Portal"
+            onActionPress={() => {
+              setRoute('home');
+            }}
+            subtitle="User Access"
+            title="Oasis Learning Centre"
+            variant="dark"
+          />
+        }
+        introduction={
+          <>
+            <Badge variant="blue">Head</Badge>
+            <SectionTitle>User Access</SectionTitle>
+            <MutedText>
+              Manage account invitations, profiles, roles, permissions, and sign-in status.
+            </MutedText>
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <StaffHomeScreen
       onOpenAcademicInventory={() => {
@@ -177,6 +212,13 @@ export function StaffPortalScreen({
       onOpenShop={() => {
         setRoute('shop');
       }}
+      onOpenUserAccess={
+        user?.role === 'Head'
+          ? () => {
+              setRoute('user-access');
+            }
+          : undefined
+      }
       user={user}
       {...(onSwitchToParent ? { onSwitchToParent } : {})}
     />

@@ -22,6 +22,7 @@ export function makeTestContext<Db>({
   return {
     db: db as unknown as AppContext['db'],
     user,
+    accountAccessState: user ? 'active' : 'unavailable',
     requestId,
     withRls: async <T>(fn: (tx: RlsTx) => Promise<T>) => {
       if (rls.kind === 'reject') {

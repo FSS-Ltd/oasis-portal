@@ -1,12 +1,13 @@
-import { ROLES, type Role } from '@oasis/domain';
-import type { RouterOutputs } from '@/lib/trpc';
-import { roleLabel } from '@/lib/profile-display';
+import { PERMISSION_TAGS, ROLES, type PermissionTag, type Role } from '@oasis/domain/rbac';
+import type { RouterOutputs } from '../../lib/trpc';
 
 export type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];
 export type AccessInvitation = RouterOutputs['admin']['listUserInvitations'][number];
-export type AccessFilter = 'all' | 'active' | 'inactive' | Role;
+export type AccessFilter = 'active' | 'all' | 'inactive' | Role;
 
-export const ACCESS_INVITE_ROLES = ROLES;
+export type DirectoryRow =
+  | { account: AccessAccount; id: string; kind: 'account' }
+  | { id: string; invitation: AccessInvitation; kind: 'invitation' };
 
 export const accessFilters: readonly { id: AccessFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -14,14 +15,6 @@ export const accessFilters: readonly { id: AccessFilter; label: string }[] = [
   { id: 'inactive', label: 'Inactive' },
   ...ROLES.map((role) => ({ id: role, label: roleLabel(role) })),
 ];
-
-export function accountForm(account: AccessAccount) {
-  return {
-    fullName: account.fullName,
-    phone: account.phone ?? '',
-    address: account.address ?? '',
-  };
-}
 
 export function formatAccountDate(value: Date | string): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -31,6 +24,10 @@ export function formatAccountDate(value: Date | string): string {
   }).format(new Date(value));
 }
 
-export function statusTone(active: boolean): 'amber' | 'green' {
-  return active ? 'green' : 'amber';
+export function roleLabel(role: string): string {
+  return role === 'TechnicalSupport' ? 'Technical Support' : role;
+}
+
+export function toPermissionTags(tags: readonly string[]): PermissionTag[] {
+  return PERMISSION_TAGS.filter((tag) => tags.includes(tag));
 }

@@ -35,6 +35,7 @@ type TxClient = Pick<PrismaClient, '$transaction'>;
 export interface AppContext {
   db: typeof prisma;
   user: SessionUser | null;
+  accountAccessState: AccountAccessState;
   requestId: string;
   withRls: <T>(fn: (tx: RlsTx) => Promise<T>) => Promise<T>;
 }
@@ -55,6 +56,13 @@ export interface LoadSessionUserDeps {
   reconcileUser?: (clerkUserId: string) => Promise<void>;
 }
 
+export type AccountAccessState = 'active' | 'deactivated' | 'unavailable';
+
+export interface AccountAccess {
+  accountAccessState: AccountAccessState;
+  user: SessionUser | null;
+}
+
 function findLocalUser(clerkUserId: string): Promise<UserLookupRow | null> {
   return prisma.user.findUnique({
     where: { clerkId: clerkUserId },
@@ -62,12 +70,12 @@ function findLocalUser(clerkUserId: string): Promise<UserLookupRow | null> {
   });
 }
 
-export async function loadSessionUser(
+export async function loadAccountAccess(
   clerkUserId: string,
   enforceTwoFactor: boolean,
   twoFactorSatisfied: boolean,
   deps: LoadSessionUserDeps = {},
-): Promise<SessionUser | null> {
+): Promise<AccountAccess> {
   const findUser = deps.findUser ?? findLocalUser;
   let user = await findUser(clerkUserId);
 
@@ -84,17 +92,30 @@ export async function loadSessionUser(
         message: 'Unable to reconcile a signed-in Clerk user',
         meta: { errorType: error instanceof Error ? error.name : 'unknown' },
       });
-      return null;
+      return { accountAccessState: 'unavailable', user: null };
     }
   }
 
-  if (!user || !user.active) return null;
+  if (!user) return { accountAccessState: 'unavailable', user: null };
+  if (!user.active) return { accountAccessState: 'deactivated', user: null };
   return {
-    id: user.id,
-    role: user.role,
-    tags: user.tags,
-    requires2fa: enforceTwoFactor && !twoFactorSatisfied,
+    accountAccessState: 'active',
+    user: {
+      id: user.id,
+      role: user.role,
+      tags: user.tags,
+      requires2fa: enforceTwoFactor && !twoFactorSatisfied,
+    },
   };
+}
+
+export async function loadSessionUser(
+  clerkUserId: string,
+  enforceTwoFactor: boolean,
+  twoFactorSatisfied: boolean,
+  deps: LoadSessionUserDeps = {},
+): Promise<SessionUser | null> {
+  return (await loadAccountAccess(clerkUserId, enforceTwoFactor, twoFactorSatisfied, deps)).user;
 }
 
 /**
@@ -164,16 +185,18 @@ export async function applySerializableRlsTx<T>(
 
 export async function createContext(args: CreateContextArgs): Promise<AppContext> {
   const clerkUserId = args.clerkUserId ?? null;
-  const user = clerkUserId
-    ? await loadSessionUser(
+  const accountAccess = clerkUserId
+    ? await loadAccountAccess(
         clerkUserId,
         args.enforceTwoFactor ?? false,
         args.twoFactorSatisfied ?? false,
       )
-    : null;
+    : { accountAccessState: 'unavailable' as const, user: null };
+  const { user } = accountAccess;
   return {
     db: prisma,
     user,
+    accountAccessState: accountAccess.accountAccessState,
     requestId: newRequestId(),
     withRls: (fn) => applyRlsTx(prisma, user, fn),
   };
