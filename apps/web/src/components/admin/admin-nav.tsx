@@ -187,15 +187,14 @@ function visibleForUser(item: NavItem, access: AdminNavAccess): boolean {
   if (item.label === 'My tasks') return access.canUsePersonalTasks;
   if (item.label === 'Mobile App') return true;
   if (item.label === 'PACE Inventory') return access.isHead;
+  if (item.label === 'User Access') return access.canManageUserAccounts;
   if (access.fullAdmin) {
-    if (item.label === 'User Access') return false;
     return item.label !== 'Audit' || access.canViewAudit;
   }
   if (access.canUseAdminOperations) {
     return !['Supervisor', 'Invoices', 'Sensitive Review', 'Audit'].includes(item.label);
   }
   if (item.label === 'Attendance') return access.canExportAttendance;
-  if (item.label === 'User Access') return access.canManageUserAccounts;
   if (item.label === 'Students') return access.canViewStudents;
   if (item.label === 'Behaviour') return access.canViewBehaviour;
   if (item.label === 'PACE') return access.canViewPace;

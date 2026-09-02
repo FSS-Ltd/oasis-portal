@@ -3,12 +3,12 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { Mail, MapPin, Phone, Save, ShieldCheck, UserCheck, UserX } from 'lucide-react';
-import { PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
+import { ADULT_USER_ACCOUNT_ROLES, PERMISSION_TAGS, type PermissionTag } from '@oasis/domain';
 import { ConfirmationDialog } from '@/components/admin/confirmation-dialog';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Field, TextInput } from '@/components/ui/field';
+import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { permissionTagLabel, roleLabel } from '@/lib/profile-display';
 import { api } from '@/lib/trpc';
@@ -36,6 +36,10 @@ function togglePermissionTag(tags: readonly string[], tag: PermissionTag): Permi
     next.add(tag);
   }
   return toPermissionTags([...next]);
+}
+
+function isAdultUserAccountRole(value: string): value is (typeof ADULT_USER_ACCOUNT_ROLES)[number] {
+  return ADULT_USER_ACCOUNT_ROLES.some((role) => role === value);
 }
 
 export function AccessAccountPanel({ account, currentUserId }: AccessAccountPanelProps) {
@@ -66,6 +70,15 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
       showErrorToast(error, 'Account status could not be updated.');
     },
   });
+  const updateRole = api.admin.updateUserRole.useMutation({
+    async onSuccess() {
+      await utils.admin.listUserAccounts.invalidate();
+      showSuccessToast('Role updated.');
+    },
+    onError(error) {
+      showErrorToast(error, 'Role could not be updated.');
+    },
+  });
   const updateTags = api.admin.updateUserTags.useMutation({
     async onSuccess() {
       await Promise.all([
@@ -79,7 +92,9 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
     },
   });
   const isSelf = account.id === currentUserId;
-  const hasClubLeadTag = account.tags.includes('club-lead');
+  const roleOptions = isAdultUserAccountRole(account.role)
+    ? ADULT_USER_ACCOUNT_ROLES
+    : [account.role, ...ADULT_USER_ACCOUNT_ROLES];
 
   useEffect(() => {
     setForm(accountForm(account));
@@ -96,6 +111,11 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
       phone: form.phone,
       address: form.address,
     });
+  }
+
+  function handleRoleChange(value: string) {
+    if (!isAdultUserAccountRole(value)) return;
+    updateRole.mutate({ userId: account.id, role: value });
   }
 
   return (
@@ -186,7 +206,23 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
             <div className="profile-field-list">
               <div className="profile-field-row">
                 <span>Role</span>
-                <strong>{roleLabel(account.role)}</strong>
+                {isSelf ? (
+                  <strong>{roleLabel(account.role)}</strong>
+                ) : (
+                  <SelectInput
+                    disabled={updateRole.isPending}
+                    onChange={(event) => {
+                      handleRoleChange(event.target.value);
+                    }}
+                    value={account.role}
+                  >
+                    {roleOptions.map((role) => (
+                      <option disabled={!isAdultUserAccountRole(role)} key={role} value={role}>
+                        {roleLabel(role)}
+                      </option>
+                    ))}
+                  </SelectInput>
+                )}
               </div>
               <div className="profile-field-row">
                 <span>Status</span>
@@ -218,6 +254,11 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
                 {friendlyErrorMessage(updateProfile.error)}
               </p>
             ) : null}
+            {updateRole.error ? (
+              <p className="status--error" role="alert">
+                {friendlyErrorMessage(updateRole.error)}
+              </p>
+            ) : null}
           </div>
         </section>
 
@@ -241,7 +282,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
                   variant="danger"
                 >
                   <UserX aria-hidden="true" size={16} />
-                  Deactivate
+                  Deactivate account
                 </Button>
               ) : (
                 <Button
@@ -253,7 +294,7 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
                   variant="secondary"
                 >
                   <UserCheck aria-hidden="true" size={16} />
-                  Reactivate
+                  Reactivate account
                 </Button>
               )}
             </div>
@@ -272,54 +313,32 @@ export function AccessAccountPanel({ account, currentUserId }: AccessAccountPane
           <div className="panel__body form-grid">
             <div className="section-title">
               <div>
-                <h2>{isSelf ? 'Permission tags' : 'Club lead access'}</h2>
-                <p className="muted">
-                  {isSelf
-                    ? 'Operational access for this support account.'
-                    : 'Allow this user to be assigned to clubs as a lead.'}
-                </p>
+                <h2>Permission tags</h2>
+                <p className="muted">Grant or revoke operational access without changing role.</p>
               </div>
             </div>
-            {isSelf ? (
-              <div className="tag-toggle-list">
-                {PERMISSION_TAGS.map((tag) => {
-                  const checked = account.tags.includes(tag);
-                  return (
-                    <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>
-                      <input
-                        checked={checked}
-                        disabled={!account.active || updateTags.isPending}
-                        onChange={() => {
-                          updateTags.mutate({
-                            userId: account.id,
-                            tags: togglePermissionTag(account.tags, tag),
-                          });
-                        }}
-                        type="checkbox"
-                      />
-                      <ShieldCheck aria-hidden="true" size={14} />
-                      <span>{permissionTagLabel(tag)}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : (
-              <label className={hasClubLeadTag ? 'tag-toggle is-checked' : 'tag-toggle'}>
-                <input
-                  checked={hasClubLeadTag}
-                  disabled={!account.active || updateTags.isPending}
-                  onChange={() => {
-                    updateTags.mutate({
-                      userId: account.id,
-                      tags: togglePermissionTag(account.tags, 'club-lead'),
-                    });
-                  }}
-                  type="checkbox"
-                />
-                <ShieldCheck aria-hidden="true" size={14} />
-                <span>{permissionTagLabel('club-lead')}</span>
-              </label>
-            )}
+            <div className="tag-toggle-list">
+              {PERMISSION_TAGS.map((tag) => {
+                const checked = account.tags.includes(tag);
+                return (
+                  <label className={checked ? 'tag-toggle is-checked' : 'tag-toggle'} key={tag}>
+                    <input
+                      checked={checked}
+                      disabled={!account.active || updateTags.isPending}
+                      onChange={() => {
+                        updateTags.mutate({
+                          userId: account.id,
+                          tags: togglePermissionTag(account.tags, tag),
+                        });
+                      }}
+                      type="checkbox"
+                    />
+                    <ShieldCheck aria-hidden="true" size={14} />
+                    <span>{permissionTagLabel(tag)}</span>
+                  </label>
+                );
+              })}
+            </div>
             {!account.active ? (
               <p className="muted">Reactivate the account before changing permission tags.</p>
             ) : null}

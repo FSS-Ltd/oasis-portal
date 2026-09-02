@@ -55,6 +55,7 @@ export default async function PostSignInResolvePage({ searchParams }: PostSignIn
     enforceTwoFactor: isTwoFactorEnforcementEnabled(),
     twoFactorSatisfied: twoFactorSatisfiedFromClerkAuth(clerkAuth),
   });
+  if (ctx.accountAccessState === 'deactivated') redirect('/access-revoked');
   let parentNeedsRegistration = false;
   let childRegistrationPromptRequired = false;
   let childRegistrationRequired = false;

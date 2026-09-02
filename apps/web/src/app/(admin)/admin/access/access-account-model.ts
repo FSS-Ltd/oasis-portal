@@ -1,21 +1,18 @@
-import type { Role } from '@oasis/domain';
+import { ROLES, type Role } from '@oasis/domain';
 import type { RouterOutputs } from '@/lib/trpc';
+import { roleLabel } from '@/lib/profile-display';
 
 export type AccessAccount = RouterOutputs['admin']['listUserAccounts'][number];
 export type AccessInvitation = RouterOutputs['admin']['listUserInvitations'][number];
-export type AccessFilter = 'all' | 'active' | 'inactive' | 'Parent' | 'TechnicalSupport';
+export type AccessFilter = 'all' | 'active' | 'inactive' | Role;
 
-export const ACCESS_INVITE_ROLES = [
-  'Parent',
-  'TechnicalSupport',
-] as const satisfies readonly Role[];
+export const ACCESS_INVITE_ROLES = ROLES;
 
 export const accessFilters: readonly { id: AccessFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active' },
   { id: 'inactive', label: 'Inactive' },
-  { id: 'Parent', label: 'Parents' },
-  { id: 'TechnicalSupport', label: 'Support' },
+  ...ROLES.map((role) => ({ id: role, label: roleLabel(role) })),
 ];
 
 export function accountForm(account: AccessAccount) {
