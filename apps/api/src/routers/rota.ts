@@ -1,7 +1,14 @@
 import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
-import { isStaff, requireStaff, type SessionUser } from '@oasis/domain';
+import {
+  currentOasisTerm,
+  isStaff,
+  nextOasisTerm,
+  requireStaff,
+  type OasisTerm,
+  type SessionUser,
+} from '@oasis/domain';
 import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
@@ -34,6 +41,8 @@ const dateKeyInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid dat
 const monthKeyInput = z.string().regex(/^\d{4}-\d{2}$/u, 'Enter a valid month');
 
 const VOLUNTEER_WINDOW_DAYS = 14;
+const PARENT_VOLUNTEER_MAX_TERM_DAYS = 128;
+const PARENT_VOLUNTEER_NEXT_TERM_OPENING_DAYS = 7;
 
 const PARENT_VOLUNTEER_PLACEMENTS = {
   Centre: { dailyCapacity: 2, label: 'Centre volunteer' },
@@ -45,9 +54,13 @@ type ParentVolunteerPlacement = keyof typeof PARENT_VOLUNTEER_PLACEMENTS;
 
 const setMyParentVolunteerDaysInput = z
   .object({
-    centreDates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).optional(),
-    primaryLunchAndClubsDates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).optional(),
-    secondaryLunchAndClubsDates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).optional(),
+    termId: z.string().regex(/^\d{4}-(Spring|Summer|Autumn)$/u, 'Choose a valid volunteer term'),
+    centreDates: z.array(dateKeyInput).max(PARENT_VOLUNTEER_MAX_TERM_DAYS).optional(),
+    primaryLunchAndClubsDates: z.array(dateKeyInput).max(PARENT_VOLUNTEER_MAX_TERM_DAYS).optional(),
+    secondaryLunchAndClubsDates: z
+      .array(dateKeyInput)
+      .max(PARENT_VOLUNTEER_MAX_TERM_DAYS)
+      .optional(),
   })
   .refine(
     (input) =>
@@ -234,6 +247,17 @@ function rollingVolunteerWindow(now = new Date()): { from: Date; to: Date } {
   return { from, to: addDays(from, VOLUNTEER_WINDOW_DAYS - 1) };
 }
 
+function availableParentVolunteerTerms(now = new Date()): OasisTerm[] {
+  const currentTerm = currentOasisTerm(now);
+  const nextTerm = nextOasisTerm(now);
+  if (!nextTerm) return [currentTerm];
+
+  const nextTermOpeningDate = addDays(nextTerm.from, -PARENT_VOLUNTEER_NEXT_TERM_OPENING_DAYS);
+  return normalizeDate(now).getTime() >= nextTermOpeningDate.getTime()
+    ? [currentTerm, nextTerm]
+    : [currentTerm];
+}
+
 function decryptRequired(
   decrypt: (value: string | null | undefined) => string | null,
   value: string | null | undefined,
@@ -297,10 +321,25 @@ function assertVolunteerDatesWithinWindow(
   }
 }
 
+function assertParentVolunteerDatesWithinTerm(dates: readonly string[], term: OasisTerm): void {
+  const invalidDate = dates.find((value) => {
+    const date = dateFromKey(value);
+    return date.getTime() < term.from.getTime() || date.getTime() >= term.to.getTime();
+  });
+  if (invalidDate) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: 'Volunteer days must be within an available term',
+    });
+  }
+}
+
 async function listParentVolunteerSlots(ctx: RouterCtx) {
-  const window = rollingVolunteerWindow();
+  const terms = availableParentVolunteerTerms();
+  const firstTerm = terms[0] as OasisTerm;
+  const lastTerm = terms.at(-1) as OasisTerm;
   const rows = await ctx.db.parentVolunteerDay.findMany({
-    where: { date: { gte: window.from, lte: window.to } },
+    where: { date: { gte: firstTerm.from, lte: addDays(lastTerm.to, -1) } },
     select: { date: true, parentUserId: true, placement: true },
   });
   const volunteersByPlacementAndDate = new Map<string, string[]>();
@@ -312,10 +351,11 @@ async function listParentVolunteerSlots(ctx: RouterCtx) {
     ]);
   }
 
-  const slotsForPlacement = (placement: ParentVolunteerPlacement) => {
+  const slotsForPlacement = (placement: ParentVolunteerPlacement, term: OasisTerm) => {
     const { dailyCapacity } = PARENT_VOLUNTEER_PLACEMENTS[placement];
-    return Array.from({ length: VOLUNTEER_WINDOW_DAYS }, (_, index) => {
-      const date = dateKey(addDays(window.from, index));
+    const termDays = Math.ceil((term.to.getTime() - term.from.getTime()) / 86_400_000);
+    return Array.from({ length: termDays }, (_, index) => {
+      const date = dateKey(addDays(term.from, index));
       const volunteerIds = volunteersByPlacementAndDate.get(`${placement}:${date}`) ?? [];
       const selected = volunteerIds.includes(ctx.user.id);
       return {
@@ -332,22 +372,26 @@ async function listParentVolunteerSlots(ctx: RouterCtx) {
   };
 
   return {
-    from: dateKey(window.from),
-    to: dateKey(window.to),
-    centreVolunteer: {
-      dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.Centre.dailyCapacity,
-      days: slotsForPlacement('Centre'),
-    },
-    lunchAndClubs: {
-      primary: {
-        dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsPrimary.dailyCapacity,
-        days: slotsForPlacement('LunchAndClubsPrimary'),
+    terms: terms.map((term) => ({
+      id: term.id,
+      label: term.label,
+      from: dateKey(term.from),
+      to: dateKey(addDays(term.to, -1)),
+      centreVolunteer: {
+        dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.Centre.dailyCapacity,
+        days: slotsForPlacement('Centre', term),
       },
-      secondary: {
-        dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsSecondary.dailyCapacity,
-        days: slotsForPlacement('LunchAndClubsSecondary'),
+      lunchAndClubs: {
+        primary: {
+          dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsPrimary.dailyCapacity,
+          days: slotsForPlacement('LunchAndClubsPrimary', term),
+        },
+        secondary: {
+          dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsSecondary.dailyCapacity,
+          days: slotsForPlacement('LunchAndClubsSecondary', term),
+        },
       },
-    },
+    })),
   };
 }
 
@@ -745,16 +789,24 @@ export const rotaRouter = router({
       const requestedSelections = parentVolunteerDatesByPlacement(input).flatMap(
         ({ placement, dates }) => dates.map((date) => ({ date, placement })),
       );
-      const window = rollingVolunteerWindow();
-      assertVolunteerDatesWithinWindow(
+      const term = availableParentVolunteerTerms().find(
+        (candidate) => candidate.id === input.termId,
+      );
+      if (!term) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Volunteer term is not currently available',
+        });
+      }
+      assertParentVolunteerDatesWithinTerm(
         requestedSelections.map((selection) => selection.date),
-        window,
+        term,
       );
 
       const existingRows = await ctx.db.parentVolunteerDay.findMany({
         where: {
           parentUserId: ctx.user.id,
-          date: { gte: window.from, lte: window.to },
+          date: { gte: term.from, lte: addDays(term.to, -1) },
         },
         select: { id: true, date: true, placement: true },
       });

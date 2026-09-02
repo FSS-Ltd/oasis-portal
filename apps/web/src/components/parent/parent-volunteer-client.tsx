@@ -7,7 +7,8 @@ import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/no
 import { api, type RouterOutputs } from '@/lib/trpc';
 
 type ParentVolunteerSlots = RouterOutputs['rota']['parentVolunteerSlots'];
-type VolunteerDay = ParentVolunteerSlots['centreVolunteer']['days'][number];
+type ParentVolunteerTerm = ParentVolunteerSlots['terms'][number];
+type VolunteerDay = ParentVolunteerTerm['centreVolunteer']['days'][number];
 type VolunteerTab = 'centre' | 'lunchAndClubs';
 
 const volunteerTabs = [
@@ -34,6 +35,12 @@ function availabilityLabel(slot: VolunteerDay): string {
 
 function selectedDates(days: readonly VolunteerDay[]): Set<string> {
   return new Set(days.filter((day) => day.selected).map((day) => day.date));
+}
+
+function splitIntoWeeks<T>(items: readonly T[]): T[][] {
+  return Array.from({ length: Math.ceil(items.length / 7) }, (_, index) =>
+    items.slice(index * 7, (index + 1) * 7),
+  );
 }
 
 function VolunteerDayButton({
@@ -77,7 +84,7 @@ function VolunteerWeeks({
   pending: boolean;
   selected: ReadonlySet<string>;
 }) {
-  const weeks = useMemo(() => [days.slice(0, 7), days.slice(7)], [days]);
+  const weeks = useMemo(() => splitIntoWeeks(days), [days]);
 
   return (
     <div className="parent-volunteer-weeks">
@@ -118,13 +125,14 @@ function LunchAndClubsWeeks({
   onToggleSecondary: (date: string) => void;
   pending: boolean;
 }) {
-  const weeks = useMemo(
-    () => [
-      { primary: primaryDays.slice(0, 7), secondary: secondaryDays.slice(0, 7) },
-      { primary: primaryDays.slice(7), secondary: secondaryDays.slice(7) },
-    ],
-    [primaryDays, secondaryDays],
-  );
+  const weeks = useMemo(() => {
+    const primaryWeeks = splitIntoWeeks(primaryDays);
+    const secondaryWeeks = splitIntoWeeks(secondaryDays);
+    return primaryWeeks.map((primary, index) => ({
+      primary,
+      secondary: secondaryWeeks[index] ?? [],
+    }));
+  }, [primaryDays, secondaryDays]);
 
   return (
     <div className="parent-volunteer-weeks">
@@ -173,7 +181,9 @@ function LunchAndClubsWeeks({
 export function ParentVolunteerClient() {
   const utils = api.useUtils();
   const slotsQuery = api.rota.parentVolunteerSlots.useQuery(undefined, { retry: false });
+  const terms = slotsQuery.data?.terms ?? [];
   const [activeTab, setActiveTab] = useState<VolunteerTab>('centre');
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [centreDates, setCentreDates] = useState<Set<string>>(new Set());
   const [primaryLunchAndClubsDates, setPrimaryLunchAndClubsDates] = useState<Set<string>>(
     new Set(),
@@ -182,16 +192,19 @@ export function ParentVolunteerClient() {
     new Set(),
   );
   const selectedDatesWindow = useRef<string | null>(null);
+  const selectedTerm = terms.find((term) => term.id === selectedTermId) ?? terms[0] ?? null;
 
   useEffect(() => {
-    if (!slotsQuery.data) return;
-    const windowKey = `${slotsQuery.data.from}:${slotsQuery.data.to}`;
-    if (selectedDatesWindow.current === windowKey) return;
-    setCentreDates(selectedDates(slotsQuery.data.centreVolunteer.days));
-    setPrimaryLunchAndClubsDates(selectedDates(slotsQuery.data.lunchAndClubs.primary.days));
-    setSecondaryLunchAndClubsDates(selectedDates(slotsQuery.data.lunchAndClubs.secondary.days));
-    selectedDatesWindow.current = windowKey;
-  }, [slotsQuery.data]);
+    if (selectedTerm && selectedTerm.id !== selectedTermId) setSelectedTermId(selectedTerm.id);
+  }, [selectedTerm, selectedTermId]);
+
+  useEffect(() => {
+    if (!selectedTerm || selectedDatesWindow.current === selectedTerm.id) return;
+    setCentreDates(selectedDates(selectedTerm.centreVolunteer.days));
+    setPrimaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.primary.days));
+    setSecondaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.secondary.days));
+    selectedDatesWindow.current = selectedTerm.id;
+  }, [selectedTerm]);
 
   const saveCentreDays = api.rota.setMyParentVolunteerDays.useMutation({
     onError: (error) => {
@@ -240,7 +253,7 @@ export function ParentVolunteerClient() {
     });
   }
 
-  const slots = slotsQuery.data;
+  const slots = selectedTerm;
   const centreSelectedDayCount = centreDates.size;
   const lunchAndClubsSelectedDayCount =
     primaryLunchAndClubsDates.size + secondaryLunchAndClubsDates.size;
@@ -274,7 +287,7 @@ export function ParentVolunteerClient() {
         </div>
         <span className="badge badge--blue">
           <CalendarDays aria-hidden="true" size={14} />
-          Rolling two weeks
+          Full term
         </span>
       </div>
 
@@ -284,6 +297,32 @@ export function ParentVolunteerClient() {
       ) : null}
       {slots ? (
         <>
+          <section className="panel panel__body parent-volunteer-panel">
+            <div className="section-title">
+              <div>
+                <p className="muted">Available terms</p>
+                <h2>Choose a term</h2>
+              </div>
+            </div>
+            <div className="row-actions" role="group" aria-label="Volunteer term">
+              {terms.map((term) => (
+                <Button
+                  aria-pressed={slots.id === term.id}
+                  key={term.id}
+                  onClick={() => {
+                    setSelectedTermId(term.id);
+                  }}
+                  size="sm"
+                  type="button"
+                  variant={slots.id === term.id ? 'primary' : 'secondary'}
+                >
+                  {term.label} {term.id.slice(0, 4)}
+                </Button>
+              ))}
+            </div>
+            <p className="muted">The next term becomes available one week before it starts.</p>
+          </section>
+
           <div aria-label="Volunteer options" className="parent-volunteer-tabs" role="tablist">
             {volunteerTabs.map((tab) => (
               <button
@@ -324,7 +363,10 @@ export function ParentVolunteerClient() {
                   <span className="badge">{String(centreSelectedDayCount)} selected</span>
                   <Button
                     onClick={() => {
-                      saveCentreDays.mutate({ centreDates: [...centreDates].sort() });
+                      saveCentreDays.mutate({
+                        termId: slots.id,
+                        centreDates: [...centreDates].sort(),
+                      });
                     }}
                     pending={saveCentreDays.isPending}
                     size="sm"
@@ -336,8 +378,7 @@ export function ParentVolunteerClient() {
                 </div>
               </div>
               <p className="muted">
-                {formatDate(slots.from)} - {formatDate(slots.to)} · Week three opens when this
-                period reaches its second week.
+                {formatDate(slots.from)} - {formatDate(slots.to)}
               </p>
               <VolunteerWeeks
                 days={slots.centreVolunteer.days}
@@ -366,6 +407,7 @@ export function ParentVolunteerClient() {
                   <Button
                     onClick={() => {
                       saveLunchAndClubsDays.mutate({
+                        termId: slots.id,
                         primaryLunchAndClubsDates: [...primaryLunchAndClubsDates].sort(),
                         secondaryLunchAndClubsDates: [...secondaryLunchAndClubsDates].sort(),
                       });

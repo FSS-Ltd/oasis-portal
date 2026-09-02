@@ -122,6 +122,11 @@ function termForDates(dates: TermDates): OasisTerm {
   };
 }
 
+/** Returns every published Oasis term in chronological order. */
+export function publishedOasisTerms(): OasisTerm[] {
+  return PUBLISHED_TERM_DATES.map(termForDates);
+}
+
 function assertValidDate(referenceDate: Date): void {
   if (Number.isNaN(referenceDate.getTime())) throw new Error('referenceDate must be a valid date');
 }
@@ -140,7 +145,7 @@ function holidayLabel(nextTerm: TermDates): string {
 export function currentOasisTerm(referenceDate: Date = new Date()): OasisTerm {
   assertValidDate(referenceDate);
   const date = startOfUtcDay(referenceDate);
-  const terms = PUBLISHED_TERM_DATES.map(termForDates);
+  const terms = publishedOasisTerms();
   const containingTerm = terms.find((term) => isWithin(date, term.from, term.to));
   if (containingTerm) return containingTerm;
 
@@ -148,6 +153,13 @@ export function currentOasisTerm(referenceDate: Date = new Date()): OasisTerm {
   if (nextTermIndex > 0) return terms[nextTermIndex - 1] as OasisTerm;
   if (nextTermIndex === 0) return terms[0] as OasisTerm;
   return terms.at(-1) as OasisTerm;
+}
+
+/** Returns the first published term that has not started yet. */
+export function nextOasisTerm(referenceDate: Date = new Date()): OasisTerm | null {
+  assertValidDate(referenceDate);
+  const date = startOfUtcDay(referenceDate);
+  return publishedOasisTerms().find((term) => term.from.getTime() > date.getTime()) ?? null;
 }
 
 /** Resolves the current term, half-term, or holiday from the published timetable. */

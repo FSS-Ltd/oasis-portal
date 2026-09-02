@@ -13,7 +13,8 @@ import {
 } from '../core/mobile-ui';
 
 type ParentVolunteerSlots = RouterOutputs['rota']['parentVolunteerSlots'];
-type VolunteerDay = ParentVolunteerSlots['centreVolunteer']['days'][number];
+type ParentVolunteerTerm = ParentVolunteerSlots['terms'][number];
+type VolunteerDay = ParentVolunteerTerm['centreVolunteer']['days'][number];
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -34,6 +35,12 @@ function availabilityLabel(slot: VolunteerDay): string {
 
 function selectedDates(days: readonly VolunteerDay[]): Set<string> {
   return new Set(days.filter((day) => day.selected).map((day) => day.date));
+}
+
+function splitIntoWeeks(days: readonly VolunteerDay[]): VolunteerDay[][] {
+  return Array.from({ length: Math.ceil(days.length / 7) }, (_, index) =>
+    days.slice(index * 7, (index + 1) * 7),
+  );
 }
 
 function VolunteerDayButton({
@@ -84,7 +91,7 @@ function CentreVolunteerCard({
   selected: ReadonlySet<string>;
   onToggle: (date: string) => void;
 }) {
-  const weeks = useMemo(() => [days.slice(0, 7), days.slice(7)], [days]);
+  const weeks = useMemo(() => splitIntoWeeks(days), [days]);
   return (
     <Card style={styles.daysCard}>
       <View style={styles.cardHeader}>
@@ -130,13 +137,14 @@ function LunchAndClubsCard({
   onTogglePrimary: (date: string) => void;
   onToggleSecondary: (date: string) => void;
 }) {
-  const weeks = useMemo(
-    () => [
-      { primary: primaryDays.slice(0, 7), secondary: secondaryDays.slice(0, 7) },
-      { primary: primaryDays.slice(7), secondary: secondaryDays.slice(7) },
-    ],
-    [primaryDays, secondaryDays],
-  );
+  const weeks = useMemo(() => {
+    const primaryWeeks = splitIntoWeeks(primaryDays);
+    const secondaryWeeks = splitIntoWeeks(secondaryDays);
+    return primaryWeeks.map((primary, index) => ({
+      primary,
+      secondary: secondaryWeeks[index] ?? [],
+    }));
+  }, [primaryDays, secondaryDays]);
   const selectedCount = primarySelected.size + secondarySelected.size;
 
   return (
@@ -205,6 +213,8 @@ export function ParentVolunteerScreen({
   slots: ParentVolunteerSlots | undefined;
 }) {
   const utils = api.useUtils();
+  const terms = slots?.terms ?? [];
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [centreDates, setCentreDates] = useState<Set<string>>(new Set());
   const [primaryLunchAndClubsDates, setPrimaryLunchAndClubsDates] = useState<Set<string>>(
     new Set(),
@@ -214,12 +224,18 @@ export function ParentVolunteerScreen({
   );
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const selectedTerm = terms.find((term) => term.id === selectedTermId) ?? terms[0] ?? null;
+
   useEffect(() => {
-    if (!slots) return;
-    setCentreDates(selectedDates(slots.centreVolunteer.days));
-    setPrimaryLunchAndClubsDates(selectedDates(slots.lunchAndClubs.primary.days));
-    setSecondaryLunchAndClubsDates(selectedDates(slots.lunchAndClubs.secondary.days));
-  }, [slots]);
+    if (selectedTerm && selectedTerm.id !== selectedTermId) setSelectedTermId(selectedTerm.id);
+  }, [selectedTerm, selectedTermId]);
+
+  useEffect(() => {
+    if (!selectedTerm) return;
+    setCentreDates(selectedDates(selectedTerm.centreVolunteer.days));
+    setPrimaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.primary.days));
+    setSecondaryLunchAndClubsDates(selectedDates(selectedTerm.lunchAndClubs.secondary.days));
+  }, [selectedTerm]);
 
   const saveVolunteerDays = api.rota.setMyParentVolunteerDays.useMutation({
     onError: async () => {
@@ -265,7 +281,7 @@ export function ParentVolunteerScreen({
         <Text style={styles.eyebrow}>Oasis parent team</Text>
         <SectionTitle>Volunteer at Oasis</SectionTitle>
         <MutedText>Choose where you can help. Other parents&apos; choices stay private.</MutedText>
-        <Badge variant="blue">Rolling two weeks</Badge>
+        <Badge variant="blue">Full term</Badge>
       </Card>
 
       {loading ? <InlineSpinner label="Loading volunteer days" /> : null}
@@ -275,41 +291,80 @@ export function ParentVolunteerScreen({
 
       {slots ? (
         <>
-          <MutedText>
-            {formatDate(slots.from)} - {formatDate(slots.to)} · Week three opens when this period
-            reaches its second week.
-          </MutedText>
-          <CentreVolunteerCard
-            days={slots.centreVolunteer.days}
-            onToggle={toggleCentreDate}
-            pending={saveVolunteerDays.isPending}
-            selected={centreDates}
-          />
-          <LunchAndClubsCard
-            onTogglePrimary={(date) => {
-              toggleLunchAndClubsDate(date, 'primary');
-            }}
-            onToggleSecondary={(date) => {
-              toggleLunchAndClubsDate(date, 'secondary');
-            }}
-            pending={saveVolunteerDays.isPending}
-            primaryDays={slots.lunchAndClubs.primary.days}
-            primarySelected={primaryLunchAndClubsDates}
-            secondaryDays={slots.lunchAndClubs.secondary.days}
-            secondarySelected={secondaryLunchAndClubsDates}
-          />
-          <MobileButton
-            disabled={saveVolunteerDays.isPending}
-            label={saveVolunteerDays.isPending ? 'Saving volunteer days...' : 'Save volunteer days'}
-            onPress={() => {
-              setSuccessMessage(null);
-              saveVolunteerDays.mutate({
-                centreDates: [...centreDates].sort(),
-                primaryLunchAndClubsDates: [...primaryLunchAndClubsDates].sort(),
-                secondaryLunchAndClubsDates: [...secondaryLunchAndClubsDates].sort(),
-              });
-            }}
-          />
+          <Card style={styles.daysCard}>
+            <Text style={styles.cardEyebrow}>Available terms</Text>
+            <SectionTitle>Choose a term</SectionTitle>
+            <View style={styles.termSelector}>
+              {terms.map((term) => {
+                const selected = selectedTerm?.id === term.id;
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    key={term.id}
+                    onPress={() => {
+                      setSelectedTermId(term.id);
+                    }}
+                    style={[styles.termButton, selected ? styles.termButtonSelected : null]}
+                  >
+                    <Text
+                      style={[
+                        styles.termButtonText,
+                        selected ? styles.termButtonTextSelected : null,
+                      ]}
+                    >
+                      {term.label} {term.id.slice(0, 4)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <MutedText>The next term becomes available one week before it starts.</MutedText>
+          </Card>
+
+          {selectedTerm ? (
+            <>
+              <MutedText>
+                {formatDate(selectedTerm.from)} - {formatDate(selectedTerm.to)}
+              </MutedText>
+              <CentreVolunteerCard
+                days={selectedTerm.centreVolunteer.days}
+                onToggle={toggleCentreDate}
+                pending={saveVolunteerDays.isPending}
+                selected={centreDates}
+              />
+              <LunchAndClubsCard
+                onTogglePrimary={(date) => {
+                  toggleLunchAndClubsDate(date, 'primary');
+                }}
+                onToggleSecondary={(date) => {
+                  toggleLunchAndClubsDate(date, 'secondary');
+                }}
+                pending={saveVolunteerDays.isPending}
+                primaryDays={selectedTerm.lunchAndClubs.primary.days}
+                primarySelected={primaryLunchAndClubsDates}
+                secondaryDays={selectedTerm.lunchAndClubs.secondary.days}
+                secondarySelected={secondaryLunchAndClubsDates}
+              />
+              <MobileButton
+                disabled={saveVolunteerDays.isPending}
+                label={
+                  saveVolunteerDays.isPending ? 'Saving volunteer days...' : 'Save volunteer days'
+                }
+                onPress={() => {
+                  setSuccessMessage(null);
+                  saveVolunteerDays.mutate({
+                    termId: selectedTerm.id,
+                    centreDates: [...centreDates].sort(),
+                    primaryLunchAndClubsDates: [...primaryLunchAndClubsDates].sort(),
+                    secondaryLunchAndClubsDates: [...secondaryLunchAndClubsDates].sort(),
+                  });
+                }}
+              />
+            </>
+          ) : (
+            <MutedText>No volunteer terms are available.</MutedText>
+          )}
         </>
       ) : null}
     </View>
@@ -417,6 +472,31 @@ const styles = StyleSheet.create({
     color: C.success,
     fontSize: 12,
     fontWeight: '700',
+  },
+  termButton: {
+    backgroundColor: C.surface,
+    borderColor: C.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  termButtonSelected: {
+    backgroundColor: C.navy,
+    borderColor: C.navy,
+  },
+  termButtonText: {
+    color: C.navy,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  termButtonTextSelected: {
+    color: C.surface,
+  },
+  termSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   weekSection: {
     gap: 8,

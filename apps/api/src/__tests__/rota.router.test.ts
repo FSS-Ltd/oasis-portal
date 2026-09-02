@@ -1020,31 +1020,47 @@ describe('rota availability', () => {
 });
 
 describe('parent volunteer days', () => {
+  type ParentVolunteerSlots = Awaited<
+    ReturnType<ReturnType<typeof makeCaller>['rota']['parentVolunteerSlots']>
+  >;
+  type ParentVolunteerTerm = ParentVolunteerSlots['terms'][number];
+
+  function firstAvailableParentVolunteerTerm(slots: ParentVolunteerSlots): ParentVolunteerTerm {
+    const term = slots.terms[0];
+    if (!term) throw new Error('Expected an available parent volunteer term');
+    return term;
+  }
+
   it('keeps parent selections private and separates centre, Primary, and Secondary capacity', async () => {
     const { db, parentVolunteerDays } = makeFakeDb();
-    const windowStart = currentVolunteerWindowStart();
-    const firstDate = dateKey(windowStart);
-    const secondDate = dateKey(new Date(windowStart.getTime() + 86_400_000));
     const parentCaller = makeCaller(parentUser, db);
 
     const initialSlots = await parentCaller.rota.parentVolunteerSlots();
-    expect(initialSlots).toMatchObject({
+    const initialTerm = firstAvailableParentVolunteerTerm(initialSlots);
+    const [firstDay, secondDay] = initialTerm.centreVolunteer.days;
+    if (!firstDay || !secondDay) throw new Error('Expected at least two parent volunteer days');
+    const firstDate = firstDay.date;
+    const secondDate = secondDay.date;
+    expect(initialTerm).toMatchObject({
       centreVolunteer: { dailyCapacity: 2 },
       lunchAndClubs: {
         primary: { dailyCapacity: 3 },
         secondary: { dailyCapacity: 2 },
       },
     });
-    expect(initialSlots.from).toBe(firstDate);
-    expect(initialSlots.centreVolunteer.days[0]).toMatchObject({ date: firstDate });
-    expect(initialSlots.centreVolunteer.days[0]).not.toHaveProperty('parent');
-    expect(initialSlots.lunchAndClubs.primary.days[0]).not.toHaveProperty('volunteers');
+    expect(initialTerm.from).toBe(firstDate);
+    expect(initialTerm.centreVolunteer.days[0]).toMatchObject({ date: firstDate });
+    expect(initialTerm.centreVolunteer.days[0]).not.toHaveProperty('parent');
+    expect(initialTerm.lunchAndClubs.primary.days[0]).not.toHaveProperty('volunteers');
 
-    const parentSelection = await parentCaller.rota.setMyParentVolunteerDays({
-      centreDates: [firstDate, secondDate],
-      primaryLunchAndClubsDates: [firstDate],
-      secondaryLunchAndClubsDates: [],
-    });
+    const parentSelection = firstAvailableParentVolunteerTerm(
+      await parentCaller.rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
+        centreDates: [firstDate, secondDate],
+        primaryLunchAndClubsDates: [firstDate],
+        secondaryLunchAndClubsDates: [],
+      }),
+    );
     expect(
       parentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
     ).toMatchObject({
@@ -1063,14 +1079,14 @@ describe('parent volunteer days', () => {
       parentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
     ).toMatchObject({ selected: true, spacesRemaining: 2, status: 'Selected' });
 
-    const secondParentSelection = await makeCaller(
-      secondParentUser,
-      db,
-    ).rota.setMyParentVolunteerDays({
-      centreDates: [firstDate],
-      primaryLunchAndClubsDates: [firstDate],
-      secondaryLunchAndClubsDates: [secondDate],
-    });
+    const secondParentSelection = firstAvailableParentVolunteerTerm(
+      await makeCaller(secondParentUser, db).rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
+        centreDates: [firstDate],
+        primaryLunchAndClubsDates: [firstDate],
+        secondaryLunchAndClubsDates: [secondDate],
+      }),
+    );
     expect(
       secondParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
     ).toMatchObject({
@@ -1080,6 +1096,7 @@ describe('parent volunteer days', () => {
     });
     await expect(
       makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
         centreDates: [firstDate],
         primaryLunchAndClubsDates: [],
         secondaryLunchAndClubsDates: [],
@@ -1089,14 +1106,14 @@ describe('parent volunteer days', () => {
       message: `${firstDate} already has no centre volunteer spaces`,
     });
 
-    const thirdParentSelection = await makeCaller(
-      thirdParentUser,
-      db,
-    ).rota.setMyParentVolunteerDays({
-      centreDates: [],
-      primaryLunchAndClubsDates: [firstDate],
-      secondaryLunchAndClubsDates: [secondDate],
-    });
+    const thirdParentSelection = firstAvailableParentVolunteerTerm(
+      await makeCaller(thirdParentUser, db).rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
+        centreDates: [],
+        primaryLunchAndClubsDates: [firstDate],
+        secondaryLunchAndClubsDates: [secondDate],
+      }),
+    );
     expect(
       thirdParentSelection.lunchAndClubs.primary.days.find((slot) => slot.date === firstDate),
     ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
@@ -1105,11 +1122,14 @@ describe('parent volunteer days', () => {
     ).toMatchObject({ selected: true, spacesRemaining: 0, status: 'Selected' });
     expect(parentVolunteerDays).toHaveLength(8);
 
-    const updatedParentSelection = await parentCaller.rota.setMyParentVolunteerDays({
-      centreDates: [secondDate],
-      primaryLunchAndClubsDates: [firstDate],
-      secondaryLunchAndClubsDates: [],
-    });
+    const updatedParentSelection = firstAvailableParentVolunteerTerm(
+      await parentCaller.rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
+        centreDates: [secondDate],
+        primaryLunchAndClubsDates: [firstDate],
+        secondaryLunchAndClubsDates: [],
+      }),
+    );
     expect(
       updatedParentSelection.centreVolunteer.days.find((slot) => slot.date === firstDate),
     ).toMatchObject({
@@ -1125,10 +1145,10 @@ describe('parent volunteer days', () => {
       status: 'Selected',
     });
 
-    const scheduleInput = {
-      from: windowStart,
-      to: new Date(windowStart.getTime() + 13 * 86_400_000),
-    };
+    const scheduleStart = new Date(`${firstDate}T00:00:00.000Z`);
+    const scheduleEnd = new Date(scheduleStart);
+    scheduleEnd.setUTCDate(scheduleEnd.getUTCDate() + 13);
+    const scheduleInput = { from: scheduleStart, to: scheduleEnd };
     for (const user of [headUser, technicalSupportUser]) {
       const volunteerSchedule = await makeCaller(user, db).rota.parentVolunteerSchedule(
         scheduleInput,
@@ -1152,20 +1172,28 @@ describe('parent volunteer days', () => {
 
   it('preserves other volunteer placements when a parent saves one card', async () => {
     const { db } = makeFakeDb();
-    const windowStart = currentVolunteerWindowStart();
-    const firstDate = dateKey(windowStart);
-    const secondDate = dateKey(new Date(windowStart.getTime() + 86_400_000));
     const parentCaller = makeCaller(parentUser, db);
+    const initialTerm = firstAvailableParentVolunteerTerm(
+      await parentCaller.rota.parentVolunteerSlots(),
+    );
+    const [firstDay, secondDay] = initialTerm.centreVolunteer.days;
+    if (!firstDay || !secondDay) throw new Error('Expected at least two parent volunteer days');
+    const firstDate = firstDay.date;
+    const secondDate = secondDay.date;
 
     await parentCaller.rota.setMyParentVolunteerDays({
+      termId: initialTerm.id,
       centreDates: [firstDate],
       primaryLunchAndClubsDates: [secondDate],
       secondaryLunchAndClubsDates: [],
     });
 
-    const centreUpdate = await parentCaller.rota.setMyParentVolunteerDays({
-      centreDates: [secondDate],
-    });
+    const centreUpdate = firstAvailableParentVolunteerTerm(
+      await parentCaller.rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
+        centreDates: [secondDate],
+      }),
+    );
     expect(centreUpdate.centreVolunteer.days.find((slot) => slot.date === firstDate)).toMatchObject(
       { selected: false },
     );
@@ -1176,10 +1204,13 @@ describe('parent volunteer days', () => {
       centreUpdate.lunchAndClubs.primary.days.find((slot) => slot.date === secondDate),
     ).toMatchObject({ selected: true });
 
-    const lunchAndClubsUpdate = await parentCaller.rota.setMyParentVolunteerDays({
-      primaryLunchAndClubsDates: [],
-      secondaryLunchAndClubsDates: [firstDate],
-    });
+    const lunchAndClubsUpdate = firstAvailableParentVolunteerTerm(
+      await parentCaller.rota.setMyParentVolunteerDays({
+        termId: initialTerm.id,
+        primaryLunchAndClubsDates: [],
+        secondaryLunchAndClubsDates: [firstDate],
+      }),
+    );
     expect(
       lunchAndClubsUpdate.centreVolunteer.days.find((slot) => slot.date === secondDate),
     ).toMatchObject({ selected: true });
@@ -1191,31 +1222,70 @@ describe('parent volunteer days', () => {
     ).toMatchObject({ selected: true });
   });
 
-  it('limits volunteering to parents and to the rolling two-week window', async () => {
+  it('limits volunteering to parents and to the available term', async () => {
     const { db } = makeFakeDb();
-    const windowStart = currentVolunteerWindowStart();
-    const beforeWindow = new Date(windowStart);
-    beforeWindow.setUTCDate(beforeWindow.getUTCDate() - 1);
+    const parentCaller = makeCaller(parentUser, db);
+    const term = firstAvailableParentVolunteerTerm(await parentCaller.rota.parentVolunteerSlots());
+    const beforeTerm = new Date(`${term.from}T00:00:00.000Z`);
+    beforeTerm.setUTCDate(beforeTerm.getUTCDate() - 1);
 
     await expect(makeCaller(supervisorUser, db).rota.parentVolunteerSlots()).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
     await expect(
-      makeCaller(parentUser, db).rota.setMyParentVolunteerDays({
-        centreDates: [dateKey(beforeWindow)],
+      parentCaller.rota.setMyParentVolunteerDays({
+        termId: term.id,
+        centreDates: [dateKey(beforeTerm)],
         primaryLunchAndClubsDates: [],
         secondaryLunchAndClubsDates: [],
       }),
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
-      message: 'Volunteer days must be within the current two-week window',
+      message: 'Volunteer days must be within an available term',
     });
     await expect(
       makeCaller(parentUser, db).rota.parentVolunteerSchedule({
-        from: windowStart,
-        to: windowStart,
+        from: new Date(`${term.from}T00:00:00.000Z`),
+        to: new Date(`${term.from}T00:00:00.000Z`),
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('shows the full current term and opens the next term seven days before it starts', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
+      const { db } = makeFakeDb();
+      const caller = makeCaller(parentUser, db);
+
+      const beforeOpeningSlots = await caller.rota.parentVolunteerSlots();
+      expect(beforeOpeningSlots.terms.map((term) => term.id)).toEqual(['2026-Summer']);
+      const summerTerm = firstAvailableParentVolunteerTerm(beforeOpeningSlots);
+      expect(summerTerm).toMatchObject({ from: '2026-04-13', to: '2026-07-20' });
+      expect(summerTerm.centreVolunteer.days.at(0)).toMatchObject({ date: '2026-04-13' });
+      expect(summerTerm.centreVolunteer.days.at(-1)).toMatchObject({ date: '2026-07-20' });
+
+      await expect(
+        caller.rota.setMyParentVolunteerDays({
+          termId: '2026-Autumn',
+          centreDates: ['2026-09-01'],
+        }),
+      ).rejects.toMatchObject({
+        code: 'BAD_REQUEST',
+        message: 'Volunteer term is not currently available',
+      });
+
+      vi.setSystemTime(new Date('2026-08-25T12:00:00.000Z'));
+
+      const openingDaySlots = await caller.rota.parentVolunteerSlots();
+      expect(openingDaySlots.terms.map((term) => term.id)).toEqual(['2026-Summer', '2026-Autumn']);
+      const autumnTerm = openingDaySlots.terms[1];
+      expect(autumnTerm).toMatchObject({ from: '2026-09-01', to: '2026-12-18' });
+      expect(autumnTerm?.centreVolunteer.days.at(0)).toMatchObject({ date: '2026-09-01' });
+      expect(autumnTerm?.centreVolunteer.days.at(-1)).toMatchObject({ date: '2026-12-18' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('lets Head and Technical Support manage Lunch + Clubs exemptions only', async () => {
