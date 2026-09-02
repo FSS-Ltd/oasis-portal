@@ -6,6 +6,7 @@ import { ParentPortalScreen } from '../parent/parent-portal-screen';
 import { StaffPortalScreen } from '../staff/staff-portal-screen';
 import { StudentPortalScreen } from '../student/student-portal-screen';
 import { TechnicalSupportPortalScreen } from '../support/technical-support-portal-screen';
+import { MobileAccessRevokedScreen } from './mobile-access-revoked-screen';
 
 type MobilePortalView = 'default' | 'parent';
 
@@ -35,6 +36,10 @@ export function SignedInRouter() {
         ) : null}
       </View>
     );
+  }
+
+  if (health.data?.accountAccessState === 'deactivated') {
+    return <MobileAccessRevokedScreen />;
   }
 
   if (user && canSwitchToParent && portalView === 'parent') {

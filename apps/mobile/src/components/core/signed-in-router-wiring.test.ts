@@ -21,6 +21,8 @@ describe('signed-in mobile routing', () => {
   it('does not route Technical Support accounts into the staff workflow shell', () => {
     const router = readMobile('src/components/core/signed-in-router.tsx');
     const supportPortal = readMobile('src/components/support/technical-support-portal-screen.tsx');
+    const accessScreen = readMobile('src/components/access/user-access-screen.tsx');
+    const accessDetail = readMobile('src/components/access/user-access-account-detail.tsx');
     const staffPortalIndex = router.indexOf('<StaffPortalScreen');
     const supportRoleIndex = router.indexOf("user?.role === 'TechnicalSupport'");
     const supportPortalIndex = router.indexOf('<TechnicalSupportPortalScreen');
@@ -36,11 +38,12 @@ describe('signed-in mobile routing', () => {
     expect(staffPortalIndex).toBeGreaterThan(-1);
     expect(supportRoleIndex).toBeGreaterThan(staffPortalIndex);
     expect(supportPortalIndex).toBeGreaterThan(supportRoleIndex);
-    expect(supportPortal).toContain('api.admin.listUserAccounts.useQuery');
-    expect(supportPortal).toContain('api.admin.listUserInvitations.useQuery');
-    expect(supportPortal).toContain('api.admin.inviteUser.useMutation');
-    expect(supportPortal).toContain('api.admin.updateUserAccountProfile.useMutation');
-    expect(supportPortal).toContain('api.admin.updateUserAccountStatus.useMutation');
+    expect(supportPortal).toContain('UserAccessScreen');
+    expect(accessScreen).toContain('api.admin.listUserAccounts.useQuery');
+    expect(accessScreen).toContain('api.admin.listUserInvitations.useQuery');
+    expect(accessScreen).toContain('api.admin.inviteUser.useMutation');
+    expect(accessDetail).toContain('api.admin.updateUserAccountProfile.useMutation');
+    expect(accessDetail).toContain('api.admin.updateUserAccountStatus.useMutation');
     expect(supportPortal).not.toMatch(/staffHome\.summary/);
   });
 
@@ -74,6 +77,7 @@ describe('signed-in mobile routing', () => {
 
   it('keeps Technical Support mobile surfaces in parity with the web support shell', () => {
     const supportPortal = readMobile('src/components/support/technical-support-portal-screen.tsx');
+    const accessScreen = readMobile('src/components/access/user-access-screen.tsx');
 
     expect(supportPortal).toMatch(/type SupportPortalRoute =/);
     expect(supportPortal).toMatch(/'attendance'/);
@@ -92,13 +96,13 @@ describe('signed-in mobile routing', () => {
         path.join(mobileRoot, 'src/components/support/technical-support-mobile-app-screen.tsx'),
       ),
     ).toBe(false);
-    expect(supportPortal).toMatch(/type AccessFilter/);
-    expect(supportPortal).toMatch(/accessFilters/);
-    expect(supportPortal).toMatch(/filterAccount/);
-    expect(supportPortal).toMatch(/filterInvitation/);
-    expect(supportPortal).toMatch(/setFilter\(option\.id\)/);
-    expect(supportPortal).toMatch(/Active/);
-    expect(supportPortal).toMatch(/Inactive/);
+    expect(supportPortal).toContain('UserAccessScreen');
+    expect(accessScreen).toMatch(/type AccessFilter/);
+    expect(accessScreen).toMatch(/accessFilters/);
+    expect(accessScreen).toMatch(/rowMatchesFilter/);
+    expect(accessScreen).toMatch(/setFilter\(option\.id\)/);
+    expect(accessScreen).toMatch(/Active/);
+    expect(accessScreen).toMatch(/Inactive/);
     expect(supportPortal).toMatch(/Technical Support/);
   });
 });
