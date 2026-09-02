@@ -7,17 +7,13 @@ import {
   formatDateTime,
   parentVolunteerPlacementLabel,
   type ParentVolunteerDay,
-  type RotaDayAvailabilitySummary,
   type RotaShift,
-  type StaffLunchAndClubsVolunteerDay,
 } from './rota-utils';
 
 const MEETING_COLOUR = '#0f766e';
 
 interface RotaWeekScheduleProps {
-  availabilityErrorMessage?: string | undefined;
   errorMessage?: string | undefined;
-  isAvailabilityLoading: boolean;
   isFetching: boolean;
   isLoading: boolean;
   onNextWeek: () => void;
@@ -27,9 +23,6 @@ interface RotaWeekScheduleProps {
   onThisWeek: () => void;
   parentVolunteerErrorMessage?: string | undefined;
   parentVolunteers: readonly ParentVolunteerDay[];
-  staffLunchAndClubsVolunteerErrorMessage?: string | undefined;
-  staffLunchAndClubsVolunteers: readonly StaffLunchAndClubsVolunteerDay[];
-  staffAvailabilityByDay: readonly RotaDayAvailabilitySummary[];
   shifts: readonly RotaShift[];
   weekDays: readonly Date[];
   weekEnd: Date;
@@ -37,9 +30,7 @@ interface RotaWeekScheduleProps {
 }
 
 export function RotaWeekSchedule({
-  availabilityErrorMessage,
   errorMessage,
-  isAvailabilityLoading,
   isFetching,
   isLoading,
   onNextWeek,
@@ -49,20 +40,17 @@ export function RotaWeekSchedule({
   onThisWeek,
   parentVolunteerErrorMessage,
   parentVolunteers,
-  staffLunchAndClubsVolunteerErrorMessage,
-  staffLunchAndClubsVolunteers,
-  staffAvailabilityByDay,
   shifts,
   weekDays,
   weekEnd,
   weekStart,
 }: RotaWeekScheduleProps) {
   return (
-    <section className="panel rota-layout__main">
+    <section className="panel rota-week-board">
       <div className="panel__body">
         <div className="rota-toolbar">
           <div>
-            <h2>Week rota</h2>
+            <h2>Week board</h2>
             <p>
               {formatDateLabel(weekStart)} - {formatDateLabel(weekEnd)}
             </p>
@@ -91,14 +79,8 @@ export function RotaWeekSchedule({
 
         {isLoading ? <div className="empty-state">Loading rota...</div> : null}
         {errorMessage ? <p className="status--error">{errorMessage}</p> : null}
-        {availabilityErrorMessage ? (
-          <p className="status--error">{availabilityErrorMessage}</p>
-        ) : null}
         {parentVolunteerErrorMessage ? (
           <p className="status--error">{parentVolunteerErrorMessage}</p>
-        ) : null}
-        {staffLunchAndClubsVolunteerErrorMessage ? (
-          <p className="status--error">{staffLunchAndClubsVolunteerErrorMessage}</p>
         ) : null}
         <div className="rota-week-grid">
           {weekDays.map((day) => {
@@ -107,55 +89,12 @@ export function RotaWeekSchedule({
             const dayParentVolunteers = parentVolunteers.filter(
               (volunteer) => volunteer.date === key,
             );
-            const dayStaffLunchAndClubsVolunteers = staffLunchAndClubsVolunteers.filter(
-              (volunteer) => volunteer.date === key,
-            );
-            const dayAvailability = staffAvailabilityByDay.find((summary) => summary.date === key);
             return (
               <article className="rota-day" key={key}>
                 <header>
                   <span>{dayLabels[day.getUTCDay()]}</span>
                   <strong>{formatDateLabel(day)}</strong>
                 </header>
-                {dayAvailability ? (
-                  <div className="rota-availability-badges" aria-label={`Availability for ${key}`}>
-                    {isAvailabilityLoading ? (
-                      <span className="rota-availability-badge is-empty">Loading availability</span>
-                    ) : (
-                      <>
-                        <div>
-                          <span className="rota-availability-badges__label">Available</span>
-                          {dayAvailability.available.length === 0 ? (
-                            <span className="rota-availability-badge is-empty">None set</span>
-                          ) : (
-                            dayAvailability.available.map((staff) => (
-                              <span className="rota-availability-badge is-available" key={staff.id}>
-                                {staff.label}
-                                <small>{staff.detail}</small>
-                              </span>
-                            ))
-                          )}
-                        </div>
-                        <div>
-                          <span className="rota-availability-badges__label">Unavailable</span>
-                          {dayAvailability.unavailable.length === 0 ? (
-                            <span className="rota-availability-badge is-empty">None set</span>
-                          ) : (
-                            dayAvailability.unavailable.map((staff) => (
-                              <span
-                                className="rota-availability-badge is-unavailable"
-                                key={staff.id}
-                              >
-                                {staff.label}
-                                <small>{staff.detail}</small>
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ) : null}
                 <div className="rota-parent-volunteers">
                   <span className="rota-availability-badges__label">Parent volunteers</span>
                   {dayParentVolunteers.length === 0 ? (
@@ -165,18 +104,6 @@ export function RotaWeekSchedule({
                       <span className="rota-availability-badge is-parent" key={volunteer.id}>
                         {volunteer.parent.fullName}
                         <small>{parentVolunteerPlacementLabel(volunteer.placement)}</small>
-                      </span>
-                    ))
-                  )}
-                </div>
-                <div className="rota-parent-volunteers">
-                  <span className="rota-availability-badges__label">Lunch + Clubs cover</span>
-                  {dayStaffLunchAndClubsVolunteers.length === 0 ? (
-                    <span className="rota-availability-badge is-empty">None selected</span>
-                  ) : (
-                    dayStaffLunchAndClubsVolunteers.map((volunteer) => (
-                      <span className="rota-availability-badge is-staff-cover" key={volunteer.id}>
-                        {volunteer.staff.fullName}
                       </span>
                     ))
                   )}

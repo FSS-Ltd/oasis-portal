@@ -13,8 +13,8 @@ export default async function RotaPage() {
           <p>Supervisor scheduling</p>
           <h1>Rota</h1>
           <p>
-            Schedule supervisors by week, compare weekly availability and monthly unavailability,
-            and review shift swap requests.
+            Plan each week, create shifts, review team availability, and handle swap requests from
+            one focused workspace.
           </p>
         </div>
         <div className="page-header__actions">

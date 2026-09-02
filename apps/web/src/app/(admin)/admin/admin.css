@@ -7670,6 +7670,10 @@ button.club-assignment-row {
   gap: 18px;
 }
 
+.supervisor-layout--rota {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .supervisor-student-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -7707,19 +7711,241 @@ button.club-assignment-row {
   grid-column: 1 / -1;
 }
 
-.supervisor-rota-grid {
+.staff-rota-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
-  gap: 16px;
+  gap: 14px;
 }
 
-.supervisor-rota-grid h3 {
-  margin: 0 0 10px;
+.staff-rota-workspace__topbar,
+.staff-rota-schedule__header {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.staff-rota-workspace__summary {
+  margin: 2px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.staff-rota-eyebrow {
+  margin: 0;
   color: var(--oasis-text-secondary);
   font-size: 0.76rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.staff-rota-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 10px;
+  background: #e8eef8;
+}
+
+.staff-rota-tab {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 800;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease;
+}
+
+.staff-rota-tab:hover {
+  color: var(--oasis-navy);
+}
+
+.staff-rota-tab.is-selected {
+  border-color: var(--oasis-border-light);
+  background: var(--oasis-surface);
+  box-shadow: 0 1px 2px rgb(27 43 94 / 12%);
+  color: var(--oasis-navy);
+}
+
+.staff-rota-tab:focus-visible,
+.staff-rota-day-picker__day:focus-visible {
+  outline: 3px solid rgb(91 144 197 / 35%);
+  outline-offset: 2px;
+}
+
+.staff-rota-schedule {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 10px;
+  background: var(--oasis-surface);
+}
+
+.staff-rota-schedule__header h2 {
+  margin: 3px 0 0;
+  color: var(--oasis-navy);
+  font-size: 1.22rem;
+}
+
+.staff-rota-day-picker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.staff-rota-day-picker__day {
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #f8faff;
+  color: var(--oasis-text-secondary);
+  text-align: left;
+}
+
+.staff-rota-day-picker__day:hover {
+  border-color: var(--oasis-blue);
+}
+
+.staff-rota-day-picker__day span {
+  overflow: hidden;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.staff-rota-day-picker__day strong {
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+}
+
+.staff-rota-day-picker__day.is-selected {
+  border-color: var(--oasis-navy);
+  background: var(--oasis-navy);
+  color: #fff;
+}
+
+.staff-rota-day-picker__day.is-selected strong {
+  color: #fff;
+}
+
+.staff-rota-schedule__columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.staff-rota-schedule__column {
+  display: grid;
+  min-width: 0;
+  min-height: 180px;
+  align-content: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.staff-rota-schedule__column h3 {
+  margin: 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.staff-rota-schedule-list {
+  display: grid;
+  max-height: 210px;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.staff-rota-shift,
+.staff-rota-volunteer {
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--oasis-border);
+  border-left: 3px solid var(--oasis-blue);
+  border-radius: 7px;
+  background: var(--oasis-surface);
+}
+
+.staff-rota-volunteer {
+  border-left-color: var(--oasis-success);
+}
+
+.staff-rota-shift strong,
+.staff-rota-volunteer strong {
+  color: var(--oasis-navy);
+  font-size: 0.78rem;
+}
+
+.staff-rota-shift span,
+.staff-rota-shift em,
+.staff-rota-volunteer span,
+.staff-rota-empty {
+  color: var(--oasis-text-secondary);
+  font-size: 0.74rem;
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.staff-rota-empty {
+  padding: 10px;
+  border: 1px dashed var(--oasis-border);
+  border-radius: 7px;
+  background: var(--oasis-surface);
+}
+
+.staff-rota-panel--settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.staff-rota-swap-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.staff-rota-panel[hidden],
+.staff-rota-swap-panel[hidden],
+.admin-rota-panel[hidden] {
+  display: none !important;
+}
+
+.staff-rota-swap-panel__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.staff-rota-swap-panel__form .button {
+  min-height: 42px;
 }
 
 .availability-editor {
@@ -7763,65 +7989,6 @@ button.club-assignment-row {
 .supervisor-submit {
   width: 100%;
   margin-top: 14px;
-}
-
-.staff-lunch-clubs-volunteer {
-  display: grid;
-  gap: 14px;
-}
-
-.staff-lunch-clubs-volunteer__header {
-  align-items: flex-start;
-}
-
-.staff-lunch-clubs-volunteer__actions {
-  align-items: flex-end;
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.staff-lunch-clubs-volunteer__days {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.staff-lunch-clubs-volunteer__day {
-  align-items: flex-start;
-  background: #fff;
-  border: 1px solid var(--oasis-border);
-  border-radius: 8px;
-  color: var(--oasis-text);
-  display: grid;
-  gap: 4px;
-  min-height: 64px;
-  padding: 10px;
-  text-align: left;
-}
-
-.staff-lunch-clubs-volunteer__day strong {
-  font-size: 0.76rem;
-}
-
-.staff-lunch-clubs-volunteer__day span {
-  color: var(--oasis-text-secondary);
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.staff-lunch-clubs-volunteer__day:hover:not(:disabled) {
-  border-color: var(--oasis-blue);
-}
-
-.staff-lunch-clubs-volunteer__day.is-selected {
-  background: var(--oasis-success-bg);
-  border-color: var(--oasis-success);
-}
-
-.staff-lunch-clubs-volunteer__day.is-selected span {
-  color: var(--oasis-success);
 }
 
 .supervisor-workflow {
@@ -12758,30 +12925,81 @@ button.club-assignment-row {
   align-items: end;
 }
 
-.rota-layout {
+.admin-rota-workspace {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 18px;
-  align-items: start;
+  gap: 14px;
 }
 
-.rota-layout__main,
-.rota-layout__side {
+.admin-rota-workspace__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 2px 0;
+}
+
+.admin-rota-workspace__summary {
+  margin: 2px 0 0;
+  color: var(--oasis-text-secondary);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.admin-rota-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 10px;
+  background: #e8eef8;
+}
+
+.admin-rota-tab {
+  display: inline-flex;
   min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--oasis-text-secondary);
+  font-size: 0.8rem;
+  font-weight: 800;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease;
 }
 
-.rota-layout__side {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.95fr) minmax(300px, 1fr) minmax(360px, 1.08fr);
-  gap: 18px;
-  align-items: start;
+.admin-rota-tab:hover {
+  color: var(--oasis-navy);
 }
 
-.rota-layout__middle,
-.rota-layout__unavailable {
+.admin-rota-tab.is-selected {
+  border-color: var(--oasis-border-light);
+  background: var(--oasis-surface);
+  box-shadow: 0 1px 2px rgb(27 43 94 / 12%);
+  color: var(--oasis-navy);
+}
+
+.admin-rota-tab:focus-visible {
+  outline: 3px solid rgb(91 144 197 / 35%);
+  outline-offset: 2px;
+}
+
+.admin-rota-panel--availability {
   display: grid;
-  min-width: 0;
-  gap: 18px;
+  gap: 14px;
+}
+
+.admin-rota-personal-availability {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .rota-toolbar {
@@ -12804,18 +13022,51 @@ button.club-assignment-row {
 
 .rota-week-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(190px, 1fr));
+  grid-template-columns: repeat(7, minmax(150px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rota-availability-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(132px, 1fr));
   gap: 10px;
   overflow-x: auto;
   padding-bottom: 4px;
 }
 
 .rota-day {
-  min-height: 300px;
+  min-height: 216px;
   border: 1px solid var(--oasis-border);
   border-radius: 8px;
   background: #ffffff;
   padding: 10px;
+}
+
+.rota-availability-day {
+  min-height: 188px;
+  padding: 10px;
+  border: 1px solid var(--oasis-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.rota-availability-day header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--oasis-border);
+}
+
+.rota-availability-day header span {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .rota-day header {
@@ -12897,12 +13148,6 @@ button.club-assignment-row {
   border-color: #bfdbfe;
   background: #eff6ff;
   color: #1d4ed8;
-}
-
-.rota-availability-badge.is-staff-cover {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  color: #166534;
 }
 
 .rota-availability-badge.is-empty {
@@ -13339,12 +13584,9 @@ button.club-assignment-row {
   .parent-clubs-summary-grid,
   .supervisor-dashboard-overview,
   .supervisor-layout,
-  .supervisor-rota-grid,
   .supervisor-selected-student,
   .supervisor-workflow-grid,
   .pace-score-entry,
-  .rota-layout,
-  .rota-layout__side,
   .snapshot-grid,
   .policy-grid,
   .student-detail-summary-grid,
@@ -13355,6 +13597,13 @@ button.club-assignment-row {
   .report-period-grid,
   .report-section-picker__grid,
   .report-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-rota-schedule__columns,
+  .staff-rota-panel--settings,
+  .staff-rota-swap-panel__form,
+  .admin-rota-personal-availability {
     grid-template-columns: 1fr;
   }
 
@@ -13614,6 +13863,33 @@ button.club-assignment-row {
 }
 
 @media (max-width: 560px) {
+  .staff-rota-workspace__topbar,
+  .staff-rota-schedule__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .staff-rota-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-rota-workspace__topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-rota-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .staff-rota-tab {
+    padding-inline: 8px;
+  }
+
+  .staff-rota-day-picker {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .report-actions .button,
   .report-note-editor > .button,
   .report-control-row--actions .button {
