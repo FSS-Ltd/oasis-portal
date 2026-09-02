@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Prisma } from '@oasis/db';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import {
   SCHOOL_FEE_DISCOUNT_EXPLANATION,
@@ -920,6 +920,15 @@ function createCaller(
 }
 
 describe('invoiceRouter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('lets finance admins upload, publish, list, update, and delete invoices', async () => {
     const { caller, fakeDb } = createCaller(financeUser);
     const pdfBase64 = Buffer.from('%PDF-1.4\n').toString('base64');
