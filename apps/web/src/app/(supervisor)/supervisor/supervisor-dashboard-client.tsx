@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { Plus, Save, Send, Trash2 } from 'lucide-react';
+import { Plus, Save, Trash2 } from 'lucide-react';
 import { displaySchoolYearLabel } from '@oasis/domain';
 import { api } from '@/lib/trpc';
 import { AttendanceCapture } from '@/components/attendance/attendance-capture';
@@ -11,9 +11,7 @@ import {
   DailyDemeritBadge,
   useDailyDemeritStatusMap,
 } from '@/components/behaviour/daily-demerit-badge';
-import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
-import { MonthlyAvailabilityEditor } from '@/components/rota/monthly-availability-editor';
-import { StaffLunchAndClubsVolunteerEditor } from '@/components/rota/staff-lunch-and-clubs-volunteer-editor';
+import { StaffRotaWorkspace } from '@/components/rota/staff-rota-workspace';
 import { Button } from '@/components/ui/button';
 import { Field, SelectInput, TextInput } from '@/components/ui/field';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
@@ -23,9 +21,6 @@ import {
   asDate,
   batchBehaviourSuccessMessage,
   behaviourLogSuccessMessage,
-  dateKey,
-  formatDateTime,
-  formatShift,
   formatShortDateTime,
   messageDashboardAdapter,
   mondayFor,
@@ -65,19 +60,6 @@ function totalBatchEntries(entries: readonly BatchEntryForm[]): number {
   return entries.reduce((sum, entry) => sum + (Number(entry.count) || 0), 0);
 }
 
-function parentVolunteerPlacementLabel(
-  placement: 'Centre' | 'LunchAndClubsPrimary' | 'LunchAndClubsSecondary',
-): string {
-  switch (placement) {
-    case 'LunchAndClubsPrimary':
-      return 'Lunch + Clubs · Primary';
-    case 'LunchAndClubsSecondary':
-      return 'Lunch + Clubs · Secondary';
-    default:
-      return 'Centre Volunteer';
-  }
-}
-
 export function SupervisorDashboardClient({
   canExportAttendance,
   canRecordAttendance = false,
@@ -88,7 +70,6 @@ export function SupervisorDashboardClient({
   const [entryMode, setEntryMode] = useState<EntryMode>('single');
   const [batchType, setBatchType] = useState<BatchBehaviourType>('Merit');
   const [batchEntries, setBatchEntries] = useState<BatchEntryForm[]>(() => [newBatchEntry()]);
-  const [swapForm, setSwapForm] = useState({ fromShiftId: '', toShiftId: '' });
   const [behaviourForm, setBehaviourForm] = useState({
     type: 'Merit' as BehaviourType,
     visibility: 'General' as BehaviourVisibility,
@@ -103,7 +84,7 @@ export function SupervisorDashboardClient({
   const utils = api.useUtils();
 
   const usesStudentRoster = view === 'dashboard' || view === 'attendance' || view === 'behaviour';
-  const usesRota = view === 'dashboard' || view === 'rota';
+  const usesRota = view === 'dashboard';
   const demeritStatusQuery = useDailyDemeritStatusMap(date, usesStudentRoster);
 
   const attendanceRosterQuery = api.attendance.forDate.useQuery(
@@ -117,18 +98,6 @@ export function SupervisorDashboardClient({
   const weekRotaQuery = api.rota.myRota.useQuery(
     { from: weekStart, to: weekEnd },
     { enabled: usesRota, retry: false },
-  );
-  const teamScheduleQuery = api.rota.teamSchedule.useQuery(
-    { from: weekStart, to: weekEnd },
-    { enabled: view === 'rota', retry: false },
-  );
-  const parentVolunteerScheduleQuery = api.rota.parentVolunteerSchedule.useQuery(
-    { from: weekStart, to: weekEnd },
-    { enabled: view === 'rota', retry: false },
-  );
-  const swapCandidatesQuery = api.rota.swapCandidates.useQuery(
-    { from: weekStart, to: weekEnd },
-    { enabled: view === 'rota', retry: false },
   );
   const mySwapRequestsQuery = api.rota.mySwapRequests.useQuery(undefined, {
     enabled: view === 'dashboard',
@@ -151,19 +120,6 @@ export function SupervisorDashboardClient({
     attendanceRosterQuery.data?.find((student) => student.studentId === selectedStudentIds[0]) ??
     null;
 
-  const requestSwap = api.rota.requestSwap.useMutation({
-    onSuccess: async () => {
-      showSuccessToast('Shift swap request sent for Head review.');
-      setSwapForm({ fromShiftId: '', toShiftId: '' });
-      await Promise.all([
-        utils.rota.myRota.invalidate({ from: weekStart, to: weekEnd }),
-        utils.rota.swapCandidates.invalidate({ from: weekStart, to: weekEnd }),
-      ]);
-    },
-    onError: (error) => {
-      showErrorToast(error, 'Shift swap request could not be sent.');
-    },
-  });
   const logBehaviour = api.behaviour.logForStudents.useMutation({
     onSuccess: async (_result, input) => {
       showSuccessToast(behaviourLogSuccessMessage(input));
@@ -219,9 +175,6 @@ export function SupervisorDashboardClient({
 
   const todayShifts = todayRotaQuery.data ?? [];
   const weekShifts = weekRotaQuery.data ?? [];
-  const teamShifts = teamScheduleQuery.data ?? [];
-  const parentVolunteers = parentVolunteerScheduleQuery.data ?? [];
-  const swapCandidates = swapCandidatesQuery.data ?? [];
   const mySwapRequests = mySwapRequestsQuery.data ?? [];
   const behaviourEntries = behaviourQuery.data?.entries ?? [];
   const rosterRows = useMemo(() => attendanceRosterQuery.data ?? [], [attendanceRosterQuery.data]);
@@ -365,7 +318,7 @@ export function SupervisorDashboardClient({
   }
 
   return (
-    <div className="supervisor-layout">
+    <div className={`supervisor-layout${view === 'rota' ? ' supervisor-layout--rota' : ''}`}>
       <section className="supervisor-layout__main">
         {view === 'attendance' ? (
           <section className="panel panel__body" id="attendance-capture">
@@ -736,186 +689,8 @@ export function SupervisorDashboardClient({
           </section>
         ) : null}
 
-        {view === 'rota' ? (
-          <section className="panel panel__body" id="rota">
-            <div className="section-title">
-              <div>
-                <h2>Your rota</h2>
-                <p className="muted">
-                  Today and week of {dateKey(weekStart)} to {dateKey(weekEnd)}.
-                </p>
-              </div>
-              <span className="badge badge--blue">{weekShifts.length} this week</span>
-            </div>
-
-            <div className="supervisor-rota-grid">
-              <div>
-                <h3>Today</h3>
-                {todayRotaQuery.isLoading ? (
-                  <div className="empty-state">Loading today&apos;s rota...</div>
-                ) : null}
-                {todayRotaQuery.error ? (
-                  <p className="status--error">{friendlyErrorMessage(todayRotaQuery.error)}</p>
-                ) : null}
-                {!todayRotaQuery.isLoading && todayShifts.length === 0 ? (
-                  <div className="empty-state">No shift scheduled for today.</div>
-                ) : (
-                  <div className="rota-shift-list">
-                    {todayShifts.map((shift) => (
-                      <article
-                        className="rota-shift"
-                        key={shift.id}
-                        style={{ borderLeftColor: shift.bandColour ?? undefined }}
-                      >
-                        <strong>{shift.bandName ?? 'Unassigned band'}</strong>
-                        <span>
-                          {formatDateTime(shift.startsAt)}-{formatDateTime(shift.endsAt)}
-                        </span>
-                        {shift.notes ? <em>{shift.notes}</em> : null}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3>Team this week</h3>
-                {teamScheduleQuery.isLoading ? (
-                  <div className="empty-state">Loading team rota...</div>
-                ) : null}
-                {teamScheduleQuery.error ? (
-                  <p className="status--error">{friendlyErrorMessage(teamScheduleQuery.error)}</p>
-                ) : null}
-                {!teamScheduleQuery.isLoading && teamShifts.length === 0 ? (
-                  <div className="empty-state">No team shifts scheduled this week.</div>
-                ) : (
-                  <div className="rota-shift-list">
-                    {teamShifts.map((shift) => (
-                      <article
-                        className="rota-shift"
-                        key={shift.id}
-                        style={{ borderLeftColor: shift.bandColour ?? undefined }}
-                      >
-                        <strong>
-                          {shift.staff?.fullName ?? 'Staff'} ·{' '}
-                          {shift.kind === 'Meeting'
-                            ? 'Meeting'
-                            : (shift.bandName ?? 'Unassigned band')}
-                        </strong>
-                        <span>{formatShift(shift)}</span>
-                        {shift.notes ? <em>{shift.notes}</em> : null}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h3>Parent volunteers this week</h3>
-                {parentVolunteerScheduleQuery.isLoading ? (
-                  <div className="empty-state">Loading parent volunteers...</div>
-                ) : null}
-                {parentVolunteerScheduleQuery.error ? (
-                  <p className="status--error">
-                    {friendlyErrorMessage(parentVolunteerScheduleQuery.error)}
-                  </p>
-                ) : null}
-                {!parentVolunteerScheduleQuery.isLoading && parentVolunteers.length === 0 ? (
-                  <div className="empty-state">No parent volunteers selected this week.</div>
-                ) : (
-                  <div className="rota-shift-list">
-                    {parentVolunteers.map((volunteer) => (
-                      <article
-                        className="rota-shift"
-                        key={volunteer.id}
-                        style={{ borderLeftColor: '#2563eb' }}
-                      >
-                        <strong>{volunteer.parent.fullName}</strong>
-                        <span>
-                          {volunteer.date} · {parentVolunteerPlacementLabel(volunteer.placement)}
-                        </span>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-        ) : null}
+        {view === 'rota' ? <StaffRotaWorkspace /> : null}
       </section>
-
-      {view === 'rota' ? (
-        <aside className="supervisor-layout__side">
-          <MyAvailabilityEditor />
-          <MonthlyAvailabilityEditor />
-          <StaffLunchAndClubsVolunteerEditor />
-
-          <section className="panel panel__body">
-            <div className="section-title">
-              <h2>Request shift swap</h2>
-            </div>
-
-            <div className="form-grid">
-              <Field label="Your shift">
-                <SelectInput
-                  aria-label="Your shift to swap"
-                  onChange={(event) => {
-                    setSwapForm((form) => ({ ...form, fromShiftId: event.target.value }));
-                  }}
-                  value={swapForm.fromShiftId}
-                >
-                  <option value="">Choose your shift</option>
-                  {weekShifts.map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {formatShift(shift)}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-
-              <Field label="Requested shift">
-                <SelectInput
-                  aria-label="Requested shift to swap with"
-                  onChange={(event) => {
-                    setSwapForm((form) => ({ ...form, toShiftId: event.target.value }));
-                  }}
-                  value={swapForm.toShiftId}
-                >
-                  <option value="">Choose another supervisor shift</option>
-                  {swapCandidates.map((shift) => (
-                    <option key={shift.id} value={shift.id}>
-                      {shift.staff?.fullName ?? 'Supervisor'} · {formatShift(shift)}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-            </div>
-
-            {swapCandidatesQuery.error ? (
-              <p className="status--error">{friendlyErrorMessage(swapCandidatesQuery.error)}</p>
-            ) : null}
-            {!swapCandidatesQuery.isLoading && swapCandidates.length === 0 ? (
-              <p className="muted">No other supervisor shifts are available in this week.</p>
-            ) : null}
-
-            <Button
-              className="supervisor-submit"
-              disabled={!swapForm.fromShiftId || !swapForm.toShiftId}
-              onClick={() => {
-                requestSwap.mutate(swapForm);
-              }}
-              pending={requestSwap.isPending}
-              type="button"
-            >
-              <Send aria-hidden="true" size={16} />
-              Send request
-            </Button>
-            {requestSwap.error ? (
-              <p className="status--error">{friendlyErrorMessage(requestSwap.error)}</p>
-            ) : null}
-          </section>
-        </aside>
-      ) : null}
     </div>
   );
 }

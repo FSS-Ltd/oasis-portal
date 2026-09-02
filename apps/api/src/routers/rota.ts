@@ -9,7 +9,7 @@ import {
   type OasisTerm,
   type SessionUser,
 } from '@oasis/domain';
-import { adminOperationsProcedure, authedProcedure, roleProcedure, router } from '../trpc.js';
+import { adminOperationsProcedure, authedProcedure, router } from '../trpc.js';
 import type { AppContext } from '../context.js';
 import { dateKey, normalizeDate } from '../lib/daily-year-band-scope.js';
 
@@ -40,7 +40,6 @@ const setAvailabilityInput = z.object({
 const dateKeyInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u, 'Enter a valid date');
 const monthKeyInput = z.string().regex(/^\d{4}-\d{2}$/u, 'Enter a valid month');
 
-const VOLUNTEER_WINDOW_DAYS = 14;
 const PARENT_VOLUNTEER_MAX_TERM_DAYS = 128;
 const PARENT_VOLUNTEER_NEXT_TERM_OPENING_DAYS = 7;
 
@@ -98,25 +97,6 @@ const setMyParentVolunteerDaysInput = z
       });
     }
   });
-
-const setMyStaffLunchAndClubsVolunteerDaysInput = z
-  .object({
-    dates: z.array(dateKeyInput).max(VOLUNTEER_WINDOW_DAYS).default([]),
-  })
-  .superRefine((input, ctx) => {
-    if (new Set(input.dates).size !== input.dates.length) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Choose each cover day only once',
-        path: ['dates'],
-      });
-    }
-  });
-
-const lunchAndClubsVolunteerExemptionInput = z.object({
-  exempt: z.boolean(),
-  staffUserId: z.string().min(1),
-});
 
 const monthlyAvailabilityWindowInput = z
   .object({
@@ -240,13 +220,6 @@ function addDays(date: Date, days: number): Date {
   return next;
 }
 
-function rollingVolunteerWindow(now = new Date()): { from: Date; to: Date } {
-  const from = normalizeDate(now);
-  const dayOfWeek = from.getUTCDay();
-  from.setUTCDate(from.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
-  return { from, to: addDays(from, VOLUNTEER_WINDOW_DAYS - 1) };
-}
-
 function availableParentVolunteerTerms(now = new Date()): OasisTerm[] {
   const currentTerm = currentOasisTerm(now);
   const nextTerm = nextOasisTerm(now);
@@ -301,22 +274,6 @@ function assertParentVolunteerWorkflow(user: SessionUser): void {
     throw new TRPCError({
       code: 'FORBIDDEN',
       message: 'parent volunteer access is limited to parent accounts',
-    });
-  }
-}
-
-function assertVolunteerDatesWithinWindow(
-  dates: readonly string[],
-  window: { from: Date; to: Date },
-): void {
-  const invalidDate = dates.find((value) => {
-    const date = dateFromKey(value);
-    return date.getTime() < window.from.getTime() || date.getTime() > window.to.getTime();
-  });
-  if (invalidDate) {
-    throw new TRPCError({
-      code: 'BAD_REQUEST',
-      message: 'Volunteer days must be within the current two-week window',
     });
   }
 }
@@ -407,24 +364,6 @@ function parentVolunteerDatesByPlacement(
     (selection): selection is { placement: ParentVolunteerPlacement; dates: string[] } =>
       selection.dates !== undefined,
   );
-}
-
-async function listMyStaffLunchAndClubsVolunteerDays(ctx: RouterCtx) {
-  const window = rollingVolunteerWindow();
-  const rows = await ctx.db.staffLunchAndClubsVolunteerDay.findMany({
-    where: {
-      staffUserId: ctx.user.id,
-      date: { gte: window.from, lte: window.to },
-    },
-    orderBy: { date: 'asc' },
-    select: { date: true },
-  });
-
-  return {
-    from: dateKey(window.from),
-    to: dateKey(window.to),
-    dates: rows.map((row) => dateKey(row.date)),
-  };
 }
 
 function assertNoAvailabilityOverlap(windows: z.infer<typeof availabilityWindowInput>[]): void {
@@ -920,84 +859,6 @@ export const rotaRouter = router({
       return listParentVolunteerSlots(ctx);
     }),
 
-  myStaffLunchAndClubsVolunteerDays: authedProcedure.query(async ({ ctx }) => {
-    assertStaffWorkflow(ctx.user);
-    return listMyStaffLunchAndClubsVolunteerDays(ctx);
-  }),
-
-  setMyStaffLunchAndClubsVolunteerDays: authedProcedure
-    .input(setMyStaffLunchAndClubsVolunteerDaysInput)
-    .mutation(async ({ ctx, input }) => {
-      assertStaffWorkflow(ctx.user);
-      const window = rollingVolunteerWindow();
-      assertVolunteerDatesWithinWindow(input.dates, window);
-
-      await ctx.db.$transaction(async (tx) => {
-        await tx.staffLunchAndClubsVolunteerDay.deleteMany({
-          where: {
-            staffUserId: ctx.user.id,
-            date: { gte: window.from, lte: window.to },
-          },
-        });
-        if (input.dates.length > 0) {
-          await tx.staffLunchAndClubsVolunteerDay.createMany({
-            data: input.dates.map((date) => ({
-              staffUserId: ctx.user.id,
-              date: dateFromKey(date),
-            })),
-          });
-        }
-      });
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'StaffLunchAndClubsVolunteerDay',
-          entityId: ctx.user.id,
-          meta: {
-            dayCount: input.dates.length,
-            source: 'rota.setMyStaffLunchAndClubsVolunteerDays',
-          },
-        },
-      });
-
-      return listMyStaffLunchAndClubsVolunteerDays(ctx);
-    }),
-
-  staffLunchAndClubsVolunteerSchedule: adminOperationsProcedure
-    .input(dateRangeInput)
-    .query(async ({ ctx, input }) => {
-      const from = normalizeDate(input.from);
-      const to = normalizeDate(input.to);
-      const rows = await ctx.db.staffLunchAndClubsVolunteerDay.findMany({
-        where: { date: { gte: from, lte: to } },
-        orderBy: { date: 'asc' },
-        include: {
-          staffUser: { select: { id: true, fullNameEnc: true } },
-        },
-      });
-      const volunteers = rows.map((row) => ({
-        id: row.id,
-        date: dateKey(row.date),
-        staff: {
-          id: row.staffUser.id,
-          fullName: decryptRequired(ctx.db.$enc.decrypt, row.staffUser.fullNameEnc, 'staff user'),
-        },
-      }));
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'StaffLunchAndClubsVolunteerDay',
-          meta: { count: volunteers.length, source: 'rota.staffLunchAndClubsVolunteerSchedule' },
-        },
-      });
-
-      return volunteers;
-    }),
-
   parentVolunteerSchedule: adminOperationsProcedure
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
@@ -1122,72 +983,6 @@ export const rotaRouter = router({
 
     return staff;
   }),
-
-  listLunchAndClubsVolunteerExemptions: roleProcedure('Head', 'TechnicalSupport').query(
-    async ({ ctx }) => {
-      const rows = await ctx.db.user.findMany({
-        where: { active: true, role: { in: [...STAFF_ROLES] } },
-        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
-        select: {
-          id: true,
-          role: true,
-          fullNameEnc: true,
-          emailEnc: true,
-          lunchAndClubsVolunteerExempt: true,
-        },
-      });
-      const staff = rows.map((row) => ({
-        ...mapStaffUser(ctx.db.$enc.decrypt, row),
-        lunchAndClubsVolunteerExempt: row.lunchAndClubsVolunteerExempt,
-      }));
-
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'DecryptPii',
-          entity: 'User',
-          meta: { count: staff.length, source: 'rota.listLunchAndClubsVolunteerExemptions' },
-        },
-      });
-
-      return staff;
-    },
-  ),
-
-  setLunchAndClubsVolunteerExemption: roleProcedure('Head', 'TechnicalSupport')
-    .input(lunchAndClubsVolunteerExemptionInput)
-    .mutation(async ({ ctx, input }) => {
-      const staff = await ctx.db.user.findFirst({
-        where: {
-          active: true,
-          id: input.staffUserId,
-          role: { in: [...STAFF_ROLES] },
-        },
-        select: { id: true },
-      });
-      if (!staff) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'active rota staff member not found' });
-      }
-
-      await ctx.db.user.update({
-        where: { id: input.staffUserId },
-        data: { lunchAndClubsVolunteerExempt: input.exempt },
-      });
-      await ctx.db.auditLog.create({
-        data: {
-          userId: ctx.user.id,
-          action: 'Update',
-          entity: 'User',
-          entityId: input.staffUserId,
-          meta: {
-            exempt: input.exempt,
-            source: 'rota.setLunchAndClubsVolunteerExemption',
-          },
-        },
-      });
-
-      return { staffUserId: input.staffUserId, exempt: input.exempt };
-    }),
 
   staffAvailability: adminOperationsProcedure
     .input(staffAvailabilityInput)

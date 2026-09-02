@@ -50,7 +50,6 @@ interface StoredUser {
   active: boolean;
   fullNameEnc: string;
   emailEnc: string;
-  lunchAndClubsVolunteerExempt: boolean;
   createdAt: Date;
 }
 
@@ -117,14 +116,6 @@ interface StoredParentVolunteerDay {
   updatedAt: Date;
 }
 
-interface StoredStaffLunchAndClubsVolunteerDay {
-  id: string;
-  staffUserId: string;
-  date: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 interface FakeDb {
   $enc: { decrypt: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
@@ -133,7 +124,6 @@ interface FakeDb {
     findMany: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
-    update: ReturnType<typeof vi.fn>;
   };
   yearGroupBand: { findUnique: ReturnType<typeof vi.fn> };
   staffAvailabilityWindow: {
@@ -159,11 +149,6 @@ interface FakeDb {
     deleteMany: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
   };
-  staffLunchAndClubsVolunteerDay: {
-    findMany: ReturnType<typeof vi.fn>;
-    deleteMany: ReturnType<typeof vi.fn>;
-    createMany: ReturnType<typeof vi.fn>;
-  };
   shiftSwapRequest: {
     findFirst: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
@@ -185,13 +170,6 @@ function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-function currentVolunteerWindowStart(): Date {
-  const start = day(dateKey(new Date()));
-  const dayOfWeek = start.getUTCDay();
-  start.setUTCDate(start.getUTCDate() + (dayOfWeek === 0 ? -6 : 1 - dayOfWeek));
-  return start;
-}
-
 function decrypt(value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
   return value.replace(/^enc:/u, '');
@@ -205,7 +183,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Head User',
       emailEnc: 'enc:head@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-20T09:00:00.000Z'),
     },
     {
@@ -214,7 +191,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Supervisor One',
       emailEnc: 'enc:sup@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-21T09:00:00.000Z'),
     },
     {
@@ -223,7 +199,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Supervisor Two',
       emailEnc: 'enc:sup2@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-22T09:00:00.000Z'),
     },
     {
@@ -232,7 +207,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Parent User',
       emailEnc: 'enc:parent@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-23T09:00:00.000Z'),
     },
     {
@@ -241,7 +215,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Second Parent',
       emailEnc: 'enc:parent2@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-24T09:00:00.000Z'),
     },
     {
@@ -250,7 +223,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Third Parent',
       emailEnc: 'enc:parent3@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     },
     {
@@ -259,7 +231,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Clubs User',
       emailEnc: 'enc:clubs@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-24T09:00:00.000Z'),
     },
     {
@@ -268,7 +239,6 @@ function makeFakeDb() {
       active: true,
       fullNameEnc: 'enc:Technical Support',
       emailEnc: 'enc:technical@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-26T09:00:00.000Z'),
     },
   ];
@@ -281,9 +251,7 @@ function makeFakeDb() {
   const shifts: StoredShift[] = [];
   const swaps: StoredSwap[] = [];
   const parentVolunteerDays: StoredParentVolunteerDay[] = [];
-  const staffLunchAndClubsVolunteerDays: StoredStaffLunchAndClubsVolunteerDay[] = [];
   let nextParentVolunteerDayId = 1;
-  let nextStaffLunchAndClubsVolunteerDayId = 1;
 
   const withBand = (shift: StoredShift) => ({
     ...shift,
@@ -343,20 +311,6 @@ function makeFakeDb() {
                 (where.role?.in === undefined || where.role.in.includes(user.role)),
             ) ?? null,
           ),
-      ),
-      update: vi.fn(
-        ({
-          where,
-          data,
-        }: {
-          where: { id: string };
-          data: Pick<StoredUser, 'lunchAndClubsVolunteerExempt'>;
-        }) => {
-          const user = users.find((candidate) => candidate.id === where.id);
-          if (!user) throw new Error('user missing');
-          Object.assign(user, data);
-          return Promise.resolve(user);
-        },
       ),
     },
     yearGroupBand: {
@@ -646,68 +600,6 @@ function makeFakeDb() {
         },
       ),
     },
-    staffLunchAndClubsVolunteerDay: {
-      findMany: vi.fn(
-        ({
-          where,
-        }: {
-          where: {
-            staffUserId?: string;
-            date: { gte: Date; lte: Date };
-          };
-        }) =>
-          Promise.resolve(
-            staffLunchAndClubsVolunteerDays
-              .filter(
-                (row) => where.staffUserId === undefined || row.staffUserId === where.staffUserId,
-              )
-              .filter(
-                (row) =>
-                  row.date.getTime() >= where.date.gte.getTime() &&
-                  row.date.getTime() <= where.date.lte.getTime(),
-              )
-              .sort((a, b) => a.date.getTime() - b.date.getTime())
-              .map((row) => ({
-                ...row,
-                staffUser: users.find((user) => user.id === row.staffUserId) ?? null,
-              })),
-          ),
-      ),
-      deleteMany: vi.fn(
-        ({ where }: { where: { staffUserId: string; date: { gte: Date; lte: Date } } }) => {
-          const before = staffLunchAndClubsVolunteerDays.length;
-          for (let index = staffLunchAndClubsVolunteerDays.length - 1; index >= 0; index -= 1) {
-            const row = staffLunchAndClubsVolunteerDays[index];
-            if (
-              row &&
-              row.staffUserId === where.staffUserId &&
-              row.date.getTime() >= where.date.gte.getTime() &&
-              row.date.getTime() <= where.date.lte.getTime()
-            ) {
-              staffLunchAndClubsVolunteerDays.splice(index, 1);
-            }
-          }
-          return Promise.resolve({ count: before - staffLunchAndClubsVolunteerDays.length });
-        },
-      ),
-      createMany: vi.fn(
-        ({
-          data,
-        }: {
-          data: Array<Pick<StoredStaffLunchAndClubsVolunteerDay, 'staffUserId' | 'date'>>;
-        }) => {
-          for (const row of data) {
-            staffLunchAndClubsVolunteerDays.push({
-              id: `staff_lunch_clubs_${String(nextStaffLunchAndClubsVolunteerDayId++)}`,
-              createdAt: at('2026-04-29T09:00:00.000Z'),
-              updatedAt: at('2026-04-29T09:00:00.000Z'),
-              ...row,
-            });
-          }
-          return Promise.resolve({ count: data.length });
-        },
-      ),
-    },
     shiftSwapRequest: {
       findFirst: vi.fn(
         ({
@@ -801,7 +693,6 @@ function makeFakeDb() {
     availability,
     monthlyAvailability,
     parentVolunteerDays,
-    staffLunchAndClubsVolunteerDays,
     shifts,
     swaps,
   };
@@ -850,77 +741,6 @@ describe('rota availability', () => {
       code: 'BAD_REQUEST',
       message: 'availability windows must not overlap',
     });
-  });
-
-  it('lets staff save their own combined lunch and clubs cover days', async () => {
-    const { db, staffLunchAndClubsVolunteerDays } = makeFakeDb();
-    const caller = makeCaller(supervisorUser, db);
-    const windowStart = currentVolunteerWindowStart();
-    const firstDate = dateKey(windowStart);
-    const secondDate = dateKey(new Date(windowStart.getTime() + 86_400_000));
-
-    await expect(
-      caller.rota.setMyStaffLunchAndClubsVolunteerDays({
-        dates: [firstDate, secondDate],
-      }),
-    ).resolves.toMatchObject({
-      dates: [firstDate, secondDate],
-    });
-    expect(staffLunchAndClubsVolunteerDays).toHaveLength(2);
-    expect(db.auditLog.create).toHaveBeenCalledWith({
-      data: {
-        userId: supervisorUser.id,
-        action: 'Update',
-        entity: 'StaffLunchAndClubsVolunteerDay',
-        entityId: supervisorUser.id,
-        meta: {
-          dayCount: 2,
-          source: 'rota.setMyStaffLunchAndClubsVolunteerDays',
-        },
-      },
-    });
-    expect(staffLunchAndClubsVolunteerDays).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          staffUserId: supervisorUser.id,
-          date: day(firstDate),
-        }),
-      ]),
-    );
-
-    await caller.rota.setMyStaffLunchAndClubsVolunteerDays({
-      dates: [secondDate],
-    });
-    expect(staffLunchAndClubsVolunteerDays).toHaveLength(1);
-    await expect(caller.rota.myStaffLunchAndClubsVolunteerDays()).resolves.toMatchObject({
-      dates: [secondDate],
-    });
-    await expect(
-      makeCaller(headUser, db).rota.staffLunchAndClubsVolunteerSchedule({
-        from: windowStart,
-        to: new Date(windowStart.getTime() + 6 * 86_400_000),
-      }),
-    ).resolves.toEqual([
-      expect.objectContaining({
-        date: secondDate,
-        staff: { id: supervisorUser.id, fullName: 'Supervisor One' },
-      }),
-    ]);
-
-    await expect(
-      makeCaller(parentUser, db).rota.myStaffLunchAndClubsVolunteerDays(),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(
-      makeCaller(technicalSupportUser, db).rota.setMyStaffLunchAndClubsVolunteerDays({
-        dates: [],
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    await expect(
-      makeCaller(parentUser, db).rota.staffLunchAndClubsVolunteerSchedule({
-        from: windowStart,
-        to: windowStart,
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 
   it('lets full-admin users set their own weekly availability', async () => {
@@ -1250,7 +1070,6 @@ describe('parent volunteer days', () => {
       }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
-
   it('shows the full current term and opens the next term seven days before it starts', async () => {
     vi.useFakeTimers();
     try {
@@ -1286,37 +1105,6 @@ describe('parent volunteer days', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it('lets Head and Technical Support manage Lunch + Clubs exemptions only', async () => {
-    const { db, users } = makeFakeDb();
-    const headCaller = makeCaller(headUser, db);
-    const technicalCaller = makeCaller(technicalSupportUser, db);
-
-    await expect(headCaller.rota.listLunchAndClubsVolunteerExemptions()).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: supervisorUser.id,
-          fullName: 'Supervisor One',
-          lunchAndClubsVolunteerExempt: false,
-        }),
-      ]),
-    );
-    await expect(
-      technicalCaller.rota.setLunchAndClubsVolunteerExemption({
-        staffUserId: supervisorUser.id,
-        exempt: true,
-      }),
-    ).resolves.toEqual({ staffUserId: supervisorUser.id, exempt: true });
-    expect(users.find((user) => user.id === supervisorUser.id)?.lunchAndClubsVolunteerExempt).toBe(
-      true,
-    );
-    await expect(
-      makeCaller(supervisorUser, db).rota.setLunchAndClubsVolunteerExemption({
-        staffUserId: secondSupervisorUser.id,
-        exempt: true,
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
   });
 });
 
@@ -1431,7 +1219,6 @@ describe('rota scheduling', () => {
       active: false,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     });
     shifts.push({
@@ -1494,7 +1281,6 @@ describe('rota scheduling', () => {
       active: false,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     });
     availability.push(
@@ -1561,7 +1347,6 @@ describe('rota scheduling', () => {
       active: false,
       fullNameEnc: 'enc:Inactive Supervisor',
       emailEnc: 'enc:inactive@example.test',
-      lunchAndClubsVolunteerExempt: false,
       createdAt: at('2026-04-25T09:00:00.000Z'),
     });
     monthlyAvailability.push(

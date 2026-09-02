@@ -8,10 +8,7 @@ export default function SupervisorRotaPage() {
         <div>
           <p>My schedule</p>
           <h1>Rota</h1>
-          <p>
-            Review your shifts, volunteer for Lunch + Clubs cover, maintain availability, and
-            request shift swaps.
-          </p>
+          <p>Review your shifts, manage availability, and request a shift swap in one place.</p>
         </div>
       </div>
       <SupervisorDashboardClient canExportAttendance={false} view="rota" />

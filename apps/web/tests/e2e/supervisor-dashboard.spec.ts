@@ -23,6 +23,55 @@ async function openMobileSideMenu(
   return dialog;
 }
 
+async function verifyStaffRotaWorkspace(page: Page): Promise<void> {
+  await page.goto('/supervisor/rota');
+  await expect(page.getByRole('heading', { name: /rota/i })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^schedule$/i })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.locator('#staff-rota-panel-availability')).toBeHidden();
+  await expect(page.locator('#staff-rota-panel-swap')).toBeHidden();
+  await page.getByRole('tab', { name: /^schedule$/i }).press('ArrowRight');
+  await expect(page.getByRole('tab', { name: /availability/i })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByText(/weekly availability/i)).toBeVisible();
+  await expect(page.locator('#staff-rota-panel-schedule')).toBeHidden();
+  await page.getByRole('tab', { name: /shift swap/i }).click();
+  await expect(page.getByRole('heading', { name: /request a shift swap/i })).toBeVisible();
+  await expect(page.locator('#staff-rota-panel-availability')).toBeHidden();
+}
+
+async function verifyAdminRotaWorkspace(page: Page): Promise<void> {
+  await page.goto('/admin/rota');
+  await expect(page.getByRole('heading', { name: /^rota$/i })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^week board$/i })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.locator('#admin-rota-panel-shifts')).toBeHidden();
+  await expect(page.locator('#admin-rota-panel-availability')).toBeHidden();
+  await expect(page.locator('#admin-rota-panel-swaps')).toBeHidden();
+
+  await page.getByRole('tab', { name: /^week board$/i }).press('ArrowRight');
+  await expect(page.getByRole('tab', { name: /^shift editor$/i })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.getByRole('heading', { name: /create shift/i })).toBeVisible();
+  await expect(page.locator('#admin-rota-panel-week')).toBeHidden();
+
+  await page.getByRole('tab', { name: /^availability$/i }).click();
+  await expect(page.getByRole('heading', { name: /team availability/i })).toBeVisible();
+  await expect(page.locator('#admin-rota-panel-shifts')).toBeHidden();
+
+  await page.getByRole('tab', { name: /^swap review$/i }).click();
+  await expect(page.getByRole('heading', { name: /^shift swaps$/i })).toBeVisible();
+  await expect(page.locator('#admin-rota-panel-availability')).toBeHidden();
+}
+
 test.describe('Supervisor dashboard shell', () => {
   const headTest = headEmail && headPassword ? test : test.skip;
   const supervisorTest = supervisorEmail && supervisorPassword ? test : test.skip;
@@ -40,6 +89,18 @@ test.describe('Supervisor dashboard shell', () => {
     await expect(page.getByRole('link', { name: /behaviour/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /PACE/i })).toBeVisible();
     await expect(page.getByText(/students marked today/i)).toHaveCount(0);
+  });
+
+  headTest('full-admin can use the staff rota workspace', async ({ page }) => {
+    await signIn(page, headEmail!, headPassword!);
+    await expect(page).toHaveURL(/admin/);
+    await verifyStaffRotaWorkspace(page);
+  });
+
+  headTest('full-admin can use the admin rota workspace', async ({ page }) => {
+    await signIn(page, headEmail!, headPassword!);
+    await expect(page).toHaveURL(/admin/);
+    await verifyAdminRotaWorkspace(page);
   });
 
   headTest(
@@ -184,10 +245,9 @@ test.describe('Supervisor dashboard shell', () => {
         }
       }
 
-      await page.goto('/supervisor/rota');
-      await expect(page.getByRole('heading', { name: /rota/i })).toBeVisible();
+      await verifyStaffRotaWorkspace(page);
+      await page.getByRole('tab', { name: /availability/i }).click();
       await expect(page.getByText(/weekly availability/i)).toBeVisible();
-      await expect(page.getByText(/request shift swap/i)).toBeVisible();
       await page.getByRole('button', { name: /add/i }).click();
       await page.getByLabel('Availability day').last().selectOption('1');
       await page.getByLabel('Availability start time').last().fill('09:00');
