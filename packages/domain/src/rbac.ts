@@ -2,7 +2,7 @@
  * Role-based access control (ADR-002, ADR-003).
  *
  * - Head, Principal, Pastor, HeadOfDiscipline all have full-admin parity.
- * - TechnicalSupport: User Access account-shell support for Parent / TechnicalSupport shells.
+ * - TechnicalSupport: User Access support across all account-management workflows.
  * - ClubsAdmin: clubs module plus daily supervisor operations.
  * - ClubsLead: assigned club behaviour, attendance, and parent notices only.
  * - Supervisor: daily operations; Sensitive behaviour is limited to their own demerits and General marks.
@@ -116,14 +116,6 @@ const FULL_ADMIN_ROLES: ReadonlySet<Role> = new Set([
   'HeadOfDiscipline',
 ]);
 
-export const TECHNICAL_SUPPORT_MANAGEABLE_ROLES = [
-  'Parent',
-  'TechnicalSupport',
-] as const satisfies readonly Role[];
-const TECHNICAL_SUPPORT_MANAGEABLE_ROLE_SET: ReadonlySet<Role> = new Set(
-  TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
-);
-
 export function isFullAdmin(user: Pick<SessionUser, 'role'>): boolean {
   return FULL_ADMIN_ROLES.has(user.role);
 }
@@ -215,7 +207,7 @@ export function requireAdminOperations(user: SessionUser): void {
 }
 
 export function canManageUserAccounts(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'TechnicalSupport';
+  return isFullAdmin(user) || user.role === 'TechnicalSupport';
 }
 
 export type PostSignInPortal =
@@ -256,8 +248,7 @@ export function canManageUserAccountRole(
   actor: Pick<SessionUser, 'role'>,
   targetRole: Role,
 ): boolean {
-  if (isFullAdmin(actor)) return true;
-  return actor.role === 'TechnicalSupport' && TECHNICAL_SUPPORT_MANAGEABLE_ROLE_SET.has(targetRole);
+  return ROLES.includes(targetRole) && canManageUserAccounts(actor);
 }
 
 export function requireCanManageUserAccountRole(actor: SessionUser, targetRole: Role): void {

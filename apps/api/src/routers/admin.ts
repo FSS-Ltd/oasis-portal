@@ -18,7 +18,6 @@ import {
   ADULT_USER_ACCOUNT_ROLES,
   CHILD_REGISTRATION_PROMPT_ROLES,
   PERMISSION_TAGS,
-  TECHNICAL_SUPPORT_MANAGEABLE_ROLES,
   canAnswerChildRegistrationPrompt,
   canManageUserAccountRole,
   canManageUserAccounts,
@@ -40,7 +39,6 @@ import {
 import {
   adminOperationsProcedure,
   authedProcedure,
-  fullAdminProcedure,
   router,
   userAccountAdminProcedure,
 } from '../trpc.js';
@@ -174,16 +172,6 @@ const userInvitationSelect = Prisma.validator<Prisma.UserInvitationSelect>()({
 type UserInvitationRow = Prisma.UserInvitationGetPayload<{
   select: typeof userInvitationSelect;
 }>;
-
-function accountScopeWhereFor(actor: SessionUser): Prisma.UserWhereInput {
-  if (isFullAdmin(actor)) return {};
-  return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
-}
-
-function invitationScopeWhereFor(actor: SessionUser): Prisma.UserInvitationWhereInput {
-  if (isFullAdmin(actor)) return {};
-  return { role: { in: [...TECHNICAL_SUPPORT_MANAGEABLE_ROLES] } };
-}
 
 function assertCanChangeHeadOnlyTags(
   actorRole: string,
@@ -1046,7 +1034,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
 
     listUserAccounts: userAccountAdminProcedure.query(async ({ ctx }) => {
       const users = await ctx.db.user.findMany({
-        where: accountScopeWhereFor(ctx.user),
+        where: {},
         orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
         take: 100,
         select: userAccountSelect,
@@ -1069,7 +1057,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
     listUserInvitations: authedProcedure.query(async ({ ctx }) => {
       assertCanUseInvitationWorkflow(ctx.user);
       const invitations = await ctx.db.userInvitation.findMany({
-        where: { ...invitationScopeWhereFor(ctx.user), status: 'Pending' },
+        where: { status: 'Pending' },
         orderBy: [{ createdAt: 'desc' }],
         take: 100,
         select: userInvitationSelect,
@@ -1252,15 +1240,9 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
         }
       }),
 
-    updateUserRole: fullAdminProcedure
+    updateUserRole: userAccountAdminProcedure
       .input(updateUserRoleInput)
       .mutation(async ({ ctx, input }) => {
-        if (!isFullAdmin(ctx.user)) {
-          throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: 'only full admins can change user roles',
-          });
-        }
         if (input.userId === ctx.user.id) {
           throw new TRPCError({
             code: 'FORBIDDEN',
@@ -1514,7 +1496,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .mutation(async ({ ctx, input }) => {
         assertCanUseInvitationWorkflow(ctx.user);
         const storedInvitation = await ctx.db.userInvitation.findFirst({
-          where: { ...invitationScopeWhereFor(ctx.user), id: input.id, status: 'Pending' },
+          where: { id: input.id, status: 'Pending' },
           select: userInvitationSelect,
         });
         if (!storedInvitation) {
@@ -1540,7 +1522,7 @@ export function createAdminRouter(deps: AdminRouterDeps = {}) {
       .input(deleteUserInvitationInput)
       .mutation(async ({ ctx, input }) => {
         const storedInvitation = await ctx.db.userInvitation.findFirst({
-          where: { ...invitationScopeWhereFor(ctx.user), id: input.id, status: 'Pending' },
+          where: { id: input.id, status: 'Pending' },
           select: userInvitationSelect,
         });
         if (!storedInvitation) {

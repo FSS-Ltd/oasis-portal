@@ -9,6 +9,6 @@ export const healthRouter = router({
         })
       : 0;
 
-    return { linkedChildCount, user: ctx.user };
+    return { accountAccessState: ctx.accountAccessState, linkedChildCount, user: ctx.user };
   }),
 });
