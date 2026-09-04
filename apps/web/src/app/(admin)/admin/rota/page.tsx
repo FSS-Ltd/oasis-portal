@@ -4,7 +4,7 @@ import { getAdminOperationsUser } from '@/components/admin/require-full-admin';
 import { RotaSchedulerClient } from './rota-scheduler-client';
 
 export default async function RotaPage() {
-  await getAdminOperationsUser();
+  const currentUser = await getAdminOperationsUser();
 
   return (
     <MotionPage>
@@ -28,7 +28,7 @@ export default async function RotaPage() {
           </span>
         </div>
       </div>
-      <RotaSchedulerClient />
+      <RotaSchedulerClient currentUserRole={currentUser.role} />
     </MotionPage>
   );
 }

@@ -21,3 +21,4 @@ export * from './oasisCalendar.js';
 export * from './incidents.js';
 export * from './studentPortalSettings.js';
 export * from './academicInventory.js';
+export * from './parentVolunteer.js';

@@ -1,7 +1,8 @@
 'use client';
 
-import { CalendarDays, Check, Pencil, Save } from 'lucide-react';
+import { CalendarDays, Check, HandHeart, Pencil, Save } from 'lucide-react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
+import { canManageStaffParentVolunteerAccess, type Role } from '@oasis/domain';
 import { friendlyErrorMessage, showErrorToast, showSuccessToast } from '@/lib/notifications';
 import { api } from '@/lib/trpc';
 import { MyAvailabilityEditor } from '@/components/rota/my-availability-editor';
@@ -10,6 +11,7 @@ import { RotaAvailabilityBoard } from './_components/rota-availability-board';
 import { buildStaffAvailabilityByDay } from './_components/rota-availability-utils';
 import { RotaShiftEditor } from './_components/rota-shift-editor';
 import { RotaSwapReview } from './_components/rota-swap-review';
+import { RotaVolunteerAccess } from './_components/rota-volunteer-access';
 import { RotaWeekSchedule } from './_components/rota-week-schedule';
 import {
   adminRotaWorkspaceTabs,
@@ -32,7 +34,11 @@ import {
   type StaffMonthlyAvailability,
 } from './_components/rota-utils';
 
-export function RotaSchedulerClient() {
+type RotaSchedulerClientProps = {
+  currentUserRole: Role;
+};
+
+export function RotaSchedulerClient({ currentUserRole }: RotaSchedulerClientProps) {
   const [activeTab, setActiveTab] = useState<AdminRotaWorkspaceTab>('week');
   const [weekStart, setWeekStart] = useState(() => mondayFor(today()));
   const [shiftForm, setShiftForm] = useState<ShiftForm>(() => ({
@@ -40,6 +46,12 @@ export function RotaSchedulerClient() {
     date: dateKey(mondayFor(today())),
   }));
   const utils = api.useUtils();
+  const canManageVolunteerAccess = canManageStaffParentVolunteerAccess({ role: currentUserRole });
+  const tabs = useMemo(
+    () => adminRotaWorkspaceTabs(canManageVolunteerAccess),
+    [canManageVolunteerAccess],
+  );
+  const hasVolunteerAccessTab = tabs.some((tab) => tab.id === 'volunteerAccess');
 
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
@@ -146,7 +158,7 @@ export function RotaSchedulerClient() {
     if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
 
     event.preventDefault();
-    const nextTab = nextAdminRotaWorkspaceTab(activeTab, event.key);
+    const nextTab = nextAdminRotaWorkspaceTab(activeTab, event.key, tabs);
     if (!nextTab) return;
 
     setActiveTab(nextTab);
@@ -175,8 +187,12 @@ export function RotaSchedulerClient() {
         <span className="badge badge--blue">{swapsQuery.data?.length ?? 0} swap requests</span>
       </div>
 
-      <div aria-label="Rota planning sections" className="admin-rota-tabs" role="tablist">
-        {adminRotaWorkspaceTabs.map((tab) => {
+      <div
+        aria-label="Rota planning sections"
+        className={`admin-rota-tabs${hasVolunteerAccessTab ? '' : ' admin-rota-tabs--four'}`}
+        role="tablist"
+      >
+        {tabs.map((tab) => {
           const selected = activeTab === tab.id;
           const Icon =
             tab.id === 'week'
@@ -185,7 +201,9 @@ export function RotaSchedulerClient() {
                 ? Pencil
                 : tab.id === 'availability'
                   ? Save
-                  : Check;
+                  : tab.id === 'swaps'
+                    ? Check
+                    : HandHeart;
           return (
             <button
               aria-controls={`admin-rota-panel-${tab.id}`}
@@ -331,6 +349,18 @@ export function RotaSchedulerClient() {
           swaps={swapsQuery.data ?? []}
         />
       </div>
+
+      {hasVolunteerAccessTab ? (
+        <div
+          aria-labelledby="admin-rota-tab-volunteerAccess"
+          className="admin-rota-panel"
+          hidden={activeTab !== 'volunteerAccess'}
+          id="admin-rota-panel-volunteerAccess"
+          role="tabpanel"
+        >
+          <RotaVolunteerAccess />
+        </div>
+      ) : null}
     </section>
   );
 }

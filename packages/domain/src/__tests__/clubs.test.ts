@@ -65,11 +65,12 @@ describe('canSignUpForClub', () => {
 });
 
 describe('canUseLinkedChildClubSignup', () => {
-  it('allows parents, clubs admins, supervisors, and full-admin child-registration roles', () => {
+  it('allows parents, ClubsLead, clubs admins, supervisors, and full-admin child-registration roles', () => {
     expect(canUseLinkedChildClubSignup({ role: 'Parent' })).toBe(true);
     expect(canUseLinkedChildClubSignup({ role: 'ClubsAdmin' })).toBe(true);
     expect(canUseLinkedChildClubSignup({ role: 'Supervisor' })).toBe(true);
     expect(canUseLinkedChildClubSignup({ role: 'Head' })).toBe(true);
+    expect(canUseLinkedChildClubSignup({ role: 'ClubsLead' })).toBe(true);
   });
 
   it('blocks Student accounts', () => {

@@ -2,8 +2,12 @@ import type { ReactNode } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { prisma } from '@oasis/db';
-import { canUseClubLeadAccess } from '@oasis/domain';
-import { getLinkedChildPortalUser, linkedChildCount } from '@/components/admin/require-full-admin';
+import { canUseClubLeadAccess, canUseParentVolunteerNavigation } from '@oasis/domain';
+import {
+  getLinkedChildPortalUser,
+  getParentVolunteerAccess,
+  linkedChildCount,
+} from '@/components/admin/require-full-admin';
 import { LogoutButton } from '@/components/auth/logout-button';
 import { MobileSideMenu } from '@/components/navigation/mobile-side-menu';
 import { PortalViewSwitch } from '@/components/navigation/portal-view-switch';
@@ -58,10 +62,12 @@ async function loadParentShellCounts(user: Awaited<ReturnType<typeof getLinkedCh
 
 export default async function ParentLayout({ children }: { children: ReactNode }) {
   const user = await getLinkedChildPortalUser();
-  const [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount] =
-    await loadParentShellCounts(user);
+  const [
+    parentVolunteerAccess,
+    [linkedChildren, assignedClubLeadCount, unreadNoticeCount, unreadMessageCount],
+  ] = await Promise.all([getParentVolunteerAccess(user), loadParentShellCounts(user)]);
   const parentNavProps = {
-    canUseParentVolunteer: user.role === 'Parent',
+    canUseParentVolunteer: canUseParentVolunteerNavigation(parentVolunteerAccess),
     unreadMessageCount,
     unreadNoticeCount,
   };

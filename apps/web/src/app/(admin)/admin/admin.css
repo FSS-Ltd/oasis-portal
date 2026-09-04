@@ -12947,12 +12947,22 @@ button.club-assignment-row {
 
 .admin-rota-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--oasis-border);
   border-radius: 10px;
   background: #e8eef8;
+}
+
+.admin-rota-tabs--four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .admin-rota-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .admin-rota-tab {
@@ -12989,6 +12999,63 @@ button.club-assignment-row {
 .admin-rota-tab:focus-visible {
   outline: 3px solid rgb(91 144 197 / 35%);
   outline-offset: 2px;
+}
+
+.rota-volunteer-access {
+  min-width: 0;
+}
+
+.rota-volunteer-access-list {
+  display: grid;
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 8px;
+  background: var(--oasis-surface);
+}
+
+.rota-volunteer-access-row {
+  display: flex;
+  min-width: 0;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  background: var(--oasis-surface);
+}
+
+.rota-volunteer-access-row + .rota-volunteer-access-row {
+  border-top: 1px solid var(--oasis-border-light);
+}
+
+.rota-volunteer-access-row > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.rota-volunteer-access-row strong,
+.rota-volunteer-access-row small {
+  overflow-wrap: anywhere;
+}
+
+.rota-volunteer-access-row small {
+  color: var(--oasis-text-secondary);
+}
+
+.rota-volunteer-access-row .switch-input {
+  flex: 0 0 auto;
+}
+
+.rota-volunteer-access-row .switch-input:focus-visible {
+  outline: 3px solid rgb(91 144 197 / 35%);
+  outline-offset: 2px;
+}
+
+.rota-volunteer-access-row .switch-input:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 
 .admin-rota-panel--availability {
@@ -13876,10 +13943,6 @@ button.club-assignment-row {
   .admin-rota-workspace__topbar {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .admin-rota-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .staff-rota-tab {

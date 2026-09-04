@@ -220,6 +220,10 @@
   gap: 16px;
 }
 
+.parent-volunteer-panel--staff {
+  grid-template-columns: 1fr;
+}
+
 .parent-volunteer-panel__header {
   align-items: flex-start;
   display: flex;

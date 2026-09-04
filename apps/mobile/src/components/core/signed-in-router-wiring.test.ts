@@ -15,7 +15,8 @@ describe('signed-in mobile routing', () => {
     expect(router).toMatch(/api\.health\.me\.useQuery\(undefined, \{ retry: false \}\)/);
     expect(router).not.toMatch(/useClerk/);
     expect(router).not.toMatch(/signOut/);
-    expect(router).toContain('Could not load session. Please try again.');
+    expect(router).toContain('We could not refresh your access. Please try again.');
+    expect(router).not.toMatch(/health\.error\.message/);
   });
 
   it('does not route Technical Support accounts into the staff workflow shell', () => {

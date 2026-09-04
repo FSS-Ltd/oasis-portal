@@ -35,7 +35,9 @@ export function assertCanManageClub(user: SessionUser): void {
 }
 
 export function canUseLinkedChildClubSignup(user: Pick<SessionUser, 'role'>): boolean {
-  return user.role === 'ClubsAdmin' || canUseLinkedChildGuardianAccess(user);
+  return (
+    user.role === 'ClubsAdmin' || user.role === 'ClubsLead' || canUseLinkedChildGuardianAccess(user)
+  );
 }
 
 export function canOperateAssignedClub(

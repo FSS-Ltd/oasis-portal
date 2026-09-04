@@ -26,6 +26,17 @@ test('global table containers keep horizontal scroll contained on touch devices'
   assert.match(adminCss, /\.table-responsive[\s\S]*overscroll-behavior-inline: contain/);
 });
 
+test('staff volunteer access surfaces retain their responsive layout contracts', () => {
+  const parentCss = readFileSync('apps/web/src/app/(parent)/parent/parent.css', 'utf8');
+
+  assert.match(
+    adminCss,
+    /@media \(max-width: 1100px\) \{\s*\.admin-rota-tabs \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+  );
+  assert.match(adminCss, /\.rota-volunteer-access-row[\s\S]*min-height: 56px/);
+  assert.match(parentCss, /\.parent-volunteer-panel--staff[\s\S]*grid-template-columns: 1fr/);
+});
+
 test('web modal panels use bounded dynamic viewport scrolling', () => {
   assert.match(adminCss, /\.modal-scroll-region[\s\S]*overflow-y: auto/);
   assert.match(adminCss, /\.modal-scroll-region[\s\S]*overscroll-behavior: contain/);

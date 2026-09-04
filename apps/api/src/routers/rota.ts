@@ -2,9 +2,11 @@ import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { Prisma } from '@oasis/db';
 import {
+  canManageStaffParentVolunteerAccess,
   currentOasisTerm,
   isStaff,
   nextOasisTerm,
+  resolveParentVolunteerAccess,
   requireStaff,
   type OasisTerm,
   type SessionUser,
@@ -50,6 +52,32 @@ const PARENT_VOLUNTEER_PLACEMENTS = {
 } as const;
 
 type ParentVolunteerPlacement = keyof typeof PARENT_VOLUNTEER_PLACEMENTS;
+type ParentVolunteerScope = 'parent' | 'staff';
+type ParentVolunteerDaySlot = {
+  date: string;
+  selected: boolean;
+  status: 'Selected' | 'Full' | 'Available';
+  spacesRemaining: number;
+};
+type ParentVolunteerLunchAndClubs = {
+  primary: { dailyCapacity: number; days: ParentVolunteerDaySlot[] };
+  secondary: { dailyCapacity: number; days: ParentVolunteerDaySlot[] };
+};
+type ParentVolunteerSharedTerm = {
+  id: string;
+  label: string;
+  from: string;
+  to: string;
+  lunchAndClubs: ParentVolunteerLunchAndClubs;
+};
+type ParentVolunteerSlots =
+  | {
+      scope: 'parent';
+      terms: (ParentVolunteerSharedTerm & {
+        centreVolunteer: { dailyCapacity: number; days: ParentVolunteerDaySlot[] };
+      })[];
+    }
+  | { scope: 'staff'; terms: ParentVolunteerSharedTerm[] };
 
 const setMyParentVolunteerDaysInput = z
   .object({
@@ -97,6 +125,11 @@ const setMyParentVolunteerDaysInput = z
       });
     }
   });
+
+const setStaffParentVolunteerAccessInput = z.object({
+  userId: z.string().min(1),
+  enabled: z.boolean(),
+});
 
 const monthlyAvailabilityWindowInput = z
   .object({
@@ -269,13 +302,94 @@ function assertStaffWorkflow(user: SessionUser): void {
   }
 }
 
-function assertParentVolunteerWorkflow(user: SessionUser): void {
-  if (user.role !== 'Parent') {
+function assertCanManageStaffParentVolunteerAccess(user: SessionUser): void {
+  if (!canManageStaffParentVolunteerAccess(user)) {
     throw new TRPCError({
       code: 'FORBIDDEN',
-      message: 'parent volunteer access is limited to parent accounts',
+      message: 'staff parent volunteer access management is not available',
     });
   }
+}
+
+const activeGuardianSelect = {
+  where: { student: { active: true } },
+  select: { id: true },
+} satisfies Prisma.GuardianFindManyArgs;
+
+const staffParentVolunteerAccessSelect = {
+  id: true,
+  role: true,
+  fullNameEnc: true,
+  staffParentVolunteerAccess: true,
+  guardianOf: activeGuardianSelect,
+} satisfies Prisma.UserSelect;
+
+type StaffParentVolunteerAccessUser = Prisma.UserGetPayload<{
+  select: typeof staffParentVolunteerAccessSelect;
+}>;
+
+function mapStaffParentVolunteerAccess(
+  decrypt: AppContext['db']['$enc']['decrypt'],
+  user: StaffParentVolunteerAccessUser,
+) {
+  return {
+    id: user.id,
+    role: user.role,
+    fullName: decryptRequired(decrypt, user.fullNameEnc, 'user'),
+    childCount: user.guardianOf.length,
+    enabled: user.staffParentVolunteerAccess,
+  };
+}
+
+async function lockStaffParentVolunteerEligibility(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  requireEnabledAccess: boolean,
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT eligible_user."id"
+    FROM "User" AS eligible_user
+    INNER JOIN "Guardian" AS guardian_link
+      ON guardian_link."userId" = eligible_user."id"
+    INNER JOIN "Student" AS active_student
+      ON active_student."id" = guardian_link."studentId"
+    WHERE eligible_user."id" = ${userId}
+      AND eligible_user."active" = TRUE
+      AND eligible_user."role" NOT IN ('Parent', 'Student')
+      AND (${requireEnabledAccess} = FALSE OR eligible_user."staffParentVolunteerAccess" = TRUE)
+      AND active_student."active" = TRUE
+    FOR UPDATE OF eligible_user, guardian_link, active_student
+  `;
+  return rows.length > 0;
+}
+
+async function resolveParentVolunteerScope(ctx: RouterCtx): Promise<ParentVolunteerScope> {
+  const user = await ctx.db.user.findUnique({
+    where: { id: ctx.user.id },
+    select: {
+      role: true,
+      active: true,
+      staffParentVolunteerAccess: true,
+      guardianOf: activeGuardianSelect,
+    },
+  });
+  if (!user) {
+    throw new TRPCError({
+      code: 'FORBIDDEN',
+      message: 'parent volunteer access is not available',
+    });
+  }
+  const access = resolveParentVolunteerAccess({
+    active: user.active,
+    activeGuardianCount: user.guardianOf.length,
+    role: user.role,
+    staffParentVolunteerAccess: user.staffParentVolunteerAccess,
+  });
+  if (access) return access;
+  throw new TRPCError({
+    code: 'FORBIDDEN',
+    message: 'parent volunteer access is not available',
+  });
 }
 
 function assertParentVolunteerDatesWithinTerm(dates: readonly string[], term: OasisTerm): void {
@@ -291,7 +405,10 @@ function assertParentVolunteerDatesWithinTerm(dates: readonly string[], term: Oa
   }
 }
 
-async function listParentVolunteerSlots(ctx: RouterCtx) {
+async function listParentVolunteerSlots(
+  ctx: RouterCtx,
+  scope: ParentVolunteerScope,
+): Promise<ParentVolunteerSlots> {
   const terms = availableParentVolunteerTerms();
   const firstTerm = terms[0] as OasisTerm;
   const lastTerm = terms.at(-1) as OasisTerm;
@@ -328,35 +445,45 @@ async function listParentVolunteerSlots(ctx: RouterCtx) {
     });
   };
 
+  const sharedTerms: ParentVolunteerSharedTerm[] = terms.map((term) => ({
+    id: term.id,
+    label: term.label,
+    from: dateKey(term.from),
+    to: dateKey(addDays(term.to, -1)),
+    lunchAndClubs: {
+      primary: {
+        dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsPrimary.dailyCapacity,
+        days: slotsForPlacement('LunchAndClubsPrimary', term),
+      },
+      secondary: {
+        dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsSecondary.dailyCapacity,
+        days: slotsForPlacement('LunchAndClubsSecondary', term),
+      },
+    },
+  }));
+  if (scope === 'staff') return { scope, terms: sharedTerms };
   return {
-    terms: terms.map((term) => ({
-      id: term.id,
-      label: term.label,
-      from: dateKey(term.from),
-      to: dateKey(addDays(term.to, -1)),
-      centreVolunteer: {
-        dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.Centre.dailyCapacity,
-        days: slotsForPlacement('Centre', term),
-      },
-      lunchAndClubs: {
-        primary: {
-          dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsPrimary.dailyCapacity,
-          days: slotsForPlacement('LunchAndClubsPrimary', term),
+    scope,
+    terms: terms.map((term, index) => {
+      const sharedTerm = sharedTerms[index];
+      if (!sharedTerm) throw new Error('Parent volunteer term serialization failed');
+      return {
+        ...sharedTerm,
+        centreVolunteer: {
+          dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.Centre.dailyCapacity,
+          days: slotsForPlacement('Centre', term),
         },
-        secondary: {
-          dailyCapacity: PARENT_VOLUNTEER_PLACEMENTS.LunchAndClubsSecondary.dailyCapacity,
-          days: slotsForPlacement('LunchAndClubsSecondary', term),
-        },
-      },
-    })),
+      };
+    }),
   };
 }
 
 function parentVolunteerDatesByPlacement(
   input: z.infer<typeof setMyParentVolunteerDaysInput>,
+  scope: ParentVolunteerScope,
 ): { placement: ParentVolunteerPlacement; dates: string[] }[] {
   const datesByPlacement: { placement: ParentVolunteerPlacement; dates: string[] | undefined }[] = [
-    { placement: 'Centre', dates: input.centreDates },
+    ...(scope === 'parent' ? [{ placement: 'Centre' as const, dates: input.centreDates }] : []),
     { placement: 'LunchAndClubsPrimary', dates: input.primaryLunchAndClubsDates },
     { placement: 'LunchAndClubsSecondary', dates: input.secondaryLunchAndClubsDates },
   ];
@@ -716,16 +843,92 @@ export const rotaRouter = router({
       return rows.map((row) => ({ ...row, date: dateKey(row.date) }));
     }),
 
+  listStaffParentVolunteerAccess: authedProcedure.query(async ({ ctx }) => {
+    assertCanManageStaffParentVolunteerAccess(ctx.user);
+    const users = await ctx.db.user.findMany({
+      where: {
+        active: true,
+        role: { notIn: ['Parent', 'Student'] },
+        guardianOf: { some: { student: { active: true } } },
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      select: staffParentVolunteerAccessSelect,
+    });
+    const staff = users.map((user) => mapStaffParentVolunteerAccess(ctx.db.$enc.decrypt, user));
+    await ctx.db.auditLog.create({
+      data: {
+        userId: ctx.user.id,
+        action: 'DecryptPii',
+        entity: 'StaffParentVolunteerAccess',
+        meta: { count: staff.length, source: 'rota.listStaffParentVolunteerAccess' },
+      },
+    });
+    return staff;
+  }),
+
+  setStaffParentVolunteerAccess: authedProcedure
+    .input(setStaffParentVolunteerAccessInput)
+    .mutation(async ({ ctx, input }) => {
+      assertCanManageStaffParentVolunteerAccess(ctx.user);
+      const { user } = await ctx.db.$transaction(async (tx) => {
+        const targetEligible = await lockStaffParentVolunteerEligibility(tx, input.userId, false);
+        if (!targetEligible) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Staff parent volunteer access can only be changed for eligible staff',
+          });
+        }
+        const user = await tx.user.update({
+          where: { id: input.userId },
+          data: { staffParentVolunteerAccess: input.enabled },
+          select: staffParentVolunteerAccessSelect,
+        });
+        const releasedReservationCount = input.enabled
+          ? 0
+          : (
+              await tx.parentVolunteerDay.deleteMany({
+                where: {
+                  parentUserId: input.userId,
+                  date: { gt: normalizeDate(new Date()) },
+                  placement: { in: ['LunchAndClubsPrimary', 'LunchAndClubsSecondary'] },
+                },
+              })
+            ).count;
+        await tx.auditLog.create({
+          data: {
+            userId: ctx.user.id,
+            action: 'Update',
+            entity: 'StaffParentVolunteerAccess',
+            entityId: input.userId,
+            meta: {
+              enabled: input.enabled,
+              releasedReservationCount,
+              source: 'rota.setStaffParentVolunteerAccess',
+            },
+          },
+        });
+        return { user };
+      });
+
+      return mapStaffParentVolunteerAccess(ctx.db.$enc.decrypt, user);
+    }),
+
   parentVolunteerSlots: authedProcedure.query(async ({ ctx }) => {
-    assertParentVolunteerWorkflow(ctx.user);
-    return listParentVolunteerSlots(ctx);
+    const scope = await resolveParentVolunteerScope(ctx);
+    return listParentVolunteerSlots(ctx, scope);
   }),
 
   setMyParentVolunteerDays: authedProcedure
     .input(setMyParentVolunteerDaysInput)
     .mutation(async ({ ctx, input }) => {
-      assertParentVolunteerWorkflow(ctx.user);
-      const requestedSelections = parentVolunteerDatesByPlacement(input).flatMap(
+      const scope = await resolveParentVolunteerScope(ctx);
+      if (scope === 'staff' && input.centreDates !== undefined) {
+        throw new TRPCError({
+          code: 'FORBIDDEN',
+          message: 'Centre volunteering is not available to staff volunteers',
+        });
+      }
+      const requestedSelections = parentVolunteerDatesByPlacement(input, scope).flatMap(
         ({ placement, dates }) => dates.map((date) => ({ date, placement })),
       );
       const term = availableParentVolunteerTerms().find(
@@ -750,7 +953,7 @@ export const rotaRouter = router({
         select: { id: true, date: true, placement: true },
       });
       const requestedDatesByPlacement = new Map(
-        parentVolunteerDatesByPlacement(input).map(({ placement, dates }) => [
+        parentVolunteerDatesByPlacement(input, scope).map(({ placement, dates }) => [
           placement,
           new Set(dates),
         ]),
@@ -857,24 +1060,26 @@ export const rotaRouter = router({
       }
 
       try {
-        const transactionQueries: Prisma.PrismaPromise<Prisma.BatchPayload>[] = [];
+        await ctx.db.$transaction(async (tx) => {
+          if (scope === 'staff') {
+            const accessAllowed = await lockStaffParentVolunteerEligibility(tx, ctx.user.id, true);
+            if (!accessAllowed) {
+              throw new TRPCError({
+                code: 'FORBIDDEN',
+                message: 'parent volunteer access is not available',
+              });
+            }
+          }
+
         if (recordsToRemove.length > 0) {
-          transactionQueries.push(
-            ctx.db.parentVolunteerDay.deleteMany({
-              where: { id: { in: recordsToRemove.map((row) => row.id) } },
-            }),
-          );
+          await tx.parentVolunteerDay.deleteMany({
+            where: { id: { in: recordsToRemove.map((row) => row.id) } },
+          });
         }
         if (recordsToCreate.length > 0) {
-          transactionQueries.push(
-            ctx.db.parentVolunteerDay.createMany({
-              data: recordsToCreate,
-            }),
-          );
+          await tx.parentVolunteerDay.createMany({ data: recordsToCreate });
         }
-        if (transactionQueries.length > 0) {
-          await ctx.db.$transaction(transactionQueries);
-        }
+        });
       } catch (error) {
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
           throw new TRPCError({
@@ -902,7 +1107,7 @@ export const rotaRouter = router({
         },
       });
 
-      return listParentVolunteerSlots(ctx);
+      return listParentVolunteerSlots(ctx, scope);
     }),
 
   parentVolunteerSchedule: adminOperationsProcedure

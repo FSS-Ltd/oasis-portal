@@ -69,10 +69,18 @@ interface ParentNavProps {
   unreadNoticeCount: number;
 }
 
-function visibleParentNavItems(canUseParentVolunteer: boolean): readonly ParentNavItem[] {
+export function parentNavigationItems(canUseParentVolunteer: boolean): readonly ParentNavItem[] {
   return canUseParentVolunteer
     ? parentNavItems
     : parentNavItems.filter((item) => item.href !== '/parent/volunteer');
+}
+
+export function parentBottomNavigationItems(
+  canUseParentVolunteer: boolean,
+): readonly ParentNavItem[] {
+  return parentNavigationItems(canUseParentVolunteer).filter((item) =>
+    parentMobileNavHrefs.has(item.href),
+  );
 }
 
 function badgeForItem(
@@ -136,7 +144,7 @@ export function ParentSidebarNav({
   unreadNoticeCount,
 }: ParentNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleItems = visibleParentNavItems(canUseParentVolunteer);
+  const visibleItems = parentNavigationItems(canUseParentVolunteer);
 
   return (
     <nav className="admin-shell__nav">
@@ -165,7 +173,7 @@ export function ParentTopNav({
   unreadNoticeCount,
 }: ParentNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleItems = visibleParentNavItems(canUseParentVolunteer).filter(
+  const visibleItems = parentNavigationItems(canUseParentVolunteer).filter(
     (item) => item.href !== '/parent/profile',
   );
 
@@ -195,9 +203,7 @@ export function ParentBottomNav({
   unreadNoticeCount,
 }: ParentNavProps) {
   const pathname = usePathname() ?? '';
-  const visibleItems = visibleParentNavItems(canUseParentVolunteer).filter((item) =>
-    parentMobileNavHrefs.has(item.href),
-  );
+  const visibleItems = parentBottomNavigationItems(canUseParentVolunteer);
 
   return (
     <nav aria-label="Mobile parent sections" className="admin-shell__bottom-nav">

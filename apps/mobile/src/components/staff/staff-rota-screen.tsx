@@ -23,6 +23,8 @@ import {
 } from './staff-rota-utils';
 
 type SessionUser = NonNullable<RouterOutputs['health']['me']['user']>;
+// Cover feature depends on staff lunch/clubs volunteer APIs that were removed from the current
+// backend router. Keep this disabled until those APIs are restored.
 type StaffRotaTab = 'rota' | 'availability' | 'swaps';
 
 const today = new Date(`${dateKey(new Date())}T00:00:00.000Z`);
@@ -141,6 +143,9 @@ export function StaffRotaScreen({
     );
   }, [monthlyAvailability.data]);
 
+  // Cover feature is intentionally disabled for now; the required APIs are no longer exposed in
+  // the router. Re-enable this effect once `myStaffLunchAndClubsVolunteerDays` is available again.
+
   const activeRota =
     rotaMode === 'today'
       ? (todayRota.data ?? [])
@@ -234,7 +239,7 @@ export function StaffRotaScreen({
           </Pressable>
           <View style={styles.titleGroup}>
             <Text style={styles.eyebrow}>Rota and availability</Text>
-            <Text style={styles.title}>Today, availability, cover and swaps</Text>
+            <Text style={styles.title}>Today, availability and swaps</Text>
           </View>
         </View>
 
