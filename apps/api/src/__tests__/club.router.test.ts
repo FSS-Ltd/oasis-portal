@@ -77,6 +77,16 @@ interface StoredClub {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+  yearGroupBands: Array<{ yearGroupBand: StoredYearGroupBand }>;
+}
+
+interface StoredYearGroupBand {
+  id: string;
+  name: string;
+  standardYears: string[];
+  active: boolean;
+  sortOrder: number;
+  colour: string;
 }
 
 interface StoredStudent {
@@ -198,6 +208,7 @@ interface FakeClubCreateArgs {
     accentColor: string | null;
     active: boolean;
     createdById: string;
+    yearGroupBands: { create: Array<{ yearGroupBandId: string }> };
   };
   include: FakeClubInclude;
 }
@@ -219,7 +230,9 @@ interface FakeClubUpdateArgs {
       | 'accentColor'
       | 'active'
     >
-  >;
+  > & {
+    yearGroupBands?: { deleteMany: object; create: Array<{ yearGroupBandId: string }> };
+  };
   include: FakeClubInclude;
 }
 
@@ -377,6 +390,7 @@ interface FakeDb {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
   };
+  yearGroupBand: { findMany: ReturnType<typeof vi.fn> };
   clubSignup: {
     create: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
@@ -420,6 +434,7 @@ interface FakeDb {
   leadAssignments: StoredLeadAssignment[];
   attendance: StoredClubAttendance[];
   notifications: StoredClubNotification[];
+  yearGroupBands: StoredYearGroupBand[];
 }
 
 function makeClub(input: Partial<StoredClub> & Pick<StoredClub, 'id' | 'name'>): StoredClub {
@@ -437,6 +452,7 @@ function makeClub(input: Partial<StoredClub> & Pick<StoredClub, 'id' | 'name'>):
     createdById: headUser.id,
     createdAt: new Date('2026-05-11T08:00:00.000Z'),
     updatedAt: new Date('2026-05-11T08:00:00.000Z'),
+    yearGroupBands: [],
     ...input,
   };
 }
@@ -490,6 +506,23 @@ const defaultClubId = 'cclub000000000000000001';
 const inactiveClubId = 'cclub000000000000000002';
 const linkedStudentId = 'cstudent000000000000001';
 const otherStudentId = 'cstudent000000000000002';
+const secondaryBand: StoredYearGroupBand = {
+  id: 'cyeargroupbandsecondary',
+  name: 'Secondary',
+  standardYears: [
+    'Year 6',
+    'Year 7',
+    'Year 8',
+    'Year 9',
+    'Year 10',
+    'Year 11',
+    'Year 12',
+    'Year 13',
+  ],
+  active: true,
+  sortOrder: 3,
+  colour: '#4338CA',
+};
 
 const defaultUsers = [
   makeUser({ id: headUser.id, role: headUser.role, fullNameEnc: encrypt('Head User') }),
@@ -526,11 +559,23 @@ function makeFakeDb(
     leadAssignments?: StoredLeadAssignment[];
     attendance?: StoredClubAttendance[];
     notifications?: StoredClubNotification[];
+    yearGroupBands?: StoredYearGroupBand[];
   } = {},
 ): FakeDb {
+  const yearGroupBands = input.yearGroupBands ?? [secondaryBand];
   const clubs = input.clubs ?? [
-    makeClub({ id: defaultClubId, name: 'Choir', capacity: 2 }),
-    makeClub({ id: inactiveClubId, name: 'Chess', active: false }),
+    makeClub({
+      id: defaultClubId,
+      name: 'Choir',
+      capacity: 2,
+      yearGroupBands: [{ yearGroupBand: secondaryBand }],
+    }),
+    makeClub({
+      id: inactiveClubId,
+      name: 'Chess',
+      active: false,
+      yearGroupBands: [{ yearGroupBand: secondaryBand }],
+    }),
   ];
   const students = input.students ?? [
     makeStudent({
@@ -600,11 +645,17 @@ function makeFakeDb(
         return Promise.resolve(withIncludedSignups(club, args.include, signups, students));
       }),
       create: vi.fn((args: FakeClubCreateArgs) => {
+        const { yearGroupBands: groupRelation, ...clubData } = args.data;
         const club: StoredClub = {
           id: `cclubcreated000000000${String(clubs.length + 1).padStart(3, '0')}`,
           createdAt: new Date('2026-05-11T10:00:00.000Z'),
           updatedAt: new Date('2026-05-11T10:00:00.000Z'),
-          ...args.data,
+          ...clubData,
+          yearGroupBands: groupRelation.create.map(({ yearGroupBandId }) => {
+            const yearGroupBand = yearGroupBands.find((band) => band.id === yearGroupBandId);
+            if (!yearGroupBand) throw new Error('year group band not found');
+            return { yearGroupBand };
+          }),
         };
         clubs.push(club);
         return Promise.resolve(withIncludedSignups(club, args.include, signups, students));
@@ -614,14 +665,35 @@ function makeFakeDb(
         if (index === -1) throw new Error('club not found');
         const current = clubs[index];
         if (!current) throw new Error('club not found');
+        const { yearGroupBands: groupRelation, ...clubData } = args.data;
         const updated: StoredClub = {
           ...current,
-          ...args.data,
+          ...clubData,
+          ...(groupRelation
+            ? {
+                yearGroupBands: groupRelation.create.map(({ yearGroupBandId }) => {
+                  const yearGroupBand = yearGroupBands.find((band) => band.id === yearGroupBandId);
+                  if (!yearGroupBand) throw new Error('year group band not found');
+                  return { yearGroupBand };
+                }),
+              }
+            : {}),
           updatedAt: new Date('2026-05-11T11:00:00.000Z'),
         };
         clubs[index] = updated;
         return Promise.resolve(withIncludedSignups(updated, args.include, signups, students));
       }),
+    },
+    yearGroupBand: {
+      findMany: vi.fn((args: { where?: { active?: boolean; id?: { in: string[] } } } = {}) =>
+        Promise.resolve(
+          yearGroupBands.filter(
+            (band) =>
+              (args.where?.active === undefined || band.active === args.where.active) &&
+              (args.where?.id?.in === undefined || args.where.id.in.includes(band.id)),
+          ),
+        ),
+      ),
     },
     clubSignup: {
       create: vi.fn((args: FakeSignupCreateArgs) => {
@@ -1016,6 +1088,7 @@ function makeFakeDb(
     leadAssignments,
     attendance,
     notifications,
+    yearGroupBands,
   } satisfies FakeDb;
 
   db.$transaction.mockImplementation(async <T>(fn: (tx: FakeDb) => Promise<T>) => fn(db));
@@ -1176,6 +1249,7 @@ describe('club management', () => {
         frequency: 'Weekly',
       },
       capacity: 12,
+      yearGroupBandIds: [secondaryBand.id],
     });
 
     expect(created).toMatchObject({
@@ -1187,10 +1261,11 @@ describe('club management', () => {
         endMinute: 990,
         frequency: 'Weekly',
       },
-      scheduleLabel: 'Weekly from 2026-05-15, 15:30-16:30',
+      scheduleLabel: 'Fridays · 15:30–16:30',
       capacity: 12,
       active: true,
       activeSignupCount: 0,
+      yearGroupBands: [{ id: secondaryBand.id, name: 'Secondary' }],
     });
 
     const clubsAdminCaller = makeCaller(clubsAdminUser, db).caller;
@@ -1227,7 +1302,9 @@ describe('club management', () => {
     async (user) => {
       const { caller } = makeCaller(user);
 
-      await expect(caller.club.create({ name: 'Choir' })).rejects.toMatchObject({
+      await expect(
+        caller.club.create({ name: 'Choir', yearGroupBandIds: [secondaryBand.id] }),
+      ).rejects.toMatchObject({
         code: 'FORBIDDEN',
       });
     },
@@ -1481,6 +1558,7 @@ describe('club.linkedChildClubDetail', () => {
 
     const result = await makeCaller(parentUser, db).caller.club.linkedChildClubDetail({
       clubId: defaultClubId,
+      studentId: linkedStudentId,
     });
 
     expect(result.club.id).toBe(defaultClubId);
@@ -1518,7 +1596,10 @@ describe('club.linkedChildClubDetail', () => {
 
   it('blocks roles that cannot use linked-child club detail', async () => {
     await expect(
-      makeCaller(studentUser).caller.club.linkedChildClubDetail({ clubId: defaultClubId }),
+      makeCaller(studentUser).caller.club.linkedChildClubDetail({
+        clubId: defaultClubId,
+        studentId: linkedStudentId,
+      }),
     ).rejects.toMatchObject({
       code: 'FORBIDDEN',
     });
@@ -1860,7 +1941,14 @@ describe('club.signUp', () => {
     });
 
     const fullDb = makeFakeDb({
-      clubs: [makeClub({ id: defaultClubId, name: 'Choir', capacity: 1 })],
+      clubs: [
+        makeClub({
+          id: defaultClubId,
+          name: 'Choir',
+          capacity: 1,
+          yearGroupBands: [{ yearGroupBand: secondaryBand }],
+        }),
+      ],
       signups: [
         makeSignup({
           id: 'csignup000000000000002',
@@ -1877,6 +1965,29 @@ describe('club.signUp', () => {
     ).rejects.toMatchObject({
       code: 'BAD_REQUEST',
       message: 'club is at capacity',
+    });
+  });
+
+  it('rejects new signups when the student is outside the club year groups', async () => {
+    const db = makeFakeDb({
+      students: [
+        makeStudent({
+          id: linkedStudentId,
+          fullNameEnc: encrypt('Linked Learner'),
+          userId: studentUser.id,
+          yearGroup: 'Year 2',
+        }),
+      ],
+    });
+
+    await expect(
+      makeCaller(parentUser, db).caller.club.signUp({
+        clubId: defaultClubId,
+        studentId: linkedStudentId,
+      }),
+    ).rejects.toMatchObject({
+      code: 'BAD_REQUEST',
+      message: 'club is not available to this student year group',
     });
   });
 });
@@ -2533,7 +2644,7 @@ describe('club.myClubNotices', () => {
       ],
     });
 
-    await expect(makeCaller(parentUser, db).caller.club.myClubNotices()).resolves.toEqual([
+    await expect(makeCaller(parentUser, db).caller.club.myClubNotices({})).resolves.toEqual([
       {
         id: 'cnotification000000000001',
         body: 'Choir starts at 4pm.',
@@ -2573,7 +2684,7 @@ describe('club.myClubNotices', () => {
         ],
       });
 
-      await expect(makeCaller(user, db).caller.club.myClubNotices()).resolves.toEqual([
+      await expect(makeCaller(user, db).caller.club.myClubNotices({})).resolves.toEqual([
         {
           id: 'cnotification000000000003',
           body: 'Drama rehearsal moves to room 2.',

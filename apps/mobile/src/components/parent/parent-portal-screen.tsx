@@ -86,6 +86,8 @@ export function ParentPortalScreen({
   const registrationStatus = api.registration.status.useQuery(undefined, { retry: false });
   const children = useMemo(() => dashboard.data?.children ?? [], [dashboard.data?.children]);
   const hasLinkedChildren = children.length > 0;
+  const selectedChild = selectedParentChild(children, selectedChildId);
+  const selectedStudentId = selectedChild?.student.id ?? '';
   const notices = api.notice.listForParents.useQuery(undefined, {
     enabled: hasLinkedChildren && route === 'notices',
     retry: false,
@@ -102,12 +104,13 @@ export function ParentPortalScreen({
     enabled: hasLinkedChildren && route === 'clubs',
     retry: false,
   });
-  const clubNotices = api.club.myClubNotices.useQuery(undefined, {
-    enabled: hasLinkedChildren && route === 'clubs',
-    retry: false,
-  });
-  const selectedChild = selectedParentChild(children, selectedChildId);
-  const selectedStudentId = selectedChild?.student.id ?? '';
+  const clubNotices = api.club.myClubNotices.useQuery(
+    { studentId: selectedStudentId || undefined },
+    {
+      enabled: hasLinkedChildren && route === 'clubs',
+      retry: false,
+    },
+  );
   const balances = api.meritLedger.balances.useQuery(
     { studentId: selectedStudentId },
     { enabled: Boolean(selectedStudentId), retry: false },

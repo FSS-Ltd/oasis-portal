@@ -4,15 +4,24 @@ import { LinkedChildClubDetailClient } from '@/components/clubs/linked-child-clu
 
 export default async function SupervisorClubDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ studentId?: string }>;
 }) {
   await getLinkedChildPortalUser();
   const { clubId } = await params;
+  const { studentId } = await searchParams;
+
+  if (!studentId) throw new Error('studentId is required');
 
   return (
     <MotionPage>
-      <LinkedChildClubDetailClient backHref="/supervisor/clubs" clubId={clubId} />
+      <LinkedChildClubDetailClient
+        backHref="/supervisor/clubs"
+        clubId={clubId}
+        studentId={studentId}
+      />
     </MotionPage>
   );
 }

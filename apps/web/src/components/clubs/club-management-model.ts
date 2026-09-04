@@ -10,6 +10,7 @@ import {
 } from './club-visuals';
 
 export type Club = RouterOutputs['club']['managementList'][number];
+export type ClubYearGroupBand = RouterOutputs['club']['yearGroupBands'][number];
 export type ClubNotification = RouterOutputs['club']['notifications'][number];
 export type RosterSignup = RouterOutputs['club']['roster']['signups'][number];
 export type ClubTab = 'attendance' | 'students' | 'leads' | 'notices';
@@ -23,6 +24,7 @@ export interface ClubFormState {
   capacity: string;
   iconKey: ClubIconKey;
   accentColor: ClubAccentColor;
+  yearGroupBandIds: string[];
 }
 
 interface ClubFormPayload {
@@ -37,6 +39,7 @@ interface ClubFormPayload {
   capacity: number | null;
   iconKey: ClubIconKey;
   accentColor: ClubAccentColor;
+  yearGroupBandIds: string[];
 }
 
 export interface NotificationFormState {
@@ -69,6 +72,7 @@ export function emptyClubForm(): ClubFormState {
     capacity: '',
     iconKey: 'drama',
     accentColor: randomClubAccent(),
+    yearGroupBandIds: [],
   };
 }
 
@@ -86,6 +90,7 @@ export function formFromClub(club: Club): ClubFormState {
     capacity: club.capacity === null ? '' : String(club.capacity),
     iconKey: CLUB_ICON_OPTIONS.find((option) => option.key === club.iconKey)?.key ?? 'drama',
     accentColor: isClubAccentColor(club.accentColor) ? club.accentColor : randomClubAccent(),
+    yearGroupBandIds: club.yearGroupBands.map((band) => band.id),
   };
 }
 
@@ -107,6 +112,7 @@ export function buildClubPayload(form: ClubFormState): ClubFormPayload | string 
     return 'Capacity must be a positive whole number.';
   }
   if (!form.scheduleDate) return 'First club date is required.';
+  if (form.yearGroupBandIds.length === 0) return 'Select at least one year group.';
 
   const startMinute = fromTimeValue(form.scheduleStartTime);
   const endMinute = fromTimeValue(form.scheduleEndTime);
@@ -124,6 +130,7 @@ export function buildClubPayload(form: ClubFormState): ClubFormPayload | string 
     capacity,
     iconKey: form.iconKey,
     accentColor: form.accentColor,
+    yearGroupBandIds: form.yearGroupBandIds,
   };
 }
 

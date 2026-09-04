@@ -662,6 +662,7 @@ model YearGroupBand {
   updatedAt     DateTime     @updatedAt
   staffShifts   StaffShift[]
   homeworkAssignments HomeworkAssignmentBand[]
+  clubAssignments     ClubYearGroupBand[]
 
   @@index([active, sortOrder])
 }
@@ -1658,6 +1659,19 @@ model Club {
   rotaParticipants    ClubRotaParticipant[]
   rotaShifts          ClubRotaShift[]
   availabilityWindows ClubAvailabilityWindow[]
+  yearGroupBands      ClubYearGroupBand[]
+}
+
+model ClubYearGroupBand {
+  clubId          String
+  yearGroupBandId String
+  createdAt       DateTime @default(now())
+
+  club          Club          @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  yearGroupBand YearGroupBand @relation(fields: [yearGroupBandId], references: [id], onDelete: Restrict)
+
+  @@id([clubId, yearGroupBandId])
+  @@index([yearGroupBandId])
 }
 
 enum ClubSignupStatus {

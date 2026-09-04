@@ -1,18 +1,33 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { C } from '../core/mobile-theme';
 import { Card, MutedText } from '../core/mobile-ui';
-import {
-  displaySchoolYearLabel,
-  initials,
-  type ParentDashboardChild,
-} from './parent-home-utils';
+import { displaySchoolYearLabel, initials, type ParentDashboardChild } from './parent-home-utils';
+
+export interface ParentChildSwitcherOption {
+  id: string;
+  fullName: string;
+  yearGroup: string;
+}
+
+type ParentChildSwitcherChild = ParentDashboardChild | ParentChildSwitcherOption;
+
+function switcherOption(child: ParentChildSwitcherChild): ParentChildSwitcherOption {
+  if ('student' in child) {
+    return {
+      id: child.student.id,
+      fullName: child.student.fullName,
+      yearGroup: child.student.yearGroup,
+    };
+  }
+  return child;
+}
 
 export function ParentChildSwitcher({
   children,
   onSelect,
   selectedChildId,
 }: {
-  children: readonly ParentDashboardChild[];
+  children: readonly ParentChildSwitcherChild[];
   onSelect: (studentId: string) => void;
   selectedChildId: string;
 }) {
@@ -26,27 +41,28 @@ export function ParentChildSwitcher({
       </View>
       <View style={styles.row}>
         {children.map((child) => {
-          const selected = child.student.id === selectedChildId;
+          const option = switcherOption(child);
+          const selected = option.id === selectedChildId;
           return (
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ selected }}
-              key={child.student.id}
+              key={option.id}
               onPress={() => {
-                onSelect(child.student.id);
+                onSelect(option.id);
               }}
               style={[styles.childButton, selected ? styles.childButtonActive : null]}
             >
               <View style={[styles.avatar, selected ? styles.avatarActive : null]}>
                 <Text style={[styles.avatarText, selected ? styles.avatarTextActive : null]}>
-                  {initials(child.student.fullName)}
+                  {initials(option.fullName)}
                 </Text>
               </View>
               <View style={styles.childText}>
                 <Text numberOfLines={1} style={styles.childName}>
-                  {child.student.fullName}
+                  {option.fullName}
                 </Text>
-                <Text style={styles.childYear}>{displaySchoolYearLabel(child.student.yearGroup)}</Text>
+                <Text style={styles.childYear}>{displaySchoolYearLabel(option.yearGroup)}</Text>
               </View>
             </Pressable>
           );

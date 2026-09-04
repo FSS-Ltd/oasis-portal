@@ -206,12 +206,17 @@ function CompletedWorkTab() {
 export function LinkedChildClubDetailClient({
   backHref,
   clubId,
+  studentId,
 }: {
   backHref: Route;
   clubId: string;
+  studentId: string;
 }) {
   const [activeTab, setActiveTab] = useState<LinkedClubDetailTab>('attendance');
-  const detailQuery = api.club.linkedChildClubDetail.useQuery({ clubId }, { retry: false });
+  const detailQuery = api.club.linkedChildClubDetail.useQuery(
+    { clubId, studentId },
+    { retry: false },
+  );
   const detail = detailQuery.data;
   const childSummary = useMemo(() => {
     if (!detail) return 'No linked child signed up';

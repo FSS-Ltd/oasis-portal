@@ -4,6 +4,8 @@ import {
   canOperateAssignedClub,
   canSignUpForClub,
   canUseLinkedChildClubSignup,
+  clubMatchesYearGroupBands,
+  formatClubSchedule,
   validateClubDraft,
 } from '../clubs.js';
 import { AccessDeniedError, type SessionUser } from '../rbac.js';
@@ -61,6 +63,36 @@ describe('canSignUpForClub', () => {
     expect(
       canSignUpForClub({ capacity: 10, currentActiveSignups: 3, alreadySignedUp: false }),
     ).toBe(true);
+  });
+});
+
+describe('club eligibility', () => {
+  const bands = [
+    { id: 'lower', name: 'Lower Primary', standardYears: ['Reception', 'Year 1'] },
+    { id: 'upper', name: 'Upper Primary', standardYears: ['Year 2', 'Year 3', 'Year 4'] },
+  ];
+
+  it('matches a child against any selected year-group band', () => {
+    expect(clubMatchesYearGroupBands('Year 3', bands)).toBe(true);
+    expect(clubMatchesYearGroupBands('Y3', bands)).toBe(true);
+    expect(clubMatchesYearGroupBands('Year 7', bands)).toBe(false);
+  });
+
+  it('treats a club with no selected bands as unavailable', () => {
+    expect(clubMatchesYearGroupBands('Year 3', [])).toBe(false);
+  });
+});
+
+describe('formatClubSchedule', () => {
+  it('renders the weekly day and 24-hour time range', () => {
+    expect(
+      formatClubSchedule({
+        startDate: new Date('2026-09-08T00:00:00.000Z'),
+        startMinute: 15 * 60 + 30,
+        endMinute: 16 * 60 + 30,
+        frequency: 'Weekly',
+      }),
+    ).toBe('Tuesdays · 15:30–16:30');
   });
 });
 

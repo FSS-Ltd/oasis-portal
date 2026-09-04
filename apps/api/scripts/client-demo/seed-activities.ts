@@ -26,6 +26,11 @@ async function seedClubs(ctx: SeedContext): Promise<void> {
       iconKey: 'music',
       accentColor: '#7c4dff',
       createdById: 'clientdemo_user_clubs_admin',
+      yearGroupBands: {
+        create: {
+          yearGroupBandId: 'clientdemo_band_upper_primary',
+        },
+      },
     },
   });
 

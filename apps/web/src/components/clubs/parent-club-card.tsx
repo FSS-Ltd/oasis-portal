@@ -53,6 +53,8 @@ interface ParentClubCardProps {
   club: ParentClub;
   disabled?: boolean;
   href?: ParentClubCardHref;
+  hideWithdraw?: boolean;
+  detailHref?: ParentClubCardHref;
   onSignUp?: (club: ParentClub) => void;
   onWithdraw?: (club: ParentClub) => void;
   pending?: boolean;
@@ -64,6 +66,8 @@ export function ParentClubCard({
   club,
   disabled = false,
   href,
+  hideWithdraw = false,
+  detailHref,
   onSignUp,
   onWithdraw,
   pending = false,
@@ -106,17 +110,26 @@ export function ParentClubCard({
         {actionMode ? (
           <div className="parent-club-card__actions club-card__actions">
             {signedUp ? (
-              <Button
-                onClick={() => {
-                  onWithdraw?.(club);
-                }}
-                pending={pending}
-                type="button"
-                variant="danger"
-              >
-                <XCircle aria-hidden="true" size={16} />
-                Withdraw
-              </Button>
+              <>
+                {detailHref ? (
+                  <Link className="button button--md button--secondary" href={detailHref}>
+                    View details
+                  </Link>
+                ) : null}
+                {!hideWithdraw ? (
+                  <Button
+                    onClick={() => {
+                      onWithdraw?.(club);
+                    }}
+                    pending={pending}
+                    type="button"
+                    variant="danger"
+                  >
+                    <XCircle aria-hidden="true" size={16} />
+                    Withdraw
+                  </Button>
+                ) : null}
+              </>
             ) : (
               <Button
                 disabled={cannotSignUp}

@@ -5351,6 +5351,44 @@
   gap: 8px;
 }
 
+.admin-club-year-group-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.admin-club-year-group-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--oasis-border-light);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.admin-club-year-group-list input {
+  margin-top: 2px;
+  accent-color: var(--oasis-blue);
+}
+
+.admin-club-year-group-list span {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-club-year-group-list strong {
+  color: var(--oasis-navy);
+  font-size: 0.82rem;
+}
+
+.admin-club-year-group-list small {
+  color: var(--oasis-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
 .club-card {
   display: grid;
   gap: 12px;

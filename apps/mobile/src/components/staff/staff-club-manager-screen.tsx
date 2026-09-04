@@ -2,16 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useClerk } from '@clerk/clerk-expo';
-import { api, type RouterOutputs } from '../../lib/trpc';
+import { api, type RouterInputs, type RouterOutputs } from '../../lib/trpc';
 import { C } from '../core/mobile-theme';
 import { PortalMobileHeader } from '../core/portal-mobile-shell';
-import { ErrorText, InlineSpinner } from '../core/mobile-ui';
+import { ErrorText, InlineSpinner, MobileButton } from '../core/mobile-ui';
 import { StaffClubManagerAttendance } from './staff-club-manager-attendance';
 import { StaffClubManagerClubList } from './staff-club-manager-club-list';
 import { StaffClubManagerNotices } from './staff-club-manager-notices';
 import { StaffClubManagerOverview } from './staff-club-manager-overview';
 import { StaffClubManagerRoster } from './staff-club-manager-roster';
 import { StaffClubManagerRota } from './staff-club-manager-rota';
+import { StaffClubManagerFormModal } from './staff-club-manager-form-modal';
 import {
   addDays,
   clubManagerTabs,
@@ -21,6 +22,7 @@ import {
   type StaffClubAttendanceRow,
   type StaffClubAttendanceStatus,
   type StaffClubManagerTab,
+  type StaffManagedClub,
   type StaffClubNoticeDraft,
   weekStartKey,
 } from './staff-club-manager-utils';
@@ -50,12 +52,16 @@ export function StaffClubManagerScreen({
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
   const [pendingAttendanceStudentId, setPendingAttendanceStudentId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorClub, setEditorClub] = useState<StaffManagedClub | null>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const attendanceDate = useMemo(() => dateFromKey(attendanceDateKey), [attendanceDateKey]);
   const weekStart = useMemo(() => dateFromKey(weekStartDateKey), [weekStartDateKey]);
   const weekEndDateKey = useMemo(() => addDays(weekStartDateKey, 6), [weekStartDateKey]);
   const weekEnd = useMemo(() => dateFromKey(weekEndDateKey), [weekEndDateKey]);
 
   const managedClubs = api.club.managementList.useQuery(undefined, { retry: false });
+  const yearGroupBands = api.club.yearGroupBands.useQuery(undefined, { retry: false });
   const clubs = managedClubs.data ?? [];
   const selectedClub = clubs.find((club) => club.id === selectedClubId) ?? clubs[0] ?? null;
   const clubId = selectedClub?.id ?? '';
@@ -80,6 +86,8 @@ export function StaffClubManagerScreen({
   const markAttendance = api.club.markAttendance.useMutation();
   const resetAttendance = api.club.resetAttendanceForSession.useMutation();
   const sendNotice = api.club.notify.useMutation();
+  const createClub = api.club.create.useMutation();
+  const updateClub = api.club.update.useMutation();
 
   useEffect(() => {
     if (!selectedClubId && clubs[0]) {
@@ -97,7 +105,35 @@ export function StaffClubManagerScreen({
       selectedClub ? attendance.refetch() : Promise.resolve(),
       selectedClub ? notifications.refetch() : Promise.resolve(),
       selectedClub ? rotaSchedule.refetch() : Promise.resolve(),
+      yearGroupBands.refetch(),
     ]);
+  }
+
+  function openClubEditor(club: StaffManagedClub | null) {
+    setEditorClub(club);
+    setEditorError(null);
+    setEditorOpen(true);
+  }
+
+  async function saveClub(payload: RouterInputs['club']['create']) {
+    setEditorError(null);
+    try {
+      const saved = editorClub
+        ? await updateClub.mutateAsync({ ...payload, id: editorClub.id })
+        : await createClub.mutateAsync(payload);
+      setSelectedClubId(saved.id);
+      setEditorOpen(false);
+      setStatusMessage({
+        message: editorClub ? 'Club updated.' : 'Club created.',
+        tone: 'success',
+      });
+      await Promise.all([
+        utils.club.managementList.invalidate(),
+        utils.club.linkedChildSignupContext.invalidate(),
+      ]);
+    } catch (error) {
+      setEditorError(friendlyError(error));
+    }
   }
 
   function changeAttendanceDate(direction: 'next' | 'previous' | 'today') {
@@ -257,6 +293,13 @@ export function StaffClubManagerScreen({
             <Text style={styles.title}>All clubs, registers, notices and rota cover</Text>
           </View>
         </View>
+        <MobileButton
+          compact
+          label="New club"
+          onPress={() => {
+            openClubEditor(null);
+          }}
+        />
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -289,6 +332,14 @@ export function StaffClubManagerScreen({
                   setActiveTab('overview');
                 }}
                 selectedClubId={selectedClub.id}
+              />
+              <MobileButton
+                compact
+                label="Edit selected club"
+                onPress={() => {
+                  openClubEditor(selectedClub);
+                }}
+                variant="secondary"
               />
 
               <View style={styles.tabRow}>
@@ -382,6 +433,19 @@ export function StaffClubManagerScreen({
           ) : null}
         </ScrollView>
       </View>
+      <StaffClubManagerFormModal
+        club={editorClub}
+        error={editorError ?? (yearGroupBands.error ? yearGroupBands.error.message : null)}
+        onClose={() => {
+          setEditorOpen(false);
+        }}
+        onSubmit={(payload) => {
+          void saveClub(payload);
+        }}
+        pending={createClub.isPending || updateClub.isPending}
+        visible={editorOpen}
+        yearGroupBands={yearGroupBands.data ?? []}
+      />
     </SafeAreaView>
   );
 }
